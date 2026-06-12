@@ -1,0 +1,112 @@
+<?php
+
+include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
+
+class modMjlFinancement extends DolibarrModules
+{
+	public function __construct($db)
+	{
+		$this->db = $db;
+		$this->numero = 520000;
+		$this->rights_class = 'mjlfinancement';
+		$this->family = 'financial';
+		$this->module_position = '95';
+		$this->name = preg_replace('/^mod/i', '', get_class($this));
+		$this->description = 'MJL financing POC';
+		$this->descriptionlong = 'MJL financing POC module for conventions, budget lines, and expenses.';
+		$this->version = '0.1.0';
+		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
+		$this->picto = 'money-bill';
+		$this->module_parts = array(
+			'triggers' => 0,
+			'login' => 0,
+			'substitutions' => 0,
+			'menus' => 0,
+			'tpl' => 0,
+			'barcode' => 0,
+			'models' => 0,
+			'printing' => 0,
+			'theme' => 0,
+			'css' => array(),
+			'js' => array(),
+			'hooks' => array(),
+			'moduleforexternal' => 0,
+			'websitetemplates' => 0,
+			'captcha' => 0,
+		);
+		$this->dirs = array('/mjlfinancement/temp');
+		$this->config_page_url = array();
+		$this->hidden = false;
+		$this->depends = array('modSociete', 'modProjet', 'modECM', 'modExpenseReport', 'modExport');
+		$this->requiredby = array();
+		$this->conflictwith = array();
+		$this->langfiles = array('mjlfinancement@mjlfinancement');
+		$this->phpmin = array(7, 4);
+		$this->need_dolibarr_version = array(23, 0);
+		$this->const = array();
+		$this->tabs = array();
+		$this->dictionaries = array();
+		$this->boxes = array();
+		$this->cronjobs = array();
+
+		$this->rights = array();
+		$r = 0;
+		$this->addRight($r, 1, 'Read MJL conventions', 'convention', 'read');
+		$this->addRight($r, 2, 'Create/update MJL conventions', 'convention', 'write');
+		$this->addRight($r, 3, 'Delete MJL conventions', 'convention', 'delete');
+		$this->addRight($r, 11, 'Read MJL budget lines', 'budgetline', 'read');
+		$this->addRight($r, 12, 'Create/update MJL budget lines', 'budgetline', 'write');
+		$this->addRight($r, 13, 'Delete MJL budget lines', 'budgetline', 'delete');
+		$this->addRight($r, 21, 'Read MJL expenses', 'expense', 'read');
+		$this->addRight($r, 22, 'Create/update MJL expenses', 'expense', 'write');
+		$this->addRight($r, 23, 'Delete MJL expenses', 'expense', 'delete');
+		$this->addRight($r, 24, 'Validate MJL expenses', 'expense', 'validate');
+		$this->addRight($r, 31, 'Read MJL exports', 'export', 'read');
+		$this->addRight($r, 41, 'Read MJL fund receipts', 'fundreceipt', 'read');
+		$this->addRight($r, 42, 'Create/update MJL fund receipts', 'fundreceipt', 'write');
+
+		$this->menu = array();
+		$r = 0;
+		$this->menu[$r++] = array(
+			'fk_menu' => '',
+			'type' => 'top',
+			'titre' => 'MJLFinancement',
+			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle"'),
+			'mainmenu' => 'mjlfinancement',
+			'leftmenu' => '',
+			'url' => '/mjlfinancement/index.php',
+			'langs' => 'mjlfinancement@mjlfinancement',
+			'position' => 1000,
+			'enabled' => "isModEnabled('mjlfinancement')",
+			'perms' => '$user->hasRight("mjlfinancement", "convention", "read") || $user->hasRight("mjlfinancement", "budgetline", "read") || $user->hasRight("mjlfinancement", "expense", "read")',
+			'target' => '',
+			'user' => 2,
+		);
+	}
+
+	private function addRight(&$r, $offset, $label, $perms, $subperms)
+	{
+		$this->rights[$r][0] = $this->numero + $offset;
+		$this->rights[$r][1] = $label;
+		$this->rights[$r][2] = in_array($subperms, array('read', 'validate'), true) ? 'r' : ($subperms === 'delete' ? 'd' : 'w');
+		$this->rights[$r][3] = 0;
+		$this->rights[$r][4] = $perms;
+		$this->rights[$r][5] = $subperms;
+		$r++;
+	}
+
+	public function init($options = '')
+	{
+		$result = $this->_load_tables('/mjlfinancement/sql/');
+		if ($result < 0) {
+			return -1;
+		}
+		$this->remove($options);
+		return $this->_init(array(), $options);
+	}
+
+	public function remove($options = '')
+	{
+		return $this->_remove(array(), $options);
+	}
+}

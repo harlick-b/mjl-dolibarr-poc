@@ -1,0 +1,19 @@
+CREATE TABLE llx_mjlfinancement_convention (
+	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+	entity INTEGER DEFAULT 1 NOT NULL,
+	ref VARCHAR(128) NOT NULL,
+	label VARCHAR(255),
+	fk_soc INTEGER NOT NULL,
+	fk_project INTEGER DEFAULT NULL,
+	amount DOUBLE(24,8) DEFAULT NULL,
+	date_start DATE DEFAULT NULL,
+	date_end DATE DEFAULT NULL,
+	note_public TEXT,
+	note_private TEXT,
+	date_creation DATETIME NOT NULL,
+	tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	fk_user_creat INTEGER NOT NULL,
+	fk_user_modif INTEGER DEFAULT NULL,
+	import_key VARCHAR(14),
+	status INTEGER DEFAULT 0 NOT NULL
+) ENGINE=innodb;

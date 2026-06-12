@@ -1,0 +1,6 @@
+ALTER TABLE llx_mjlfinancement_budget_line ADD UNIQUE INDEX uk_mjlfinancement_budget_line_ref_entity (ref, entity);
+ALTER TABLE llx_mjlfinancement_budget_line ADD INDEX idx_mjlfinancement_budget_line_entity (entity);
+ALTER TABLE llx_mjlfinancement_budget_line ADD INDEX idx_mjlfinancement_budget_line_fk_convention (fk_convention);
+ALTER TABLE llx_mjlfinancement_budget_line ADD INDEX idx_mjlfinancement_budget_line_fk_project (fk_project);
+ALTER TABLE llx_mjlfinancement_budget_line ADD CONSTRAINT fk_mjlfinancement_budget_line_convention FOREIGN KEY (fk_convention) REFERENCES llx_mjlfinancement_convention(rowid);
+ALTER TABLE llx_mjlfinancement_budget_line ADD CONSTRAINT fk_mjlfinancement_budget_line_project FOREIGN KEY (fk_project) REFERENCES llx_projet(rowid);

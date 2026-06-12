@@ -1,0 +1,6 @@
+ALTER TABLE llx_mjlfinancement_expense ADD UNIQUE INDEX uk_mjlfinancement_expense_ref_entity (ref, entity);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_entity (entity);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_budget_line (fk_budget_line);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_expensereport (fk_expensereport);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_budget_line FOREIGN KEY (fk_budget_line) REFERENCES llx_mjlfinancement_budget_line(rowid);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_expensereport FOREIGN KEY (fk_expensereport) REFERENCES llx_expensereport(rowid);
