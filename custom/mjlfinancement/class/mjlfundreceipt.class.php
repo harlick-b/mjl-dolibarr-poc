@@ -2,13 +2,13 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 
-class MjlBudgetLine extends CommonObject
+class MjlFundReceipt extends CommonObject
 {
 	public $module = 'mjlfinancement';
-	public $element = 'mjlbudgetline';
-	public $TRIGGER_PREFIX = 'MJLFINANCEMENT_BUDGETLINE';
-	public $table_element = 'mjlfinancement_budget_line';
-	public $picto = 'accounting';
+	public $element = 'mjlfundreceipt';
+	public $TRIGGER_PREFIX = 'MJLFINANCEMENT_FUNDRECEIPT';
+	public $table_element = 'mjlfinancement_fund_receipt';
+	public $picto = 'payment';
 	public $isextrafieldmanaged = 0;
 	public $ismultientitymanaged = 1;
 
@@ -16,17 +16,14 @@ class MjlBudgetLine extends CommonObject
 		'rowid' => array('type' => 'integer', 'label' => 'TechnicalID', 'enabled' => 1, 'position' => 1, 'notnull' => 1, 'visible' => 0, 'noteditable' => 1, 'index' => 1),
 		'entity' => array('type' => 'integer', 'label' => 'Entity', 'enabled' => 1, 'position' => 5, 'notnull' => 1, 'visible' => 0, 'default' => '1', 'index' => 1),
 		'ref' => array('type' => 'varchar(128)', 'label' => 'Ref', 'enabled' => 1, 'position' => 20, 'notnull' => 1, 'visible' => 1, 'index' => 1, 'searchall' => 1, 'showoncombobox' => 1, 'validate' => 1),
-		'label' => array('type' => 'varchar(255)', 'label' => 'Label', 'enabled' => 1, 'position' => 30, 'notnull' => 0, 'visible' => 1, 'searchall' => 1, 'showoncombobox' => 2, 'validate' => 1),
+		'fk_soc' => array('type' => 'integer:Societe:societe/class/societe.class.php:1:((status:=:1) AND (entity:IN:__SHARED_ENTITIES__))', 'label' => 'MJLPTFBailleur', 'picto' => 'company', 'enabled' => 'isModEnabled("societe")', 'position' => 30, 'notnull' => 1, 'visible' => 1, 'index' => 1, 'validate' => 1),
 		'fk_project' => array('type' => 'integer:Project:projet/class/project.class.php:1', 'label' => 'Project', 'picto' => 'project', 'enabled' => 'isModEnabled("project")', 'position' => 35, 'notnull' => -1, 'visible' => 1, 'index' => 1, 'validate' => 1),
 		'fk_convention' => array('type' => 'integer:MjlConvention:mjlfinancement/class/mjlconvention.class.php:1', 'label' => 'MJLConvention', 'enabled' => 1, 'position' => 40, 'notnull' => 1, 'visible' => 1, 'index' => 1, 'validate' => 1),
-		'fk_mjl_activity' => array('type' => 'integer:MjlActivity:mjlfinancement/class/mjlactivity.class.php:1', 'label' => 'MJLActivity', 'enabled' => 1, 'position' => 45, 'notnull' => -1, 'visible' => 1, 'index' => 1, 'validate' => 1),
-		'fk_activity' => array('type' => 'integer:Task:projet/class/task.class.php:1', 'label' => 'MJLProjectTask', 'picto' => 'projecttask', 'enabled' => 'isModEnabled("project")', 'position' => 50, 'notnull' => -1, 'visible' => 1, 'index' => 1, 'validate' => 1),
-		'initial_budget' => array('type' => 'price', 'label' => 'MJLInitialBudget', 'enabled' => 1, 'position' => 60, 'notnull' => 0, 'visible' => 1, 'isameasure' => 1, 'validate' => 1),
-		'revised_budget' => array('type' => 'price', 'label' => 'MJLRevisedBudget', 'enabled' => 1, 'position' => 70, 'notnull' => 0, 'visible' => 1, 'isameasure' => 1, 'validate' => 1),
-		'committed_amount' => array('type' => 'price', 'label' => 'MJLCommittedAmount', 'enabled' => 1, 'position' => 80, 'notnull' => 0, 'visible' => 1, 'noteditable' => 1, 'isameasure' => 1, 'validate' => 1),
-		'spent_amount' => array('type' => 'price', 'label' => 'MJLSpentAmount', 'enabled' => 1, 'position' => 90, 'notnull' => 0, 'visible' => 1, 'noteditable' => 1, 'isameasure' => 1, 'validate' => 1),
-		'remaining_amount' => array('type' => 'price', 'label' => 'MJLRemainingAmount', 'enabled' => 1, 'position' => 100, 'notnull' => 0, 'visible' => 1, 'noteditable' => 1, 'isameasure' => 1, 'validate' => 1),
-		'category' => array('type' => 'varchar(64)', 'label' => 'Category', 'enabled' => 1, 'position' => 110, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
+		'amount' => array('type' => 'price', 'label' => 'Amount', 'enabled' => 1, 'position' => 50, 'notnull' => 1, 'visible' => 1, 'isameasure' => 1, 'validate' => 1),
+		'reception_date' => array('type' => 'date', 'label' => 'MJLReceptionDate', 'enabled' => 1, 'position' => 60, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
+		'supporting_document' => array('type' => 'varchar(255)', 'label' => 'MJLSupportingDocument', 'enabled' => 1, 'position' => 70, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
+		'comment' => array('type' => 'text', 'label' => 'Comment', 'enabled' => 1, 'position' => 80, 'notnull' => 0, 'visible' => 1, 'validate' => 1),
+		'status' => array('type' => 'integer', 'label' => 'Status', 'enabled' => 1, 'position' => 90, 'notnull' => 1, 'visible' => 1, 'index' => 1, 'default' => '0', 'arrayofkeyval' => array(0 => 'Draft', 1 => 'MJLRecorded', 8 => 'MJLNotReceived'), 'validate' => 1),
 		'note_public' => array('type' => 'html', 'label' => 'NotePublic', 'enabled' => 1, 'position' => 500, 'notnull' => 0, 'visible' => 0, 'validate' => 1),
 		'note_private' => array('type' => 'html', 'label' => 'NotePrivate', 'enabled' => 1, 'position' => 510, 'notnull' => 0, 'visible' => 0, 'validate' => 1),
 		'date_creation' => array('type' => 'datetime', 'label' => 'DateCreation', 'enabled' => 1, 'position' => 600, 'notnull' => 1, 'visible' => -2),
@@ -34,22 +31,18 @@ class MjlBudgetLine extends CommonObject
 		'fk_user_creat' => array('type' => 'integer:User:user/class/user.class.php', 'label' => 'UserAuthor', 'enabled' => 1, 'position' => 620, 'notnull' => 1, 'visible' => -2),
 		'fk_user_modif' => array('type' => 'integer:User:user/class/user.class.php', 'label' => 'UserModif', 'enabled' => 1, 'position' => 630, 'notnull' => -1, 'visible' => -2),
 		'import_key' => array('type' => 'varchar(14)', 'label' => 'ImportId', 'enabled' => 1, 'position' => 1000, 'notnull' => -1, 'visible' => -2),
-		'status' => array('type' => 'integer', 'label' => 'Status', 'enabled' => 1, 'position' => 2000, 'notnull' => 1, 'visible' => 1, 'index' => 1, 'default' => '0', 'arrayofkeyval' => array(0 => 'Draft', 1 => 'Active'), 'validate' => 1),
 	);
 
 	public $rowid;
 	public $ref;
-	public $label;
+	public $fk_soc;
+	public $socid;
 	public $fk_project;
 	public $fk_convention;
-	public $fk_mjl_activity;
-	public $fk_activity;
-	public $initial_budget;
-	public $revised_budget;
-	public $committed_amount;
-	public $spent_amount;
-	public $remaining_amount;
-	public $category;
+	public $amount;
+	public $reception_date;
+	public $supporting_document;
+	public $comment;
 	public $status;
 	public $note_public;
 	public $note_private;

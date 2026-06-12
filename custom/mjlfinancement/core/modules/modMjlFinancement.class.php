@@ -13,8 +13,8 @@ class modMjlFinancement extends DolibarrModules
 		$this->module_position = '95';
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'MJL financing POC';
-		$this->descriptionlong = 'MJL financing POC module for conventions, budget lines, and expenses.';
-		$this->version = '0.1.0';
+		$this->descriptionlong = 'MJL financing POC module for conventions, activities, budget lines, expenses, fund receipts, validations, and reports.';
+		$this->version = '0.3.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(
@@ -54,6 +54,9 @@ class modMjlFinancement extends DolibarrModules
 		$this->addRight($r, 1, 'Read MJL conventions', 'convention', 'read');
 		$this->addRight($r, 2, 'Create/update MJL conventions', 'convention', 'write');
 		$this->addRight($r, 3, 'Delete MJL conventions', 'convention', 'delete');
+		$this->addRight($r, 6, 'Read MJL activities', 'activity', 'read');
+		$this->addRight($r, 7, 'Create/update MJL activities', 'activity', 'write');
+		$this->addRight($r, 8, 'Delete MJL activities', 'activity', 'delete');
 		$this->addRight($r, 11, 'Read MJL budget lines', 'budgetline', 'read');
 		$this->addRight($r, 12, 'Create/update MJL budget lines', 'budgetline', 'write');
 		$this->addRight($r, 13, 'Delete MJL budget lines', 'budgetline', 'delete');
@@ -62,8 +65,13 @@ class modMjlFinancement extends DolibarrModules
 		$this->addRight($r, 23, 'Delete MJL expenses', 'expense', 'delete');
 		$this->addRight($r, 24, 'Validate MJL expenses', 'expense', 'validate');
 		$this->addRight($r, 31, 'Read MJL exports', 'export', 'read');
+		$this->addRight($r, 32, 'Export MJL reports', 'export', 'write');
 		$this->addRight($r, 41, 'Read MJL fund receipts', 'fundreceipt', 'read');
 		$this->addRight($r, 42, 'Create/update MJL fund receipts', 'fundreceipt', 'write');
+		$this->addRight($r, 51, 'Read MJL validations', 'validation', 'read');
+		$this->addRight($r, 52, 'Create/update MJL validations', 'validation', 'write');
+		$this->addRight($r, 61, 'Read MJL reports', 'report', 'read');
+		$this->addRight($r, 62, 'Create/update MJL reports', 'report', 'write');
 
 		$this->menu = array();
 		$r = 0;
@@ -74,11 +82,11 @@ class modMjlFinancement extends DolibarrModules
 			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle"'),
 			'mainmenu' => 'mjlfinancement',
 			'leftmenu' => '',
-			'url' => '/mjlfinancement/index.php',
+				'url' => '/custom/mjlfinancement/index.php',
 			'langs' => 'mjlfinancement@mjlfinancement',
 			'position' => 1000,
 			'enabled' => "isModEnabled('mjlfinancement')",
-			'perms' => '$user->hasRight("mjlfinancement", "convention", "read") || $user->hasRight("mjlfinancement", "budgetline", "read") || $user->hasRight("mjlfinancement", "expense", "read")',
+			'perms' => '$user->hasRight("mjlfinancement", "convention", "read") || $user->hasRight("mjlfinancement", "activity", "read") || $user->hasRight("mjlfinancement", "budgetline", "read") || $user->hasRight("mjlfinancement", "expense", "read") || $user->hasRight("mjlfinancement", "fundreceipt", "read") || $user->hasRight("mjlfinancement", "report", "read")',
 			'target' => '',
 			'user' => 2,
 		);

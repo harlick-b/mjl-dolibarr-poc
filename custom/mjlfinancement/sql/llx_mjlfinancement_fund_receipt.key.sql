@@ -1,0 +1,8 @@
+ALTER TABLE llx_mjlfinancement_fund_receipt ADD UNIQUE INDEX uk_mjlfinancement_fund_receipt_ref_entity (ref, entity);
+ALTER TABLE llx_mjlfinancement_fund_receipt ADD INDEX idx_mjlfinancement_fund_receipt_entity (entity);
+ALTER TABLE llx_mjlfinancement_fund_receipt ADD INDEX idx_mjlfinancement_fund_receipt_fk_soc (fk_soc);
+ALTER TABLE llx_mjlfinancement_fund_receipt ADD INDEX idx_mjlfinancement_fund_receipt_fk_project (fk_project);
+ALTER TABLE llx_mjlfinancement_fund_receipt ADD INDEX idx_mjlfinancement_fund_receipt_fk_convention (fk_convention);
+ALTER TABLE llx_mjlfinancement_fund_receipt ADD CONSTRAINT fk_mjlfinancement_fund_receipt_soc FOREIGN KEY (fk_soc) REFERENCES llx_societe(rowid);
+ALTER TABLE llx_mjlfinancement_fund_receipt ADD CONSTRAINT fk_mjlfinancement_fund_receipt_project FOREIGN KEY (fk_project) REFERENCES llx_projet(rowid);
+ALTER TABLE llx_mjlfinancement_fund_receipt ADD CONSTRAINT fk_mjlfinancement_fund_receipt_convention FOREIGN KEY (fk_convention) REFERENCES llx_mjlfinancement_convention(rowid);

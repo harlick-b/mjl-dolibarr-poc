@@ -1,0 +1,15 @@
+CREATE TABLE llx_mjlfinancement_report (
+	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+	entity INTEGER DEFAULT 1 NOT NULL,
+	ref VARCHAR(128) NOT NULL,
+	name VARCHAR(255) NOT NULL,
+	scope VARCHAR(32) NOT NULL,
+	expected_format VARCHAR(64) DEFAULT NULL,
+	filters TEXT,
+	must_include TEXT,
+	date_creation DATETIME NOT NULL,
+	tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	fk_user_creat INTEGER NOT NULL,
+	fk_user_modif INTEGER DEFAULT NULL,
+	import_key VARCHAR(14)
+) ENGINE=innodb;

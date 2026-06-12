@@ -1,6 +1,12 @@
 ALTER TABLE llx_mjlfinancement_expense ADD UNIQUE INDEX uk_mjlfinancement_expense_ref_entity (ref, entity);
 ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_entity (entity);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_project (fk_project);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_convention (fk_convention);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_mjl_activity (fk_mjl_activity);
 ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_budget_line (fk_budget_line);
-ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_expensereport (fk_expensereport);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_user_valid (fk_user_valid);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_project FOREIGN KEY (fk_project) REFERENCES llx_projet(rowid);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_convention FOREIGN KEY (fk_convention) REFERENCES llx_mjlfinancement_convention(rowid);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_mjl_activity FOREIGN KEY (fk_mjl_activity) REFERENCES llx_mjlfinancement_activity(rowid);
 ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_budget_line FOREIGN KEY (fk_budget_line) REFERENCES llx_mjlfinancement_budget_line(rowid);
-ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_expensereport FOREIGN KEY (fk_expensereport) REFERENCES llx_expensereport(rowid);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_user_valid FOREIGN KEY (fk_user_valid) REFERENCES llx_user(rowid);

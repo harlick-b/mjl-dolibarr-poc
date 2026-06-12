@@ -1,20 +1,20 @@
-CREATE TABLE llx_mjlfinancement_convention (
+CREATE TABLE llx_mjlfinancement_fund_receipt (
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,
 	ref VARCHAR(128) NOT NULL,
-	title VARCHAR(255) NOT NULL,
 	fk_soc INTEGER NOT NULL,
 	fk_project INTEGER DEFAULT NULL,
-	date_start DATE DEFAULT NULL,
-	date_end DATE DEFAULT NULL,
-	total_amount DOUBLE(24,8) DEFAULT NULL,
-	currency_code VARCHAR(3) DEFAULT 'XOF' NOT NULL,
+	fk_convention INTEGER NOT NULL,
+	amount DOUBLE(24,8) NOT NULL,
+	reception_date DATE DEFAULT NULL,
+	supporting_document VARCHAR(255) DEFAULT NULL,
+	comment TEXT,
+	status INTEGER DEFAULT 0 NOT NULL,
 	note_public TEXT,
 	note_private TEXT,
 	date_creation DATETIME NOT NULL,
 	tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 	fk_user_creat INTEGER NOT NULL,
 	fk_user_modif INTEGER DEFAULT NULL,
-	import_key VARCHAR(14),
-	status INTEGER DEFAULT 0 NOT NULL
+	import_key VARCHAR(14)
 ) ENGINE=innodb;

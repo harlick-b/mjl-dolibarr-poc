@@ -1,0 +1,17 @@
+CREATE TABLE llx_mjlfinancement_validation (
+	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+	entity INTEGER DEFAULT 1 NOT NULL,
+	ref VARCHAR(128) NOT NULL,
+	fk_expense INTEGER NOT NULL,
+	action VARCHAR(32) NOT NULL,
+	from_status VARCHAR(32) DEFAULT NULL,
+	to_status VARCHAR(32) NOT NULL,
+	fk_user_action INTEGER NOT NULL,
+	action_date DATETIME NOT NULL,
+	comment TEXT,
+	date_creation DATETIME NOT NULL,
+	tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	fk_user_creat INTEGER NOT NULL,
+	fk_user_modif INTEGER DEFAULT NULL,
+	import_key VARCHAR(14)
+) ENGINE=innodb;
