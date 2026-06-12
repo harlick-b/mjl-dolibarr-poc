@@ -1,0 +1,36 @@
+services:
+  mariadb:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: poc_root_pwd
+      MYSQL_DATABASE: dolidb
+      MYSQL_USER: dolidbuser
+      MYSQL_PASSWORD: poc_pwd
+    volumes:
+      - ./data/mariadb:/var/lib/mysql
+
+  dolibarr:
+    image: dolibarr/dolibarr:23.0.2
+    restart: unless-stopped
+    depends_on:
+      - mariadb
+    environment:
+      DOLI_DB_HOST: mariadb
+      DOLI_DB_NAME: dolidb
+      DOLI_DB_USER: dolidbuser
+      DOLI_DB_PASSWORD: poc_pwd
+      DOLI_URL_ROOT: http://localhost:8080
+      DOLI_ADMIN_LOGIN: admin
+      DOLI_ADMIN_PASSWORD: Admin1234
+      MJL_POC_DEFAULT_PASSWORD: ${MJL_POC_DEFAULT_PASSWORD:-MjlPoc2026!!}
+      DOLI_COMPANY_NAME: MJL POC
+      DOLI_COMPANY_COUNTRYCODE: BJ
+      PHP_INI_DATE_TIMEZONE: Africa/Porto-Novo
+      PHP_INI_UPLOAD_MAX_FILESIZE: 20M
+      PHP_INI_POST_MAX_SIZE: 25M
+    ports:
+      - "8080:80"
+    volumes:
+      - ./data/documents:/var/www/documents
+      - ./custom:/var/www/html/custom
