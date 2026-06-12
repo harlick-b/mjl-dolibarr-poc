@@ -1,5 +1,11 @@
 ## MJL Dolibarr POC
 
+See `docs/07-actual-capabilities.md` for a code-based inventory of what this
+repository can actually do today.
+
+See `docs/08-clean-install-verification.md` for the disposable clean-install
+regression check.
+
 Start Dolibarr:
 
 ```bash
