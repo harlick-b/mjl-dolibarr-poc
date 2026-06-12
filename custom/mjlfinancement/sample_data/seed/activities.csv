@@ -1,0 +1,6 @@
+activity_id,ref,label,project_id,convention_id,start_date,end_date,status
+ACT-JE-001,ACT-JE-001,Atelier de formation des magistrats pour mineurs,PRJ-JE-2026,CONV-UNICEF-2026-001,2026-03-10,2026-03-12,completed
+ACT-JE-002,ACT-JE-002,Mission terrain dans les juridictions pilotes,PRJ-JE-2026,CONV-UNICEF-2026-001,2026-05-20,2026-05-25,completed
+ACT-JE-003,ACT-JE-003,Acquisition de matériel pédagogique,PRJ-JE-2026,CONV-UNICEF-2026-001,2026-06-15,2026-07-15,ongoing
+ACT-RED-001,ACT-RED-001,Atelier sur les mécanismes de redevabilité,PRJ-RED-2026,CONV-RED-2026-001,2026-04-05,2026-04-07,completed
+ACT-RED-002,ACT-RED-002,Élaboration du rapport institutionnel semestriel,PRJ-RED-2026,CONV-RED-2026-001,2026-06-01,2026-06-30,ongoing

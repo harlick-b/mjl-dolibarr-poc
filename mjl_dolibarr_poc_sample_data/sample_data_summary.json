@@ -1,0 +1,21 @@
+{
+  "projects": 3,
+  "ptfs": 3,
+  "conventions": 3,
+  "activities": 5,
+  "budget_lines": 8,
+  "fund_receipts": 4,
+  "expenses": 7,
+  "validation_events": 4,
+  "documents": 10,
+  "users": 5,
+  "reports": 3,
+  "currency": "XOF",
+  "edge_cases": [
+    "Rejected over-budget expense EXP-JE-003",
+    "Corrected expense EXP-JE-004",
+    "Missing supporting document EXP-JE-005",
+    "Draft project/convention without funds PRJ-EXT-2026",
+    "Read-only user permissions"
+  ]
+}

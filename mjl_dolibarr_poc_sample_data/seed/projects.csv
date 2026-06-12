@@ -1,0 +1,4 @@
+project_id,ref,title,ptf_id,owner_department,start_date,end_date,status,description
+PRJ-JE-2026,PRJ-JE-2026,Projet Justice Enfants,PTF-UNICEF,Direction de la Protection Judiciaire de l'Enfance,2026-01-15,2026-12-31,active,Suivi financier des activités financées par l'UNICEF pour la justice des enfants.
+PRJ-RED-2026,PRJ-RED-2026,Projet Redevabilité Institutionnelle,PTF-REDEV,Secrétariat Général du Ministère,2026-02-01,2026-11-30,active,Suivi financier des activités du programme Redevabilité.
+PRJ-EXT-2026,PRJ-EXT-2026,Projet Extension PTF Test,PTF-TEST,Direction des Systèmes d'Information,2026-04-01,2026-10-31,draft,Projet test pour vérifier l'extensibilité vers d'autres PTF.

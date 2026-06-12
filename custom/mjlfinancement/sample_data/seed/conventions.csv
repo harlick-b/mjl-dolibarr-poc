@@ -1,0 +1,4 @@
+convention_id,ref,title,project_id,ptf_id,start_date,end_date,total_amount_xof,currency,status
+CONV-UNICEF-2026-001,CONV-UNICEF-2026-001,Convention UNICEF Justice Enfants 2026,PRJ-JE-2026,PTF-UNICEF,2026-01-15,2026-12-31,6000000,XOF,active
+CONV-RED-2026-001,CONV-RED-2026-001,Convention Programme Redevabilité 2026,PRJ-RED-2026,PTF-REDEV,2026-02-01,2026-11-30,4500000,XOF,active
+CONV-TEST-2026-001,CONV-TEST-2026-001,Convention Test Extension PTF,PRJ-EXT-2026,PTF-TEST,2026-04-01,2026-10-31,2000000,XOF,draft

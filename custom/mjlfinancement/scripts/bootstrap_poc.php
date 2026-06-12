@@ -6,6 +6,7 @@ require '/var/www/html/main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/usergroup.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_sample_data.lib.php';
 
 global $conf, $db, $user;
 
@@ -36,90 +37,88 @@ foreach ($modules as $module) {
 	if ($result < 0) {
 		fail('Failed to activate '.$module);
 	}
-	out('Activated '.$module);
+	mjl_out('Activated '.$module);
 }
 
-foreach (array('MAIN_MODULE_USER', 'MAIN_MODULE_SOCIETE', 'MAIN_MODULE_PROJET', 'MAIN_MODULE_ECM', 'MAIN_MODULE_ACCOUNTING', 'MAIN_MODULE_EXPENSEREPORT', 'MAIN_MODULE_EXPORT', 'MAIN_MODULE_MODULEBUILDER', 'MAIN_MODULE_API', 'MAIN_MODULE_MJLFINANCEMENT') as $constant) {
-	assertConstant($constant, $entity);
-}
+mjl_ensure_schema();
 
-$groups = array(
-	'MJL POC - Comptable' => array(
-		array('societe', 'lire', null),
-		array('projet', 'lire', null),
-		array('ecm', 'read', null),
-		array('ecm', 'upload', null),
-		array('expensereport', 'lire', null),
-		array('expensereport', 'creer', null),
-		array('expensereport', 'export', null),
-		array('mjlfinancement', 'convention', 'read'),
-		array('mjlfinancement', 'budgetline', 'read'),
-		array('mjlfinancement', 'expense', 'read'),
-		array('mjlfinancement', 'expense', 'write'),
-	),
-	'MJL POC - Responsable Projet' => array(
-		array('societe', 'lire', null),
-		array('projet', 'lire', null),
-		array('projet', 'all', 'lire'),
-		array('ecm', 'read', null),
-		array('mjlfinancement', 'convention', 'read'),
-		array('mjlfinancement', 'budgetline', 'read'),
-		array('mjlfinancement', 'expense', 'read'),
-	),
-	'MJL POC - Validateur' => array(
-		array('societe', 'lire', null),
-		array('projet', 'lire', null),
-		array('ecm', 'read', null),
-		array('expensereport', 'lire', null),
-		array('expensereport', 'approve', null),
-		array('mjlfinancement', 'expense', 'read'),
-		array('mjlfinancement', 'expense', 'validate'),
-	),
-	'MJL POC - Lecteur' => array(
-		array('societe', 'lire', null),
-		array('projet', 'lire', null),
-		array('ecm', 'read', null),
-		array('mjlfinancement', 'convention', 'read'),
-		array('mjlfinancement', 'budgetline', 'read'),
-		array('mjlfinancement', 'expense', 'read'),
-		array('mjlfinancement', 'export', 'read'),
-	),
-	'MJL POC - Admin' => array(),
-);
-
+$roles = mjl_csv_map('roles_permissions.csv', 'role_code');
+$users = mjl_csv_rows('users.csv');
 $groupIds = array();
-foreach ($groups as $groupName => $rights) {
-	$groupIds[$groupName] = ensureGroup($groupName, $entity);
+
+foreach ($roles as $roleCode => $role) {
+	$groupIds[$roleCode] = ensureGroup('MJL POC - '.$role['label_fr'], $entity);
 }
 
 resetGroupRights(array_values($groupIds), $entity);
 
-foreach ($groups as $groupName => $rights) {
-	foreach ($rights as $rightTuple) {
+foreach ($roles as $roleCode => $role) {
+	foreach (rightsForRole($role) as $rightTuple) {
 		$rightId = resolveRight($rightTuple[0], $rightTuple[1], $rightTuple[2], $entity);
-		grantGroupRight($groupIds[$groupName], $rightId, $entity);
+		grantGroupRight($groupIds[$roleCode], $rightId, $entity);
 	}
-	out('Applied rights for '.$groupName);
+	mjl_out('Applied rights for '.$role['label_fr']);
 }
 
-$users = array(
-	'admin_poc' => array('firstname' => 'Admin', 'lastname' => 'POC', 'group' => 'MJL POC - Admin', 'admin' => 1, 'api' => 1),
-	'comptable' => array('firstname' => 'Comptable', 'lastname' => 'POC', 'group' => 'MJL POC - Comptable', 'admin' => 0, 'api' => 0),
-	'responsable_projet' => array('firstname' => 'Responsable', 'lastname' => 'Projet', 'group' => 'MJL POC - Responsable Projet', 'admin' => 0, 'api' => 0),
-	'validateur' => array('firstname' => 'Validateur', 'lastname' => 'POC', 'group' => 'MJL POC - Validateur', 'admin' => 0, 'api' => 0),
-	'lecteur' => array('firstname' => 'Lecteur', 'lastname' => 'POC', 'group' => 'MJL POC - Lecteur', 'admin' => 0, 'api' => 0),
-);
-
-foreach ($users as $login => $spec) {
-	$createdUser = ensureUser($login, $spec['firstname'], $spec['lastname'], (int) $spec['admin'], $defaultPassword, $entity);
-	assignExactMjlGroup($createdUser->id, $groupIds[$spec['group']], array_values($groupIds), $entity);
-	if (!empty($spec['api'])) {
+$sampleLogins = array();
+foreach ($users as $row) {
+	$sampleLogins[] = $row['login'];
+	$role = $roles[$row['role_code']];
+	$isAdmin = $row['role_code'] === 'ADMIN_POC' || $role['can_manage_setup'] === 'yes' || $role['can_manage_users'] === 'yes';
+	$createdUser = ensureUser($row['login'], $row['firstname'], $row['lastname'], $row['email'], $isAdmin ? 1 : 0, $row['active'] === 'yes' ? 1 : 0, $defaultPassword, $entity);
+	assignExactMjlGroup($createdUser->id, $groupIds[$row['role_code']], array_values($groupIds), $entity);
+	if ($row['role_code'] === 'ADMIN_POC') {
 		ensureApiKey($createdUser, $adminUser);
 	}
-	out('Prepared user '.$login);
+	mjl_out('Prepared user '.$row['login']);
 }
 
-out('MJL POC bootstrap completed.');
+disableLegacyPocUsers($sampleLogins, $adminUser);
+
+mjl_out('MJL POC bootstrap completed from CSV sample data.');
+
+function rightsForRole($role)
+{
+	$rights = array(
+		array('societe', 'lire', null),
+		array('projet', 'lire', null),
+		array('ecm', 'read', null),
+		array('mjlfinancement', 'convention', 'read'),
+		array('mjlfinancement', 'activity', 'read'),
+		array('mjlfinancement', 'budgetline', 'read'),
+		array('mjlfinancement', 'fundreceipt', 'read'),
+		array('mjlfinancement', 'expense', 'read'),
+		array('mjlfinancement', 'validation', 'read'),
+		array('mjlfinancement', 'report', 'read'),
+	);
+
+	if ($role['can_create_convention'] === 'yes') {
+		$rights[] = array('mjlfinancement', 'convention', 'write');
+		$rights[] = array('mjlfinancement', 'activity', 'write');
+	}
+	if ($role['can_create_budget_line'] === 'yes') {
+		$rights[] = array('mjlfinancement', 'budgetline', 'write');
+	}
+	if ($role['can_create_fund_receipt'] === 'yes') {
+		$rights[] = array('mjlfinancement', 'fundreceipt', 'write');
+		$rights[] = array('ecm', 'upload', null);
+	}
+	if ($role['can_create_expense'] === 'yes' || $role['can_submit_expense'] === 'yes') {
+		$rights[] = array('mjlfinancement', 'expense', 'write');
+		$rights[] = array('ecm', 'upload', null);
+	}
+	if ($role['can_validate_expense'] === 'yes') {
+		$rights[] = array('mjlfinancement', 'expense', 'validate');
+		$rights[] = array('mjlfinancement', 'validation', 'write');
+	}
+	if ($role['can_export_reports'] === 'yes') {
+		$rights[] = array('mjlfinancement', 'export', 'read');
+		$rights[] = array('mjlfinancement', 'export', 'write');
+		$rights[] = array('expensereport', 'export', null);
+	}
+
+	return $rights;
+}
 
 function ensureGroup($name, $entity)
 {
@@ -132,7 +131,7 @@ function ensureGroup($name, $entity)
 
 	$group->name = $name;
 	$group->nom = $name;
-	$group->note = 'Created by MJL POC bootstrap';
+	$group->note = 'Created by MJL POC bootstrap from sample CSV';
 	$group->entity = $entity;
 	$result = $group->create(1);
 	if ($result <= 0) {
@@ -142,7 +141,7 @@ function ensureGroup($name, $entity)
 	return (int) $group->id;
 }
 
-function ensureUser($login, $firstname, $lastname, $isAdmin, $password, $entity)
+function ensureUser($login, $firstname, $lastname, $email, $isAdmin, $active, $password, $entity)
 {
 	global $db, $adminUser;
 
@@ -151,6 +150,7 @@ function ensureUser($login, $firstname, $lastname, $isAdmin, $password, $entity)
 		$createdUser->login = $login;
 		$createdUser->firstname = $firstname;
 		$createdUser->lastname = $lastname;
+		$createdUser->email = $email;
 		$createdUser->admin = $isAdmin;
 		$createdUser->entity = $entity;
 		$result = $createdUser->create($adminUser, 1);
@@ -162,9 +162,10 @@ function ensureUser($login, $firstname, $lastname, $isAdmin, $password, $entity)
 
 	$createdUser->firstname = $firstname;
 	$createdUser->lastname = $lastname;
+	$createdUser->email = $email;
 	$createdUser->admin = $isAdmin;
-	$createdUser->statut = 1;
-	$createdUser->status = 1;
+	$createdUser->statut = $active;
+	$createdUser->status = $active;
 	$result = $createdUser->update($adminUser, 1, 1, 1, 1);
 	if ($result < 0) {
 		fail('Unable to update user '.$login.': '.$createdUser->error);
@@ -187,9 +188,7 @@ function resetGroupRights($groupIds, $entity)
 		return;
 	}
 	$sql = 'DELETE FROM '.$db->prefix().'usergroup_rights WHERE entity = '.$entity.' AND fk_usergroup IN ('.implode(',', array_map('intval', $groupIds)).')';
-	if (!$db->query($sql)) {
-		fail('Unable to reset POC group rights: '.$db->lasterror());
-	}
+	mjl_query($sql, 'reset POC group rights');
 }
 
 function resolveRight($module, $perms, $subperms, $entity)
@@ -222,11 +221,9 @@ function grantGroupRight($groupId, $rightId, $entity)
 {
 	global $db;
 
-	$sql = 'INSERT INTO '.$db->prefix().'usergroup_rights (entity, fk_usergroup, fk_id)';
+	$sql = 'INSERT IGNORE INTO '.$db->prefix().'usergroup_rights (entity, fk_usergroup, fk_id)';
 	$sql .= ' VALUES ('.$entity.', '.((int) $groupId).', '.((int) $rightId).')';
-	if (!$db->query($sql)) {
-		fail('Unable to grant right '.$rightId.' to group '.$groupId.': '.$db->lasterror());
-	}
+	mjl_query($sql, 'grant right '.$rightId.' to group '.$groupId);
 }
 
 function assignExactMjlGroup($userId, $targetGroupId, $allPocGroupIds, $entity)
@@ -235,15 +232,11 @@ function assignExactMjlGroup($userId, $targetGroupId, $allPocGroupIds, $entity)
 
 	$sql = 'DELETE FROM '.$db->prefix().'usergroup_user WHERE entity = '.$entity.' AND fk_user = '.((int) $userId);
 	$sql .= ' AND fk_usergroup IN ('.implode(',', array_map('intval', $allPocGroupIds)).')';
-	if (!$db->query($sql)) {
-		fail('Unable to reset POC group membership for user '.$userId.': '.$db->lasterror());
-	}
+	mjl_query($sql, 'reset POC group membership');
 
 	$sql = 'INSERT INTO '.$db->prefix().'usergroup_user (entity, fk_user, fk_usergroup)';
 	$sql .= ' VALUES ('.$entity.', '.((int) $userId).', '.((int) $targetGroupId).')';
-	if (!$db->query($sql)) {
-		fail('Unable to assign POC group '.$targetGroupId.' to user '.$userId.': '.$db->lasterror());
-	}
+	mjl_query($sql, 'assign POC group');
 }
 
 function ensureApiKey(User $targetUser, User $adminUser)
@@ -253,33 +246,24 @@ function ensureApiKey(User $targetUser, User $adminUser)
 	if ($result < 0) {
 		fail('Unable to set API key for '.$targetUser->login.': '.$targetUser->error);
 	}
-	out('API key for '.$targetUser->login.': '.$targetUser->api_key);
+	mjl_out('API key for '.$targetUser->login.': '.$targetUser->api_key);
 }
 
-function assertConstant($name, $entity)
+function disableLegacyPocUsers($sampleLogins, User $adminUser)
 {
 	global $db;
 
-	$sql = 'SELECT value FROM '.$db->prefix().'const';
-	$sql .= " WHERE name = '".$db->escape($name)."' AND entity IN (0, ".$entity.')';
-	$sql .= ' ORDER BY entity DESC';
-	$resql = $db->query($sql);
-	if (!$resql) {
-		fail('Unable to read constant '.$name.': '.$db->lasterror());
+	$legacy = array('admin_poc', 'comptable', 'responsable_projet', 'validateur', 'lecteur');
+	foreach ($legacy as $login) {
+		if (in_array($login, $sampleLogins, true)) {
+			continue;
+		}
+		$legacyUser = new User($db);
+		if ($legacyUser->fetch(0, $login) > 0) {
+			$legacyUser->statut = 0;
+			$legacyUser->status = 0;
+			$legacyUser->update($adminUser, 1, 1, 1, 1);
+			mjl_out('Disabled legacy POC user '.$login);
+		}
 	}
-	$obj = $db->fetch_object($resql);
-	if (!$obj || (string) $obj->value !== '1') {
-		fail('Required module constant is not enabled: '.$name);
-	}
-}
-
-function out($message)
-{
-	print $message.PHP_EOL;
-}
-
-function fail($message)
-{
-	fwrite(STDERR, 'ERROR: '.$message.PHP_EOL);
-	exit(1);
 }

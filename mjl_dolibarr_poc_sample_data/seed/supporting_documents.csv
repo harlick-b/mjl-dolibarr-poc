@@ -1,0 +1,11 @@
+document_id,filename,linked_type,linked_ref,required,exists_in_placeholder_folder,comment
+DOC-FR-UNICEF-001,FR-UNICEF-001_avis-credit.txt,fund_receipt,FR-UNICEF-001,yes,yes,Placeholder for funding proof.
+DOC-FR-UNICEF-002,FR-UNICEF-002_avis-credit.txt,fund_receipt,FR-UNICEF-002,yes,yes,Placeholder for funding proof.
+DOC-FR-RED-001,FR-RED-001_avis-credit.txt,fund_receipt,FR-RED-001,yes,yes,Placeholder for funding proof.
+DOC-EXP-JE-001,EXP-JE-001_facture-location-salle.txt,expense,EXP-JE-001,yes,yes,Validated expense document.
+DOC-EXP-JE-002,EXP-JE-002_ordre-mission.txt,expense,EXP-JE-002,yes,yes,Submitted expense document.
+DOC-EXP-JE-003,EXP-JE-003_etat-perdiem.txt,expense,EXP-JE-003,yes,yes,Rejected over-budget expense document.
+DOC-EXP-JE-004,EXP-JE-004_facture-corrigee.txt,expense,EXP-JE-004,yes,yes,Corrected expense document.
+DOC-EXP-RED-001,EXP-RED-001_facture-atelier.txt,expense,EXP-RED-001,yes,yes,Validated Redevabilité expense document.
+DOC-EXP-RED-002,EXP-RED-002_bon-commande.txt,expense,EXP-RED-002,yes,yes,Submitted report production expense document.
+MISSING-DOC-EXP-JE-005,,expense,EXP-JE-005,yes,no,Intentional missing document edge case.

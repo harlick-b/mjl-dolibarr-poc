@@ -1,0 +1,6 @@
+POC placeholder document
+Document ID: DOC-EXP-JE-002
+Linked to: expense EXP-JE-002
+Comment: Submitted expense document.
+
+Replace this text file with a PDF/image during manual Dolibarr upload tests.

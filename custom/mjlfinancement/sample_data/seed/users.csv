@@ -1,0 +1,6 @@
+user_id,login,firstname,lastname,email,role_code,profile,active
+USR-ADMIN-001,admin.poc,Aminata,DOSSOU,admin.poc@mjl-poc.local,ADMIN_POC,Administrateur POC,yes
+USR-COMPTA-001,comptable.mjl,Clarisse,HOUNTON,comptable.mjl@mjl-poc.local,COMPTABLE,Comptable projet,yes
+USR-RP-001,responsable.projet,Jean,KPAKPO,responsable.projet@mjl-poc.local,RESP_PROJET,Responsable projet,yes
+USR-VAL-001,validateur.financier,Hervé,ADANDE,validateur.financier@mjl-poc.local,VALIDATEUR,Validateur financier,yes
+USR-LECT-001,lecteur.audit,Mireille,SOGLO,lecteur.audit@mjl-poc.local,LECTEUR,Lecteur / consultation,yes

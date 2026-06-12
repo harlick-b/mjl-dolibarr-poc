@@ -1,0 +1,6 @@
+role_code,label_fr,can_manage_setup,can_manage_users,can_create_convention,can_create_budget_line,can_create_fund_receipt,can_create_expense,can_submit_expense,can_validate_expense,can_view_reports,can_export_reports
+ADMIN_POC,Administrateur POC,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes
+COMPTABLE,Comptable projet,no,no,no,no,yes,yes,yes,no,yes,yes
+RESP_PROJET,Responsable projet,no,no,yes,yes,no,no,no,no,yes,yes
+VALIDATEUR,Validateur financier,no,no,no,no,no,no,no,yes,yes,yes
+LECTEUR,Lecteur / consultation,no,no,no,no,no,no,no,no,yes,no

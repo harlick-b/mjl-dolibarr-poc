@@ -1,0 +1,9 @@
+budget_line_id,ref,label,project_id,convention_id,activity_id,initial_budget_xof,revised_budget_xof,category,status
+BL-JE-001,BL-JE-001,Formation,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-001,1800000,1800000,formation,active
+BL-JE-002,BL-JE-002,Transport et missions,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-002,1200000,1200000,transport,active
+BL-JE-003,BL-JE-003,Per diem,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-002,900000,900000,per_diem,active
+BL-JE-004,BL-JE-004,Matériel pédagogique,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-003,1500000,1500000,materiel,active
+BL-JE-005,BL-JE-005,Communication,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-003,600000,600000,communication,active
+BL-RED-001,BL-RED-001,Ateliers institutionnels,PRJ-RED-2026,CONV-RED-2026-001,ACT-RED-001,1400000,1400000,formation,active
+BL-RED-002,BL-RED-002,Production de rapports,PRJ-RED-2026,CONV-RED-2026-001,ACT-RED-002,800000,800000,reporting,active
+BL-RED-003,BL-RED-003,Appui logistique,PRJ-RED-2026,CONV-RED-2026-001,ACT-RED-001,1000000,1000000,logistique,active

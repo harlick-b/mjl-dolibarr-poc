@@ -1,0 +1,6 @@
+POC placeholder document
+Document ID: DOC-FR-UNICEF-002
+Linked to: fund_receipt FR-UNICEF-002
+Comment: Placeholder for funding proof.
+
+Replace this text file with a PDF/image during manual Dolibarr upload tests.

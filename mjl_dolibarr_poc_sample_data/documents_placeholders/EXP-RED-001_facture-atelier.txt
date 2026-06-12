@@ -1,0 +1,6 @@
+POC placeholder document
+Document ID: DOC-EXP-RED-001
+Linked to: expense EXP-RED-001
+Comment: Validated Redevabilité expense document.
+
+Replace this text file with a PDF/image during manual Dolibarr upload tests.

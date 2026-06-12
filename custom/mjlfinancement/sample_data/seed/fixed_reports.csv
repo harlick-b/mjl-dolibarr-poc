@@ -1,0 +1,4 @@
+report_id,name,scope,expected_format,filters,must_include
+RPT-001,Synthèse financière par projet,project,Excel/PDF,"project_id,date_from,date_to,ptf_id","budget_total,funds_received,total_expenses,validated_expenses,pending_expenses,balance,execution_rate"
+RPT-002,Exécution budgétaire par convention,convention,Excel/PDF,"convention_id,date_from,date_to","budget_line,initial_budget,revised_budget,validated_expenses,submitted_expenses,remaining_amount,status"
+RPT-003,Liste des dépenses avec pièces justificatives,expense,Excel,"project_id,convention_id,status,missing_document","expense_ref,date,budget_line,amount,status,document_present,validator,correction_reason"
