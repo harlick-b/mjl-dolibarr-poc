@@ -74,8 +74,20 @@ class MjlExpense extends CommonObject
 
 	public function create(User $user, $notrigger = 0)
 	{
+		$activeEntity = mjl_active_entity();
+		if (empty($this->entity)) {
+			$this->entity = $activeEntity;
+		}
+		if ((int) $this->entity !== $activeEntity) {
+			$this->error = 'Expense entity does not match active entity';
+			return -1;
+		}
 		if (mjl_expense_is_audited_status($this->status)) {
 			$this->error = 'Audited expense statuses require an explicit workflow action';
+			return -1;
+		}
+		if (mjl_assert_expense_links($this, $activeEntity) < 0) {
+			$this->error = mjl_integrity_error();
 			return -1;
 		}
 
@@ -110,12 +122,29 @@ class MjlExpense extends CommonObject
 			$this->error = mjl_integrity_error();
 			return -1;
 		}
-		if (mjl_expense_is_audited_status($current['status']) || $history > 0) {
+		$currentStatus = (int) $current['status'];
+		$incomingStatus = ($this->status === null || $this->status === '') ? $currentStatus : (int) $this->status;
+		if ($incomingStatus !== $currentStatus) {
+			$this->error = 'Expense status changes require an explicit workflow action';
+			return -1;
+		}
+		if ((int) $current['fk_user_valid'] !== (int) $this->fk_user_valid || (string) $current['validation_date'] !== (string) $this->validation_date) {
+			$this->error = 'Expense validation metadata cannot be changed through generic update';
+			return -1;
+		}
+		if ($currentStatus === self::STATUS_SUBMITTED || $currentStatus === self::STATUS_VALIDATED || $currentStatus === self::STATUS_CORRECTED || ($history > 0 && $currentStatus !== self::STATUS_REJECTED)) {
 			$this->error = 'Audited expenses cannot be modified through generic update';
 			return -1;
 		}
-		if (mjl_expense_is_audited_status($this->status)) {
-			$this->error = 'Audited expense statuses require an explicit workflow action';
+		if (empty($this->entity)) {
+			$this->entity = $current['entity'];
+		}
+		if ((int) $this->entity !== (int) $current['entity']) {
+			$this->error = 'Expense entity cannot be changed';
+			return -1;
+		}
+		if (mjl_assert_expense_links($this, $current['entity']) < 0) {
+			$this->error = mjl_integrity_error();
 			return -1;
 		}
 
@@ -168,6 +197,10 @@ class MjlExpense extends CommonObject
 			$this->error = 'Missing expense id';
 			return -1;
 		}
+		if (!$this->canDo($user, 'expense', 'validate')) {
+			$this->error = 'Permission denied for expense validation';
+			return -1;
+		}
 
 		$validationDate = dol_now();
 		$this->db->begin();
@@ -186,7 +219,13 @@ class MjlExpense extends CommonObject
 			$this->db->rollback();
 			return -1;
 		}
-		if (trim($current['supporting_document']) === '') {
+		$hasDocument = mjl_expense_has_supporting_document($id, $current['entity'], $current['supporting_document']);
+		if ($hasDocument < 0) {
+			$this->error = mjl_integrity_error();
+			$this->db->rollback();
+			return -1;
+		}
+		if (!$hasDocument) {
 			$this->error = 'Supporting document is required before validation';
 			$this->db->rollback();
 			return -1;
@@ -202,7 +241,7 @@ class MjlExpense extends CommonObject
 		$sql .= ', fk_user_valid = '.((int) $user->id);
 		$sql .= ", validation_date = '".$this->db->idate($validationDate)."'";
 		$sql .= ', fk_user_modif = '.((int) $user->id);
-		$sql .= ' WHERE rowid = '.$id;
+		$sql .= ' WHERE rowid = '.$id.' AND entity = '.((int) $current['entity']);
 
 		if (!$this->db->query($sql)) {
 			$this->error = $this->db->lasterror();
@@ -219,7 +258,7 @@ class MjlExpense extends CommonObject
 		$this->validation_date = $validationDate;
 		$this->status = self::STATUS_VALIDATED;
 
-		if (mjl_record_expense_validation_event($this, $current['status'], self::STATUS_VALIDATED, $user, $validationDate) < 0) {
+		if (mjl_record_expense_validation_event($this, $current['status'], self::STATUS_VALIDATED, $user, $validationDate, 'validated') < 0) {
 			$this->error = mjl_integrity_error();
 			$this->status = $current['status'];
 			$this->fk_user_valid = $current['fk_user_valid'];
@@ -252,11 +291,151 @@ class MjlExpense extends CommonObject
 		return 1;
 	}
 
+	public function submit(User $user, $comment = '', $notrigger = 0)
+	{
+		return $this->workflowTransition($user, array(self::STATUS_DRAFT, self::STATUS_CORRECTED), self::STATUS_SUBMITTED, 'submitted', $comment, array(
+			'required_right' => array('expense', 'write'),
+			'set_submitted_at' => true,
+			'trigger' => 'MJLFINANCEMENT_EXPENSE_SUBMIT',
+			'idempotent' => true,
+			'notrigger' => $notrigger,
+		));
+	}
+
+	public function reject(User $user, $reason, $notrigger = 0)
+	{
+		$reason = trim((string) $reason);
+		if ($reason === '') {
+			$this->error = 'Rejection reason is required';
+			return -1;
+		}
+		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED), self::STATUS_REJECTED, 'rejected', $reason, array(
+			'required_right' => array('expense', 'validate'),
+			'set_reason' => true,
+			'clear_validation' => true,
+			'trigger' => 'MJLFINANCEMENT_EXPENSE_REJECT',
+			'notrigger' => $notrigger,
+		));
+	}
+
+	public function correct(User $user, $reason, $notrigger = 0)
+	{
+		$reason = trim((string) $reason);
+		if ($reason === '') {
+			$this->error = 'Correction reason is required';
+			return -1;
+		}
+		return $this->workflowTransition($user, array(self::STATUS_REJECTED), self::STATUS_CORRECTED, 'corrected', $reason, array(
+			'required_right' => array('expense', 'write'),
+			'set_reason' => true,
+			'clear_validation' => true,
+			'trigger' => 'MJLFINANCEMENT_EXPENSE_CORRECT',
+			'notrigger' => $notrigger,
+		));
+	}
+
+	private function workflowTransition(User $user, $fromStatuses, $toStatus, $action, $comment, $options)
+	{
+		$id = (int) ($this->id ?: $this->rowid);
+		if ($id <= 0) {
+			$this->error = 'Missing expense id';
+			return -1;
+		}
+		if (!empty($options['required_right']) && !$this->canDo($user, $options['required_right'][0], $options['required_right'][1])) {
+			$this->error = 'Permission denied for expense '.$action;
+			return -1;
+		}
+
+		$actionDate = dol_now();
+		$this->db->begin();
+		$current = $this->fetchCurrentForIntegrity($id, true);
+		if (empty($current)) {
+			$this->db->rollback();
+			return -1;
+		}
+		if (!empty($options['idempotent']) && (int) $current['status'] === (int) $toStatus) {
+			$this->db->commit();
+			return 0;
+		}
+		if (!in_array((int) $current['status'], array_map('intval', $fromStatuses), true)) {
+			$this->error = 'Invalid expense workflow transition from '.mjl_expense_status_label($current['status']).' to '.mjl_expense_status_label($toStatus);
+			$this->db->rollback();
+			return -1;
+		}
+
+		$sql = 'UPDATE '.$this->db->prefix().$this->table_element;
+		$sql .= ' SET status = '.((int) $toStatus);
+		$sql .= ', fk_user_modif = '.((int) $user->id);
+		if (!empty($options['set_submitted_at'])) {
+			$sql .= ", submitted_at = '".$this->db->idate($actionDate)."'";
+		}
+		if (!empty($options['set_reason'])) {
+			$sql .= ', correction_reason = '.mjl_integrity_sql_string($comment);
+		}
+		if (!empty($options['clear_validation'])) {
+			$sql .= ', fk_user_valid = NULL, validation_date = NULL';
+		}
+		$sql .= ' WHERE rowid = '.$id.' AND entity = '.((int) $current['entity']);
+
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			$this->db->rollback();
+			return -1;
+		}
+
+		$this->entity = $current['entity'];
+		$this->fk_budget_line = $current['fk_budget_line'];
+		$this->amount = $current['amount'];
+		$this->supporting_document = $current['supporting_document'];
+		$this->import_key = $current['import_key'];
+		$this->status = $toStatus;
+		if (!empty($options['set_submitted_at'])) {
+			$this->submitted_at = $actionDate;
+		}
+		if (!empty($options['set_reason'])) {
+			$this->correction_reason = $comment;
+			$this->fk_user_valid = null;
+			$this->validation_date = null;
+		}
+
+		if (mjl_record_expense_validation_event($this, $current['status'], $toStatus, $user, $actionDate, $action, $comment) < 0) {
+			$this->error = mjl_integrity_error();
+			$this->status = $current['status'];
+			$this->db->rollback();
+			return -1;
+		}
+
+		if (mjl_recalculate_budget_line_amounts($current['fk_budget_line'], $current['entity']) < 0) {
+			$this->error = mjl_integrity_error();
+			$this->status = $current['status'];
+			$this->db->rollback();
+			return -1;
+		}
+
+		if (empty($options['notrigger']) && !empty($options['trigger'])) {
+			$result = $this->call_trigger($options['trigger'], $user);
+			if ($result < 0) {
+				$this->status = $current['status'];
+				$this->db->rollback();
+				return -1;
+			}
+		}
+
+		$this->db->commit();
+		return 1;
+	}
+
+	private function canDo(User $user, $perms, $subperms)
+	{
+		return mjl_user_has_right($user, 'mjlfinancement', $perms, $subperms);
+	}
+
 	private function fetchCurrentForIntegrity($id, $forUpdate = false)
 	{
-		$sql = 'SELECT rowid, entity, status, fk_budget_line, amount, supporting_document, fk_user_valid, validation_date, import_key';
+		$entity = mjl_active_entity();
+		$sql = 'SELECT rowid, entity, status, fk_project, fk_convention, fk_mjl_activity, fk_budget_line, amount, supporting_document, fk_user_valid, validation_date, import_key';
 		$sql .= ' FROM '.$this->db->prefix().$this->table_element;
-		$sql .= ' WHERE rowid = '.((int) $id);
+		$sql .= ' WHERE rowid = '.((int) $id).' AND entity = '.$entity;
 		if ($forUpdate) {
 			$sql .= ' FOR UPDATE';
 		}
@@ -276,6 +455,9 @@ class MjlExpense extends CommonObject
 			'rowid' => (int) $obj->rowid,
 			'entity' => (int) $obj->entity,
 			'status' => (int) $obj->status,
+			'fk_project' => (int) $obj->fk_project,
+			'fk_convention' => (int) $obj->fk_convention,
+			'fk_mjl_activity' => (int) $obj->fk_mjl_activity,
 			'fk_budget_line' => (int) $obj->fk_budget_line,
 			'amount' => (float) $obj->amount,
 			'supporting_document' => (string) $obj->supporting_document,

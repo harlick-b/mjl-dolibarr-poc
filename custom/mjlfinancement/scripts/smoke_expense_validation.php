@@ -98,7 +98,7 @@ $expense->amount = 12500;
 $expense->expense_date = dol_now();
 $expense->description = 'Initial smoke expense';
 $expense->supporting_document = 'SMOKE-DOC-'.$suffix;
-$expense->status = MjlExpense::STATUS_SUBMITTED;
+$expense->status = MjlExpense::STATUS_DRAFT;
 $expense->fk_user_creat = $adminUser->id;
 $expense->import_key = $importKey;
 $expenseId = $expense->create($adminUser, 1);
@@ -117,6 +117,11 @@ $fetched->description = 'Updated smoke expense';
 if ($fetched->update($adminUser, 1) < 0) {
 	cleanup($importKey);
 	fail('Unable to update smoke expense: '.$fetched->error);
+}
+
+if ($fetched->submit($adminUser, 'Submit smoke expense', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to submit smoke expense: '.$fetched->error);
 }
 
 if ($fetched->validate($adminUser) <= 0) {
@@ -142,10 +147,13 @@ if (!$row || (int) $row->status !== MjlExpense::STATUS_VALIDATED || (int) $row->
 	fail('Smoke expense validation metadata was not persisted.');
 }
 
-$validationCount = fetchScalar('SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_validation WHERE fk_expense = '.((int) $expenseId)." AND action = 'validated'");
-if ($validationCount !== 1) {
+assertValidationCount($expenseId, 'submitted', 1);
+assertValidationCount($expenseId, 'validated', 1);
+
+$submittedEvent = fetchRow('SELECT comment FROM '.$db->prefix().'mjlfinancement_validation WHERE fk_expense = '.((int) $expenseId)." AND action = 'submitted'");
+if (!$submittedEvent || $submittedEvent->comment !== 'Submit smoke expense') {
 	cleanup($importKey);
-	fail('Expected exactly one validation event, got '.$validationCount);
+	fail('Submit history comment was not persisted.');
 }
 
 $budget = fetchRow('SELECT spent_amount, remaining_amount FROM '.$db->prefix().'mjlfinancement_budget_line WHERE rowid = '.((int) $budgetLineId));
@@ -173,13 +181,17 @@ $missingDocExpense->fk_budget_line = $budgetLineId;
 $missingDocExpense->amount = 1000;
 $missingDocExpense->expense_date = dol_now();
 $missingDocExpense->description = 'Missing document smoke expense';
-$missingDocExpense->status = MjlExpense::STATUS_SUBMITTED;
+$missingDocExpense->status = MjlExpense::STATUS_DRAFT;
 $missingDocExpense->fk_user_creat = $adminUser->id;
 $missingDocExpense->import_key = $importKey;
 $missingDocExpenseId = $missingDocExpense->create($adminUser, 1);
 if ($missingDocExpenseId <= 0) {
 	cleanup($importKey);
 	fail('Unable to create missing document smoke expense: '.$missingDocExpense->error);
+}
+if ($missingDocExpense->submit($adminUser, 'Submit missing document expense', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to submit missing document smoke expense: '.$missingDocExpense->error);
 }
 if ($missingDocExpense->validate($adminUser) >= 0) {
 	cleanup($importKey);
@@ -196,7 +208,7 @@ $overBudgetExpense->amount = 200000;
 $overBudgetExpense->expense_date = dol_now();
 $overBudgetExpense->description = 'Over budget smoke expense';
 $overBudgetExpense->supporting_document = 'SMOKE-DOC-OVER-'.$suffix;
-$overBudgetExpense->status = MjlExpense::STATUS_SUBMITTED;
+$overBudgetExpense->status = MjlExpense::STATUS_DRAFT;
 $overBudgetExpense->fk_user_creat = $adminUser->id;
 $overBudgetExpense->import_key = $importKey;
 $overBudgetExpenseId = $overBudgetExpense->create($adminUser, 1);
@@ -204,9 +216,163 @@ if ($overBudgetExpenseId <= 0) {
 	cleanup($importKey);
 	fail('Unable to create over budget smoke expense: '.$overBudgetExpense->error);
 }
+if ($overBudgetExpense->submit($adminUser, 'Submit over budget expense', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to submit over budget smoke expense: '.$overBudgetExpense->error);
+}
 if ($overBudgetExpense->validate($adminUser) >= 0) {
 	cleanup($importKey);
 	fail('Over budget validation should have been rejected.');
+}
+
+$ecmOnlyExpense = new MjlExpense($db);
+$ecmOnlyExpense->entity = $entity;
+$ecmOnlyExpense->ref = 'MJL-SMOKE-EXP-ECM-'.$suffix;
+$ecmOnlyExpense->fk_project = $projectId;
+$ecmOnlyExpense->fk_convention = $conventionId;
+$ecmOnlyExpense->fk_budget_line = $budgetLineId;
+$ecmOnlyExpense->amount = 1000;
+$ecmOnlyExpense->expense_date = dol_now();
+$ecmOnlyExpense->description = 'ECM-only document smoke expense';
+$ecmOnlyExpense->supporting_document = '';
+$ecmOnlyExpense->status = MjlExpense::STATUS_DRAFT;
+$ecmOnlyExpense->fk_user_creat = $adminUser->id;
+$ecmOnlyExpense->import_key = $importKey;
+$ecmOnlyExpenseId = $ecmOnlyExpense->create($adminUser, 1);
+if ($ecmOnlyExpenseId <= 0) {
+	cleanup($importKey);
+	fail('Unable to create ECM-only smoke expense: '.$ecmOnlyExpense->error);
+}
+if ($ecmOnlyExpense->submit($adminUser, 'Submit ECM-only document expense', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to submit ECM-only smoke expense: '.$ecmOnlyExpense->error);
+}
+$ecmOnlyFilename = 'SMOKE-ECM-ONLY-'.$suffix.'.txt';
+insertEcmDocument($ecmOnlyExpenseId, $entity, $ecmOnlyFilename, $adminUser->id);
+if ($ecmOnlyExpense->validate($adminUser, 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to validate ECM-only document smoke expense: '.$ecmOnlyExpense->error);
+}
+assertValidationCount($ecmOnlyExpenseId, 'validated', 1);
+$ecmOnlyReport = fetchRow('SELECT '.mjl_expense_supporting_document_sql('e').' AS supporting_document FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.rowid = '.((int) $ecmOnlyExpenseId));
+if (!$ecmOnlyReport || $ecmOnlyReport->supporting_document !== $ecmOnlyFilename) {
+	cleanup($importKey);
+	fail('ECM-only supporting document report fallback did not return the ECM filename.');
+}
+
+$correctionExpense = new MjlExpense($db);
+$correctionExpense->entity = $entity;
+$correctionExpense->ref = 'MJL-SMOKE-EXP-CORR-'.$suffix;
+$correctionExpense->fk_project = $projectId;
+$correctionExpense->fk_convention = $conventionId;
+$correctionExpense->fk_budget_line = $budgetLineId;
+$correctionExpense->amount = 1000;
+$correctionExpense->expense_date = dol_now();
+$correctionExpense->description = 'Correction smoke expense';
+$correctionExpense->supporting_document = 'SMOKE-DOC-CORR-'.$suffix;
+$correctionExpense->status = MjlExpense::STATUS_DRAFT;
+$correctionExpense->fk_user_creat = $adminUser->id;
+$correctionExpense->import_key = $importKey;
+$correctionExpenseId = $correctionExpense->create($adminUser, 1);
+if ($correctionExpenseId <= 0) {
+	cleanup($importKey);
+	fail('Unable to create correction smoke expense: '.$correctionExpense->error);
+}
+if ($correctionExpense->submit($adminUser, 'Submit for rejection path', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to submit correction smoke expense: '.$correctionExpense->error);
+}
+if ($correctionExpense->reject($adminUser, 'Missing approval stamp', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to reject correction smoke expense: '.$correctionExpense->error);
+}
+$correctionExpense->description = 'Correction smoke expense fixed';
+$correctionExpense->amount = 900;
+if ($correctionExpense->update($adminUser, 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to edit rejected correction smoke expense: '.$correctionExpense->error);
+}
+$updatedCorrectionExpense = fetchRow('SELECT amount, description FROM '.$db->prefix().'mjlfinancement_expense WHERE rowid = '.((int) $correctionExpenseId));
+if (!$updatedCorrectionExpense || abs((float) $updatedCorrectionExpense->amount - 900.0) > 0.001 || $updatedCorrectionExpense->description !== 'Correction smoke expense fixed') {
+	cleanup($importKey);
+	fail('Rejected correction edits were not persisted.');
+}
+if ($correctionExpense->correct($adminUser, 'Approval stamp added', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to correct rejected smoke expense: '.$correctionExpense->error);
+}
+$correctionExpense->amount = 800;
+if ($correctionExpense->update($adminUser, 1) >= 0) {
+	cleanup($importKey);
+	fail('Corrected expense update should have been rejected.');
+}
+if ($correctionExpense->validate($adminUser) >= 0) {
+	cleanup($importKey);
+	fail('Corrected expense should require resubmission before validation.');
+}
+if ($correctionExpense->submit($adminUser, 'Resubmit corrected expense', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to resubmit corrected smoke expense: '.$correctionExpense->error);
+}
+if ($correctionExpense->validate($adminUser, 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to validate corrected smoke expense: '.$correctionExpense->error);
+}
+assertValidationCount($correctionExpenseId, 'submitted', 2);
+assertValidationCount($correctionExpenseId, 'rejected', 1);
+assertValidationCount($correctionExpenseId, 'corrected', 1);
+assertValidationCount($correctionExpenseId, 'validated', 1);
+
+$invalidLinkExpense = new MjlExpense($db);
+$invalidLinkExpense->entity = $entity;
+$invalidLinkExpense->ref = 'MJL-SMOKE-EXP-BADLINK-'.$suffix;
+$invalidLinkExpense->fk_project = $projectId + 999999;
+$invalidLinkExpense->fk_convention = $conventionId;
+$invalidLinkExpense->fk_budget_line = $budgetLineId;
+$invalidLinkExpense->amount = 1000;
+$invalidLinkExpense->expense_date = dol_now();
+$invalidLinkExpense->description = 'Invalid link smoke expense';
+$invalidLinkExpense->status = MjlExpense::STATUS_DRAFT;
+$invalidLinkExpense->fk_user_creat = $adminUser->id;
+$invalidLinkExpense->import_key = $importKey;
+if ($invalidLinkExpense->create($adminUser, 1) >= 0) {
+	cleanup($importKey);
+	fail('Expense creation with invalid project link should have been rejected.');
+}
+
+$crossEntityExpenseId = insertCrossEntityExpense($entity + 1, $projectId, $conventionId, $budgetLineId, $adminUser->id, $suffix, $importKey);
+$crossEntityExpense = new MjlExpense($db);
+$crossEntityExpense->id = $crossEntityExpenseId;
+$crossEntityExpense->rowid = $crossEntityExpenseId;
+$crossEntityExpense->fk_project = $projectId;
+$crossEntityExpense->fk_convention = $conventionId;
+$crossEntityExpense->fk_budget_line = $budgetLineId;
+$crossEntityExpense->amount = 1000;
+$crossEntityExpense->status = MjlExpense::STATUS_DRAFT;
+$crossEntityExpense->entity = $entity + 1;
+if ($crossEntityExpense->submit($adminUser, 'Cross entity submit', 1) >= 0) {
+	cleanup($importKey);
+	fail('Cross-entity submit should have been rejected.');
+}
+if ($crossEntityExpense->validate($adminUser, 1) >= 0) {
+	cleanup($importKey);
+	fail('Cross-entity validate should have been rejected.');
+}
+if ($crossEntityExpense->reject($adminUser, 'Cross entity reject', 1) >= 0) {
+	cleanup($importKey);
+	fail('Cross-entity reject should have been rejected.');
+}
+if ($crossEntityExpense->correct($adminUser, 'Cross entity correct', 1) >= 0) {
+	cleanup($importKey);
+	fail('Cross-entity correct should have been rejected.');
+}
+if ($crossEntityExpense->update($adminUser, 1) >= 0) {
+	cleanup($importKey);
+	fail('Cross-entity update should have been rejected.');
+}
+if ($crossEntityExpense->delete($adminUser, 1) >= 0) {
+	cleanup($importKey);
+	fail('Cross-entity delete should have been rejected.');
 }
 
 $tamperExpense = new MjlExpense($db);
@@ -219,7 +385,7 @@ $tamperExpense->amount = 1000;
 $tamperExpense->expense_date = dol_now();
 $tamperExpense->description = 'Tamper smoke expense';
 $tamperExpense->supporting_document = 'SMOKE-DOC-TAMPER-'.$suffix;
-$tamperExpense->status = MjlExpense::STATUS_SUBMITTED;
+$tamperExpense->status = MjlExpense::STATUS_DRAFT;
 $tamperExpense->fk_user_creat = $adminUser->id;
 $tamperExpense->import_key = $importKey;
 $tamperExpenseId = $tamperExpense->create($adminUser, 1);
@@ -242,6 +408,7 @@ function cleanup($importKey)
 
 	$escaped = $db->escape($importKey);
 	$queries = array(
+		'DELETE FROM '.$db->prefix().'ecm_files WHERE src_object_type = \'mjlfinancement_expense\' AND src_object_id IN (SELECT rowid FROM '.$db->prefix()."mjlfinancement_expense WHERE import_key = '".$escaped."')",
 		'DELETE FROM '.$db->prefix().'mjlfinancement_validation WHERE import_key = \''.$escaped.'\' OR fk_expense IN (SELECT rowid FROM '.$db->prefix()."mjlfinancement_expense WHERE import_key = '".$escaped."')",
 		'DELETE FROM '.$db->prefix()."mjlfinancement_expense WHERE import_key = '".$escaped."'",
 		'DELETE FROM '.$db->prefix()."mjlfinancement_budget_line WHERE import_key = '".$escaped."'",
@@ -257,6 +424,58 @@ function cleanup($importKey)
 			fail('Unable to clean smoke data: '.$db->lasterror());
 		}
 	}
+}
+
+function insertEcmDocument($expenseId, $entity, $filename, $userId)
+{
+	global $db;
+
+	$sql = 'INSERT INTO '.$db->prefix().'ecm_files (ref, label, entity, filename, filepath, fullpath_orig, description, gen_or_uploaded, date_c, fk_user_c, src_object_type, src_object_id)';
+	$sql .= ' VALUES (';
+	$sql .= "'".$db->escape('MJL-SMOKE-ECM-'.$expenseId)."'";
+	$sql .= ", '".$db->escape($filename)."'";
+	$sql .= ', '.((int) $entity);
+	$sql .= ", '".$db->escape($filename)."'";
+	$sql .= ", 'mjlfinancement_expense'";
+	$sql .= ", '".$db->escape($filename)."'";
+	$sql .= ", 'Piece justificative smoke'";
+	$sql .= ', 1';
+	$sql .= ", '".$db->idate(dol_now())."'";
+	$sql .= ', '.((int) $userId);
+	$sql .= ", 'mjlfinancement_expense'";
+	$sql .= ', '.((int) $expenseId);
+	$sql .= ')';
+	if (!$db->query($sql)) {
+		cleanup('MJLSMOKEVAL');
+		fail('Unable to insert ECM smoke document: '.$db->lasterror());
+	}
+}
+
+function insertCrossEntityExpense($entity, $projectId, $conventionId, $budgetLineId, $userId, $suffix, $importKey)
+{
+	global $db;
+
+	$sql = 'INSERT INTO '.$db->prefix().'mjlfinancement_expense (entity, ref, fk_project, fk_convention, fk_budget_line, amount, expense_date, description, supporting_document, date_creation, fk_user_creat, import_key, status)';
+	$sql .= ' VALUES (';
+	$sql .= ((int) $entity);
+	$sql .= ", '".$db->escape('MJL-SMOKE-EXP-CROSS-'.$suffix)."'";
+	$sql .= ', '.((int) $projectId);
+	$sql .= ', '.((int) $conventionId);
+	$sql .= ', '.((int) $budgetLineId);
+	$sql .= ', 1000';
+	$sql .= ", '".$db->idate(dol_now())."'";
+	$sql .= ", 'Cross entity smoke expense'";
+	$sql .= ", 'SMOKE-DOC-CROSS-".$db->escape($suffix)."'";
+	$sql .= ", '".$db->idate(dol_now())."'";
+	$sql .= ', '.((int) $userId);
+	$sql .= ", '".$db->escape($importKey)."'";
+	$sql .= ', '.MjlExpense::STATUS_DRAFT;
+	$sql .= ')';
+	if (!$db->query($sql)) {
+		cleanup($importKey);
+		fail('Unable to insert cross-entity smoke expense: '.$db->lasterror());
+	}
+	return (int) $db->last_insert_id($db->prefix().'mjlfinancement_expense');
 }
 
 function fetchScalar($sql)
@@ -280,6 +499,17 @@ function fetchRow($sql)
 		fail('Unable to fetch row: '.$db->lasterror());
 	}
 	return $db->fetch_object($resql);
+}
+
+function assertValidationCount($expenseId, $action, $expected)
+{
+	global $db;
+
+	$count = fetchScalar('SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_validation WHERE fk_expense = '.((int) $expenseId)." AND action = '".$db->escape($action)."'");
+	if ($count !== $expected) {
+		cleanup('MJLSMOKEVAL');
+		fail('Expected '.$expected.' '.$action.' event(s) for expense '.$expenseId.', got '.$count);
+	}
 }
 
 function out($message)
