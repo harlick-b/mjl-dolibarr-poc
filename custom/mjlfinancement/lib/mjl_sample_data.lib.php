@@ -1,6 +1,7 @@
 <?php
 
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_reporting.lib.php';
 
 function mjl_poc_import_key()
 {
@@ -342,94 +343,6 @@ function mjl_status_receipt($status)
 		return 1;
 	}
 	return $status === 'not_received' ? 8 : 0;
-}
-
-function mjl_report_project_summary($projectId)
-{
-	global $db, $conf;
-
-	$entity = (int) $conf->entity;
-	$projectId = (int) $projectId;
-	$sql = 'SELECT p.ref AS project_ref, p.title AS project_title,';
-	$sql .= ' COALESCE(SUM(bl.revised_budget), 0) AS budget_total,';
-	$sql .= ' (SELECT COALESCE(SUM(fr.amount), 0) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = '.$entity.' AND fr.fk_project = '.$projectId.' AND fr.status = 1) AS funds_received,';
-	$sql .= ' (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.') AS total_expenses,';
-	$sql .= ' (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.' AND e.status = 2) AS validated_expenses,';
-	$sql .= ' (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.' AND e.status = 1) AS pending_expenses';
-	$sql .= ' FROM '.$db->prefix().'projet p';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.fk_project = p.rowid AND bl.entity = '.$entity;
-	$sql .= ' WHERE p.rowid = '.$projectId.' GROUP BY p.rowid, p.ref, p.title';
-	return mjl_fetch_row($sql);
-}
-
-function mjl_report_convention_budget($conventionId)
-{
-	global $db, $conf;
-
-	$entity = (int) $conf->entity;
-	$conventionId = (int) $conventionId;
-	$sql = 'SELECT bl.ref, bl.label, bl.initial_budget, bl.revised_budget, bl.status,';
-	$sql .= ' COALESCE(SUM(CASE WHEN e.status = 2 THEN e.amount ELSE 0 END), 0) AS validated_expenses,';
-	$sql .= ' COALESCE(SUM(CASE WHEN e.status = 1 THEN e.amount ELSE 0 END), 0) AS submitted_expenses,';
-	$sql .= ' bl.revised_budget - COALESCE(SUM(CASE WHEN e.status = 2 THEN e.amount ELSE 0 END), 0) AS remaining_amount';
-	$sql .= ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.fk_budget_line = bl.rowid AND e.entity = '.$entity;
-	$sql .= ' WHERE bl.entity = '.$entity.' AND bl.fk_convention = '.$conventionId;
-	$sql .= ' GROUP BY bl.rowid, bl.ref, bl.label, bl.initial_budget, bl.revised_budget, bl.status';
-	$sql .= ' ORDER BY bl.ref';
-	return mjl_fetch_rows($sql);
-}
-
-function mjl_report_expense_documents($filters = array())
-{
-	global $db, $conf;
-
-	$entity = (int) $conf->entity;
-	$sql = 'SELECT e.ref AS expense_ref, e.expense_date, bl.ref AS budget_line, e.amount, e.status,';
-	$sql .= ' CASE WHEN e.supporting_document IS NULL OR e.supporting_document = \'\' THEN 0 ELSE 1 END AS document_present,';
-	$sql .= ' u.login AS validator, e.correction_reason';
-	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = e.fk_budget_line';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = e.fk_user_valid';
-	$sql .= ' WHERE e.entity = '.$entity;
-	if (!empty($filters['project_id'])) {
-		$sql .= ' AND e.fk_project = '.((int) $filters['project_id']);
-	}
-	if (!empty($filters['convention_id'])) {
-		$sql .= ' AND e.fk_convention = '.((int) $filters['convention_id']);
-	}
-	if (isset($filters['missing_document'])) {
-		$sql .= !empty($filters['missing_document']) ? ' AND (e.supporting_document IS NULL OR e.supporting_document = \'\')' : ' AND e.supporting_document IS NOT NULL AND e.supporting_document <> \'\'';
-	}
-	$sql .= ' ORDER BY e.ref';
-	return mjl_fetch_rows($sql);
-}
-
-function mjl_fetch_row($sql)
-{
-	global $db;
-
-	$resql = $db->query($sql);
-	if (!$resql) {
-		fail('Unable to fetch report row: '.$db->lasterror());
-	}
-	$obj = $db->fetch_object($resql);
-	return $obj ? (array) $obj : array();
-}
-
-function mjl_fetch_rows($sql)
-{
-	global $db;
-
-	$resql = $db->query($sql);
-	if (!$resql) {
-		fail('Unable to fetch report rows: '.$db->lasterror());
-	}
-	$rows = array();
-	while ($obj = $db->fetch_object($resql)) {
-		$rows[] = (array) $obj;
-	}
-	return $rows;
 }
 
 function mjl_out($message)

@@ -30,6 +30,15 @@ llxHeader('', $langs->trans('MJLFinancement'));
 
 print load_fiche_titre($langs->trans('MJLFinancement'), '', 'money-bill');
 
+print '<div class="tabsAction">';
+if ($user->hasRight('mjlfinancement', 'convention', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">Conventions</a>';
+if ($user->hasRight('mjlfinancement', 'budgetline', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php">Lignes budgetaires</a>';
+if ($user->hasRight('mjlfinancement', 'fundreceipt', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">Fonds recus</a>';
+if ($user->hasRight('mjlfinancement', 'expense', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php">Depenses</a>';
+if ($user->hasRight('mjlfinancement', 'validation', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/validations.php">Validations</a>';
+if ($user->hasRight('mjlfinancement', 'report', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/reports.php">Rapports</a>';
+print '</div>';
+
 print '<div class="div-table-responsive-no-min">';
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre"><th>Objet</th><th class="right">Total</th></tr>';
