@@ -1,5 +1,5 @@
 validation_id,expense_id,action,from_status,to_status,actor_user_id,action_date,comment
-VAL-001,EXP-JE-001,validated,submitted,validated,USR-VAL-001,2026-03-14,Pièces conformes.
-VAL-002,EXP-JE-003,rejected,submitted,rejected,USR-VAL-001,2026-05-28,Montant supérieur au budget disponible.
-VAL-003,EXP-JE-004,corrected,rejected,corrected,USR-COMPTA-001,2026-06-19,Référence facture corrigée.
-VAL-004,EXP-RED-001,validated,submitted,validated,USR-VAL-001,2026-04-10,Pièces conformes.
+VAL-001,EXP-JE-001,validated,submitted,validated,USR-SUP1-001,2026-03-14,Pièces conformes.
+VAL-002,EXP-JE-003,rejected,submitted,rejected,USR-SUP1-001,2026-05-28,Montant supérieur au budget disponible.
+VAL-003,EXP-JE-004,corrected,rejected,corrected,USR-AGENT-001,2026-06-19,Référence facture corrigée.
+VAL-004,EXP-RED-001,validated,submitted,validated,USR-SUP1-001,2026-04-10,Pièces conformes.

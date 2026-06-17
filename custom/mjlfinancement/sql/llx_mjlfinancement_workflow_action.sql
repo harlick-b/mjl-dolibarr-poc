@@ -1,0 +1,21 @@
+CREATE TABLE llx_mjlfinancement_workflow_action (
+	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+	entity INTEGER DEFAULT 1 NOT NULL,
+	ref VARCHAR(128) NOT NULL,
+	object_type VARCHAR(64) NOT NULL,
+	object_id INTEGER NOT NULL,
+	action VARCHAR(64) NOT NULL,
+	from_status VARCHAR(32) DEFAULT NULL,
+	to_status VARCHAR(32) DEFAULT NULL,
+	actor INTEGER NOT NULL,
+	actor_role VARCHAR(64) NOT NULL,
+	action_date DATETIME NOT NULL,
+	reason TEXT,
+	comment TEXT,
+	changes_json TEXT NOT NULL,
+	date_creation DATETIME NOT NULL,
+	tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	fk_user_creat INTEGER NOT NULL,
+	fk_user_modif INTEGER DEFAULT NULL,
+	import_key VARCHAR(14)
+) ENGINE=innodb;

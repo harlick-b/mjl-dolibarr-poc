@@ -64,10 +64,10 @@ $sampleLogins = array();
 foreach ($users as $row) {
 	$sampleLogins[] = $row['login'];
 	$role = $roles[$row['role_code']];
-	$isAdmin = $row['role_code'] === 'ADMIN_POC' || $role['can_manage_setup'] === 'yes' || $role['can_manage_users'] === 'yes';
+	$isAdmin = $row['role_code'] === 'ADMIN' || $role['can_manage_setup'] === 'yes' || $role['can_manage_users'] === 'yes';
 	$createdUser = ensureUser($row['login'], $row['firstname'], $row['lastname'], $row['email'], $isAdmin ? 1 : 0, $row['active'] === 'yes' ? 1 : 0, $defaultPassword, $entity);
 	assignExactMjlGroup($createdUser->id, $groupIds[$row['role_code']], array_values($groupIds), $entity);
-	if ($row['role_code'] === 'ADMIN_POC') {
+	if ($row['role_code'] === 'ADMIN') {
 		ensureApiKey($createdUser, $adminUser);
 	}
 	mjl_out('Prepared user '.$row['login']);
@@ -89,12 +89,18 @@ function rightsForRole($role)
 		array('mjlfinancement', 'fundreceipt', 'read'),
 		array('mjlfinancement', 'expense', 'read'),
 		array('mjlfinancement', 'validation', 'read'),
+		array('mjlfinancement', 'workflowaction', 'read'),
+		array('mjlfinancement', 'exchangelog', 'read'),
 		array('mjlfinancement', 'report', 'read'),
 	);
 
 	if ($role['can_create_convention'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'convention', 'write');
 		$rights[] = array('mjlfinancement', 'activity', 'write');
+	}
+	if ($role['can_create_expense'] === 'yes' || $role['can_submit_expense'] === 'yes') {
+		$rights[] = array('mjlfinancement', 'activity', 'write');
+		$rights[] = array('mjlfinancement', 'exchangelog', 'write');
 	}
 	if ($role['can_create_budget_line'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'budgetline', 'write');
@@ -108,8 +114,11 @@ function rightsForRole($role)
 		$rights[] = array('ecm', 'upload', null);
 	}
 	if ($role['can_validate_expense'] === 'yes') {
+		$rights[] = array('mjlfinancement', 'activity', 'validate');
 		$rights[] = array('mjlfinancement', 'expense', 'validate');
 		$rights[] = array('mjlfinancement', 'validation', 'write');
+		$rights[] = array('mjlfinancement', 'workflowaction', 'write');
+		$rights[] = array('mjlfinancement', 'exchangelog', 'write');
 	}
 	if ($role['can_export_reports'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'export', 'read');

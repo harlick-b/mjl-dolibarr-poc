@@ -1,0 +1,6 @@
+ALTER TABLE llx_mjlfinancement_workflow_action ADD UNIQUE INDEX uk_mjlfinancement_workflow_action_ref_entity (ref, entity);
+ALTER TABLE llx_mjlfinancement_workflow_action ADD INDEX idx_mjlfinancement_workflow_action_entity (entity);
+ALTER TABLE llx_mjlfinancement_workflow_action ADD INDEX idx_mjlfinancement_workflow_action_object (object_type, object_id);
+ALTER TABLE llx_mjlfinancement_workflow_action ADD INDEX idx_mjlfinancement_workflow_action_actor (actor);
+ALTER TABLE llx_mjlfinancement_workflow_action ADD INDEX idx_mjlfinancement_workflow_action_action_date (action_date);
+ALTER TABLE llx_mjlfinancement_workflow_action ADD CONSTRAINT fk_mjlfinancement_workflow_action_actor FOREIGN KEY (actor) REFERENCES llx_user(rowid);

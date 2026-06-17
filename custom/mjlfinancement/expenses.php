@@ -203,16 +203,96 @@ function mjl_expenses_upload_document(MjlExpense $expense)
 
 function mjl_expenses_create_form()
 {
+	$projectOptions = mjl_expenses_options('project');
+	$conventionOptions = mjl_expenses_options('convention');
+	$activityOptions = mjl_expenses_options('activity');
+	$budgetLineOptions = mjl_expenses_options('budget_line');
+
 	print '<form method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'">';
 	print '<input type="hidden" name="action" value="create">';
 	print mjl_expenses_token_input();
 	print '<table class="border centpercent">';
 	print '<tr class="liste_titre"><th colspan="6">Nouvelle depense</th></tr>';
-	print '<tr><td>Ref</td><td><input required name="ref"></td><td>Projet</td><td><input required type="number" name="fk_project"></td><td>Convention</td><td><input required type="number" name="fk_convention"></td></tr>';
-	print '<tr><td>Activite</td><td><input type="number" name="fk_mjl_activity"></td><td>Ligne budgetaire</td><td><input required type="number" name="fk_budget_line"></td><td>Montant</td><td><input required name="amount"></td></tr>';
+	print '<tr><td>Ref</td><td><input required name="ref"></td><td>Projet</td><td>'.mjl_expenses_select('fk_project', $projectOptions, 1, 'Choisir').'</td><td>Convention</td><td>'.mjl_expenses_select('fk_convention', $conventionOptions, 1, 'Choisir').'</td></tr>';
+	print '<tr><td>Activite</td><td>'.mjl_expenses_select('fk_mjl_activity', $activityOptions, 0, 'Aucune').'</td><td>Ligne budgetaire</td><td>'.mjl_expenses_select('fk_budget_line', $budgetLineOptions, 1, 'Choisir').'</td><td>Montant</td><td><input required name="amount"></td></tr>';
 	print '<tr><td>Date</td><td><input type="date" name="expense_date"></td><td>Description</td><td colspan="3"><input class="flat minwidth500" name="description"></td></tr>';
 	print '<tr><td colspan="6" class="right"><input class="button" type="submit" value="Creer"></td></tr>';
 	print '</table></form><br>';
+}
+
+function mjl_expenses_options($type)
+{
+	global $db, $conf;
+
+	if ($type === 'project') {
+		$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+	} elseif ($type === 'convention') {
+		$sql = 'SELECT c.rowid, c.ref, c.title, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_convention c';
+		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project';
+		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' ORDER BY c.ref';
+	} elseif ($type === 'activity') {
+		$sql = 'SELECT a.rowid, a.ref, a.label, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_activity a';
+		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project';
+		$sql .= ' WHERE a.entity = '.((int) $conf->entity).' ORDER BY p.ref, a.ref';
+	} elseif ($type === 'budget_line') {
+		$sql = 'SELECT bl.rowid, bl.ref, bl.label, p.ref AS project_ref, c.ref AS convention_ref FROM '.$db->prefix().'mjlfinancement_budget_line bl';
+		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project';
+		$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention';
+		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' ORDER BY p.ref, c.ref, bl.ref';
+	} else {
+		return array();
+	}
+
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return array();
+	}
+
+	$options = array();
+	while ($obj = $db->fetch_object($resql)) {
+		if ($type === 'project') {
+			$label = $obj->ref.' - '.$obj->title;
+		} elseif ($type === 'convention') {
+			$label = $obj->ref.' - '.$obj->title;
+			if (!empty($obj->project_ref)) {
+				$label .= ' ('.$obj->project_ref.')';
+			}
+		} elseif ($type === 'activity') {
+			$label = $obj->ref.' - '.$obj->label;
+			if (!empty($obj->project_ref)) {
+				$label .= ' ('.$obj->project_ref.')';
+			}
+		} else {
+			$label = $obj->ref.' - '.$obj->label;
+			$context = array();
+			if (!empty($obj->project_ref)) {
+				$context[] = $obj->project_ref;
+			}
+			if (!empty($obj->convention_ref)) {
+				$context[] = $obj->convention_ref;
+			}
+			if (!empty($context)) {
+				$label .= ' ('.implode(' / ', $context).')';
+			}
+		}
+		$options[(int) $obj->rowid] = $label;
+	}
+
+	return $options;
+}
+
+function mjl_expenses_select($name, $options, $required = 0, $emptyLabel = '')
+{
+	$html = '<select name="'.dol_escape_htmltag($name).'"'.($required ? ' required' : '').'>';
+	if ($emptyLabel !== '') {
+		$html .= '<option value="">'.dol_escape_htmltag($emptyLabel).'</option>';
+	}
+	foreach ($options as $value => $label) {
+		$html .= '<option value="'.((int) $value).'">'.dol_escape_htmltag($label).'</option>';
+	}
+	$html .= '</select>';
+
+	return $html;
 }
 
 function mjl_expenses_list()

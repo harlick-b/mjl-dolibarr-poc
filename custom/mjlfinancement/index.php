@@ -10,6 +10,8 @@ $summaryRows = array(
 	array('label' => 'Receptions de fonds', 'table' => 'mjlfinancement_fund_receipt', 'right' => 'fundreceipt'),
 	array('label' => 'Depenses', 'table' => 'mjlfinancement_expense', 'right' => 'expense'),
 	array('label' => 'Validations', 'table' => 'mjlfinancement_validation', 'right' => 'validation'),
+	array('label' => 'Actions workflow', 'table' => 'mjlfinancement_workflow_action', 'right' => 'workflowaction'),
+	array('label' => 'Echanges', 'table' => 'mjlfinancement_exchange_log', 'right' => 'exchangelog'),
 	array('label' => 'Rapports', 'table' => 'mjlfinancement_report', 'right' => 'report'),
 );
 
@@ -32,10 +34,14 @@ print load_fiche_titre($langs->trans('MJLFinancement'), '', 'money-bill');
 
 print '<div class="tabsAction">';
 if ($user->hasRight('mjlfinancement', 'convention', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">Conventions</a>';
+if ($user->hasRight('mjlfinancement', 'activity', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php">Activites</a>';
 if ($user->hasRight('mjlfinancement', 'budgetline', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php">Lignes budgetaires</a>';
 if ($user->hasRight('mjlfinancement', 'fundreceipt', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">Fonds recus</a>';
 if ($user->hasRight('mjlfinancement', 'expense', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php">Depenses</a>';
 if ($user->hasRight('mjlfinancement', 'validation', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/validations.php">Validations</a>';
+if ($user->hasRight('mjlfinancement', 'workflowaction', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/workflowactions.php">Actions workflow</a>';
+if ($user->hasRight('mjlfinancement', 'exchangelog', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/exchangelogs.php">Echanges</a>';
+if ($user->hasRight('mjlfinancement', 'report', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/dpafdashboard.php">Tableau DPAF</a>';
 if ($user->hasRight('mjlfinancement', 'report', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/reports.php">Rapports</a>';
 print '</div>';
 

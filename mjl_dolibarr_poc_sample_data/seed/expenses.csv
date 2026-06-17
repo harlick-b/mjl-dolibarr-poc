@@ -1,8 +1,8 @@
 expense_id,ref,project_id,convention_id,activity_id,budget_line_id,amount_xof,expense_date,description,supporting_document_id,status,created_by,submitted_at,validated_by,validated_at,correction_reason
-EXP-JE-001,EXP-JE-001,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-001,BL-JE-001,950000,2026-03-11,Location salle et pause-café atelier magistrats,DOC-EXP-JE-001,validated,USR-COMPTA-001,2026-03-12,USR-VAL-001,2026-03-14,
-EXP-JE-002,EXP-JE-002,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-002,BL-JE-002,420000,2026-05-21,Transport mission terrain juridictions pilotes,DOC-EXP-JE-002,submitted,USR-COMPTA-001,2026-05-26,,,
-EXP-JE-003,EXP-JE-003,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-002,BL-JE-003,980000,2026-05-24,Per diem mission terrain - cas over budget,DOC-EXP-JE-003,rejected,USR-COMPTA-001,2026-05-26,USR-VAL-001,2026-05-28,Montant supérieur au budget disponible de la ligne per diem.
-EXP-JE-004,EXP-JE-004,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-003,BL-JE-004,300000,2026-06-18,Achat supports pédagogiques - version corrigée,DOC-EXP-JE-004,corrected,USR-COMPTA-001,2026-06-19,,,Correction de la référence de facture après rejet initial.
-EXP-JE-005,EXP-JE-005,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-003,BL-JE-005,50000,2026-06-20,Communication atelier - document manquant,,draft,USR-COMPTA-001,,,,
-EXP-RED-001,EXP-RED-001,PRJ-RED-2026,CONV-RED-2026-001,ACT-RED-001,BL-RED-001,760000,2026-04-06,Organisation atelier redevabilité,DOC-EXP-RED-001,validated,USR-COMPTA-001,2026-04-08,USR-VAL-001,2026-04-10,
-EXP-RED-002,EXP-RED-002,PRJ-RED-2026,CONV-RED-2026-001,ACT-RED-002,BL-RED-002,250000,2026-06-10,Préparation rapport semestriel,DOC-EXP-RED-002,submitted,USR-COMPTA-001,2026-06-11,,,
+EXP-JE-001,EXP-JE-001,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-001,BL-JE-001,950000,2026-03-11,Location salle et pause-café atelier magistrats,DOC-EXP-JE-001,validated,USR-AGENT-001,2026-03-12,USR-SUP1-001,2026-03-14,
+EXP-JE-002,EXP-JE-002,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-002,BL-JE-002,420000,2026-05-21,Transport mission terrain juridictions pilotes,DOC-EXP-JE-002,submitted,USR-AGENT-001,2026-05-26,,,
+EXP-JE-003,EXP-JE-003,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-002,BL-JE-003,980000,2026-05-24,Per diem mission terrain - cas over budget,DOC-EXP-JE-003,rejected,USR-AGENT-001,2026-05-26,USR-SUP1-001,2026-05-28,Montant supérieur au budget disponible de la ligne per diem.
+EXP-JE-004,EXP-JE-004,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-003,BL-JE-004,300000,2026-06-18,Achat supports pédagogiques - version corrigée,DOC-EXP-JE-004,corrected,USR-AGENT-001,2026-06-19,,,Correction de la référence de facture après rejet initial.
+EXP-JE-005,EXP-JE-005,PRJ-JE-2026,CONV-UNICEF-2026-001,ACT-JE-003,BL-JE-005,50000,2026-06-20,Communication atelier - document manquant,,draft,USR-AGENT-001,,,,
+EXP-RED-001,EXP-RED-001,PRJ-RED-2026,CONV-RED-2026-001,ACT-RED-001,BL-RED-001,760000,2026-04-06,Organisation atelier redevabilité,DOC-EXP-RED-001,validated,USR-AGENT-001,2026-04-08,USR-SUP1-001,2026-04-10,
+EXP-RED-002,EXP-RED-002,PRJ-RED-2026,CONV-RED-2026-001,ACT-RED-002,BL-RED-002,250000,2026-06-10,Préparation rapport semestriel,DOC-EXP-RED-002,submitted,USR-AGENT-001,2026-06-11,,,
