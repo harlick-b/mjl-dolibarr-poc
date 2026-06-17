@@ -92,23 +92,23 @@ Processus cible retenu pour le POC :
 
 ### 14. Qui initie une dépense ?
 
-Hypothèse POC : la dépense est initiée par le comptable projet ou un agent habilité de saisie, sur la base d'une demande provenant du responsable projet ou du service bénéficiaire.
+Hypothèse POC : la dépense est initiée par un `AGENT` habilité de saisie, sur la base d'une demande provenant du responsable projet ou du service bénéficiaire.
 
 ### 15. Qui valide une dépense ?
 
-Hypothèse POC : la dépense est validée par un validateur financier habilité, distinct du profil de saisie. Le POC prévoit un rôle `VALIDATEUR`.
+Hypothèse POC : la dépense est validée par un superviseur habilité, distinct du profil de saisie. Le POC prévoit les rôles `SUPERVISEUR_N1` et `SUPERVISEUR_N2`.
 
 ### 16. Qui saisit les opérations comptables ou financières ?
 
-Hypothèse POC : le comptable projet saisit les fonds reçus, les dépenses et les informations financières. Le POC prévoit un rôle `COMPTABLE`.
+Hypothèse POC : un `AGENT` saisit les fonds reçus, les dépenses et les informations financières. La `DPAF` dispose d'une visibilité large de pilotage et d'export.
 
 ### 17. Qui contrôle les pièces justificatives ?
 
-Hypothèse POC : le contrôle est assuré par le validateur financier, éventuellement avec consultation par le responsable projet ou un profil audit/lecture.
+Hypothèse POC : le contrôle est assuré par `SUPERVISEUR_N1` ou `SUPERVISEUR_N2`, avec consultation par la `DPAF` ou un profil `LECTEUR`.
 
 ### 18. Qui produit les rapports financiers ?
 
-Hypothèse POC : les rapports sont produits par la DPAF ou par les profils comptable, responsable projet et administrateur, selon les droits d'export définis.
+Hypothèse POC : les rapports sont produits par la `DPAF` ou par `ADMIN`, selon les droits d'export définis.
 
 ### 19. Quelles sont les principales difficultés rencontrées aujourd'hui dans ce processus ?
 
@@ -166,9 +166,9 @@ Les types prioritaires sont : missions, ateliers, prestations, achats, frais de 
 Les profils POC sont :
 
 - administrateur POC ;
-- comptable projet ;
-- responsable projet ;
-- validateur financier ;
+- agent de saisie ;
+- superviseur N1/N2 ;
+- DPAF ;
 - lecteur/audit.
 
 ### 30. Combien d'utilisateurs sont prévus au démarrage ?
@@ -181,7 +181,7 @@ Hypothèse POC : non. La DPAF doit disposer de droits financiers plus larges, no
 
 ### 32. Faut-il prévoir des rôles différents : saisie, validation, contrôle, consultation, administration, audit ?
 
-Oui. Le POC prévoit déjà une séparation des rôles : administration, comptabilité/saisie, responsable projet, validation financière et lecture/audit.
+Oui. Le POC prévoit déjà une séparation des rôles : `ADMIN`, `AGENT`, `SUPERVISEUR_N1`, `SUPERVISEUR_N2`, `DPAF` et `LECTEUR`.
 
 ### 33. Qui doit pouvoir modifier ou annuler une opération déjà enregistrée ?
 
@@ -278,7 +278,7 @@ Réponse client proposée : oui, la gestion des fichiers est possible et cohére
 
 Oui. Dolibarr gère nativement les utilisateurs, groupes et droits d'accès. Le module MJL ajoute déjà des droits spécifiques pour les conventions, activités, lignes budgétaires, fonds reçus, dépenses, validations, rapports et exports.
 
-Le POC contient déjà plusieurs profils : administrateur POC, comptable projet, responsable projet, validateur financier et lecteur/audit. Cela montre que l'on peut séparer les droits de saisie, validation, consultation, administration et reporting.
+Le POC contient déjà plusieurs profils : `ADMIN`, `AGENT`, `SUPERVISEUR_N1`, `SUPERVISEUR_N2`, `DPAF` et `LECTEUR`. Cela montre que l'on peut séparer les droits de saisie, validation, consultation, administration et reporting.
 
 Réponse client proposée : oui, il est possible d'ajouter de nouveaux profils comme agent DPAF, agent DPJJE, contrôleur interne, auditeur, point focal bailleur ou administrateur technique. Il faudra simplement définir pour chaque rôle les actions autorisées : consulter, créer, modifier, valider, rejeter, exporter, administrer ou auditer.
 

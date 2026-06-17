@@ -45,9 +45,12 @@ Le POC demontre deja :
 - un modele de donnees metier pour conventions, activites, lignes budgetaires, receptions de fonds, depenses, validations et rapports ;
 - des profils utilisateurs et droits d'acces separes ;
 - un tableau de bord MJL ;
+- un tableau de bord DPAF dedie ;
 - des listes de consultation pour conventions, lignes budgetaires, fonds recus et validations ;
+- un workflow activite trace dans l'historique workflow ;
+- un journal d'echanges rattache aux activites ;
 - un workflow depense plus avance : creation, upload de piece, soumission, validation, rejet, correction, resoumission ;
-- des rapports fixes avec filtres et export CSV ;
+- des rapports fixes avec filtres et export CSV Excel-compatible ;
 - des scripts de bootstrap, chargement de donnees exemple et verification technique ;
 - un jeu de donnees representatif avec projets, bailleurs, conventions, lignes budgetaires, depenses et cas limites.
 
@@ -87,14 +90,15 @@ MjlPoc2026!!
 Utilisateurs exemples :
 
 - `admin.poc` : administration POC ;
-- `comptable.mjl` : saisie fonds/depenses et rapports ;
-- `responsable.projet` : suivi projet et budget ;
-- `validateur.financier` : validation/rejet depenses ;
+- `agent.mjl` : saisie et soumission ;
+- `superviseur.n1` : validation/rejet de premier niveau ;
+- `superviseur.n2` : validation/rejet de deuxieme niveau ;
+- `dpaf.mjl` : tableau de bord, consultation et exports ;
 - `lecteur.audit` : consultation/audit.
 
 ### 4.2 Scenario de demo
 
-1. Se connecter comme `admin.poc` ou `comptable.mjl`.
+1. Se connecter comme `admin.poc` ou `agent.mjl`.
 2. Ouvrir le menu MJL Financement.
 3. Montrer le tableau de bord : volumes, synthese projet, execution budgetaire.
 4. Montrer les conventions et lignes budgetaires.
@@ -103,7 +107,7 @@ Utilisateurs exemples :
 7. Creer ou montrer une depense brouillon.
 8. Ajouter une piece justificative.
 9. Soumettre la depense.
-10. Se connecter comme `validateur.financier`.
+10. Se connecter comme `superviseur.n1`.
 11. Valider une depense conforme.
 12. Rejeter une depense avec motif.
 13. Montrer l'historique des validations.
@@ -286,7 +290,7 @@ Perimetre V1 recommande :
 - Tableau de bord financier par projet/convention.
 - Rapports fixes valides par le client.
 - Export Excel/CSV, puis PDF si les canevas sont stabilises.
-- Roles et droits : admin, comptable, responsable projet, validateur, lecteur/audit.
+- Roles et droits : `AGENT`, `SUPERVISEUR_N1`, `SUPERVISEUR_N2`, `DPAF`, `ADMIN`, `LECTEUR`.
 
 Hors perimetre V1 recommande :
 

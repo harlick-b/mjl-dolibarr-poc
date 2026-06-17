@@ -3,6 +3,29 @@
 This document describes what the repository can actually do based on the
 current code, not what the broader POC scope says it should eventually cover.
 
+## Current versus target strategy
+
+The current implementation now follows the revised traceable-demo strategy for
+Phase 1. It keeps `MjlConvention` as the envelope-like grouping object and does
+not add `MjlMissionEnvelope`.
+
+Sample roles are aligned to the target role contract: `AGENT`,
+`SUPERVISEUR_N1`, `SUPERVISEUR_N2`, `DPAF`, `ADMIN`, and `LECTEUR`.
+
+Current code has `MjlValidation` for expense validation history. It also has
+`MjlWorkflowAction` and `MjlExchangeLog`. `MjlWorkflowAction` is wired into the
+`MjlActivity` domain workflow methods, the activity workflow browser page, and
+the generic workflow action browser page. `MjlExchangeLog` is exposed through a
+browser page for activity-linked exchanges.
+
+Current code has `MjlConvention`. The target strategy treats it as the Phase 1
+envelope candidate and defers `MjlMissionEnvelope` until Phase 2 proves it is
+needed.
+
+The module includes a generic index dashboard and a dedicated DPAF dashboard
+covering activity deadlines, pending reviews, budgets, expenses, fund receipts,
+validation snippets, and recent workflow actions.
+
 ## Repository shape
 
 The repository contains a Dockerized Dolibarr 23.0.2 setup and one custom
@@ -12,20 +35,25 @@ Implemented parts:
 
 - Local Dolibarr + MariaDB runtime through `docker-compose.yml`.
 - A custom Dolibarr module declaration, `modMjlFinancement`, currently version
-  `0.3.0`.
-- Seven custom database-backed object classes:
+  `0.5.0`.
+- Nine custom database-backed object classes:
   - `MjlConvention`
   - `MjlActivity`
   - `MjlBudgetLine`
   - `MjlFundReceipt`
   - `MjlExpense`
   - `MjlValidation`
+  - `MjlWorkflowAction`
+  - `MjlExchangeLog`
   - `MjlReport`
 - SQL table definitions and indexes/foreign keys for those custom objects.
-- Activation upgrade scripts for the 0.2.0 and 0.3.0 schemas.
+- Activation upgrade scripts for the 0.2.0, 0.3.0, and 0.4.0 schemas.
 - CSV-driven bootstrap and sample-data seed scripts.
 - Schema, acceptance, and smoke scripts for the POC data set.
-- A minimal dashboard page at `/mjlfinancement/index.php`.
+- A generic dashboard page at `/mjlfinancement/index.php`.
+- A DPAF dashboard page at `/mjlfinancement/dpafdashboard.php`.
+- Browser pages for activities, expenses, validations, workflow actions,
+  exchange logs, and reports.
 
 ## What can be run locally
 
@@ -57,8 +85,11 @@ Run checks:
 
 ```bash
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.3.0.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.4.0.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/acceptance_sample_data.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_activity_workflow.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_traceability_exports.php
 ```
 
 The legacy 0.2.0 schema audit remains available for older migration checks:
@@ -85,11 +116,12 @@ The bootstrap activates these Dolibarr modules:
 It reads `sample_data/seed/roles_permissions.csv` and
 `sample_data/seed/users.csv` to create or update these POC users:
 
-- `admin.poc`
-- `comptable.mjl`
-- `responsable.projet`
-- `validateur.financier`
-- `lecteur.audit`
+- `admin.poc` (`ADMIN`)
+- `agent.mjl` (`AGENT`)
+- `superviseur.n1` (`SUPERVISEUR_N1`)
+- `superviseur.n2` (`SUPERVISEUR_N2`)
+- `dpaf.mjl` (`DPAF`)
+- `lecteur.audit` (`LECTEUR`)
 
 The default password is:
 
@@ -104,7 +136,7 @@ disables older legacy POC users when present, and generates an API key for
 
 ## Implemented custom data model
 
-The module creates seven custom tables.
+The module creates nine custom tables.
 
 ### Conventions
 
@@ -122,7 +154,12 @@ Table: `llx_mjlfinancement_activity`
 Key fields: `ref`, `label`, `fk_project`, `fk_convention`, optional `fk_task`,
 dates, notes, audit fields, and `status`.
 
-Statuses: Draft, Ongoing, Completed.
+Statuses: Draft (`0`), Ongoing (`1`), Completed (`2`), Submitted (`3`),
+Correction requested (`4`), Corrected (`5`), Validated (`6`), Rejected (`8`),
+Cancelled (`9`).
+
+`overdue` is not persisted. Deadline alerts are computed from `date_end` and
+are hidden only for completed or cancelled activities.
 
 ### Budget Lines
 
@@ -173,6 +210,32 @@ Table: `llx_mjlfinancement_validation`
 Key fields: `ref`, `fk_expense`, `action`, `from_status`, `to_status`,
 `fk_user_action`, `action_date`, `comment`, and audit fields.
 
+### Workflow Actions
+
+Table: `llx_mjlfinancement_workflow_action`
+
+Key fields: `ref`, `object_type`, `object_id`, `action`, `from_status`,
+`to_status`, `actor`, `actor_role`, `action_date`, `reason`, `comment`,
+`changes_json`, and audit fields.
+
+This is the generic audit foundation for activity workflow, field changes,
+reassignment, and non-expense workflow actions. It is wired into the
+`MjlActivity` domain methods and exposed through browser workflow screens.
+Activity status changes and important activity field edits write
+`MjlWorkflowAction` rows. Field edits store before/after values in
+`changes_json`.
+
+### Exchange Logs
+
+Table: `llx_mjlfinancement_exchange_log`
+
+Key fields: `ref`, `object_type`, `object_id`, `exchange_date`, `actor`,
+`actor_role`, `channel`, `subject`, `message`, and audit fields.
+
+This is the queryable exchange/comment foundation. It is exposed in
+`exchangelogs.php` with create, list, and filter behavior for activity-linked
+demo exchanges.
+
 ### Reports
 
 Table: `llx_mjlfinancement_report`
@@ -185,9 +248,10 @@ Key fields: `ref`, `name`, `scope`, `expected_format`, `filters`,
 Fresh installs use the table definitions in the `sql/llx_*.sql` files and
 their matching key files.
 
-Existing POC installs are upgraded by `sql/update_0.2.0.sql` and
-`sql/update_0.3.0.sql` during module activation. The upgrades backfill renamed
-fields where possible and use guarded DDL for 0.3.0 additions.
+Existing POC installs are upgraded by `sql/update_0.2.0.sql`,
+`sql/update_0.3.0.sql`, and `sql/update_0.4.0.sql` during module activation.
+The upgrades backfill renamed fields where possible and use guarded DDL for
+0.3.0 and 0.4.0 additions.
 
 Legacy columns that no longer belong to the 0.3.0 fresh schema are dropped only
 when empty. Populated legacy columns are preserved for manual review and are
@@ -203,6 +267,14 @@ The 0.3.0 audit reports:
 - cross-entity custom links and sample ECM source links,
 - populated legacy columns that could not be safely dropped,
 - empty legacy columns that remain after migration cleanup.
+
+The 0.4.0 audit reports:
+
+- missing workflow-action and exchange-log tables, columns, indexes, and
+  constraints,
+- duplicate `ref` + `entity` values,
+- broken actor references,
+- workflow actions missing `changes_json`.
 
 ## What can be done through the UI
 
@@ -221,9 +293,38 @@ custom create, edit, delete, validate, export, or detailed list/card screens.
 Standard Dolibarr modules activated by the bootstrap can still be used through
 their native screens, subject to user permissions.
 
+The custom activity page at `/mjlfinancement/activities.php` provides:
+
+- activity creation in draft status,
+- active-entity dropdown selectors for project, convention, and optional
+  project task,
+- activity list with project, convention, status, computed deadline alert, and
+  creator,
+- submit, correction request, correction, validation, and rejection actions,
+- audited label/date correction with a required comment while draft or
+  correction requested,
+- no-self-validation protection through the domain class,
+- recent activity workflow history from `MjlWorkflowAction`.
+
+The custom expense page at `/mjlfinancement/expenses.php` provides:
+
+- expense creation in draft status,
+- active-entity dropdown selectors for project, convention, optional activity,
+  and budget line,
+- supporting document upload to ECM,
+- submission, validation, rejection, correction, and resubmission actions.
+
+The custom workflow action page at `/mjlfinancement/workflowactions.php`
+provides:
+
+- recent generic workflow action history,
+- active-entity filtering,
+- filters for object type, action, actor role, and date range,
+- before/after status and `changes_json` display.
+
 ## What can be done programmatically
 
-The seven custom classes extend Dolibarr `CommonObject` and expose basic
+The nine custom classes extend Dolibarr `CommonObject` and expose basic
 methods:
 
 - `create()`
@@ -242,12 +343,14 @@ report definitions, and ECM placeholder documents.
 The module declares rights for:
 
 - convention read/write/delete
-- activity read/write/delete
+- activity read/write/delete/validate
 - budget line read/write/delete
 - expense read/write/delete/validate
 - export read/write
 - fund receipt read/write
 - validation read/write
+- workflow action read/write
+- exchange log read/write
 - report read/write
 
 The dashboard count rows are filtered by the matching read right. Report
@@ -257,10 +360,8 @@ summaries require `report/read`.
 
 The current code does not implement:
 
-- Custom CRUD screens for MJL objects.
-- Custom export files or export controllers.
-- A browser UI for expense submission, correction, rejection, or validation.
-- A business rule preventing overspend.
+- Full custom CRUD/detail screens for every MJL object.
+- Rich document preview/download flows in the custom screens.
 - API endpoints specific to MJL objects.
 - Dolibarr hook, trigger, cron job, model, template, dashboard box, or custom
   tab implementations.
@@ -270,9 +371,9 @@ The current code does not implement:
 
 Today, this repository is a runnable Dolibarr POC with a custom MJL financing
 module, schema, object classes, CSV seed data, role bootstrap automation,
-read-only dashboard summaries, and CLI validation scripts.
+browser workflow pages, exchange traceability, DPAF dashboarding, CSV exports,
+and CLI validation scripts.
 
 It is not yet a complete financial monitoring application for end users. The
-next major product work would be custom list/card/create/edit pages and at
-least one browser-driven workflow from convention to expense validation and
-reporting.
+next major product work would be richer detail pages, official client report
+canevas, stronger document consultation, and browser-driven regression tests.
