@@ -29,6 +29,9 @@ $ptf = requireId('societe', "nom = 'UNICEF'");
 $project = requireId('projet', "ref = 'PRJ-JE-2026'");
 $convention = requireId('mjlfinancement_convention', "ref = 'CONV-UNICEF-2026-001' AND fk_soc = ".$ptf." AND fk_project = ".$project);
 $activity = requireId('mjlfinancement_activity', "ref = 'ACT-JE-001' AND fk_project = ".$project." AND fk_convention = ".$convention);
+requireId('mjlfinancement_activity', "ref = 'ACT-JE-001' AND status = 2");
+requireId('mjlfinancement_activity', "ref = 'ACT-JE-003' AND status = 1");
+requireId('mjlfinancement_activity', "ref = 'ACT-RED-002' AND status = 1");
 $budgetLine = requireId('mjlfinancement_budget_line', "ref = 'BL-JE-001' AND fk_mjl_activity = ".$activity." AND fk_convention = ".$convention);
 $expense = requireId('mjlfinancement_expense', "ref = 'EXP-JE-001' AND fk_mjl_activity = ".$activity." AND fk_budget_line = ".$budgetLine." AND supporting_document = 'DOC-EXP-JE-001' AND status = 2");
 requireId('ecm_files', "entity = ".$entity." AND filename = 'EXP-JE-001_facture-location-salle.txt' AND src_object_type = 'mjlfinancement_expense' AND src_object_id = ".$expense);
@@ -65,6 +68,7 @@ $testFunds = fetchAmount("SELECT COALESCE(SUM(amount), 0) AS amount FROM ".$db->
 assertSame('FR-TEST-001 recorded funds', 0.0, $testFunds);
 
 assertLecteurRights();
+assertTargetRoleRights();
 
 mjl_out('MJL sample data acceptance checks completed.');
 
@@ -119,22 +123,7 @@ function assertExpenseStatus($ref, $expected)
 
 function assertLecteurRights()
 {
-	global $db;
-
-	$sql = 'SELECT r.module, r.perms, r.subperms FROM '.$db->prefix().'user u';
-	$sql .= ' INNER JOIN '.$db->prefix().'usergroup_user gu ON gu.fk_user = u.rowid';
-	$sql .= ' INNER JOIN '.$db->prefix().'usergroup_rights gr ON gr.fk_usergroup = gu.fk_usergroup';
-	$sql .= ' INNER JOIN '.$db->prefix().'rights_def r ON r.id = gr.fk_id';
-	$sql .= " WHERE u.login = 'lecteur.audit'";
-	$resql = $db->query($sql);
-	if (!$resql) {
-		fail('Unable to fetch lecteur.audit rights: '.$db->lasterror());
-	}
-
-	$rights = array();
-	while ($obj = $db->fetch_object($resql)) {
-		$rights[] = $obj->module.'/'.$obj->perms.'/'.(string) $obj->subperms;
-	}
+	$rights = rightsForLogin('lecteur.audit');
 
 	foreach (array('mjlfinancement/convention/read', 'mjlfinancement/report/read', 'mjlfinancement/expense/read') as $required) {
 		if (!in_array($required, $rights, true)) {
@@ -146,6 +135,65 @@ function assertLecteurRights()
 			fail('lecteur.audit has forbidden right '.$right);
 		}
 	}
+}
+
+function assertTargetRoleRights()
+{
+	foreach (array('agent.mjl', 'superviseur.n1', 'superviseur.n2', 'dpaf.mjl', 'admin.poc', 'lecteur.audit') as $login) {
+		requireId('user', "login = '".$login."'");
+	}
+
+	$agentRights = rightsForLogin('agent.mjl');
+	foreach (array('mjlfinancement/activity/write', 'mjlfinancement/expense/write', 'mjlfinancement/exchangelog/write') as $required) {
+		if (!in_array($required, $agentRights, true)) {
+			fail('agent.mjl missing required right '.$required);
+		}
+	}
+	foreach (array('mjlfinancement/activity/validate', 'mjlfinancement/expense/validate', 'mjlfinancement/export/write') as $forbidden) {
+		if (in_array($forbidden, $agentRights, true)) {
+			fail('agent.mjl has forbidden right '.$forbidden);
+		}
+	}
+
+	$supervisorRights = rightsForLogin('superviseur.n1');
+	foreach (array('mjlfinancement/activity/validate', 'mjlfinancement/expense/validate', 'mjlfinancement/export/write') as $required) {
+		if (!in_array($required, $supervisorRights, true)) {
+			fail('superviseur.n1 missing required right '.$required);
+		}
+	}
+
+	$dpafRights = rightsForLogin('dpaf.mjl');
+	foreach (array('mjlfinancement/report/read', 'mjlfinancement/export/write', 'mjlfinancement/activity/read', 'mjlfinancement/expense/read') as $required) {
+		if (!in_array($required, $dpafRights, true)) {
+			fail('dpaf.mjl missing required right '.$required);
+		}
+	}
+	foreach (array('mjlfinancement/activity/write', 'mjlfinancement/activity/validate', 'mjlfinancement/expense/write', 'mjlfinancement/expense/validate') as $forbidden) {
+		if (in_array($forbidden, $dpafRights, true)) {
+			fail('dpaf.mjl has forbidden routine operation right '.$forbidden);
+		}
+	}
+}
+
+function rightsForLogin($login)
+{
+	global $db;
+
+	$sql = 'SELECT r.module, r.perms, r.subperms FROM '.$db->prefix().'user u';
+	$sql .= ' INNER JOIN '.$db->prefix().'usergroup_user gu ON gu.fk_user = u.rowid';
+	$sql .= ' INNER JOIN '.$db->prefix().'usergroup_rights gr ON gr.fk_usergroup = gu.fk_usergroup';
+	$sql .= ' INNER JOIN '.$db->prefix().'rights_def r ON r.id = gr.fk_id';
+	$sql .= " WHERE u.login = '".$db->escape($login)."'";
+	$resql = $db->query($sql);
+	if (!$resql) {
+		fail('Unable to fetch '.$login.' rights: '.$db->lasterror());
+	}
+
+	$rights = array();
+	while ($obj = $db->fetch_object($resql)) {
+		$rights[] = $obj->module.'/'.$obj->perms.'/'.(string) $obj->subperms;
+	}
+	return $rights;
 }
 
 function assertSame($label, $expected, $actual)
