@@ -137,6 +137,55 @@ function mjl_ensure_schema()
 		import_key VARCHAR(14)
 	) ENGINE=innodb', 'create fund receipt table');
 
+	mjl_query('CREATE TABLE IF NOT EXISTS '.$db->prefix().'mjlfinancement_invitation (
+		rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+		entity INTEGER DEFAULT 1 NOT NULL,
+		fk_user INTEGER NOT NULL,
+		status VARCHAR(32) NOT NULL,
+		token_hash VARCHAR(128) DEFAULT NULL,
+		date_expiry DATETIME DEFAULT NULL,
+		date_sent DATETIME DEFAULT NULL,
+		date_accepted DATETIME DEFAULT NULL,
+		date_revoked DATETIME DEFAULT NULL,
+		fk_user_sender INTEGER DEFAULT NULL,
+		fk_user_revoked INTEGER DEFAULT NULL,
+		date_creation DATETIME NOT NULL,
+		tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		fk_user_creat INTEGER NOT NULL,
+		fk_user_modif INTEGER DEFAULT NULL,
+		import_key VARCHAR(14)
+	) ENGINE=innodb', 'create invitation table');
+
+	mjl_query('CREATE TABLE IF NOT EXISTS '.$db->prefix().'mjlfinancement_password_reset (
+			rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+			entity INTEGER DEFAULT 1 NOT NULL,
+			fk_user INTEGER NOT NULL,
+			status VARCHAR(32) DEFAULT \'sent\' NOT NULL,
+			token_hash VARCHAR(128) DEFAULT NULL,
+			date_expiry DATETIME NOT NULL,
+		date_consumed DATETIME DEFAULT NULL,
+		date_creation DATETIME NOT NULL,
+		tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		fk_user_creat INTEGER NOT NULL,
+		fk_user_modif INTEGER DEFAULT NULL,
+		import_key VARCHAR(14)
+	) ENGINE=innodb', 'create password reset table');
+
+	mjl_query('CREATE TABLE IF NOT EXISTS '.$db->prefix().'mjlfinancement_access_audit (
+		rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+		entity INTEGER DEFAULT 1 NOT NULL,
+		fk_user INTEGER DEFAULT NULL,
+		fk_actor INTEGER DEFAULT NULL,
+		event VARCHAR(64) NOT NULL,
+		event_date DATETIME NOT NULL,
+		context TEXT,
+		date_creation DATETIME NOT NULL,
+		tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		fk_user_creat INTEGER DEFAULT NULL,
+		fk_user_modif INTEGER DEFAULT NULL,
+		import_key VARCHAR(14)
+	) ENGINE=innodb', 'create access audit table');
+
 	mjl_add_column('mjlfinancement_convention', 'title', 'VARCHAR(255) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_convention', 'total_amount', 'DOUBLE(24,8) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_convention', 'currency_code', "VARCHAR(3) DEFAULT 'XOF'");
@@ -163,6 +212,7 @@ function mjl_ensure_schema()
 	mjl_add_column('mjlfinancement_expense', 'submitted_at', 'DATETIME DEFAULT NULL');
 	mjl_add_column('mjlfinancement_fund_receipt', 'fk_project', 'INTEGER DEFAULT NULL');
 	mjl_add_column('mjlfinancement_fund_receipt', 'status', 'INTEGER DEFAULT 0 NOT NULL');
+	mjl_add_column('mjlfinancement_password_reset', 'status', "VARCHAR(32) DEFAULT 'sent' NOT NULL");
 
 	mjl_add_unique_index('mjlfinancement_convention', 'uk_mjlfinancement_convention_ref_entity', 'ref, entity');
 	mjl_add_unique_index('mjlfinancement_activity', 'uk_mjlfinancement_activity_ref_entity', 'ref, entity');
@@ -198,6 +248,17 @@ function mjl_ensure_schema()
 		array('mjlfinancement_validation', 'idx_mjlfinancement_validation_fk_expense', 'fk_expense'),
 		array('mjlfinancement_validation', 'idx_mjlfinancement_validation_fk_user_action', 'fk_user_action'),
 		array('mjlfinancement_report', 'idx_mjlfinancement_report_entity', 'entity'),
+		array('mjlfinancement_invitation', 'idx_mjlfinancement_invitation_entity', 'entity'),
+		array('mjlfinancement_invitation', 'idx_mjlfinancement_invitation_fk_user', 'fk_user'),
+		array('mjlfinancement_invitation', 'idx_mjlfinancement_invitation_status', 'status'),
+		array('mjlfinancement_invitation', 'idx_mjlfinancement_invitation_token_hash', 'token_hash'),
+		array('mjlfinancement_password_reset', 'idx_mjlfinancement_password_reset_entity', 'entity'),
+		array('mjlfinancement_password_reset', 'idx_mjlfinancement_password_reset_fk_user', 'fk_user'),
+		array('mjlfinancement_password_reset', 'idx_mjlfinancement_password_reset_status', 'status'),
+		array('mjlfinancement_password_reset', 'idx_mjlfinancement_password_reset_token_hash', 'token_hash'),
+		array('mjlfinancement_access_audit', 'idx_mjlfinancement_access_audit_entity', 'entity'),
+		array('mjlfinancement_access_audit', 'idx_mjlfinancement_access_audit_fk_user', 'fk_user'),
+		array('mjlfinancement_access_audit', 'idx_mjlfinancement_access_audit_event', 'event'),
 	) as $index) {
 		mjl_add_index($index[0], $index[1], $index[2]);
 	}

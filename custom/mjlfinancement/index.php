@@ -43,6 +43,7 @@ if ($user->hasRight('mjlfinancement', 'workflowaction', 'read')) print '<a class
 if ($user->hasRight('mjlfinancement', 'exchangelog', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/exchangelogs.php">Echanges</a>';
 if ($user->hasRight('mjlfinancement', 'report', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/dpafdashboard.php">Tableau DPAF</a>';
 if ($user->hasRight('mjlfinancement', 'report', 'read')) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/reports.php">Rapports</a>';
+if (!empty($user->admin)) print '<a class="butAction" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php">Invitations</a>';
 print '</div>';
 
 print '<div class="div-table-responsive-no-min">';

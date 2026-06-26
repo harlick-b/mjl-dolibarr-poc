@@ -1,0 +1,5 @@
+ALTER TABLE llx_mjlfinancement_password_reset ADD INDEX idx_mjlfinancement_password_reset_entity (entity);
+ALTER TABLE llx_mjlfinancement_password_reset ADD INDEX idx_mjlfinancement_password_reset_fk_user (fk_user);
+ALTER TABLE llx_mjlfinancement_password_reset ADD INDEX idx_mjlfinancement_password_reset_status (status);
+ALTER TABLE llx_mjlfinancement_password_reset ADD INDEX idx_mjlfinancement_password_reset_token_hash (token_hash);
+ALTER TABLE llx_mjlfinancement_password_reset ADD CONSTRAINT fk_mjlfinancement_password_reset_user FOREIGN KEY (fk_user) REFERENCES llx_user(rowid);

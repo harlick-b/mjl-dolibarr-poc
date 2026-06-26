@@ -41,6 +41,7 @@ foreach ($modules as $module) {
 }
 
 mjl_ensure_schema();
+mjl_ensure_phase4_auth_setup($adminUser, $entity);
 
 $roles = mjl_csv_map('roles_permissions.csv', 'role_code');
 $users = mjl_csv_rows('users.csv');
@@ -256,6 +257,37 @@ function ensureApiKey(User $targetUser, User $adminUser)
 		fail('Unable to set API key for '.$targetUser->login.': '.$targetUser->error);
 	}
 	mjl_out('API key for '.$targetUser->login.': '.$targetUser->api_key);
+}
+
+function mjl_ensure_phase4_auth_setup(User $adminUser, $entity)
+{
+	global $db;
+
+	$constants = array(
+		'MAIN_MODULE_MJLFINANCEMENT_TPL' => '1',
+		'MAIN_MODULE_MJLFINANCEMENT_HOOKS' => json_encode(array('login', 'passwordforgottenpage')),
+		'MAIN_MODULE_MJLFINANCEMENT_CSS' => json_encode(array('/mjlfinancement/css/mjl_auth.css.php')),
+		'MAIN_APPLICATION_TITLE' => 'MJL Financement',
+		'MAIN_LANDING_PAGE' => '/custom/mjlfinancement/index.php',
+	);
+
+	foreach ($constants as $name => $value) {
+		$sql = 'SELECT rowid FROM '.$db->prefix().'const WHERE name = \''.$db->escape($name).'\' AND entity = '.((int) $entity);
+		$resql = $db->query($sql);
+		if (!$resql) {
+			fail('Unable to inspect constant '.$name.': '.$db->lasterror());
+		}
+		$obj = $db->fetch_object($resql);
+		if ($obj) {
+			$sql = 'UPDATE '.$db->prefix().'const SET value = \''.$db->escape($value).'\', type = \'chaine\', visible = 0 WHERE rowid = '.((int) $obj->rowid);
+		} else {
+			$sql = 'INSERT INTO '.$db->prefix().'const (name, entity, value, type, visible, note) VALUES (';
+			$sql .= '\''.$db->escape($name).'\', '.((int) $entity).', \''.$db->escape($value).'\', \'chaine\', 0, \'MJL Phase 4 auth setup\')';
+		}
+		mjl_query($sql, 'set auth constant '.$name);
+	}
+
+	mjl_out('Applied MJL Phase 4 auth constants');
 }
 
 function disableLegacyPocUsers($sampleLogins, User $adminUser)

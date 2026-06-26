@@ -1,0 +1,3 @@
+ALTER TABLE llx_mjlfinancement_access_audit ADD INDEX idx_mjlfinancement_access_audit_entity (entity);
+ALTER TABLE llx_mjlfinancement_access_audit ADD INDEX idx_mjlfinancement_access_audit_fk_user (fk_user);
+ALTER TABLE llx_mjlfinancement_access_audit ADD INDEX idx_mjlfinancement_access_audit_event (event);

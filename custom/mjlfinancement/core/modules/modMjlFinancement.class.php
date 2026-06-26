@@ -14,7 +14,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'MJL financing POC';
 		$this->descriptionlong = 'MJL financing POC module for conventions, activities, budget lines, expenses, fund receipts, validations, workflow actions, exchange logs, and reports.';
-		$this->version = '0.5.0';
+		$this->version = '0.6.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(
@@ -22,14 +22,14 @@ class modMjlFinancement extends DolibarrModules
 			'login' => 0,
 			'substitutions' => 0,
 			'menus' => 0,
-			'tpl' => 0,
+			'tpl' => 1,
 			'barcode' => 0,
 			'models' => 0,
 			'printing' => 0,
 			'theme' => 0,
-			'css' => array(),
+			'css' => array('/mjlfinancement/css/mjl_auth.css.php'),
 			'js' => array(),
-			'hooks' => array(),
+			'hooks' => array('login', 'passwordforgottenpage'),
 			'moduleforexternal' => 0,
 			'websitetemplates' => 0,
 			'captcha' => 0,
