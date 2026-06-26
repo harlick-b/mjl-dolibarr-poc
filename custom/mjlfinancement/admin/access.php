@@ -45,13 +45,11 @@ if ($action === 'revoke') {
 		$error = 'Jeton de securite invalide.';
 	} else {
 		$invitationId = GETPOSTINT('id');
-		$sql = 'UPDATE '.$db->prefix()."mjlfinancement_invitation SET status = 'revoked', date_revoked = '".$db->idate(dol_now())."', fk_user_revoked = ".((int) $user->id);
-		$sql .= ' WHERE rowid = '.$invitationId.' AND entity = '.mjl_auth_entity();
-		if ($db->query($sql)) {
-			$message = 'Invitation revoquee.';
-			mjl_auth_record_event('invitation_revoked', null, (int) $user->id, 'invitation='.$invitationId);
+		$revokeResult = mjl_auth_revoke_invitation($invitationId, $user);
+		if ($revokeResult[0] >= 0) {
+			$message = $revokeResult[1];
 		} else {
-			$error = $db->lasterror();
+			$error = $revokeResult[1];
 		}
 	}
 }

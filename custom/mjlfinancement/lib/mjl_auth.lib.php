@@ -177,6 +177,11 @@ function mjl_auth_release_named_lock($lockName)
 	$db->query('SELECT RELEASE_LOCK('.mjl_auth_string_sql($lockName).')');
 }
 
+function mjl_auth_invitation_lock($invitationId)
+{
+	return mjl_auth_named_lock('invitation_'.((int) $invitationId), 2);
+}
+
 function mjl_auth_reset_throttled($email)
 {
 	global $db;
@@ -665,6 +670,21 @@ function mjl_auth_fetch_invitation_by_token($token)
 	return $obj ?: null;
 }
 
+function mjl_auth_fetch_invitation_by_id($invitationId)
+{
+	global $db;
+
+	$sql = 'SELECT * FROM '.$db->prefix().'mjlfinancement_invitation';
+	$sql .= ' WHERE entity = '.mjl_auth_entity();
+	$sql .= ' AND rowid = '.((int) $invitationId);
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return null;
+	}
+	$obj = $db->fetch_object($resql);
+	return $obj ?: null;
+}
+
 function mjl_auth_invitation_status($token)
 {
 	$row = $token ? mjl_auth_fetch_invitation_by_token($token) : null;
@@ -740,9 +760,60 @@ function mjl_auth_reconcile_invitation_claim($row)
 	$db->query($sql);
 }
 
+function mjl_auth_revoke_invitation($invitationId, User $actor)
+{
+	global $db;
+
+	$row = mjl_auth_fetch_invitation_by_id($invitationId);
+	if (!$row) {
+		return array(-1, 'Invitation introuvable.');
+	}
+	$lockName = mjl_auth_invitation_lock((int) $row->rowid);
+	if ($lockName === '') {
+		return array(-1, 'Invitation en cours de traitement. Veuillez reessayer.');
+	}
+
+	$row = mjl_auth_fetch_invitation_by_id($invitationId);
+	if (!$row) {
+		mjl_auth_release_named_lock($lockName);
+		return array(-1, 'Invitation introuvable.');
+	}
+	if (!empty($row->date_accepted) || $row->status === 'accepted') {
+		mjl_auth_release_named_lock($lockName);
+		return array(0, 'Cette invitation est deja acceptee.');
+	}
+	if (!empty($row->date_revoked) || $row->status === 'revoked') {
+		mjl_auth_release_named_lock($lockName);
+		return array(0, 'Cette invitation est deja revoquee.');
+	}
+	if ($row->status === 'accepting') {
+		mjl_auth_release_named_lock($lockName);
+		return array(0, 'Cette invitation est en cours d acceptation.');
+	}
+	if (!in_array($row->status, array('sent', 'pending_send'), true)) {
+		mjl_auth_release_named_lock($lockName);
+		return array(0, 'Cette invitation ne peut pas etre revoquee dans son etat actuel.');
+	}
+
+	$sql = 'UPDATE '.$db->prefix().'mjlfinancement_invitation';
+	$sql .= " SET status = 'revoked', date_revoked = ".mjl_auth_now_sql().', fk_user_revoked = '.((int) $actor->id);
+	$sql .= ', fk_user_modif = '.((int) $actor->id);
+	$sql .= ' WHERE rowid = '.((int) $row->rowid);
+	$sql .= " AND status IN ('sent', 'pending_send') AND date_accepted IS NULL";
+	$resql = $db->query($sql);
+	if (!$resql || $db->affected_rows($resql) !== 1) {
+		mjl_auth_release_named_lock($lockName);
+		return array(-1, 'L invitation n a pas pu etre revoquee.');
+	}
+
+	mjl_auth_record_event('invitation_revoked', (int) $row->fk_user, (int) $actor->id, 'invitation='.((int) $row->rowid));
+	mjl_auth_release_named_lock($lockName);
+	return array(1, 'Invitation revoquee.');
+}
+
 function mjl_auth_accept_invitation($token, $password, $passwordConfirm)
 {
-	global $db, $user;
+	global $db;
 
 	if ($password === '' || $password !== $passwordConfirm) {
 		return 'Les mots de passe saisis ne correspondent pas.';
@@ -752,30 +823,47 @@ function mjl_auth_accept_invitation($token, $password, $passwordConfirm)
 	}
 
 	$row = mjl_auth_fetch_invitation_by_token($token);
+	if (!$row) {
+		return 'Cette invitation est invalide ou expiree.';
+	}
+	$lockName = mjl_auth_invitation_lock((int) $row->rowid);
+	if ($lockName === '') {
+		return 'Cette invitation est en cours de traitement. Veuillez reessayer.';
+	}
+	$row = mjl_auth_fetch_invitation_by_token($token);
 	if (!$row || mjl_auth_invitation_status($token) !== 'valid') {
+		mjl_auth_release_named_lock($lockName);
 		return 'Cette invitation est invalide ou expiree.';
 	}
 	$row = mjl_auth_fetch_invitation_by_token($token);
+	if (!$row || !empty($row->date_revoked) || $row->status === 'revoked') {
+		mjl_auth_release_named_lock($lockName);
+		return 'Cette invitation est invalide ou expiree.';
+	}
 
 	$target = new User($db);
 	if ($target->fetch((int) $row->fk_user) <= 0) {
+		mjl_auth_release_named_lock($lockName);
 		return 'Cette invitation est invalide.';
 	}
 	if (!empty($target->admin) || (int) $target->statut === 1 || (int) $target->entity !== mjl_auth_entity()) {
+		mjl_auth_release_named_lock($lockName);
 		return 'Cette invitation est invalide.';
 	}
 	$actor = mjl_auth_system_user();
 	$sql = 'UPDATE '.$db->prefix().'mjlfinancement_invitation';
 	$sql .= " SET status = 'accepting', fk_user_modif = ".((int) $target->id);
-	$sql .= ' WHERE rowid = '.((int) $row->rowid)." AND status = 'sent' AND date_accepted IS NULL AND date_expiry >= ".mjl_auth_now_sql();
+	$sql .= ' WHERE rowid = '.((int) $row->rowid)." AND status = 'sent' AND date_accepted IS NULL AND date_revoked IS NULL AND date_expiry >= ".mjl_auth_now_sql();
 	$resql = $db->query($sql);
 	if (!$resql || $db->affected_rows($resql) !== 1) {
+		mjl_auth_release_named_lock($lockName);
 		return 'Cette invitation est invalide ou expiree.';
 	}
 
 	$result = $target->setPassword($actor, $password, 0, 0);
 	if (is_int($result) && $result < 0) {
 		$db->query('UPDATE '.$db->prefix()."mjlfinancement_invitation SET status = 'sent', fk_user_modif = ".((int) $target->id).' WHERE rowid = '.((int) $row->rowid)." AND status = 'accepting'");
+		mjl_auth_release_named_lock($lockName);
 		return $target->error ?: 'Le mot de passe n a pas pu etre defini.';
 	}
 
@@ -783,27 +871,38 @@ function mjl_auth_accept_invitation($token, $password, $passwordConfirm)
 	$target->status = 1;
 	if ($target->update($actor, 1, 1, 1, 1) < 0) {
 		mjl_auth_revoke_failed_acceptance($row, $target, $actor, 'activation_failed');
+		mjl_auth_release_named_lock($lockName);
 		return 'Votre acces n a pas pu etre active. Veuillez contacter l administrateur.';
 	}
 	$sql = 'UPDATE '.$db->prefix().'user SET statut = 1 WHERE rowid = '.((int) $target->id).' AND entity = '.mjl_auth_entity().' AND admin = 0';
 	if (!$db->query($sql)) {
 		mjl_auth_revoke_failed_acceptance($row, $target, $actor, 'activation_failed');
+		mjl_auth_release_named_lock($lockName);
 		return 'Votre acces n a pas pu etre active. Veuillez contacter l administrateur.';
 	}
 
 	$sql = 'UPDATE '.$db->prefix().'mjlfinancement_invitation';
 	$sql .= " SET status = 'accepted', date_accepted = ".mjl_auth_now_sql().', fk_user_modif = '.((int) $target->id);
-	$sql .= ' WHERE rowid = '.((int) $row->rowid)." AND status = 'accepting' AND date_accepted IS NULL";
+	$sql .= ' WHERE rowid = '.((int) $row->rowid)." AND status = 'accepting' AND date_accepted IS NULL AND date_revoked IS NULL";
 	$resql = $db->query($sql);
 	if (!$resql || $db->affected_rows($resql) < 1) {
-		$target->statut = 0;
-		$target->status = 0;
-		$target->update($actor, 1, 1, 1, 1);
-		$db->query('UPDATE '.$db->prefix().'user SET statut = 0 WHERE rowid = '.((int) $target->id).' AND entity = '.mjl_auth_entity().' AND admin = 0');
-		mjl_auth_revoke_failed_acceptance($row, $target, $actor, 'acceptance_update_failed');
-		return 'Votre acces n a pas pu etre active. Veuillez contacter l administrateur.';
+		$current = mjl_auth_fetch_invitation_by_id((int) $row->rowid);
+		if ($current && ($current->status === 'accepted' || !empty($current->date_accepted))) {
+			mjl_auth_record_event('invitation_accepted', (int) $target->id, (int) $target->id, 'idempotent_finalization');
+			mjl_auth_release_named_lock($lockName);
+			return '';
+		}
+		if ($current && ($current->status === 'revoked' || !empty($current->date_revoked))) {
+			mjl_auth_record_event('invitation_accept_failed', (int) $target->id, (int) $actor->id, 'finalization_conflict_revoked');
+			mjl_auth_release_named_lock($lockName);
+			return 'Votre acces est active, mais l invitation a ete revoquee pendant la finalisation. Veuillez contacter l administrateur.';
+		}
+		mjl_auth_record_event('invitation_accept_failed', (int) $target->id, (int) $actor->id, 'acceptance_update_failed_after_activation');
+		mjl_auth_release_named_lock($lockName);
+		return 'Votre acces est active, mais le statut de l invitation n a pas pu etre finalise. Veuillez contacter l administrateur.';
 	}
 	mjl_auth_record_event('invitation_accepted', (int) $target->id, (int) $target->id);
+	mjl_auth_release_named_lock($lockName);
 
 	return '';
 }

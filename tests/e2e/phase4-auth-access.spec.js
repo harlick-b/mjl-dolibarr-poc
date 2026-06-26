@@ -21,6 +21,10 @@ function tokenFromLink(link, param) {
   return new URL(link, 'http://localhost:8080').searchParams.get(param);
 }
 
+function invitationIdForLogin(loginName) {
+  return sqlScalar(`SELECT i.rowid FROM llx_mjlfinancement_invitation i INNER JOIN llx_user u ON u.rowid = i.fk_user WHERE u.login = '${loginName}' ORDER BY i.rowid DESC LIMIT 1`);
+}
+
 function cleanupTestState() {
   sql(`
     SET @mjl_e2e_users = (SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'mjl.e2e.%' OR login LIKE 'invite.%');
@@ -148,6 +152,52 @@ test('double-submit invitation acceptance cannot disable an activated user', asy
   await login(verifyPage, invited.loginName, 'MjlDouble2026!!');
   await expect(verifyPage).toHaveURL(/custom\/mjlfinancement\/index\.php/);
   await verifyPage.close();
+});
+
+test('stale revoke cannot overwrite an accepted invitation or deactivate user', async ({ page }) => {
+  const invited = await inviteUser(page, `stalerevoke.${Date.now()}`);
+  const invitationId = invitationIdForLogin(invited.loginName);
+
+  await page.goto(invited.invitationLink);
+  await page.locator('#newpass1').fill('MjlStaleRevoke2026!!');
+  await page.locator('#newpass2').fill('MjlStaleRevoke2026!!');
+  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await expect(page.getByText('Votre acces est active')).toBeVisible();
+
+  await login(page, 'admin.poc');
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  await page.evaluate((id) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/custom/mjlfinancement/admin/access.php';
+    for (const [name, value] of Object.entries({ action: 'revoke', id, token: document.querySelector('input[name="token"]').value })) {
+      const input = document.createElement('input');
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }, invitationId);
+  await expect(page.getByText('Cette invitation est deja acceptee')).toBeVisible();
+
+  expect(sqlScalar(`SELECT statut FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`)).toBe('1');
+  expect(sqlScalar(`SELECT status FROM llx_mjlfinancement_invitation WHERE rowid = ${invitationId}`)).toBe('accepted');
+});
+
+test('revoked invitation link cannot be accepted later', async ({ page }) => {
+  const invited = await inviteUser(page, `revoked.${Date.now()}`);
+  const invitationId = invitationIdForLogin(invited.loginName);
+
+  await login(page, 'admin.poc');
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  await page.locator(`form:has(input[name="id"][value="${invitationId}"]) button`, { hasText: 'Revoquer' }).click();
+  await expect(page.getByText('Invitation revoquee')).toBeVisible();
+
+  await page.goto(invited.invitationLink);
+  await expect(page.getByText('Cette invitation a ete revoquee')).toBeVisible();
+  expect(sqlScalar(`SELECT statut FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`)).toBe('0');
+  expect(sqlScalar(`SELECT status FROM llx_mjlfinancement_invitation WHERE rowid = ${invitationId}`)).toBe('revoked');
 });
 
 test('forgotten password uses neutral response and does not mutate sample users', async ({ page }) => {
