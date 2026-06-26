@@ -19,6 +19,10 @@ Define E2E tests as the main validation method for the MJL Clarity System.
 
 End-to-end tests are the primary validation method. Micro/unit tests are allowed only when useful for business rules or security-critical logic, but they must not replace full feature E2E tests.
 
+## Artifact Cleanup
+
+After E2E or browser-assisted test work is complete, remove disposable generated artifacts, including `.playwright-mcp/`, Playwright reports, test results, screenshots, videos, traces, and downloaded export files unless they are explicitly needed for a reviewed compliance report.
+
 ## Required Scenarios
 
 ### Scenario 1 — Invitation And First Access
