@@ -49,6 +49,21 @@ if ($selfValidation >= 0) {
 	fail('Self-validation unexpectedly succeeded.');
 }
 
+$selfCorrectionRequest = $activity->requestCorrection($agent, 'Self correction request should fail', 'SUPERVISEUR_N1', 1);
+if ($selfCorrectionRequest >= 0) {
+	fail('Self-correction request unexpectedly succeeded.');
+}
+
+$selfRejection = $activity->reject($agent, 'Self rejection should fail', 'SUPERVISEUR_N1', 1);
+if ($selfRejection >= 0) {
+	fail('Self-rejection unexpectedly succeeded.');
+}
+
+$selfReviewCount = scalar('SELECT COUNT(*) AS nb FROM '.$db->prefix()."mjlfinancement_workflow_action WHERE entity = ".$entity." AND object_type = 'mjlfinancement_activity' AND object_id = ".$activityId." AND actor = ".$agent->id." AND action IN ('validated', 'correction_requested', 'rejected')");
+if ($selfReviewCount > 0) {
+	fail('Self-review workflow action was unexpectedly recorded.');
+}
+
 if ($activity->validate($validator, 'Smoke validation', 'SUPERVISEUR_N1', 1) <= 0) {
 	fail('Validator could not validate smoke activity: '.$activity->error);
 }

@@ -222,6 +222,7 @@ class MjlActivity extends CommonObject
 		}
 		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED), self::STATUS_CORRECTION_REQUESTED, 'correction_requested', $reason, $actorRole, array(
 			'required_right' => array('activity', 'validate'),
+			'no_self_review' => true,
 			'trigger' => 'MJLFINANCEMENT_ACTIVITY_CORRECTION_REQUEST',
 			'notrigger' => $notrigger,
 		));
@@ -245,7 +246,7 @@ class MjlActivity extends CommonObject
 	{
 		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED), self::STATUS_VALIDATED, 'validated', $comment, $actorRole, array(
 			'required_right' => array('activity', 'validate'),
-			'no_self_validation' => true,
+			'no_self_review' => true,
 			'trigger' => 'MJLFINANCEMENT_ACTIVITY_VALIDATE',
 			'idempotent' => true,
 			'notrigger' => $notrigger,
@@ -261,6 +262,7 @@ class MjlActivity extends CommonObject
 		}
 		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED), self::STATUS_REJECTED, 'rejected', $reason, $actorRole, array(
 			'required_right' => array('activity', 'validate'),
+			'no_self_review' => true,
 			'trigger' => 'MJLFINANCEMENT_ACTIVITY_REJECT',
 			'notrigger' => $notrigger,
 		));
@@ -294,8 +296,8 @@ class MjlActivity extends CommonObject
 			$this->db->rollback();
 			return -1;
 		}
-		if (!empty($options['no_self_validation']) && (int) $current['fk_user_creat'] === (int) $user->id) {
-			$this->error = 'A user cannot validate their own activity';
+		if (!empty($options['no_self_review']) && (int) $current['fk_user_creat'] === (int) $user->id) {
+			$this->error = 'A user cannot review their own activity';
 			$this->db->rollback();
 			return -1;
 		}
