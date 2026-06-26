@@ -266,7 +266,7 @@ function mjl_ensure_phase4_auth_setup(User $adminUser, $entity)
 	$constants = array(
 		'MAIN_MODULE_MJLFINANCEMENT_TPL' => '1',
 		'MAIN_MODULE_MJLFINANCEMENT_HOOKS' => json_encode(array('login', 'passwordforgottenpage')),
-		'MAIN_MODULE_MJLFINANCEMENT_CSS' => json_encode(array('/mjlfinancement/css/mjl_auth.css.php')),
+		'MAIN_MODULE_MJLFINANCEMENT_CSS' => json_encode(array('/mjlfinancement/css/mjl_auth.css.php', '/mjlfinancement/css/mjl_app.css.php')),
 		'MAIN_APPLICATION_TITLE' => 'MJL Financement',
 		'MAIN_LANDING_PAGE' => '/custom/mjlfinancement/index.php',
 	);

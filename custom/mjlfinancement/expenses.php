@@ -2,6 +2,7 @@
 
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexpense.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 
 if (!$user->hasRight('mjlfinancement', 'expense', 'read')) {
 	accessforbidden();
@@ -14,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		accessforbidden('Invalid security token');
 	}
-		if (!$user->hasRight('mjlfinancement', 'expense', 'write') && in_array($action, array('create', 'update', 'submit', 'correct'), true)) {
+	if (!$user->hasRight('mjlfinancement', 'expense', 'write') && in_array($action, array('create', 'update', 'submit', 'correct'), true)) {
 		accessforbidden();
 	}
 	if (!$user->hasRight('mjlfinancement', 'expense', 'validate') && in_array($action, array('validate', 'reject'), true)) {
@@ -71,6 +72,10 @@ function mjl_expenses_handle_post($action)
 	}
 	if ((int) $expense->entity !== (int) $conf->entity) {
 		setEventMessages('Depense introuvable dans l\'entite active', null, 'errors');
+		return;
+	}
+	if (mjl_expenses_requires_own_scope($user) && in_array($action, array('update', 'submit', 'correct', 'upload'), true) && (int) $expense->fk_user_creat !== (int) $user->id) {
+		setEventMessages('Depense introuvable ou hors de votre responsabilite', null, 'errors');
 		return;
 	}
 
@@ -303,6 +308,9 @@ function mjl_expenses_list()
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = e.fk_budget_line';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
+	if (mjl_expenses_requires_own_scope($user)) {
+		$sql .= ' AND e.fk_user_creat = '.((int) $user->id);
+	}
 	$sql .= ' ORDER BY e.rowid DESC LIMIT 100';
 	$resql = $db->query($sql);
 	if (!$resql) {
@@ -321,6 +329,15 @@ function mjl_expenses_list()
 		print '</td></tr>';
 	}
 	print '</table></div>';
+}
+
+function mjl_expenses_requires_own_scope(User $targetUser)
+{
+	$capabilities = mjl_workspace_capabilities($targetUser);
+	return $capabilities['operational']
+		&& !$targetUser->hasRight('mjlfinancement', 'expense', 'validate')
+		&& !$capabilities['supervision']
+		&& !$capabilities['admin'];
 }
 
 function mjl_expenses_action_forms($row, $docPresent)

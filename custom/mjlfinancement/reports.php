@@ -5,10 +5,9 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.p
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexpense.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_reporting.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_csv_export.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 
-if (!$user->hasRight('mjlfinancement', 'report', 'read')) {
-	accessforbidden();
-}
+mjl_workspace_require_supervision_access($user);
 
 $langs->load('mjlfinancement@mjlfinancement');
 
@@ -23,7 +22,7 @@ $filters = array(
 );
 
 if ($action === 'export_csv') {
-	if (!$user->hasRight('mjlfinancement', 'export', 'write')) {
+	if (empty($user->admin) && !$user->hasRight('mjlfinancement', 'export', 'write')) {
 		accessforbidden();
 	}
 	$def = mjl_reports_def($report);
@@ -49,7 +48,7 @@ print '<td><input type="number" name="status" value="'.dol_escape_htmltag($filte
 print '<td><input type="date" name="date_start" value="'.dol_escape_htmltag($filters['date_start']).'"></td>';
 print '<td><input type="date" name="date_end" value="'.dol_escape_htmltag($filters['date_end']).'"></td>';
 print '<td><input class="button" type="submit" value="Afficher"> ';
-if ($user->hasRight('mjlfinancement', 'export', 'write')) {
+if (!empty($user->admin) || $user->hasRight('mjlfinancement', 'export', 'write')) {
 	print '<button class="button" type="submit" name="action" value="export_csv">CSV</button>';
 }
 print '</td></tr></table></div></form>';
