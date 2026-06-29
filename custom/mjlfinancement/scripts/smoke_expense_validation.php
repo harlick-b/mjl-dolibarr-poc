@@ -16,6 +16,7 @@ if ($adminUser->fetch(0, 'admin') <= 0) {
 	fail('Unable to load Dolibarr admin user.');
 }
 $user = $adminUser;
+$validatorUser = loadSmokeUser('superviseur.n1');
 
 $entity = (int) $conf->entity;
 $importKey = 'MJLSMOKEVAL';
@@ -124,7 +125,13 @@ if ($fetched->submit($adminUser, 'Submit smoke expense', 1) <= 0) {
 	fail('Unable to submit smoke expense: '.$fetched->error);
 }
 
-if ($fetched->validate($adminUser) <= 0) {
+if ($fetched->validate($adminUser, 1) >= 0) {
+	cleanup($importKey);
+	fail('Self-validation should have been rejected.');
+}
+assertValidationCount($expenseId, 'validated', 0);
+
+if ($fetched->validate($validatorUser) <= 0) {
 	cleanup($importKey);
 	fail('Unable to validate smoke expense: '.$fetched->error);
 }
@@ -142,7 +149,7 @@ if (!$resql) {
 	fail('Unable to verify smoke expense: '.$db->lasterror());
 }
 $row = $db->fetch_object($resql);
-if (!$row || (int) $row->status !== MjlExpense::STATUS_VALIDATED || (int) $row->fk_user_valid !== (int) $adminUser->id || empty($row->validation_date)) {
+if (!$row || (int) $row->status !== MjlExpense::STATUS_VALIDATED || (int) $row->fk_user_valid !== (int) $validatorUser->id || empty($row->validation_date)) {
 	cleanup($importKey);
 	fail('Smoke expense validation metadata was not persisted.');
 }
@@ -193,7 +200,7 @@ if ($missingDocExpense->submit($adminUser, 'Submit missing document expense', 1)
 	cleanup($importKey);
 	fail('Unable to submit missing document smoke expense: '.$missingDocExpense->error);
 }
-if ($missingDocExpense->validate($adminUser) >= 0) {
+if ($missingDocExpense->validate($validatorUser) >= 0) {
 	cleanup($importKey);
 	fail('Validation without supporting document should have been rejected.');
 }
@@ -220,7 +227,7 @@ if ($overBudgetExpense->submit($adminUser, 'Submit over budget expense', 1) <= 0
 	cleanup($importKey);
 	fail('Unable to submit over budget smoke expense: '.$overBudgetExpense->error);
 }
-if ($overBudgetExpense->validate($adminUser) >= 0) {
+if ($overBudgetExpense->validate($validatorUser) >= 0) {
 	cleanup($importKey);
 	fail('Over budget validation should have been rejected.');
 }
@@ -249,7 +256,7 @@ if ($ecmOnlyExpense->submit($adminUser, 'Submit ECM-only document expense', 1) <
 }
 $ecmOnlyFilename = 'SMOKE-ECM-ONLY-'.$suffix.'.txt';
 insertEcmDocument($ecmOnlyExpenseId, $entity, $ecmOnlyFilename, $adminUser->id);
-if ($ecmOnlyExpense->validate($adminUser, 1) <= 0) {
+if ($ecmOnlyExpense->validate($validatorUser, 1) <= 0) {
 	cleanup($importKey);
 	fail('Unable to validate ECM-only document smoke expense: '.$ecmOnlyExpense->error);
 }
@@ -282,7 +289,12 @@ if ($correctionExpense->submit($adminUser, 'Submit for rejection path', 1) <= 0)
 	cleanup($importKey);
 	fail('Unable to submit correction smoke expense: '.$correctionExpense->error);
 }
-if ($correctionExpense->reject($adminUser, 'Missing approval stamp', 1) <= 0) {
+if ($correctionExpense->reject($adminUser, 'Self rejection should fail', 1) >= 0) {
+	cleanup($importKey);
+	fail('Self-rejection should have been rejected.');
+}
+assertValidationCount($correctionExpenseId, 'rejected', 0);
+if ($correctionExpense->reject($validatorUser, 'Missing approval stamp', 1) <= 0) {
 	cleanup($importKey);
 	fail('Unable to reject correction smoke expense: '.$correctionExpense->error);
 }
@@ -306,7 +318,7 @@ if ($correctionExpense->update($adminUser, 1) >= 0) {
 	cleanup($importKey);
 	fail('Corrected expense update should have been rejected.');
 }
-if ($correctionExpense->validate($adminUser) >= 0) {
+if ($correctionExpense->validate($validatorUser) >= 0) {
 	cleanup($importKey);
 	fail('Corrected expense should require resubmission before validation.');
 }
@@ -314,7 +326,7 @@ if ($correctionExpense->submit($adminUser, 'Resubmit corrected expense', 1) <= 0
 	cleanup($importKey);
 	fail('Unable to resubmit corrected smoke expense: '.$correctionExpense->error);
 }
-if ($correctionExpense->validate($adminUser, 1) <= 0) {
+if ($correctionExpense->validate($validatorUser, 1) <= 0) {
 	cleanup($importKey);
 	fail('Unable to validate corrected smoke expense: '.$correctionExpense->error);
 }
@@ -424,6 +436,20 @@ function cleanup($importKey)
 			fail('Unable to clean smoke data: '.$db->lasterror());
 		}
 	}
+}
+
+function loadSmokeUser($login)
+{
+	global $db;
+
+	$target = new User($db);
+	if ($target->fetch(0, $login) <= 0) {
+		fail('Unable to load user '.$login.'. Run bootstrap_poc.php first.');
+	}
+	if (method_exists($target, 'loadRights')) {
+		$target->loadRights();
+	}
+	return $target;
 }
 
 function insertEcmDocument($expenseId, $entity, $filename, $userId)

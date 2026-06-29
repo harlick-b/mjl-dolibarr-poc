@@ -96,7 +96,7 @@ function mjl_workspace_metrics(User $targetUser)
 
 	if ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['supervision']) {
 		$metrics['activities_submitted'] = mjl_workspace_activity_count(array(MjlActivity::STATUS_SUBMITTED));
-		$metrics['expenses_submitted'] = mjl_workspace_expense_count(array(MjlExpense::STATUS_SUBMITTED));
+		$metrics['expenses_submitted'] = mjl_workspace_expense_review_count($targetUser);
 		$metrics['overdue_activities'] = mjl_workspace_overdue_activity_count();
 	}
 	if ($capabilities['admin'] || $capabilities['supervision']) {
@@ -162,6 +162,19 @@ function mjl_workspace_expense_count($statuses)
 	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense';
 	$sql .= ' WHERE entity = '.((int) $conf->entity);
 	$sql .= ' AND status IN ('.implode(',', array_map('intval', $statuses)).')';
+	return mjl_workspace_scalar($sql);
+}
+
+function mjl_workspace_expense_review_count(User $targetUser)
+{
+	global $db, $conf;
+
+	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense';
+	$sql .= ' WHERE entity = '.((int) $conf->entity);
+	$sql .= ' AND status = '.MjlExpense::STATUS_SUBMITTED;
+	if (!mjl_workspace_can_access_supervision($targetUser) && $targetUser->hasRight('mjlfinancement', 'expense', 'validate')) {
+		$sql .= ' AND fk_user_creat <> '.((int) $targetUser->id);
+	}
 	return mjl_workspace_scalar($sql);
 }
 

@@ -219,6 +219,11 @@ class MjlExpense extends CommonObject
 			$this->db->rollback();
 			return -1;
 		}
+		if ((int) $current['fk_user_creat'] === (int) $user->id) {
+			$this->error = 'A user cannot review their own expense';
+			$this->db->rollback();
+			return -1;
+		}
 		$hasDocument = mjl_expense_has_supporting_document($id, $current['entity'], $current['supporting_document']);
 		if ($hasDocument < 0) {
 			$this->error = mjl_integrity_error();
@@ -311,6 +316,7 @@ class MjlExpense extends CommonObject
 		}
 		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED), self::STATUS_REJECTED, 'rejected', $reason, array(
 			'required_right' => array('expense', 'validate'),
+			'no_self_review' => true,
 			'set_reason' => true,
 			'clear_validation' => true,
 			'trigger' => 'MJLFINANCEMENT_EXPENSE_REJECT',
@@ -359,6 +365,11 @@ class MjlExpense extends CommonObject
 		}
 		if (!in_array((int) $current['status'], array_map('intval', $fromStatuses), true)) {
 			$this->error = 'Invalid expense workflow transition from '.mjl_expense_status_label($current['status']).' to '.mjl_expense_status_label($toStatus);
+			$this->db->rollback();
+			return -1;
+		}
+		if (!empty($options['no_self_review']) && (int) $current['fk_user_creat'] === (int) $user->id) {
+			$this->error = 'A user cannot review their own expense';
 			$this->db->rollback();
 			return -1;
 		}
@@ -433,7 +444,7 @@ class MjlExpense extends CommonObject
 	private function fetchCurrentForIntegrity($id, $forUpdate = false)
 	{
 		$entity = mjl_active_entity();
-		$sql = 'SELECT rowid, entity, status, fk_project, fk_convention, fk_mjl_activity, fk_budget_line, amount, supporting_document, fk_user_valid, validation_date, import_key';
+		$sql = 'SELECT rowid, entity, status, fk_project, fk_convention, fk_mjl_activity, fk_budget_line, amount, supporting_document, fk_user_valid, validation_date, fk_user_creat, import_key';
 		$sql .= ' FROM '.$this->db->prefix().$this->table_element;
 		$sql .= ' WHERE rowid = '.((int) $id).' AND entity = '.$entity;
 		if ($forUpdate) {
@@ -463,6 +474,7 @@ class MjlExpense extends CommonObject
 			'supporting_document' => (string) $obj->supporting_document,
 			'fk_user_valid' => $obj->fk_user_valid,
 			'validation_date' => $obj->validation_date,
+			'fk_user_creat' => (int) $obj->fk_user_creat,
 			'import_key' => $obj->import_key,
 		);
 	}

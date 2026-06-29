@@ -145,7 +145,7 @@ function mjl_alerts_expense_pending_reviews(User $targetUser, $limit)
 			'tone' => 'warning',
 			'audience' => 'Validateur',
 			'expected_action' => 'Controler la depense soumise et enregistrer une decision.',
-			'href' => '/custom/mjlfinancement/expenses.php',
+			'href' => '/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']),
 			'sort_date' => $row['expense_date'],
 			'meta' => array(
 				'Projet' => $row['project_ref'],
@@ -190,7 +190,7 @@ function mjl_alerts_expense_missing_documents(User $targetUser, $limit)
 			'tone' => 'danger',
 			'audience' => mjl_alerts_audience_label($targetUser, 'expense_document'),
 			'expected_action' => 'Ajouter la piece justificative avant validation.',
-			'href' => '/custom/mjlfinancement/expenses.php',
+			'href' => '/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']),
 			'sort_date' => $row['expense_date'],
 			'meta' => array(
 				'Projet' => $row['project_ref'],
@@ -233,7 +233,7 @@ function mjl_alerts_expense_scope_where(User $targetUser, $alias, $mode)
 		return $mode === 'document' ? ' AND '.$a.'.fk_user_creat = '.((int) $targetUser->id) : null;
 	}
 	if ($targetUser->hasRight('mjlfinancement', 'expense', 'validate')) {
-		return $mode === 'review' ? ' AND '.$a.'.status = '.MjlExpense::STATUS_SUBMITTED : null;
+		return $mode === 'review' ? ' AND '.$a.'.status = '.MjlExpense::STATUS_SUBMITTED.' AND '.$a.'.fk_user_creat <> '.((int) $targetUser->id) : null;
 	}
 	if ($targetUser->hasRight('mjlfinancement', 'expense', 'read') && !$targetUser->hasRight('mjlfinancement', 'expense', 'write')) {
 		return $mode === 'document' ? '' : null;
