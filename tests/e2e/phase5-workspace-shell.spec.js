@@ -98,7 +98,7 @@ test('DPAF user sees supervision workspace and can access DPAF reports', async (
   await expect(page.getByText('Tableau de bord DPAF').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/reports.php');
-  await expect(page.getByText('Rapports MJL').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Centre d'exports MJL" })).toBeVisible();
 });
 
 test('Admin sees administration access and can access invitations plus supervision pages', async ({ page }) => {
@@ -114,7 +114,7 @@ test('Admin sees administration access and can access invitations plus supervisi
   await expect(page.getByText('Tableau de bord DPAF').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/reports.php');
-  await expect(page.getByText('Rapports MJL').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Centre d'exports MJL" })).toBeVisible();
 });
 
 test('Read-only audit user gets consultation workspace only', async ({ page }) => {

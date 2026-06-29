@@ -160,7 +160,7 @@ test('DPAF dashboard exposes supervision sections and actionable risk context', 
   await expect(page.getByText('Action attendue: examiner l activite').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/reports.php');
-  await expect(page.getByText('Rapports MJL').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Centre d'exports MJL" })).toBeVisible();
 });
 
 test('Admin dashboard is administration-first with supervision shortcuts', async ({ page }) => {
