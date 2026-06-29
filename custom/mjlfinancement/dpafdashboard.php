@@ -108,7 +108,11 @@ function mjl_dpaf_render_pending_review_row($row)
 	print '<td>'.dol_escape_htmltag($row['label']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['item_date']).'</td>';
 	print '<td class="right">'.(((float) $row['amount'] > 0) ? price($row['amount']) : '').'</td>';
-	print '<td><a class="mjl-table-link" href="'.mjl_dashboard_url($row['href']).'">Examiner</a></td>';
+	$href = $row['href'];
+	if ($row['item_type'] === 'Activite') {
+		$href .= '?id='.((int) $row['item_id']);
+	}
+	print '<td><a class="mjl-table-link" href="'.mjl_dashboard_url($href).'">Examiner</a></td>';
 	print '</tr>';
 }
 

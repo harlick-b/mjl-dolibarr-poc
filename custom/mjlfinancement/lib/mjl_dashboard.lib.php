@@ -63,7 +63,7 @@ function mjl_dashboard_deadline_risks($limit = 20)
 		MjlActivity::STATUS_CORRECTION_REQUESTED,
 		MjlActivity::STATUS_CORRECTED,
 	);
-	$sql = 'SELECT a.ref, a.label, a.date_end, a.status, p.ref AS project_ref, c.ref AS convention_ref';
+	$sql = 'SELECT a.rowid, a.ref, a.label, a.date_end, a.status, p.ref AS project_ref, c.ref AS convention_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
@@ -84,10 +84,10 @@ function mjl_dashboard_pending_reviews($limit = 30)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT \'Activite\' AS item_type, ref, label, date_end AS item_date, 0 AS amount, \'/custom/mjlfinancement/activities.php\' AS href';
+	$sql = 'SELECT \'Activite\' AS item_type, rowid AS item_id, ref, label, date_end AS item_date, 0 AS amount, \'/custom/mjlfinancement/activities.php\' AS href';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity WHERE entity = '.((int) $conf->entity).' AND status = '.MjlActivity::STATUS_SUBMITTED;
 	$sql .= ' UNION ALL ';
-	$sql .= 'SELECT \'Depense\' AS item_type, ref, description AS label, expense_date AS item_date, amount, \'/custom/mjlfinancement/expenses.php\' AS href';
+	$sql .= 'SELECT \'Depense\' AS item_type, rowid AS item_id, ref, description AS label, expense_date AS item_date, amount, \'/custom/mjlfinancement/expenses.php\' AS href';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense WHERE entity = '.((int) $conf->entity).' AND status = '.MjlExpense::STATUS_SUBMITTED;
 	$sql .= ' ORDER BY item_date ASC, ref ASC LIMIT '.((int) $limit);
 	return mjl_dashboard_fetch_rows($sql);
@@ -278,7 +278,7 @@ function mjl_dashboard_render_alert_section($title, $description, $alerts, $empt
 		print '<div><dt>Echeance</dt><dd>'.dol_escape_htmltag($alert['date_end']).'</dd></div>';
 		print '<div><dt>Statut</dt><dd>'.dol_escape_htmltag($alert['status_label']).'</dd></div>';
 		print '</dl>';
-		print '<a class="mjl-card-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php">Ouvrir les activites</a>';
+		print '<a class="mjl-card-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $alert['rowid']).'">Ouvrir l activite</a>';
 		print '</article>';
 	}
 	print '</div>';
