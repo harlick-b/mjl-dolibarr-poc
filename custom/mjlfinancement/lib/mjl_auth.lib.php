@@ -1,7 +1,7 @@
 <?php
 
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
-require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_email.lib.php';
 
 function mjl_auth_entity()
 {
@@ -233,31 +233,14 @@ function mjl_auth_mail_from()
 
 function mjl_auth_send_link_email(User $target, $type, $link)
 {
-	$fullName = trim(trim((string) $target->firstname).' '.trim((string) $target->lastname));
-	$name = $fullName !== '' ? $fullName : $target->login;
-
-	if ($type === 'invitation') {
-		$subject = '[MJL Financement] Invitation a votre espace';
-		$message = "Bonjour ".$name.",\n\n";
-		$message .= "Vous etes invite a acceder a l'espace MJL Financement.\n";
-		$message .= "Definissez votre mot de passe avec le lien suivant :\n";
-		$message .= mjl_auth_absolute_url($link)."\n\n";
-		$message .= "Si vous n'attendiez pas cette invitation, ignorez ce message et contactez l'administrateur.\n\n";
-		$message .= "MJL Financement";
-		$context = 'standard';
-	} else {
-		$subject = '[MJL Financement] Reinitialisation du mot de passe';
-		$message = "Bonjour ".$name.",\n\n";
-		$message .= "Une demande de reinitialisation de mot de passe a ete recue pour votre acces MJL.\n";
-		$message .= "Choisissez un nouveau mot de passe avec le lien suivant :\n";
-		$message .= mjl_auth_absolute_url($link)."\n\n";
-		$message .= "Si vous n'avez pas fait cette demande, ignorez ce message.\n\n";
-		$message .= "MJL Financement";
-		$context = 'passwordreset';
-	}
-
-	$mail = new CMailFile($subject, $target->email, mjl_auth_mail_from(), $message, array(), array(), array(), '', '', 0, 0, '', '', 'mjl_auth_'.$type, '', $context);
-	return $mail->sendfile() ? array(1, '') : array(-1, $mail->error);
+	$template = $type === 'invitation' ? 'invitation' : 'password_reset';
+	return mjl_email_send($target, $template, array(
+		'link' => $link,
+		'auth_link_type' => $type,
+	), array(
+		'object_type' => 'mjlfinancement_auth',
+		'object_id' => (int) $target->id,
+	));
 }
 
 function mjl_auth_create_password_reset($email, $actorUserId = null)
@@ -318,7 +301,8 @@ function mjl_auth_create_password_reset($email, $actorUserId = null)
 
 		$link = DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlreset='.urlencode($token);
 		if (mjl_auth_e2e_tokens_enabled()) {
-			if (!mjl_auth_write_test_outbox('password_reset', (int) $user->id, $link)) {
+			$mail = mjl_auth_send_link_email($user, 'password_reset', $link);
+			if ($mail[0] < 0) {
 				mjl_auth_fail_password_reset_send($resetId, (int) $user->id, $actorUserId, 'email_hash='.$emailHash.';ip_hash='.$ipHash.';delivery=e2e;error=outbox');
 				mjl_auth_release_named_lock($lockName);
 				return null;
@@ -601,8 +585,13 @@ function mjl_auth_create_invitation($targetUserId, User $actor)
 	$invitationId = $db->last_insert_id($db->prefix().'mjlfinancement_invitation');
 
 	$link = DOL_URL_ROOT.'/custom/mjlfinancement/invitation.php?invite='.urlencode($token);
+	$target = new User($db);
+	if ($target->fetch((int) $targetUserId) <= 0) {
+		return array('', 'Utilisateur invite introuvable.');
+	}
 	if (mjl_auth_e2e_tokens_enabled()) {
-		if (!mjl_auth_write_test_outbox('invitation', (int) $targetUserId, $link)) {
+		$mail = mjl_auth_send_link_email($target, 'invitation', $link);
+		if ($mail[0] < 0) {
 			mjl_auth_fail_invitation_send($invitationId, (int) $targetUserId, (int) $actor->id, 'delivery=e2e;error=outbox');
 			return array('', 'Echec d envoi.');
 		}
@@ -614,10 +603,6 @@ function mjl_auth_create_invitation($targetUserId, User $actor)
 		return array($link, '');
 	}
 
-	$target = new User($db);
-	if ($target->fetch((int) $targetUserId) <= 0) {
-		return array('', 'Utilisateur invite introuvable.');
-	}
 	$mail = mjl_auth_send_link_email($target, 'invitation', $link);
 	if ($mail[0] < 0) {
 		mjl_auth_fail_invitation_send($invitationId, (int) $targetUserId, (int) $actor->id, 'error='.$mail[1]);

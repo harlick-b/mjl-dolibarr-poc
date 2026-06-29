@@ -2,6 +2,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_email.lib.php';
 
 class MjlActivity extends CommonObject
 {
@@ -335,6 +336,9 @@ class MjlActivity extends CommonObject
 		}
 
 		$this->db->commit();
+		if (empty($options['notrigger'])) {
+			mjl_email_notify_activity_transition($id, $action, $user, $comment);
+		}
 		return 1;
 	}
 
