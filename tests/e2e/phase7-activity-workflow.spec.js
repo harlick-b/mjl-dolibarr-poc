@@ -23,6 +23,10 @@ function scalar(query) {
   return dockerExec(`mariadb mariadb -udolidbuser -ppoc_pwd dolidb -N -B -e "${query.replace(/"/g, '\\"')}"`).toString().trim();
 }
 
+function seedPhase7Files() {
+  dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense && rm -f /var/www/documents/ecm/mjlfinancement_expense/P7-*.pdf && printf "%s" "Phase 7 expense document" > /var/www/documents/ecm/mjlfinancement_expense/P7-EXP-DOC.pdf\'');
+}
+
 async function login(page, username, userPassword = password) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
@@ -107,6 +111,10 @@ function seedPhase7Fixtures() {
     VALUES
       (1, 'P7-EXP-DOC', @project, @convention, @submitted, @budget_line, 1000, '2026-06-24', 'Depense Phase 7 avec piece', 'P7-EXP-DOC.pdf', NOW(), @agent, 'P7EXPDOC', 1),
       (1, 'P7-EXP-MISS', @project, @convention, @submitted, @budget_line, 2000, '2026-06-24', 'Depense Phase 7 sans piece', NULL, NOW(), @agent, 'P7EXPMIS', 1);
+
+    SET @expense_doc = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P7-EXP-DOC' AND entity = 1);
+    INSERT INTO llx_ecm_files (ref, label, entity, filename, filepath, fullpath_orig, description, gen_or_uploaded, date_c, fk_user_c, src_object_type, src_object_id)
+    VALUES ('P7-EXP-DOC-ECM', 'P7-EXP-DOC.pdf', 1, 'P7-EXP-DOC.pdf', 'mjlfinancement_expense', 'P7-EXP-DOC.pdf', 'Piece Phase 7 depense', 1, NOW(), @agent, 'mjlfinancement_expense', @expense_doc);
   `);
   otherActivityId = Number(scalar(`SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'P7-OTHER-OWNED' AND entity = 1`));
   submittedActivityId = Number(scalar(`SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'P7-SUBMITTED' AND entity = 1`));
@@ -120,6 +128,7 @@ test.beforeAll(() => {
   dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php');
   cleanupPhase7Fixtures();
   seedPhase7Fixtures();
+  seedPhase7Files();
 });
 
 test.afterAll(() => {

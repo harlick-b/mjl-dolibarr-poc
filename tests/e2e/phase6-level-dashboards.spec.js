@@ -41,7 +41,7 @@ async function expectCardValue(page, label, value) {
 function resetExpenseScopeFixtures() {
   sql(`
     SET @mjl_scope_user = (SELECT rowid FROM llx_user WHERE login = 'mjl.phase6.otheragent');
-    DELETE FROM llx_mjlfinancement_expense WHERE ref IN ('EXP-P6-OWN-SUB', 'EXP-P6-OTHER-SUB');
+    DELETE FROM llx_mjlfinancement_expense WHERE ref IN ('EXP-P6-OWN-SUB', 'EXP-P6-OWN-UNAVAILABLE', 'EXP-P6-OTHER-SUB');
     DELETE FROM llx_usergroup_user WHERE fk_user = @mjl_scope_user;
     DELETE FROM llx_user WHERE rowid = @mjl_scope_user;
   `);
@@ -63,6 +63,7 @@ function seedExpenseScopeFixtures() {
     INSERT INTO llx_mjlfinancement_expense (entity, ref, fk_project, fk_convention, fk_mjl_activity, fk_budget_line, amount, expense_date, description, supporting_document, submitted_at, date_creation, fk_user_creat, import_key, status)
     VALUES
       (1, 'EXP-P6-OWN-SUB', @project, @convention, @activity, @budget_line, 1000, '2026-06-24', 'Phase 6 scoped own submitted missing document', NULL, NOW(), NOW(), @agent, 'P6SCOPEOWN', 1),
+      (1, 'EXP-P6-OWN-UNAVAILABLE', @project, @convention, @activity, @budget_line, 1500, '2026-06-24', 'Phase 6 scoped own unavailable document', 'EXP-P6-OWN-UNAVAILABLE.pdf', NOW(), NOW(), @agent, 'P6SCOPEUNAVAIL', 1),
       (1, 'EXP-P6-OTHER-SUB', @project, @convention, @activity, @budget_line, 2000, '2026-06-24', 'Phase 6 scoped other submitted missing document', NULL, NOW(), NOW(), @other_agent, 'P6SCOPEOTH', 1);
   `);
 }
@@ -83,12 +84,12 @@ test.beforeAll(() => {
     WHERE e.entity = 1
       AND u.login = 'agent.mjl'
       AND e.status IN (0, 1, 3)
-      AND NOT ((e.supporting_document IS NOT NULL AND e.supporting_document <> '') OR EXISTS (
+      AND NOT EXISTS (
         SELECT 1 FROM llx_ecm_files mjl_doc
         WHERE mjl_doc.entity = e.entity
           AND mjl_doc.src_object_type = 'mjlfinancement_expense'
           AND mjl_doc.src_object_id = e.rowid
-      ))
+      )
   `));
   expectedGlobalSubmittedExpenses = Number(scalar(`
     SELECT COUNT(*) FROM llx_mjlfinancement_expense e

@@ -18,6 +18,10 @@ function scalar(query) {
   return dockerExec(`mariadb mariadb -udolidbuser -ppoc_pwd dolidb -N -B -e "${query.replace(/"/g, '\\"')}"`).toString().trim();
 }
 
+function seedPhase8Files() {
+  dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense && rm -f /var/www/documents/ecm/mjlfinancement_expense/P8-*.pdf && printf "%s" "Phase 8 submitted expense document" > /var/www/documents/ecm/mjlfinancement_expense/P8-SUBMITTED-EXP.pdf\'');
+}
+
 async function login(page, username, userPassword = password) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
@@ -86,6 +90,10 @@ function seedPhase8Fixtures() {
       (1, 'P8-OTHER-MISS-DOC', @project, @convention, NULL, @budget_line, 2000, CURDATE(), 'Piece Phase 8 manquante autre agent', NULL, NULL, NOW(), @other_agent, 'P8OTHDOC', 0),
       (1, 'P8-SUBMITTED-EXP', @project, @convention, NULL, @budget_line, 3000, CURDATE(), 'Depense Phase 8 a valider', 'P8-SUBMITTED-EXP.pdf', NOW(), NOW(), @agent, 'P8SUBEXP', 1),
       (2, 'P8-ENTITY-EXP', @project, @convention, NULL, @budget_line, 4000, CURDATE(), 'Depense Phase 8 autre entite', NULL, NULL, NOW(), @agent, 'P8ENTEXP', 0);
+
+    SET @expense_doc = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P8-SUBMITTED-EXP' AND entity = 1);
+    INSERT INTO llx_ecm_files (ref, label, entity, filename, filepath, fullpath_orig, description, gen_or_uploaded, date_c, fk_user_c, src_object_type, src_object_id)
+    VALUES ('P8-SUBMITTED-EXP-ECM', 'P8-SUBMITTED-EXP.pdf', 1, 'P8-SUBMITTED-EXP.pdf', 'mjlfinancement_expense', 'P8-SUBMITTED-EXP.pdf', 'Piece Phase 8 depense soumise', 1, NOW(), @agent, 'mjlfinancement_expense', @expense_doc);
   `);
   validateActivityId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'P8-VALIDATE-ME' AND entity = 1"));
 }
@@ -95,6 +103,7 @@ test.beforeAll(() => {
   dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php');
   cleanupPhase8Fixtures();
   seedPhase8Fixtures();
+  seedPhase8Files();
 });
 
 test.afterAll(() => {
