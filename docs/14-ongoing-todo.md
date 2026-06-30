@@ -3,9 +3,12 @@
 ## Ongoing
 
 - The MJL Dolibarr POC runtime is functional and committed.
-- The current focus should be validation and hardening, not more schema churn.
+- The current focus should be consolidation, validation, navigation clarity,
+  documentation alignment, and hardening, not more schema churn.
 - `MjlConvention` remains the Phase 1 funding envelope unless a real business rule proves it insufficient.
 - Activity deadline alerts such as `Échéance proche` and `En retard` remain computed states, not stored statuses.
+- Playwright E2E coverage exists for auth/access, role workspaces, dashboards,
+  activity workflow, alerts, exports, email templates, and expense workflow.
 - The implemented activity status model is the source of truth:
   - `0` draft
   - `1` ongoing
@@ -23,27 +26,31 @@
 
 - Add activity detail pages.
 - Add expense detail pages.
-- Add convention detail pages.
-- Add budget-line detail pages.
+- Add DPAF/Admin convention detail, create, edit, close/archive, validation,
+  and history pages.
+- Add DPAF/Admin budget-line detail, create, edit, validation, recalculation,
+  unsafe-edit protection, filtering, and history pages.
 
 ### Document Workflows
 
-- Add preview/download links in custom screens.
+- Add secure download links in custom screens.
+- Plan preview after secure download is implemented and tested.
 - Add activity and convention supporting-document handling.
 - Make missing-document states clearer in lists and detail pages.
 
 ### Browser End-To-End Tests
 
-- Test agent activity submission.
-- Test supervisor correction request.
-- Test agent correction and resubmission.
-- Test supervisor validation.
-- Test DPAF dashboard and export checks.
+- Keep the existing Playwright suite passing before and after UI/navigation
+  consolidation.
+- Add focused coverage for shared MJL sidebar visibility and role-aware links.
+- Add focused coverage for admin-only production-readiness route access.
+- Continue expanding browser coverage only when it protects a real user flow.
 
 ### DPAF And Reporting
 
 - Confirm final client report columns.
 - Add official report canevas if provided by MJL.
+- Add XLSX export support in addition to CSV compatible with Microsoft Excel.
 - Improve filters and selectors.
 - Add `.xlsx` only if a safe Dolibarr-native helper or existing dependency is available.
 
@@ -52,11 +59,24 @@
 - Continue entity-leak checks.
 - Add more cross-object coherence audits.
 - Test permissions from each sample role in the browser.
+- Keep direct URL and direct POST access blocked for unauthorized actions.
+- Preserve no-self-validation in domain logic, not only in the UI.
+
+### Navigation And Scope Clarity
+
+- Keep module navigation role-aware across MJL pages.
+- Keep future-only features hidden from normal users.
+- Keep partial read-only screens labelled as POC consultation views.
+- Maintain `docs/mjl-financement-feature-coverage.md` as the coverage and
+  scope classification baseline.
 
 ### Product Decisions
 
 - Define final escalation rules for `SUPERVISEUR_N2` and `DPAF`.
-- Confirm whether `MjlConvention` fully covers mission/envelope needs.
+- Permission matrix and final role model are not available yet; keep current
+  role simulation until the matrix is provided.
+- Confirm whether `MjlConvention` fully covers mission/envelope needs during
+  the DPAF/Admin management implementation.
 - Confirm exact budget execution formulas expected by MJL.
 - Confirm any required exports or reports beyond the three currently implemented:
   - `Suivi des activités`
@@ -65,6 +85,10 @@
 
 ### Production Readiness
 
+- Maintain `docs/mjl-financement-production-readiness.md` as the evidence
+  gate for production scope and readiness status.
+- Keep `docs/mjl-financement-production-deployment.md` aligned with real
+  deployment, backup, restore, diagnostics, and smoke-test procedures.
 - Rehearse installer and upgrade flow on a clean database.
 - Define backup and restore procedures.
 - Add error logging and admin diagnostics.

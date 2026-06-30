@@ -35,7 +35,7 @@ Implemented parts:
 
 - Local Dolibarr + MariaDB runtime through `docker-compose.yml`.
 - A custom Dolibarr module declaration, `modMjlFinancement`, currently version
-  `0.5.0`.
+  `0.7.0`.
 - Nine custom database-backed object classes:
   - `MjlConvention`
   - `MjlActivity`
@@ -53,7 +53,10 @@ Implemented parts:
 - A generic dashboard page at `/mjlfinancement/index.php`.
 - A DPAF dashboard page at `/mjlfinancement/dpafdashboard.php`.
 - Browser pages for activities, expenses, validations, workflow actions,
-  exchange logs, and reports.
+  exchange logs, reports, alerts, admin invitations, and the internal
+  production-readiness view.
+- Playwright E2E coverage for auth/access, role workspaces, dashboards,
+  activity workflow, alerts, exports, emails, and expense workflow.
 
 ## What can be run locally
 
@@ -365,15 +368,19 @@ The current code does not implement:
 - API endpoints specific to MJL objects.
 - Dolibarr hook, trigger, cron job, model, template, dashboard box, or custom
   tab implementations.
-- Browser-level smoke tests.
+- Automated production deployment, backup/restore, and diagnostics tooling.
+  Production-readiness and deployment procedures are documented in
+  `docs/mjl-financement-production-readiness.md` and
+  `docs/mjl-financement-production-deployment.md`.
 
 ## Practical conclusion
 
 Today, this repository is a runnable Dolibarr POC with a custom MJL financing
 module, schema, object classes, CSV seed data, role bootstrap automation,
 browser workflow pages, exchange traceability, DPAF dashboarding, CSV exports,
-and CLI validation scripts.
+CLI validation scripts, and Playwright E2E regression coverage.
 
 It is not yet a complete financial monitoring application for end users. The
 next major product work would be richer detail pages, official client report
-canevas, stronger document consultation, and browser-driven regression tests.
+canevas, stronger document consultation, production-readiness rehearsal, and
+continued browser-driven regression hardening.

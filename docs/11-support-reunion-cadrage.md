@@ -250,7 +250,7 @@ Priorite moyenne :
 | Rapports | Rapports fixes + CSV | Canevas client, Excel/PDF, filtres metier |
 | Droits | Base solide | Ajustement par profil reel et eventuellement par projet |
 | API | Non specifique MJL | A definir seulement si integration requise |
-| Tests navigateur | Non couverts | Ajouter tests end-to-end avant production |
+| Tests navigateur | Couverture Playwright existante pour auth, workflows, dashboards, alertes, exports et emails | Maintenir la suite et l'etendre uniquement pour les nouveaux parcours critiques |
 | Exploitation | Docker local POC | Strategie serveur, sauvegarde, securite, maintenance |
 
 ## 9. Risques a cadrer tot

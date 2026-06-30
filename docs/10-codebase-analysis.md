@@ -6,13 +6,14 @@ This repository is a Dolibarr 23.0.2 proof of concept for financial tracking of 
 
 The current implementation is credible for a traceable POC. It includes a custom data model, installation/bootstrap scripts, seed data, permissions, dashboard views, reports, exchange logs, standardized CSV exports, and working expense/activity workflows. It is not yet a polished production application: several screens are basic table/form views and rich detail pages are still intentionally out of scope.
 
-The current working tree also contains modified and untracked module files, so the filesystem state is ahead of the committed git state.
+The current working tree may contain active implementation changes during
+consolidation work; check `git status --short` before handoff.
 
 ## Runtime and setup
 
 - Dolibarr runs through Docker with MariaDB using `docker-compose.yml`.
 - Dolibarr is exposed on `http://127.0.0.1:8080/`.
-- The custom module is `MjlFinancement`, version `0.5.0`.
+- The custom module is `MjlFinancement`, version `0.7.0`.
 - The module depends on Dolibarr third parties, projects, ECM/documents, expense reports, and export modules.
 - Bootstrap is handled by `custom/mjlfinancement/scripts/bootstrap_poc.php`.
 - Sample data is loaded by `custom/mjlfinancement/scripts/seed_sample_data.php`.
@@ -64,7 +65,7 @@ Implemented tables cover:
 The schema includes entity support, references, audit fields, statuses, links to Dolibarr projects/third parties/users, and custom foreign-key style relationships between MJL objects.
 
 Upgrade scripts are present for schema versions `0.2.0`, `0.3.0`, `0.4.0`,
-and `0.5.0`.
+and `0.5.0`; the module declaration is currently `0.7.0`.
 
 ## Available user-facing features
 
@@ -353,7 +354,7 @@ Notable sample edge cases:
 - Draft project/convention without funds.
 - Read-only user permissions.
 
-## Verification scripts
+## Verification scripts and E2E coverage
 
 Available scripts:
 
@@ -378,6 +379,10 @@ MJL sample data acceptance checks completed.
 MJL expense validation smoke test completed.
 MJL activity workflow smoke test completed.
 ```
+
+Browser-level Playwright coverage is also present under `tests/e2e/`. The
+current suite covers auth/access, role-aware workspaces, dashboards, activity
+workflow, alerts, reports/exports, email templates, and expense workflow.
 
 ## What is programmatically available
 
