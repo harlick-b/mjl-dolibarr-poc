@@ -2,6 +2,7 @@
 
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlconvention.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
@@ -325,7 +326,7 @@ function mjl_activities_options($type)
 	} elseif ($type === 'convention') {
 		$sql = 'SELECT c.rowid, c.ref, c.title, c.fk_project, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_convention c';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project';
-		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' ORDER BY c.ref';
+		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' ORDER BY c.ref';
 	} elseif ($type === 'task') {
 		$sql = 'SELECT t.rowid, t.ref, t.label, t.fk_projet, p.ref AS project_ref FROM '.$db->prefix().'projet_task t';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = t.fk_projet';

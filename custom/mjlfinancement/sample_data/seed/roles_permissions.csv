@@ -3,5 +3,5 @@ ADMIN,Administrateur,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes
 AGENT,Agent,no,no,no,no,no,yes,yes,no,yes,no
 SUPERVISEUR_N1,Superviseur N1,no,no,no,no,no,no,no,yes,yes,yes
 SUPERVISEUR_N2,Superviseur N2,no,no,no,no,no,no,no,yes,yes,yes
-DPAF,DPAF,no,no,no,no,no,no,no,no,yes,yes
+DPAF,DPAF,no,no,yes,no,no,no,no,no,yes,yes
 LECTEUR,Lecteur,no,no,no,no,no,no,no,no,yes,no

@@ -99,15 +99,15 @@ Fixed constraints:
 - URL/path: `/custom/mjlfinancement/conventions.php`
 - Evidence source: repo-confirmed custom screen.
 - Current purpose: Read-only list of conventions.
-- Target purpose: Needs product decision: keep as conventions, rename to mission/envelope, or surface through projects and official outputs.
+- Target purpose: DPAF/Admin convention management surface for creation, governed edits, activation, closure, and history.
 - Current users: Users with `convention/read`.
 - Target access level: Level 3 / Admin
-- Current problems: Raw read-only table; no detail page; naming may not match user mental model; no filters.
-- Recommended action: needs human decision
+- Current problems: Management workflow implemented in Phase 14; continue monitoring for budget-line reuse and report impacts.
+- Recommended action: keep as governed DPAF/Admin management surface
 - Safe files to modify: `custom/mjlfinancement/conventions.php`, custom labels/navigation, design-system docs.
 - Implementation risk: Medium; naming and IA decision affects reports, activities, budget lines, and exports.
 - Affected E2E scenarios: Role visibility, export.
-- Review decision: Human must decide target label and placement before redesign.
+- Review decision: Resolved in Phase 14 planning: keep label `Convention`, place under DPAF/Admin supervision.
 
 ## Screen: Budget Lines
 

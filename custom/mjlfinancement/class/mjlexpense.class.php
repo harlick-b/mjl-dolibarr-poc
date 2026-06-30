@@ -86,7 +86,7 @@ class MjlExpense extends CommonObject
 			$this->error = 'Audited expense statuses require an explicit workflow action';
 			return -1;
 		}
-		if (mjl_assert_expense_links($this, $activeEntity) < 0) {
+		if (mjl_assert_expense_links($this, $activeEntity, true) < 0) {
 			$this->error = mjl_integrity_error();
 			return -1;
 		}

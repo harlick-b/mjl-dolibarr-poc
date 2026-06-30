@@ -75,7 +75,7 @@ class MjlActivity extends CommonObject
 			$this->error = 'Activity entity does not match active entity';
 			return -1;
 		}
-		if (!$this->assertLinks($activeEntity)) {
+		if (!$this->assertLinks($activeEntity, true)) {
 			return -1;
 		}
 
@@ -394,7 +394,7 @@ class MjlActivity extends CommonObject
 		return mjl_user_has_right($user, 'mjlfinancement', $perms, $subperms);
 	}
 
-	private function assertLinks($entity)
+	private function assertLinks($entity, $requireActiveConvention = false)
 	{
 		$projectId = (int) $this->fk_project;
 		$conventionId = (int) $this->fk_convention;
@@ -408,9 +408,13 @@ class MjlActivity extends CommonObject
 			$this->error = 'Project not found in active entity';
 			return false;
 		}
-		$convention = mjl_integrity_fetch_row('SELECT rowid, fk_project FROM '.$this->db->prefix().'mjlfinancement_convention WHERE rowid = '.$conventionId.' AND entity = '.((int) $entity));
+		$convention = mjl_integrity_fetch_row('SELECT rowid, fk_project, status FROM '.$this->db->prefix().'mjlfinancement_convention WHERE rowid = '.$conventionId.' AND entity = '.((int) $entity));
 		if (empty($convention)) {
 			$this->error = 'Convention not found in active entity';
+			return false;
+		}
+		if ($requireActiveConvention && (int) $convention['status'] !== 1) {
+			$this->error = 'Convention must be active for new linked records';
 			return false;
 		}
 		if (!empty($convention['fk_project']) && (int) $convention['fk_project'] !== $projectId) {

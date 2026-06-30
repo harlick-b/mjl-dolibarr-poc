@@ -97,7 +97,6 @@ function rightsForRole($role)
 
 	if ($role['can_create_convention'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'convention', 'write');
-		$rights[] = array('mjlfinancement', 'activity', 'write');
 	}
 	if ($role['can_create_expense'] === 'yes' || $role['can_submit_expense'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'activity', 'write');

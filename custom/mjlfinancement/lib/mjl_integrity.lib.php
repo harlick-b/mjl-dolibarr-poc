@@ -52,7 +52,7 @@ function mjl_active_entity()
 	return $entity > 0 ? $entity : 1;
 }
 
-function mjl_assert_expense_links($expense, $entity = null)
+function mjl_assert_expense_links($expense, $entity = null, $requireActiveConvention = false)
 {
 	global $db;
 
@@ -71,9 +71,12 @@ function mjl_assert_expense_links($expense, $entity = null)
 		return mjl_integrity_set_error('Project not found in active entity');
 	}
 
-	$convention = mjl_integrity_fetch_row('SELECT rowid, fk_project FROM '.$db->prefix().'mjlfinancement_convention WHERE rowid = '.$conventionId.' AND entity = '.$entity);
+	$convention = mjl_integrity_fetch_row('SELECT rowid, fk_project, status FROM '.$db->prefix().'mjlfinancement_convention WHERE rowid = '.$conventionId.' AND entity = '.$entity);
 	if (empty($convention)) {
 		return mjl_integrity_set_error('Convention not found in active entity');
+	}
+	if ($requireActiveConvention && (int) $convention['status'] !== 1) {
+		return mjl_integrity_set_error('Convention must be active for new linked records');
 	}
 	if (!empty($convention['fk_project']) && (int) $convention['fk_project'] !== $projectId) {
 		return mjl_integrity_set_error('Convention does not belong to selected project');
@@ -95,6 +98,31 @@ function mjl_assert_expense_links($expense, $entity = null)
 		if ((int) $activity['fk_project'] !== $projectId || (int) $activity['fk_convention'] !== $conventionId) {
 			return mjl_integrity_set_error('Activity does not belong to selected project and convention');
 		}
+	}
+
+	return 1;
+}
+
+function mjl_assert_active_convention_for_project($conventionId, $projectId, $entity = null)
+{
+	global $db;
+
+	$entity = $entity === null ? mjl_active_entity() : (int) $entity;
+	$conventionId = (int) $conventionId;
+	$projectId = (int) $projectId;
+	if ($conventionId <= 0 || $projectId <= 0) {
+		return mjl_integrity_set_error('Project and convention are required');
+	}
+
+	$row = mjl_integrity_fetch_row('SELECT rowid, fk_project, status FROM '.$db->prefix().'mjlfinancement_convention WHERE rowid = '.$conventionId.' AND entity = '.$entity);
+	if (empty($row)) {
+		return mjl_integrity_set_error('Convention not found in active entity');
+	}
+	if ((int) $row['status'] !== 1) {
+		return mjl_integrity_set_error('Convention must be active for new linked records');
+	}
+	if (!empty($row['fk_project']) && (int) $row['fk_project'] !== $projectId) {
+		return mjl_integrity_set_error('Convention does not belong to selected project');
 	}
 
 	return 1;

@@ -97,12 +97,12 @@ The visible product direction is still closer to a raw Dolibarr/table-heavy POC 
 
 ### Conventions
 
-- Alignment: Low. It is a raw read-only list and the target naming is undecided.
-- Severity: Medium.
-- Design-system gaps: Naming may not match user mental model; no contextual placement; no dominant task.
+- Alignment: Medium. Phase 14 turns it into a governed DPAF/Admin management surface with lifecycle actions and history.
+- Severity: Low.
+- Design-system gaps: Budget-line reuse and broader reporting impacts should be reviewed in the next finance setup batch.
 - Safe implementation area: `custom/mjlfinancement/conventions.php`, custom labels/navigation, design-system docs.
 - E2E impact: Role visibility, export.
-- Recommendation: Defer pending human decision on whether to keep `convention`, rename it, or expose it through projects/official outputs.
+- Recommendation: Keep `Convention` as the DPAF/Admin control surface and reuse its locking/history pattern for budget-line management.
 
 ### Budget Lines
 
