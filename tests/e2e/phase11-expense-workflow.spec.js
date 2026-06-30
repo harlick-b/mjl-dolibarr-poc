@@ -11,6 +11,12 @@ let selfSubmittedId = 0;
 let otherOwnedId = 0;
 let entityTwoId = 0;
 let ecmOnlyId = 0;
+let ecmOnlyDocFileId = 0;
+let otherOwnedDocFileId = 0;
+let crossEntityDocFileId = 0;
+let fundReceiptDocFileId = 0;
+let orphanDocFileId = 0;
+let poisonedDocFileId = 0;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -66,7 +72,7 @@ async function postExpenseAction(page, expenseId, action, comment = '') {
 function cleanupPhase11Fixtures() {
   sql(`
     SET @phase11_user = (SELECT rowid FROM llx_user WHERE login = 'mjl.phase11.otheragent');
-    DELETE FROM llx_ecm_files WHERE src_object_type = 'mjlfinancement_expense' AND src_object_id IN (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref LIKE 'P11-%');
+    DELETE FROM llx_ecm_files WHERE ref LIKE 'P11-%' OR (src_object_type = 'mjlfinancement_expense' AND src_object_id IN (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref LIKE 'P11-%'));
     DELETE FROM llx_mjlfinancement_validation WHERE fk_expense IN (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref LIKE 'P11-%');
     DELETE FROM llx_mjlfinancement_expense WHERE ref LIKE 'P11-%';
     DELETE FROM llx_usergroup_user WHERE fk_user = @phase11_user;
@@ -99,11 +105,22 @@ function seedPhase11Fixtures() {
       (1, 'P11-SELF-SUBMITTED', @project, @convention, @activity, @budget_line, 1400, '2026-06-24', 'Depense Phase 11 admin proprietaire', 'P11-SELF-SUBMITTED.pdf', NOW(), NOW(), @admin, 'P11SELF', 1),
       (1, 'P11-OTHER-OWNED', @project, @convention, @activity, @budget_line, 1500, '2026-06-24', 'Depense Phase 11 autre agent', NULL, NULL, NOW(), @other_agent, 'P11OTHER', 0),
       (2, 'P11-ENTITY-TWO', @project, @convention, @activity, @budget_line, 1600, '2026-06-24', 'Depense Phase 11 autre entite', NULL, NULL, NOW(), @agent, 'P11ENT2', 0),
-      (1, 'P11-ECM-ONLY', @project, @convention, @activity, @budget_line, 1700, '2026-06-24', 'Depense Phase 11 ECM seule', '', NOW(), NOW(), @agent, 'P11ECM', 1);
+      (1, 'P11-ECM-ONLY', @project, @convention, @activity, @budget_line, 1700, '2026-06-24', 'Depense Phase 11 ECM seule', '', NOW(), NOW(), @agent, 'P11ECM', 1),
+      (1, 'P11-POISONED', @project, @convention, @activity, @budget_line, 1800, '2026-06-24', 'Depense Phase 11 chemin refuse', '', NULL, NOW(), @agent, 'P11POISON', 0);
 
     SET @ecm_expense = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-ECM-ONLY' AND entity = 1);
+    SET @other_owned = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-OTHER-OWNED' AND entity = 1);
+    SET @entity_two = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-ENTITY-TWO' AND entity = 2);
+    SET @poisoned = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-POISONED' AND entity = 1);
+    SET @fund_receipt = (SELECT rowid FROM llx_mjlfinancement_fund_receipt WHERE entity = 1 LIMIT 1);
     INSERT INTO llx_ecm_files (ref, label, entity, filename, filepath, fullpath_orig, description, gen_or_uploaded, date_c, fk_user_c, src_object_type, src_object_id)
-    VALUES ('P11-ECM-ONLY-DOC', 'P11-ECM-ONLY.pdf', 1, 'P11-ECM-ONLY.pdf', 'mjlfinancement_expense', 'P11-ECM-ONLY.pdf', 'Piece Phase 11 ECM', 1, NOW(), @admin, 'mjlfinancement_expense', @ecm_expense);
+    VALUES
+      ('P11-ECM-ONLY-DOC', 'P11-ECM-ONLY.pdf', 1, 'P11-ECM-ONLY.pdf', 'mjlfinancement_expense', 'P11-ECM-ONLY.pdf', 'Piece Phase 11 ECM', 1, NOW(), @admin, 'mjlfinancement_expense', @ecm_expense),
+      ('P11-OTHER-OWNED-DOC', 'P11-OTHER-OWNED.txt', 1, 'P11-OTHER-OWNED.txt', 'mjlfinancement_expense', 'P11-OTHER-OWNED.txt', 'Piece autre agent Phase 11', 1, NOW(), @admin, 'mjlfinancement_expense', @other_owned),
+      ('P11-CROSS-ENTITY-DOC', 'P11-CROSS-ENTITY.txt', 2, 'P11-CROSS-ENTITY.txt', 'mjlfinancement_expense', 'P11-CROSS-ENTITY.txt', 'Piece autre entite Phase 11', 1, NOW(), @admin, 'mjlfinancement_expense', @entity_two),
+      ('P11-FUND-RECEIPT-DOC', 'P11-FUND-RECEIPT.txt', 1, 'P11-FUND-RECEIPT.txt', 'mjlfinancement_fund_receipt', 'P11-FUND-RECEIPT.txt', 'Piece fonds Phase 11', 1, NOW(), @admin, 'mjlfinancement_fund_receipt', @fund_receipt),
+      ('P11-ORPHAN-DOC', 'P11-ORPHAN.txt', 1, 'P11-ORPHAN.txt', 'mjlfinancement_expense', 'P11-ORPHAN.txt', 'Piece orpheline Phase 11', 1, NOW(), @admin, 'mjlfinancement_expense', 99999999),
+      ('P11-POISON-DOC', 'P11-POISON.txt', 1, 'P11-POISON.txt', '../mjlfinancement_expense', 'P11-POISON.txt', 'Piece chemin refuse Phase 11', 1, NOW(), @admin, 'mjlfinancement_expense', @poisoned);
   `);
   ownDraftId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-OWN-DRAFT' AND entity = 1"));
   submittedDocId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-SUBMITTED-DOC' AND entity = 1"));
@@ -113,6 +130,28 @@ function seedPhase11Fixtures() {
   otherOwnedId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-OTHER-OWNED' AND entity = 1"));
   entityTwoId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-ENTITY-TWO' AND entity = 2"));
   ecmOnlyId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-ECM-ONLY' AND entity = 1"));
+  ecmOnlyDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-ECM-ONLY-DOC'"));
+  otherOwnedDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-OTHER-OWNED-DOC'"));
+  crossEntityDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-CROSS-ENTITY-DOC'"));
+  fundReceiptDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-FUND-RECEIPT-DOC'"));
+  orphanDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-ORPHAN-DOC'"));
+  poisonedDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-POISON-DOC'"));
+}
+
+function seedPhase11Files() {
+  dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense /var/www/documents/ecm/mjlfinancement_fund_receipt && printf "%s" "Phase 11 ECM only document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ECM-ONLY.pdf && printf "%s" "Phase 11 other owned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-OTHER-OWNED.txt && printf "%s" "Phase 11 cross entity document" > /var/www/documents/ecm/mjlfinancement_expense/P11-CROSS-ENTITY.txt && printf "%s" "Phase 11 fund receipt document" > /var/www/documents/ecm/mjlfinancement_fund_receipt/P11-FUND-RECEIPT.txt && printf "%s" "Phase 11 orphan document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ORPHAN.txt && printf "%s" "Phase 11 poisoned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-POISON.txt\'');
+}
+
+async function expectDownloadResponse(page, href, expectedText) {
+  const response = await page.request.get(href);
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-disposition']).toContain('attachment');
+  expect(await response.text()).toContain(expectedText);
+}
+
+async function expectForbiddenDownload(page, fileId) {
+  const response = await page.request.get(`/custom/mjlfinancement/documentdownload.php?id=${fileId}`);
+  expect(response.status()).toBe(403);
 }
 
 test.beforeAll(() => {
@@ -120,6 +159,7 @@ test.beforeAll(() => {
   dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php');
   cleanupPhase11Fixtures();
   seedPhase11Fixtures();
+  seedPhase11Files();
   fs.writeFileSync('/tmp/p11-supporting-document.txt', 'Phase 11 supporting document');
 });
 
@@ -140,6 +180,9 @@ test('Level 1 opens own expense detail, uploads document, submits, and loses mis
   await page.setInputFiles('input[name="supporting_document"]', '/tmp/p11-supporting-document.txt');
   await page.getByRole('button', { name: 'Ajouter la piece' }).click();
   await expect(page.getByText('Piece justificative presente')).toBeVisible();
+  const uploadedHref = await page.getByRole('link', { name: 'Télécharger la pièce' }).first().getAttribute('href');
+  expect(uploadedHref).toBeTruthy();
+  await expectDownloadResponse(page, uploadedHref, 'Phase 11 supporting document');
 
   await page.getByLabel('Commentaire de soumission').fill('Soumission Phase 11');
   await page.getByRole('button', { name: 'Soumettre la depense' }).click();
@@ -169,8 +212,25 @@ test('Level 2 validates submitted expense with document and sees ECM-only docume
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'validated'`))).toBe(1);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${ecmOnlyId}`);
-  await expect(page.getByText('P11-ECM-ONLY.pdf')).toBeVisible();
+  await expect(page.getByText('P11-ECM-ONLY.pdf').first()).toBeVisible();
   await expect(page.getByText('Piece justificative presente')).toBeVisible();
+  const ecmOnlyHref = await page.getByRole('link', { name: 'Télécharger la pièce' }).first().getAttribute('href');
+  expect(ecmOnlyHref).toBe(`/custom/mjlfinancement/documentdownload.php?id=${ecmOnlyDocFileId}`);
+  await expectDownloadResponse(page, ecmOnlyHref, 'Phase 11 ECM only document');
+});
+
+test('Direct document downloads reject unauthorized or unsafe ECM rows', async ({ page }) => {
+  await login(page, 'agent.mjl');
+
+  for (const fileId of [
+    otherOwnedDocFileId,
+    crossEntityDocFileId,
+    fundReceiptDocFileId,
+    orphanDocFileId,
+    poisonedDocFileId,
+  ]) {
+    await expectForbiddenDownload(page, fileId);
+  }
 });
 
 test('Missing document blocks validation UI and direct POST', async ({ page }) => {

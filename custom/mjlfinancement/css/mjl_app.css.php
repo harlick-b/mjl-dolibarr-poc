@@ -531,6 +531,37 @@ header('Content-Type: text/css; charset=UTF-8');
 	padding: 6px 10px;
 }
 
+.mjl-document-list {
+	border: 1px solid #d7dee2;
+	border-radius: 6px;
+	display: grid;
+	gap: 0;
+	margin-top: 12px;
+	overflow: hidden;
+}
+
+.mjl-document-row {
+	align-items: center;
+	background: #ffffff;
+	border-top: 1px solid #d7dee2;
+	display: flex;
+	gap: 12px;
+	justify-content: space-between;
+	padding: 10px 12px;
+}
+
+.mjl-document-row:first-child {
+	border-top: 0;
+}
+
+.mjl-document-row span {
+	color: #202529;
+	font-size: 14px;
+	font-weight: 700;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
 .mjl-roadmap-list {
 	color: #202529;
 	font-size: 14px;

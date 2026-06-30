@@ -33,8 +33,8 @@
 
 ### Document Workflows
 
-- Add secure download links in custom screens.
-- Plan preview after secure download is implemented and tested.
+- Keep secure expense download links guarded and covered by E2E tests.
+- Add document preview after secure download has been reviewed in use.
 - Add activity and convention supporting-document handling.
 - Make missing-document states clearer in lists and detail pages.
 

@@ -89,8 +89,8 @@ data instructions.
 - Confirm no public registration labels or links appear in auth or workspace
   screens.
 - Confirm uploaded supporting documents are stored in ECM, are not publicly
-  exposed, and are available through a guarded MJL download route once the
-  document-download batch is implemented.
+  exposed, and are available only through the guarded MJL download route
+  `/custom/mjlfinancement/documentdownload.php`.
 
 ## Smoke-Test Checklist
 
@@ -127,7 +127,8 @@ development/POC rehearsal. Do not load sample data into a production tenant.
 - Budget-line production management implementation and unsafe-edit rules.
 - Fund-receipt full management remains deferred; current selected scope is
   read-only supervision/reference.
-- Guarded document download implementation; preview remains planned later.
+- Document preview remains planned later; guarded expense document download is
+  implemented.
 - XLSX export implementation.
 - Production email/base URL/secrets configuration when email features are
   selected.

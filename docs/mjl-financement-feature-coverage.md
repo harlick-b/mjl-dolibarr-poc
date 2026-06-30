@@ -9,7 +9,7 @@ hardening work. It reflects the current codebase, not future production goals.
 | --- | --- | --- | --- |
 | `/custom/mjlfinancement/index.php` | Any MJL read right | A - implemented and POC-valid | Keep visible as the role-aware workspace dashboard. |
 | `/custom/mjlfinancement/activities.php` | `activity/read`; actions require `activity/write` or `activity/validate` | A - implemented and POC-valid | Preserve workflow, direct URL guards, tampered POST guards, no-self-validation, timeline, and document checklist behavior. |
-| `/custom/mjlfinancement/expenses.php` | `expense/read`; actions require `expense/write`, `expense/validate`, and ECM upload where needed | A - implemented and POC-valid | Preserve expense workflow, document checks, budget checks, correction/rejection/resubmission, no-self-validation, and ECM fallback. |
+| `/custom/mjlfinancement/expenses.php` and `/custom/mjlfinancement/documentdownload.php` | `expense/read`; actions require `expense/write`, `expense/validate`, and ECM upload where needed; download also requires same-entity ECM row and expense visibility | A - implemented and POC-valid | Preserve expense workflow, document checks/downloads, budget checks, correction/rejection/resubmission, no-self-validation, and ECM fallback. |
 | `/custom/mjlfinancement/alerts.php` | Activity or expense alert visibility | A - implemented and POC-valid | Keep visible for users with actionable alert scope. |
 | `/custom/mjlfinancement/dpafdashboard.php` | `mjl_workspace_require_supervision_access()` | A - implemented and POC-valid | Keep for DPAF/Admin only. |
 | `/custom/mjlfinancement/reports.php` | `mjl_workspace_require_supervision_access()`; CSV export additionally needs Admin or `export/write` | A - implemented and POC-valid | Keep for DPAF/Admin only; preserve CSV guarantees and server-side filter guards. |
@@ -61,9 +61,9 @@ advanced audit pages use capability-level guards for the same reason.
 - Activity creation, submission, correction request, correction, validation,
   rejection, direct POST protection, active-entity filtering, timeline, linked
   document checklist, and no-self-validation.
-- Expense creation, supporting-document upload, submission, validation,
+- Expense creation, supporting-document upload/download, submission, validation,
   rejection, correction, resubmission, missing-document blocking, budget-line
-  checks, ECM-only document fallback, and no-self-validation.
+  checks, ECM-only document fallback, direct download guards, and no-self-validation.
 - DPAF dashboard, alerts, validations, workflow audit, exchange logs, and
   Excel-readable CSV exports with French headers.
 
