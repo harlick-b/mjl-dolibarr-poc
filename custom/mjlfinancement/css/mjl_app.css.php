@@ -328,6 +328,12 @@ header('Content-Type: text/css; charset=UTF-8');
 	padding: 16px;
 }
 
+.mjl-empty-state-warning {
+	background: #fff9ec;
+	border-color: #d99a2b;
+	color: #6f4200;
+}
+
 .mjl-dashboard-table table {
 	background: #ffffff;
 	border: 1px solid #d7dee2;
@@ -529,6 +535,24 @@ header('Content-Type: text/css; charset=UTF-8');
 	font-size: 13px;
 	font-weight: 700;
 	padding: 6px 10px;
+}
+
+.mjl-document-summary-downloadable span:first-child {
+	background: #edf7f1;
+	border-color: #8ac09c;
+	color: #1f6b3a;
+}
+
+.mjl-document-summary-unavailable span:first-child {
+	background: #fff4df;
+	border-color: #d99a2b;
+	color: #6f4200;
+}
+
+.mjl-document-summary-missing span:first-child {
+	background: #fff0ed;
+	border-color: #e08a80;
+	color: #8a1f15;
 }
 
 .mjl-document-list {

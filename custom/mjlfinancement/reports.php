@@ -92,7 +92,7 @@ function mjl_reports_defs()
 			'filters' => array('project_id', 'convention_id', 'status', 'date_start', 'date_end'),
 			'required_filters' => array(),
 			'status_domain' => 'expense',
-			'headers' => array('expense_ref' => 'Depense', 'expense_date' => 'Date depense', 'budget_line' => 'Ligne budgetaire', 'amount' => 'Montant', 'status' => 'Statut', 'document_present' => 'Piece presente', 'supporting_document' => 'Piece justificative', 'validator' => 'Validateur', 'correction_reason' => 'Motif correction'),
+			'headers' => array('expense_ref' => 'Depense', 'expense_date' => 'Date depense', 'budget_line' => 'Ligne budgetaire', 'amount' => 'Montant', 'status' => 'Statut', 'document_present' => 'Piece disponible', 'supporting_document' => 'Piece justificative', 'validator' => 'Validateur', 'correction_reason' => 'Motif correction'),
 			'money_fields' => array('amount'),
 			'date_fields' => array('expense_date'),
 		),
@@ -130,7 +130,7 @@ function mjl_reports_defs()
 			'filters' => array('project_id', 'convention_id', 'status', 'date_start', 'date_end'),
 			'required_filters' => array(),
 			'status_domain' => 'expense',
-			'headers' => array('partner' => 'Partenaire', 'project' => 'Projet', 'envelope' => 'Mission / enveloppe de financement', 'activity' => 'Activite', 'expense_ref' => 'Reference depense', 'expense_date' => 'Date depense', 'amount' => 'Montant', 'expense_status' => 'Statut', 'document_present' => 'Piece justificative presente', 'creator' => 'Creee par', 'validator' => 'Validee par', 'validation_date' => 'Date de validation', 'correction_reason' => 'Motif de correction'),
+			'headers' => array('partner' => 'Partenaire', 'project' => 'Projet', 'envelope' => 'Mission / enveloppe de financement', 'activity' => 'Activite', 'expense_ref' => 'Reference depense', 'expense_date' => 'Date depense', 'amount' => 'Montant', 'expense_status' => 'Statut', 'document_present' => 'Piece disponible', 'creator' => 'Creee par', 'validator' => 'Validee par', 'validation_date' => 'Date de validation', 'correction_reason' => 'Motif de correction'),
 			'money_fields' => array('amount'),
 			'date_fields' => array('expense_date', 'validation_date'),
 		),
@@ -290,7 +290,9 @@ function mjl_reports_format_row($def, $row)
 		$row['status'] = mjl_reports_budget_status_label($row['status']);
 	}
 	if (isset($row['document_present'])) {
-		$row['document_present'] = ((int) $row['document_present'] === 1 || $row['document_present'] === 'Oui') ? 'Oui' : 'Non';
+		if ($row['document_present'] !== 'Indisponible') {
+			$row['document_present'] = ((int) $row['document_present'] === 1 || $row['document_present'] === 'Oui') ? 'Oui' : 'Non';
+		}
 	}
 	foreach (isset($def['money_fields']) ? $def['money_fields'] : array() as $field) {
 		if (isset($row[$field]) && $row[$field] !== '') {
@@ -770,7 +772,7 @@ function mjl_reports_expenses_validations_rows($filters)
 	if ($filters['date_start'] !== '') $where[] = "e.expense_date >= '".$db->escape($filters['date_start'])."'";
 	if ($filters['date_end'] !== '') $where[] = "e.expense_date <= '".$db->escape($filters['date_end'])."'";
 
-	$sql = 'SELECT s.nom AS partner, p.ref AS project, c.ref AS envelope, a.ref AS activity, e.ref AS expense_ref, e.expense_date, e.amount, e.status AS expense_status,';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.supporting_document AS stored_supporting_document, s.nom AS partner, p.ref AS project, c.ref AS envelope, a.ref AS activity, e.ref AS expense_ref, e.expense_date, e.amount, e.status AS expense_status,';
 	$sql .= ' CASE WHEN '.mjl_expense_document_present_sql('e').' THEN 1 ELSE 0 END AS document_present,';
 	$sql .= ' creator.login AS creator, validator.login AS validator, e.validation_date, e.correction_reason';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
@@ -784,8 +786,10 @@ function mjl_reports_expenses_validations_rows($filters)
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
+		$state = mjl_expense_evidence_state((int) $row['rowid'], (int) $row['evidence_entity'], $row['stored_supporting_document']);
 		$row['expense_status'] = mjl_reports_expense_status_label($row['expense_status']);
-		$row['document_present'] = ((int) $row['document_present'] === 1) ? 'Oui' : 'Non';
+		$row['document_present'] = $state === 'downloadable' ? 'Oui' : ($state === 'unavailable' ? 'Indisponible' : 'Non');
+		unset($row['rowid'], $row['evidence_entity'], $row['stored_supporting_document']);
 	}
 	unset($row);
 	return $rows;

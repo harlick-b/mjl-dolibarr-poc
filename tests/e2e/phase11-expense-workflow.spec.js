@@ -11,6 +11,7 @@ let selfSubmittedId = 0;
 let otherOwnedId = 0;
 let entityTwoId = 0;
 let ecmOnlyId = 0;
+let unavailableId = 0;
 let ecmOnlyDocFileId = 0;
 let otherOwnedDocFileId = 0;
 let crossEntityDocFileId = 0;
@@ -106,8 +107,12 @@ function seedPhase11Fixtures() {
       (1, 'P11-OTHER-OWNED', @project, @convention, @activity, @budget_line, 1500, '2026-06-24', 'Depense Phase 11 autre agent', NULL, NULL, NOW(), @other_agent, 'P11OTHER', 0),
       (2, 'P11-ENTITY-TWO', @project, @convention, @activity, @budget_line, 1600, '2026-06-24', 'Depense Phase 11 autre entite', NULL, NULL, NOW(), @agent, 'P11ENT2', 0),
       (1, 'P11-ECM-ONLY', @project, @convention, @activity, @budget_line, 1700, '2026-06-24', 'Depense Phase 11 ECM seule', '', NOW(), NOW(), @agent, 'P11ECM', 1),
+      (1, 'P11-UNAVAILABLE', @project, @convention, @activity, @budget_line, 1750, '2026-06-24', 'Depense Phase 11 piece indisponible', 'P11-UNAVAILABLE.pdf', NOW(), NOW(), @agent, 'P11UNAVAIL', 1),
       (1, 'P11-POISONED', @project, @convention, @activity, @budget_line, 1800, '2026-06-24', 'Depense Phase 11 chemin refuse', '', NULL, NOW(), @agent, 'P11POISON', 0);
 
+    SET @submitted_doc = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-SUBMITTED-DOC' AND entity = 1);
+    SET @correction = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-CORRECTION' AND entity = 1);
+    SET @self_submitted = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-SELF-SUBMITTED' AND entity = 1);
     SET @ecm_expense = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-ECM-ONLY' AND entity = 1);
     SET @other_owned = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-OTHER-OWNED' AND entity = 1);
     SET @entity_two = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-ENTITY-TWO' AND entity = 2);
@@ -115,6 +120,9 @@ function seedPhase11Fixtures() {
     SET @fund_receipt = (SELECT rowid FROM llx_mjlfinancement_fund_receipt WHERE entity = 1 LIMIT 1);
     INSERT INTO llx_ecm_files (ref, label, entity, filename, filepath, fullpath_orig, description, gen_or_uploaded, date_c, fk_user_c, src_object_type, src_object_id)
     VALUES
+      ('P11-SUBMITTED-DOC-ECM', 'P11-SUBMITTED-DOC.pdf', 1, 'P11-SUBMITTED-DOC.pdf', 'mjlfinancement_expense', 'P11-SUBMITTED-DOC.pdf', 'Piece Phase 11 soumise', 1, NOW(), @admin, 'mjlfinancement_expense', @submitted_doc),
+      ('P11-CORRECTION-ECM', 'P11-CORRECTION.pdf', 1, 'P11-CORRECTION.pdf', 'mjlfinancement_expense', 'P11-CORRECTION.pdf', 'Piece Phase 11 correction', 1, NOW(), @admin, 'mjlfinancement_expense', @correction),
+      ('P11-SELF-SUBMITTED-ECM', 'P11-SELF-SUBMITTED.pdf', 1, 'P11-SELF-SUBMITTED.pdf', 'mjlfinancement_expense', 'P11-SELF-SUBMITTED.pdf', 'Piece Phase 11 self', 1, NOW(), @admin, 'mjlfinancement_expense', @self_submitted),
       ('P11-ECM-ONLY-DOC', 'P11-ECM-ONLY.pdf', 1, 'P11-ECM-ONLY.pdf', 'mjlfinancement_expense', 'P11-ECM-ONLY.pdf', 'Piece Phase 11 ECM', 1, NOW(), @admin, 'mjlfinancement_expense', @ecm_expense),
       ('P11-OTHER-OWNED-DOC', 'P11-OTHER-OWNED.txt', 1, 'P11-OTHER-OWNED.txt', 'mjlfinancement_expense', 'P11-OTHER-OWNED.txt', 'Piece autre agent Phase 11', 1, NOW(), @admin, 'mjlfinancement_expense', @other_owned),
       ('P11-CROSS-ENTITY-DOC', 'P11-CROSS-ENTITY.txt', 2, 'P11-CROSS-ENTITY.txt', 'mjlfinancement_expense', 'P11-CROSS-ENTITY.txt', 'Piece autre entite Phase 11', 1, NOW(), @admin, 'mjlfinancement_expense', @entity_two),
@@ -130,6 +138,7 @@ function seedPhase11Fixtures() {
   otherOwnedId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-OTHER-OWNED' AND entity = 1"));
   entityTwoId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-ENTITY-TWO' AND entity = 2"));
   ecmOnlyId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-ECM-ONLY' AND entity = 1"));
+  unavailableId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P11-UNAVAILABLE' AND entity = 1"));
   ecmOnlyDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-ECM-ONLY-DOC'"));
   otherOwnedDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-OTHER-OWNED-DOC'"));
   crossEntityDocFileId = Number(scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P11-CROSS-ENTITY-DOC'"));
@@ -139,7 +148,7 @@ function seedPhase11Fixtures() {
 }
 
 function seedPhase11Files() {
-  dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense /var/www/documents/ecm/mjlfinancement_fund_receipt && printf "%s" "Phase 11 ECM only document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ECM-ONLY.pdf && printf "%s" "Phase 11 other owned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-OTHER-OWNED.txt && printf "%s" "Phase 11 cross entity document" > /var/www/documents/ecm/mjlfinancement_expense/P11-CROSS-ENTITY.txt && printf "%s" "Phase 11 fund receipt document" > /var/www/documents/ecm/mjlfinancement_fund_receipt/P11-FUND-RECEIPT.txt && printf "%s" "Phase 11 orphan document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ORPHAN.txt && printf "%s" "Phase 11 poisoned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-POISON.txt\'');
+  dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense /var/www/documents/ecm/mjlfinancement_fund_receipt && printf "%s" "Phase 11 submitted document" > /var/www/documents/ecm/mjlfinancement_expense/P11-SUBMITTED-DOC.pdf && printf "%s" "Phase 11 correction document" > /var/www/documents/ecm/mjlfinancement_expense/P11-CORRECTION.pdf && printf "%s" "Phase 11 self submitted document" > /var/www/documents/ecm/mjlfinancement_expense/P11-SELF-SUBMITTED.pdf && printf "%s" "Phase 11 ECM only document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ECM-ONLY.pdf && printf "%s" "Phase 11 other owned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-OTHER-OWNED.txt && printf "%s" "Phase 11 cross entity document" > /var/www/documents/ecm/mjlfinancement_expense/P11-CROSS-ENTITY.txt && printf "%s" "Phase 11 fund receipt document" > /var/www/documents/ecm/mjlfinancement_fund_receipt/P11-FUND-RECEIPT.txt && printf "%s" "Phase 11 orphan document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ORPHAN.txt && printf "%s" "Phase 11 poisoned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-POISON.txt\'');
 }
 
 async function expectDownloadResponse(page, href, expectedText) {
@@ -174,12 +183,12 @@ test('Level 1 opens own expense detail, uploads document, submits, and loses mis
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${ownDraftId}`);
   await expect(page.getByRole('heading', { name: 'P11-OWN-DRAFT' })).toBeVisible();
-  await expect(page.getByText('Piece justificative manquante')).toBeVisible();
+  await expect(page.getByText('Piece manquante').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Historique de decision' })).toBeVisible();
 
   await page.setInputFiles('input[name="supporting_document"]', '/tmp/p11-supporting-document.txt');
   await page.getByRole('button', { name: 'Ajouter la piece' }).click();
-  await expect(page.getByText('Piece justificative presente')).toBeVisible();
+  await expect(page.getByText('Piece disponible').first()).toBeVisible();
   const uploadedHref = await page.getByRole('link', { name: 'Télécharger la pièce' }).first().getAttribute('href');
   expect(uploadedHref).toBeTruthy();
   await expectDownloadResponse(page, uploadedHref, 'Phase 11 supporting document');
@@ -206,14 +215,18 @@ test('Level 2 validates submitted expense with document and sees ECM-only docume
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedDocId}`);
   await expect(page.getByRole('heading', { name: 'P11-SUBMITTED-DOC' })).toBeVisible();
-  await expect(page.getByText('Piece justificative presente')).toBeVisible();
+  await expect(page.getByText('Piece disponible').first()).toBeVisible();
+  await expect(page.getByText('BL-JE-002').first()).toBeVisible();
+  await expect(page.getByText('agent.mjl').first()).toBeVisible();
+  await expect(page.getByText('Non validee').first()).toBeVisible();
+  await expect(page.getByText('Decision attendue du niveau de validation.').first()).toBeVisible();
   await page.getByRole('button', { name: 'Valider la depense' }).click();
   await expect(page.getByText('Validee').first()).toBeVisible();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'validated'`))).toBe(1);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${ecmOnlyId}`);
   await expect(page.getByText('P11-ECM-ONLY.pdf').first()).toBeVisible();
-  await expect(page.getByText('Piece justificative presente')).toBeVisible();
+  await expect(page.getByText('Piece disponible').first()).toBeVisible();
   const ecmOnlyHref = await page.getByRole('link', { name: 'Télécharger la pièce' }).first().getAttribute('href');
   expect(ecmOnlyHref).toBe(`/custom/mjlfinancement/documentdownload.php?id=${ecmOnlyDocFileId}`);
   await expectDownloadResponse(page, ecmOnlyHref, 'Phase 11 ECM only document');
@@ -243,6 +256,25 @@ test('Missing document blocks validation UI and direct POST', async ({ page }) =
   expect(response.status()).toBe(403);
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${submittedMissingId}`))).toBe(1);
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedMissingId} AND action = 'validated'`))).toBe(0);
+});
+
+test('Unavailable referenced document blocks validation and stays visible in alerts', async ({ page }) => {
+  await login(page, 'superviseur.n1');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${unavailableId}`);
+  await expect(page.getByText('Piece referencee indisponible').first()).toBeVisible();
+  await expect(page.getByText('P11-UNAVAILABLE.pdf').first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Télécharger la pièce' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Valider la depense' })).toHaveCount(0);
+
+  const response = await postExpenseAction(page, unavailableId, 'validate');
+  expect(response.status()).toBe(403);
+  expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${unavailableId}`))).toBe(1);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${unavailableId} AND action = 'validated'`))).toBe(0);
+
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/alerts.php');
+  await expect(page.getByText('P11-UNAVAILABLE')).toBeVisible();
+  await expect(page.getByText('Piece indisponible').first()).toBeVisible();
 });
 
 test('Reject, correct, and resubmit preserves decision comments', async ({ page }) => {

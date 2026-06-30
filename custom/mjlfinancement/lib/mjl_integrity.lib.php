@@ -118,23 +118,105 @@ function mjl_expense_supporting_document_sql($expenseAlias = 'e')
 
 function mjl_expense_has_supporting_document($expenseId, $entity, $supportingDocument)
 {
+	return mjl_expense_evidence_state($expenseId, $entity, $supportingDocument) === 'downloadable' ? 1 : 0;
+}
+
+function mjl_expense_evidence_state($expenseId, $entity, $supportingDocument = '')
+{
+	$rows = mjl_expense_downloadable_document_rows($expenseId, $entity);
+	if (!empty($rows)) {
+		return 'downloadable';
+	}
+	$referencedRows = mjl_expense_document_candidate_rows($expenseId, $entity);
+	if (trim((string) $supportingDocument) !== '' || !empty($referencedRows)) {
+		return 'unavailable';
+	}
+	return 'missing';
+}
+
+function mjl_expense_document_candidate_rows($expenseId, $entity)
+{
 	global $db;
 
-	if (trim((string) $supportingDocument) !== '') {
-		return 1;
+	if ((int) $expenseId <= 0 || (int) $entity <= 0) {
+		return array();
 	}
-
-	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'ecm_files';
+	$sql = 'SELECT rowid, entity, filename, filepath, fullpath_orig, description, date_c, src_object_type, src_object_id';
+	$sql .= ' FROM '.$db->prefix().'ecm_files';
 	$sql .= ' WHERE entity = '.((int) $entity);
 	$sql .= " AND src_object_type = 'mjlfinancement_expense'";
 	$sql .= ' AND src_object_id = '.((int) $expenseId);
+	$sql .= ' ORDER BY date_c DESC, rowid DESC';
 	$resql = $db->query($sql);
 	if (!$resql) {
-		return mjl_integrity_set_error($db->lasterror());
+		mjl_integrity_set_error($db->lasterror());
+		return array();
 	}
 
-	$obj = $db->fetch_object($resql);
-	return $obj && (int) $obj->nb > 0 ? 1 : 0;
+	$rows = array();
+	while ($obj = $db->fetch_object($resql)) {
+		$rows[] = (array) $obj;
+	}
+	return $rows;
+}
+
+function mjl_expense_downloadable_document_rows($expenseId, $entity)
+{
+	$rows = array();
+	foreach (mjl_expense_document_candidate_rows($expenseId, $entity) as $row) {
+		if (mjl_expense_document_resolved_path_for_row($row) !== '') {
+			$rows[] = $row;
+		}
+	}
+	return $rows;
+}
+
+function mjl_expense_document_resolved_path_for_row($fileRow)
+{
+	global $conf;
+
+	if (empty($conf->ecm->dir_output)) {
+		return '';
+	}
+	$base = realpath($conf->ecm->dir_output);
+	if ($base === false || !is_dir($base)) {
+		return '';
+	}
+
+	$filename = (string) ($fileRow['filename'] ?? '');
+	$filepath = (string) ($fileRow['filepath'] ?? '');
+	if (!mjl_expense_document_safe_filename_for_storage($filename) || !mjl_expense_document_safe_relative_path_for_storage($filepath)) {
+		return '';
+	}
+
+	$candidate = $base.'/'.$filepath.'/'.$filename;
+	$real = realpath($candidate);
+	if ($real === false || !is_file($real) || !is_readable($real)) {
+		return '';
+	}
+	$basePrefix = rtrim($base, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+	if (strpos($real, $basePrefix) !== 0) {
+		return '';
+	}
+	return $real;
+}
+
+function mjl_expense_document_safe_filename_for_storage($filename)
+{
+	$filename = (string) $filename;
+	if ($filename === '' || basename($filename) !== $filename) {
+		return false;
+	}
+	return !preg_match('/\.\.|[\x00-\x1F\x7F<>|\\\\\/]/', $filename);
+}
+
+function mjl_expense_document_safe_relative_path_for_storage($path)
+{
+	$path = trim((string) $path);
+	if ($path === '' || $path[0] === '/' || preg_match('/^[A-Za-z]:/', $path)) {
+		return false;
+	}
+	return !preg_match('/\.\.|[\x00-\x1F\x7F<>|\\\\]/', $path);
 }
 
 function mjl_has_expense_validation_history($expenseId, $entity = null)

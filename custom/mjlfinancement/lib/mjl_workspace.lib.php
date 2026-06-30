@@ -2,6 +2,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexpense.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 
 function mjl_workspace_is_admin(User $targetUser)
 {
@@ -183,12 +184,21 @@ function mjl_workspace_own_missing_expense_document_count(User $targetUser)
 	global $db, $conf;
 
 	$statuses = array(MjlExpense::STATUS_DRAFT, MjlExpense::STATUS_CORRECTED, MjlExpense::STATUS_SUBMITTED);
-	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql = 'SELECT e.rowid, e.entity, e.supporting_document FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
 	$sql .= ' AND e.fk_user_creat = '.((int) $targetUser->id);
 	$sql .= ' AND e.status IN ('.implode(',', array_map('intval', $statuses)).')';
-	$sql .= ' AND NOT '.mjl_expense_document_present_sql('e');
-	return mjl_workspace_scalar($sql);
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return 0;
+	}
+	$count = 0;
+	while ($row = $db->fetch_object($resql)) {
+		if (mjl_expense_evidence_state((int) $row->rowid, (int) $row->entity, $row->supporting_document) !== 'downloadable') {
+			$count++;
+		}
+	}
+	return $count;
 }
 
 function mjl_workspace_activity_count($statuses)

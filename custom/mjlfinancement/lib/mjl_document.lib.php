@@ -15,24 +15,7 @@ function mjl_expense_document_download_rows($expenseId)
 		return array();
 	}
 
-	$sql = 'SELECT f.rowid, f.filename, f.filepath, f.fullpath_orig, f.description, f.date_c';
-	$sql .= ' FROM '.$db->prefix().'ecm_files f';
-	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = f.src_object_id AND e.entity = f.entity';
-	$sql .= ' WHERE f.entity = '.((int) $conf->entity);
-	$sql .= " AND f.src_object_type = 'mjlfinancement_expense'";
-	$sql .= ' AND f.src_object_id = '.((int) $expenseId);
-	$sql .= ' ORDER BY f.date_c DESC, f.rowid DESC';
-	$resql = $db->query($sql);
-	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
-		return array();
-	}
-
-	$rows = array();
-	while ($obj = $db->fetch_object($resql)) {
-		$rows[] = (array) $obj;
-	}
-	return $rows;
+	return mjl_expense_downloadable_document_rows((int) $expenseId, (int) $conf->entity);
 }
 
 function mjl_expense_document_fetch_expense_for_access($expenseId)
@@ -91,32 +74,7 @@ function mjl_expense_document_fetch_download_row($fileId)
 
 function mjl_expense_document_resolve_path($fileRow)
 {
-	global $conf;
-
-	if (empty($conf->ecm->dir_output)) {
-		return '';
-	}
-	$base = realpath($conf->ecm->dir_output);
-	if ($base === false || !is_dir($base)) {
-		return '';
-	}
-
-	$filename = (string) ($fileRow['filename'] ?? '');
-	$filepath = (string) ($fileRow['filepath'] ?? '');
-	if (!mjl_expense_document_safe_filename($filename) || !mjl_expense_document_safe_relative_path($filepath)) {
-		return '';
-	}
-
-	$candidate = $base.'/'.$filepath.'/'.$filename;
-	$real = realpath($candidate);
-	if ($real === false || !is_file($real) || !is_readable($real)) {
-		return '';
-	}
-	$basePrefix = rtrim($base, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-	if (strpos($real, $basePrefix) !== 0) {
-		return '';
-	}
-	return $real;
+	return mjl_expense_document_resolved_path_for_row($fileRow);
 }
 
 function mjl_expense_document_display_filename($fileRow)
@@ -139,18 +97,10 @@ function mjl_expense_document_display_filename($fileRow)
 
 function mjl_expense_document_safe_filename($filename)
 {
-	$filename = (string) $filename;
-	if ($filename === '' || basename($filename) !== $filename) {
-		return false;
-	}
-	return !preg_match('/\.\.|[\x00-\x1F\x7F<>|\\\\\/]/', $filename);
+	return mjl_expense_document_safe_filename_for_storage($filename);
 }
 
 function mjl_expense_document_safe_relative_path($path)
 {
-	$path = trim((string) $path);
-	if ($path === '' || $path[0] === '/' || preg_match('/^[A-Za-z]:/', $path)) {
-		return false;
-	}
-	return !preg_match('/\.\.|[\x00-\x1F\x7F<>|\\\\]/', $path);
+	return mjl_expense_document_safe_relative_path_for_storage($path);
 }

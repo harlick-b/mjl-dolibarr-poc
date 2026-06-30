@@ -43,7 +43,7 @@ function mjl_report_expense_documents($filters = array())
 	global $db, $conf;
 
 	$entity = (int) $conf->entity;
-	$sql = 'SELECT e.ref AS expense_ref, e.expense_date, bl.ref AS budget_line, e.amount, e.status,';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.ref AS expense_ref, e.expense_date, bl.ref AS budget_line, e.amount, e.status, e.supporting_document AS stored_supporting_document,';
 	$sql .= ' CASE WHEN '.mjl_expense_document_present_sql('e').' THEN 1 ELSE 0 END AS document_present,';
 	$sql .= ' '.mjl_expense_supporting_document_sql('e').' AS supporting_document,';
 	$sql .= ' u.login AS validator, e.correction_reason';
@@ -52,11 +52,21 @@ function mjl_report_expense_documents($filters = array())
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = e.fk_user_valid';
 	$sql .= ' WHERE e.entity = '.$entity;
 	$sql .= mjl_report_expense_filter_sql('e', $filters, false);
-	if (isset($filters['missing_document'])) {
-		$sql .= !empty($filters['missing_document']) ? ' AND NOT '.mjl_expense_document_present_sql('e') : ' AND '.mjl_expense_document_present_sql('e');
-	}
 	$sql .= ' ORDER BY e.ref';
-	return mjl_report_fetch_rows($sql);
+	$rows = mjl_report_fetch_rows($sql);
+	$result = array();
+	foreach ($rows as $row) {
+		$state = mjl_expense_evidence_state((int) $row['rowid'], (int) $row['evidence_entity'], $row['stored_supporting_document']);
+		if (isset($filters['missing_document'])) {
+			if (!empty($filters['missing_document']) && $state === 'downloadable') continue;
+			if (empty($filters['missing_document']) && $state !== 'downloadable') continue;
+		}
+		$row['document_present'] = $state === 'downloadable' ? 1 : 0;
+		$row['document_state'] = $state;
+		unset($row['rowid'], $row['evidence_entity'], $row['stored_supporting_document']);
+		$result[] = $row;
+	}
+	return $result;
 }
 
 function mjl_report_expense_filter_sql($alias, $filters, $joinClause)

@@ -267,9 +267,9 @@ function mjl_expenses_render_detail($id)
 
 	print '<div class="mjl-activity-detail-grid">';
 	mjl_expenses_render_summary_card($row);
+	mjl_expenses_render_document_panel($row);
 	mjl_expenses_render_decision_panel($row);
 	print '</div>';
-	mjl_expenses_render_document_panel($row);
 	mjl_expenses_render_timeline($row);
 }
 
@@ -301,7 +301,7 @@ function mjl_expenses_list()
 {
 	global $db, $conf;
 
-	$sql = 'SELECT e.rowid, e.ref, e.expense_date, e.amount, e.status, e.description, e.fk_user_creat, bl.ref AS budget_line, p.ref AS project_ref, u.login AS creator_login, '.mjl_expense_document_present_sql('e').' AS document_present';
+	$sql = 'SELECT e.rowid, e.entity, e.ref, e.expense_date, e.amount, e.status, e.description, e.fk_user_creat, e.supporting_document, bl.ref AS budget_line, p.ref AS project_ref, u.login AS creator_login, '.mjl_expense_document_present_sql('e').' AS document_present';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = e.fk_budget_line AND bl.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
@@ -321,6 +321,7 @@ function mjl_expenses_list()
 	$count = 0;
 	while ($row = $db->fetch_object($resql)) {
 		$count++;
+		$evidenceState = mjl_expense_evidence_state((int) $row->rowid, (int) $row->entity, $row->supporting_document);
 		print '<tr class="oddeven">';
 		print '<td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row->rowid).'">'.dol_escape_htmltag($row->ref).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row->description).'</span></td>';
 		print '<td>'.dol_escape_htmltag($row->project_ref).'</td>';
@@ -328,7 +329,7 @@ function mjl_expenses_list()
 		print '<td>'.dol_escape_htmltag(mjl_expenses_format_date($row->expense_date)).'</td>';
 		print '<td class="right">'.price($row->amount).'</td>';
 		print '<td>'.mjl_expenses_status_badge($row->status).'</td>';
-		print '<td>'.((int) $row->document_present > 0 ? 'Piece presente' : 'Piece manquante').'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_expenses_evidence_label($evidenceState)).'</td>';
 		print '<td>'.dol_escape_htmltag($row->creator_login).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_expenses_next_action_label((array) $row)).'</td>';
 		print '</tr>';
@@ -346,6 +347,7 @@ function mjl_expenses_render_summary_card($row)
 	print '<dl class="mjl-activity-meta">';
 	print '<div><dt>Statut</dt><dd>'.mjl_expenses_status_badge($row['status']).'</dd></div>';
 	print '<div><dt>Action attendue</dt><dd>'.dol_escape_htmltag(mjl_expenses_next_action_label($row)).'</dd></div>';
+	print '<div><dt>Piece justificative</dt><dd>'.dol_escape_htmltag(mjl_expenses_evidence_label($row['evidence_state'] ?? '')).'</dd></div>';
 	print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($row['project_ref']).' - '.dol_escape_htmltag($row['project_title']).'</dd></div>';
 	print '<div><dt>Convention</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
 	print '<div><dt>Activite</dt><dd>'.dol_escape_htmltag($row['activity_ref'] ?: 'Aucune').'</dd></div>';
@@ -391,16 +393,20 @@ function mjl_expenses_render_decision_panel($row)
 
 function mjl_expenses_render_document_panel($row)
 {
-	$present = (int) $row['document_present'] > 0;
+	$state = $row['evidence_state'] ?? ((int) $row['document_present'] > 0 ? 'downloadable' : 'missing');
+	$downloadable = $state === 'downloadable';
 	$documents = mjl_expense_document_download_rows((int) $row['rowid']);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Piece justificative</h2><p>La validation est bloquee tant qu aucune piece justificative n est detectee.</p></div>';
-	print '<div class="mjl-document-summary">';
-	print '<span>'.($present ? 'Piece justificative presente' : 'Piece justificative manquante').'</span>';
+	print '<div class="mjl-section-heading"><h2>Piece justificative</h2><p>La validation exige une piece telechargeable par le validateur.</p></div>';
+	print '<div class="mjl-document-summary mjl-document-summary-'.$state.'">';
+	print '<span>'.dol_escape_htmltag(mjl_expenses_evidence_label($state)).'</span>';
 	print '<span>'.dol_escape_htmltag($row['supporting_document_resolved'] ?: 'Aucun fichier detecte').'</span>';
 	print '</div>';
-	if (!$present) {
+	if ($state === 'missing') {
 		print '<div class="mjl-empty-state">Ajoutez une piece justificative avant la validation de cette depense.</div>';
+	}
+	if ($state === 'unavailable') {
+		print '<div class="mjl-empty-state mjl-empty-state-warning">Piece referencee dans les donnees, mais aucun fichier telechargeable n est disponible. Ajoutez une nouvelle piece avant validation.</div>';
 	}
 	if (!empty($documents)) {
 		print '<div class="mjl-document-list">';
@@ -412,8 +418,8 @@ function mjl_expenses_render_document_panel($row)
 			print '</div>';
 		}
 		print '</div>';
-	} elseif ($present) {
-		print '<div class="mjl-empty-state">Piece detectee dans les donnees, mais aucun fichier ECM telechargeable n est disponible.</div>';
+	} elseif ($downloadable) {
+		print '<div class="mjl-empty-state mjl-empty-state-warning">Piece detectee, mais aucun lien telechargeable n est disponible.</div>';
 	}
 	if (mjl_expenses_can_apply_action($row, 'upload')) {
 		print '<form class="mjl-activity-action-form" enctype="multipart/form-data" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
@@ -513,7 +519,7 @@ function mjl_expenses_fetch_detail($id)
 	if ((int) $id <= 0) {
 		return array();
 	}
-	$sql = 'SELECT e.rowid, e.ref, e.fk_user_creat, e.expense_date, e.amount, e.status, e.description, e.supporting_document, e.correction_reason, e.submitted_at, e.validation_date, e.date_creation,';
+	$sql = 'SELECT e.rowid, e.entity, e.ref, e.fk_user_creat, e.expense_date, e.amount, e.status, e.description, e.supporting_document, e.correction_reason, e.submitted_at, e.validation_date, e.date_creation,';
 	$sql .= ' p.ref AS project_ref, p.title AS project_title, c.ref AS convention_ref, c.title AS convention_title, a.ref AS activity_ref, a.label AS activity_label,';
 	$sql .= ' bl.ref AS budget_line_ref, bl.label AS budget_line_label, u.login AS creator_login, uv.login AS validator_login,';
 	$sql .= ' '.mjl_expense_document_present_sql('e').' AS document_present, '.mjl_expense_supporting_document_sql('e').' AS supporting_document_resolved';
@@ -531,7 +537,13 @@ function mjl_expenses_fetch_detail($id)
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
-	return $obj ? (array) $obj : array();
+	if (!$obj) {
+		return array();
+	}
+	$row = (array) $obj;
+	$row['evidence_state'] = mjl_expense_evidence_state((int) $row['rowid'], (int) $row['entity'], $row['supporting_document']);
+	$row['document_present'] = $row['evidence_state'] === 'downloadable' ? 1 : 0;
+	return $row;
 }
 
 function mjl_expenses_can_apply_action($expense, $action)
@@ -554,7 +566,8 @@ function mjl_expenses_can_apply_action($expense, $action)
 	if (in_array($action, array('validate', 'reject'), true)) {
 		if (!$user->hasRight('mjlfinancement', 'expense', 'validate') || $status !== MjlExpense::STATUS_SUBMITTED) return false;
 		if ((int) $row['fk_user_creat'] === (int) $user->id) return false;
-		if ($action === 'validate' && array_key_exists('document_present', $row) && (int) $row['document_present'] <= 0) return false;
+		if ($action === 'validate' && array_key_exists('evidence_state', $row) && $row['evidence_state'] !== 'downloadable') return false;
+		if ($action === 'validate' && !array_key_exists('evidence_state', $row) && array_key_exists('document_present', $row) && (int) $row['document_present'] <= 0) return false;
 		return true;
 	}
 	return false;
@@ -605,13 +618,25 @@ function mjl_expenses_timeline_items($expense)
 function mjl_expenses_next_action_label($row)
 {
 	$status = (int) $row['status'];
-	$docPresent = !array_key_exists('document_present', $row) || (int) $row['document_present'] > 0;
+	$evidenceState = $row['evidence_state'] ?? '';
+	$docPresent = ($evidenceState === 'downloadable') || ($evidenceState === '' && (!array_key_exists('document_present', $row) || (int) $row['document_present'] > 0));
+	$docUnavailable = $evidenceState === 'unavailable';
+	if ($docUnavailable && in_array($status, array(MjlExpense::STATUS_DRAFT, MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_CORRECTED), true)) {
+		return 'Remplacer la piece indisponible avant validation.';
+	}
 	if ($status === MjlExpense::STATUS_DRAFT) return $docPresent ? 'Completer puis soumettre la depense.' : 'Ajouter la piece justificative puis soumettre la depense.';
 	if ($status === MjlExpense::STATUS_SUBMITTED) return $docPresent ? 'Decision attendue du niveau de validation.' : 'Validation bloquee tant que la piece justificative manque.';
 	if ($status === MjlExpense::STATUS_CORRECTED) return 'Depense corrigee a resoumettre.';
 	if ($status === MjlExpense::STATUS_VALIDATED) return 'Depense validee, aucune decision en attente.';
 	if ($status === MjlExpense::STATUS_REJECTED) return 'Correction attendue avant resoumission.';
 	return 'Suivre l avancement de la depense.';
+}
+
+function mjl_expenses_evidence_label($state)
+{
+	if ($state === 'downloadable') return 'Piece disponible';
+	if ($state === 'unavailable') return 'Piece referencee indisponible';
+	return 'Piece manquante';
 }
 
 function mjl_expenses_status_label($status)

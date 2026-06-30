@@ -107,6 +107,7 @@ if ($expenseId <= 0) {
 	cleanup($importKey);
 	fail('Unable to create smoke expense: '.$expense->error);
 }
+insertEcmDocument($expenseId, $entity, 'SMOKE-DOC-'.$suffix, $adminUser->id);
 
 $fetched = new MjlExpense($db);
 if ($fetched->fetch($expenseId) <= 0) {
@@ -223,6 +224,7 @@ if ($overBudgetExpenseId <= 0) {
 	cleanup($importKey);
 	fail('Unable to create over budget smoke expense: '.$overBudgetExpense->error);
 }
+insertEcmDocument($overBudgetExpenseId, $entity, 'SMOKE-DOC-OVER-'.$suffix, $adminUser->id);
 if ($overBudgetExpense->submit($adminUser, 'Submit over budget expense', 1) <= 0) {
 	cleanup($importKey);
 	fail('Unable to submit over budget smoke expense: '.$overBudgetExpense->error);
@@ -285,6 +287,7 @@ if ($correctionExpenseId <= 0) {
 	cleanup($importKey);
 	fail('Unable to create correction smoke expense: '.$correctionExpense->error);
 }
+insertEcmDocument($correctionExpenseId, $entity, 'SMOKE-DOC-CORR-'.$suffix, $adminUser->id);
 if ($correctionExpense->submit($adminUser, 'Submit for rejection path', 1) <= 0) {
 	cleanup($importKey);
 	fail('Unable to submit correction smoke expense: '.$correctionExpense->error);
@@ -454,7 +457,21 @@ function loadSmokeUser($login)
 
 function insertEcmDocument($expenseId, $entity, $filename, $userId)
 {
-	global $db;
+	global $conf, $db;
+
+	$targetDir = rtrim($conf->ecm->dir_output, '/').'/mjlfinancement_expense';
+	if (!is_dir($targetDir) && (!function_exists('dol_mkdir') || dol_mkdir($targetDir) < 0)) {
+		cleanup('MJLSMOKEVAL');
+		fail('Unable to create smoke ECM directory '.$targetDir);
+	}
+	if (!is_dir($targetDir)) {
+		cleanup('MJLSMOKEVAL');
+		fail('Smoke ECM directory is unavailable '.$targetDir);
+	}
+	if (file_put_contents($targetDir.'/'.$filename, 'Smoke expense evidence '.$filename) === false) {
+		cleanup('MJLSMOKEVAL');
+		fail('Unable to write smoke ECM file '.$filename);
+	}
 
 	$sql = 'INSERT INTO '.$db->prefix().'ecm_files (ref, label, entity, filename, filepath, fullpath_orig, description, gen_or_uploaded, date_c, fk_user_c, src_object_type, src_object_id)';
 	$sql .= ' VALUES (';

@@ -124,7 +124,7 @@ function mjl_alerts_expense_pending_reviews(User $targetUser, $limit)
 	if ($where === null) {
 		return array();
 	}
-	$sql = 'SELECT e.rowid, e.ref, e.description, e.expense_date, e.amount, e.status, e.fk_user_creat, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref';
+	$sql = 'SELECT e.rowid, e.entity, e.ref, e.description, e.expense_date, e.amount, e.status, e.fk_user_creat, e.supporting_document, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
@@ -132,7 +132,7 @@ function mjl_alerts_expense_pending_reviews(User $targetUser, $limit)
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
 	$sql .= ' AND e.status = '.MjlExpense::STATUS_SUBMITTED;
 	$sql .= $where;
-	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.((int) $limit);
+	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.max((int) $limit * 5, (int) $limit);
 	$rows = mjl_alerts_fetch_rows($sql);
 	$alerts = array();
 	foreach ($rows as $row) {
@@ -168,28 +168,31 @@ function mjl_alerts_expense_missing_documents(User $targetUser, $limit)
 	if ($where === null) {
 		return array();
 	}
-	$sql = 'SELECT e.rowid, e.ref, e.description, e.expense_date, e.amount, e.status, e.fk_user_creat, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.supporting_document AS evidence_supporting_document, e.ref, e.description, e.expense_date, e.amount, e.status, e.fk_user_creat, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = e.fk_mjl_activity AND a.entity = e.entity';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
 	$sql .= ' AND e.status IN ('.MjlExpense::STATUS_DRAFT.', '.MjlExpense::STATUS_CORRECTED.', '.MjlExpense::STATUS_SUBMITTED.')';
-	$sql .= ' AND NOT '.mjl_expense_document_present_sql('e');
 	$sql .= $where;
-	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.((int) $limit);
+	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.max((int) $limit * 5, (int) $limit);
 	$rows = mjl_alerts_fetch_rows($sql);
 	$alerts = array();
 	foreach ($rows as $row) {
+		$state = mjl_expense_evidence_state((int) $row['rowid'], (int) $row['evidence_entity'], $row['evidence_supporting_document']);
+		if ($state === 'downloadable') {
+			continue;
+		}
 		$alerts[] = array(
 			'type' => 'expense_missing_document',
 			'object_type' => 'Depense',
 			'ref' => $row['ref'],
 			'label' => $row['description'],
-			'severity' => 'Piece manquante',
+			'severity' => $state === 'unavailable' ? 'Piece indisponible' : 'Piece manquante',
 			'tone' => 'danger',
 			'audience' => mjl_alerts_audience_label($targetUser, 'expense_document'),
-			'expected_action' => 'Ajouter la piece justificative avant validation.',
+			'expected_action' => $state === 'unavailable' ? 'Remplacer la piece indisponible avant validation.' : 'Ajouter la piece justificative avant validation.',
 			'href' => '/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']),
 			'sort_date' => $row['expense_date'],
 			'meta' => array(

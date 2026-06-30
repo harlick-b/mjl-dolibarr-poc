@@ -290,7 +290,7 @@ function mjl_activities_render_document_checklist($activityId)
 		print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
 		print '<tr class="liste_titre"><th>Depense</th><th>Description</th><th>Statut</th><th>Piece</th></tr>';
 		foreach ($docs['rows'] as $row) {
-			print '<tr class="oddeven"><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['ref']).'</a></td><td>'.dol_escape_htmltag($row['description']).'</td><td>'.dol_escape_htmltag(mjl_expense_status_label_fr($row['status'])).'</td><td>'.((int) $row['document_present'] > 0 ? 'Piece presente' : 'Piece manquante').'</td></tr>';
+			print '<tr class="oddeven"><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['ref']).'</a></td><td>'.dol_escape_htmltag($row['description']).'</td><td>'.dol_escape_htmltag(mjl_expense_status_label_fr($row['status'])).'</td><td>'.((int) $row['document_present'] > 0 ? 'Piece disponible' : 'Piece manquante').'</td></tr>';
 		}
 		print '</table></div>';
 	}
@@ -496,7 +496,7 @@ function mjl_activities_linked_expense_documents($activityId)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT e.rowid, e.ref, e.description, e.status, '.mjl_expense_document_present_sql('e').' AS document_present';
+	$sql = 'SELECT e.rowid, e.entity, e.ref, e.description, e.status, e.supporting_document, '.mjl_expense_document_present_sql('e').' AS document_present';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity).' AND e.fk_mjl_activity = '.((int) $activityId);
 	$sql .= ' ORDER BY e.rowid DESC';
@@ -508,6 +508,7 @@ function mjl_activities_linked_expense_documents($activityId)
 	}
 	while ($obj = $db->fetch_object($resql)) {
 		$row = (array) $obj;
+		$row['document_present'] = mjl_expense_evidence_state((int) $row['rowid'], (int) $row['entity'], $row['supporting_document']) === 'downloadable' ? 1 : 0;
 		$result['total']++;
 		if ((int) $row['document_present'] > 0) $result['present']++;
 		else $result['missing']++;

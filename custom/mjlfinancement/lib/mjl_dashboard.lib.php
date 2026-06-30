@@ -181,11 +181,20 @@ function mjl_dashboard_missing_expense_document_count()
 {
 	global $db, $conf;
 
-	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql = 'SELECT e.rowid, e.entity, e.supporting_document FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
 	$sql .= ' AND e.status IN ('.MjlExpense::STATUS_DRAFT.', '.MjlExpense::STATUS_CORRECTED.', '.MjlExpense::STATUS_SUBMITTED.')';
-	$sql .= ' AND NOT '.mjl_expense_document_present_sql('e');
-	return mjl_dashboard_scalar($sql);
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return 0;
+	}
+	$count = 0;
+	while ($row = $db->fetch_object($resql)) {
+		if (mjl_expense_evidence_state((int) $row->rowid, (int) $row->entity, $row->supporting_document) !== 'downloadable') {
+			$count++;
+		}
+	}
+	return $count;
 }
 
 function mjl_dashboard_pending_review_count()
