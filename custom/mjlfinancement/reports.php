@@ -7,6 +7,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_reporting.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_csv_export.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_dashboard.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
 mjl_workspace_require_supervision_access($user);
 
@@ -35,6 +36,7 @@ if ($action === 'export_csv') {
 
 llxHeader('', 'Centre d\'exports MJL');
 
+mjl_navigation_shell_start($user, 'reports');
 print '<div class="mjl-workspace mjl-reports-workspace">';
 mjl_dashboard_render_header(
 	'Centre d\'exports MJL',
@@ -49,6 +51,7 @@ mjl_reports_render_context($def, $filters, $filename, $missingRequired, $user);
 mjl_reports_render_table($def, $rows, $missingRequired);
 
 print '</div>';
+mjl_navigation_shell_end();
 
 llxFooter();
 $db->close();

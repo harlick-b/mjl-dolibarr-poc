@@ -6,6 +6,85 @@ header('Content-Type: text/css; charset=UTF-8');
 	font-family: Arial, Helvetica, sans-serif;
 }
 
+.mjl-module-shell {
+	align-items: flex-start;
+	display: grid;
+	gap: 18px;
+	grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
+}
+
+.mjl-module-main {
+	min-width: 0;
+}
+
+.mjl-module-sidebar {
+	background: #ffffff;
+	border: 1px solid #d7dee2;
+	border-radius: 6px;
+	box-shadow: 0 6px 16px rgba(32, 37, 41, 0.05);
+	box-sizing: border-box;
+	padding: 14px;
+	position: sticky;
+	top: 12px;
+}
+
+.mjl-sidebar-title {
+	border-bottom: 1px solid #d7dee2;
+	margin-bottom: 10px;
+	padding-bottom: 10px;
+}
+
+.mjl-sidebar-title span {
+	color: #5c6870;
+	display: block;
+	font-size: 12px;
+	font-weight: 700;
+	margin-bottom: 4px;
+	text-transform: uppercase;
+}
+
+.mjl-sidebar-title strong {
+	color: #16324f;
+	display: block;
+	font-size: 15px;
+	line-height: 1.25;
+}
+
+.mjl-sidebar-nav {
+	display: grid;
+	gap: 6px;
+}
+
+.mjl-sidebar-link {
+	border: 1px solid transparent;
+	border-radius: 6px;
+	box-sizing: border-box;
+	color: #34414a;
+	display: grid;
+	gap: 3px;
+	padding: 9px 10px;
+	text-decoration: none;
+}
+
+.mjl-sidebar-link span {
+	color: #16324f;
+	font-size: 14px;
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.mjl-sidebar-link small {
+	color: #5c6870;
+	font-size: 12px;
+	line-height: 1.25;
+}
+
+.mjl-sidebar-link:hover,
+.mjl-sidebar-link-active {
+	background: #f5f7f8;
+	border-color: #c5ced4;
+}
+
 .mjl-workspace-header {
 	align-items: flex-start;
 	background: #ffffff;
@@ -452,6 +531,18 @@ header('Content-Type: text/css; charset=UTF-8');
 	padding: 6px 10px;
 }
 
+.mjl-roadmap-list {
+	color: #202529;
+	font-size: 14px;
+	line-height: 1.5;
+	margin: 10px 0 0;
+	padding-left: 20px;
+}
+
+.mjl-roadmap-list li {
+	margin: 0 0 6px;
+}
+
 .mjl-activity-timeline {
 	border-left: 2px solid #c5ced4;
 	list-style: none;
@@ -500,9 +591,25 @@ header('Content-Type: text/css; charset=UTF-8');
 
 .mjl-card-link:focus,
 .mjl-nav-card:focus,
-.mjl-table-link:focus {
+.mjl-table-link:focus,
+.mjl-sidebar-link:focus {
 	outline: 3px solid #7fb3d5;
 	outline-offset: 2px;
+}
+
+@media (max-width: 980px) {
+	.mjl-module-shell {
+		display: block;
+	}
+
+	.mjl-module-sidebar {
+		margin-bottom: 16px;
+		position: static;
+	}
+
+	.mjl-sidebar-nav {
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	}
 }
 
 @media (max-width: 720px) {

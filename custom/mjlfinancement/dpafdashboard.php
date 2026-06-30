@@ -3,6 +3,7 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_dashboard.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
 mjl_workspace_require_supervision_access($user);
 
@@ -10,6 +11,7 @@ $langs->load('mjlfinancement@mjlfinancement');
 
 llxHeader('', 'Tableau de bord DPAF');
 
+mjl_navigation_shell_start($user, 'dpaf');
 print '<div class="mjl-workspace">';
 mjl_dashboard_render_header(
 	'Tableau de bord DPAF',
@@ -96,6 +98,7 @@ mjl_dashboard_render_table_section(
 );
 
 print '</div>';
+mjl_navigation_shell_end();
 
 llxFooter();
 $db->close();

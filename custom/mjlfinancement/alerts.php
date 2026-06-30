@@ -3,6 +3,7 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_alerts.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_dashboard.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
 if (!mjl_alerts_user_can_read($user)) {
 	accessforbidden();
@@ -13,6 +14,7 @@ $alerts = mjl_alerts_for_user($user);
 
 llxHeader('', 'Alertes MJL');
 
+mjl_navigation_shell_start($user, 'alerts');
 print '<div class="mjl-workspace mjl-alert-workspace">';
 mjl_dashboard_render_header(
 	'Alertes MJL',
@@ -34,6 +36,7 @@ if (empty($alerts)) {
 }
 print '</section>';
 print '</div>';
+mjl_navigation_shell_end();
 
 llxFooter();
 $db->close();

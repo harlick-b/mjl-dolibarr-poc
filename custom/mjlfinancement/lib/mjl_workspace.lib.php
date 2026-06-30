@@ -25,6 +25,52 @@ function mjl_workspace_require_supervision_access(User $targetUser)
 	}
 }
 
+function mjl_workspace_can_access_reference_data(User $targetUser, $right)
+{
+	$right = preg_replace('/[^A-Za-z0-9_]/', '', (string) $right);
+	return $right !== ''
+		&& mjl_workspace_can_access_supervision($targetUser)
+		&& $targetUser->hasRight('mjlfinancement', $right, 'read');
+}
+
+function mjl_workspace_require_reference_data_access(User $targetUser, $right)
+{
+	if (!mjl_workspace_can_access_reference_data($targetUser, $right)) {
+		accessforbidden();
+	}
+}
+
+function mjl_workspace_can_access_validation_history(User $targetUser)
+{
+	$capabilities = mjl_workspace_capabilities($targetUser);
+	return $capabilities['validation_read']
+		&& ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['supervision'] || (!$capabilities['operational'] && !$capabilities['reviewer']));
+}
+
+function mjl_workspace_require_validation_history_access(User $targetUser)
+{
+	if (!mjl_workspace_can_access_validation_history($targetUser)) {
+		accessforbidden();
+	}
+}
+
+function mjl_workspace_can_access_advanced_traceability(User $targetUser, $right)
+{
+	$right = preg_replace('/[^A-Za-z0-9_]/', '', (string) $right);
+	if ($right === '' || !$targetUser->hasRight('mjlfinancement', $right, 'read')) {
+		return false;
+	}
+	$capabilities = mjl_workspace_capabilities($targetUser);
+	return $capabilities['admin'] || $capabilities['supervision'] || (!$capabilities['operational'] && !$capabilities['reviewer']);
+}
+
+function mjl_workspace_require_advanced_traceability_access(User $targetUser, $right)
+{
+	if (!mjl_workspace_can_access_advanced_traceability($targetUser, $right)) {
+		accessforbidden();
+	}
+}
+
 function mjl_workspace_user_in_group(User $targetUser, $groupName)
 {
 	global $db, $conf;

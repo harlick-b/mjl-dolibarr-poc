@@ -1,10 +1,9 @@
 <?php
 
 require '../../main.inc.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
-if (!$user->hasRight('mjlfinancement', 'workflowaction', 'read')) {
-	accessforbidden();
-}
+mjl_workspace_require_advanced_traceability_access($user, 'workflowaction');
 
 $langs->load('mjlfinancement@mjlfinancement');
 
@@ -17,11 +16,15 @@ $filters = array(
 );
 
 llxHeader('', 'Actions workflow MJL');
+mjl_navigation_shell_start($user, 'workflowactions');
+print '<div class="mjl-workspace">';
 print load_fiche_titre('Actions workflow MJL', '', 'check');
 
 mjl_workflowactions_filter_form($filters);
 mjl_workflowactions_list($filters);
 
+print '</div>';
+mjl_navigation_shell_end();
 llxFooter();
 $db->close();
 

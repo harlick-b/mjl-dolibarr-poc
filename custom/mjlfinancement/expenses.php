@@ -4,6 +4,7 @@ require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexpense.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
 if (!$user->hasRight('mjlfinancement', 'expense', 'read')) {
 	accessforbidden();
@@ -32,6 +33,7 @@ $mjl_expenses_page_token = function_exists('newToken') ? newToken() : '';
 $expenseId = GETPOSTINT('id');
 
 llxHeader('', 'Depenses MJL');
+mjl_navigation_shell_start($user, 'expenses');
 print '<div class="mjl-workspace mjl-expense-workspace">';
 
 if ($expenseId > 0) {
@@ -41,6 +43,7 @@ if ($expenseId > 0) {
 }
 
 print '</div>';
+mjl_navigation_shell_end();
 llxFooter();
 $db->close();
 

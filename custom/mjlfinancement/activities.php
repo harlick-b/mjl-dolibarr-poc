@@ -4,6 +4,7 @@ require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
 if (!$user->hasRight('mjlfinancement', 'activity', 'read')) {
 	accessforbidden();
@@ -29,6 +30,7 @@ $mjl_activities_page_token = function_exists('newToken') ? newToken() : '';
 $activityId = GETPOSTINT('id');
 
 llxHeader('', 'Activites MJL');
+mjl_navigation_shell_start($user, 'activities');
 print '<div class="mjl-workspace mjl-activity-workspace">';
 
 if ($activityId > 0) {
@@ -38,6 +40,7 @@ if ($activityId > 0) {
 }
 
 print '</div>';
+mjl_navigation_shell_end();
 llxFooter();
 $db->close();
 

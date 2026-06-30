@@ -1,7 +1,10 @@
 <?php
 require '../../main.inc.php';
-if (!$user->hasRight('mjlfinancement', 'validation', 'read')) accessforbidden();
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
+mjl_workspace_require_validation_history_access($user);
 llxHeader('', 'Historique validations MJL');
+mjl_navigation_shell_start($user, 'validations');
+print '<div class="mjl-workspace">';
 print load_fiche_titre('Historique validations MJL', '', 'check');
 global $db, $conf;
 $sql = 'SELECT v.ref, e.ref AS expense_ref, v.action, v.from_status, v.to_status, u.login, v.action_date, v.comment';
@@ -17,5 +20,7 @@ if ($resql) while ($obj = $db->fetch_object($resql)) {
 }
 print '</table></div>';
 if (!$resql) print '<div class="error">'.$db->lasterror().'</div>';
+print '</div>';
+mjl_navigation_shell_end();
 llxFooter();
 $db->close();

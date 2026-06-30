@@ -2,10 +2,9 @@
 
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexchangelog.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
-if (!$user->hasRight('mjlfinancement', 'exchangelog', 'read')) {
-	accessforbidden();
-}
+mjl_workspace_require_advanced_traceability_access($user, 'exchangelog');
 
 $langs->load('mjlfinancement@mjlfinancement');
 $action = GETPOST('action', 'alpha');
@@ -28,6 +27,8 @@ $filters = array(
 );
 
 llxHeader('', 'Echanges MJL');
+mjl_navigation_shell_start($user, 'exchanges');
+print '<div class="mjl-workspace">';
 print load_fiche_titre('Echanges MJL', '', 'comments');
 
 if ($user->hasRight('mjlfinancement', 'exchangelog', 'write')) {
@@ -37,6 +38,8 @@ if ($user->hasRight('mjlfinancement', 'exchangelog', 'write')) {
 mjl_exchangelogs_filter_form($filters);
 mjl_exchangelogs_list($filters);
 
+print '</div>';
+mjl_navigation_shell_end();
 llxFooter();
 $db->close();
 

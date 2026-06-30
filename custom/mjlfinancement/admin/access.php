@@ -2,6 +2,7 @@
 
 require '../../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
 if (empty($user->admin)) {
 	accessforbidden();
@@ -57,6 +58,8 @@ if ($action === 'revoke') {
 $groups = mjl_auth_groups();
 
 llxHeader('', 'Gestion des acces MJL');
+mjl_navigation_shell_start($user, 'admin_access');
+print '<div class="mjl-workspace">';
 print load_fiche_titre('Gestion des acces MJL', '', 'user');
 
 if ($message !== '') {
@@ -117,5 +120,7 @@ if ($resql) {
 }
 print '</table>';
 
+print '</div>';
+mjl_navigation_shell_end();
 llxFooter();
 $db->close();
