@@ -19,7 +19,7 @@ hardening work. It reflects the current codebase, not future production goals.
 | `/custom/mjlfinancement/admin/access.php` | Admin only | A - implemented and POC-valid | Keep as invitation-only access administration. |
 | `/custom/mjlfinancement/invitation.php` | Token-driven invitation flow | A - implemented and POC-valid | Preserve; do not render module sidebar here. |
 | `/custom/mjlfinancement/conventions.php` | `mjl_workspace_require_reference_data_access()` | B - partial but demo-safe | Keep as read-only supervision/reference view only. |
-| `/custom/mjlfinancement/budgetlines.php` | `mjl_workspace_require_reference_data_access()` | B - partial but demo-safe | Keep as read-only supervision/reference view only. |
+| `/custom/mjlfinancement/budgetlines.php` | `mjl_workspace_require_reference_data_access()`; write actions require DPAF/Admin plus `budgetline/write` | A - implemented and POC-valid | Keep as governed DPAF/Admin budget-line management with active-convention, locked-edit, recalculation, and history guards. |
 | `/custom/mjlfinancement/fundreceipts.php` | `mjl_workspace_require_reference_data_access()` | B - partial but demo-safe | Keep as read-only supervision/reference view only. |
 
 ## Module Integration And Navigation
@@ -69,10 +69,9 @@ advanced audit pages use capability-level guards for the same reason.
 
 ## Partial But Demo-Safe Surfaces
 
-- Conventions and budget lines are currently read-only reference lists, but
-  they are now selected for DPAF/Admin production management. They remain
-  partial until create, edit, detail, validation, history, and DPAF/Admin-only
-  action tests exist.
+- Conventions and budget lines are governed DPAF/Admin production-management
+  surfaces with create/edit/detail/status/history flows and focused E2E
+  coverage.
 - Fund receipts remain read-only supervision/reference for now. Full
   create/edit/upload management is deferred until selected.
 - Workflow actions expose technical audit detail and should be treated as an

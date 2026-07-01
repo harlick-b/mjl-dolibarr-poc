@@ -113,16 +113,16 @@ Fixed constraints:
 
 - URL/path: `/custom/mjlfinancement/budgetlines.php`
 - Evidence source: repo-confirmed custom screen.
-- Current purpose: Read-only list of budget lines and amounts.
-- Target purpose: Finance setup/supervision surface, or embedded budget context inside project/activity/expense flows.
+- Current purpose: Governed DPAF/Admin budget-line management with create, edit, activation, filters, recalculation, locked edits, and history.
+- Target purpose: Finance setup/supervision surface with embedded budget context inside project/activity/expense flows where useful.
 - Current users: Users with `budgetline/read`.
 - Target access level: Level 3 / Admin
-- Current problems: Raw IDs and accounting fields; not a normal operational workspace; no guided project/convention/activity context.
-- Recommended action: advanced-only
-- Safe files to modify: `custom/mjlfinancement/budgetlines.php`, custom navigation, design-system docs.
+- Current problems: Future deactivate/close lifecycle depends on final MJL business policy.
+- Recommended action: keep as governed DPAF/Admin management surface
+- Safe files to modify: `custom/mjlfinancement/budgetlines.php`, `custom/mjlfinancement/class/mjlbudgetline.class.php`, custom navigation, design-system docs.
 - Implementation risk: Medium; budget data affects expense validation and exports.
 - Affected E2E scenarios: Expense validation, export, role visibility.
-- Review decision: Keep out of normal Level 1/2 navigation; expose contextually later.
+- Review decision: Keep out of normal Level 1/2 navigation; preserve domain-level budget-line and expense guards.
 
 ## Screen: Fund Receipts
 

@@ -65,10 +65,12 @@ function mjl_workflowactions_list($filters)
 	}
 
 	$sql = 'SELECT w.ref, w.object_type, w.object_id,';
-	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref ELSE NULL END AS object_ref,';
+	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref ELSE NULL END AS object_ref,';
 	$sql .= ' w.action, w.from_status, w.to_status, u.login, w.actor_role, w.action_date, w.reason, w.comment, w.changes_json';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
 	$sql .= ' WHERE '.implode(' AND ', $where);
 	$sql .= ' ORDER BY w.action_date DESC, w.rowid DESC LIMIT 200';

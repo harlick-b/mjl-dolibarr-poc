@@ -28,8 +28,8 @@
 - Add expense detail pages.
 - Add DPAF/Admin convention detail, create, edit, close/archive, validation,
   and history pages.
-- Add DPAF/Admin budget-line detail, create, edit, validation, recalculation,
-  unsafe-edit protection, filtering, and history pages.
+- Keep DPAF/Admin budget-line management aligned with final MJL policy if a
+  later deactivate/close lifecycle is requested.
 
 ### Document Workflows
 

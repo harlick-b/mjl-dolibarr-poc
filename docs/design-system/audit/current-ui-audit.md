@@ -106,12 +106,12 @@ The visible product direction is still closer to a raw Dolibarr/table-heavy POC 
 
 ### Budget Lines
 
-- Alignment: Low. It exposes finance setup data as a raw table.
-- Severity: Medium.
-- Design-system gaps: Raw IDs/accounting fields; no guided context; should not be normal Level 1/2 navigation.
-- Safe implementation area: `custom/mjlfinancement/budgetlines.php`, custom navigation, design-system docs.
+- Alignment: Medium. Phase 15 turns it into a governed DPAF/Admin management surface with lifecycle action, recalculation, locked edits, and history.
+- Severity: Low.
+- Design-system gaps: Final deactivate/close policy remains a business decision; contextual budget summaries can still be improved later inside expense/activity flows.
+- Safe implementation area: `custom/mjlfinancement/budgetlines.php`, `custom/mjlfinancement/class/mjlbudgetline.class.php`, custom navigation, design-system docs.
 - E2E impact: Expense validation, export, role visibility.
-- Recommendation: Keep advanced-only and later surface budget context inside activity/expense/report workflows.
+- Recommendation: Keep advanced-only, preserve domain-level guards, and later surface budget context inside activity/expense/report workflows.
 
 ### Fund Receipts
 

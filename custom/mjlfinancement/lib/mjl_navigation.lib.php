@@ -83,7 +83,7 @@ function mjl_navigation_items(User $targetUser)
 			'key' => 'budgetlines',
 			'label' => 'Budgets',
 			'href' => '/custom/mjlfinancement/budgetlines.php',
-			'description' => 'Consultation des lignes budgetaires',
+			'description' => 'Gestion des lignes budgetaires',
 			'primary' => false,
 		);
 	}
