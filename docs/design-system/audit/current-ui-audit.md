@@ -86,14 +86,14 @@ The visible product direction is still closer to a raw Dolibarr/table-heavy POC 
 - E2E impact: Activity lifecycle where expense state matters, export, role visibility.
 - Recommendation: Defer until the activity workflow pattern is stable, then apply the same status-first and document-checklist structure.
 
-### Reports And CSV Exports
+### Reports And CSV/XLSX Exports
 
-- Alignment: Partial. CSV exports are functional but not presented as official outputs.
-- Severity: High.
-- Design-system gaps: Report scope, period, format, filename, role restriction, and official-output framing are not prominent enough; status filter is technical.
-- Safe implementation area: `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/lib/mjl_reporting.lib.php`, `custom/mjlfinancement/lib/mjl_csv_export.lib.php`, design-system docs.
+- Alignment: Medium. The reports center presents official-output context and supports CSV plus XLSX through the Dolibarr-native Excel 2007 driver.
+- Severity: Medium.
+- Design-system gaps: Final donor-specific canevas and client-approved report columns are still missing.
+- Safe implementation area: `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/lib/mjl_reporting.lib.php`, `custom/mjlfinancement/lib/mjl_csv_export.lib.php`, `custom/mjlfinancement/lib/mjl_xlsx_export.lib.php`, design-system docs.
 - E2E impact: Export, role visibility.
-- Recommendation: Defer until shell, dashboards, and workflow are stable; then redesign as the MJL official outputs center without weakening CSV guarantees.
+- Recommendation: Keep CSV and XLSX generated from the same report definitions; add donor-specific templates only after MJL supplies official canevas.
 
 ### Conventions
 
@@ -115,12 +115,12 @@ The visible product direction is still closer to a raw Dolibarr/table-heavy POC 
 
 ### Fund Receipts
 
-- Alignment: Low. It is a read-only technical monitoring table.
-- Severity: Medium.
-- Design-system gaps: Raw IDs; unclear status meaning; no supporting document state; no supervision-focused hierarchy.
+- Alignment: Good. It is now a governed DPAF/Admin management surface with readable labels, lifecycle actions, proof state, and timeline evidence.
+- Severity: Low.
+- Design-system gaps: Continue monitoring final wording and proof-document ergonomics after real user review.
 - Safe implementation area: `custom/mjlfinancement/fundreceipts.php`, custom fund-receipt helpers/classes, design-system docs.
-- E2E impact: Export, role visibility.
-- Recommendation: Redesign later for Level 3/Admin monitoring with readable PTF/project/convention labels and document state.
+- E2E impact: Export, role visibility, secure document download.
+- Recommendation: Keep as Level 3/Admin finance setup surface; preserve active-convention and proof-before-received guards.
 
 ### Expense Validation History
 
@@ -277,7 +277,7 @@ This is the first actionable UI implementation after audit review.
 - Native menu hiding, dashboards, reports, email polish beyond auth/access, and activity workflow redesign remain outside Phase 4.
 - Reports/export redesign is deferred until shell, dashboards, and activity workflow are stable.
 - Email templates are deferred until invitation/auth flow is specified.
-- Conventions/envelope naming is deferred until human decision.
+- Convention naming and DPAF/Admin management are resolved by Phase 14; later work should preserve the `Convention` label and governed management surface.
 - Native Dolibarr menu hiding is deferred until role visibility audit and E2E plan are ready.
 
 ## Review Checklist
