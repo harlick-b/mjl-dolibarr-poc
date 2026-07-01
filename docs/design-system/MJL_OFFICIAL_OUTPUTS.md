@@ -19,16 +19,23 @@ Define how reports, exports, PDFs, and print views should look and behave.
 
 Exports must be predictable, role-aware, Excel-readable, stable in filename, clear about filters, and consistent with French labels.
 
+Supported tabular formats:
+
+- CSV compatible Microsoft Excel: UTF-8 BOM, semicolon separator, French headers.
+- XLSX generated through Dolibarr's native Excel 2007 export driver.
+
+Do not add a separate spreadsheet dependency while the Dolibarr-native driver remains available.
+
 ## Export UI
 
-Each export page should show report name, description, filters, period, format, scope, and generated filename preview if possible.
+Each export page should show report name, description, filters, period, format, scope, role restriction, and generated filename previews for CSV and XLSX when both are available.
 
 Example:
 
 ```txt
 Exporter les activités filtrées
 Période : 01/01/2026 - 31/12/2026
-Format : Excel compatible
+Format : CSV compatible Excel et XLSX
 ```
 
 ## Report Layout
@@ -52,6 +59,11 @@ Examples:
 
 ```txt
 mjl_activites_2026-01-01_2026-12-31.csv
+mjl_activites_2026-01-01_2026-12-31.xlsx
 mjl_alertes_2026-06-26.csv
 mjl_audit_activite_A-2026-014.csv
 ```
+
+## Template Boundary
+
+Generic MJL exports can be production-hardened before donor-specific templates are available. UNICEF, HACT, FACE, Redevabilite, or other official canevas remain blocked until MJL provides the exact models and columns to reproduce.

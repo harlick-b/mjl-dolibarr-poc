@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 const fs = require('fs');
+const zlib = require('zlib');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 
@@ -28,6 +29,42 @@ async function login(page, username, userPassword = password) {
 
 async function expectAccessDenied(page) {
   await expect(page.locator('body')).toContainText(/Acces refuse|Accès refusé|Access denied|Forbidden|Non autorise|Non autorisé/);
+}
+
+function xlsxEntry(buffer, entryName) {
+  let eocd = -1;
+  const min = Math.max(0, buffer.length - 65557);
+  for (let i = buffer.length - 22; i >= min; i--) {
+    if (buffer.readUInt32LE(i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  expect(eocd, 'xlsx end of central directory').toBeGreaterThanOrEqual(0);
+  const totalEntries = buffer.readUInt16LE(eocd + 10);
+  let pos = buffer.readUInt32LE(eocd + 16);
+  for (let i = 0; i < totalEntries; i++) {
+    expect(buffer.readUInt32LE(pos), 'xlsx central directory header').toBe(0x02014b50);
+    const method = buffer.readUInt16LE(pos + 10);
+    const compressedSize = buffer.readUInt32LE(pos + 20);
+    const fileNameLength = buffer.readUInt16LE(pos + 28);
+    const extraLength = buffer.readUInt16LE(pos + 30);
+    const commentLength = buffer.readUInt16LE(pos + 32);
+    const localOffset = buffer.readUInt32LE(pos + 42);
+    const name = buffer.subarray(pos + 46, pos + 46 + fileNameLength).toString('utf8');
+    if (name === entryName) {
+      expect(buffer.readUInt32LE(localOffset), 'xlsx local file header').toBe(0x04034b50);
+      const localNameLength = buffer.readUInt16LE(localOffset + 26);
+      const localExtraLength = buffer.readUInt16LE(localOffset + 28);
+      const start = localOffset + 30 + localNameLength + localExtraLength;
+      const payload = buffer.subarray(start, start + compressedSize);
+      if (method === 0) return payload.toString('utf8');
+      if (method === 8) return zlib.inflateRawSync(payload).toString('utf8');
+      throw new Error(`Unsupported XLSX compression method ${method}`);
+    }
+    pos += 46 + fileNameLength + extraLength + commentLength;
+  }
+  throw new Error(`Missing XLSX entry ${entryName}`);
 }
 
 function cleanupPhase9Fixtures() {
@@ -123,20 +160,20 @@ test('report metadata, required filters, and unsupported filters are explicit', 
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/reports.php');
 
-  await expect(page.getByText('Comparer budget, fonds recus et depenses pour un projet selectionne.')).toBeVisible();
-  await expect(page.getByText('CSV compatible Excel')).toBeVisible();
-  await expect(page.getByText('Selection requise avant export: Projet.')).toBeVisible();
+  await expect(page.getByText('Comparer budget, fonds reçus et dépenses pour un projet sélectionné.')).toBeVisible();
+  await expect(page.getByText('CSV compatible Excel et XLSX')).toBeVisible();
+  await expect(page.getByText('Sélection requise avant export: Projet.')).toBeVisible();
   await expect(page.locator('select[name="project_id"]')).toHaveCount(1);
   await expect(page.locator('select[name="convention_id"]')).toHaveCount(0);
   await expect(page.locator('select[name="status"]')).toHaveCount(0);
 
   await page.goto('/custom/mjlfinancement/reports.php?report=convention_budget');
-  await expect(page.getByText('Selection requise avant export: Convention.')).toBeVisible();
+  await expect(page.getByText('Sélection requise avant export: Convention.')).toBeVisible();
   await expect(page.locator('select[name="convention_id"]')).toHaveCount(1);
   await expect(page.locator('select[name="status"]')).toHaveCount(0);
 
   await page.goto('/custom/mjlfinancement/reports.php?report=workflow_actions');
-  await expect(page.getByText('Exporter les decisions et transitions auditees')).toBeVisible();
+  await expect(page.getByText('Exporter les décisions et transitions auditées')).toBeVisible();
   await expect(page.locator('select[name="project_id"]')).toHaveCount(0);
   await expect(page.locator('select[name="convention_id"]')).toHaveCount(0);
   await expect(page.locator('select[name="status"]')).toHaveCount(0);
@@ -147,7 +184,7 @@ test('filtered activity preview and CSV export share filters, filename, and enti
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/reports.php?report=activities&status=3&date_start=2026-06-01&date_end=2026-06-30');
 
-  await expect(page.getByText('Exporter les activites, leur statut')).toBeVisible();
+  await expect(page.getByText('Exporter les activités, leur statut')).toBeVisible();
   await expect(page.getByText('Statut: Soumise')).toBeVisible();
   await expect(page.getByText('Debut: 01/06/2026')).toBeVisible();
   await expect(page.getByText('Fin: 30/06/2026')).toBeVisible();
@@ -158,7 +195,9 @@ test('filtered activity preview and CSV export share filters, filename, and enti
   await expect(page.locator('body')).not.toContainText(/Register|Sign up|Créer un compte|Inscription/);
 
   const previewFilename = (await page.getByTestId('mjl-report-filename').innerText()).trim();
+  const previewXlsxFilename = (await page.getByTestId('mjl-report-xlsx-filename').innerText()).trim();
   expect(previewFilename).toBe('mjl_suivi_activites_2026-06-01_2026-06-30_statut-3.csv');
+  expect(previewXlsxFilename).toBe('mjl_suivi_activites_2026-06-01_2026-06-30_statut-3.xlsx');
 
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exporter le CSV' }).click();
@@ -169,12 +208,26 @@ test('filtered activity preview and CSV export share filters, filename, and enti
   const csv = fs.readFileSync(path);
   expect(csv.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]))).toBe(true);
   const text = csv.toString('utf8');
-  expect(text).toContain('Reference activite');
-  expect(text).toContain('Titre activite');
+  expect(text).toContain('Référence activité');
+  expect(text).toContain('Titre activité');
   expect(text).toContain('P9-ACT-SUBMITTED');
   expect(text).toContain('Soumise');
   expect(text).not.toContain('P9-ENTITY-ACT');
   expect(text).toContain(';');
+
+  const xlsxDownloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Exporter le fichier XLSX' }).click();
+  const xlsxDownload = await xlsxDownloadPromise;
+  expect(xlsxDownload.suggestedFilename()).toBe(previewXlsxFilename);
+  const xlsx = fs.readFileSync(await xlsxDownload.path());
+  expect(xlsx.subarray(0, 2).toString('utf8')).toBe('PK');
+  expect(xlsxEntry(xlsx, 'xl/workbook.xml')).toContain('<sheet');
+  const sharedStrings = xlsxEntry(xlsx, 'xl/sharedStrings.xml');
+  expect(sharedStrings).toContain('Référence activité');
+  expect(sharedStrings).toContain('Titre activité');
+  expect(sharedStrings).toContain('P9-ACT-SUBMITTED');
+  expect(sharedStrings).toContain('Soumise');
+  expect(sharedStrings).not.toContain('P9-ENTITY-ACT');
 });
 
 test('expense report exports French-readable statuses and document flags', async ({ page }) => {
@@ -199,8 +252,13 @@ test('expense report exports French-readable statuses and document flags', async
 
 test('forced export without required filters is refused server-side', async ({ page }) => {
   await login(page, 'dpaf.mjl');
-  const downloadPromise = page.waitForEvent('download', { timeout: 1500 }).then(() => 'downloaded').catch(() => 'no-download');
+  let downloadPromise = page.waitForEvent('download', { timeout: 1500 }).then(() => 'downloaded').catch(() => 'no-download');
   await page.goto('/custom/mjlfinancement/reports.php?report=project_summary&action=export_csv').catch(() => {});
-  await expect(page.locator('body')).toContainText(/Selection requise avant export|Acces refuse|Accès refusé|Access denied|Forbidden/);
+  await expect(page.locator('body')).toContainText(/Sélection requise avant export|Acces refuse|Accès refusé|Access denied|Forbidden/);
+  expect(await downloadPromise).toBe('no-download');
+
+  downloadPromise = page.waitForEvent('download', { timeout: 1500 }).then(() => 'downloaded').catch(() => 'no-download');
+  await page.goto('/custom/mjlfinancement/reports.php?report=project_summary&action=export_xlsx').catch(() => {});
+  await expect(page.locator('body')).toContainText(/Sélection requise avant export|Acces refuse|Accès refusé|Access denied|Forbidden/);
   expect(await downloadPromise).toBe('no-download');
 });
