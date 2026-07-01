@@ -82,12 +82,15 @@ function mjl_assert_expense_links($expense, $entity = null, $requireActiveConven
 		return mjl_integrity_set_error('Convention does not belong to selected project');
 	}
 
-	$budgetLine = mjl_integrity_fetch_row('SELECT rowid, fk_project, fk_convention FROM '.$db->prefix().'mjlfinancement_budget_line WHERE rowid = '.$budgetLineId.' AND entity = '.$entity);
+	$budgetLine = mjl_integrity_fetch_row('SELECT rowid, fk_project, fk_convention, status FROM '.$db->prefix().'mjlfinancement_budget_line WHERE rowid = '.$budgetLineId.' AND entity = '.$entity);
 	if (empty($budgetLine)) {
 		return mjl_integrity_set_error('Budget line not found in active entity');
 	}
 	if ((int) $budgetLine['fk_project'] !== $projectId || (int) $budgetLine['fk_convention'] !== $conventionId) {
 		return mjl_integrity_set_error('Budget line does not belong to selected project and convention');
+	}
+	if ($requireActiveConvention && (int) $budgetLine['status'] !== 1) {
+		return mjl_integrity_set_error('Budget line must be active for new linked records');
 	}
 
 	if ($activityId > 0) {
@@ -101,6 +104,16 @@ function mjl_assert_expense_links($expense, $entity = null, $requireActiveConven
 	}
 
 	return 1;
+}
+
+function mjl_assert_expense_current_links($expenseRow, $entity = null, $requireActiveConvention = true)
+{
+	$expense = new stdClass();
+	$expense->fk_project = $expenseRow['fk_project'] ?? 0;
+	$expense->fk_convention = $expenseRow['fk_convention'] ?? 0;
+	$expense->fk_mjl_activity = $expenseRow['fk_mjl_activity'] ?? 0;
+	$expense->fk_budget_line = $expenseRow['fk_budget_line'] ?? 0;
+	return mjl_assert_expense_links($expense, $entity, $requireActiveConvention);
 }
 
 function mjl_assert_active_convention_for_project($conventionId, $projectId, $entity = null)

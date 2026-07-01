@@ -3,6 +3,7 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexpense.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlconvention.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlbudgetline.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
@@ -467,8 +468,8 @@ function mjl_expenses_options($type)
 	} elseif ($type === 'budget_line') {
 		$sql = 'SELECT bl.rowid, bl.ref, bl.label, p.ref AS project_ref, c.ref AS convention_ref FROM '.$db->prefix().'mjlfinancement_budget_line bl';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project';
-		$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention';
-		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' ORDER BY p.ref, c.ref, bl.ref';
+		$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity AND c.status = '.MjlConvention::STATUS_ACTIVE;
+		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.status = '.MjlBudgetLine::STATUS_ACTIVE.' ORDER BY p.ref, c.ref, bl.ref';
 	} else {
 		return array();
 	}

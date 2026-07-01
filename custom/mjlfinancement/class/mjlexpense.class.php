@@ -224,6 +224,11 @@ class MjlExpense extends CommonObject
 			$this->db->rollback();
 			return -1;
 		}
+		if (mjl_assert_expense_current_links($current, $current['entity'], true) < 0) {
+			$this->error = mjl_integrity_error();
+			$this->db->rollback();
+			return -1;
+		}
 		$hasDocument = mjl_expense_has_supporting_document($id, $current['entity'], $current['supporting_document']);
 		if ($hasDocument < 0) {
 			$this->error = mjl_integrity_error();
@@ -370,6 +375,11 @@ class MjlExpense extends CommonObject
 		}
 		if (!empty($options['no_self_review']) && (int) $current['fk_user_creat'] === (int) $user->id) {
 			$this->error = 'A user cannot review their own expense';
+			$this->db->rollback();
+			return -1;
+		}
+		if ((int) $toStatus === self::STATUS_SUBMITTED && mjl_assert_expense_current_links($current, $current['entity'], true) < 0) {
+			$this->error = mjl_integrity_error();
 			$this->db->rollback();
 			return -1;
 		}

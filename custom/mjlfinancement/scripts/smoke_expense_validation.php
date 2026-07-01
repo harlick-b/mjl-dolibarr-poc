@@ -69,6 +69,10 @@ if ($conventionId <= 0) {
 	cleanup($importKey);
 	fail('Unable to create smoke convention: '.$convention->error);
 }
+if ($convention->activate($adminUser, 'Activate smoke convention', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to activate smoke convention: '.$convention->error);
+}
 
 $budgetLine = new MjlBudgetLine($db);
 $budgetLine->entity = $entity;
@@ -87,6 +91,10 @@ $budgetLineId = $budgetLine->create($adminUser, 1);
 if ($budgetLineId <= 0) {
 	cleanup($importKey);
 	fail('Unable to create smoke budget line: '.$budgetLine->error);
+}
+if ($budgetLine->activate($adminUser, 'Activate smoke budget line', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to activate smoke budget line: '.$budgetLine->error);
 }
 
 $expense = new MjlExpense($db);
@@ -425,6 +433,7 @@ function cleanup($importKey)
 	$queries = array(
 		'DELETE FROM '.$db->prefix().'ecm_files WHERE src_object_type = \'mjlfinancement_expense\' AND src_object_id IN (SELECT rowid FROM '.$db->prefix()."mjlfinancement_expense WHERE import_key = '".$escaped."')",
 		'DELETE FROM '.$db->prefix().'mjlfinancement_validation WHERE import_key = \''.$escaped.'\' OR fk_expense IN (SELECT rowid FROM '.$db->prefix()."mjlfinancement_expense WHERE import_key = '".$escaped."')",
+		'DELETE FROM '.$db->prefix().'mjlfinancement_workflow_action WHERE import_key = \''.$escaped.'\' OR (object_type = \'mjlfinancement_budget_line\' AND object_id IN (SELECT rowid FROM '.$db->prefix()."mjlfinancement_budget_line WHERE import_key = '".$escaped."')) OR (object_type = 'mjlfinancement_convention' AND object_id IN (SELECT rowid FROM ".$db->prefix()."mjlfinancement_convention WHERE import_key = '".$escaped."'))",
 		'DELETE FROM '.$db->prefix()."mjlfinancement_expense WHERE import_key = '".$escaped."'",
 		'DELETE FROM '.$db->prefix()."mjlfinancement_budget_line WHERE import_key = '".$escaped."'",
 		'DELETE FROM '.$db->prefix()."mjlfinancement_convention WHERE import_key = '".$escaped."'",
