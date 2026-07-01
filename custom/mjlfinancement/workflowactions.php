@@ -65,12 +65,13 @@ function mjl_workflowactions_list($filters)
 	}
 
 	$sql = 'SELECT w.ref, w.object_type, w.object_id,';
-	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref ELSE NULL END AS object_ref,';
+	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref ELSE NULL END AS object_ref,';
 	$sql .= ' w.action, w.from_status, w.to_status, u.login, w.actor_role, w.action_date, w.reason, w.comment, w.changes_json';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
 	$sql .= ' WHERE '.implode(' AND ', $where);
 	$sql .= ' ORDER BY w.action_date DESC, w.rowid DESC LIMIT 200';
@@ -86,12 +87,12 @@ function mjl_workflowactions_list($filters)
 	while ($obj = $db->fetch_object($resql)) {
 		print '<tr class="oddeven">';
 		print '<td>'.dol_escape_htmltag($obj->ref).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->object_type).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_workflowactions_object_type_label($obj->object_type)).'</td>';
 		print '<td>'.((int) $obj->object_id).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->object_ref).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->action).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->from_status).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->to_status).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_workflowactions_action_label($obj->action)).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->from_status)).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->to_status)).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->login).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->actor_role).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->action_date).'</td>';
@@ -101,6 +102,59 @@ function mjl_workflowactions_list($filters)
 		print '</tr>';
 	}
 	print '</table></div>';
+}
+
+function mjl_workflowactions_object_type_label($objectType)
+{
+	$map = array(
+		'mjlfinancement_activity' => 'Activite',
+		'mjlfinancement_convention' => 'Convention',
+		'mjlfinancement_budget_line' => 'Ligne budgetaire',
+		'mjlfinancement_fund_receipt' => 'Reception de fonds',
+	);
+	return isset($map[(string) $objectType]) ? $map[(string) $objectType] : (string) $objectType;
+}
+
+function mjl_workflowactions_action_label($action)
+{
+	$map = array(
+		'created' => 'Creation',
+		'field_changed' => 'Modification',
+		'document_uploaded' => 'Document ajoute',
+		'proof_uploaded' => 'Preuve ajoutee',
+		'unsafe_edit_rejected' => 'Modification refusee',
+		'received' => 'Reception',
+		'not_received' => 'Non-reception',
+		'submitted' => 'Soumission',
+		'validated' => 'Validation',
+		'rejected' => 'Rejet',
+		'corrected' => 'Correction',
+		'correction_requested' => 'Correction demandee',
+		'deleted' => 'Suppression',
+		'activated' => 'Activation',
+		'closed' => 'Cloture',
+	);
+	return isset($map[(string) $action]) ? $map[(string) $action] : (string) $action;
+}
+
+function mjl_workflowactions_status_label($status)
+{
+	$map = array(
+		'draft' => 'Brouillon',
+		'active' => 'Active',
+		'closed' => 'Cloturee',
+		'deleted' => 'Supprimee',
+		'submitted' => 'Soumise',
+		'validated' => 'Validee',
+		'rejected' => 'Rejetee',
+		'corrected' => 'Corrigee',
+		'correction_requested' => 'Correction demandee',
+		'completed' => 'Terminee',
+		'cancelled' => 'Annulee',
+		'received' => 'Recu',
+		'not_received' => 'Non recu',
+	);
+	return isset($map[(string) $status]) ? $map[(string) $status] : (string) $status;
 }
 
 function mjl_workflowactions_distinct_options($column)

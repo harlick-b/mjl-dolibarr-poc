@@ -6,6 +6,8 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlconvention.class
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
 
 if (!$user->hasRight('mjlfinancement', 'activity', 'read')) {
 	accessforbidden();
@@ -85,6 +87,7 @@ function mjl_activities_handle_post($action)
 	elseif ($action === 'correct') $result = $activity->correct($user, GETPOST('comment', 'restricthtml'), 'AGENT');
 	elseif ($action === 'validate') $result = $activity->validate($user, GETPOST('comment', 'restricthtml'), 'SUPERVISEUR_N1');
 	elseif ($action === 'reject') $result = $activity->reject($user, GETPOST('comment', 'restricthtml'), 'SUPERVISEUR_N1');
+	elseif ($action === 'upload') $result = mjl_activities_upload_document($activity);
 	else mjl_activities_redirect($id);
 
 	if ($result < 0) setEventMessages($activity->error ?: 'Action refusee', null, 'errors');
@@ -126,6 +129,47 @@ function mjl_activities_update_for_correction(MjlActivity $activity)
 	), GETPOST('comment', 'restricthtml'), 'AGENT');
 }
 
+function mjl_activities_upload_document(MjlActivity $activity)
+{
+	global $db, $user, $conf;
+
+	$activityId = (int) ($activity->id ?: $activity->rowid);
+	$row = array(
+		'rowid' => $activityId,
+		'entity' => (int) $activity->entity,
+		'fk_user_creat' => (int) $activity->fk_user_creat,
+		'status' => (int) $activity->status,
+	);
+	if ((int) $activity->entity !== (int) $conf->entity || !mjl_activities_can_apply_action($row, 'upload')) {
+		$activity->error = 'Permission denied for activity document upload';
+		return -1;
+	}
+
+	$db->begin();
+	$error = '';
+	$document = mjl_document_upload_to_ecm('mjlfinancement_activity', $activityId, (int) $activity->entity, 'supporting_document', 'mjlfinancement_activity', 'MJL-ACT', 'Document activite MJL', $error);
+	if (empty($document)) {
+		$db->rollback();
+		$activity->error = $error;
+		return -1;
+	}
+	$role = mjl_workspace_can_access_supervision($user) ? (!empty($user->admin) ? 'ADMIN' : 'DPAF') : 'AGENT';
+	$statusLabel = mjl_activity_status_label($activity->status);
+	$comment = 'Document ajoute: '.$document['original'];
+	$audit = mjl_workflow_audit_insert('mjlfinancement_activity', $activityId, (int) $activity->entity, $statusLabel, $user, $role, 'document_uploaded', $comment, array(
+		'document' => array('before' => null, 'after' => $document['original']),
+		'ecm_file_id' => array('before' => null, 'after' => $document['rowid']),
+	), 'WFA-ACT-DOC', $activity->import_key);
+	if ($audit < 0) {
+		$db->rollback();
+		@unlink(rtrim($conf->ecm->dir_output, '/').'/'.$document['filepath'].'/'.$document['filename']);
+		$activity->error = $db->lasterror();
+		return -1;
+	}
+	$db->commit();
+	return 1;
+}
+
 function mjl_activities_render_list_page()
 {
 	print '<div class="mjl-workspace-header">';
@@ -158,6 +202,7 @@ function mjl_activities_render_detail($id)
 	mjl_activities_render_summary_card($row);
 	mjl_activities_render_decision_panel($row);
 	print '</div>';
+	mjl_activities_render_activity_document_panel($row);
 	mjl_activities_render_document_checklist((int) $row['rowid']);
 	mjl_activities_render_timeline($row);
 }
@@ -299,6 +344,42 @@ function mjl_activities_render_document_checklist($activityId)
 	print '</section>';
 }
 
+function mjl_activities_render_activity_document_panel($row)
+{
+	$state = mjl_activity_evidence_state((int) $row['rowid'], (int) $row['entity']);
+	$documents = mjl_activity_document_download_rows((int) $row['rowid']);
+	print '<section class="mjl-workspace-section mjl-activity-card">';
+	print '<div class="mjl-section-heading"><h2>Documents de l activite</h2><p>Pieces operationnelles rattachees directement a cette activite dans ECM.</p></div>';
+	print '<div class="mjl-document-summary mjl-document-summary-'.$state.'">';
+	print '<span>'.dol_escape_htmltag(mjl_activities_evidence_label($state)).'</span>';
+	print '<span>'.dol_escape_htmltag(!empty($documents) ? mjl_activity_document_display_filename($documents[0]) : 'Aucun fichier detecte').'</span>';
+	print '</div>';
+	if ($state === 'unavailable') {
+		print '<div class="mjl-empty-state mjl-empty-state-warning">Reference ECM presente, mais aucun fichier telechargeable n est disponible.</div>';
+	} elseif ($state === 'missing') {
+		print '<div class="mjl-empty-state">Aucun document direct n est rattache a cette activite.</div>';
+	}
+	if (!empty($documents)) {
+		print '<div class="mjl-document-list">';
+		foreach ($documents as $document) {
+			$label = mjl_activity_document_display_filename($document);
+			print '<div class="mjl-document-row">';
+			print '<span>'.dol_escape_htmltag($label).'</span>';
+			print '<a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/documentdownload.php?type=activity&id='.((int) $document['rowid']).'">Telecharger le document</a>';
+			print '</div>';
+		}
+		print '</div>';
+	}
+	if (mjl_activities_can_apply_action($row, 'upload')) {
+		print '<form class="mjl-activity-action-form" enctype="multipart/form-data" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
+		print mjl_activities_token_input().'<input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+		print '<label>Document activite<input required type="file" name="supporting_document"></label>';
+		print '<input class="button" type="submit" value="Ajouter le document">';
+		print '</form>';
+	}
+	print '</section>';
+}
+
 function mjl_activities_render_timeline($activity)
 {
 	$items = mjl_activities_timeline_items($activity);
@@ -380,7 +461,7 @@ function mjl_activities_fetch_detail($id)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT a.rowid, a.ref, a.label, a.fk_user_creat, a.date_creation, a.date_start, a.date_end, a.status,';
+	$sql = 'SELECT a.rowid, a.entity, a.ref, a.label, a.fk_user_creat, a.date_creation, a.date_start, a.date_end, a.status,';
 	$sql .= ' p.ref AS project_ref, p.title AS project_title, c.ref AS convention_ref, c.title AS convention_title, t.ref AS task_ref, t.label AS task_label, u.login AS creator_login';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project';
@@ -397,43 +478,6 @@ function mjl_activities_fetch_detail($id)
 	return $obj ? (array) $obj : array();
 }
 
-function mjl_activities_can_open($activity)
-{
-	global $user;
-
-	$row = is_array($activity) ? $activity : (array) $activity;
-	if (mjl_workspace_can_access_supervision($user) || mjl_activities_is_readonly_consultation()) {
-		return true;
-	}
-	if (mjl_activities_is_level1_operational()) {
-		return (int) $row['fk_user_creat'] === (int) $user->id;
-	}
-	if ($user->hasRight('mjlfinancement', 'activity', 'validate')) {
-		return (int) $row['status'] === MjlActivity::STATUS_SUBMITTED || mjl_activities_user_has_workflow_history((int) $row['rowid']);
-	}
-	return true;
-}
-
-function mjl_activities_can_apply_action($activity, $action)
-{
-	global $user;
-
-	$row = is_array($activity) ? $activity : (array) $activity;
-	$status = (int) $row['status'];
-	if (in_array($action, array('update', 'submit', 'correct'), true)) {
-		if (!$user->hasRight('mjlfinancement', 'activity', 'write') || (int) $row['fk_user_creat'] !== (int) $user->id) return false;
-		if ($action === 'update') return in_array($status, array(MjlActivity::STATUS_DRAFT, MjlActivity::STATUS_CORRECTION_REQUESTED), true);
-		if ($action === 'submit') return in_array($status, array(MjlActivity::STATUS_DRAFT, MjlActivity::STATUS_CORRECTED), true);
-		return $status === MjlActivity::STATUS_CORRECTION_REQUESTED;
-	}
-	if (in_array($action, array('validate', 'reject', 'request_correction'), true)) {
-		if (!$user->hasRight('mjlfinancement', 'activity', 'validate') || $status !== MjlActivity::STATUS_SUBMITTED) return false;
-		if ((int) $row['fk_user_creat'] === (int) $user->id) return false;
-		return true;
-	}
-	return false;
-}
-
 function mjl_activities_available_actions($row)
 {
 	$actions = array();
@@ -444,44 +488,6 @@ function mjl_activities_available_actions($row)
 	if (mjl_activities_can_apply_action($row, 'request_correction')) $actions['request_correction'] = array('label' => 'Retourner pour correction', 'comment' => 'Motif de correction', 'required' => true);
 	if (mjl_activities_can_apply_action($row, 'reject')) $actions['reject'] = array('label' => 'Rejeter l activite', 'comment' => 'Motif de rejet', 'required' => true);
 	return $actions;
-}
-
-function mjl_activities_scope_sql($alias)
-{
-	global $db, $user;
-
-	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
-	if (mjl_workspace_can_access_supervision($user) || mjl_activities_is_readonly_consultation()) {
-		return '';
-	}
-	if (mjl_activities_is_level1_operational()) {
-		return ' AND '.$a.'.fk_user_creat = '.((int) $user->id);
-	}
-	if ($user->hasRight('mjlfinancement', 'activity', 'validate')) {
-		return ' AND ('.$a.'.status = '.MjlActivity::STATUS_SUBMITTED.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_workflow_action wscope WHERE wscope.entity = '.$a.'.entity AND wscope.object_type = \'mjlfinancement_activity\' AND wscope.object_id = '.$a.'.rowid AND wscope.actor = '.((int) $user->id).'))';
-	}
-	return '';
-}
-
-function mjl_activities_is_level1_operational()
-{
-	global $user;
-	return $user->hasRight('mjlfinancement', 'activity', 'write') && !$user->hasRight('mjlfinancement', 'activity', 'validate') && !mjl_workspace_can_access_supervision($user);
-}
-
-function mjl_activities_is_readonly_consultation()
-{
-	global $user;
-	return !$user->hasRight('mjlfinancement', 'activity', 'write') && !$user->hasRight('mjlfinancement', 'activity', 'validate');
-}
-
-function mjl_activities_user_has_workflow_history($activityId)
-{
-	global $db, $conf, $user;
-	$sql = 'SELECT rowid FROM '.$db->prefix().'mjlfinancement_workflow_action';
-	$sql .= ' WHERE entity = '.((int) $conf->entity).' AND object_type = \'mjlfinancement_activity\' AND object_id = '.((int) $activityId).' AND actor = '.((int) $user->id).' LIMIT 1';
-	$resql = $db->query($sql);
-	return $resql && (bool) $db->fetch_object($resql);
 }
 
 function mjl_activities_scope_label()
@@ -541,7 +547,7 @@ function mjl_activities_timeline_items($activity)
 	while ($row = $db->fetch_object($resql)) {
 		$items[] = array(
 			'label' => mjl_activity_action_label($row->action),
-			'title' => mjl_activity_status_text($row->from_status).' vers '.mjl_activity_status_text($row->to_status),
+			'title' => mjl_activities_timeline_title($row->action, $row->from_status, $row->to_status),
 			'meta' => mjl_activities_format_datetime($row->action_date).' par '.$row->login.' ('.mjl_activity_actor_role_label($row->actor_role).')',
 			'comment' => (string) $row->comment,
 		);
@@ -598,6 +604,7 @@ function mjl_activity_action_label($action)
 {
 	$map = array(
 		'field_changed' => 'Modification',
+		'document_uploaded' => 'Document ajoute',
 		'submitted' => 'Soumission',
 		'correction_requested' => 'Correction demandee',
 		'corrected' => 'Correction',
@@ -605,6 +612,24 @@ function mjl_activity_action_label($action)
 		'rejected' => 'Rejet',
 	);
 	return isset($map[$action]) ? $map[$action] : (string) $action;
+}
+
+function mjl_activities_timeline_title($action, $fromStatus, $toStatus)
+{
+	if ((string) $action === 'document_uploaded') {
+		return 'Document ajoute a l activite';
+	}
+	if ((string) $fromStatus === '' || (string) $toStatus === '' || (string) $fromStatus === (string) $toStatus) {
+		return mjl_activity_action_label($action);
+	}
+	return mjl_activity_status_text($fromStatus).' vers '.mjl_activity_status_text($toStatus);
+}
+
+function mjl_activities_evidence_label($state)
+{
+	if ($state === 'downloadable') return 'Disponible';
+	if ($state === 'unavailable') return 'Référence indisponible';
+	return 'Manquante';
 }
 
 function mjl_activity_actor_role_label($role)

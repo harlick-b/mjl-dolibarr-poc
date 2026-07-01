@@ -4,6 +4,8 @@ require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlconvention.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
 
 mjl_workspace_require_reference_data_access($user, 'convention');
 
@@ -13,6 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		mjl_conventions_forbidden('Jeton de securite invalide');
 	}
 	if (!mjl_conventions_can_manage()) {
+		mjl_conventions_forbidden();
+	}
+	if ($action === 'upload' && !$user->hasRight('ecm', 'upload')) {
 		mjl_conventions_forbidden();
 	}
 	mjl_conventions_handle_post($action);
@@ -87,6 +92,8 @@ function mjl_conventions_handle_post($action)
 		$result = $convention->close($user, GETPOST('comment', 'restricthtml'));
 	} elseif ($action === 'delete') {
 		$result = $convention->deleteIfUnlinkedDraft($user);
+	} elseif ($action === 'upload') {
+		$result = mjl_conventions_upload_document($convention);
 	} else {
 		mjl_conventions_redirect($id);
 	}
@@ -139,7 +146,46 @@ function mjl_conventions_render_detail($id)
 	}
 	print '</div>';
 	mjl_conventions_render_actions($row, $hasLinks, $canManage);
+	mjl_conventions_render_document_panel($row, $canManage);
 	mjl_conventions_render_timeline($row);
+}
+
+function mjl_conventions_upload_document(MjlConvention $convention)
+{
+	global $db, $user, $conf;
+
+	$conventionId = (int) ($convention->id ?: $convention->rowid);
+	if ((int) $convention->entity !== (int) $conf->entity || !mjl_conventions_can_upload_document((array) $convention)) {
+		$convention->error = 'Permission denied for convention document upload';
+		return -1;
+	}
+	if ((int) $convention->status === MjlConvention::STATUS_CLOSED) {
+		$convention->error = 'Closed conventions cannot receive new documents';
+		return -1;
+	}
+
+	$db->begin();
+	$error = '';
+	$document = mjl_document_upload_to_ecm('mjlfinancement_convention', $conventionId, (int) $convention->entity, 'supporting_document', 'mjlfinancement_convention', 'MJL-CONV', 'Document convention MJL', $error);
+	if (empty($document)) {
+		$db->rollback();
+		$convention->error = $error;
+		return -1;
+	}
+	$statusLabel = mjl_convention_status_label($convention->status);
+	$comment = 'Document ajoute: '.$document['original'];
+	$audit = mjl_workflow_audit_insert('mjlfinancement_convention', $conventionId, (int) $convention->entity, $statusLabel, $user, !empty($user->admin) ? 'ADMIN' : 'DPAF', 'document_uploaded', $comment, array(
+		'document' => array('before' => null, 'after' => $document['original']),
+		'ecm_file_id' => array('before' => null, 'after' => $document['rowid']),
+	), 'WFA-CONV-DOC', $convention->import_key);
+	if ($audit < 0) {
+		$db->rollback();
+		@unlink(rtrim($conf->ecm->dir_output, '/').'/'.$document['filepath'].'/'.$document['filename']);
+		$convention->error = $db->lasterror();
+		return -1;
+	}
+	$db->commit();
+	return 1;
 }
 
 function mjl_conventions_render_create_form()
@@ -262,6 +308,42 @@ function mjl_conventions_render_actions($row, $hasLinks, $canManage)
 	print '</section>';
 }
 
+function mjl_conventions_render_document_panel($row, $canManage)
+{
+	$state = mjl_convention_evidence_state((int) $row['rowid'], (int) $row['entity']);
+	$documents = mjl_convention_document_download_rows((int) $row['rowid']);
+	print '<section class="mjl-workspace-section mjl-activity-card">';
+	print '<div class="mjl-section-heading"><h2>Documents convention</h2><p>Pieces contractuelles et annexes conservees dans ECM.</p></div>';
+	print '<div class="mjl-document-summary mjl-document-summary-'.$state.'">';
+	print '<span>'.dol_escape_htmltag(mjl_conventions_evidence_label($state)).'</span>';
+	print '<span>'.dol_escape_htmltag(!empty($documents) ? mjl_convention_document_display_filename($documents[0]) : 'Aucun fichier detecte').'</span>';
+	print '</div>';
+	if ($state === 'unavailable') {
+		print '<div class="mjl-empty-state mjl-empty-state-warning">Reference ECM presente, mais aucun fichier telechargeable n est disponible.</div>';
+	} elseif ($state === 'missing') {
+		print '<div class="mjl-empty-state">Aucun document n est rattache a cette convention.</div>';
+	}
+	if (!empty($documents)) {
+		print '<div class="mjl-document-list">';
+		foreach ($documents as $document) {
+			$label = mjl_convention_document_display_filename($document);
+			print '<div class="mjl-document-row">';
+			print '<span>'.dol_escape_htmltag($label).'</span>';
+			print '<a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/documentdownload.php?type=convention&id='.((int) $document['rowid']).'">Telecharger le document</a>';
+			print '</div>';
+		}
+		print '</div>';
+	}
+	if ($canManage && mjl_conventions_can_upload_document($row)) {
+		print '<form class="mjl-activity-form" method="POST" enctype="multipart/form-data" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'">';
+		print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+		print '<label>Document convention<input required type="file" name="supporting_document"></label>';
+		print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter le document"></div>';
+		print '</form>';
+	}
+	print '</section>';
+}
+
 function mjl_conventions_action_form($id, $action, $label, $commentLabel, $required)
 {
 	print '<form class="mjl-activity-action-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $id).'">';
@@ -301,7 +383,7 @@ function mjl_conventions_render_timeline($row)
 function mjl_conventions_fetch_detail($id)
 {
 	global $db, $conf;
-	$sql = 'SELECT c.rowid, c.ref, c.title, c.fk_soc, c.fk_project, c.date_start, c.date_end, c.total_amount, c.currency_code, c.note_public, c.note_private, c.status, c.date_creation,';
+	$sql = 'SELECT c.rowid, c.entity, c.ref, c.title, c.fk_soc, c.fk_project, c.date_start, c.date_end, c.total_amount, c.currency_code, c.note_public, c.note_private, c.status, c.date_creation, c.import_key,';
 	$sql .= ' p.ref AS project_ref, p.title AS project_title, s.nom AS ptf_name, u.login AS creator_login';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_convention c';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
@@ -355,7 +437,7 @@ function mjl_conventions_timeline_items($row)
 		$changes = json_decode((string) $obj->changes_json, true);
 		$items[] = array(
 			'label' => mjl_convention_action_label($obj->action),
-			'title' => dol_escape_htmltag(mjl_convention_status_label($obj->from_status)).' vers '.dol_escape_htmltag(mjl_convention_status_label($obj->to_status)),
+			'title' => mjl_conventions_timeline_title($obj->action, $obj->from_status, $obj->to_status),
 			'meta' => mjl_conventions_format_datetime($obj->action_date).' par '.$obj->login.' ('.mjl_convention_actor_role_label($obj->actor_role).')',
 			'comment' => (string) $obj->comment,
 			'changes' => is_array($changes) ? $changes : array(),
@@ -400,6 +482,13 @@ function mjl_conventions_can_manage()
 	return mjl_workspace_can_access_supervision($user) && $user->hasRight('mjlfinancement', 'convention', 'write');
 }
 
+function mjl_conventions_can_upload_document($row)
+{
+	global $user;
+	$data = is_array($row) ? $row : (array) $row;
+	return mjl_conventions_can_manage() && $user->hasRight('ecm', 'upload') && (int) ($data['status'] ?? 0) !== MjlConvention::STATUS_CLOSED;
+}
+
 function mjl_convention_status_label($status)
 {
 	$map = array(
@@ -417,7 +506,7 @@ function mjl_convention_status_label($status)
 
 function mjl_convention_action_label($action)
 {
-	$map = array('created' => 'Creation', 'field_changed' => 'Modification', 'unsafe_edit_rejected' => 'Modification refusee', 'activated' => 'Activation', 'closed' => 'Cloture', 'deleted' => 'Suppression');
+	$map = array('created' => 'Creation', 'field_changed' => 'Modification', 'document_uploaded' => 'Document ajoute', 'unsafe_edit_rejected' => 'Modification refusee', 'activated' => 'Activation', 'closed' => 'Cloture', 'deleted' => 'Suppression');
 	return isset($map[$action]) ? $map[$action] : (string) $action;
 }
 
@@ -440,6 +529,24 @@ function mjl_conventions_next_action_label($row, $hasLinks)
 	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE && $hasLinks) return 'Convention active: les champs structurants sont verrouilles.';
 	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE) return 'Convention active disponible pour les operations.';
 	return 'Convention cloturee: consultation, rapports et historique restent disponibles.';
+}
+
+function mjl_conventions_timeline_title($action, $fromStatus, $toStatus)
+{
+	if ((string) $action === 'document_uploaded') {
+		return 'Document ajoute a la convention';
+	}
+	if ((string) $fromStatus === '' || (string) $toStatus === '' || (string) $fromStatus === (string) $toStatus) {
+		return mjl_convention_action_label($action);
+	}
+	return mjl_convention_status_label($fromStatus).' vers '.mjl_convention_status_label($toStatus);
+}
+
+function mjl_conventions_evidence_label($state)
+{
+	if ($state === 'downloadable') return 'Disponible';
+	if ($state === 'unavailable') return 'Référence indisponible';
+	return 'Manquante';
 }
 
 function mjl_conventions_change_text($change)
