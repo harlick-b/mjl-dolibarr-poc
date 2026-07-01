@@ -30,7 +30,7 @@ mjl_dashboard_render_alert_section(
 	'Risques echeance',
 	'Activites ouvertes avec une echeance proche ou depassee. Chaque alerte indique l objet, le risque et l action attendue.',
 	mjl_dashboard_deadline_risks(),
-	'Aucun risque echeance detecte pour le moment.'
+	'Aucun risque échéance détecté pour le moment.'
 );
 
 mjl_dashboard_render_table_section(
@@ -50,38 +50,39 @@ mjl_dashboard_render_table_section(
 );
 
 mjl_dashboard_render_table_section(
-	'Budgets et depenses',
-	'Situation budgetaire par convention, conservee comme lecture de supervision.',
+	'Budgets et dépenses',
+	'Situation budgétaire par convention, conservée comme lecture de supervision.',
 	array(
 		array('label' => 'Convention'),
-		array('label' => 'Budget revise', 'class' => 'right'),
-		array('label' => 'Depenses validees', 'class' => 'right'),
-		array('label' => 'Depenses soumises', 'class' => 'right'),
+		array('label' => 'Budget révisé', 'class' => 'right'),
+		array('label' => 'Dépenses validées', 'class' => 'right'),
+		array('label' => 'Dépenses soumises', 'class' => 'right'),
 		array('label' => 'Disponible', 'class' => 'right'),
 	),
 	mjl_dashboard_budget_expense_rows(),
-	'Aucune donnee budgetaire.',
+	'Aucune donnée budgétaire.',
 	'mjl_dpaf_render_budget_row'
 );
 
 mjl_dashboard_render_table_section(
-	'Dernieres receptions de fonds',
-	'Fonds recemment enregistres dans l entite active.',
+	'Dernières réceptions de fonds',
+	'Fonds récemment enregistrés dans l’entité active.',
 	array(
 		array('label' => 'Ref'),
 		array('label' => 'Date'),
 		array('label' => 'Projet'),
 		array('label' => 'Convention'),
 		array('label' => 'Montant', 'class' => 'right'),
+		array('label' => 'Preuve'),
 	),
 	mjl_dashboard_recent_funds(),
-	'Aucune reception de fonds.',
+	'Aucune réception de fonds.',
 	'mjl_dpaf_render_fund_row'
 );
 
 mjl_dashboard_render_table_section(
-	'Dernieres actions auditees',
-	'Trace recente des decisions sur activites et depenses.',
+	'Dernières actions auditées',
+	'Trace récente des décisions sur activités et dépenses.',
 	array(
 		array('label' => 'Source'),
 		array('label' => 'Objet'),
@@ -93,7 +94,7 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Commentaire'),
 	),
 	mjl_dashboard_recent_audit(),
-	'Aucune action auditee.',
+	'Aucune action auditée.',
 	'mjl_dpaf_render_audit_row'
 );
 
@@ -139,6 +140,7 @@ function mjl_dpaf_render_fund_row($row)
 	print '<td>'.dol_escape_htmltag($row['project_ref']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['convention_ref']).'</td>';
 	print '<td class="right">'.price($row['amount']).'</td>';
+	print '<td>'.dol_escape_htmltag($row['document_state']).'</td>';
 	print '</tr>';
 }
 
@@ -147,11 +149,49 @@ function mjl_dpaf_render_audit_row($row)
 	print '<tr class="oddeven">';
 	print '<td>'.dol_escape_htmltag($row['source']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['object_ref']).'</td>';
-	print '<td>'.dol_escape_htmltag($row['action']).'</td>';
-	print '<td>'.dol_escape_htmltag($row['from_status']).'</td>';
-	print '<td>'.dol_escape_htmltag($row['to_status']).'</td>';
+	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_action_label($row['action'])).'</td>';
+	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['from_status'])).'</td>';
+	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['to_status'])).'</td>';
 	print '<td>'.dol_escape_htmltag($row['login']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['action_date']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['comment']).'</td>';
 	print '</tr>';
+}
+
+function mjl_dpaf_audit_action_label($action)
+{
+	$map = array(
+		'created' => 'Création',
+		'field_changed' => 'Modification',
+		'document_uploaded' => 'Document ajouté',
+		'proof_uploaded' => 'Preuve ajoutée',
+		'unsafe_edit_rejected' => 'Modification refusée',
+		'received' => 'Réception',
+		'not_received' => 'Non-réception',
+		'submitted' => 'Soumission',
+		'validated' => 'Validation',
+		'rejected' => 'Rejet',
+		'corrected' => 'Correction',
+		'deleted' => 'Suppression',
+		'activated' => 'Activation',
+		'closed' => 'Clôture',
+	);
+	return isset($map[(string) $action]) ? $map[(string) $action] : (string) $action;
+}
+
+function mjl_dpaf_audit_status_label($status)
+{
+	$map = array(
+		'draft' => 'Brouillon',
+		'active' => 'Active',
+		'closed' => 'Clôturée',
+		'deleted' => 'Supprimée',
+		'submitted' => 'Soumise',
+		'validated' => 'Validée',
+		'rejected' => 'Rejetée',
+		'corrected' => 'Corrigée',
+		'received' => 'Reçu',
+		'not_received' => 'Non reçu',
+	);
+	return isset($map[(string) $status]) ? $map[(string) $status] : (string) $status;
 }

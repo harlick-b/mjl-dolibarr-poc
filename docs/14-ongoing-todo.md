@@ -50,9 +50,8 @@
 
 - Confirm final client report columns.
 - Add official report canevas if provided by MJL.
-- Add XLSX export support in addition to CSV compatible with Microsoft Excel.
 - Improve filters and selectors.
-- Add `.xlsx` only if a safe Dolibarr-native helper or existing dependency is available.
+- Keep CSV and XLSX exports generated from the same report definitions.
 
 ### Security And Data Integrity
 

@@ -2,4 +2,4 @@ fund_receipt_id,ref,ptf_id,project_id,convention_id,amount_xof,reception_date,pr
 FR-UNICEF-001,FR-UNICEF-001,PTF-UNICEF,PRJ-JE-2026,CONV-UNICEF-2026-001,2500000,2026-02-05,DOC-FR-UNICEF-001,recorded,Première tranche reçue.
 FR-UNICEF-002,FR-UNICEF-002,PTF-UNICEF,PRJ-JE-2026,CONV-UNICEF-2026-001,1500000,2026-05-10,DOC-FR-UNICEF-002,recorded,Deuxième tranche reçue.
 FR-RED-001,FR-RED-001,PTF-REDEV,PRJ-RED-2026,CONV-RED-2026-001,2000000,2026-03-15,DOC-FR-RED-001,recorded,Appui initial du programme Redevabilité.
-FR-TEST-001,FR-TEST-001,PTF-TEST,PRJ-EXT-2026,CONV-TEST-2026-001,0,,,not_received,Convention test sans fonds reçus pour tester l'état initial.
+FR-TEST-001,FR-TEST-001,PTF-UNICEF,PRJ-JE-2026,CONV-UNICEF-2026-001,0,,,not_received,Reception test marquee non recue pour verifier l'exclusion des totaux financiers.

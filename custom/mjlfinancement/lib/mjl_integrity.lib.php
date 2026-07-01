@@ -260,6 +260,77 @@ function mjl_expense_document_safe_relative_path_for_storage($path)
 	return !preg_match('/\.\.|[\x00-\x1F\x7F<>|\\\\]/', $path);
 }
 
+function mjl_fund_receipt_document_present_sql($receiptAlias = 'fr')
+{
+	global $db;
+
+	$alias = preg_replace('/[^A-Za-z0-9_]/', '', $receiptAlias);
+	return "((".$alias.".supporting_document IS NOT NULL AND ".$alias.".supporting_document <> '') OR EXISTS (SELECT 1 FROM ".$db->prefix()."ecm_files mjl_doc WHERE mjl_doc.entity = ".$alias.".entity AND mjl_doc.src_object_type = 'mjlfinancement_fund_receipt' AND mjl_doc.src_object_id = ".$alias.".rowid))";
+}
+
+function mjl_fund_receipt_supporting_document_sql($receiptAlias = 'fr')
+{
+	global $db;
+
+	$alias = preg_replace('/[^A-Za-z0-9_]/', '', $receiptAlias);
+	return "COALESCE(NULLIF(".$alias.".supporting_document, ''), (SELECT MAX(mjl_doc.filename) FROM ".$db->prefix()."ecm_files mjl_doc WHERE mjl_doc.entity = ".$alias.".entity AND mjl_doc.src_object_type = 'mjlfinancement_fund_receipt' AND mjl_doc.src_object_id = ".$alias.".rowid))";
+}
+
+function mjl_fund_receipt_evidence_state($receiptId, $entity, $supportingDocument = '')
+{
+	$rows = mjl_fund_receipt_downloadable_document_rows($receiptId, $entity);
+	if (!empty($rows)) {
+		return 'downloadable';
+	}
+	$referencedRows = mjl_fund_receipt_document_candidate_rows($receiptId, $entity);
+	if (trim((string) $supportingDocument) !== '' || !empty($referencedRows)) {
+		return 'unavailable';
+	}
+	return 'missing';
+}
+
+function mjl_fund_receipt_document_candidate_rows($receiptId, $entity)
+{
+	global $db;
+
+	if ((int) $receiptId <= 0 || (int) $entity <= 0) {
+		return array();
+	}
+	$sql = 'SELECT rowid, entity, filename, filepath, fullpath_orig, description, date_c, src_object_type, src_object_id';
+	$sql .= ' FROM '.$db->prefix().'ecm_files';
+	$sql .= ' WHERE entity = '.((int) $entity);
+	$sql .= " AND src_object_type = 'mjlfinancement_fund_receipt'";
+	$sql .= ' AND src_object_id = '.((int) $receiptId);
+	$sql .= ' ORDER BY date_c DESC, rowid DESC';
+	$resql = $db->query($sql);
+	if (!$resql) {
+		mjl_integrity_set_error($db->lasterror());
+		return array();
+	}
+
+	$rows = array();
+	while ($obj = $db->fetch_object($resql)) {
+		$rows[] = (array) $obj;
+	}
+	return $rows;
+}
+
+function mjl_fund_receipt_downloadable_document_rows($receiptId, $entity)
+{
+	$rows = array();
+	foreach (mjl_fund_receipt_document_candidate_rows($receiptId, $entity) as $row) {
+		if (mjl_fund_receipt_document_resolved_path_for_row($row) !== '') {
+			$rows[] = $row;
+		}
+	}
+	return $rows;
+}
+
+function mjl_fund_receipt_document_resolved_path_for_row($fileRow)
+{
+	return mjl_expense_document_resolved_path_for_row($fileRow);
+}
+
 function mjl_has_expense_validation_history($expenseId, $entity = null)
 {
 	global $db;

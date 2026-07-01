@@ -20,9 +20,9 @@ function mjl_navigation_items(User $targetUser)
 	if ($capabilities['activity_read']) {
 		$items[] = array(
 			'key' => 'activities',
-			'label' => 'Activites',
+			'label' => 'Activités',
 			'href' => '/custom/mjlfinancement/activities.php',
-			'description' => 'Suivi des activites et decisions',
+			'description' => 'Suivi des activités et décisions',
 			'primary' => true,
 		);
 	}
@@ -38,9 +38,9 @@ function mjl_navigation_items(User $targetUser)
 	if ($capabilities['expense_read']) {
 		$items[] = array(
 			'key' => 'expenses',
-			'label' => 'Depenses',
+			'label' => 'Dépenses',
 			'href' => '/custom/mjlfinancement/expenses.php',
-			'description' => 'Depenses et pieces justificatives',
+			'description' => 'Dépenses et pièces justificatives',
 			'primary' => true,
 		);
 	}
@@ -49,7 +49,7 @@ function mjl_navigation_items(User $targetUser)
 			'key' => 'validations',
 			'label' => 'Validations',
 			'href' => '/custom/mjlfinancement/validations.php',
-			'description' => 'Trace des decisions sur depenses',
+			'description' => 'Trace des décisions sur dépenses',
 			'primary' => !$capabilities['operational'],
 		);
 	}
@@ -83,16 +83,16 @@ function mjl_navigation_items(User $targetUser)
 			'key' => 'budgetlines',
 			'label' => 'Budgets',
 			'href' => '/custom/mjlfinancement/budgetlines.php',
-			'description' => 'Gestion des lignes budgetaires',
+			'description' => 'Gestion des lignes budgétaires',
 			'primary' => false,
 		);
 	}
 	if ($capabilities['supervision'] && $targetUser->hasRight('mjlfinancement', 'fundreceipt', 'read')) {
 		$items[] = array(
 			'key' => 'fundreceipts',
-			'label' => 'Fonds recus',
+			'label' => 'Fonds reçus',
 			'href' => '/custom/mjlfinancement/fundreceipts.php',
-			'description' => 'Consultation des receptions de fonds',
+			'description' => 'Consultation des réceptions de fonds',
 			'primary' => false,
 		);
 	}
@@ -101,16 +101,16 @@ function mjl_navigation_items(User $targetUser)
 			'key' => 'workflowactions',
 			'label' => 'Historique / Audit',
 			'href' => '/custom/mjlfinancement/workflowactions.php',
-			'description' => 'Audit avance des decisions',
+			'description' => 'Audit avancé des décisions',
 			'primary' => !$capabilities['operational'],
 		);
 	}
 	if ($capabilities['exchangelog_read'] && ($capabilities['supervision'] || (!$capabilities['operational'] && !$capabilities['reviewer']))) {
 		$items[] = array(
 			'key' => 'exchanges',
-			'label' => 'Echanges',
+			'label' => 'Échanges',
 			'href' => '/custom/mjlfinancement/exchangelogs.php',
-			'description' => 'Journal des echanges',
+			'description' => 'Journal des échanges',
 			'primary' => !$capabilities['operational'],
 		);
 	}
@@ -119,7 +119,7 @@ function mjl_navigation_items(User $targetUser)
 			'key' => 'admin_access',
 			'label' => 'Invitations',
 			'href' => '/custom/mjlfinancement/admin/access.php',
-			'description' => 'Gestion des acces invitation-only',
+			'description' => 'Gestion des accès invitation-only',
 			'primary' => true,
 		);
 		$items[] = array(
@@ -143,7 +143,7 @@ function mjl_navigation_quick_items(User $targetUser)
 		}
 		$description = $item['description'];
 		if ($item['key'] === 'workflowactions') {
-			$description = 'Consultation avancee de l audit';
+			$description = 'Consultation avancée de l’audit';
 		}
 		$items[] = array($item['label'], $item['href'], $description);
 	}

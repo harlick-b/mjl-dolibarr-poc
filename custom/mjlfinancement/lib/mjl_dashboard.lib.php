@@ -2,6 +2,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexpense.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlfundreceipt.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_reporting.lib.php';
 
@@ -111,22 +112,35 @@ function mjl_dashboard_recent_funds($limit = 10)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT fr.ref, fr.reception_date, fr.amount, p.ref AS project_ref, c.ref AS convention_ref';
+	$sql = 'SELECT fr.rowid, fr.entity AS evidence_entity, fr.supporting_document AS stored_supporting_document, fr.ref, fr.reception_date, fr.amount, p.ref AS project_ref, c.ref AS convention_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_fund_receipt fr';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = fr.fk_project AND p.entity = fr.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = fr.fk_convention AND c.entity = fr.entity';
 	$sql .= ' WHERE fr.entity = '.((int) $conf->entity);
+	$sql .= ' AND fr.status = '.MjlFundReceipt::STATUS_RECEIVED;
 	$sql .= ' ORDER BY fr.reception_date DESC, fr.rowid DESC LIMIT '.((int) $limit);
-	return mjl_dashboard_fetch_rows($sql);
+	$rows = mjl_dashboard_fetch_rows($sql);
+	foreach ($rows as &$row) {
+		$state = mjl_fund_receipt_evidence_state((int) $row['rowid'], (int) $row['evidence_entity'], $row['stored_supporting_document']);
+		$row['document_state'] = $state === 'downloadable' ? 'Disponible' : ($state === 'unavailable' ? 'Référence indisponible' : 'Manquante');
+		unset($row['rowid'], $row['evidence_entity'], $row['stored_supporting_document']);
+	}
+	unset($row);
+	return $rows;
 }
 
 function mjl_dashboard_recent_audit($limit = 30)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT \'Activite\' AS source, a.ref AS object_ref, w.action, w.from_status, w.to_status, u.login, w.action_date, w.comment';
+	$sql = 'SELECT CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN \'Activite\' WHEN w.object_type = \'mjlfinancement_convention\' THEN \'Convention\' WHEN w.object_type = \'mjlfinancement_budget_line\' THEN \'Ligne budgetaire\' WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN \'Réception de fonds\' ELSE w.object_type END AS source,';
+	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref ELSE NULL END AS object_ref,';
+	$sql .= ' w.action, w.from_status, w.to_status, u.login, w.action_date, w.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
 	$sql .= ' WHERE w.entity = '.((int) $conf->entity);
 	$sql .= ' UNION ALL ';

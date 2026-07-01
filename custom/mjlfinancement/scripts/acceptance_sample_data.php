@@ -163,7 +163,7 @@ function assertTargetRoleRights()
 	}
 
 	$dpafRights = rightsForLogin('dpaf.mjl');
-	foreach (array('mjlfinancement/report/read', 'mjlfinancement/export/write', 'mjlfinancement/activity/read', 'mjlfinancement/expense/read', 'mjlfinancement/convention/write') as $required) {
+	foreach (array('mjlfinancement/report/read', 'mjlfinancement/export/write', 'mjlfinancement/activity/read', 'mjlfinancement/expense/read', 'mjlfinancement/convention/write', 'mjlfinancement/fundreceipt/write', 'ecm/upload/') as $required) {
 		if (!in_array($required, $dpafRights, true)) {
 			fail('dpaf.mjl missing required right '.$required);
 		}

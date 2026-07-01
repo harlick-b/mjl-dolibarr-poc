@@ -80,10 +80,10 @@ data instructions.
 - Confirm DPAF/Admin-only access to reports and DPAF dashboard.
 - Confirm normal users cannot reach hidden advanced/reference pages by direct
   URL.
-- Confirm DPAF/Admin can manage conventions and budget lines only after the
-  production management flows are implemented and tested.
-- Confirm fund receipts remain a read-only supervision/reference surface until
-  a production management workflow is selected.
+- Confirm DPAF/Admin can manage conventions, budget lines, and fund receipts
+  only through the governed MJL module flows.
+- Confirm fund receipts require active conventions, secure proof documents,
+  and received status before they affect financial totals.
 - Confirm official exports provide both CSV compatible with Microsoft Excel
   and XLSX before the export row is marked `READY`.
 - Confirm no public registration labels or links appear in auth or workspace
@@ -125,10 +125,10 @@ development/POC rehearsal. Do not load sample data into a production tenant.
 - Final DPAF/N2 escalation rules.
 - Convention/envelope production management implementation.
 - Budget-line production management implementation and unsafe-edit rules.
-- Fund-receipt full management remains deferred; current selected scope is
-  read-only supervision/reference.
+- Fund-receipt expected-funds planning remains deferred; current selected
+  scope is received/not-received management.
 - Document preview remains planned later; guarded expense document download is
   implemented.
-- XLSX export implementation.
+- Final donor-specific export templates once MJL provides official canevas.
 - Production email/base URL/secrets configuration when email features are
   selected.

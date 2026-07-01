@@ -18,9 +18,9 @@ hardening work. It reflects the current codebase, not future production goals.
 | `/custom/mjlfinancement/exchangelogs.php` | `mjl_workspace_require_advanced_traceability_access()`; create requires `exchangelog/write` and token | B - partial but demo-safe | Keep as advanced traceability/exchange log. Avoid presenting it as a complete collaboration module. |
 | `/custom/mjlfinancement/admin/access.php` | Admin only | A - implemented and POC-valid | Keep as invitation-only access administration. |
 | `/custom/mjlfinancement/invitation.php` | Token-driven invitation flow | A - implemented and POC-valid | Preserve; do not render module sidebar here. |
-| `/custom/mjlfinancement/conventions.php` | `mjl_workspace_require_reference_data_access()` | B - partial but demo-safe | Keep as read-only supervision/reference view only. |
+| `/custom/mjlfinancement/conventions.php` | `mjl_workspace_require_reference_data_access()`; write actions require DPAF/Admin plus `convention/write` | A - implemented and POC-valid | Keep as governed DPAF/Admin convention management with activation, closure, locked-edit, and history guards. |
 | `/custom/mjlfinancement/budgetlines.php` | `mjl_workspace_require_reference_data_access()`; write actions require DPAF/Admin plus `budgetline/write` | A - implemented and POC-valid | Keep as governed DPAF/Admin budget-line management with active-convention, locked-edit, recalculation, and history guards. |
-| `/custom/mjlfinancement/fundreceipts.php` | `mjl_workspace_require_reference_data_access()` | B - partial but demo-safe | Keep as read-only supervision/reference view only. |
+| `/custom/mjlfinancement/fundreceipts.php` and `/custom/mjlfinancement/documentdownload.php?type=fundreceipt` | `mjl_workspace_require_reference_data_access()`; write/upload actions require DPAF/Admin plus `fundreceipt/write` and ECM upload | A - implemented and POC-valid | Keep as governed DPAF/Admin fund-receipt management with active convention, proof-before-received, secure download, received/not-received lifecycle, and history guards. |
 
 ## Module Integration And Navigation
 
@@ -69,11 +69,9 @@ advanced audit pages use capability-level guards for the same reason.
 
 ## Partial But Demo-Safe Surfaces
 
-- Conventions and budget lines are governed DPAF/Admin production-management
-  surfaces with create/edit/detail/status/history flows and focused E2E
-  coverage.
-- Fund receipts remain read-only supervision/reference for now. Full
-  create/edit/upload management is deferred until selected.
+- Conventions, budget lines, and fund receipts are governed DPAF/Admin
+  production-management surfaces with create/edit/detail/status/history flows
+  and focused E2E coverage.
 - Workflow actions expose technical audit detail and should be treated as an
   advanced audit screen.
 - Exchange logs are useful for traceability but not a full collaboration or

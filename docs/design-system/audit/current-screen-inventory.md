@@ -85,14 +85,14 @@ Fixed constraints:
 - Evidence source: repo-confirmed custom screen.
 - Current purpose: Select fixed reports, filter them, preview table output, and export CSV when authorized.
 - Target purpose: Official exports center with clear report descriptions, filter context, role restrictions, format, and filename preview.
-- Current users: Users with `report/read`; CSV export requires `export/write`.
+- Current users: Users with `report/read`; CSV/XLSX export requires `export/write`.
 - Target access level: Level 3 / Admin
-- Current problems: Filter row is technical; status filter uses numeric value; filename preview and official-output framing are not visible before export.
-- Recommended action: redesign
-- Safe files to modify: `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/lib/mjl_reporting.lib.php`, `custom/mjlfinancement/lib/mjl_csv_export.lib.php`, design-system docs.
-- Implementation risk: Medium; must preserve UTF-8 BOM, semicolon CSV, French headers, stable filenames, and filters.
+- Current problems: Generic MJL reports are available; final donor-specific canevas are not yet supplied.
+- Recommended action: keep as official outputs center and add donor templates when provided.
+- Safe files to modify: `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/lib/mjl_reporting.lib.php`, `custom/mjlfinancement/lib/mjl_csv_export.lib.php`, `custom/mjlfinancement/lib/mjl_xlsx_export.lib.php`, design-system docs.
+- Implementation risk: Medium; must preserve UTF-8 BOM, semicolon CSV, native XLSX generation, French headers, stable filenames, and filters.
 - Affected E2E scenarios: Export, role visibility.
-- Review decision: Redesign as official outputs center.
+- Review decision: Phase 17 hardens generic CSV/XLSX outputs; donor-specific canevas remain a client-input dependency.
 
 ## Screen: Conventions
 
@@ -128,16 +128,16 @@ Fixed constraints:
 
 - URL/path: `/custom/mjlfinancement/fundreceipts.php`
 - Evidence source: repo-confirmed custom screen.
-- Current purpose: Read-only list of fund receipts.
-- Target purpose: Fund receipt monitoring with readable project/convention/PTF labels and supporting document state.
+- Current purpose: Governed DPAF/Admin fund receipt management with create, edit, proof upload/download, received/not-received lifecycle, filters, and history.
+- Target purpose: Fund receipt monitoring and management with readable project/convention/PTF labels and supporting document state.
 - Current users: Users with `fundreceipt/read`.
 - Target access level: Level 3 / Admin
-- Current problems: Raw IDs; no create/edit UI; no document workflow; status is not explained.
-- Recommended action: redesign
+- Current problems: Management workflow implemented in Phase 16; continue monitoring report/dashboard impact and proof-document ergonomics.
+- Recommended action: keep as governed DPAF/Admin management surface
 - Safe files to modify: `custom/mjlfinancement/fundreceipts.php`, custom fund-receipt helpers/classes, design-system docs.
 - Implementation risk: Medium; must preserve financial traceability and active-entity filtering.
-- Affected E2E scenarios: Export, role visibility.
-- Review decision: Redesign for supervision/admin after core workflow screens.
+- Affected E2E scenarios: Export, role visibility, secure document download.
+- Review decision: Keep out of normal Level 1/2 navigation; preserve active-convention, proof, and entity guards.
 
 ## Screen: Expense Validation History
 
