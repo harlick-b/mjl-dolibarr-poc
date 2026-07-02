@@ -28,8 +28,8 @@ class modMjlFinancement extends DolibarrModules
 			'printing' => 0,
 			'theme' => 0,
 			'css' => array('/mjlfinancement/css/mjl_auth.css.php', '/mjlfinancement/css/mjl_app.css.php'),
-			'js' => array(),
-			'hooks' => array('login', 'passwordforgottenpage'),
+			'js' => array('/mjlfinancement/js/native_guard.js.php?v=nav-unification'),
+			'hooks' => array('all', 'login', 'passwordforgottenpage'),
 			'moduleforexternal' => 0,
 			'websitetemplates' => 0,
 			'captcha' => 0,
@@ -37,7 +37,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->dirs = array('/mjlfinancement/temp');
 		$this->config_page_url = array();
 		$this->hidden = false;
-		$this->depends = array('modSociete', 'modProjet', 'modECM', 'modExpenseReport', 'modExport');
+		$this->depends = array('modSociete', 'modProjet', 'modECM', 'modExport');
 		$this->requiredby = array();
 		$this->conflictwith = array();
 		$this->langfiles = array('mjlfinancement@mjlfinancement');
@@ -91,7 +91,7 @@ class modMjlFinancement extends DolibarrModules
 			'langs' => 'mjlfinancement@mjlfinancement',
 			'position' => 1000,
 			'enabled' => "isModEnabled('mjlfinancement')",
-			'perms' => '$user->hasRight("mjlfinancement", "convention", "read") || $user->hasRight("mjlfinancement", "activity", "read") || $user->hasRight("mjlfinancement", "budgetline", "read") || $user->hasRight("mjlfinancement", "expense", "read") || $user->hasRight("mjlfinancement", "fundreceipt", "read") || $user->hasRight("mjlfinancement", "workflowaction", "read") || $user->hasRight("mjlfinancement", "exchangelog", "read") || $user->hasRight("mjlfinancement", "report", "read")',
+			'perms' => '$user->hasRight("mjlfinancement", "convention", "read") || $user->hasRight("mjlfinancement", "activity", "read") || $user->hasRight("mjlfinancement", "budgetline", "read") || $user->hasRight("mjlfinancement", "expense", "read") || $user->hasRight("mjlfinancement", "fundreceipt", "read") || $user->hasRight("mjlfinancement", "validation", "read") || $user->hasRight("mjlfinancement", "workflowaction", "read") || $user->hasRight("mjlfinancement", "exchangelog", "read") || $user->hasRight("mjlfinancement", "report", "read") || $user->hasRight("mjlfinancement", "export", "read")',
 			'target' => '',
 			'user' => 2,
 		);

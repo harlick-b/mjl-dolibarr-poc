@@ -3,9 +3,7 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
-if (empty($user->admin)) {
-	accessforbidden();
-}
+mjl_workspace_require_roadmap_access($user);
 
 $langs->load('mjlfinancement@mjlfinancement');
 

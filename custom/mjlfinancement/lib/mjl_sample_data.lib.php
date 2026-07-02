@@ -186,6 +186,20 @@ function mjl_ensure_schema()
 		import_key VARCHAR(14)
 	) ENGINE=innodb', 'create access audit table');
 
+	mjl_query('CREATE TABLE IF NOT EXISTS '.$db->prefix().'mjlfinancement_project_note (
+		rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+		entity INTEGER DEFAULT 1 NOT NULL,
+		fk_project INTEGER NOT NULL,
+		message TEXT NOT NULL,
+		date_note DATETIME NOT NULL,
+		fk_user_author INTEGER NOT NULL,
+		date_creation DATETIME NOT NULL,
+		tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		fk_user_creat INTEGER NOT NULL,
+		fk_user_modif INTEGER DEFAULT NULL,
+		import_key VARCHAR(14)
+	) ENGINE=innodb', 'create project note table');
+
 	mjl_add_column('mjlfinancement_convention', 'title', 'VARCHAR(255) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_convention', 'total_amount', 'DOUBLE(24,8) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_convention', 'currency_code', "VARCHAR(3) DEFAULT 'XOF'");
@@ -259,6 +273,9 @@ function mjl_ensure_schema()
 		array('mjlfinancement_access_audit', 'idx_mjlfinancement_access_audit_entity', 'entity'),
 		array('mjlfinancement_access_audit', 'idx_mjlfinancement_access_audit_fk_user', 'fk_user'),
 		array('mjlfinancement_access_audit', 'idx_mjlfinancement_access_audit_event', 'event'),
+		array('mjlfinancement_project_note', 'idx_mjlfinancement_project_note_entity', 'entity'),
+		array('mjlfinancement_project_note', 'idx_mjlfinancement_project_note_fk_project', 'fk_project'),
+		array('mjlfinancement_project_note', 'idx_mjlfinancement_project_note_fk_user_author', 'fk_user_author'),
 	) as $index) {
 		mjl_add_index($index[0], $index[1], $index[2]);
 	}

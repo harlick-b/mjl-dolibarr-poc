@@ -1,0 +1,5 @@
+ALTER TABLE llx_mjlfinancement_project_note ADD INDEX idx_mjlfinancement_project_note_entity (entity);
+ALTER TABLE llx_mjlfinancement_project_note ADD INDEX idx_mjlfinancement_project_note_fk_project (fk_project);
+ALTER TABLE llx_mjlfinancement_project_note ADD INDEX idx_mjlfinancement_project_note_fk_user_author (fk_user_author);
+ALTER TABLE llx_mjlfinancement_project_note ADD CONSTRAINT fk_mjlfinancement_project_note_project FOREIGN KEY (fk_project) REFERENCES llx_projet(rowid);
+ALTER TABLE llx_mjlfinancement_project_note ADD CONSTRAINT fk_mjlfinancement_project_note_author FOREIGN KEY (fk_user_author) REFERENCES llx_user(rowid);

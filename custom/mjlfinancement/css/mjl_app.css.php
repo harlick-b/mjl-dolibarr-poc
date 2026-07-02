@@ -1,6 +1,38 @@
 <?php
 header('Content-Type: text/css; charset=UTF-8');
 ?>
+#mainmenua_tools,
+#mainmenua_companies,
+#mainmenua_societe,
+#mainmenua_project,
+#mainmenua_projet,
+#mainmenua_ecm,
+#mainmenua_hrm,
+#mainmenua_expensereport,
+#mainmenua_billing,
+#mainmenua_compta,
+#mainmenua_bank,
+#mainmenua_accountancy,
+#mainmenua_modulebuilder,
+#mainmenua_api,
+a.tmenu[href^="/core/tools.php"],
+a.tmenu[href^="/societe/"],
+a.tmenu[href^="/comm/"],
+a.tmenu[href^="/projet/"],
+a.tmenu[href^="/ecm/"],
+a.tmenu[href^="/hrm/"],
+a.tmenu[href^="/holiday/"],
+a.tmenu[href^="/expensereport/"],
+a.tmenu[href^="/commande/"],
+a.tmenu[href^="/fourn/"],
+a.tmenu[href^="/compta/"],
+a.tmenu[href^="/banque/"],
+a.tmenu[href^="/accountancy/"],
+a.tmenu[href^="/modulebuilder/"],
+a.tmenu[href^="/api/"] {
+	display: none !important;
+}
+
 .mjl-workspace {
 	color: #202529;
 	font-family: Arial, Helvetica, sans-serif;
@@ -83,6 +115,30 @@ header('Content-Type: text/css; charset=UTF-8');
 .mjl-sidebar-link-active {
 	background: #f5f7f8;
 	border-color: #c5ced4;
+}
+
+.mjl-sidebar-children {
+	border-left: 2px solid #d7dee2;
+	display: grid;
+	gap: 4px;
+	margin: 2px 0 8px 12px;
+	padding-left: 8px;
+}
+
+.mjl-sidebar-child-link {
+	border-radius: 4px;
+	color: #34414a;
+	display: block;
+	font-size: 12px;
+	line-height: 1.25;
+	padding: 6px 8px;
+	text-decoration: none;
+}
+
+.mjl-sidebar-child-link:hover,
+.mjl-sidebar-child-link-active {
+	background: #f5f7f8;
+	color: #16324f;
 }
 
 .mjl-workspace-header {

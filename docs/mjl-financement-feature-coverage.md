@@ -8,6 +8,8 @@ hardening work. It reflects the current codebase, not future production goals.
 | Route | Current guard | Classification | Decision |
 | --- | --- | --- | --- |
 | `/custom/mjlfinancement/index.php` | Any MJL read right | A - implemented and POC-valid | Keep visible as the role-aware workspace dashboard. |
+| `/custom/mjlfinancement/projects.php` | `mjl_workspace_require_projects_access()`; note creation requires project visibility and non-read-only actor rights | A - implemented and POC-valid | MJL wrapper over native Dolibarr projects with scoped list/detail and timeline notes. Do not expose native `/projet` to MJL users. |
+| `/custom/mjlfinancement/documents.php` | `mjl_workspace_require_documents_access()` plus object-level document helpers | A - implemented and POC-valid | Read-only document library. Downloads use guarded `documentdownload.php`; uploads remain contextual. |
 | `/custom/mjlfinancement/activities.php` and `/custom/mjlfinancement/documentdownload.php?type=activity` | `activity/read`; actions require `activity/write`, `activity/validate`, or ECM upload where needed | A - implemented and POC-valid | Preserve workflow, direct URL guards, tampered POST guards, no-self-validation, timeline, direct activity documents, and linked-expense document checklist behavior. |
 | `/custom/mjlfinancement/expenses.php` and `/custom/mjlfinancement/documentdownload.php` | `expense/read`; actions require `expense/write`, `expense/validate`, and ECM upload where needed; download also requires same-entity ECM row and expense visibility | A - implemented and POC-valid | Preserve expense workflow, document checks/downloads, budget checks, correction/rejection/resubmission, no-self-validation, and ECM fallback. |
 | `/custom/mjlfinancement/alerts.php` | Activity or expense alert visibility | A - implemented and POC-valid | Keep visible for users with actionable alert scope. |
@@ -15,7 +17,7 @@ hardening work. It reflects the current codebase, not future production goals.
 | `/custom/mjlfinancement/reports.php` | `mjl_workspace_require_supervision_access()`; CSV export additionally needs Admin or `export/write` | A - implemented and POC-valid | Keep for DPAF/Admin only; preserve CSV guarantees and server-side filter guards. |
 | `/custom/mjlfinancement/validations.php` | `mjl_workspace_require_validation_history_access()` | A - implemented and POC-valid | Keep as read-only expense validation history for reviewers, supervision, admin, and audit consultation. |
 | `/custom/mjlfinancement/workflowactions.php` | `mjl_workspace_require_advanced_traceability_access()` | B - partial but demo-safe | Keep as advanced audit evidence, not normal operational navigation. |
-| `/custom/mjlfinancement/exchangelogs.php` | `mjl_workspace_require_advanced_traceability_access()`; create requires `exchangelog/write` and token | B - partial but demo-safe | Keep as advanced traceability/exchange log. Avoid presenting it as a complete collaboration module. |
+| `/custom/mjlfinancement/exchangelogs.php` | `mjl_workspace_require_advanced_traceability_access()`; create requires `exchangelog/write` and token | B - partial but demo-safe | Keep as guarded advanced traceability, but do not show it in sidebar, dashboard quick links, or normal navigation. |
 | `/custom/mjlfinancement/admin/access.php` | Admin only | A - implemented and POC-valid | Keep as invitation-only access administration. |
 | `/custom/mjlfinancement/invitation.php` | Token-driven invitation flow | A - implemented and POC-valid | Preserve; do not render module sidebar here. |
 | `/custom/mjlfinancement/conventions.php` and `/custom/mjlfinancement/documentdownload.php?type=convention` | `mjl_workspace_require_reference_data_access()`; write/upload actions require DPAF/Admin plus `convention/write` and ECM upload | A - implemented and POC-valid | Keep as governed DPAF/Admin convention management with activation, closure, locked-edit, history, and guarded document guards. |
@@ -28,12 +30,16 @@ hardening work. It reflects the current codebase, not future production goals.
   `/custom/mjlfinancement/index.php`.
 - Module declaration: `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`.
 - Current module version in code: `0.7.0`.
-- Current quick navigation is local to `index.php`; consolidation should move
-  this into a shared helper and render it as a scoped MJL sidebar on module
-  pages.
+- Current quick navigation is generated from the shared grouped navigation
+  registry in `mjl_navigation.lib.php`.
+- Primary sidebar sections are Tableau de bord, Projets, Activites, Depenses,
+  Documents, Financement, Supervision, and Administration. Children are shown
+  only for the active section.
 - The sidebar must not appear on `invitation.php` or auth template surfaces.
 - Sidebar links must use the same route-level access rules as the target page,
   not raw read rights alone.
+- Internal roadmap visibility is controlled by `MJL_SHOW_INTERNAL_ROADMAP`,
+  default `0`; even when enabled it remains Admin-only.
 
 ## Role And Permission Mapping
 
@@ -69,6 +75,8 @@ advanced audit pages use capability-level guards for the same reason.
   Excel-readable CSV exports with French headers.
 - Guarded ECM downloads for expenses, fund receipts, activities, and
   conventions.
+- MJL project wrapper over native projects with first-class project notes.
+- Read-only MJL document library with contextual-upload policy.
 
 ## Partial But Demo-Safe Surfaces
 
@@ -77,16 +85,14 @@ advanced audit pages use capability-level guards for the same reason.
   relevant document workflows, and focused E2E coverage.
 - Workflow actions expose technical audit detail and should be treated as an
   advanced audit screen.
-- Exchange logs are useful for traceability but not a full collaboration or
-  document workflow.
+- Exchange logs are useful for traceability but are hidden from normal
+  navigation until contextualized.
 
 ## Future Or Hidden From Normal UI
 
 Do not expose links for these as available features:
 
-- Standalone project management wrapper.
 - Standalone PTF/bailleur management wrapper.
-- Standalone supporting-document center.
 - Official PDF/Word report templates.
 - Full CRUD/detail screens for every object.
 - Full OHADA/SYSCOHADA accounting, bank reconciliation, payroll, procurement,
@@ -118,6 +124,10 @@ Current Playwright coverage includes:
 - Phase 15 budget-line governance.
 - Phase 16 fund-receipt management and proof downloads.
 - Phase 18 activity and convention document workflows.
+
+Additional navigation-unification coverage in Phase 5 now verifies grouped
+sidebar behavior, hidden `Echanges`, roadmap flag behavior, Projects, project
+notes, Documents, visible-link traversal, and native route blocking.
 
 Current full-suite evidence:
 

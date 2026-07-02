@@ -102,13 +102,73 @@ function mjl_workspace_user_in_group(User $targetUser, $groupName)
 
 function mjl_workspace_user_can_read(User $targetUser)
 {
-	$rights = array('convention', 'activity', 'budgetline', 'expense', 'fundreceipt', 'validation', 'workflowaction', 'exchangelog', 'report');
+	$rights = array('convention', 'activity', 'budgetline', 'expense', 'fundreceipt', 'validation', 'workflowaction', 'exchangelog', 'report', 'export');
 	foreach ($rights as $right) {
 		if ($targetUser->hasRight('mjlfinancement', $right, 'read')) {
 			return true;
 		}
 	}
 	return false;
+}
+
+function mjl_workspace_user_can_enter(User $targetUser)
+{
+	return mjl_workspace_user_can_read($targetUser);
+}
+
+function mjl_workspace_can_access_projects(User $targetUser)
+{
+	return $targetUser->hasRight('mjlfinancement', 'activity', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'expense', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'convention', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'budgetline', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'fundreceipt', 'read');
+}
+
+function mjl_workspace_require_projects_access(User $targetUser)
+{
+	if (!mjl_workspace_can_access_projects($targetUser)) {
+		accessforbidden();
+	}
+}
+
+function mjl_workspace_can_access_documents(User $targetUser)
+{
+	return $targetUser->hasRight('mjlfinancement', 'activity', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'expense', 'read')
+		|| mjl_workspace_can_access_reference_data($targetUser, 'convention')
+		|| mjl_workspace_can_access_reference_data($targetUser, 'fundreceipt');
+}
+
+function mjl_workspace_require_documents_access(User $targetUser)
+{
+	if (!mjl_workspace_can_access_documents($targetUser)) {
+		accessforbidden();
+	}
+}
+
+function mjl_workspace_show_internal_roadmap()
+{
+	if (function_exists('getDolGlobalString')) {
+		return getDolGlobalString('MJL_SHOW_INTERNAL_ROADMAP') === '1';
+	}
+	global $conf;
+	return !empty($conf->global->MJL_SHOW_INTERNAL_ROADMAP) && (string) $conf->global->MJL_SHOW_INTERNAL_ROADMAP === '1';
+}
+
+function mjl_workspace_can_access_roadmap(User $targetUser)
+{
+	return !empty($targetUser->admin) && mjl_workspace_show_internal_roadmap();
+}
+
+function mjl_workspace_require_roadmap_access(User $targetUser)
+{
+	if (!mjl_workspace_can_access_roadmap($targetUser)) {
+		if (function_exists('http_response_code')) {
+			http_response_code(404);
+		}
+		accessforbidden();
+	}
 }
 
 function mjl_workspace_capabilities(User $targetUser)
@@ -124,6 +184,9 @@ function mjl_workspace_capabilities(User $targetUser)
 		'validation_read' => $targetUser->hasRight('mjlfinancement', 'validation', 'read'),
 		'workflowaction_read' => $targetUser->hasRight('mjlfinancement', 'workflowaction', 'read'),
 		'exchangelog_read' => $targetUser->hasRight('mjlfinancement', 'exchangelog', 'read'),
+		'projects_read' => mjl_workspace_can_access_projects($targetUser),
+		'documents_read' => mjl_workspace_can_access_documents($targetUser),
+		'roadmap_read' => mjl_workspace_can_access_roadmap($targetUser),
 	);
 }
 

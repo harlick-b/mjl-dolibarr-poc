@@ -187,7 +187,7 @@ test('Read-only user keeps consultation-only workspace', async ({ page }) => {
   await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
 
   await expect(page.getByRole('heading', { name: 'Acces rapides' })).toBeVisible();
-  await expect(page.getByText('Consultation avancée de l’audit')).toBeVisible();
+  await expect(page.getByRole('main').getByRole('link', { name: /Supervision/ })).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Mes actions attendues');
   await expect(page.locator('body')).not.toContainText('File de validation');
   await expect(page.locator('body')).not.toContainText('Supervision DPAF');

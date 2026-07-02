@@ -184,16 +184,60 @@ Fixed constraints:
 
 - URL/path: `/custom/mjlfinancement/exchangelogs.php`
 - Evidence source: repo-confirmed custom screen.
-- Current purpose: Create and filter activity-linked exchange logs.
+- Current purpose: Create and filter activity-linked exchange logs. The route remains guarded, but it is no longer visible in normal sidebar or quick navigation.
 - Target purpose: Contextual exchange timeline tied to activities or other MJL objects.
 - Current users: Users with `exchangelog/read`; create requires `exchangelog/write`.
 - Target access level: Level 1 / Level 2 / Level 3 / Admin
 - Current problems: Object type/object ID fields are technical; defaults to activity linkage only; not visually connected to activity detail.
-- Recommended action: redesign
+- Recommended action: hidden-advanced
 - Safe files to modify: `custom/mjlfinancement/exchangelogs.php`, `custom/mjlfinancement/class/mjlexchangelog.class.php`, design-system docs.
 - Implementation risk: Medium; exchange queries must remain active-entity safe and traceable.
 - Affected E2E scenarios: Alerts if exchange follows action, role visibility, future activity lifecycle.
-- Review decision: Redesign as contextual traceability, not a standalone technical table for normal users.
+- Review decision: Hidden from visible navigation; redesign later as contextual traceability, not a standalone technical table for normal users.
+
+## Screen: Projects
+
+- URL/path: `/custom/mjlfinancement/projects.php`
+- Evidence source: repo-confirmed custom screen.
+- Current purpose: MJL wrapper over native Dolibarr projects with scoped list,
+  detail, linked activities, linked expenses, linked documents, and
+  timeline-based project notes/comments.
+- Target purpose: Project workspace that exposes project context without
+  sending users to native `/projet`.
+- Current users: Users with MJL project-adjacent read access; note creation is
+  limited to users who can act on related project/workflow context.
+- Target access level: Level 1 / Level 2 / Level 3 / Admin
+- Current problems: POC-level summary columns and note UX still need final
+  client wording review.
+- Recommended action: keep and polish
+- Safe files to modify: `custom/mjlfinancement/projects.php`, project-note SQL,
+  custom navigation, design-system docs.
+- Implementation risk: Medium; project visibility must stay active-entity and
+  role scoped.
+- Affected E2E scenarios: Role visibility, project notes, native route blocking.
+- Review decision: Keep native project model, expose through MJL UI only.
+
+## Screen: Documents Library
+
+- URL/path: `/custom/mjlfinancement/documents.php`
+- Evidence source: repo-confirmed custom screen.
+- Current purpose: Read-only MJL document library aggregating accessible
+  activity, expense, convention, and fund-receipt documents through guarded
+  download links.
+- Target purpose: Global consultation/search/filter surface; uploads remain
+  contextual on the related object pages.
+- Current users: Users with document-bearing MJL object access.
+- Target access level: Level 1 / Level 2 / Level 3 / Admin
+- Current problems: Basic filters are implemented; advanced preview and final
+  document ergonomics remain later enhancements.
+- Recommended action: keep and polish
+- Safe files to modify: `custom/mjlfinancement/documents.php`,
+  `custom/mjlfinancement/lib/mjl_document.lib.php`, design-system docs.
+- Implementation risk: High; aggregation must not bypass object-level document
+  guards.
+- Affected E2E scenarios: Secure document download, role visibility, export.
+- Review decision: Preserve ECM as storage; use MJL library and contextual
+  object panels for user access.
 
 ## Screen: Login Page
 
@@ -274,16 +318,16 @@ Fixed constraints:
 
 - URL/path: Dolibarr-native project/task screens, runtime surfaces inferred.
 - Evidence source: inferred from module dependency on `modProjet`, activity links, and bootstrap sample projects/tasks.
-- Current purpose: Manage projects and tasks.
+- Current purpose: Manage projects and tasks for technical/admin use.
 - Target purpose: Expose project/task context through MJL project and activity screens where possible.
 - Current users: Users with relevant native Dolibarr rights.
-- Target access level: Level 1 / Level 2 / Level 3 / Admin
+- Target access level: Admin / technical only for native UI; Level 1 / Level 2 / Level 3 / Admin use MJL project context.
 - Current problems: Native project/task UI may not match MJL workflows; raw Dolibarr concepts may confuse users.
-- Recommended action: simplify
+- Recommended action: hidden-native
 - Safe files to modify: Custom MJL pages/navigation and permissions; no Dolibarr core files.
 - Implementation risk: Medium; projects/tasks are reused by activities, budgets, reports, and exports.
 - Affected E2E scenarios: Activity lifecycle, export, role visibility.
-- Review decision: Keep native model, simplify access through MJL UI.
+- Review decision: Keep native model, but block native `/projet` from the client-facing workspace and expose project context through `/custom/mjlfinancement/projects.php`.
 
 ## Screen: Native ECM / Documents
 
@@ -292,7 +336,8 @@ Fixed constraints:
 - Current purpose: Store supporting documents in native ECM while MJL screens
   expose guarded contextual downloads for expenses, fund receipts, activities,
   and conventions.
-- Target purpose: MJL document checklist and context-aware document access while preserving ECM as storage.
+- Target purpose: MJL document checklist, global read-only document library,
+  and context-aware document access while preserving ECM as storage.
 - Current users: Users with ECM rights.
 - Target access level: Level 1 / Level 2 / Level 3 / Admin
 - Current problems: Native document UI is not tied clearly to MJL validation
@@ -301,7 +346,8 @@ Fixed constraints:
 - Safe files to modify: Custom MJL document views/checklists and ECM links; no Dolibarr core files.
 - Implementation risk: High; documents are required for expense validation and auditability.
 - Affected E2E scenarios: Activity lifecycle, export, role visibility.
-- Review decision: Preserve ECM; surface documents in MJL context.
+- Review decision: Preserve ECM; surface documents in MJL context and the
+  read-only Documents library.
 
 ## Screen: Native Users / Groups / Permissions / Admin
 

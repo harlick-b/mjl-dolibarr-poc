@@ -45,7 +45,7 @@ function mjl_expense_document_fetch_download_row($fileId)
 	if ((int) $fileId <= 0 || !$user->hasRight('mjlfinancement', 'expense', 'read')) {
 		return array();
 	}
-	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.src_object_type, f.src_object_id,';
+	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.date_c, f.fk_user_c, f.src_object_type, f.src_object_id,';
 	$sql .= ' e.rowid AS expense_rowid, e.fk_user_creat, e.status';
 	$sql .= ' FROM '.$db->prefix().'ecm_files f';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = f.src_object_id AND e.entity = f.entity';
@@ -146,7 +146,7 @@ function mjl_activity_document_fetch_download_row($fileId)
 	if ((int) $fileId <= 0 || !$user->hasRight('mjlfinancement', 'activity', 'read')) {
 		return array();
 	}
-	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.src_object_type, f.src_object_id,';
+	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.date_c, f.fk_user_c, f.src_object_type, f.src_object_id,';
 	$sql .= ' a.rowid AS activity_rowid, a.fk_user_creat, a.status';
 	$sql .= ' FROM '.$db->prefix().'ecm_files f';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = f.src_object_id AND a.entity = f.entity';
@@ -250,7 +250,7 @@ function mjl_convention_document_fetch_download_row($fileId)
 	if ((int) $fileId <= 0 || !mjl_workspace_can_access_reference_data($user, 'convention')) {
 		return array();
 	}
-	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.src_object_type, f.src_object_id,';
+	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.date_c, f.fk_user_c, f.src_object_type, f.src_object_id,';
 	$sql .= ' c.rowid AS convention_rowid, c.status';
 	$sql .= ' FROM '.$db->prefix().'ecm_files f';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = f.src_object_id AND c.entity = f.entity';
@@ -343,7 +343,7 @@ function mjl_fund_receipt_document_fetch_download_row($fileId)
 	if ((int) $fileId <= 0 || !mjl_workspace_can_access_reference_data($user, 'fundreceipt')) {
 		return array();
 	}
-	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.src_object_type, f.src_object_id,';
+	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.date_c, f.fk_user_c, f.src_object_type, f.src_object_id,';
 	$sql .= ' fr.rowid AS receipt_rowid, fr.status';
 	$sql .= ' FROM '.$db->prefix().'ecm_files f';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = f.src_object_id AND fr.entity = f.entity';
@@ -397,7 +397,7 @@ function mjl_document_candidate_rows($objectType, $objectId, $entity)
 	if (!in_array((string) $objectType, $allowed, true) || (int) $objectId <= 0 || (int) $entity <= 0) {
 		return array();
 	}
-	$sql = 'SELECT rowid, entity, filename, filepath, fullpath_orig, description, date_c, src_object_type, src_object_id';
+	$sql = 'SELECT rowid, entity, filename, filepath, fullpath_orig, description, date_c, fk_user_c, src_object_type, src_object_id';
 	$sql .= ' FROM '.$db->prefix().'ecm_files';
 	$sql .= ' WHERE entity = '.((int) $entity);
 	$sql .= " AND src_object_type = '".$db->escape((string) $objectType)."'";

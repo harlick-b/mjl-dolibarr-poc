@@ -1,0 +1,13 @@
+CREATE TABLE llx_mjlfinancement_project_note (
+	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+	entity INTEGER DEFAULT 1 NOT NULL,
+	fk_project INTEGER NOT NULL,
+	message TEXT NOT NULL,
+	date_note DATETIME NOT NULL,
+	fk_user_author INTEGER NOT NULL,
+	date_creation DATETIME NOT NULL,
+	tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	fk_user_creat INTEGER NOT NULL,
+	fk_user_modif INTEGER DEFAULT NULL,
+	import_key VARCHAR(14)
+) ENGINE=innodb;

@@ -25,7 +25,6 @@ $modules = array(
 	'modProjet',
 	'modECM',
 	'modAccounting',
-	'modExpenseReport',
 	'modExport',
 	'modModuleBuilder',
 	'modApi',
@@ -81,9 +80,6 @@ mjl_out('MJL POC bootstrap completed from CSV sample data.');
 function rightsForRole($role)
 {
 	$rights = array(
-		array('societe', 'lire', null),
-		array('projet', 'lire', null),
-		array('ecm', 'read', null),
 		array('mjlfinancement', 'convention', 'read'),
 		array('mjlfinancement', 'activity', 'read'),
 		array('mjlfinancement', 'budgetline', 'read'),
@@ -98,6 +94,10 @@ function rightsForRole($role)
 	if ($role['can_create_convention'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'convention', 'write');
 	}
+	if ($role['can_manage_setup'] === 'yes' || $role['can_manage_users'] === 'yes') {
+		$rights[] = array('societe', 'lire', null);
+		$rights[] = array('projet', 'lire', null);
+	}
 	if ($role['can_create_expense'] === 'yes' || $role['can_submit_expense'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'activity', 'write');
 		$rights[] = array('mjlfinancement', 'exchangelog', 'write');
@@ -107,11 +107,9 @@ function rightsForRole($role)
 	}
 	if ($role['can_create_fund_receipt'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'fundreceipt', 'write');
-		$rights[] = array('ecm', 'upload', null);
 	}
 	if ($role['can_create_expense'] === 'yes' || $role['can_submit_expense'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'expense', 'write');
-		$rights[] = array('ecm', 'upload', null);
 	}
 	if ($role['can_validate_expense'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'activity', 'validate');
@@ -123,7 +121,6 @@ function rightsForRole($role)
 	if ($role['can_export_reports'] === 'yes') {
 		$rights[] = array('mjlfinancement', 'export', 'read');
 		$rights[] = array('mjlfinancement', 'export', 'write');
-		$rights[] = array('expensereport', 'export', null);
 	}
 
 	return $rights;
@@ -240,7 +237,7 @@ function assignExactMjlGroup($userId, $targetGroupId, $allPocGroupIds, $entity)
 	global $db;
 
 	$sql = 'DELETE FROM '.$db->prefix().'usergroup_user WHERE entity = '.$entity.' AND fk_user = '.((int) $userId);
-	$sql .= ' AND fk_usergroup IN ('.implode(',', array_map('intval', $allPocGroupIds)).')';
+	$sql .= ' AND fk_usergroup IN (SELECT rowid FROM '.$db->prefix().'usergroup WHERE entity = '.$entity." AND nom LIKE 'MJL POC - %')";
 	mjl_query($sql, 'reset POC group membership');
 
 	$sql = 'INSERT INTO '.$db->prefix().'usergroup_user (entity, fk_user, fk_usergroup)';
@@ -264,10 +261,12 @@ function mjl_ensure_phase4_auth_setup(User $adminUser, $entity)
 
 	$constants = array(
 		'MAIN_MODULE_MJLFINANCEMENT_TPL' => '1',
-		'MAIN_MODULE_MJLFINANCEMENT_HOOKS' => json_encode(array('login', 'passwordforgottenpage')),
+		'MAIN_MODULE_MJLFINANCEMENT_HOOKS' => json_encode(array('all', 'login', 'passwordforgottenpage')),
 		'MAIN_MODULE_MJLFINANCEMENT_CSS' => json_encode(array('/mjlfinancement/css/mjl_auth.css.php', '/mjlfinancement/css/mjl_app.css.php')),
+		'MAIN_MODULE_MJLFINANCEMENT_JS' => json_encode(array('/mjlfinancement/js/native_guard.js.php?v=nav-unification')),
 		'MAIN_APPLICATION_TITLE' => 'MJL Financement',
 		'MAIN_LANDING_PAGE' => '/custom/mjlfinancement/index.php',
+		'MJL_SHOW_INTERNAL_ROADMAP' => '0',
 	);
 
 	foreach ($constants as $name => $value) {
