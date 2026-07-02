@@ -52,11 +52,13 @@ Implemented parts:
 - Schema, acceptance, and smoke scripts for the POC data set.
 - A generic dashboard page at `/mjlfinancement/index.php`.
 - A DPAF dashboard page at `/mjlfinancement/dpafdashboard.php`.
-- Browser pages for activities, expenses, validations, workflow actions,
-  exchange logs, reports, alerts, admin invitations, and the internal
-  production-readiness view.
+- Browser pages for activities, expenses, conventions, budget lines, fund
+  receipts, validations, workflow actions, exchange logs, reports, alerts,
+  admin invitations, and the internal production-readiness view.
 - Playwright E2E coverage for auth/access, role workspaces, dashboards,
-  activity workflow, alerts, exports, emails, and expense workflow.
+  activity workflow, alerts, exports, emails, expense workflow, governed
+  convention/budget-line/fund-receipt management, and Phase 18
+  activity/convention document workflows.
 
 ## What can be run locally
 
@@ -303,6 +305,8 @@ The custom activity page at `/mjlfinancement/activities.php` provides:
   project task,
 - activity list with project, convention, status, computed deadline alert, and
   creator,
+- activity detail with status summary, decision panel, timeline, direct
+  activity document upload/download, and linked-expense document checklist,
 - submit, correction request, correction, validation, and rejection actions,
 - audited label/date correction with a required comment while draft or
   correction requested,
@@ -315,7 +319,18 @@ The custom expense page at `/mjlfinancement/expenses.php` provides:
 - active-entity dropdown selectors for project, convention, optional activity,
   and budget line,
 - supporting document upload to ECM,
+- guarded supporting-document download through the MJL document route,
 - submission, validation, rejection, correction, and resubmission actions.
+
+The custom convention, budget-line, and fund-receipt pages provide governed
+DPAF/Admin management:
+
+- convention create/edit/detail/activate/close/draft-delete/history plus
+  guarded convention document upload/download,
+- budget-line create/edit/detail/activate/filter/recalculation with locked-edit
+  and revised-budget floor protections,
+- fund-receipt create/edit/proof upload/download/received/not-received
+  lifecycle with active-convention and received-only total guards.
 
 The custom workflow action page at `/mjlfinancement/workflowactions.php`
 provides:
@@ -363,8 +378,8 @@ summaries require `report/read`.
 
 The current code does not implement:
 
-- Full custom CRUD/detail screens for every MJL object.
-- Rich document preview/download flows in the custom screens.
+- Full custom CRUD/detail screens for every possible MJL or native object.
+- Inline document preview in the custom screens.
 - API endpoints specific to MJL objects.
 - Dolibarr hook, trigger, cron job, model, template, dashboard box, or custom
   tab implementations.
@@ -377,10 +392,11 @@ The current code does not implement:
 
 Today, this repository is a runnable Dolibarr POC with a custom MJL financing
 module, schema, object classes, CSV seed data, role bootstrap automation,
-browser workflow pages, exchange traceability, DPAF dashboarding, CSV exports,
+browser workflow pages, governed DPAF/Admin reference management, guarded
+document downloads, exchange traceability, DPAF dashboarding, CSV/XLSX exports,
 CLI validation scripts, and Playwright E2E regression coverage.
 
 It is not yet a complete financial monitoring application for end users. The
-next major product work would be richer detail pages, official client report
-canevas, stronger document consultation, production-readiness rehearsal, and
-continued browser-driven regression hardening.
+next major product work would be final client report canevas, inline document
+preview/consultation polish, production-readiness rehearsal, final permission
+and escalation decisions, and continued browser-driven regression hardening.

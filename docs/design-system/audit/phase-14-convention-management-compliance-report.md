@@ -1,5 +1,9 @@
 # Phase 14 Convention Management Compliance Report
 
+Historical note: this report describes the Phase 14 convention-management
+batch. Convention document upload/download was added later in Phase 18 and is
+tracked in the current readiness and screen-inventory docs.
+
 ## Scope
 
 - Adds governed DPAF/Admin convention management while keeping the product label `Convention`.

@@ -1,5 +1,9 @@
 # Phase 12 Secure Document Download Compliance Report
 
+Historical note: this report describes the Phase 12 batch only. Later Phase 16
+and Phase 18 work added guarded fund-receipt, activity, and convention document
+workflows through the same MJL download boundary.
+
 ## Scope
 
 - Added guarded expense supporting-document downloads.

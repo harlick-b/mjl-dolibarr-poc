@@ -8,7 +8,9 @@
 - `MjlConvention` remains the Phase 1 funding envelope unless a real business rule proves it insufficient.
 - Activity deadline alerts such as `Échéance proche` and `En retard` remain computed states, not stored statuses.
 - Playwright E2E coverage exists for auth/access, role workspaces, dashboards,
-  activity workflow, alerts, exports, email templates, and expense workflow.
+  activity workflow, alerts, exports, email templates, expense workflow,
+  governed convention/budget-line/fund-receipt management, and Phase 18
+  activity/convention document workflows.
 - The implemented activity status model is the source of truth:
   - `0` draft
   - `1` ongoing
@@ -22,20 +24,16 @@
 
 ## To Do
 
-### Richer Detail Pages
+### Reference Management Polish
 
-- Add activity detail pages.
-- Add expense detail pages.
-- Add DPAF/Admin convention detail, create, edit, close/archive, validation,
-  and history pages.
 - Keep DPAF/Admin budget-line management aligned with final MJL policy if a
   later deactivate/close lifecycle is requested.
 
 ### Document Workflows
 
-- Keep secure expense download links guarded and covered by E2E tests.
+- Keep secure expense, fund-receipt, activity, and convention download links
+  guarded and covered by E2E tests.
 - Add document preview after secure download has been reviewed in use.
-- Add activity and convention supporting-document handling.
 - Make missing-document states clearer in lists and detail pages.
 
 ### Browser End-To-End Tests
@@ -74,7 +72,7 @@
 - Define final escalation rules for `SUPERVISEUR_N2` and `DPAF`.
 - Permission matrix and final role model are not available yet; keep current
   role simulation until the matrix is provided.
-- Confirm whether `MjlConvention` fully covers mission/envelope needs during
+- Confirm whether `MjlConvention` fully covers mission/envelope needs after
   the DPAF/Admin management implementation.
 - Confirm exact budget execution formulas expected by MJL.
 - Confirm any required exports or reports beyond the three currently implemented:

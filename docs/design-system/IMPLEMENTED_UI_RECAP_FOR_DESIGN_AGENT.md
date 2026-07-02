@@ -398,7 +398,8 @@ Current problems:
 - the same object can appear as multiple alert cards if multiple alert conditions apply;
 - severity language is still basic;
 - "why this alert appears" can be clearer;
-- expense alerts currently link to the expense list because expense detail redesign is deferred.
+- some alert destinations can still be made more specific to the relevant
+  detail panel or missing-document state.
 
 Redesign objective:
 
@@ -426,7 +427,7 @@ Current problems:
 - wide preview tables are hard to scan;
 - preview versus generated official CSV needs clearer explanation;
 - filenames may still include internal IDs for project/convention filters;
-- export audit logging, PDF, and print views are not implemented.
+- donor-specific templates, PDF, and print views are not implemented.
 
 Redesign objective:
 
@@ -467,17 +468,17 @@ The following screens exist or are inferred and should be included in the broade
 
 | Area | Current state | Target direction |
 | --- | --- | --- |
-| Expenses | Dense list/form with upload and validation actions | Expense workflow workspace with document state, decision panel, and contextual audit |
-| Conventions | Raw read-only list | Decide label and mental model: convention, mission, envelope, or project funding frame |
-| Budget lines | Raw finance setup table | Advanced-only or embedded budget context inside activity/expense/report flows |
-| Fund receipts | Raw read-only monitoring table | Level 3/Admin funding monitoring with project/convention/PTF labels and document state |
+| Expenses | Detail/list workflow with upload, guarded download, validation actions, and document state | Expense workflow workspace with clearer document ergonomics, decision panel, and contextual audit |
+| Conventions | Governed DPAF/Admin lifecycle with detail, activation/closure/history, and guarded documents | Keep the `Convention` label and refine wording/document ergonomics after user review |
+| Budget lines | Governed DPAF/Admin finance setup with activation, recalculation, locked edits, and history | Advanced-only setup plus embedded budget context inside activity/expense/report flows |
+| Fund receipts | Governed DPAF/Admin monitoring with proof upload/download, received/not-received lifecycle, and history | Level 3/Admin funding monitoring with project/convention/PTF labels and polished document state |
 | Expense validation history | Isolated read-only audit list | Rename clearly and integrate relevant history into contextual views |
 | Workflow actions | Advanced technical audit table | Keep advanced-only; normal users need contextual timelines |
 | Exchange logs | Technical object-linked exchange list | Contextual exchange timeline tied to activities or MJL objects |
 | Native Dolibarr home/nav | Generic ERP navigation | Hide/de-emphasize for normal users; preserve Admin technical access |
 | Native third parties/PTF | Native reference data | Advanced/reference-data area or MJL wrapper if needed |
 | Native projects/tasks | Useful model, generic UI | Surface project/task context through MJL screens |
-| Native ECM/documents | Storage layer | Keep ECM as storage; expose documents through MJL checklists and previews |
+| Native ECM/documents | Storage layer plus guarded MJL downloads for expenses, fund receipts, activities, and conventions | Keep ECM as storage; expose documents through MJL checklists and later previews |
 | Native exports | Generic technical export module | Advanced-only; normal official outputs use MJL export center |
 | Module setup/config | Technical setup | Admin/technical-only |
 

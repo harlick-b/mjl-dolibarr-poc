@@ -1,5 +1,9 @@
 # MJL Clarity System — Phase 8 Compliance Report
 
+Historical note: this report describes the Phase 8 alert-center batch. Later
+expense workflow work added expense detail and guarded document download
+behavior; current-state docs should be used for present alert destinations.
+
 ## Scope
 
 Phase 8 implements a standalone alert and risk center. Changes stay inside `custom/mjlfinancement`, E2E tests, and this documentation.
@@ -19,7 +23,8 @@ Phase 8 implements a standalone alert and risk center. Changes stay inside `cust
 - Alert types cover deadline risks, overdue activities, submitted activities, submitted expenses, and missing expense documents.
 - Workspace cards and quick navigation expose `Alertes`.
 - Existing DPAF deadline-risk cards now link directly to the relevant activity detail.
-- Activity alerts link to `activities.php?id=...`; expense alerts keep the existing `expenses.php` destination until expense detail is redesigned.
+- Activity alerts link to `activities.php?id=...`; at Phase 8 time, expense
+  alerts kept the existing `expenses.php` destination.
 
 ## Constraints Check
 
@@ -52,6 +57,6 @@ Both commands passed.
 ## Known Limitations
 
 - Alerts are computed views, not persisted alert records with acknowledgement or resolution history.
-- Expense alerts link to the existing expense list because expense detail redesign is deferred.
+- Expense alert destinations needed later refinement after the Phase 8 batch.
 - Alert emails remain outside Phase 8.
 - Reports/export redesign remains outside Phase 8.

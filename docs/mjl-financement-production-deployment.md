@@ -90,7 +90,8 @@ data instructions.
   screens.
 - Confirm uploaded supporting documents are stored in ECM, are not publicly
   exposed, and are available only through the guarded MJL download route
-  `/custom/mjlfinancement/documentdownload.php`.
+  `/custom/mjlfinancement/documentdownload.php` for expenses, fund receipts,
+  activities, and conventions.
 
 ## Smoke-Test Checklist
 
@@ -123,12 +124,12 @@ development/POC rehearsal. Do not load sample data into a production tenant.
 - Final client-approved permission matrix.
 - Final report/export columns and any official templates.
 - Final DPAF/N2 escalation rules.
-- Convention/envelope production management implementation.
-- Budget-line production management implementation and unsafe-edit rules.
 - Fund-receipt expected-funds planning remains deferred; current selected
   scope is received/not-received management.
-- Document preview remains planned later; guarded expense document download is
-  implemented.
+- Budget-line deactivation/close policy remains deferred; current selected
+  scope is governed activation plus unsafe-edit protection.
+- Document preview remains planned later; guarded expense, fund-receipt,
+  activity, and convention document downloads are implemented.
 - Final donor-specific export templates once MJL provides official canevas.
 - Production email/base URL/secrets configuration when email features are
   selected.

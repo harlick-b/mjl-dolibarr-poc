@@ -4,7 +4,14 @@
 
 This repository is a Dolibarr 23.0.2 proof of concept for financial tracking of externally funded projects. It is not a standalone application; it is a Dockerized Dolibarr instance plus one custom module: `custom/mjlfinancement`.
 
-The current implementation is credible for a traceable POC. It includes a custom data model, installation/bootstrap scripts, seed data, permissions, dashboard views, reports, exchange logs, standardized CSV exports, and working expense/activity workflows. It is not yet a polished production application: several screens are basic table/form views and rich detail pages are still intentionally out of scope.
+The current implementation is credible for a traceable POC. It includes a
+custom data model, installation/bootstrap scripts, seed data, permissions,
+dashboard views, reports, exchange logs, standardized CSV/XLSX exports, working
+expense/activity workflows, governed DPAF/Admin convention, budget-line, and
+fund-receipt management, and guarded ECM document downloads. It is not yet a
+polished production application: several screens are still dense table/form
+views, and final client reporting, permission, escalation, and production
+configuration decisions remain open.
 
 The current working tree may contain active implementation changes during
 consolidation work; check `git status --short` before handoff.
@@ -101,13 +108,9 @@ File: `custom/mjlfinancement/conventions.php`
 
 Available:
 
-- Read-only list of conventions.
-
-Not yet available:
-
-- Custom create/edit/delete UI.
-- Detail page.
-- Search/filter form.
+- Governed DPAF/Admin create/edit/detail workflow.
+- Activation, closure, draft deletion, locked-field protection, and history.
+- Guarded convention document upload/download through ECM.
 
 ### Budget lines
 
@@ -115,13 +118,11 @@ File: `custom/mjlfinancement/budgetlines.php`
 
 Available:
 
-- Read-only list of budget lines.
-- Displays initial budget, revised budget, spent amount, remaining amount, and status.
-
-Not yet available:
-
-- Custom create/edit/delete UI.
-- Budget-line detail page.
+- Governed DPAF/Admin create/edit/detail workflow.
+- Displays initial budget, revised budget, spent amount, remaining amount, and
+  status.
+- Activation, filters, recalculation, locked-edit protection, revised-budget
+  floor protection, and history.
 - Guided selection by project/convention/activity.
 
 ### Fund receipts
@@ -130,12 +131,10 @@ File: `custom/mjlfinancement/fundreceipts.php`
 
 Available:
 
-- Read-only list of fund receipts.
-
-Not yet available:
-
-- Custom create/edit/delete UI.
-- Supporting document upload workflow for receipts.
+- Governed DPAF/Admin create/edit/detail workflow.
+- Active-convention selection with derived PTF/project.
+- Supporting proof upload/download through ECM.
+- Received/not-received lifecycle, received-only totals, and history.
 
 ### Activities
 
@@ -148,12 +147,14 @@ Available:
   dropdowns.
 - List activities with project, convention, dates, status, computed deadline
   alert, and creator.
+- Detail view with status summary, decision panel, direct activity document
+  upload/download, linked-expense document checklist, and timeline.
 - Submit draft or corrected activities.
 - Request correction on submitted activities.
 - Mark correction-requested activities as corrected.
 - Validate submitted activities.
 - Reject submitted activities with a reason.
-- Display recent activity workflow actions from `MjlWorkflowAction`.
+- Display contextual activity workflow actions from `MjlWorkflowAction`.
 
 Important rules:
 
@@ -163,8 +164,7 @@ Important rules:
 
 Current limitations:
 
-- There is no rich detail page per activity.
-- Activity supporting documents are not exposed in this screen.
+- Inline document preview remains deferred.
 - Activity exchange logs are handled in the dedicated exchange log page.
 
 ### Expenses
@@ -412,13 +412,15 @@ The seed and bootstrap scripts exercise much of the domain model outside the bro
 
 ## Main gaps and risks
 
-- Several screens are read-only lists rather than complete CRUD workflows.
+- Several screens remain dense table/form views and need final wording and
+  ergonomics review.
 - Expense workflow is implemented, but the UI remains basic.
-- Activity workflow has a first browser page, but no detail page or document
-  workflow yet.
+- Activity workflow has detail, timeline, and document workflow, but preview
+  and final production wording remain later polish.
 - No custom REST API endpoints were found.
 - No polished navigation, detail pages, search, or pagination controls.
-- Supporting document handling is strongest for expenses, weaker or absent in custom UI for other objects.
+- Supporting document handling now covers expenses, fund receipts, activities,
+  and conventions through guarded ECM downloads; inline preview is still absent.
 - Some documentation files are empty even though useful implementation exists.
 - The current git worktree has modified and untracked files, so the repo should be cleaned up before handoff or deployment.
 
@@ -438,4 +440,7 @@ The current scope intentionally does not cover:
 
 The application is suitable as a technical POC to demonstrate that Dolibarr can host the required financial tracking model and a controlled expense validation workflow. The strongest parts are the schema, bootstrap/seed automation, permission model, reports, and expense workflow rules.
 
-The next level of work should focus on productizing the UI: replacing raw IDs with selectors, adding detail pages, adding create/edit flows for conventions/budget lines/fund receipts/activities, improving document access, and aligning documentation with the actual implemented screens.
+The next level of work should focus on productizing the UI and production
+evidence: final client report canevas, permission matrix, DPAF/N2 escalation
+rules, document preview/consultation polish, clean deployment rehearsal, and
+continued documentation alignment with the actual implemented screens.

@@ -53,11 +53,15 @@ Fixed constraints:
 
 - URL/path: `/custom/mjlfinancement/activities.php`
 - Evidence source: repo-confirmed custom screen.
-- Current purpose: Create draft activities, list activities, submit/correct/validate/reject/request correction, and show recent workflow history.
+- Current purpose: Create draft activities, list/open activity details,
+  submit/correct/validate/reject/request correction, show contextual workflow
+  timeline, upload/download direct activity documents, and show linked-expense
+  document checklist.
 - Target purpose: Core activity workflow workspace with status-first detail, validation timeline, decision panel, document checklist, and role-aware actions.
 - Current users: Users with `activity/read`; write and validation controls depend on `activity/write` and `activity/validate`.
 - Target access level: Level 1 / Level 2 / Level 3 / Admin
-- Current problems: List and forms are dense; no rich activity detail page; workflow history is separate from object context; status labels are technical in places; supporting documents are not surfaced.
+- Current problems: List and forms remain dense; final wording and hierarchy
+  need review; document preview is deferred.
 - Recommended action: redesign
 - Safe files to modify: `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/class/mjlactivity.class.php`, custom workflow helpers, design-system docs.
 - Implementation risk: High; must preserve no-self-validation, audit history, active-entity filtering, and workflow transitions.
@@ -68,11 +72,14 @@ Fixed constraints:
 
 - URL/path: `/custom/mjlfinancement/expenses.php`
 - Evidence source: repo-confirmed custom screen.
-- Current purpose: Create draft expenses, upload supporting documents, submit, validate, reject, correct, and list latest expenses.
+- Current purpose: Create draft expenses, open expense detail, upload/download
+  supporting documents, submit, validate, reject, correct, and list latest
+  expenses.
 - Target purpose: Expense workflow workspace with clear document state, status badges, validation decision panel, and traceable correction flow.
 - Current users: Users with `expense/read`; write/upload/validation controls depend on `expense/write`, `expense/validate`, and ECM upload rights.
 - Target access level: Level 1 / Level 2 / Level 3 / Admin
-- Current problems: Dense inline forms; no rich detail page; document upload is technical; no document preview/download path; actions are cramped in table cells.
+- Current problems: Dense inline forms; document upload is technical; no inline
+  document preview; actions are cramped in table cells.
 - Recommended action: redesign
 - Safe files to modify: `custom/mjlfinancement/expenses.php`, `custom/mjlfinancement/class/mjlexpense.class.php`, ECM integration helpers, design-system docs.
 - Implementation risk: High; expense validation has important budget, document, and audit rules.
@@ -98,11 +105,15 @@ Fixed constraints:
 
 - URL/path: `/custom/mjlfinancement/conventions.php`
 - Evidence source: repo-confirmed custom screen.
-- Current purpose: Read-only list of conventions.
-- Target purpose: DPAF/Admin convention management surface for creation, governed edits, activation, closure, and history.
+- Current purpose: Governed DPAF/Admin convention management with create, edit,
+  detail, activation, closure, draft deletion, document upload/download, and
+  history.
+- Target purpose: DPAF/Admin convention management surface for creation,
+  governed edits, activation, closure, documents, and history.
 - Current users: Users with `convention/read`.
 - Target access level: Level 3 / Admin
-- Current problems: Management workflow implemented in Phase 14; continue monitoring for budget-line reuse and report impacts.
+- Current problems: Management workflow is implemented; continue monitoring
+  final wording, document ergonomics, budget-line reuse, and report impacts.
 - Recommended action: keep as governed DPAF/Admin management surface
 - Safe files to modify: `custom/mjlfinancement/conventions.php`, custom labels/navigation, design-system docs.
 - Implementation risk: Medium; naming and IA decision affects reports, activities, budget lines, and exports.
@@ -278,11 +289,14 @@ Fixed constraints:
 
 - URL/path: Dolibarr-native ECM/document screens, runtime surfaces inferred.
 - Evidence source: inferred from module dependency on `modECM`, expense upload behavior, and document placeholders.
-- Current purpose: Store and manage supporting documents.
+- Current purpose: Store supporting documents in native ECM while MJL screens
+  expose guarded contextual downloads for expenses, fund receipts, activities,
+  and conventions.
 - Target purpose: MJL document checklist and context-aware document access while preserving ECM as storage.
 - Current users: Users with ECM rights.
 - Target access level: Level 1 / Level 2 / Level 3 / Admin
-- Current problems: Native document UI is not tied clearly to MJL validation workflows; expense screen has upload but no preview/download flow.
+- Current problems: Native document UI is not tied clearly to MJL validation
+  workflows; MJL guarded download exists, but inline preview remains deferred.
 - Recommended action: simplify
 - Safe files to modify: Custom MJL document views/checklists and ECM links; no Dolibarr core files.
 - Implementation risk: High; documents are required for expense validation and auditability.

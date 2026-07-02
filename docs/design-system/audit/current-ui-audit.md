@@ -38,13 +38,19 @@ The visible product direction is still closer to a raw Dolibarr/table-heavy POC 
 ## Global Findings
 
 - The UI currently has a raw Dolibarr/table-heavy POC feel; it exposes data structures before user intent.
-- Role-aware landing pages are missing; Level 1, Level 2, Level 3, and Admin do not yet have clearly separated workspace entry points.
+- Role-aware workspace entry points now exist, but the hierarchy and wording
+  still need final production review.
 - Dense inline forms and action buttons make validation screens harder to scan.
-- Workflow is not yet presented as timelines and decision panels; buttons and history tables carry too much meaning alone.
+- Core activity, expense, convention, budget-line, and fund-receipt workflows
+  now expose contextual timelines or history panels, but several secondary
+  audit and exchange surfaces remain technical.
 - Alerts are not consistently actionable; they need affected object, actor, expected action, urgency, and destination.
 - Raw IDs, statuses, object types, and technical fields are visible in several normal-user paths.
-- Exports are functional but not yet framed as official outputs with scope, period, filename, format, and role context.
-- Document UX is incomplete outside expense upload; ECM should remain the storage layer, while MJL screens need document checklists and contextual access.
+- Exports are framed with scope, period, filename, format, and role context,
+  while final donor-specific canevas remain pending.
+- Document UX now covers guarded expense, fund-receipt, activity, and convention
+  downloads through ECM; inline preview and final document ergonomics remain
+  later enhancements.
 - Native auth and invitation pages are required by the design system. Phase 4a safe-boundary discovery is now complete for auth/access surfaces.
 - The selected safe boundary uses module `tpl`, `hooks`, `css`, `MAIN_LANDING_PAGE`, and custom module pages; Dolibarr core remains untouched.
 
@@ -70,18 +76,24 @@ The visible product direction is still closer to a raw Dolibarr/table-heavy POC 
 
 ### Activities
 
-- Alignment: Partial. It implements core workflow behavior but not the target workflow experience.
+- Alignment: Medium. It implements core workflow behavior with detail view,
+  decision panel, timeline, direct activity documents, and linked-expense
+  document checklist.
 - Severity: Critical.
-- Design-system gaps: Status is not dominant; validation is not a timeline; decision actions are dense; supporting documents are not surfaced; audit context is separate.
+- Design-system gaps: Status and next action can still be clearer in dense
+  states; document preview is deferred; final wording needs client review.
 - Safe implementation area: `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/class/mjlactivity.class.php`, custom workflow helpers, design-system docs.
 - E2E impact: Activity lifecycle, return for correction, alerts, role visibility.
 - Recommendation: Redesign as the first workflow UI after shell/dashboards, preserving no-self-validation, workflow transitions, permissions, audit history, and active-entity filtering.
 
 ### Expenses
 
-- Alignment: Partial. Expense creation, upload, submission, correction, and validation exist, but the screen is not yet clarity-first.
+- Alignment: Partial. Expense creation, detail, upload, guarded download,
+  submission, correction, and validation exist, but the screen is not yet
+  clarity-first.
 - Severity: High.
-- Design-system gaps: Dense inline form; technical document upload; no clear document preview/download path; cramped table actions.
+- Design-system gaps: Dense inline form; technical document upload; no inline
+  preview; cramped table actions.
 - Safe implementation area: `custom/mjlfinancement/expenses.php`, `custom/mjlfinancement/class/mjlexpense.class.php`, ECM integration helpers, design-system docs.
 - E2E impact: Activity lifecycle where expense state matters, export, role visibility.
 - Recommendation: Defer until the activity workflow pattern is stable, then apply the same status-first and document-checklist structure.
@@ -97,9 +109,12 @@ The visible product direction is still closer to a raw Dolibarr/table-heavy POC 
 
 ### Conventions
 
-- Alignment: Medium. Phase 14 turns it into a governed DPAF/Admin management surface with lifecycle actions and history.
+- Alignment: Medium. Phase 14 turns it into a governed DPAF/Admin management
+  surface with lifecycle actions and history; Phase 18 adds guarded convention
+  document upload/download.
 - Severity: Low.
-- Design-system gaps: Budget-line reuse and broader reporting impacts should be reviewed in the next finance setup batch.
+- Design-system gaps: Final wording and document ergonomics should be reviewed
+  with users; broader reporting impacts still depend on client canevas.
 - Safe implementation area: `custom/mjlfinancement/conventions.php`, custom labels/navigation, design-system docs.
 - E2E impact: Role visibility, export.
 - Recommendation: Keep `Convention` as the DPAF/Admin control surface and reuse its locking/history pattern for budget-line management.
@@ -205,12 +220,16 @@ The visible product direction is still closer to a raw Dolibarr/table-heavy POC 
 
 ### Native ECM / Documents
 
-- Alignment: Partial as storage, low as user-facing document UX.
+- Alignment: Medium as storage and contextual access.
 - Severity: High.
-- Design-system gaps: Documents are not consistently tied to validation state; upload exists for expenses but checklist, preview/download, and missing-document state are incomplete.
+- Design-system gaps: Guarded downloads exist for expense, fund receipt,
+  activity, and convention objects; inline preview and final missing-document
+  ergonomics remain incomplete.
 - Safe implementation area: Custom MJL document views/checklists and ECM links; no Dolibarr core files.
 - E2E impact: Activity lifecycle, export, role visibility.
-- Recommendation: Preserve ECM and surface documents contextually in activity/expense workflow screens.
+- Recommendation: Preserve ECM and guarded MJL routes; refine contextual
+  document panels and add preview only after secure download behavior is stable
+  in use.
 
 ### Native Users / Groups / Permissions / Admin
 
