@@ -34,3 +34,4 @@ services:
     volumes:
       - ./data/documents:/var/www/documents
       - ./custom:/var/www/html/custom
+      - ./custom/mjlfinancement/deployment/apache-native-guard.conf:/etc/apache2/conf-enabled/mjl-native-guard.conf:ro
