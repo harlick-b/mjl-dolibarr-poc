@@ -17,9 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!mjl_conventions_can_manage()) {
 		mjl_conventions_forbidden();
 	}
-	if ($action === 'upload' && !$user->hasRight('ecm', 'upload')) {
-		mjl_conventions_forbidden();
-	}
 	mjl_conventions_handle_post($action);
 }
 
@@ -486,7 +483,7 @@ function mjl_conventions_can_upload_document($row)
 {
 	global $user;
 	$data = is_array($row) ? $row : (array) $row;
-	return mjl_conventions_can_manage() && $user->hasRight('ecm', 'upload') && (int) ($data['status'] ?? 0) !== MjlConvention::STATUS_CLOSED;
+	return mjl_conventions_can_manage() && (int) ($data['status'] ?? 0) !== MjlConvention::STATUS_CLOSED;
 }
 
 function mjl_convention_status_label($status)

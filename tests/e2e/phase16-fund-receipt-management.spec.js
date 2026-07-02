@@ -92,17 +92,21 @@ test.afterAll(() => {
   cleanupPhase16Fixtures();
 });
 
-test('DPAF receives fund-receipt write and ECM upload without routine operation rights', async () => {
-  expect(Number(scalar(`
+test('DPAF receives fund-receipt write without native ECM or routine operation rights', async () => {
+	expect(Number(scalar(`
     SELECT COUNT(*) FROM llx_user u
     INNER JOIN llx_usergroup_user ugu ON ugu.fk_user = u.rowid AND ugu.entity = 1
     INNER JOIN llx_usergroup_rights ugr ON ugr.fk_usergroup = ugu.fk_usergroup AND ugr.entity = 1
     INNER JOIN llx_rights_def rd ON rd.id = ugr.fk_id
-    WHERE u.login = 'dpaf.mjl' AND (
-      (rd.module = 'mjlfinancement' AND rd.perms = 'fundreceipt' AND rd.subperms = 'write')
-      OR (rd.module = 'ecm' AND rd.perms = 'upload')
-    )
-  `))).toBe(2);
+    WHERE u.login = 'dpaf.mjl' AND rd.module = 'mjlfinancement' AND rd.perms = 'fundreceipt' AND rd.subperms = 'write'
+  `))).toBe(1);
+	expect(Number(scalar(`
+    SELECT COUNT(*) FROM llx_user u
+    INNER JOIN llx_usergroup_user ugu ON ugu.fk_user = u.rowid AND ugu.entity = 1
+    INNER JOIN llx_usergroup_rights ugr ON ugr.fk_usergroup = ugu.fk_usergroup AND ugr.entity = 1
+    INNER JOIN llx_rights_def rd ON rd.id = ugr.fk_id
+    WHERE u.login = 'dpaf.mjl' AND rd.module = 'ecm' AND rd.perms IN ('read', 'upload')
+  `))).toBe(0);
   expect(Number(scalar(`
     SELECT COUNT(*) FROM llx_user u
     INNER JOIN llx_usergroup_user ugu ON ugu.fk_user = u.rowid AND ugu.entity = 1

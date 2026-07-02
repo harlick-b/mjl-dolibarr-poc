@@ -27,7 +27,7 @@ function mjl_activities_can_apply_action($activity, $action)
 	$row = is_array($activity) ? $activity : (array) $activity;
 	$status = (int) $row['status'];
 	if ($action === 'upload') {
-		if (!$user->hasRight('ecm', 'upload') || mjl_activities_is_final_status($status)) return false;
+		if (mjl_activities_is_final_status($status)) return false;
 		if (mjl_workspace_can_access_supervision($user)) {
 			return $user->hasRight('mjlfinancement', 'activity', 'read');
 		}

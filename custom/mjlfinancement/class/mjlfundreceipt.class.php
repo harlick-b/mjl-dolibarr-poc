@@ -222,7 +222,7 @@ class MjlFundReceipt extends CommonObject
 			$this->error = 'Réception de fonds introuvable';
 			return -1;
 		}
-		if (!$this->canManage($user) || (empty($user->admin) && !$user->hasRight('ecm', 'upload'))) {
+		if (!$this->canManage($user)) {
 			$this->error = 'Droit insuffisant pour ajouter une preuve de réception de fonds';
 			return -1;
 		}

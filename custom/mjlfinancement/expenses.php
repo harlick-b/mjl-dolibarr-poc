@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!$user->hasRight('mjlfinancement', 'expense', 'validate') && in_array($action, array('validate', 'reject'), true)) {
 		mjl_expenses_forbidden();
 	}
-	if ($action === 'upload' && (!$user->hasRight('mjlfinancement', 'expense', 'write') || !$user->hasRight('ecm', 'upload'))) {
+	if ($action === 'upload' && !$user->hasRight('mjlfinancement', 'expense', 'write')) {
 		mjl_expenses_forbidden();
 	}
 	mjl_expenses_handle_post($action);
@@ -154,7 +154,7 @@ function mjl_expenses_upload_document(MjlExpense $expense)
 {
 	global $db, $user, $conf;
 
-	if (!$user->hasRight('mjlfinancement', 'expense', 'read') || !$user->hasRight('mjlfinancement', 'expense', 'write') || !$user->hasRight('ecm', 'upload')) {
+	if (!$user->hasRight('mjlfinancement', 'expense', 'read') || !$user->hasRight('mjlfinancement', 'expense', 'write')) {
 		$expense->error = 'Permission denied for expense document upload';
 		return -1;
 	}
@@ -555,7 +555,7 @@ function mjl_expenses_can_apply_action($expense, $action)
 	$row = is_array($expense) ? $expense : (array) $expense;
 	$status = (int) $row['status'];
 	if ($action === 'upload') {
-		if (!$user->hasRight('mjlfinancement', 'expense', 'write') || !$user->hasRight('ecm', 'upload') || $status === MjlExpense::STATUS_VALIDATED) return false;
+		if (!$user->hasRight('mjlfinancement', 'expense', 'write') || $status === MjlExpense::STATUS_VALIDATED) return false;
 		return !mjl_expenses_requires_own_scope($user) || (int) $row['fk_user_creat'] === (int) $user->id;
 	}
 	if (in_array($action, array('update', 'submit', 'correct'), true)) {
