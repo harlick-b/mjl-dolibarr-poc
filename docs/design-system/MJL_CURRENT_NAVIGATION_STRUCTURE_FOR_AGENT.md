@@ -1,5 +1,9 @@
 # MJL Current Navigation Structure For Agent
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as navigation context; if it conflicts with `AGENTS.md`, follow
+`AGENTS.md`.
+
 ## Purpose
 
 This document gives an online agent the current repo-visible navigation context

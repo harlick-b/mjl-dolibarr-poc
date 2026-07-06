@@ -1,5 +1,9 @@
 # Prompt for AI Agent — Use the Sample Data
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as sample-data background; if it conflicts with `AGENTS.md`, follow
+`AGENTS.md`.
+
 You are working on the MJL Dolibarr POC repository.
 
 Goal:

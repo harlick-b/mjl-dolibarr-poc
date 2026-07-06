@@ -1,5 +1,9 @@
 # MJL Clarity System — Temporary Access Model
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as scoped access-model guidance; if it conflicts with `AGENTS.md`,
+follow `AGENTS.md`.
+
 ## Purpose
 
 Define the temporary access model used for UI structure, navigation, dashboard visibility, and E2E tests.

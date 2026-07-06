@@ -1,5 +1,9 @@
 # MJL Clarity System — Design Governance
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as scoped design-governance guidance; if it conflicts with
+`AGENTS.md`, follow `AGENTS.md`.
+
 ## Purpose
 
 Prevent design drift after multiple implementation iterations.

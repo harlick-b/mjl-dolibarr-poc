@@ -1,5 +1,9 @@
 # MJL Clarity System - Full Interface And Design-System Redesign Brief
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as design-agent background; if it conflicts with `AGENTS.md`,
+follow `AGENTS.md`.
+
 ## Purpose Of This Brief
 
 This file is intended to be copied into an online design agent. It must provide enough context for that agent to propose a complete refonte of the MJL interface and design system without direct access to the repository.

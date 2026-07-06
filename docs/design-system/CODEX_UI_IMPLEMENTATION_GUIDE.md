@@ -1,5 +1,9 @@
 # MJL Clarity System — Codex UI Implementation Guide
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as scoped UI implementation guidance; if it conflicts with
+`AGENTS.md`, follow `AGENTS.md`.
+
 ## Purpose
 
 Define the required execution sequence for future Codex work affecting app UI, auth pages, system emails, dashboards, exports, official outputs, or E2E-covered flows.

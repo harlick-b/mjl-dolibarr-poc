@@ -1,5 +1,9 @@
 # MJL Clarity System — Complete Revised Implementation Plan v3
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as the scoped design-system plan; if it conflicts with `AGENTS.md`,
+follow `AGENTS.md`.
+
 ## 1. Purpose
 
 The MJL POC has already proven that Dolibarr can respond to the client’s needs.

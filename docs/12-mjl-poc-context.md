@@ -1,5 +1,9 @@
 # Codex Goal — MJL Dolibarr POC for Project and Activity Traceability
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as project background; if it conflicts with `AGENTS.md`, follow
+`AGENTS.md`.
+
 You are working on a Dolibarr POC for the Ministry of Justice and Legislation — MJL.
 
 The purpose of this POC is to determine whether Dolibarr can be used as a reliable base for an internal web application focused on:

@@ -1,5 +1,9 @@
 # AI Agent Rules
 
+Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
+is retained as historical/project background; if it conflicts with `AGENTS.md`,
+follow `AGENTS.md`.
+
 ## Phase 1 boundary
 
 Phase 1 is documentation only.
