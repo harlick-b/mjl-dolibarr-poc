@@ -25,6 +25,17 @@ custom `mjlfinancement` module, creates the MJL POC groups and users, resets onl
 those POC group rights, reapplies permissions, and generates an API key for
 `admin_poc`.
 
+Run browser regression checks against the local POC when needed:
+
+```bash
+npm run test:e2e
+```
+
+The Playwright suite uses `MJL_BASE_URL` when set, otherwise
+`http://127.0.0.1:8080`. Run it only after Docker Compose is up and the POC is
+bootstrapped. The suite exercises local POC data; use
+`docs/08-clean-install-verification.md` for isolated clean-install checks.
+
 Default local POC user password: `MjlPoc2026!!`
 
 Override it with:
