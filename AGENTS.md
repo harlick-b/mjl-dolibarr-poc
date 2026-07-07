@@ -124,29 +124,56 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 
 ## Skill routing
 
-- When using a local skill, read its `SKILL.md` first. If platform skill loading
-  is unavailable, follow the local file manually.
-- Bugs, failing tests, regressions, or unclear runtime behavior: use `diagnose`
-  at `skills/diagnose/SKILL.md`.
-- Risky plans, architectural uncertainty, or "are you sure?" reviews: use
+- Global Matt skills are invoked by name. Local project skills are invoked from
+  `skills/<name>/SKILL.md`; read the local `SKILL.md` first.
+- Planning and ambiguity: use Matt `grill-with-docs` when requirements,
+  product behavior, domain language, or architecture decisions are unclear.
+- Domain model changes: use Matt `domain-modeling` when work changes domain
+  terms, business rules, entity relationships, permissions, statuses, workflow
+  states, or glossary vocabulary.
+- Risky plans, architectural uncertainty, or "are you sure?" reviews: use local
   `confidence-review-loop` at `skills/confidence-review-loop/SKILL.md`.
-- Product/domain ambiguity: read `CONTEXT.md` and use `grill-with-docs` at
-  `skills/grill-with-docs/SKILL.md`.
-- UI, layout, Tailwind, shadcn/ui, icons, or visual consistency: read
-  `DESIGN.md` and use `design-system-guardian` at
-  `skills/design-system-guardian/SKILL.md`.
+- Code exploration: Matt `zoom-out` was requested but is not currently
+  discoverable from the installed Matt skills. Do not route to it until it is
+  installed and verified.
+- Bugs, failing tests, regressions, performance issues, production errors,
+  inconsistent behavior, or unclear runtime failures: the requested Matt
+  `diagnose` skill is not currently discoverable. Until it is installed and
+  verified, use local `diagnose` at `skills/diagnose/SKILL.md`; reproduce the
+  issue or create a feedback loop before fixing.
+- Feature work or bug fixes where behavior can be built in vertical slices: use
+  Matt `tdd`. Prefer integration, E2E, full-feature, browser, and workflow
+  checks when supported; do not create brittle tests that only assert
+  implementation details.
+- Architecture, module design, public interfaces, seams, adapters, UI/API/
+  domain/data boundaries, or testability improvements: use Matt
+  `codebase-design`. Do not run broad architecture refactors unless explicitly
+  requested.
+- UI, layout, Tailwind, shadcn/ui, icons, responsive behavior, accessibility,
+  visual consistency, or `DESIGN.md` compliance: read `DESIGN.md` and use local
+  `design-system-guardian` at `skills/design-system-guardian/SKILL.md`.
+- UI/state/logic questions that should be answered with throwaway code before
+  production implementation: use Matt `prototype`.
 - Auth, APIs, user data, secrets, public forms, permissions, RLS, CORS, rate
-  limits, or production security: use `security-baseline-review` at
-  `skills/security-baseline-review/SKILL.md`.
-- Before marking a feature complete: use `full-feature-validation` at
+  limits, logs, guarded documents, or production-security concerns: use local
+  `security-baseline-review` at `skills/security-baseline-review/SKILL.md`.
+- Before marking a feature complete: use local `full-feature-validation` at
   `skills/full-feature-validation/SKILL.md`.
-- When creating a reusable new workflow: use `write-a-skill` at
-  `skills/write-a-skill/SKILL.md`.
-- For MJL-specific E2E/smoke verification, use `mjl-e2e-verification` at
+- Before merge or before presenting a substantial diff as done: use Matt
+  `code-review`.
+- When the current conversation or spec needs to become a structured PRD: use
+  Matt `to-prd`.
+- When a plan or PRD must be broken into vertical, agent-ready issues: use Matt
+  `to-issues`.
+- Before ending a long session, switching agents, or handing work to a fresh
+  context: use Matt `handoff`.
+- When creating or improving reusable skills: use Matt `writing-great-skills`.
+- For MJL-specific E2E/smoke verification, use local `mjl-e2e-verification` at
   `skills/mjl-e2e-verification/SKILL.md`.
-- For MJL production-readiness review, use `mjl-production-readiness-audit` at
+- For MJL production-readiness review, use local
+  `mjl-production-readiness-audit` at
   `skills/mjl-production-readiness-audit/SKILL.md`.
-- For the MJL design-system gate, use `mjl-design-system-gate` at
+- For the MJL design-system gate, use local `mjl-design-system-gate` at
   `skills/mjl-design-system-gate/SKILL.md`.
 - At the end of meaningful work: evaluate whether `tasks/lessons.md` should be
   updated.
