@@ -99,12 +99,18 @@ function mjl_email_render($template, array $context)
 		$message = 'Une correction est demandee sur une activite que vous avez soumise.';
 		$action = 'Corriger l activite';
 		$details['Statut'] = 'Correction demandee';
+	} elseif ($template === 'activity_prevalidated') {
+		$subject = '[MJL Financement] Activite prevalidee: '.$activityRef;
+		$title = 'Activite prevalidee';
+		$message = 'Une activite a ete prevalidee et attend la validation definitive.';
+		$action = 'Examiner l activite';
+		$details['Statut'] = 'Prevalidee';
 	} elseif ($template === 'activity_validated') {
 		$subject = '[MJL Financement] Activite validee: '.$activityRef;
-		$title = 'Activite validee';
-		$message = 'Une activite que vous avez soumise a ete validee.';
+		$title = 'Activite validee definitivement';
+		$message = 'Une activite que vous avez soumise a ete validee definitivement.';
 		$action = 'Consulter l activite';
-		$details['Statut'] = 'Validee';
+		$details['Statut'] = 'Validee definitivement';
 	} elseif ($template === 'activity_rejected') {
 		$subject = '[MJL Financement] Activite rejetee: '.$activityRef;
 		$title = 'Activite rejetee';
@@ -318,7 +324,7 @@ function mjl_email_store_e2e_const($name, $value)
 
 function mjl_email_notify_activity_transition($activityId, $action, User $actor, $comment = '')
 {
-	if (!in_array($action, array('submitted', 'correction_requested', 'validated', 'rejected'), true)) {
+	if (!in_array($action, array('submitted', 'correction_requested', 'prevalidated', 'validated', 'final_validated', 'rejected'), true)) {
 		return 0;
 	}
 
@@ -327,7 +333,7 @@ function mjl_email_notify_activity_transition($activityId, $action, User $actor,
 		return -1;
 	}
 
-	$template = 'activity_'.$action;
+	$template = $action === 'final_validated' ? 'activity_validated' : 'activity_'.$action;
 	$recipients = mjl_email_activity_recipients($row, $action, $actor);
 	$sent = 0;
 	foreach ($recipients as $recipient) {
@@ -374,7 +380,10 @@ function mjl_email_activity_recipients(array $activityRow, $action, User $actor)
 	if ($action === 'submitted') {
 		return mjl_email_activity_validator_recipients((int) $activityRow['fk_user_creat']);
 	}
-	if (in_array($action, array('correction_requested', 'validated', 'rejected'), true)) {
+	if ($action === 'prevalidated') {
+		return mjl_email_activity_validator_recipients((int) $activityRow['fk_user_creat']);
+	}
+	if (in_array($action, array('correction_requested', 'validated', 'final_validated', 'rejected'), true)) {
 		$creator = new User($GLOBALS['db']);
 		if ($creator->fetch((int) $activityRow['fk_user_creat']) > 0 && (int) $creator->statut === 1 && trim((string) $creator->email) !== '') {
 			return array($creator);

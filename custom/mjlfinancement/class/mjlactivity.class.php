@@ -3,6 +3,7 @@
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_email.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
 class MjlActivity extends CommonObject
 {
@@ -21,6 +22,7 @@ class MjlActivity extends CommonObject
 	const STATUS_CORRECTION_REQUESTED = 4;
 	const STATUS_CORRECTED = 5;
 	const STATUS_VALIDATED = 6;
+	const STATUS_PREVALIDATED = 7;
 	const STATUS_REJECTED = 8;
 	const STATUS_CANCELLED = 9;
 
@@ -34,6 +36,12 @@ class MjlActivity extends CommonObject
 		'fk_task' => array('type' => 'integer:Task:projet/class/task.class.php:1', 'label' => 'MJLProjectTask', 'picto' => 'projecttask', 'enabled' => 'isModEnabled("project")', 'position' => 60, 'notnull' => -1, 'visible' => 1, 'index' => 1, 'validate' => 1),
 		'date_start' => array('type' => 'date', 'label' => 'DateStart', 'enabled' => 1, 'position' => 70, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
 		'date_end' => array('type' => 'date', 'label' => 'DateEnd', 'enabled' => 1, 'position' => 80, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
+		'fk_user_responsible' => array('type' => 'integer:User:user/class/user.class.php', 'label' => 'MJLActivityResponsible', 'enabled' => 1, 'position' => 90, 'notnull' => -1, 'visible' => 1, 'index' => 1, 'validate' => 1),
+		'date_actual_start' => array('type' => 'date', 'label' => 'MJLActualStart', 'enabled' => 1, 'position' => 100, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
+		'date_actual_end' => array('type' => 'date', 'label' => 'MJLActualEnd', 'enabled' => 1, 'position' => 110, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
+		'physical_execution_percent' => array('type' => 'integer', 'label' => 'MJLPhysicalExecutionPercent', 'enabled' => 1, 'position' => 120, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
+		'execution_status' => array('type' => 'varchar(32)', 'label' => 'MJLExecutionStatus', 'enabled' => 1, 'position' => 130, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
+		'execution_comment' => array('type' => 'html', 'label' => 'MJLExecutionComment', 'enabled' => 1, 'position' => 140, 'notnull' => 0, 'visible' => 1, 'validate' => 1),
 		'note_public' => array('type' => 'html', 'label' => 'NotePublic', 'enabled' => 1, 'position' => 500, 'notnull' => 0, 'visible' => 0, 'validate' => 1),
 		'note_private' => array('type' => 'html', 'label' => 'NotePrivate', 'enabled' => 1, 'position' => 510, 'notnull' => 0, 'visible' => 0, 'validate' => 1),
 		'date_creation' => array('type' => 'datetime', 'label' => 'DateCreation', 'enabled' => 1, 'position' => 600, 'notnull' => 1, 'visible' => -2),
@@ -41,7 +49,7 @@ class MjlActivity extends CommonObject
 		'fk_user_creat' => array('type' => 'integer:User:user/class/user.class.php', 'label' => 'UserAuthor', 'enabled' => 1, 'position' => 620, 'notnull' => 1, 'visible' => -2),
 		'fk_user_modif' => array('type' => 'integer:User:user/class/user.class.php', 'label' => 'UserModif', 'enabled' => 1, 'position' => 630, 'notnull' => -1, 'visible' => -2),
 		'import_key' => array('type' => 'varchar(14)', 'label' => 'ImportId', 'enabled' => 1, 'position' => 1000, 'notnull' => -1, 'visible' => -2),
-		'status' => array('type' => 'integer', 'label' => 'Status', 'enabled' => 1, 'position' => 2000, 'notnull' => 1, 'visible' => 1, 'index' => 1, 'default' => '0', 'arrayofkeyval' => array(0 => 'MJLDraft', 1 => 'MJLOngoing', 2 => 'MJLCompleted', 3 => 'MJLSubmitted', 4 => 'MJLCorrectionRequested', 5 => 'MJLCorrected', 6 => 'MJLValidated', 8 => 'MJLRejected', 9 => 'MJLCancelled'), 'validate' => 1),
+		'status' => array('type' => 'integer', 'label' => 'Status', 'enabled' => 1, 'position' => 2000, 'notnull' => 1, 'visible' => 1, 'index' => 1, 'default' => '0', 'arrayofkeyval' => array(0 => 'MJLDraft', 1 => 'MJLOngoing', 2 => 'MJLCompleted', 3 => 'MJLSubmitted', 4 => 'MJLCorrectionRequested', 5 => 'MJLCorrected', 6 => 'MJLValidated', 7 => 'MJLPrevalidated', 8 => 'MJLRejected', 9 => 'MJLCancelled'), 'validate' => 1),
 	);
 
 	public $rowid;
@@ -52,6 +60,12 @@ class MjlActivity extends CommonObject
 	public $fk_task;
 	public $date_start;
 	public $date_end;
+	public $fk_user_responsible;
+	public $date_actual_start;
+	public $date_actual_end;
+	public $physical_execution_percent;
+	public $execution_status;
+	public $execution_comment;
 	public $status;
 	public $note_public;
 	public $note_private;
@@ -65,6 +79,36 @@ class MjlActivity extends CommonObject
 		$this->filterDisabledFields();
 	}
 
+	public static function openStatuses()
+	{
+		return array(self::STATUS_DRAFT, self::STATUS_ONGOING, self::STATUS_SUBMITTED, self::STATUS_CORRECTION_REQUESTED, self::STATUS_CORRECTED, self::STATUS_PREVALIDATED);
+	}
+
+	public static function finalStatuses()
+	{
+		return array(self::STATUS_COMPLETED, self::STATUS_VALIDATED, self::STATUS_REJECTED, self::STATUS_CANCELLED);
+	}
+
+	public static function editableStatuses()
+	{
+		return array(self::STATUS_DRAFT, self::STATUS_CORRECTION_REQUESTED);
+	}
+
+	public static function submitStatuses()
+	{
+		return array(self::STATUS_DRAFT, self::STATUS_CORRECTED);
+	}
+
+	public static function verifierReviewStatuses()
+	{
+		return array(self::STATUS_SUBMITTED);
+	}
+
+	public static function finalReviewStatuses()
+	{
+		return array(self::STATUS_PREVALIDATED);
+	}
+
 	public function create(User $user, $notrigger = 0)
 	{
 		$activeEntity = mjl_active_entity();
@@ -73,6 +117,9 @@ class MjlActivity extends CommonObject
 		}
 		if ((int) $this->entity !== $activeEntity) {
 			$this->error = 'Activity entity does not match active entity';
+			return -1;
+		}
+		if (!$this->normalizeProductionFields()) {
 			return -1;
 		}
 		if (!$this->assertLinks($activeEntity, true)) {
@@ -112,6 +159,9 @@ class MjlActivity extends CommonObject
 			$this->error = 'Activity entity cannot be changed';
 			return -1;
 		}
+		if (!$this->normalizeProductionFields()) {
+			return -1;
+		}
 		if (!$this->assertLinks($current['entity'])) {
 			return -1;
 		}
@@ -147,7 +197,7 @@ class MjlActivity extends CommonObject
 			$this->db->rollback();
 			return -1;
 		}
-		if (!in_array((int) $current['status'], array(self::STATUS_DRAFT, self::STATUS_CORRECTION_REQUESTED), true)) {
+		if (!in_array((int) $current['status'], self::editableStatuses(), true)) {
 			$this->error = 'Only draft or correction-requested activities can be edited through this action';
 			$this->db->rollback();
 			return -1;
@@ -172,6 +222,62 @@ class MjlActivity extends CommonObject
 					$changes[$dateField] = array('before' => $currentValue, 'after' => $value);
 					$this->{$dateField} = $value;
 				}
+			}
+		}
+		foreach (array('date_actual_start', 'date_actual_end') as $dateField) {
+			if (array_key_exists($dateField, $fields)) {
+				$value = $this->normalizeDateValue($fields[$dateField]);
+				$currentValue = $this->normalizeDateValue($current[$dateField]);
+				if ($value !== $currentValue) {
+					$sets[] = $dateField.' = '.($value === null ? 'NULL' : "'".$this->db->escape($value)."'");
+					$changes[$dateField] = array('before' => $currentValue, 'after' => $value);
+					$this->{$dateField} = $value;
+				}
+			}
+		}
+		if (array_key_exists('physical_execution_percent', $fields)) {
+			$value = $this->normalizePercentValue($fields['physical_execution_percent']);
+			if ($value === false) {
+				$this->db->rollback();
+				return -1;
+			}
+			$currentValue = $current['physical_execution_percent'] === null ? null : (int) $current['physical_execution_percent'];
+			if ($value !== $currentValue) {
+				$sets[] = 'physical_execution_percent = '.($value === null ? 'NULL' : ((int) $value));
+				$changes['physical_execution_percent'] = array('before' => $currentValue, 'after' => $value);
+				$this->physical_execution_percent = $value;
+			}
+		}
+		if (array_key_exists('execution_status', $fields)) {
+			$value = $this->normalizeExecutionStatus($fields['execution_status']);
+			if ($value === false) {
+				$this->db->rollback();
+				return -1;
+			}
+			$currentValue = $current['execution_status'] === null ? '' : (string) $current['execution_status'];
+			if ((string) $value !== $currentValue) {
+				$sets[] = 'execution_status = '.($value === '' ? 'NULL' : "'".$this->db->escape($value)."'");
+				$changes['execution_status'] = array('before' => $currentValue, 'after' => $value);
+				$this->execution_status = $value;
+			}
+		}
+		if (array_key_exists('execution_comment', $fields)) {
+			$value = trim((string) $fields['execution_comment']);
+			$currentValue = $current['execution_comment'] === null ? '' : (string) $current['execution_comment'];
+			if ($value !== $currentValue) {
+				$sets[] = 'execution_comment = '.($value === '' ? 'NULL' : "'".$this->db->escape($value)."'");
+				$changes['execution_comment'] = array('before' => $currentValue, 'after' => $value);
+				$this->execution_comment = $value;
+			}
+		}
+		if (array_key_exists('fk_user_responsible', $fields)) {
+			$value = (int) $fields['fk_user_responsible'];
+			if ($value < 0) $value = 0;
+			$currentValue = (int) $current['fk_user_responsible'];
+			if ($value !== $currentValue) {
+				$sets[] = 'fk_user_responsible = '.($value > 0 ? $value : 'NULL');
+				$changes['fk_user_responsible'] = array('before' => $currentValue > 0 ? $currentValue : null, 'after' => $value > 0 ? $value : null);
+				$this->fk_user_responsible = $value > 0 ? $value : null;
 			}
 		}
 
@@ -206,7 +312,7 @@ class MjlActivity extends CommonObject
 
 	public function submit(User $user, $comment = '', $actorRole = 'AGENT', $notrigger = 0)
 	{
-		return $this->workflowTransition($user, array(self::STATUS_DRAFT, self::STATUS_CORRECTED), self::STATUS_SUBMITTED, 'submitted', $comment, $actorRole, array(
+		return $this->workflowTransition($user, self::submitStatuses(), self::STATUS_SUBMITTED, 'submitted', $comment, $actorRole, array(
 			'required_right' => array('activity', 'write'),
 			'trigger' => 'MJLFINANCEMENT_ACTIVITY_SUBMIT',
 			'idempotent' => true,
@@ -221,8 +327,8 @@ class MjlActivity extends CommonObject
 			$this->error = 'Correction reason is required';
 			return -1;
 		}
-		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED), self::STATUS_CORRECTION_REQUESTED, 'correction_requested', $reason, $actorRole, array(
-			'required_right' => array('activity', 'validate'),
+		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED, self::STATUS_PREVALIDATED), self::STATUS_CORRECTION_REQUESTED, 'correction_requested', $reason, $actorRole, array(
+			'required_review_role_by_status' => true,
 			'no_self_review' => true,
 			'trigger' => 'MJLFINANCEMENT_ACTIVITY_CORRECTION_REQUEST',
 			'notrigger' => $notrigger,
@@ -245,10 +351,34 @@ class MjlActivity extends CommonObject
 
 	public function validate(User $user, $comment = '', $actorRole = 'SUPERVISEUR_N1', $notrigger = 0)
 	{
-		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED), self::STATUS_VALIDATED, 'validated', $comment, $actorRole, array(
+		$current = $this->fetchCurrentForWorkflow((int) ($this->id ?: $this->rowid));
+		if (empty($current)) {
+			return -1;
+		}
+		if ((int) $current['status'] === self::STATUS_PREVALIDATED) {
+			return $this->finalValidate($user, $comment, $actorRole, $notrigger);
+		}
+		return $this->prevalidate($user, $comment, $actorRole, $notrigger);
+	}
+
+	public function prevalidate(User $user, $comment = '', $actorRole = 'AGENT_VERIFICATEUR', $notrigger = 0)
+	{
+		return $this->workflowTransition($user, self::verifierReviewStatuses(), self::STATUS_PREVALIDATED, 'prevalidated', $comment, $actorRole, array(
 			'required_right' => array('activity', 'validate'),
+			'required_business_role' => 'AGENT_VERIFICATEUR',
 			'no_self_review' => true,
-			'trigger' => 'MJLFINANCEMENT_ACTIVITY_VALIDATE',
+			'trigger' => 'MJLFINANCEMENT_ACTIVITY_PREVALIDATE',
+			'idempotent' => true,
+			'notrigger' => $notrigger,
+		));
+	}
+
+	public function finalValidate(User $user, $comment = '', $actorRole = 'VALIDATEUR_DEFINITIF', $notrigger = 0)
+	{
+		return $this->workflowTransition($user, self::finalReviewStatuses(), self::STATUS_VALIDATED, 'final_validated', $comment, $actorRole, array(
+			'required_business_role' => 'VALIDATEUR_DEFINITIF',
+			'no_self_review' => true,
+			'trigger' => 'MJLFINANCEMENT_ACTIVITY_FINAL_VALIDATE',
 			'idempotent' => true,
 			'notrigger' => $notrigger,
 		));
@@ -261,8 +391,8 @@ class MjlActivity extends CommonObject
 			$this->error = 'Rejection reason is required';
 			return -1;
 		}
-		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED), self::STATUS_REJECTED, 'rejected', $reason, $actorRole, array(
-			'required_right' => array('activity', 'validate'),
+		return $this->workflowTransition($user, array(self::STATUS_SUBMITTED, self::STATUS_PREVALIDATED), self::STATUS_REJECTED, 'rejected', $reason, $actorRole, array(
+			'required_review_role_by_status' => true,
 			'no_self_review' => true,
 			'trigger' => 'MJLFINANCEMENT_ACTIVITY_REJECT',
 			'notrigger' => $notrigger,
@@ -279,6 +409,16 @@ class MjlActivity extends CommonObject
 		if (!empty($options['required_right']) && !$this->canDo($user, $options['required_right'][0], $options['required_right'][1])) {
 			$this->error = 'Permission denied for activity '.$action;
 			return -1;
+		}
+		if (!empty($options['required_business_role'])) {
+			if ($options['required_business_role'] === 'AGENT_VERIFICATEUR' && !mjl_scope_is_verifier($user)) {
+				$this->error = 'Activity prevalidation requires Agent verificateur role';
+				return -1;
+			}
+			if ($options['required_business_role'] === 'VALIDATEUR_DEFINITIF' && !mjl_scope_is_final_validator($user)) {
+				$this->error = 'Activity final validation requires Validateur definitif role';
+				return -1;
+			}
 		}
 
 		$actionDate = dol_now();
@@ -297,7 +437,19 @@ class MjlActivity extends CommonObject
 			$this->db->rollback();
 			return -1;
 		}
-		if (!empty($options['no_self_review']) && (int) $current['fk_user_creat'] === (int) $user->id) {
+		if (!empty($options['required_review_role_by_status'])) {
+			if ((int) $current['status'] === self::STATUS_SUBMITTED && !mjl_scope_is_verifier($user)) {
+				$this->error = 'Submitted activity review requires Agent verificateur role';
+				$this->db->rollback();
+				return -1;
+			}
+			if ((int) $current['status'] === self::STATUS_PREVALIDATED && !mjl_scope_is_final_validator($user)) {
+				$this->error = 'Prevalidated activity review requires Validateur definitif role';
+				$this->db->rollback();
+				return -1;
+			}
+		}
+		if (!empty($options['no_self_review']) && ((int) $current['fk_user_creat'] === (int) $user->id || ((int) $current['fk_user_responsible'] > 0 && (int) $current['fk_user_responsible'] === (int) $user->id))) {
 			$this->error = 'A user cannot review their own activity';
 			$this->db->rollback();
 			return -1;
@@ -317,6 +469,7 @@ class MjlActivity extends CommonObject
 		$this->fk_project = $current['fk_project'];
 		$this->fk_convention = $current['fk_convention'];
 		$this->fk_task = $current['fk_task'];
+		$this->fk_user_responsible = $current['fk_user_responsible'];
 		$this->import_key = $current['import_key'];
 		$this->status = $toStatus;
 
@@ -432,6 +585,13 @@ class MjlActivity extends CommonObject
 				return false;
 			}
 		}
+		if ((int) $this->fk_user_responsible > 0) {
+			$responsible = mjl_integrity_fetch_row('SELECT rowid FROM '.$this->db->prefix().'user WHERE rowid = '.((int) $this->fk_user_responsible).' AND entity = '.((int) $entity));
+			if (empty($responsible)) {
+				$this->error = 'Responsible user not found in active entity';
+				return false;
+			}
+		}
 
 		return true;
 	}
@@ -439,7 +599,7 @@ class MjlActivity extends CommonObject
 	private function fetchCurrentForWorkflow($id, $forUpdate = false)
 	{
 		$entity = mjl_active_entity();
-		$sql = 'SELECT rowid, entity, ref, label, fk_project, fk_convention, fk_task, date_start, date_end, status, fk_user_creat, import_key';
+		$sql = 'SELECT rowid, entity, ref, label, fk_project, fk_convention, fk_task, date_start, date_end, fk_user_responsible, date_actual_start, date_actual_end, physical_execution_percent, execution_status, execution_comment, status, fk_user_creat, import_key';
 		$sql .= ' FROM '.$this->db->prefix().$this->table_element;
 		$sql .= ' WHERE rowid = '.((int) $id).' AND entity = '.$entity;
 		if ($forUpdate) {
@@ -467,6 +627,12 @@ class MjlActivity extends CommonObject
 			'fk_task' => (int) $obj->fk_task,
 			'date_start' => $obj->date_start,
 			'date_end' => $obj->date_end,
+			'fk_user_responsible' => (int) $obj->fk_user_responsible,
+			'date_actual_start' => $obj->date_actual_start,
+			'date_actual_end' => $obj->date_actual_end,
+			'physical_execution_percent' => $obj->physical_execution_percent === null ? null : (int) $obj->physical_execution_percent,
+			'execution_status' => $obj->execution_status,
+			'execution_comment' => $obj->execution_comment,
 			'status' => (int) $obj->status,
 			'fk_user_creat' => (int) $obj->fk_user_creat,
 			'import_key' => $obj->import_key,
@@ -483,6 +649,7 @@ class MjlActivity extends CommonObject
 			self::STATUS_CORRECTION_REQUESTED => 'correction_requested',
 			self::STATUS_CORRECTED => 'corrected',
 			self::STATUS_VALIDATED => 'validated',
+			self::STATUS_PREVALIDATED => 'prevalidated',
 			self::STATUS_REJECTED => 'rejected',
 			self::STATUS_CANCELLED => 'cancelled',
 		);
@@ -500,6 +667,59 @@ class MjlActivity extends CommonObject
 		}
 		$timestamp = strtotime((string) $value);
 		return $timestamp > 0 ? date('Y-m-d', $timestamp) : null;
+	}
+
+	private function normalizeProductionFields()
+	{
+		$this->date_actual_start = $this->normalizeDateValue($this->date_actual_start);
+		$this->date_actual_end = $this->normalizeDateValue($this->date_actual_end);
+		$percent = $this->normalizePercentValue($this->physical_execution_percent);
+		if ($percent === false) {
+			return false;
+		}
+		$this->physical_execution_percent = $percent;
+		$status = $this->normalizeExecutionStatus($this->execution_status);
+		if ($status === false) {
+			return false;
+		}
+		$this->execution_status = $status === '' ? null : $status;
+		$this->execution_comment = trim((string) $this->execution_comment);
+		if ($this->execution_comment === '') {
+			$this->execution_comment = null;
+		}
+		$this->fk_user_responsible = (int) $this->fk_user_responsible > 0 ? (int) $this->fk_user_responsible : null;
+		return true;
+	}
+
+	private function normalizePercentValue($value)
+	{
+		if ($value === null || $value === '') {
+			return null;
+		}
+		if (!is_numeric($value)) {
+			$this->error = 'Physical execution percentage must be numeric';
+			return false;
+		}
+		$value = (int) $value;
+		if ($value < 0 || $value > 100) {
+			$this->error = 'Physical execution percentage must be between 0 and 100';
+			return false;
+		}
+		return $value;
+	}
+
+	private function normalizeExecutionStatus($value)
+	{
+		$value = trim((string) $value);
+		if ($value === '') {
+			return '';
+		}
+		$allowed = array('not_started', 'in_progress', 'completed', 'blocked');
+		if (!in_array($value, $allowed, true)) {
+			$this->error = 'Invalid activity execution status';
+			return false;
+		}
+		return $value;
 	}
 
 	private function filterDisabledFields()

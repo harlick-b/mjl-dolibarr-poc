@@ -570,7 +570,8 @@ function mjl_reports_activity_status_options()
 		(string) MjlActivity::STATUS_SUBMITTED => 'Soumise',
 		(string) MjlActivity::STATUS_CORRECTION_REQUESTED => 'Correction demandee',
 		(string) MjlActivity::STATUS_CORRECTED => 'Corrigee',
-		(string) MjlActivity::STATUS_VALIDATED => 'Validee',
+		(string) MjlActivity::STATUS_VALIDATED => 'Validee definitivement',
+		(string) MjlActivity::STATUS_PREVALIDATED => 'Prevalidee',
 		(string) MjlActivity::STATUS_REJECTED => 'Rejetee',
 		(string) MjlActivity::STATUS_CANCELLED => 'Annulee',
 	);
@@ -709,6 +710,7 @@ function mjl_reports_validation_score($status)
 {
 	$map = array(
 		MjlActivity::STATUS_VALIDATED => 100,
+		MjlActivity::STATUS_PREVALIDATED => 80,
 		MjlActivity::STATUS_SUBMITTED => 60,
 		MjlActivity::STATUS_ONGOING => 60,
 		MjlActivity::STATUS_CORRECTION_REQUESTED => 30,
@@ -749,7 +751,9 @@ function mjl_reports_workflow_action_label($action)
 		'received' => 'Reception',
 		'not_received' => 'Non-reception',
 		'submitted' => 'Soumission',
-		'validated' => 'Validation',
+		'prevalidated' => 'Prevalidation',
+		'validated' => 'Validation definitive',
+		'final_validated' => 'Validation definitive',
 		'rejected' => 'Rejet',
 		'corrected' => 'Correction',
 		'correction_requested' => 'Correction demandee',
@@ -768,7 +772,9 @@ function mjl_reports_workflow_status_label($status)
 		'closed' => 'Cloturee',
 		'deleted' => 'Supprimee',
 		'submitted' => 'Soumise',
-		'validated' => 'Validee',
+		'prevalidated' => 'Prevalidee',
+		'validated' => 'Validee definitivement',
+		'final_validated' => 'Validee definitivement',
 		'rejected' => 'Rejetee',
 		'corrected' => 'Corrigee',
 		'correction_requested' => 'Correction demandee',
@@ -958,7 +964,7 @@ function mjl_reports_dpaf_rows($filters)
 	$sql .= ' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_VALIDATED.'), 0) AS depenses_validees,';
 	$sql .= ' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_SUBMITTED.'), 0) AS depenses_soumises,';
 	$sql .= ' COALESCE((SELECT SUM(fr.amount) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = c.entity AND fr.fk_convention = c.rowid AND fr.status = 1), 0) AS fonds_recus,';
-	$sql .= ' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_activity a WHERE a.entity = c.entity AND a.fk_convention = c.rowid AND a.status = '.MjlActivity::STATUS_SUBMITTED.'), 0) AS activites_en_revue,';
+	$sql .= ' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_activity a WHERE a.entity = c.entity AND a.fk_convention = c.rowid AND a.status IN ('.MjlActivity::STATUS_SUBMITTED.', '.MjlActivity::STATUS_PREVALIDATED.')), 0) AS activites_en_revue,';
 	$sql .= ' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_SUBMITTED.'), 0) AS depenses_en_revue';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_convention c';
 	$sql .= ' WHERE '.implode(' AND ', $where);

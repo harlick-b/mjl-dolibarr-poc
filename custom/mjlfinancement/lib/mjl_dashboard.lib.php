@@ -46,7 +46,7 @@ function mjl_dashboard_dpaf_kpis()
 {
 	return array(
 		array('label' => 'Activites en cours', 'value' => mjl_dashboard_activity_count(array(MjlActivity::STATUS_ONGOING)), 'context' => 'Activites ouvertes dans l entite active', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites'),
-		array('label' => 'Activites soumises', 'value' => mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED)), 'context' => 'Dossiers en attente de decision', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner'),
+		array('label' => 'Activites en validation', 'value' => mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED)), 'context' => 'Dossiers en attente de prevalidation ou validation definitive', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner'),
 		array('label' => 'Depenses soumises', 'value' => mjl_dashboard_expense_count(array(MjlExpense::STATUS_SUBMITTED)), 'context' => 'Depenses a controler', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les depenses'),
 		array('label' => 'Budget revise', 'value' => price(mjl_dashboard_budget_total()), 'context' => 'Total des lignes budgetaires', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports'),
 		array('label' => 'Depenses validees', 'value' => price(mjl_dashboard_validated_expense_total()), 'context' => 'Montant deja valide', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Voir les exports'),
@@ -57,13 +57,7 @@ function mjl_dashboard_deadline_risks($limit = 20)
 {
 	global $db, $conf;
 
-	$statuses = array(
-		MjlActivity::STATUS_DRAFT,
-		MjlActivity::STATUS_ONGOING,
-		MjlActivity::STATUS_SUBMITTED,
-		MjlActivity::STATUS_CORRECTION_REQUESTED,
-		MjlActivity::STATUS_CORRECTED,
-	);
+	$statuses = MjlActivity::openStatuses();
 	$sql = 'SELECT a.rowid, a.ref, a.label, a.date_end, a.status, p.ref AS project_ref, c.ref AS convention_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
@@ -86,7 +80,7 @@ function mjl_dashboard_pending_reviews($limit = 30)
 	global $db, $conf;
 
 	$sql = 'SELECT \'Activite\' AS item_type, rowid AS item_id, ref, label, date_end AS item_date, 0 AS amount, \'/custom/mjlfinancement/activities.php\' AS href';
-	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity WHERE entity = '.((int) $conf->entity).' AND status = '.MjlActivity::STATUS_SUBMITTED;
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity WHERE entity = '.((int) $conf->entity).' AND status IN ('.MjlActivity::STATUS_SUBMITTED.', '.MjlActivity::STATUS_PREVALIDATED.')';
 	$sql .= ' UNION ALL ';
 	$sql .= 'SELECT \'Depense\' AS item_type, rowid AS item_id, ref, description AS label, expense_date AS item_date, amount, \'/custom/mjlfinancement/expenses.php\' AS href';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense WHERE entity = '.((int) $conf->entity).' AND status = '.MjlExpense::STATUS_SUBMITTED;
@@ -177,13 +171,7 @@ function mjl_dashboard_deadline_risk_count()
 {
 	global $db, $conf;
 
-	$statuses = array(
-		MjlActivity::STATUS_DRAFT,
-		MjlActivity::STATUS_ONGOING,
-		MjlActivity::STATUS_SUBMITTED,
-		MjlActivity::STATUS_CORRECTION_REQUESTED,
-		MjlActivity::STATUS_CORRECTED,
-	);
+	$statuses = MjlActivity::openStatuses();
 	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity';
 	$sql .= ' WHERE entity = '.((int) $conf->entity);
 	$sql .= ' AND status IN ('.implode(',', array_map('intval', $statuses)).')';
@@ -213,7 +201,7 @@ function mjl_dashboard_missing_expense_document_count()
 
 function mjl_dashboard_pending_review_count()
 {
-	return mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED)) + mjl_dashboard_expense_count(array(MjlExpense::STATUS_SUBMITTED));
+	return mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED)) + mjl_dashboard_expense_count(array(MjlExpense::STATUS_SUBMITTED));
 }
 
 function mjl_dashboard_budget_total()
@@ -435,7 +423,8 @@ function mjl_dashboard_activity_status_label($status)
 		MjlActivity::STATUS_SUBMITTED => 'Soumise',
 		MjlActivity::STATUS_CORRECTION_REQUESTED => 'Correction demandee',
 		MjlActivity::STATUS_CORRECTED => 'Corrigee',
-		MjlActivity::STATUS_VALIDATED => 'Validee',
+		MjlActivity::STATUS_VALIDATED => 'Validee definitivement',
+		MjlActivity::STATUS_PREVALIDATED => 'Prevalidee',
 		MjlActivity::STATUS_REJECTED => 'Rejetee',
 		MjlActivity::STATUS_CANCELLED => 'Annulee',
 	);

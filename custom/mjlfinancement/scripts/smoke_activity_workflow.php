@@ -12,6 +12,7 @@ $adminUser = loadUser('admin');
 $user = $adminUser;
 $agent = loadUser('agent.mjl');
 $validator = loadUser('superviseur.n1');
+$finalValidator = loadUser('dpaf.mjl');
 $projectId = requireId('projet', "ref = 'PRJ-JE-2026' AND entity = ".$entity);
 $conventionId = requireId('mjlfinancement_convention', "ref = 'CONV-UNICEF-2026-001' AND entity = ".$entity);
 $ref = 'SMOKE-ACT-WF';
@@ -26,6 +27,8 @@ $activity->fk_project = $projectId;
 $activity->fk_convention = $conventionId;
 $activity->date_start = dol_mktime(0, 0, 0, 6, 17, 2026);
 $activity->date_end = dol_mktime(0, 0, 0, 6, 30, 2026);
+$activity->physical_execution_percent = 40;
+$activity->execution_status = 'in_progress';
 $activity->status = MjlActivity::STATUS_DRAFT;
 $activity->import_key = 'smoke_act_wf';
 
@@ -44,9 +47,9 @@ if ($activity->submit($agent, 'Smoke submit', 'AGENT', 1) <= 0) {
 	fail('Unable to submit smoke activity: '.$activity->error);
 }
 
-$selfValidation = $activity->validate($agent, 'Self validation should fail', 'SUPERVISEUR_N1', 1);
+$selfValidation = $activity->prevalidate($agent, 'Self prevalidation should fail', 'AGENT_VERIFICATEUR', 1);
 if ($selfValidation >= 0) {
-	fail('Self-validation unexpectedly succeeded.');
+	fail('Self-prevalidation unexpectedly succeeded.');
 }
 
 $selfCorrectionRequest = $activity->requestCorrection($agent, 'Self correction request should fail', 'SUPERVISEUR_N1', 1);
@@ -64,8 +67,21 @@ if ($selfReviewCount > 0) {
 	fail('Self-review workflow action was unexpectedly recorded.');
 }
 
-if ($activity->validate($validator, 'Smoke validation', 'SUPERVISEUR_N1', 1) <= 0) {
-	fail('Validator could not validate smoke activity: '.$activity->error);
+if ($activity->prevalidate($validator, 'Smoke prevalidation', 'AGENT_VERIFICATEUR', 1) <= 0) {
+	fail('Verifier could not prevalidate smoke activity: '.$activity->error);
+}
+
+$prevalidatedStatus = scalar('SELECT status AS nb FROM '.$db->prefix().'mjlfinancement_activity WHERE rowid = '.$activityId.' AND entity = '.$entity);
+if ($prevalidatedStatus !== MjlActivity::STATUS_PREVALIDATED) {
+	fail('Smoke activity is not prevalidated.');
+}
+
+if ($activity->finalValidate($validator, 'Verifier final validation should fail', 'AGENT_VERIFICATEUR', 1) >= 0) {
+	fail('Verifier unexpectedly performed final validation.');
+}
+
+if ($activity->finalValidate($finalValidator, 'Smoke final validation', 'VALIDATEUR_DEFINITIF', 1) <= 0) {
+	fail('Final validator could not validate smoke activity: '.$activity->error);
 }
 
 $workflowCount = scalar('SELECT COUNT(*) AS nb FROM '.$db->prefix()."mjlfinancement_workflow_action WHERE entity = ".$entity." AND object_type = 'mjlfinancement_activity' AND object_id = ".$activityId);
@@ -75,7 +91,7 @@ if ($workflowCount < 2) {
 
 $validatedStatus = scalar('SELECT status AS nb FROM '.$db->prefix().'mjlfinancement_activity WHERE rowid = '.$activityId.' AND entity = '.$entity);
 if ($validatedStatus !== MjlActivity::STATUS_VALIDATED) {
-	fail('Smoke activity is not validated.');
+	fail('Smoke activity is not finally validated.');
 }
 
 $fieldAuditCount = scalar('SELECT COUNT(*) AS nb FROM '.$db->prefix()."mjlfinancement_workflow_action WHERE entity = ".$entity." AND object_type = 'mjlfinancement_activity' AND object_id = ".$activityId." AND action = 'field_changed' AND changes_json LIKE '%label%'");

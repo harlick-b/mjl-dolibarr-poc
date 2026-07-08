@@ -444,7 +444,7 @@ class MjlConvention extends CommonObject
 	{
 		$id = (int) $current['rowid'];
 		$entity = (int) $current['entity'];
-		$activityOpen = array(MjlActivity::STATUS_DRAFT, MjlActivity::STATUS_ONGOING, MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_CORRECTION_REQUESTED, MjlActivity::STATUS_CORRECTED);
+		$activityOpen = MjlActivity::openStatuses();
 		$expenseOpen = array(MjlExpense::STATUS_DRAFT, MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_CORRECTED, MjlExpense::STATUS_REJECTED);
 		$queries = array(
 			'SELECT rowid FROM '.$this->db->prefix().'mjlfinancement_activity WHERE entity = '.$entity.' AND fk_convention = '.$id.' AND status IN ('.implode(',', array_map('intval', $activityOpen)).') LIMIT 1',

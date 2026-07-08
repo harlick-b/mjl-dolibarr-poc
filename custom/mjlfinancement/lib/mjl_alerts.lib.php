@@ -88,7 +88,7 @@ function mjl_alerts_activity_pending_reviews(User $targetUser, $limit)
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 	$sql .= ' WHERE a.entity = '.((int) $conf->entity);
-	$sql .= ' AND a.status = '.MjlActivity::STATUS_SUBMITTED;
+	$sql .= ' AND a.status IN ('.MjlActivity::STATUS_SUBMITTED.', '.MjlActivity::STATUS_PREVALIDATED.')';
 	$sql .= $where;
 	$sql .= ' ORDER BY a.date_end ASC, a.ref ASC LIMIT '.((int) $limit);
 	$rows = mjl_alerts_fetch_rows($sql);
@@ -217,8 +217,9 @@ function mjl_alerts_activity_scope_where(User $targetUser, $alias, $mode)
 	if (mjl_alerts_is_level1_operational($targetUser)) {
 		return $mode === 'deadline' ? ' AND '.$a.'.fk_user_creat = '.((int) $targetUser->id) : null;
 	}
-	if ($targetUser->hasRight('mjlfinancement', 'activity', 'validate')) {
-		return ' AND '.$a.'.status = '.MjlActivity::STATUS_SUBMITTED.' AND '.$a.'.fk_user_creat <> '.((int) $targetUser->id);
+	if (mjl_workspace_can_apply_activity_validation($targetUser)) {
+		$statuses = mjl_scope_is_final_validator($targetUser) ? MjlActivity::finalReviewStatuses() : MjlActivity::verifierReviewStatuses();
+		return ' AND '.$a.'.status IN ('.implode(',', array_map('intval', $statuses)).') AND '.$a.'.fk_user_creat <> '.((int) $targetUser->id).' AND ('.$a.'.fk_user_responsible IS NULL OR '.$a.'.fk_user_responsible <> '.((int) $targetUser->id).')';
 	}
 	if ($targetUser->hasRight('mjlfinancement', 'activity', 'read') && !$targetUser->hasRight('mjlfinancement', 'activity', 'write')) {
 		return $mode === 'deadline' ? '' : null;
@@ -254,13 +255,7 @@ function mjl_alerts_is_level1_operational(User $targetUser)
 
 function mjl_alerts_open_activity_statuses()
 {
-	return array(
-		MjlActivity::STATUS_DRAFT,
-		MjlActivity::STATUS_ONGOING,
-		MjlActivity::STATUS_SUBMITTED,
-		MjlActivity::STATUS_CORRECTION_REQUESTED,
-		MjlActivity::STATUS_CORRECTED,
-	);
+	return MjlActivity::openStatuses();
 }
 
 function mjl_alerts_deadline_severity($dateEnd)
@@ -338,7 +333,8 @@ function mjl_alerts_activity_status_label($status)
 		MjlActivity::STATUS_SUBMITTED => 'Soumise',
 		MjlActivity::STATUS_CORRECTION_REQUESTED => 'Correction demandee',
 		MjlActivity::STATUS_CORRECTED => 'Corrigee',
-		MjlActivity::STATUS_VALIDATED => 'Validee',
+		MjlActivity::STATUS_VALIDATED => 'Validee definitivement',
+		MjlActivity::STATUS_PREVALIDATED => 'Prevalidee',
 		MjlActivity::STATUS_REJECTED => 'Rejetee',
 		MjlActivity::STATUS_CANCELLED => 'Annulee',
 	);
