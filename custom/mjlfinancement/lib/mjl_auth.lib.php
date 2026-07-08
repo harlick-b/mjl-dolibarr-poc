@@ -458,7 +458,7 @@ function mjl_auth_create_or_update_user($login, $firstname, $lastname, $email, $
 	if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
 		return array(-1, 'Adresse email invalide.');
 	}
-	if (!array_key_exists($groupId, mjl_auth_groups())) {
+	if ($groupId > 0 && !array_key_exists($groupId, mjl_auth_groups())) {
 		return array(-1, 'Profil MJL invalide.');
 	}
 

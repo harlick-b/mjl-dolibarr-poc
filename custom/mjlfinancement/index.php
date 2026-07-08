@@ -6,7 +6,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_alerts.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
-if (!mjl_workspace_user_can_read($user)) {
+if (!mjl_workspace_user_can_enter($user)) {
 	accessforbidden();
 }
 

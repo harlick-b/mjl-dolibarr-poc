@@ -3,15 +3,16 @@
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexpense.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
 function mjl_workspace_is_admin(User $targetUser)
 {
-	return !empty($targetUser->admin);
+	return mjl_scope_is_platform_admin($targetUser);
 }
 
 function mjl_workspace_is_level3(User $targetUser)
 {
-	return mjl_workspace_user_in_group($targetUser, 'MJL POC - DPAF');
+	return mjl_scope_is_final_validator($targetUser);
 }
 
 function mjl_workspace_can_access_supervision(User $targetUser)
@@ -30,7 +31,7 @@ function mjl_workspace_can_access_reference_data(User $targetUser, $right)
 {
 	$right = preg_replace('/[^A-Za-z0-9_]/', '', (string) $right);
 	return $right !== ''
-		&& mjl_workspace_can_access_supervision($targetUser)
+		&& mjl_workspace_user_has_production_access($targetUser)
 		&& $targetUser->hasRight('mjlfinancement', $right, 'read');
 }
 
@@ -45,7 +46,7 @@ function mjl_workspace_can_access_validation_history(User $targetUser)
 {
 	$capabilities = mjl_workspace_capabilities($targetUser);
 	return $capabilities['validation_read']
-		&& ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['supervision'] || (!$capabilities['operational'] && !$capabilities['reviewer']));
+		&& ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['supervision']);
 }
 
 function mjl_workspace_require_validation_history_access(User $targetUser)
@@ -62,7 +63,7 @@ function mjl_workspace_can_access_advanced_traceability(User $targetUser, $right
 		return false;
 	}
 	$capabilities = mjl_workspace_capabilities($targetUser);
-	return $capabilities['admin'] || $capabilities['supervision'] || (!$capabilities['operational'] && !$capabilities['reviewer']);
+	return $capabilities['admin'] || $capabilities['supervision'];
 }
 
 function mjl_workspace_require_advanced_traceability_access(User $targetUser, $right)
@@ -102,6 +103,9 @@ function mjl_workspace_user_in_group(User $targetUser, $groupName)
 
 function mjl_workspace_user_can_read(User $targetUser)
 {
+	if (!mjl_workspace_user_has_production_access($targetUser)) {
+		return false;
+	}
 	$rights = array('convention', 'activity', 'budgetline', 'expense', 'fundreceipt', 'validation', 'workflowaction', 'exchangelog', 'report', 'export');
 	foreach ($rights as $right) {
 		if ($targetUser->hasRight('mjlfinancement', $right, 'read')) {
@@ -113,16 +117,34 @@ function mjl_workspace_user_can_read(User $targetUser)
 
 function mjl_workspace_user_can_enter(User $targetUser)
 {
-	return mjl_workspace_user_can_read($targetUser);
+	return mjl_workspace_user_has_production_access($targetUser) && mjl_workspace_user_can_read($targetUser);
 }
 
 function mjl_workspace_can_access_projects(User $targetUser)
 {
-	return $targetUser->hasRight('mjlfinancement', 'activity', 'read')
+	return mjl_workspace_user_has_production_access($targetUser)
+		&& ($targetUser->hasRight('mjlfinancement', 'activity', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'expense', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'convention', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'budgetline', 'read')
-		|| $targetUser->hasRight('mjlfinancement', 'fundreceipt', 'read');
+		|| $targetUser->hasRight('mjlfinancement', 'fundreceipt', 'read'));
+}
+
+function mjl_workspace_can_access_partners(User $targetUser)
+{
+	return mjl_workspace_user_has_production_access($targetUser)
+		&& ($targetUser->hasRight('mjlfinancement', 'activity', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'expense', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'convention', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'budgetline', 'read')
+		|| $targetUser->hasRight('mjlfinancement', 'fundreceipt', 'read'));
+}
+
+function mjl_workspace_require_partners_access(User $targetUser)
+{
+	if (!mjl_workspace_can_access_partners($targetUser)) {
+		accessforbidden();
+	}
 }
 
 function mjl_workspace_require_projects_access(User $targetUser)
@@ -134,10 +156,11 @@ function mjl_workspace_require_projects_access(User $targetUser)
 
 function mjl_workspace_can_access_documents(User $targetUser)
 {
-	return $targetUser->hasRight('mjlfinancement', 'activity', 'read')
+	return mjl_workspace_user_has_production_access($targetUser)
+		&& ($targetUser->hasRight('mjlfinancement', 'activity', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'expense', 'read')
 		|| mjl_workspace_can_access_reference_data($targetUser, 'convention')
-		|| mjl_workspace_can_access_reference_data($targetUser, 'fundreceipt');
+		|| mjl_workspace_can_access_reference_data($targetUser, 'fundreceipt'));
 }
 
 function mjl_workspace_require_documents_access(User $targetUser)
@@ -158,7 +181,7 @@ function mjl_workspace_show_internal_roadmap()
 
 function mjl_workspace_can_access_roadmap(User $targetUser)
 {
-	return !empty($targetUser->admin) && mjl_workspace_show_internal_roadmap();
+	return mjl_workspace_is_admin($targetUser) && mjl_workspace_show_internal_roadmap();
 }
 
 function mjl_workspace_require_roadmap_access(User $targetUser)
@@ -173,21 +196,65 @@ function mjl_workspace_require_roadmap_access(User $targetUser)
 
 function mjl_workspace_capabilities(User $targetUser)
 {
+	$hasProductionAccess = mjl_workspace_user_has_production_access($targetUser);
+	$isAdmin = mjl_workspace_is_admin($targetUser);
+	$isInputAgent = mjl_scope_is_input_agent($targetUser);
+	$isBusinessValidator = mjl_scope_can_apply_business_validation($targetUser);
+	$isFinalValidator = mjl_scope_is_final_validator($targetUser);
 	return array(
-		'admin' => mjl_workspace_is_admin($targetUser),
-		'operational' => $targetUser->hasRight('mjlfinancement', 'activity', 'write') || $targetUser->hasRight('mjlfinancement', 'expense', 'write'),
-		'reviewer' => $targetUser->hasRight('mjlfinancement', 'activity', 'validate') || $targetUser->hasRight('mjlfinancement', 'expense', 'validate'),
-		'supervision' => mjl_workspace_can_access_supervision($targetUser),
-		'readonly' => mjl_workspace_user_can_read($targetUser),
-		'activity_read' => $targetUser->hasRight('mjlfinancement', 'activity', 'read'),
-		'expense_read' => $targetUser->hasRight('mjlfinancement', 'expense', 'read'),
-		'validation_read' => $targetUser->hasRight('mjlfinancement', 'validation', 'read'),
-		'workflowaction_read' => $targetUser->hasRight('mjlfinancement', 'workflowaction', 'read'),
-		'exchangelog_read' => $targetUser->hasRight('mjlfinancement', 'exchangelog', 'read'),
+		'admin' => $isAdmin,
+		'operational' => $hasProductionAccess && $isInputAgent && ($targetUser->hasRight('mjlfinancement', 'activity', 'write') || $targetUser->hasRight('mjlfinancement', 'expense', 'write')),
+		'reviewer' => $hasProductionAccess && $isBusinessValidator && ($targetUser->hasRight('mjlfinancement', 'activity', 'validate') || $targetUser->hasRight('mjlfinancement', 'expense', 'validate')),
+		'supervision' => $hasProductionAccess && ($isAdmin || $isFinalValidator),
+		'readonly' => $hasProductionAccess && mjl_workspace_user_can_read($targetUser),
+		'activity_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'activity', 'read') && ($isAdmin || $isInputAgent || $isBusinessValidator || $isFinalValidator),
+		'expense_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'expense', 'read') && ($isAdmin || $isInputAgent || $isBusinessValidator || $isFinalValidator),
+		'validation_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'validation', 'read') && ($isAdmin || $isBusinessValidator || $isFinalValidator),
+		'workflowaction_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'workflowaction', 'read') && ($isAdmin || $isBusinessValidator || $isFinalValidator),
+		'exchangelog_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'exchangelog', 'read') && ($isAdmin || $isFinalValidator),
+		'partners_read' => mjl_workspace_can_access_partners($targetUser),
 		'projects_read' => mjl_workspace_can_access_projects($targetUser),
 		'documents_read' => mjl_workspace_can_access_documents($targetUser),
 		'roadmap_read' => mjl_workspace_can_access_roadmap($targetUser),
 	);
+}
+
+function mjl_workspace_user_has_production_access(User $targetUser)
+{
+	if (empty($targetUser->id)) {
+		return false;
+	}
+	return mjl_scope_is_platform_admin($targetUser) || mjl_scope_user_has_active_business_role((int) $targetUser->id);
+}
+
+function mjl_workspace_can_access_activity(User $targetUser)
+{
+	return mjl_workspace_capabilities($targetUser)['activity_read'];
+}
+
+function mjl_workspace_can_access_expense(User $targetUser)
+{
+	return mjl_workspace_capabilities($targetUser)['expense_read'];
+}
+
+function mjl_workspace_can_apply_activity_write(User $targetUser)
+{
+	return mjl_scope_business_role_can_write($targetUser) && $targetUser->hasRight('mjlfinancement', 'activity', 'write');
+}
+
+function mjl_workspace_can_apply_expense_write(User $targetUser)
+{
+	return mjl_scope_business_role_can_write($targetUser) && $targetUser->hasRight('mjlfinancement', 'expense', 'write');
+}
+
+function mjl_workspace_can_apply_activity_validation(User $targetUser)
+{
+	return (mjl_scope_is_verifier($targetUser) && $targetUser->hasRight('mjlfinancement', 'activity', 'validate')) || mjl_scope_is_final_validator($targetUser);
+}
+
+function mjl_workspace_can_apply_expense_validation(User $targetUser)
+{
+	return mjl_scope_can_apply_business_validation($targetUser) && $targetUser->hasRight('mjlfinancement', 'expense', 'validate');
 }
 
 function mjl_workspace_metrics(User $targetUser)
@@ -205,7 +272,7 @@ function mjl_workspace_metrics(User $targetUser)
 	);
 
 	if ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['supervision']) {
-		$metrics['activities_submitted'] = mjl_workspace_activity_count(array(MjlActivity::STATUS_SUBMITTED));
+		$metrics['activities_submitted'] = mjl_workspace_activity_count(mjl_scope_is_final_validator($targetUser) ? MjlActivity::finalReviewStatuses() : MjlActivity::verifierReviewStatuses());
 		$metrics['expenses_submitted'] = mjl_workspace_expense_review_count($targetUser);
 		$metrics['overdue_activities'] = mjl_workspace_overdue_activity_count();
 	}
@@ -301,13 +368,7 @@ function mjl_workspace_overdue_activity_count()
 {
 	global $db, $conf;
 
-	$openStatuses = array(
-		MjlActivity::STATUS_DRAFT,
-		MjlActivity::STATUS_ONGOING,
-		MjlActivity::STATUS_SUBMITTED,
-		MjlActivity::STATUS_CORRECTION_REQUESTED,
-		MjlActivity::STATUS_CORRECTED,
-	);
+	$openStatuses = MjlActivity::openStatuses();
 	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity';
 	$sql .= ' WHERE entity = '.((int) $conf->entity);
 	$sql .= ' AND status IN ('.implode(',', array_map('intval', $openStatuses)).')';
