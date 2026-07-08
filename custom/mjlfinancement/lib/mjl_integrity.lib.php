@@ -20,17 +20,57 @@ function mjl_expense_status_label($status)
 	$map = array(
 		0 => 'draft',
 		1 => 'submitted',
-		2 => 'validated',
+		2 => 'legacy_validated',
 		3 => 'corrected',
+		4 => 'prevalidated',
+		6 => 'final_validated',
+		7 => 'disbursed',
 		8 => 'rejected',
 	);
 	$status = (int) $status;
 	return isset($map[$status]) ? $map[$status] : (string) $status;
 }
 
+function mjl_expense_budget_consuming_statuses()
+{
+	return array(2, 6, 7);
+}
+
+function mjl_expense_pending_verifier_statuses()
+{
+	return array(1);
+}
+
+function mjl_expense_pending_final_validator_statuses()
+{
+	return array(4);
+}
+
+function mjl_expense_disbursed_statuses()
+{
+	return array(7);
+}
+
+function mjl_expense_status_sql_list($statuses)
+{
+	return implode(',', array_map('intval', $statuses));
+}
+
+function mjl_expense_budget_amount_sql($alias = 'e')
+{
+	$alias = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
+	return '(CASE WHEN '.$alias.'.status = 2 THEN '.$alias.'.amount ELSE COALESCE('.$alias.'.final_validated_amount, '.$alias.'.amount) END)';
+}
+
+function mjl_expense_disbursed_amount_sql($alias = 'e')
+{
+	$alias = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
+	return 'COALESCE('.$alias.'.disbursed_amount, 0)';
+}
+
 function mjl_expense_is_audited_status($status)
 {
-	return in_array((int) $status, array(2, 3, 8), true);
+	return in_array((int) $status, array(2, 3, 4, 6, 7, 8), true);
 }
 
 function mjl_user_has_right(User $user, $module, $perms, $subperms)
@@ -363,7 +403,7 @@ function mjl_integrity_fetch_row($sql)
 	return $obj ? (array) $obj : array();
 }
 
-function mjl_record_expense_validation_event($expense, $fromStatus, $toStatus, User $user, $actionDate, $action = null, $comment = '')
+function mjl_record_expense_validation_event($expense, $fromStatus, $toStatus, User $user, $actionDate, $action = null, $comment = '', $actorRole = '')
 {
 	global $db;
 
@@ -383,6 +423,9 @@ function mjl_record_expense_validation_event($expense, $fromStatus, $toStatus, U
 	$ref = 'VAL-EXP-'.$expenseId.'-'.date('YmdHis', $actionDate).'-'.substr(str_replace('.', '', (string) microtime(true)), -6).'-'.((int) $user->id).'-'.strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', $action), 0, 8));
 	$sql = 'INSERT INTO '.$db->prefix().'mjlfinancement_validation';
 	$sql .= ' (entity, ref, fk_expense, action, from_status, to_status, fk_user_action, action_date, comment, date_creation, fk_user_creat, import_key)';
+	if (mjl_integrity_column_exists('mjlfinancement_validation', 'actor_role')) {
+		$sql = str_replace('fk_user_action, action_date', 'fk_user_action, actor_role, action_date', $sql);
+	}
 	$sql .= ' VALUES (';
 	$sql .= $entity;
 	$sql .= ", '".$db->escape($ref)."'";
@@ -391,6 +434,9 @@ function mjl_record_expense_validation_event($expense, $fromStatus, $toStatus, U
 	$sql .= ", '".$db->escape(mjl_expense_status_label($fromStatus))."'";
 	$sql .= ", '".$db->escape(mjl_expense_status_label($toStatus))."'";
 	$sql .= ', '.((int) $user->id);
+	if (mjl_integrity_column_exists('mjlfinancement_validation', 'actor_role')) {
+		$sql .= ', '.mjl_integrity_sql_string($actorRole);
+	}
 	$sql .= ", '".$db->idate($actionDate)."'";
 	$sql .= ', '.mjl_integrity_sql_string($comment);
 	$sql .= ", '".$db->idate(dol_now())."'";
@@ -409,7 +455,8 @@ function mjl_assert_no_budget_overspend_on_validation($expenseId, $budgetLineId,
 {
 	global $db;
 
-	$sql = 'SELECT bl.revised_budget, COALESCE(SUM(CASE WHEN e.status = 2 AND e.rowid <> '.((int) $expenseId).' THEN e.amount ELSE 0 END), 0) AS spent_amount';
+	$statusList = mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses());
+	$sql = 'SELECT bl.revised_budget, COALESCE(SUM(CASE WHEN e.status IN ('.$statusList.') AND e.rowid <> '.((int) $expenseId).' THEN '.mjl_expense_budget_amount_sql('e').' ELSE 0 END), 0) AS spent_amount';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.fk_budget_line = bl.rowid AND e.entity = bl.entity';
 	$sql .= ' WHERE bl.rowid = '.((int) $budgetLineId).' AND bl.entity = '.((int) $entity);
@@ -452,8 +499,9 @@ function mjl_recalculate_budget_line_amounts($budgetLineIds, $entity = null)
 	}
 
 	$sql = 'UPDATE '.$db->prefix().'mjlfinancement_budget_line bl SET';
-	$sql .= ' spent_amount = (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status = 2)';
-	$sql .= ', remaining_amount = COALESCE(bl.revised_budget, 0) - (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status = 2)';
+	$statusList = mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses());
+	$sql .= ' spent_amount = (SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status IN ('.$statusList.'))';
+	$sql .= ', remaining_amount = COALESCE(bl.revised_budget, 0) - (SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status IN ('.$statusList.'))';
 	$sql .= ' WHERE bl.rowid IN ('.implode(',', $ids).')';
 	if ($entity !== null) {
 		$sql .= ' AND bl.entity = '.((int) $entity);
@@ -464,6 +512,21 @@ function mjl_recalculate_budget_line_amounts($budgetLineIds, $entity = null)
 	}
 
 	return 1;
+}
+
+function mjl_integrity_column_exists($table, $column)
+{
+	global $db;
+
+	$sql = 'SELECT COUNT(*) AS nb FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()';
+	$sql .= " AND TABLE_NAME = '".$db->escape($db->prefix().$table)."'";
+	$sql .= " AND COLUMN_NAME = '".$db->escape($column)."'";
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return false;
+	}
+	$obj = $db->fetch_object($resql);
+	return $obj && (int) $obj->nb > 0;
 }
 
 function mjl_integrity_sql_string($value)

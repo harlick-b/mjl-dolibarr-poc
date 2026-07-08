@@ -33,7 +33,7 @@ Confirmed non-goals for the current POC:
 - `docker-compose.yml` runs Dolibarr `23.0.2` with MariaDB `11`.
 - Dolibarr is exposed locally on `http://127.0.0.1:8080/`.
 - The custom module lives under `custom/mjlfinancement`.
-- The module declaration reports version `0.9.0`.
+- The module declaration reports version `0.10.0`.
 - The module requires Dolibarr `23.0.x` and PHP `7.4+`.
 - Dolibarr documents are mounted under `./data/documents`.
 - The custom module is mounted into the container at `/var/www/html/custom`.
@@ -83,8 +83,8 @@ Current MJL custom objects:
 - `MjlActivity`: activity tracking and lifecycle workflow.
 - `MjlBudgetLine`: budget allocation and execution tracking.
 - `MjlFundReceipt`: received/not-received funding trace with proof documents.
-- `MjlExpense`: expense workflow, budget impact, and document validation.
-- `MjlValidation`: expense validation history.
+- `MjlExpense`: staged expense workflow, budget impact, and document validation.
+- `MjlValidation`: expense validation history with action-time actor role.
 - `MjlWorkflowAction`: generic workflow and field-change audit.
 - `MjlExchangeLog`: queryable exchange/comment trace.
 - `MjlReport`: fixed report definitions.
@@ -136,8 +136,10 @@ Confirmed visibility patterns:
   documents, submit, request correction, correct/resubmit, prevalidate as
   `AGENT_VERIFICATEUR`, final-validate as `VALIDATEUR_DEFINITIF`, reject, and
   cancel/complete where applicable, with timeline/audit evidence.
-- Expense lifecycle: create draft, upload supporting document, submit, validate
-  or reject, correct/resubmit, with budget checks and validation history.
+- Expense lifecycle: create draft, upload supporting document, submit,
+  prevalidate as `AGENT_VERIFICATEUR`, final-validate as
+  `VALIDATEUR_DEFINITIF`, disburse once, or reject/correct/resubmit, with
+  stage amounts, budget checks, no-self-action guards, and validation history.
 - Documents: upload from contextual object pages, store in ECM, download only
   through guarded MJL document routes.
 - Finance/reference management: DPAF/Admin manage conventions, budget lines,
@@ -171,6 +173,9 @@ Confirmed visibility patterns:
 | Fonds reçu | Funding receipt linked to convention/project/PTF |
 | Dépense | Expense linked to project, convention, optional activity, and budget line |
 | Pièce justificative | Supporting document stored in ECM |
+| Prévalidation dépense | Verifier decision that accepts a submitted expense amount before final validation |
+| Validation définitive dépense | Final-validator decision that consumes budget using the final validated amount |
+| Décaissement | One-time Phase 5 record that the final validated expense amount was paid to a beneficiary |
 | DPAF | Supervision/finance-level profile for dashboards and reports |
 | Historique / audit | Trace of decisions, status changes, actors, comments, and dates |
 

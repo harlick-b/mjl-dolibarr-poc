@@ -114,7 +114,9 @@ function rightsForRole($role)
 		$rights[] = array('mjlfinancement', 'expense', 'write');
 	}
 	if ($role['can_validate_expense'] === 'yes') {
-		$rights[] = array('mjlfinancement', 'activity', 'validate');
+		if (($role['role_code'] ?? '') !== 'DPAF') {
+			$rights[] = array('mjlfinancement', 'activity', 'validate');
+		}
 		$rights[] = array('mjlfinancement', 'expense', 'validate');
 		$rights[] = array('mjlfinancement', 'validation', 'write');
 		$rights[] = array('mjlfinancement', 'workflowaction', 'write');

@@ -128,7 +128,7 @@ test.afterAll(() => {
   cleanupPhase3();
 });
 
-test('partner list/detail and finance objects stay inside assigned partner scope', async ({ page }) => {
+test('partner list/detail stay inside assigned partner scope and finance reference pages are blocked', async ({ page }) => {
   const redevPartner = scalar("SELECT rowid FROM llx_societe WHERE nom = 'Programme Redevabilité' AND entity = 1 LIMIT 1");
   const redevConvention = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-RED-2026-001' AND entity = 1 LIMIT 1");
 
@@ -140,13 +140,9 @@ test('partner list/detail and finance objects stay inside assigned partner scope
   await expectAccessDenied(page, `/custom/mjlfinancement/partners.php?id=${redevPartner}`);
   await expectAccessDenied(page, `/custom/mjlfinancement/conventions.php?id=${redevConvention}`);
 
-  await page.goto('/custom/mjlfinancement/conventions.php');
-  await expect(page.getByRole('heading', { name: 'Gestion des enveloppes de financement' })).toBeVisible();
-  await expect(page.locator('body')).toContainText('CONV-UNICEF-2026-001');
-  await expect(page.locator('body')).not.toContainText('CONV-RED-2026-001');
-
-  await page.goto('/custom/mjlfinancement/budgetlines.php');
-  await expect(page.locator('select[name="fk_convention"] option', { hasText: 'CONV-RED-2026-001' })).toHaveCount(0);
+  await expectAccessDenied(page, '/custom/mjlfinancement/conventions.php');
+  await expectAccessDenied(page, '/custom/mjlfinancement/budgetlines.php');
+  await expectAccessDenied(page, '/custom/mjlfinancement/fundreceipts.php');
 });
 
 test('UNICEF project detail excludes cross-scope related rows and aggregates', async ({ page }) => {

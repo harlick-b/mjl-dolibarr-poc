@@ -531,7 +531,7 @@ class MjlBudgetLine extends CommonObject
 
 	private function validatedSpentFromCurrent($current)
 	{
-		$sql = 'SELECT COALESCE(SUM(amount), 0) AS amount FROM '.$this->db->prefix().'mjlfinancement_expense WHERE entity = '.((int) $current['entity']).' AND fk_budget_line = '.((int) $current['rowid']).' AND status = 2';
+		$sql = 'SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) AS amount FROM '.$this->db->prefix().'mjlfinancement_expense e WHERE e.entity = '.((int) $current['entity']).' AND e.fk_budget_line = '.((int) $current['rowid']).' AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).')';
 		$resql = $this->db->query($sql);
 		$obj = $resql ? $this->db->fetch_object($resql) : null;
 		return $obj ? (float) $obj->amount : 0.0;

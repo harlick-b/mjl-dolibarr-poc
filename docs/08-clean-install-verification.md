@@ -21,6 +21,7 @@ docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mj
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.5.0.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.8.0.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.9.0.php
+docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.10.0.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/acceptance_sample_data.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_scope_model.php
@@ -37,6 +38,7 @@ MJL 0.4.0 workflow foundation audit: OK
 MJL 0.5.0 activity status audit: OK
 MJL 0.8.0 role/scope schema audit: OK
 MJL 0.9.0 activity workflow schema audit: OK
+MJL 0.10.0 expense disbursement schema audit: OK
 MJL sample data acceptance checks completed.
 MJL 0.8.0 scope model smoke: OK
 MJL expense validation smoke test completed.

@@ -106,13 +106,13 @@ function mjl_navigation_sections(User $targetUser)
 		);
 	}
 	$financeChildren = array();
-	if ($targetUser->hasRight('mjlfinancement', 'convention', 'read') && mjl_workspace_user_has_production_access($targetUser)) {
+	if (mjl_workspace_can_access_reference_data($targetUser, 'convention')) {
 		$financeChildren[] = array('key' => 'conventions', 'label' => 'Enveloppes de financement', 'href' => '/custom/mjlfinancement/conventions.php', 'description' => 'Financements');
 	}
-	if ($targetUser->hasRight('mjlfinancement', 'budgetline', 'read') && mjl_workspace_user_has_production_access($targetUser)) {
+	if (mjl_workspace_can_access_reference_data($targetUser, 'budgetline')) {
 		$financeChildren[] = array('key' => 'budgetlines', 'label' => 'Budgets', 'href' => '/custom/mjlfinancement/budgetlines.php', 'description' => 'Lignes budgétaires');
 	}
-	if ($targetUser->hasRight('mjlfinancement', 'fundreceipt', 'read') && mjl_workspace_user_has_production_access($targetUser)) {
+	if (mjl_workspace_can_access_reference_data($targetUser, 'fundreceipt')) {
 		$financeChildren[] = array('key' => 'fundreceipts', 'label' => 'Fonds reçus', 'href' => '/custom/mjlfinancement/fundreceipts.php', 'description' => 'Réceptions de fonds');
 	}
 	if (!empty($financeChildren)) {

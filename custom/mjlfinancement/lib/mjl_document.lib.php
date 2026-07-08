@@ -244,7 +244,7 @@ function mjl_convention_document_fetch_convention_for_access($conventionId)
 		return array();
 	}
 	$row = (array) $obj;
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $row['convention_rowid'])) {
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $row['rowid'])) {
 		return array();
 	}
 	return $row;

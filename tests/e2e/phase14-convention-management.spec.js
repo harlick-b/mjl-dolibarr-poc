@@ -75,7 +75,7 @@ test('DPAF receives convention write without routine operation rights', async ()
     INNER JOIN llx_usergroup_user ugu ON ugu.fk_user = u.rowid AND ugu.entity = 1
     INNER JOIN llx_usergroup_rights ugr ON ugr.fk_usergroup = ugu.fk_usergroup AND ugr.entity = 1
     INNER JOIN llx_rights_def rd ON rd.id = ugr.fk_id
-    WHERE u.login = 'dpaf.mjl' AND rd.module = 'mjlfinancement' AND rd.perms IN ('activity', 'expense') AND rd.subperms IN ('write', 'validate')
+    WHERE u.login = 'dpaf.mjl' AND rd.module = 'mjlfinancement' AND ((rd.perms = 'activity' AND rd.subperms IN ('write', 'validate')) OR (rd.perms = 'expense' AND rd.subperms = 'write'))
   `))).toBe(0);
 });
 
@@ -85,7 +85,7 @@ test('DPAF creates, edits, activates, closes, and views convention history', asy
 
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/conventions.php');
-  await expect(page.getByRole('heading', { name: 'Gestion des conventions MJL' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gestion des enveloppes de financement' })).toBeVisible();
 
   await page.getByLabel('Reference').fill('P14-UI-CONV');
   await page.getByLabel('Intitule').fill('Convention Phase 14 UI');
@@ -95,7 +95,7 @@ test('DPAF creates, edits, activates, closes, and views convention history', asy
   await page.getByLabel('Fin').fill('2026-12-31');
   await page.getByLabel('Montant total').fill('1234567');
   await page.getByLabel('Devise').fill('XOF');
-  await page.getByRole('button', { name: 'Creer la convention' }).click();
+  await page.getByRole('button', { name: 'Creer l enveloppe' }).click();
 
   await expect(page).toHaveURL(/conventions\.php\?id=\d+/);
   await expect(page.getByRole('heading', { name: /P14-UI-CONV/ })).toBeVisible();
@@ -124,8 +124,8 @@ test('DPAF creates, edits, activates, closes, and views convention history', asy
 test('Admin can open convention management, while non-DPAF direct access and POST are blocked', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/conventions.php');
-  await expect(page.getByRole('heading', { name: 'Gestion des conventions MJL' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Creer la convention' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gestion des enveloppes de financement' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Creer l enveloppe' })).toBeVisible();
 
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/conventions.php');
@@ -201,7 +201,7 @@ test('Unlinked draft deletion works but linked deletion is blocked', async ({ pa
   await page.locator('select[name="fk_project"]').selectOption(projectId);
   await page.getByLabel('Montant total').fill('500000');
   await page.getByLabel('Devise').fill('XOF');
-  await page.getByRole('button', { name: 'Creer la convention' }).click();
+  await page.getByRole('button', { name: 'Creer l enveloppe' }).click();
   const draftId = new URL(page.url()).searchParams.get('id');
   await page.getByRole('button', { name: 'Supprimer le brouillon' }).click();
   await expect(page).toHaveURL(/conventions\.php$/);

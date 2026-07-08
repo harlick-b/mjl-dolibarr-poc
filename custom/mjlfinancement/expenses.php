@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!mjl_workspace_can_apply_expense_write($user) && in_array($action, array('create', 'update', 'submit', 'correct'), true)) {
 		mjl_expenses_forbidden();
 	}
-	if (!mjl_workspace_can_apply_expense_validation($user) && in_array($action, array('validate', 'reject'), true)) {
+	if (!mjl_workspace_can_apply_expense_validation($user) && in_array($action, array('validate', 'prevalidate', 'final_validate', 'disburse', 'reject'), true)) {
 		mjl_expenses_forbidden();
 	}
 	if ($action === 'upload' && !mjl_workspace_can_apply_expense_write($user)) {
@@ -98,6 +98,9 @@ function mjl_expenses_handle_post($action)
 	if ($action === 'update') $result = mjl_expenses_update_rejected($expense);
 	elseif ($action === 'submit') $result = $expense->submit($user, GETPOST('comment', 'restricthtml'));
 	elseif ($action === 'validate') $result = $expense->validate($user);
+	elseif ($action === 'prevalidate') $result = $expense->prevalidate($user, GETPOST('prevalidated_amount', 'alpha'), GETPOST('comment', 'restricthtml'));
+	elseif ($action === 'final_validate') $result = $expense->finalValidate($user, GETPOST('final_validated_amount', 'alpha'), GETPOST('comment', 'restricthtml'));
+	elseif ($action === 'disburse') $result = $expense->disburse($user, GETPOST('beneficiary_name', 'restricthtml'), GETPOST('disbursement_date', 'alphanohtml'));
 	elseif ($action === 'reject') $result = $expense->reject($user, GETPOST('comment', 'restricthtml'));
 	elseif ($action === 'correct') $result = $expense->correct($user, GETPOST('comment', 'restricthtml'));
 	elseif ($action === 'upload') $result = mjl_expenses_upload_document($expense);
@@ -166,7 +169,7 @@ function mjl_expenses_upload_document(MjlExpense $expense)
 		$expense->error = 'Expense not found in active entity';
 		return -1;
 	}
-	if ((int) $expense->status === MjlExpense::STATUS_VALIDATED) {
+	if (in_array((int) $expense->status, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_DISBURSED), true)) {
 		$expense->error = 'Validated expenses cannot receive new supporting documents';
 		return -1;
 	}
@@ -359,10 +362,18 @@ function mjl_expenses_render_summary_card($row)
 	print '<div><dt>Convention</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
 	print '<div><dt>Activite</dt><dd>'.dol_escape_htmltag($row['activity_ref'] ?: 'Aucune').'</dd></div>';
 	print '<div><dt>Ligne budgetaire</dt><dd>'.dol_escape_htmltag($row['budget_line_ref']).' - '.dol_escape_htmltag($row['budget_line_label']).'</dd></div>';
-	print '<div><dt>Montant</dt><dd>'.price($row['amount']).'</dd></div>';
+	print '<div><dt>Montant demande</dt><dd>'.price($row['amount']).'</dd></div>';
+	print '<div><dt>Montant prevalide</dt><dd>'.mjl_expenses_money_or_empty($row['prevalidated_amount']).'</dd></div>';
+	print '<div><dt>Montant valide definitivement</dt><dd>'.mjl_expenses_money_or_empty($row['final_validated_amount']).'</dd></div>';
+	print '<div><dt>Montant decaisse</dt><dd>'.mjl_expenses_money_or_empty($row['disbursed_amount']).'</dd></div>';
 	print '<div><dt>Date depense</dt><dd>'.dol_escape_htmltag(mjl_expenses_format_date($row['expense_date'])).'</dd></div>';
+	print '<div><dt>Date validation definitive</dt><dd>'.dol_escape_htmltag(mjl_expenses_format_datetime($row['final_validation_date'] ?: $row['validation_date'])).'</dd></div>';
+	print '<div><dt>Date decaissement</dt><dd>'.dol_escape_htmltag(mjl_expenses_format_date($row['disbursement_date'])).'</dd></div>';
+	print '<div><dt>Beneficiaire</dt><dd>'.dol_escape_htmltag($row['beneficiary_name'] ?: 'Non renseigne').'</dd></div>';
 	print '<div><dt>Createur</dt><dd>'.dol_escape_htmltag($row['creator_login']).'</dd></div>';
-	print '<div><dt>Validateur</dt><dd>'.dol_escape_htmltag($row['validator_login'] ?: 'Non validee').'</dd></div>';
+	print '<div><dt>Prevalidateur</dt><dd>'.dol_escape_htmltag($row['prevalidator_login'] ?: 'Non prevalidee').'</dd></div>';
+	print '<div><dt>Validateur definitif</dt><dd>'.dol_escape_htmltag($row['final_validator_login'] ?: $row['validator_login'] ?: 'Non validee').'</dd></div>';
+	print '<div><dt>Acteur decaissement</dt><dd>'.dol_escape_htmltag($row['disburser_login'] ?: 'Non decaissee').'</dd></div>';
 	print '</dl></section>';
 }
 
@@ -389,6 +400,13 @@ function mjl_expenses_render_decision_panel($row)
 		if ($action === 'update') continue;
 		print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
 		print mjl_expenses_token_input().'<input type="hidden" name="action" value="'.dol_escape_htmltag($action).'"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+		if (!empty($meta['amount_field'])) {
+			print '<label>'.dol_escape_htmltag($meta['amount_label']).'<input required name="'.dol_escape_htmltag($meta['amount_field']).'" value="'.dol_escape_htmltag((string) $meta['amount_default']).'"></label>';
+		}
+		if (!empty($meta['beneficiary'])) {
+			print '<label>Beneficiaire<input required name="beneficiary_name" value="'.dol_escape_htmltag($row['beneficiary_name']).'"></label>';
+			print '<label>Date decaissement<input required type="date" name="disbursement_date" value="'.dol_escape_htmltag(date('Y-m-d')).'"></label>';
+		}
 		if (!empty($meta['comment'])) {
 			print '<label>'.dol_escape_htmltag($meta['comment']).'<input'.(!empty($meta['required']) ? ' required' : '').' name="comment"></label>';
 		}
@@ -526,9 +544,9 @@ function mjl_expenses_fetch_detail($id)
 	if ((int) $id <= 0) {
 		return array();
 	}
-	$sql = 'SELECT e.rowid, e.entity, e.ref, e.fk_user_creat, e.expense_date, e.amount, e.status, e.description, e.supporting_document, e.correction_reason, e.submitted_at, e.validation_date, e.date_creation,';
+	$sql = 'SELECT e.rowid, e.entity, e.ref, e.fk_user_creat, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, e.disbursed_amount, e.status, e.description, e.supporting_document, e.correction_reason, e.submitted_at, e.validation_date, e.prevalidation_date, e.final_validation_date, e.disbursement_date, e.beneficiary_name, e.date_creation,';
 	$sql .= ' p.ref AS project_ref, p.title AS project_title, c.ref AS convention_ref, c.title AS convention_title, a.ref AS activity_ref, a.label AS activity_label,';
-	$sql .= ' bl.ref AS budget_line_ref, bl.label AS budget_line_label, u.login AS creator_login, uv.login AS validator_login,';
+	$sql .= ' bl.ref AS budget_line_ref, bl.label AS budget_line_label, u.login AS creator_login, uv.login AS validator_login, up.login AS prevalidator_login, uf.login AS final_validator_login, ud.login AS disburser_login,';
 	$sql .= ' '.mjl_expense_document_present_sql('e').' AS document_present, '.mjl_expense_supporting_document_sql('e').' AS supporting_document_resolved';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
@@ -537,6 +555,9 @@ function mjl_expenses_fetch_detail($id)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = e.fk_budget_line AND bl.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = e.fk_user_creat';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user uv ON uv.rowid = e.fk_user_valid';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user up ON up.rowid = e.fk_user_prevalidated';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user uf ON uf.rowid = e.fk_user_final_valid';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user ud ON ud.rowid = e.fk_user_disbursed';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity).' AND e.rowid = '.((int) $id);
 	$resql = $db->query($sql);
 	if (!$resql) {
@@ -563,7 +584,7 @@ function mjl_expenses_can_apply_action($expense, $action)
 		return false;
 	}
 	if ($action === 'upload') {
-		if (!mjl_workspace_can_apply_expense_write($user) || $status === MjlExpense::STATUS_VALIDATED) return false;
+		if (!mjl_workspace_can_apply_expense_write($user) || in_array($status, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_DISBURSED), true)) return false;
 		return !mjl_expenses_requires_own_scope($user) || (int) $row['fk_user_creat'] === (int) $user->id;
 	}
 	if (in_array($action, array('update', 'submit', 'correct'), true)) {
@@ -573,11 +594,15 @@ function mjl_expenses_can_apply_action($expense, $action)
 		if ($action === 'submit') return in_array($status, array(MjlExpense::STATUS_DRAFT, MjlExpense::STATUS_CORRECTED), true);
 		return $status === MjlExpense::STATUS_REJECTED;
 	}
-	if (in_array($action, array('validate', 'reject'), true)) {
-		if (!mjl_workspace_can_apply_expense_validation($user) || $status !== MjlExpense::STATUS_SUBMITTED) return false;
+	if (in_array($action, array('validate', 'prevalidate', 'final_validate', 'disburse', 'reject'), true)) {
+		if (!mjl_workspace_can_apply_expense_validation($user)) return false;
 		if ((int) $row['fk_user_creat'] === (int) $user->id) return false;
-		if ($action === 'validate' && array_key_exists('evidence_state', $row) && $row['evidence_state'] !== 'downloadable') return false;
-		if ($action === 'validate' && !array_key_exists('evidence_state', $row) && array_key_exists('document_present', $row) && (int) $row['document_present'] <= 0) return false;
+		if (($action === 'validate' || $action === 'prevalidate') && (!mjl_scope_is_verifier($user) || $status !== MjlExpense::STATUS_SUBMITTED)) return false;
+		if ($action === 'final_validate' && (!mjl_scope_is_final_validator($user) || $status !== MjlExpense::STATUS_PREVALIDATED)) return false;
+		if ($action === 'disburse' && (!mjl_scope_is_final_validator($user) || !in_array($status, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED), true))) return false;
+		if ($action === 'reject' && !in_array($status, array(MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_PREVALIDATED), true)) return false;
+		if (in_array($action, array('validate', 'prevalidate', 'final_validate'), true) && array_key_exists('evidence_state', $row) && $row['evidence_state'] !== 'downloadable') return false;
+		if (in_array($action, array('validate', 'prevalidate', 'final_validate'), true) && !array_key_exists('evidence_state', $row) && array_key_exists('document_present', $row) && (int) $row['document_present'] <= 0) return false;
 		return true;
 	}
 	return false;
@@ -588,7 +613,9 @@ function mjl_expenses_available_actions($row)
 	$actions = array();
 	if (mjl_expenses_can_apply_action($row, 'update')) $actions['update'] = array('label' => 'Modifier');
 	if (mjl_expenses_can_apply_action($row, 'submit')) $actions['submit'] = array('label' => 'Soumettre la depense', 'comment' => 'Commentaire de soumission', 'required' => false);
-	if (mjl_expenses_can_apply_action($row, 'validate')) $actions['validate'] = array('label' => 'Valider la depense', 'comment' => '', 'required' => false);
+	if (mjl_expenses_can_apply_action($row, 'prevalidate')) $actions['prevalidate'] = array('label' => 'Prevalider la depense', 'comment' => 'Commentaire de prevalidation', 'required' => false, 'amount_field' => 'prevalidated_amount', 'amount_label' => 'Montant prevalide', 'amount_default' => $row['amount']);
+	if (mjl_expenses_can_apply_action($row, 'final_validate')) $actions['final_validate'] = array('label' => 'Valider definitivement', 'comment' => 'Commentaire de validation definitive', 'required' => false, 'amount_field' => 'final_validated_amount', 'amount_label' => 'Montant valide definitivement', 'amount_default' => $row['prevalidated_amount'] ?: $row['amount']);
+	if (mjl_expenses_can_apply_action($row, 'disburse')) $actions['disburse'] = array('label' => 'Enregistrer le decaissement', 'beneficiary' => true);
 	if (mjl_expenses_can_apply_action($row, 'reject')) $actions['reject'] = array('label' => 'Rejeter la depense', 'comment' => 'Motif de rejet', 'required' => true);
 	if (mjl_expenses_can_apply_action($row, 'correct')) $actions['correct'] = array('label' => 'Marquer corrigee', 'comment' => 'Motif de correction', 'required' => true);
 	return $actions;
@@ -604,7 +631,7 @@ function mjl_expenses_timeline_items($expense)
 		'meta' => mjl_expenses_format_datetime($expense['date_creation'] ?? '').' par '.$expense['creator_login'],
 		'comment' => '',
 	));
-	$sql = 'SELECT v.action, v.from_status, v.to_status, v.action_date, v.comment, u.login';
+	$sql = 'SELECT v.action, v.from_status, v.to_status, v.action_date, v.comment, v.actor_role, u.login';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = v.fk_user_action';
 	$sql .= ' WHERE v.entity = '.((int) $conf->entity).' AND v.fk_expense = '.((int) $expense['rowid']);
@@ -618,7 +645,7 @@ function mjl_expenses_timeline_items($expense)
 		$items[] = array(
 			'label' => mjl_expense_action_label($row->action),
 			'title' => mjl_expense_status_text($row->from_status).' vers '.mjl_expense_status_text($row->to_status),
-			'meta' => mjl_expenses_format_datetime($row->action_date).' par '.$row->login,
+			'meta' => mjl_expenses_format_datetime($row->action_date).' par '.$row->login.($row->actor_role ? ' ('.mjl_expense_actor_role_label($row->actor_role).')' : ''),
 			'comment' => (string) $row->comment,
 		);
 	}
@@ -635,9 +662,11 @@ function mjl_expenses_next_action_label($row)
 		return 'Remplacer la piece indisponible avant validation.';
 	}
 	if ($status === MjlExpense::STATUS_DRAFT) return $docPresent ? 'Completer puis soumettre la depense.' : 'Ajouter la piece justificative puis soumettre la depense.';
-	if ($status === MjlExpense::STATUS_SUBMITTED) return $docPresent ? 'Decision attendue du niveau de validation.' : 'Validation bloquee tant que la piece justificative manque.';
+	if ($status === MjlExpense::STATUS_SUBMITTED) return $docPresent ? 'Prevalidation attendue.' : 'Validation bloquee tant que la piece justificative manque.';
 	if ($status === MjlExpense::STATUS_CORRECTED) return 'Depense corrigee a resoumettre.';
-	if ($status === MjlExpense::STATUS_VALIDATED) return 'Depense validee, aucune decision en attente.';
+	if ($status === MjlExpense::STATUS_PREVALIDATED) return 'Validation definitive attendue.';
+	if ($status === MjlExpense::STATUS_VALIDATED || $status === MjlExpense::STATUS_FINAL_VALIDATED) return 'Decaissement a enregistrer lorsque les fonds sont effectivement payes.';
+	if ($status === MjlExpense::STATUS_DISBURSED) return 'Depense decaissee, aucune decision en attente.';
 	if ($status === MjlExpense::STATUS_REJECTED) return 'Correction attendue avant resoumission.';
 	return 'Suivre l avancement de la depense.';
 }
@@ -659,12 +688,19 @@ function mjl_expense_status_text($status)
 	$map = array(
 		(string) MjlExpense::STATUS_DRAFT => 'Brouillon',
 		(string) MjlExpense::STATUS_SUBMITTED => 'Soumise',
-		(string) MjlExpense::STATUS_VALIDATED => 'Validee',
+		(string) MjlExpense::STATUS_VALIDATED => 'Validee legacy',
 		(string) MjlExpense::STATUS_CORRECTED => 'Corrigee',
+		(string) MjlExpense::STATUS_PREVALIDATED => 'Prevalidee',
+		(string) MjlExpense::STATUS_FINAL_VALIDATED => 'Validee definitivement',
+		(string) MjlExpense::STATUS_DISBURSED => 'Decaissee',
 		(string) MjlExpense::STATUS_REJECTED => 'Rejetee',
 		'draft' => 'Brouillon',
 		'submitted' => 'Soumise',
-		'validated' => 'Validee',
+		'legacy_validated' => 'Validee legacy',
+		'validated' => 'Validee legacy',
+		'prevalidated' => 'Prevalidee',
+		'final_validated' => 'Validee definitivement',
+		'disbursed' => 'Decaissee',
 		'corrected' => 'Corrigee',
 		'rejected' => 'Rejetee',
 	);
@@ -676,7 +712,11 @@ function mjl_expense_action_label($action)
 {
 	$map = array(
 		'submitted' => 'Soumission',
-		'validated' => 'Validation',
+		'validated' => 'Validation legacy',
+		'legacy_validated' => 'Validation legacy',
+		'prevalidated' => 'Prevalidation',
+		'final_validated' => 'Validation definitive',
+		'disbursed' => 'Decaissement',
 		'rejected' => 'Rejet',
 		'corrected' => 'Correction',
 	);
@@ -685,9 +725,26 @@ function mjl_expense_action_label($action)
 
 function mjl_expenses_status_badge($status)
 {
-	$tone = in_array((int) $status, array(MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_CORRECTED), true) ? 'warning' : 'neutral';
+	$tone = in_array((int) $status, array(MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_CORRECTED, MjlExpense::STATUS_PREVALIDATED, MjlExpense::STATUS_FINAL_VALIDATED), true) ? 'warning' : 'neutral';
+	if ((int) $status === MjlExpense::STATUS_DISBURSED) $tone = 'success';
 	if ((int) $status === MjlExpense::STATUS_REJECTED) $tone = 'danger';
 	return '<span class="mjl-status-pill'.($tone !== 'neutral' ? ' mjl-status-'.$tone : '').'">'.dol_escape_htmltag(mjl_expenses_status_label($status)).'</span>';
+}
+
+function mjl_expenses_money_or_empty($value)
+{
+	return $value === null || $value === '' ? 'Non renseigne' : price($value);
+}
+
+function mjl_expense_actor_role_label($role)
+{
+	$map = array(
+		'AGENT_SAISIE' => 'Agent de saisie',
+		'AGENT_VERIFICATEUR' => 'Agent verificateur',
+		'VALIDATEUR_DEFINITIF' => 'Validateur definitif',
+		'ADMIN_PLATEFORME' => 'Administrateur plateforme',
+	);
+	return isset($map[$role]) ? $map[$role] : (string) $role;
 }
 
 function mjl_expenses_format_date($value)

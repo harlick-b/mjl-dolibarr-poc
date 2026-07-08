@@ -76,8 +76,8 @@ function mjl_reports_defs()
 			'filters' => array('project_id', 'date_start', 'date_end'),
 			'required_filters' => array('project_id'),
 			'status_domain' => '',
-			'headers' => array('project_ref' => 'Projet', 'project_title' => 'Titre projet', 'budget_total' => 'Budget total', 'funds_received' => 'Fonds reçus', 'total_expenses' => 'Dépenses totales', 'validated_expenses' => 'Dépenses validées', 'pending_expenses' => 'Dépenses soumises'),
-			'money_fields' => array('budget_total', 'funds_received', 'total_expenses', 'validated_expenses', 'pending_expenses'),
+			'headers' => array('project_ref' => 'Projet', 'project_title' => 'Titre projet', 'budget_total' => 'Budget total', 'funds_received' => 'Fonds reçus', 'total_expenses' => 'Dépenses totales', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'pending_expenses' => 'Dépenses soumises'),
+			'money_fields' => array('budget_total', 'funds_received', 'total_expenses', 'validated_expenses', 'disbursed_expenses', 'pending_expenses'),
 		),
 		'convention_budget' => array(
 			'key' => 'convention_budget',
@@ -88,8 +88,8 @@ function mjl_reports_defs()
 			'filters' => array('convention_id', 'date_start', 'date_end'),
 			'required_filters' => array('convention_id'),
 			'status_domain' => '',
-			'headers' => array('ref' => 'Ligne budgétaire', 'label' => 'Libellé', 'initial_budget' => 'Budget initial', 'revised_budget' => 'Budget révisé', 'status' => 'Statut', 'validated_expenses' => 'Dépenses validées', 'submitted_expenses' => 'Dépenses soumises', 'remaining_amount' => 'Restant'),
-			'money_fields' => array('initial_budget', 'revised_budget', 'validated_expenses', 'submitted_expenses', 'remaining_amount'),
+			'headers' => array('ref' => 'Ligne budgétaire', 'label' => 'Libellé', 'initial_budget' => 'Budget initial', 'revised_budget' => 'Budget révisé', 'status' => 'Statut', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'submitted_expenses' => 'Dépenses soumises', 'remaining_amount' => 'Restant'),
+			'money_fields' => array('initial_budget', 'revised_budget', 'validated_expenses', 'disbursed_expenses', 'submitted_expenses', 'remaining_amount'),
 		),
 		'expense_documents' => array(
 			'key' => 'expense_documents',
@@ -151,9 +151,9 @@ function mjl_reports_defs()
 			'filters' => array('project_id', 'convention_id', 'status', 'date_start', 'date_end'),
 			'required_filters' => array(),
 			'status_domain' => 'expense',
-			'headers' => array('partner' => 'Partenaire', 'project' => 'Projet', 'envelope' => 'Mission / enveloppe de financement', 'activity' => 'Activité', 'expense_ref' => 'Référence dépense', 'expense_date' => 'Date dépense', 'amount' => 'Montant', 'expense_status' => 'Statut', 'document_present' => 'Pièce disponible', 'creator' => 'Créée par', 'validator' => 'Validée par', 'validation_date' => 'Date de validation', 'correction_reason' => 'Motif de correction'),
-			'money_fields' => array('amount'),
-			'date_fields' => array('expense_date', 'validation_date'),
+			'headers' => array('partner' => 'Partenaire', 'project' => 'Projet', 'envelope' => 'Mission / enveloppe de financement', 'activity' => 'Activité', 'expense_ref' => 'Référence dépense', 'expense_date' => 'Date dépense', 'amount' => 'Montant demandé', 'prevalidated_amount' => 'Montant prévalidé', 'final_validated_amount' => 'Montant validé définitivement', 'disbursed_amount' => 'Montant décaissé', 'expense_status' => 'Statut', 'document_present' => 'Pièce disponible', 'creator' => 'Créée par', 'prevalidator' => 'Prévalidée par', 'validator' => 'Validée définitivement par', 'disburser' => 'Décaissée par', 'validation_date' => 'Date de validation', 'disbursement_date' => 'Date décaissement', 'beneficiary_name' => 'Bénéficiaire', 'correction_reason' => 'Motif de correction'),
+			'money_fields' => array('amount', 'prevalidated_amount', 'final_validated_amount', 'disbursed_amount'),
+			'date_fields' => array('expense_date', 'validation_date', 'disbursement_date'),
 		),
 		'exchanges' => array(
 			'key' => 'exchanges',
@@ -176,8 +176,8 @@ function mjl_reports_defs()
 			'filters' => array('project_id', 'convention_id'),
 			'required_filters' => array(),
 			'status_domain' => '',
-			'headers' => array('convention_ref' => 'Convention', 'budget_revise' => 'Budget révisé', 'depenses_validees' => 'Dépenses validées', 'depenses_soumises' => 'Dépenses soumises', 'fonds_recus' => 'Fonds reçus', 'activites_en_revue' => 'Activités en revue', 'depenses_en_revue' => 'Dépenses en revue'),
-			'money_fields' => array('budget_revise', 'depenses_validees', 'depenses_soumises', 'fonds_recus'),
+			'headers' => array('convention_ref' => 'Convention', 'budget_revise' => 'Budget révisé', 'depenses_validees' => 'Dépenses validées définitivement', 'depenses_decaissees' => 'Dépenses décaissées', 'depenses_soumises' => 'Dépenses soumises', 'fonds_recus' => 'Fonds reçus', 'activites_en_revue' => 'Activités en revue', 'depenses_en_revue' => 'Dépenses en revue'),
+			'money_fields' => array('budget_revise', 'depenses_validees', 'depenses_decaissees', 'depenses_soumises', 'fonds_recus'),
 		),
 	);
 }
@@ -582,8 +582,11 @@ function mjl_reports_expense_status_options()
 	return array(
 		(string) MjlExpense::STATUS_DRAFT => 'Brouillon',
 		(string) MjlExpense::STATUS_SUBMITTED => 'Soumise',
-		(string) MjlExpense::STATUS_VALIDATED => 'Validee',
+		(string) MjlExpense::STATUS_VALIDATED => 'Validee legacy',
 		(string) MjlExpense::STATUS_CORRECTED => 'Corrigee',
+		(string) MjlExpense::STATUS_PREVALIDATED => 'Prevalidee',
+		(string) MjlExpense::STATUS_FINAL_VALIDATED => 'Validee definitivement',
+		(string) MjlExpense::STATUS_DISBURSED => 'Decaissee',
 		(string) MjlExpense::STATUS_REJECTED => 'Rejetee',
 	);
 }
@@ -816,7 +819,7 @@ function mjl_reports_activities_rows($filters)
 
 	$sql = 'SELECT s.nom AS partner, p.ref AS project, c.ref AS envelope, a.ref AS activity_ref, a.label AS activity_title, a.date_start, a.date_end, a.status, COALESCE(t.progress, 0) AS physical_progress_percent,';
 	$sql .= ' COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl WHERE bl.entity = a.entity AND bl.fk_mjl_activity = a.rowid), 0) AS allocated_budget,';
-	$sql .= ' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = a.entity AND e.fk_mjl_activity = a.rowid AND e.status = '.MjlExpense::STATUS_VALIDATED.'), 0) AS validated_expenses';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_expense_budget_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = a.entity AND e.fk_mjl_activity = a.rowid AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).')), 0) AS validated_expenses';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
@@ -911,16 +914,18 @@ function mjl_reports_expenses_validations_rows($filters)
 	if ($filters['date_start'] !== '') $where[] = "e.expense_date >= '".$db->escape($filters['date_start'])."'";
 	if ($filters['date_end'] !== '') $where[] = "e.expense_date <= '".$db->escape($filters['date_end'])."'";
 
-	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.supporting_document AS stored_supporting_document, s.nom AS partner, p.ref AS project, c.ref AS envelope, a.ref AS activity, e.ref AS expense_ref, e.expense_date, e.amount, e.status AS expense_status,';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.supporting_document AS stored_supporting_document, s.nom AS partner, p.ref AS project, c.ref AS envelope, a.ref AS activity, e.ref AS expense_ref, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, e.disbursed_amount, e.status AS expense_status,';
 	$sql .= ' CASE WHEN '.mjl_expense_document_present_sql('e').' THEN 1 ELSE 0 END AS document_present,';
-	$sql .= ' creator.login AS creator, validator.login AS validator, e.validation_date, e.correction_reason';
+	$sql .= ' creator.login AS creator, prevalidator.login AS prevalidator, validator.login AS validator, disburser.login AS disburser, COALESCE(e.final_validation_date, e.validation_date) AS validation_date, e.disbursement_date, e.beneficiary_name, e.correction_reason';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = e.fk_mjl_activity AND a.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user creator ON creator.rowid = e.fk_user_creat';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user validator ON validator.rowid = e.fk_user_valid';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user prevalidator ON prevalidator.rowid = e.fk_user_prevalidated';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user validator ON validator.rowid = COALESCE(e.fk_user_final_valid, e.fk_user_valid)';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user disburser ON disburser.rowid = e.fk_user_disbursed';
 	$sql .= ' WHERE '.implode(' AND ', $where);
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref';
 	$rows = mjl_reports_fetch_rows($sql);
@@ -961,7 +966,8 @@ function mjl_reports_dpaf_rows($filters)
 
 	$sql = 'SELECT c.ref AS convention_ref,';
 	$sql .= ' COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl WHERE bl.entity = c.entity AND bl.fk_convention = c.rowid), 0) AS budget_revise,';
-	$sql .= ' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_VALIDATED.'), 0) AS depenses_validees,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_expense_budget_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).')), 0) AS depenses_validees,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_expense_disbursed_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_disbursed_statuses()).')), 0) AS depenses_decaissees,';
 	$sql .= ' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_SUBMITTED.'), 0) AS depenses_soumises,';
 	$sql .= ' COALESCE((SELECT SUM(fr.amount) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = c.entity AND fr.fk_convention = c.rowid AND fr.status = 1), 0) AS fonds_recus,';
 	$sql .= ' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_activity a WHERE a.entity = c.entity AND a.fk_convention = c.rowid AND a.status IN ('.MjlActivity::STATUS_SUBMITTED.', '.MjlActivity::STATUS_PREVALIDATED.')), 0) AS activites_en_revue,';
@@ -981,7 +987,7 @@ function mjl_reports_expense_audit_rows($filters)
 	if ($filters['date_end'] !== '') $where[] = "v.action_date <= '".$db->escape($filters['date_end'])." 23:59:59'";
 
 	$sql = 'SELECT \'Dépense\' AS object_type_label, e.ref AS object_ref, v.action AS decision, v.from_status, v.to_status,';
-	$sql .= ' v.from_status AS previous_value, v.to_status AS new_value, u.login AS actor, \'\' AS actor_role, v.action_date, v.comment';
+	$sql .= ' v.from_status AS previous_value, v.to_status AS new_value, u.login AS actor, v.actor_role, v.action_date, v.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = v.fk_expense AND e.entity = v.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = v.fk_user_action';

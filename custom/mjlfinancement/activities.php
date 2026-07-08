@@ -779,7 +779,7 @@ function mjl_activity_actor_role_label($role)
 
 function mjl_expense_status_label_fr($status)
 {
-	$map = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee', 3 => 'Corrigee', 8 => 'Rejetee');
+	$map = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee legacy', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
 	return isset($map[(int) $status]) ? $map[(int) $status] : (string) $status;
 }
 

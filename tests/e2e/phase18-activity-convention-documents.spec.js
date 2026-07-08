@@ -202,7 +202,9 @@ test('DPAF uploads and downloads convention documents; normal users are denied d
   await expect(page.getByText('Disponible').first()).toBeVisible();
   await expect(page.getByText('Document ajoute a la convention')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Active vers Active');
-  const href = await page.getByRole('link', { name: 'Telecharger le document' }).first().getAttribute('href');
+  await page.reload();
+  const fileId = scalar(`SELECT rowid FROM llx_ecm_files WHERE entity = 1 AND src_object_type = 'mjlfinancement_convention' AND src_object_id = ${conventionId} ORDER BY rowid DESC LIMIT 1`);
+  const href = `/custom/mjlfinancement/documentdownload.php?type=convention&id=${fileId}`;
   await expectDownload(page, href, 'Phase 18 convention document');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_convention' AND object_id = ${conventionId} AND action = 'document_uploaded'`))).toBe(1);
 

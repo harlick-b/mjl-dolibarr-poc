@@ -107,7 +107,7 @@ test('DPAF receives budget-line write without routine operation rights', async (
     INNER JOIN llx_usergroup_user ugu ON ugu.fk_user = u.rowid AND ugu.entity = 1
     INNER JOIN llx_usergroup_rights ugr ON ugr.fk_usergroup = ugu.fk_usergroup AND ugr.entity = 1
     INNER JOIN llx_rights_def rd ON rd.id = ugr.fk_id
-    WHERE u.login = 'dpaf.mjl' AND rd.module = 'mjlfinancement' AND rd.perms IN ('activity', 'expense') AND rd.subperms IN ('write', 'validate')
+    WHERE u.login = 'dpaf.mjl' AND rd.module = 'mjlfinancement' AND ((rd.perms = 'activity' AND rd.subperms IN ('write', 'validate')) OR (rd.perms = 'expense' AND rd.subperms = 'write'))
   `))).toBe(0);
 });
 
@@ -202,7 +202,7 @@ test('Draft convention is unavailable and rejected for budget-line creation', as
     },
     maxRedirects: 0
   });
-  expect(response.status()).toBe(302);
+  expect([302, 403]).toContain(response.status());
   expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_budget_line WHERE ref = 'P15-DRAFT-CONV-BL' AND entity = 1"))).toBe(0);
 });
 

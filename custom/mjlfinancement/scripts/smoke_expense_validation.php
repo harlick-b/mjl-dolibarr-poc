@@ -17,6 +17,7 @@ if ($adminUser->fetch(0, 'admin') <= 0) {
 }
 $user = $adminUser;
 $validatorUser = loadSmokeUser('superviseur.n1');
+$finalValidatorUser = loadSmokeUser('dpaf.mjl');
 
 $entity = (int) $conf->entity;
 $importKey = 'MJLSMOKEVAL';
@@ -138,33 +139,54 @@ if ($fetched->validate($adminUser, 1) >= 0) {
 	cleanup($importKey);
 	fail('Self-validation should have been rejected.');
 }
-assertValidationCount($expenseId, 'validated', 0);
+assertValidationCount($expenseId, 'prevalidated', 0);
 
-if ($fetched->validate($validatorUser) <= 0) {
+if ($fetched->prevalidate($validatorUser, 12500, 'Prevalidate smoke expense', 1) <= 0) {
 	cleanup($importKey);
-	fail('Unable to validate smoke expense: '.$fetched->error);
+	fail('Unable to prevalidate smoke expense: '.$fetched->error);
 }
 
-$secondValidation = $fetched->validate($adminUser);
+if ($fetched->finalValidate($validatorUser, 12500, 'Wrong final validator', 1) >= 0) {
+	cleanup($importKey);
+	fail('Verifier final validation should have been rejected.');
+}
+
+if ($fetched->finalValidate($finalValidatorUser, 12500, 'Final validate smoke expense', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to final validate smoke expense: '.$fetched->error);
+}
+
+$secondValidation = $fetched->finalValidate($finalValidatorUser, 12500, 'Idempotent final validation', 1);
 if ($secondValidation !== 0) {
 	cleanup($importKey);
-	fail('Second validation should be idempotent, got '.$secondValidation);
+	fail('Second final validation should be idempotent, got '.$secondValidation);
 }
 
-$sql = 'SELECT status, fk_user_valid, validation_date FROM '.$db->prefix().'mjlfinancement_expense WHERE rowid = '.((int) $expenseId);
+$sql = 'SELECT status, fk_user_valid, validation_date, fk_user_prevalidated, prevalidation_date, fk_user_final_valid, final_validation_date, final_validated_amount FROM '.$db->prefix().'mjlfinancement_expense WHERE rowid = '.((int) $expenseId);
 $resql = $db->query($sql);
 if (!$resql) {
 	cleanup($importKey);
 	fail('Unable to verify smoke expense: '.$db->lasterror());
 }
 $row = $db->fetch_object($resql);
-if (!$row || (int) $row->status !== MjlExpense::STATUS_VALIDATED || (int) $row->fk_user_valid !== (int) $validatorUser->id || empty($row->validation_date)) {
+if (!$row || (int) $row->status !== MjlExpense::STATUS_FINAL_VALIDATED || (int) $row->fk_user_prevalidated !== (int) $validatorUser->id || empty($row->prevalidation_date) || (int) $row->fk_user_final_valid !== (int) $finalValidatorUser->id || (int) $row->fk_user_valid !== (int) $finalValidatorUser->id || empty($row->final_validation_date) || empty($row->validation_date) || abs((float) $row->final_validated_amount - 12500.0) > 0.001) {
 	cleanup($importKey);
 	fail('Smoke expense validation metadata was not persisted.');
 }
 
 assertValidationCount($expenseId, 'submitted', 1);
-assertValidationCount($expenseId, 'validated', 1);
+assertValidationCount($expenseId, 'prevalidated', 1);
+assertValidationCount($expenseId, 'final_validated', 1);
+
+if ($fetched->disburse($adminUser, 'Self disbursement should fail', date('Y-m-d'), 1) >= 0) {
+	cleanup($importKey);
+	fail('Non-final-validator disbursement should have been rejected.');
+}
+if ($fetched->disburse($finalValidatorUser, 'MJL Smoke Beneficiary', date('Y-m-d'), 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to disburse smoke expense: '.$fetched->error);
+}
+assertValidationCount($expenseId, 'disbursed', 1);
 
 $submittedEvent = fetchRow('SELECT comment FROM '.$db->prefix().'mjlfinancement_validation WHERE fk_expense = '.((int) $expenseId)." AND action = 'submitted'");
 if (!$submittedEvent || $submittedEvent->comment !== 'Submit smoke expense') {
@@ -266,11 +288,16 @@ if ($ecmOnlyExpense->submit($adminUser, 'Submit ECM-only document expense', 1) <
 }
 $ecmOnlyFilename = 'SMOKE-ECM-ONLY-'.$suffix.'.txt';
 insertEcmDocument($ecmOnlyExpenseId, $entity, $ecmOnlyFilename, $adminUser->id);
-if ($ecmOnlyExpense->validate($validatorUser, 1) <= 0) {
+if ($ecmOnlyExpense->prevalidate($validatorUser, 1000, 'Prevalidate ECM-only document expense', 1) <= 0) {
 	cleanup($importKey);
-	fail('Unable to validate ECM-only document smoke expense: '.$ecmOnlyExpense->error);
+	fail('Unable to prevalidate ECM-only document smoke expense: '.$ecmOnlyExpense->error);
 }
-assertValidationCount($ecmOnlyExpenseId, 'validated', 1);
+if ($ecmOnlyExpense->finalValidate($finalValidatorUser, 1000, 'Final validate ECM-only document expense', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to final validate ECM-only document smoke expense: '.$ecmOnlyExpense->error);
+}
+assertValidationCount($ecmOnlyExpenseId, 'prevalidated', 1);
+assertValidationCount($ecmOnlyExpenseId, 'final_validated', 1);
 $ecmOnlyReport = fetchRow('SELECT '.mjl_expense_supporting_document_sql('e').' AS supporting_document FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.rowid = '.((int) $ecmOnlyExpenseId));
 if (!$ecmOnlyReport || $ecmOnlyReport->supporting_document !== $ecmOnlyFilename) {
 	cleanup($importKey);
@@ -337,14 +364,19 @@ if ($correctionExpense->submit($adminUser, 'Resubmit corrected expense', 1) <= 0
 	cleanup($importKey);
 	fail('Unable to resubmit corrected smoke expense: '.$correctionExpense->error);
 }
-if ($correctionExpense->validate($validatorUser, 1) <= 0) {
+if ($correctionExpense->prevalidate($validatorUser, 900, 'Prevalidate corrected expense', 1) <= 0) {
 	cleanup($importKey);
-	fail('Unable to validate corrected smoke expense: '.$correctionExpense->error);
+	fail('Unable to prevalidate corrected smoke expense: '.$correctionExpense->error);
+}
+if ($correctionExpense->finalValidate($finalValidatorUser, 900, 'Final validate corrected expense', 1) <= 0) {
+	cleanup($importKey);
+	fail('Unable to final validate corrected smoke expense: '.$correctionExpense->error);
 }
 assertValidationCount($correctionExpenseId, 'submitted', 2);
 assertValidationCount($correctionExpenseId, 'rejected', 1);
 assertValidationCount($correctionExpenseId, 'corrected', 1);
-assertValidationCount($correctionExpenseId, 'validated', 1);
+assertValidationCount($correctionExpenseId, 'prevalidated', 1);
+assertValidationCount($correctionExpenseId, 'final_validated', 1);
 
 $invalidLinkExpense = new MjlExpense($db);
 $invalidLinkExpense->entity = $entity;

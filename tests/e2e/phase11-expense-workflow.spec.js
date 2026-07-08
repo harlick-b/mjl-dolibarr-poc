@@ -57,14 +57,15 @@ async function expensePostToken(page, expenseId) {
   return metaToken;
 }
 
-async function postExpenseAction(page, expenseId, action, comment = '') {
+async function postExpenseAction(page, expenseId, action, comment = '', extraForm = {}) {
   const token = await expensePostToken(page, expenseId);
   return page.request.post(`/custom/mjlfinancement/expenses.php?id=${expenseId}`, {
     form: {
       token,
       action,
       id: String(expenseId),
-      comment
+      comment,
+      ...extraForm
     },
     maxRedirects: 0
   });
@@ -211,7 +212,7 @@ test('Level 1 cannot open another operational user expense or another entity exp
   await expectAccessDenied(page);
 });
 
-test('Level 2 validates submitted expense with document and sees ECM-only document fallback', async ({ page }) => {
+test('Level 2 prevalidates submitted expense, DPAF final-validates it, and ECM-only document fallback remains available', async ({ page }) => {
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedDocId}`);
   await expect(page.getByRole('heading', { name: 'P11-SUBMITTED-DOC' })).toBeVisible();
@@ -219,10 +220,19 @@ test('Level 2 validates submitted expense with document and sees ECM-only docume
   await expect(page.getByText('BL-JE-002').first()).toBeVisible();
   await expect(page.getByText('agent.mjl').first()).toBeVisible();
   await expect(page.getByText('Non validee').first()).toBeVisible();
-  await expect(page.getByText('Decision attendue du niveau de validation.').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Valider la depense' }).click();
-  await expect(page.getByText('Validee').first()).toBeVisible();
-  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'validated'`))).toBe(1);
+  await page.getByLabel('Montant prevalide').fill('1100');
+  await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 11');
+  await page.getByRole('button', { name: 'Prevalider la depense' }).click();
+  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'prevalidated' AND actor_role = 'AGENT_VERIFICATEUR'`))).toBe(1);
+
+  await login(page, 'dpaf.mjl');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedDocId}`);
+  await page.getByLabel('Montant valide definitivement').fill('1100');
+  await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 11');
+  await page.getByRole('button', { name: 'Valider definitivement' }).click();
+  await expect(page.getByText('Validee definitivement').first()).toBeVisible();
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'final_validated' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${ecmOnlyId}`);
   await expect(page.getByText('P11-ECM-ONLY.pdf').first()).toBeVisible();
@@ -250,12 +260,12 @@ test('Missing document blocks validation UI and direct POST', async ({ page }) =
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedMissingId}`);
   await expect(page.getByText('Validation bloquee tant que la piece justificative manque.').first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Valider la depense' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
 
-  const response = await postExpenseAction(page, submittedMissingId, 'validate');
+  const response = await postExpenseAction(page, submittedMissingId, 'prevalidate', '', { prevalidated_amount: '1200' });
   expect(response.status()).toBe(403);
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${submittedMissingId}`))).toBe(1);
-  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedMissingId} AND action = 'validated'`))).toBe(0);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedMissingId} AND action = 'prevalidated'`))).toBe(0);
 });
 
 test('Unavailable referenced document blocks validation and stays visible in alerts', async ({ page }) => {
@@ -264,12 +274,12 @@ test('Unavailable referenced document blocks validation and stays visible in ale
   await expect(page.getByText('Piece referencee indisponible').first()).toBeVisible();
   await expect(page.getByText('P11-UNAVAILABLE.pdf').first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Télécharger la pièce' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Valider la depense' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
 
-  const response = await postExpenseAction(page, unavailableId, 'validate');
+  const response = await postExpenseAction(page, unavailableId, 'prevalidate', '', { prevalidated_amount: '1750' });
   expect(response.status()).toBe(403);
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${unavailableId}`))).toBe(1);
-  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${unavailableId} AND action = 'validated'`))).toBe(0);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${unavailableId} AND action = 'prevalidated'`))).toBe(0);
 
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/alerts.php');
@@ -303,14 +313,14 @@ test('Reject, correct, and resubmit preserves decision comments', async ({ page 
 test('Self reviewer decisions are absent from UI and blocked server-side', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${selfSubmittedId}`);
-  await expect(page.getByRole('button', { name: 'Valider la depense' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Rejeter la depense' })).toHaveCount(0);
 
   for (const attempt of [
-    { action: 'validate', comment: 'Tentative auto-validation Phase 11' },
+    { action: 'prevalidate', comment: 'Tentative auto-validation Phase 11', extraForm: { prevalidated_amount: '1400' } },
     { action: 'reject', comment: 'Tentative auto-rejet Phase 11' }
   ]) {
-    const response = await postExpenseAction(page, selfSubmittedId, attempt.action, attempt.comment);
+    const response = await postExpenseAction(page, selfSubmittedId, attempt.action, attempt.comment, attempt.extraForm || {});
     expect(response.status()).toBe(403);
     expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${selfSubmittedId}`))).toBe(1);
     expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${selfSubmittedId} AND comment = '${attempt.comment}'`))).toBe(0);
@@ -348,7 +358,7 @@ test('DPAF, Admin, and unresolved legacy reader visibility stays role-aware', as
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedMissingId}`);
   await expect(page.getByRole('heading', { name: 'P11-SUBMITTED-MISS' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Valider la depense' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Valider definitivement' })).toHaveCount(0);
 
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/expenses.php');

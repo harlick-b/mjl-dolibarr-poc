@@ -35,7 +35,7 @@ Implemented parts:
 
 - Local Dolibarr + MariaDB runtime through `docker-compose.yml`.
 - A custom Dolibarr module declaration, `modMjlFinancement`, currently version
-  `0.9.0`.
+  `0.10.0`.
 - Nine custom database-backed object classes:
   - `MjlConvention`
   - `MjlActivity`
@@ -47,7 +47,8 @@ Implemented parts:
   - `MjlExchangeLog`
   - `MjlReport`
 - SQL table definitions and indexes/foreign keys for those custom objects.
-- Activation upgrade scripts for the 0.2.0, 0.3.0, and 0.4.0 schemas.
+- Activation upgrade scripts for the 0.2.0, 0.3.0, 0.4.0, 0.8.0, 0.9.0, and
+  0.10.0 schemas.
 - CSV-driven bootstrap and sample-data seed scripts.
 - Schema, acceptance, and smoke scripts for the POC data set.
 - A generic dashboard page at `/mjlfinancement/index.php`.
@@ -94,6 +95,7 @@ docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.5.0.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.8.0.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.9.0.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.10.0.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/acceptance_sample_data.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_scope_model.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php
@@ -200,30 +202,40 @@ Statuses: Draft, Recorded, Not received.
 Table: `llx_mjlfinancement_expense`
 
 Key fields: `ref`, `fk_project`, `fk_convention`, `fk_mjl_activity`,
-`fk_budget_line`, `amount`, `expense_date`, `description`,
-`supporting_document`, `fk_user_valid`, `validation_date`,
+`fk_budget_line`, requested `amount`, `prevalidated_amount`,
+`final_validated_amount`, `disbursed_amount`, `expense_date`, `description`,
+`supporting_document`, stage actors/dates, `beneficiary_name`,
 `correction_reason`, `submitted_at`, notes, audit fields, and `status`.
 
-Statuses: Draft, Submitted, Validated, Corrected, Rejected.
+Statuses: Draft (`0`), Submitted (`1`), Legacy validated (`2`), Corrected
+(`3`), Prevalidated (`4`), Final validated (`6`), Disbursed (`7`), Rejected
+(`8`).
 
-The `MjlExpense` class includes a `validate()` method for submitted expenses.
-It requires a supporting document, checks the revised budget-line balance,
-writes `status`, `fk_user_valid`, and `validation_date`, creates a
-`MjlValidation` history row, and recalculates the budget line in one database
-transaction. If trigger `MJLFINANCEMENT_EXPENSE_VALIDATE` fails, the transaction
-is rolled back.
+The `MjlExpense` class includes explicit `prevalidate()`, `finalValidate()`,
+and `disburse()` workflow methods. The legacy `validate()` method is a guarded
+compatibility dispatcher. Prevalidation requires `AGENT_VERIFICATEUR`; final
+validation and disbursement require `VALIDATEUR_DEFINITIF`. Platform admin
+rights do not bypass these business roles.
+
+Prevalidation and final validation require a downloadable supporting document,
+stage amounts must be positive and cannot exceed the previous stage amount, and
+final validation consumes budget using `final_validated_amount`. Disbursement is
+one event per expense in this phase and must equal the final validated amount.
+All stages block self-action against the expense creator, rerun integrity
+guards server-side, create a `MjlValidation` history row with `actor_role`, and
+run inside a database transaction.
 
 Generic create/update/delete calls are intentionally restricted around audited
-states: validated, rejected, and corrected expenses cannot be created directly
-through `create()`, reached through generic `update()`, or modified/deleted once
-validation history exists.
+states: legacy validated, prevalidated, final validated, disbursed, rejected,
+and corrected expenses cannot be created directly through `create()`, reached
+through generic `update()`, or modified/deleted once validation history exists.
 
 ### Validations
 
 Table: `llx_mjlfinancement_validation`
 
 Key fields: `ref`, `fk_expense`, `action`, `from_status`, `to_status`,
-`fk_user_action`, `action_date`, `comment`, and audit fields.
+`fk_user_action`, `actor_role`, `action_date`, `comment`, and audit fields.
 
 ### Workflow Actions
 
@@ -264,9 +276,10 @@ Fresh installs use the table definitions in the `sql/llx_*.sql` files and
 their matching key files.
 
 Existing POC installs are upgraded by `sql/update_0.2.0.sql`,
-`sql/update_0.3.0.sql`, and `sql/update_0.4.0.sql` during module activation.
+`sql/update_0.3.0.sql`, `sql/update_0.4.0.sql`, `sql/update_0.8.0.sql`,
+`sql/update_0.9.0.sql`, and `sql/update_0.10.0.sql` during module activation.
 The upgrades backfill renamed fields where possible and use guarded DDL for
-0.3.0 and 0.4.0 additions.
+staged additions.
 
 Legacy columns that no longer belong to the 0.3.0 fresh schema are dropped only
 when empty. Populated legacy columns are preserved for manual review and are
@@ -290,6 +303,13 @@ The 0.4.0 audit reports:
 - duplicate `ref` + `entity` values,
 - broken actor references,
 - workflow actions missing `changes_json`.
+
+The 0.10.0 audit reports:
+
+- missing Phase 5 expense/disbursement columns, indexes, and constraints,
+- invalid staged expense statuses,
+- final/disbursed expenses missing required stage amounts, actors, or dates,
+- Phase 5 validation actions missing `actor_role`.
 
 ## What can be done through the UI
 
@@ -330,7 +350,10 @@ The custom expense page at `/mjlfinancement/expenses.php` provides:
   and budget line,
 - supporting document upload to ECM,
 - guarded supporting-document download through the MJL document route,
-- submission, validation, rejection, correction, and resubmission actions.
+- submission, prevalidation, final validation, one-time disbursement, rejection,
+  correction, and resubmission actions,
+- requested, prevalidated, final-validated, and disbursed amounts, stage actors
+  and dates, beneficiary, document state, and timeline display.
 
 The custom convention, budget-line, and fund-receipt pages provide governed
 DPAF/Admin management:
@@ -360,7 +383,8 @@ methods:
 - `update()`
 - `delete()`
 
-`MjlExpense` also exposes `validate()`.
+`MjlExpense` also exposes `prevalidate()`, `finalValidate()`, `disburse()`, and
+a guarded compatibility `validate()` dispatcher.
 
 The seed script creates sample third parties, projects, tasks, conventions,
 activities, budget lines, fund receipts, expenses, validation events, fixed

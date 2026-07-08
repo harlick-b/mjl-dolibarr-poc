@@ -97,6 +97,7 @@ function mjl_ensure_schema()
 		from_status VARCHAR(32) DEFAULT NULL,
 		to_status VARCHAR(32) NOT NULL,
 		fk_user_action INTEGER NOT NULL,
+		actor_role VARCHAR(64) DEFAULT NULL,
 		action_date DATETIME NOT NULL,
 		comment TEXT,
 		date_creation DATETIME NOT NULL,
@@ -258,12 +259,23 @@ function mjl_ensure_schema()
 	mjl_add_column('mjlfinancement_expense', 'fk_convention', 'INTEGER DEFAULT NULL');
 	mjl_add_column('mjlfinancement_expense', 'fk_mjl_activity', 'INTEGER DEFAULT NULL');
 	mjl_add_column('mjlfinancement_expense', 'fk_budget_line', 'INTEGER DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'prevalidated_amount', 'DOUBLE(24,8) DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'final_validated_amount', 'DOUBLE(24,8) DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'disbursed_amount', 'DOUBLE(24,8) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_expense', 'description', 'TEXT');
 	mjl_add_column('mjlfinancement_expense', 'supporting_document', 'VARCHAR(255) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_expense', 'fk_user_valid', 'INTEGER DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'fk_user_prevalidated', 'INTEGER DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'fk_user_final_valid', 'INTEGER DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'fk_user_disbursed', 'INTEGER DEFAULT NULL');
 	mjl_add_column('mjlfinancement_expense', 'validation_date', 'DATETIME DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'prevalidation_date', 'DATETIME DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'final_validation_date', 'DATETIME DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'disbursement_date', 'DATE DEFAULT NULL');
+	mjl_add_column('mjlfinancement_expense', 'beneficiary_name', 'VARCHAR(255) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_expense', 'correction_reason', 'TEXT');
 	mjl_add_column('mjlfinancement_expense', 'submitted_at', 'DATETIME DEFAULT NULL');
+	mjl_add_column('mjlfinancement_validation', 'actor_role', 'VARCHAR(64) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_fund_receipt', 'fk_project', 'INTEGER DEFAULT NULL');
 	mjl_add_column('mjlfinancement_fund_receipt', 'status', 'INTEGER DEFAULT 0 NOT NULL');
 	mjl_add_column('mjlfinancement_password_reset', 'status', "VARCHAR(32) DEFAULT 'sent' NOT NULL");
@@ -305,9 +317,13 @@ function mjl_ensure_schema()
 		array('mjlfinancement_expense', 'idx_mjlfinancement_expense_fk_mjl_activity', 'fk_mjl_activity'),
 		array('mjlfinancement_expense', 'idx_mjlfinancement_expense_fk_budget_line', 'fk_budget_line'),
 		array('mjlfinancement_expense', 'idx_mjlfinancement_expense_fk_user_valid', 'fk_user_valid'),
+		array('mjlfinancement_expense', 'idx_mjlfinancement_expense_fk_user_prevalidated', 'fk_user_prevalidated'),
+		array('mjlfinancement_expense', 'idx_mjlfinancement_expense_fk_user_final_valid', 'fk_user_final_valid'),
+		array('mjlfinancement_expense', 'idx_mjlfinancement_expense_fk_user_disbursed', 'fk_user_disbursed'),
 		array('mjlfinancement_validation', 'idx_mjlfinancement_validation_entity', 'entity'),
 		array('mjlfinancement_validation', 'idx_mjlfinancement_validation_fk_expense', 'fk_expense'),
 		array('mjlfinancement_validation', 'idx_mjlfinancement_validation_fk_user_action', 'fk_user_action'),
+		array('mjlfinancement_validation', 'idx_mjlfinancement_validation_actor_role', 'actor_role'),
 		array('mjlfinancement_report', 'idx_mjlfinancement_report_entity', 'entity'),
 		array('mjlfinancement_invitation', 'idx_mjlfinancement_invitation_entity', 'entity'),
 		array('mjlfinancement_invitation', 'idx_mjlfinancement_invitation_fk_user', 'fk_user'),
@@ -466,7 +482,7 @@ function mjl_status_budget_line($status)
 
 function mjl_status_expense($status)
 {
-	$map = array('draft' => 0, 'submitted' => 1, 'validated' => 2, 'corrected' => 3, 'rejected' => 8);
+	$map = array('draft' => 0, 'submitted' => 1, 'validated' => 2, 'legacy_validated' => 2, 'corrected' => 3, 'prevalidated' => 4, 'final_validated' => 6, 'disbursed' => 7, 'rejected' => 8);
 	return isset($map[$status]) ? $map[$status] : 0;
 }
 

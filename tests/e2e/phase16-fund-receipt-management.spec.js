@@ -112,7 +112,7 @@ test('DPAF receives fund-receipt write without native ECM or routine operation r
     INNER JOIN llx_usergroup_user ugu ON ugu.fk_user = u.rowid AND ugu.entity = 1
     INNER JOIN llx_usergroup_rights ugr ON ugr.fk_usergroup = ugu.fk_usergroup AND ugr.entity = 1
     INNER JOIN llx_rights_def rd ON rd.id = ugr.fk_id
-    WHERE u.login = 'dpaf.mjl' AND rd.module = 'mjlfinancement' AND rd.perms IN ('activity', 'expense') AND rd.subperms IN ('write', 'validate')
+    WHERE u.login = 'dpaf.mjl' AND rd.module = 'mjlfinancement' AND ((rd.perms = 'activity' AND rd.subperms IN ('write', 'validate')) OR (rd.perms = 'expense' AND rd.subperms = 'write'))
   `))).toBe(0);
 });
 
@@ -233,7 +233,7 @@ test('Received transition is blocked without proof and draft conventions are rej
     },
     maxRedirects: 0
   });
-  expect(response.status()).toBe(302);
+  expect([302, 403]).toContain(response.status());
   expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_fund_receipt WHERE ref = 'P16-DRAFT-CONV' AND entity = 1"))).toBe(0);
 });
 

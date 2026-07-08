@@ -32,6 +32,7 @@ function mjl_workspace_can_access_reference_data(User $targetUser, $right)
 	$right = preg_replace('/[^A-Za-z0-9_]/', '', (string) $right);
 	return $right !== ''
 		&& mjl_workspace_user_has_production_access($targetUser)
+		&& mjl_workspace_can_access_supervision($targetUser)
 		&& $targetUser->hasRight('mjlfinancement', $right, 'read');
 }
 
@@ -262,7 +263,7 @@ function mjl_workspace_metrics(User $targetUser)
 	$capabilities = mjl_workspace_capabilities($targetUser);
 	$metrics = array(
 		'own_activity_drafts' => mjl_workspace_own_activity_drafts($targetUser),
-		'own_expenses_submitted' => mjl_workspace_own_expense_count($targetUser, array(MjlExpense::STATUS_SUBMITTED)),
+		'own_expenses_submitted' => mjl_workspace_own_expense_count($targetUser, array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses())),
 		'own_missing_expense_documents' => mjl_workspace_own_missing_expense_document_count($targetUser),
 		'activities_submitted' => 0,
 		'expenses_submitted' => 0,
@@ -357,7 +358,8 @@ function mjl_workspace_expense_review_count(User $targetUser)
 
 	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense';
 	$sql .= ' WHERE entity = '.((int) $conf->entity);
-	$sql .= ' AND status = '.MjlExpense::STATUS_SUBMITTED;
+	$statuses = mjl_scope_is_final_validator($targetUser) ? mjl_expense_pending_final_validator_statuses() : mjl_expense_pending_verifier_statuses();
+	$sql .= ' AND status IN ('.mjl_expense_status_sql_list($statuses).')';
 	if (!mjl_workspace_can_access_supervision($targetUser) && $targetUser->hasRight('mjlfinancement', 'expense', 'validate')) {
 		$sql .= ' AND fk_user_creat <> '.((int) $targetUser->id);
 	}

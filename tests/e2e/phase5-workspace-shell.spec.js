@@ -207,7 +207,7 @@ test('DPAF user sees supervision workspace and can access DPAF reports', async (
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/conventions.php');
-  await expect(page.getByText('Conventions MJL').first()).toBeVisible();
+  await expect(page.getByText('Enveloppes de financement').first()).toBeVisible();
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/budgetlines.php');
@@ -251,7 +251,7 @@ test('Admin sees administration access and can access invitations plus supervisi
   await expect(page.getByRole('heading', { name: "Centre d'exports MJL" })).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/conventions.php');
-  await expect(page.getByText('Conventions MJL').first()).toBeVisible();
+  await expect(page.getByText('Enveloppes de financement').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/budgetlines.php');
   await expect(page.getByText('Lignes budgetaires MJL').first()).toBeVisible();

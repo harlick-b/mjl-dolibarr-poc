@@ -163,12 +163,12 @@ function assertTargetRoleRights()
 	}
 
 	$dpafRights = rightsForLogin('dpaf.mjl');
-	foreach (array('mjlfinancement/report/read', 'mjlfinancement/export/write', 'mjlfinancement/activity/read', 'mjlfinancement/expense/read', 'mjlfinancement/convention/write', 'mjlfinancement/fundreceipt/write', 'societe/lire/', 'projet/lire/') as $required) {
+		foreach (array('mjlfinancement/report/read', 'mjlfinancement/export/write', 'mjlfinancement/activity/read', 'mjlfinancement/expense/read', 'mjlfinancement/expense/validate', 'mjlfinancement/convention/write', 'mjlfinancement/fundreceipt/write') as $required) {
 		if (!in_array($required, $dpafRights, true)) {
 			fail('dpaf.mjl missing required right '.$required);
 		}
 	}
-	foreach (array('mjlfinancement/activity/write', 'mjlfinancement/activity/validate', 'mjlfinancement/expense/write', 'mjlfinancement/expense/validate', 'ecm/read/', 'ecm/upload/', 'expensereport/export/') as $forbidden) {
+		foreach (array('mjlfinancement/activity/write', 'mjlfinancement/activity/validate', 'mjlfinancement/expense/write', 'ecm/read/', 'ecm/upload/', 'expensereport/export/') as $forbidden) {
 		if (in_array($forbidden, $dpafRights, true)) {
 			fail('dpaf.mjl has forbidden routine operation right '.$forbidden);
 		}

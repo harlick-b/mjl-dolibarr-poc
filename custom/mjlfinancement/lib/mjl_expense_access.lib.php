@@ -18,7 +18,8 @@ function mjl_expenses_can_open($expense)
 		return (int) $row['fk_user_creat'] === (int) $user->id;
 	}
 	if ($user->hasRight('mjlfinancement', 'expense', 'validate')) {
-		return (int) $row['status'] === MjlExpense::STATUS_SUBMITTED || mjl_expenses_user_has_validation_history((int) $row['rowid']);
+		$reviewStatuses = mjl_scope_is_final_validator($user) ? array_merge(mjl_expense_pending_final_validator_statuses(), array(MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_VALIDATED)) : mjl_expense_pending_verifier_statuses();
+		return in_array((int) $row['status'], $reviewStatuses, true) || mjl_expenses_user_has_validation_history((int) $row['rowid']);
 	}
 	return true;
 }
@@ -36,7 +37,8 @@ function mjl_expenses_scope_sql($alias)
 		return $scopeFilter.' AND '.$a.'.fk_user_creat = '.((int) $user->id);
 	}
 	if ($user->hasRight('mjlfinancement', 'expense', 'validate')) {
-		return $scopeFilter.' AND ('.$a.'.status = '.MjlExpense::STATUS_SUBMITTED.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_validation vscope WHERE vscope.entity = '.$a.'.entity AND vscope.fk_expense = '.$a.'.rowid AND vscope.fk_user_action = '.((int) $user->id).'))';
+		$reviewStatuses = mjl_scope_is_final_validator($user) ? array_merge(mjl_expense_pending_final_validator_statuses(), array(MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_VALIDATED)) : mjl_expense_pending_verifier_statuses();
+		return $scopeFilter.' AND ('.$a.'.status IN ('.mjl_expense_status_sql_list($reviewStatuses).') OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_validation vscope WHERE vscope.entity = '.$a.'.entity AND vscope.fk_expense = '.$a.'.rowid AND vscope.fk_user_action = '.((int) $user->id).'))';
 	}
 	return $scopeFilter;
 }

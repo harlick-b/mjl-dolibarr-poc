@@ -290,7 +290,7 @@ function mjl_projects_base_sql()
 		.' s.nom AS partner_name,'
 		.' COALESCE((SELECT GROUP_CONCAT(c.ref ORDER BY c.ref SEPARATOR \', \') FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = p.entity AND c.fk_project = p.rowid'.mjl_projects_related_scope_sql('c.fk_soc').'), \'\') AS convention_refs,'
 		.' COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention cbl ON cbl.rowid = bl.fk_convention AND cbl.entity = bl.entity WHERE bl.entity = p.entity AND bl.fk_project = p.rowid'.mjl_projects_related_scope_sql('cbl.fk_soc').'), 0) AS budget_total,'
-		.' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention ce ON ce.rowid = e.fk_convention AND ce.entity = e.entity WHERE e.entity = p.entity AND e.fk_project = p.rowid AND e.status = 2'.mjl_projects_related_scope_sql('ce.fk_soc').'), 0) AS budget_spent,'
+		.' COALESCE((SELECT SUM('.mjl_expense_budget_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention ce ON ce.rowid = e.fk_convention AND ce.entity = e.entity WHERE e.entity = p.entity AND e.fk_project = p.rowid AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).')'.mjl_projects_related_scope_sql('ce.fk_soc').'), 0) AS budget_spent,'
 		.' COALESCE((SELECT SUM(bl.remaining_amount) FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention cbr ON cbr.rowid = bl.fk_convention AND cbr.entity = bl.entity WHERE bl.entity = p.entity AND bl.fk_project = p.rowid'.mjl_projects_related_scope_sql('cbr.fk_soc').'), 0) AS budget_remaining,'
 		.' COALESCE((SELECT SUM(fr.amount) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = p.entity AND fr.fk_project = p.rowid AND fr.status = 1'.mjl_projects_related_scope_sql('fr.fk_soc').'), 0) AS funds_received,'
 		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention ca ON ca.rowid = a.fk_convention AND ca.entity = a.entity WHERE a.entity = p.entity AND a.fk_project = p.rowid'.mjl_projects_related_scope_sql('ca.fk_soc').'), 0) AS activities_count,'
@@ -497,7 +497,7 @@ function mjl_projects_activity_status_label($status)
 
 function mjl_projects_expense_status_label($status)
 {
-	$labels = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee', 3 => 'Corrigee', 8 => 'Rejetee');
+	$labels = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee legacy', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
 	return isset($labels[(int) $status]) ? $labels[(int) $status] : 'Statut '.$status;
 }
 

@@ -12,7 +12,8 @@ function mjl_report_project_summary($projectId, $filters = array())
 	$sql .= ' COALESCE(SUM(bl.revised_budget), 0) AS budget_total,';
 	$sql .= ' (SELECT COALESCE(SUM(fr.amount), 0) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = '.$entity.' AND fr.fk_project = '.$projectId.' AND fr.status = 1) AS funds_received,';
 	$sql .= ' (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.mjl_report_expense_filter_sql('e', $filters, false).') AS total_expenses,';
-	$sql .= ' (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.' AND e.status = 2'.mjl_report_expense_filter_sql('e', $filters, false).') AS validated_expenses,';
+	$sql .= ' (SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.' AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).')'.mjl_report_expense_filter_sql('e', $filters, false).') AS validated_expenses,';
+	$sql .= ' (SELECT COALESCE(SUM('.mjl_expense_disbursed_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.' AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_disbursed_statuses()).')'.mjl_report_expense_filter_sql('e', $filters, false).') AS disbursed_expenses,';
 	$sql .= ' (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.' AND e.status = 1'.mjl_report_expense_filter_sql('e', $filters, false).') AS pending_expenses';
 	$sql .= ' FROM '.$db->prefix().'projet p';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.fk_project = p.rowid AND bl.entity = '.$entity;
@@ -27,9 +28,10 @@ function mjl_report_convention_budget($conventionId, $filters = array())
 	$entity = (int) $conf->entity;
 	$conventionId = (int) $conventionId;
 	$sql = 'SELECT bl.ref, bl.label, bl.initial_budget, bl.revised_budget, bl.status,';
-	$sql .= ' COALESCE(SUM(CASE WHEN e.status = 2 THEN e.amount ELSE 0 END), 0) AS validated_expenses,';
+	$sql .= ' COALESCE(SUM(CASE WHEN e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).') THEN '.mjl_expense_budget_amount_sql('e').' ELSE 0 END), 0) AS validated_expenses,';
+	$sql .= ' COALESCE(SUM(CASE WHEN e.status IN ('.mjl_expense_status_sql_list(mjl_expense_disbursed_statuses()).') THEN '.mjl_expense_disbursed_amount_sql('e').' ELSE 0 END), 0) AS disbursed_expenses,';
 	$sql .= ' COALESCE(SUM(CASE WHEN e.status = 1 THEN e.amount ELSE 0 END), 0) AS submitted_expenses,';
-	$sql .= ' bl.revised_budget - COALESCE(SUM(CASE WHEN e.status = 2 THEN e.amount ELSE 0 END), 0) AS remaining_amount';
+	$sql .= ' bl.revised_budget - COALESCE(SUM(CASE WHEN e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).') THEN '.mjl_expense_budget_amount_sql('e').' ELSE 0 END), 0) AS remaining_amount';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.fk_budget_line = bl.rowid AND e.entity = '.$entity.mjl_report_expense_filter_sql('e', $filters, true);
 	$sql .= ' WHERE bl.entity = '.$entity.' AND bl.fk_convention = '.$conventionId;
@@ -43,7 +45,7 @@ function mjl_report_expense_documents($filters = array())
 	global $db, $conf;
 
 	$entity = (int) $conf->entity;
-	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.ref AS expense_ref, e.expense_date, bl.ref AS budget_line, e.amount, e.status, e.supporting_document AS stored_supporting_document,';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.ref AS expense_ref, e.expense_date, bl.ref AS budget_line, e.amount, e.prevalidated_amount, e.final_validated_amount, e.disbursed_amount, e.status, e.supporting_document AS stored_supporting_document,';
 	$sql .= ' CASE WHEN '.mjl_expense_document_present_sql('e').' THEN 1 ELSE 0 END AS document_present,';
 	$sql .= ' '.mjl_expense_supporting_document_sql('e').' AS supporting_document,';
 	$sql .= ' u.login AS validator, e.correction_reason';

@@ -5,8 +5,14 @@ ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_c
 ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_mjl_activity (fk_mjl_activity);
 ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_budget_line (fk_budget_line);
 ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_user_valid (fk_user_valid);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_user_prevalidated (fk_user_prevalidated);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_user_final_valid (fk_user_final_valid);
+ALTER TABLE llx_mjlfinancement_expense ADD INDEX idx_mjlfinancement_expense_fk_user_disbursed (fk_user_disbursed);
 ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_project FOREIGN KEY (fk_project) REFERENCES llx_projet(rowid);
 ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_convention FOREIGN KEY (fk_convention) REFERENCES llx_mjlfinancement_convention(rowid);
 ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_mjl_activity FOREIGN KEY (fk_mjl_activity) REFERENCES llx_mjlfinancement_activity(rowid);
 ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_budget_line FOREIGN KEY (fk_budget_line) REFERENCES llx_mjlfinancement_budget_line(rowid);
 ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_user_valid FOREIGN KEY (fk_user_valid) REFERENCES llx_user(rowid);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_user_prevalidated FOREIGN KEY (fk_user_prevalidated) REFERENCES llx_user(rowid);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_user_final_valid FOREIGN KEY (fk_user_final_valid) REFERENCES llx_user(rowid);
+ALTER TABLE llx_mjlfinancement_expense ADD CONSTRAINT fk_mjlfinancement_expense_user_disbursed FOREIGN KEY (fk_user_disbursed) REFERENCES llx_user(rowid);

@@ -7,6 +7,7 @@ CREATE TABLE llx_mjlfinancement_validation (
 	from_status VARCHAR(32) DEFAULT NULL,
 	to_status VARCHAR(32) NOT NULL,
 	fk_user_action INTEGER NOT NULL,
+	actor_role VARCHAR(64) DEFAULT NULL,
 	action_date DATETIME NOT NULL,
 	comment TEXT,
 	date_creation DATETIME NOT NULL,

@@ -2,5 +2,6 @@ ALTER TABLE llx_mjlfinancement_validation ADD UNIQUE INDEX uk_mjlfinancement_val
 ALTER TABLE llx_mjlfinancement_validation ADD INDEX idx_mjlfinancement_validation_entity (entity);
 ALTER TABLE llx_mjlfinancement_validation ADD INDEX idx_mjlfinancement_validation_fk_expense (fk_expense);
 ALTER TABLE llx_mjlfinancement_validation ADD INDEX idx_mjlfinancement_validation_fk_user_action (fk_user_action);
+ALTER TABLE llx_mjlfinancement_validation ADD INDEX idx_mjlfinancement_validation_actor_role (actor_role);
 ALTER TABLE llx_mjlfinancement_validation ADD CONSTRAINT fk_mjlfinancement_validation_expense FOREIGN KEY (fk_expense) REFERENCES llx_mjlfinancement_expense(rowid);
 ALTER TABLE llx_mjlfinancement_validation ADD CONSTRAINT fk_mjlfinancement_validation_user_action FOREIGN KEY (fk_user_action) REFERENCES llx_user(rowid);

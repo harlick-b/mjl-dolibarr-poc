@@ -130,7 +130,6 @@ function mjl_alerts_expense_pending_reviews(User $targetUser, $limit)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = e.fk_mjl_activity AND a.entity = e.entity';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
-	$sql .= ' AND e.status = '.MjlExpense::STATUS_SUBMITTED;
 	$sql .= $where;
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.max((int) $limit * 5, (int) $limit);
 	$rows = mjl_alerts_fetch_rows($sql);
@@ -237,7 +236,9 @@ function mjl_alerts_expense_scope_where(User $targetUser, $alias, $mode)
 		return $mode === 'document' ? ' AND '.$a.'.fk_user_creat = '.((int) $targetUser->id) : null;
 	}
 	if ($targetUser->hasRight('mjlfinancement', 'expense', 'validate')) {
-		return $mode === 'review' ? ' AND '.$a.'.status = '.MjlExpense::STATUS_SUBMITTED.' AND '.$a.'.fk_user_creat <> '.((int) $targetUser->id) : null;
+		if ($mode !== 'review') return null;
+		$statuses = mjl_scope_is_final_validator($targetUser) ? array_merge(mjl_expense_pending_final_validator_statuses(), array(MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_VALIDATED)) : mjl_expense_pending_verifier_statuses();
+		return ' AND '.$a.'.status IN ('.mjl_expense_status_sql_list($statuses).') AND '.$a.'.fk_user_creat <> '.((int) $targetUser->id);
 	}
 	if ($targetUser->hasRight('mjlfinancement', 'expense', 'read') && !$targetUser->hasRight('mjlfinancement', 'expense', 'write')) {
 		return $mode === 'document' ? '' : null;
@@ -346,8 +347,11 @@ function mjl_alerts_expense_status_label($status)
 	$map = array(
 		MjlExpense::STATUS_DRAFT => 'Brouillon',
 		MjlExpense::STATUS_SUBMITTED => 'Soumise',
-		MjlExpense::STATUS_VALIDATED => 'Validee',
+		MjlExpense::STATUS_VALIDATED => 'Validee legacy',
 		MjlExpense::STATUS_CORRECTED => 'Corrigee',
+		MjlExpense::STATUS_PREVALIDATED => 'Prevalidee',
+		MjlExpense::STATUS_FINAL_VALIDATED => 'Validee definitivement',
+		MjlExpense::STATUS_DISBURSED => 'Decaissee',
 		MjlExpense::STATUS_REJECTED => 'Rejetee',
 	);
 	return isset($map[(int) $status]) ? $map[(int) $status] : (string) $status;

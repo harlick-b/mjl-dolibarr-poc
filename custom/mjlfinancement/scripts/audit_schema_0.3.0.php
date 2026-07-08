@@ -3,6 +3,7 @@
 define('NOLOGIN', 1);
 
 require '/var/www/html/main.inc.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 
 global $db;
 
@@ -143,7 +144,7 @@ if (hasColumns('mjlfinancement_expense', array('rowid', 'ref', 'entity', 'status
 if (hasColumns('mjlfinancement_budget_line', array('rowid', 'ref', 'entity', 'revised_budget', 'spent_amount', 'remaining_amount')) && hasColumns('mjlfinancement_expense', array('entity', 'fk_budget_line', 'amount', 'status'))) {
 	$sql = 'SELECT bl.rowid, bl.ref, bl.entity, COALESCE(bl.spent_amount, 0) AS stored_spent, COALESCE(x.computed_spent, 0) AS computed_spent, COALESCE(bl.remaining_amount, 0) AS stored_remaining, COALESCE(bl.revised_budget, 0) - COALESCE(x.computed_spent, 0) AS computed_remaining';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
-	$sql .= ' LEFT JOIN (SELECT fk_budget_line, entity, COALESCE(SUM(CASE WHEN status = 2 THEN amount ELSE 0 END), 0) AS computed_spent FROM '.$db->prefix().'mjlfinancement_expense GROUP BY fk_budget_line, entity) x ON x.fk_budget_line = bl.rowid AND x.entity = bl.entity';
+	$sql .= ' LEFT JOIN (SELECT fk_budget_line, entity, COALESCE(SUM(CASE WHEN status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).') THEN '.mjl_expense_budget_amount_sql('e').' ELSE 0 END), 0) AS computed_spent FROM '.$db->prefix().'mjlfinancement_expense e GROUP BY fk_budget_line, entity) x ON x.fk_budget_line = bl.rowid AND x.entity = bl.entity';
 	$sql .= ' WHERE ABS(COALESCE(bl.spent_amount, 0) - COALESCE(x.computed_spent, 0)) > 0.001 OR ABS(COALESCE(bl.remaining_amount, 0) - (COALESCE(bl.revised_budget, 0) - COALESCE(x.computed_spent, 0))) > 0.001';
 	reportRows('budget_line_amount_mismatch', $sql);
 }

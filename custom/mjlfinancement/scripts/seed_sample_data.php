@@ -378,6 +378,10 @@ function upsertExpense($row, $projectId, $conventionId, $activityId, $budgetLine
 	$id = mjl_fetch_id('mjlfinancement_expense', "entity = ".$entity." AND ref = '".$db->escape($row['ref'])."'");
 	$validator = $row['validated_by'] !== '' ? (int) $userIds[$row['validated_by']] : 'NULL';
 	$creator = $row['created_by'] !== '' ? (int) $userIds[$row['created_by']] : (int) $adminUser->id;
+	$status = mjl_status_expense($row['status']);
+	$finalAmount = $status === 2 ? price2num($row['amount_xof']) : 'NULL';
+	$finalValidator = $status === 2 ? $validator : 'NULL';
+	$finalDate = $status === 2 ? mjl_sql_datetime($row['validated_at']) : 'NULL';
 	$values = array(
 		'fk_project = '.((int) $projectId),
 		'fk_convention = '.((int) $conventionId),
@@ -388,10 +392,13 @@ function upsertExpense($row, $projectId, $conventionId, $activityId, $budgetLine
 		'description = '.mjl_sql_string($row['description']),
 		'supporting_document = NULL',
 		'fk_user_valid = '.$validator,
+		'fk_user_final_valid = '.$finalValidator,
 		'validation_date = '.mjl_sql_datetime($row['validated_at']),
+		'final_validation_date = '.$finalDate,
+		'final_validated_amount = '.$finalAmount,
 		'correction_reason = '.mjl_sql_string($row['correction_reason']),
 		'submitted_at = '.mjl_sql_datetime($row['submitted_at']),
-		'status = '.mjl_status_expense($row['status']),
+		'status = '.$status,
 		'import_key = '.mjl_sql_string($importKey),
 	);
 	if ($id <= 0) {
@@ -410,12 +417,14 @@ function upsertValidation($row, $expenseId, $actorUserId, $entity, $importKey, U
 	global $db;
 
 	$id = mjl_fetch_id('mjlfinancement_validation', "entity = ".$entity." AND ref = '".$db->escape($row['validation_id'])."'");
+	$actorRole = $row['action'] === 'validated' ? 'AGENT_VERIFICATEUR' : 'AGENT_SAISIE';
 	$values = array(
 		'fk_expense = '.((int) $expenseId),
 		'action = '.mjl_sql_string($row['action']),
 		'from_status = '.mjl_sql_string($row['from_status']),
 		'to_status = '.mjl_sql_string($row['to_status']),
 		'fk_user_action = '.((int) $actorUserId),
+		'actor_role = '.mjl_sql_string($actorRole),
 		'action_date = '.mjl_sql_datetime($row['action_date']),
 		'comment = '.mjl_sql_string($row['comment']),
 		'import_key = '.mjl_sql_string($importKey),

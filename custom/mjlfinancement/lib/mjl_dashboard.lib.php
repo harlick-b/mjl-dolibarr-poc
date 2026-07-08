@@ -47,7 +47,7 @@ function mjl_dashboard_dpaf_kpis()
 	return array(
 		array('label' => 'Activites en cours', 'value' => mjl_dashboard_activity_count(array(MjlActivity::STATUS_ONGOING)), 'context' => 'Activites ouvertes dans l entite active', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites'),
 		array('label' => 'Activites en validation', 'value' => mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED)), 'context' => 'Dossiers en attente de prevalidation ou validation definitive', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner'),
-		array('label' => 'Depenses soumises', 'value' => mjl_dashboard_expense_count(array(MjlExpense::STATUS_SUBMITTED)), 'context' => 'Depenses a controler', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les depenses'),
+		array('label' => 'Depenses en validation', 'value' => mjl_dashboard_expense_count(array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses())), 'context' => 'Depenses a controler ou valider definitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les depenses'),
 		array('label' => 'Budget revise', 'value' => price(mjl_dashboard_budget_total()), 'context' => 'Total des lignes budgetaires', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports'),
 		array('label' => 'Depenses validees', 'value' => price(mjl_dashboard_validated_expense_total()), 'context' => 'Montant deja valide', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Voir les exports'),
 	);
@@ -83,7 +83,7 @@ function mjl_dashboard_pending_reviews($limit = 30)
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity WHERE entity = '.((int) $conf->entity).' AND status IN ('.MjlActivity::STATUS_SUBMITTED.', '.MjlActivity::STATUS_PREVALIDATED.')';
 	$sql .= ' UNION ALL ';
 	$sql .= 'SELECT \'Depense\' AS item_type, rowid AS item_id, ref, description AS label, expense_date AS item_date, amount, \'/custom/mjlfinancement/expenses.php\' AS href';
-	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense WHERE entity = '.((int) $conf->entity).' AND status = '.MjlExpense::STATUS_SUBMITTED;
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense WHERE entity = '.((int) $conf->entity).' AND status IN ('.mjl_expense_status_sql_list(array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses())).')';
 	$sql .= ' ORDER BY item_date ASC, ref ASC LIMIT '.((int) $limit);
 	return mjl_dashboard_fetch_rows($sql);
 }
@@ -94,7 +94,8 @@ function mjl_dashboard_budget_expense_rows()
 
 	$sql = 'SELECT c.ref AS convention_ref,';
 	$sql .= ' COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl WHERE bl.entity = c.entity AND bl.fk_convention = c.rowid), 0) AS budget_revise,';
-	$sql .= ' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_VALIDATED.'), 0) AS depenses_validees,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_expense_budget_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).')), 0) AS depenses_validees,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_expense_disbursed_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_disbursed_statuses()).')), 0) AS depenses_decaissees,';
 	$sql .= ' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_SUBMITTED.'), 0) AS depenses_soumises';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_convention c';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity);
@@ -201,7 +202,7 @@ function mjl_dashboard_missing_expense_document_count()
 
 function mjl_dashboard_pending_review_count()
 {
-	return mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED)) + mjl_dashboard_expense_count(array(MjlExpense::STATUS_SUBMITTED));
+	return mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED)) + mjl_dashboard_expense_count(array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()));
 }
 
 function mjl_dashboard_budget_total()
@@ -216,7 +217,7 @@ function mjl_dashboard_validated_expense_total()
 {
 	global $db, $conf;
 
-	$sql = 'SELECT COALESCE(SUM(amount), 0) AS nb FROM '.$db->prefix().'mjlfinancement_expense WHERE entity = '.((int) $conf->entity).' AND status = '.MjlExpense::STATUS_VALIDATED;
+	$sql = 'SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) AS nb FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.((int) $conf->entity).' AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).')';
 	return mjl_dashboard_scalar($sql);
 }
 

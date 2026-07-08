@@ -129,7 +129,7 @@ test('Level 2 dashboard focuses on validation workload and delay risk', async ({
   await expect(page.getByRole('heading', { name: 'File de validation' })).toBeVisible();
   await expect(page.getByText('Activites en revue')).toBeVisible();
   await expect(page.getByText('Depenses en revue')).toBeVisible();
-  await expect(page.getByText('Risques echeance')).toBeVisible();
+  await expect(page.getByText('Risques echeance').first()).toBeVisible();
   await expectCardValue(page, 'Depenses en revue', expectedGlobalSubmittedExpenses);
   await expect(page.locator('body')).not.toContainText('Supervision DPAF');
   await expect(page.locator('body')).not.toContainText('Administration');
@@ -144,7 +144,7 @@ test('DPAF dashboard exposes supervision sections and actionable risk context', 
 
   await expect(page.getByRole('heading', { name: 'Supervision DPAF' })).toBeVisible();
   await expect(page.getByText('Revues en attente')).toBeVisible();
-  await expect(page.getByText('Risques echeance')).toBeVisible();
+  await expect(page.getByText('Risques echeance').first()).toBeVisible();
   await expect(page.getByText('Rapports disponibles')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Administration');
 
@@ -156,7 +156,7 @@ test('DPAF dashboard exposes supervision sections and actionable risk context', 
   await expect(page.getByRole('heading', { name: 'Budgets et dépenses' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Dernières réceptions de fonds' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Dernières actions auditées' })).toBeVisible();
-  await expectCardValue(page, 'Depenses soumises', expectedGlobalSubmittedExpenses);
+  await expectCardValue(page, 'Depenses en validation', expectedGlobalSubmittedExpenses);
   await expect(page.locator('body')).toContainText(/Echeance proche|En retard|Aucun risque echeance/);
   await expect(page.getByText('Action attendue: examiner l activite').first()).toBeVisible();
 
@@ -179,15 +179,12 @@ test('Admin dashboard is administration-first with supervision shortcuts', async
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
   await expect(page.getByRole('heading', { name: 'Tableau de bord DPAF' })).toBeVisible();
-  await expectCardValue(page, 'Depenses soumises', expectedGlobalSubmittedExpenses);
+  await expectCardValue(page, 'Depenses en validation', expectedGlobalSubmittedExpenses);
 });
 
-test('Read-only user keeps consultation-only workspace', async ({ page }) => {
+test('Read-only user fails closed', async ({ page }) => {
   await login(page, 'lecteur.audit');
-  await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
-
-  await expect(page.getByRole('heading', { name: 'Acces rapides' })).toBeVisible();
-  await expect(page.getByRole('main').getByRole('link', { name: /Supervision/ })).toBeVisible();
+  await expect(page.locator('body')).toContainText(/Acces refuse|Accès refusé|Access denied|Forbidden|Non autorise|Non autorisé/);
   await expect(page.locator('body')).not.toContainText('Mes actions attendues');
   await expect(page.locator('body')).not.toContainText('File de validation');
   await expect(page.locator('body')).not.toContainText('Supervision DPAF');

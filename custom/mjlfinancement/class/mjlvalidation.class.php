@@ -21,6 +21,7 @@ class MjlValidation extends CommonObject
 		'from_status' => array('type' => 'varchar(32)', 'label' => 'MJLFromStatus', 'enabled' => 1, 'position' => 50, 'notnull' => -1, 'visible' => 1, 'validate' => 1),
 		'to_status' => array('type' => 'varchar(32)', 'label' => 'MJLToStatus', 'enabled' => 1, 'position' => 60, 'notnull' => 1, 'visible' => 1, 'validate' => 1),
 		'fk_user_action' => array('type' => 'integer:User:user/class/user.class.php', 'label' => 'User', 'enabled' => 1, 'position' => 70, 'notnull' => 1, 'visible' => 1, 'index' => 1, 'validate' => 1),
+		'actor_role' => array('type' => 'varchar(64)', 'label' => 'MJLActorRole', 'enabled' => 1, 'position' => 75, 'notnull' => -1, 'visible' => 1, 'index' => 1, 'validate' => 1),
 		'action_date' => array('type' => 'datetime', 'label' => 'Date', 'enabled' => 1, 'position' => 80, 'notnull' => 1, 'visible' => 1, 'validate' => 1),
 		'comment' => array('type' => 'text', 'label' => 'Comment', 'enabled' => 1, 'position' => 90, 'notnull' => 0, 'visible' => 1, 'validate' => 1),
 		'date_creation' => array('type' => 'datetime', 'label' => 'DateCreation', 'enabled' => 1, 'position' => 600, 'notnull' => 1, 'visible' => -2),
@@ -37,6 +38,7 @@ class MjlValidation extends CommonObject
 	public $from_status;
 	public $to_status;
 	public $fk_user_action;
+	public $actor_role;
 	public $action_date;
 	public $comment;
 	public $fk_user_creat;
