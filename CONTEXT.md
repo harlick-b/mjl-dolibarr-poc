@@ -33,7 +33,7 @@ Confirmed non-goals for the current POC:
 - `docker-compose.yml` runs Dolibarr `23.0.2` with MariaDB `11`.
 - Dolibarr is exposed locally on `http://127.0.0.1:8080/`.
 - The custom module lives under `custom/mjlfinancement`.
-- The module declaration reports version `0.7.0`.
+- The module declaration reports version `0.9.0`.
 - The module requires Dolibarr `23.0.x` and PHP `7.4+`.
 - Dolibarr documents are mounted under `./data/documents`.
 - The custom module is mounted into the container at `/var/www/html/custom`.
@@ -43,27 +43,34 @@ Confirmed non-goals for the current POC:
 
 ## User roles
 
-The current POC role simulation is:
+The confirmed production business roles are:
 
-- `ADMIN`: Dolibarr admin, invitations, DPAF dashboard, reports, internal
-  readiness surfaces where enabled.
-- `AGENT`: operational creation, submission, own follow-up, own alerts,
-  expenses, and documents.
-- `SUPERVISEUR_N1`: review queue and validation/correction/rejection actions
-  where authorized.
-- `SUPERVISEUR_N2`: currently similar reviewer capability to N1 until final
-  escalation rules are confirmed.
-- `DPAF`: supervision dashboard, portfolio alerts, reports, exports, governed
-  finance/reference management.
-- `LECTEUR`: read-only consultation/audit profile with no workflow actions.
+- `AGENT_SAISIE`: operational creation, submission, correction, supporting
+  documents, and follow-up for assigned Partenaires / Programmes.
+- `AGENT_VERIFICATEUR`: verification, correction requests, invalidation, and
+  prevalidation for assigned Partenaires / Programmes.
+- `VALIDATEUR_DEFINITIF`: final business validation, rejection, closure, and
+  disbursement decisions for assigned Partenaires / Programmes.
+- `ADMIN_PLATEFORME`: platform administration, user access, invitations, and
+  configuration.
 
-Sample users and groups are POC fixtures, not final production permissions.
+A user has one global business role and may be assigned to one or many
+Partenaires / Programmes. Admin plateforme and Validateur definitif are
+separate concepts; a person may hold platform admin rights and also have the
+business validation role, but those responsibilities remain distinct.
+
+The legacy POC role simulation (`AGENT`, `SUPERVISEUR_N1`, `SUPERVISEUR_N2`,
+`DPAF`, `ADMIN`, and `LECTEUR`) remains relevant only for migration and
+backward compatibility until replaced.
+`LECTEUR` has no approved production role equivalent yet and remains an
+unresolved legacy read-only profile.
 
 ## Core domain entities
 
 Native Dolibarr concepts are reused where they fit:
 
-- PTF / bailleur / partner: native Third Party.
+- Partenaire / Programme: user-facing name for the partner/programme scope,
+  represented technically by native Third Party.
 - Project: native Project.
 - Users, groups, and permissions: native Dolibarr users/groups/rights.
 - Supporting documents: native ECM/documents.
@@ -125,9 +132,10 @@ Confirmed visibility patterns:
 
 - Invitation and first access: Admin sends invitation, user opens token link,
   defines password, account becomes active, and lifecycle is audited.
-- Activity lifecycle: create, submit, request correction, correct/resubmit,
-  validate, reject, cancel/complete where applicable, with timeline/audit
-  evidence.
+- Activity lifecycle: create, update production execution fields, upload
+  documents, submit, request correction, correct/resubmit, prevalidate as
+  `AGENT_VERIFICATEUR`, final-validate as `VALIDATEUR_DEFINITIF`, reject, and
+  cancel/complete where applicable, with timeline/audit evidence.
 - Expense lifecycle: create draft, upload supporting document, submit, validate
   or reject, correct/resubmit, with budget checks and validation history.
 - Documents: upload from contextual object pages, store in ECM, download only
@@ -154,7 +162,8 @@ Confirmed visibility patterns:
 | Term | Meaning |
 | --- | --- |
 | MJL | Ministry of Justice and Legislation |
-| PTF / bailleur | Funding partner, represented by native Dolibarr third party |
+| Partenaire / Programme | User-facing partner/programme scope, represented technically by native Dolibarr third party |
+| PTF / bailleur | Legacy POC wording for funding partner; avoid in normal production UI |
 | Projet | Native Dolibarr project exposed through MJL context where possible |
 | Convention | Current MJL funding-envelope object |
 | Activité | Operational activity under project/convention |
@@ -178,9 +187,7 @@ Confirmed visibility patterns:
 
 ## Needs confirmation
 
-- Final production permission matrix.
-- Final production role model.
-- Final `SUPERVISEUR_N2` and DPAF escalation rules.
+- Final production permission matrix details for every route/action.
 - Final donor report canevas and official output columns.
 - Production email transport, public/base URL, and secrets configuration.
 - Budget-line close/deactivation lifecycle policy.

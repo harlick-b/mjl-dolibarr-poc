@@ -50,6 +50,7 @@ data instructions.
    - `audit_schema_0.3.0.php`
    - `audit_schema_0.4.0.php`
    - `audit_schema_0.5.0.php`
+   - `audit_schema_0.8.0.php`
 6. Review any reported legacy columns, broken links, duplicate references, or
    cross-entity data before reopening user access.
 
@@ -101,6 +102,8 @@ Run these after deployment or restore:
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.3.0.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.4.0.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.5.0.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.8.0.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_scope_model.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_activity_workflow.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_traceability_exports.php

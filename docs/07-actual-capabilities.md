@@ -35,7 +35,7 @@ Implemented parts:
 
 - Local Dolibarr + MariaDB runtime through `docker-compose.yml`.
 - A custom Dolibarr module declaration, `modMjlFinancement`, currently version
-  `0.7.0`.
+  `0.9.0`.
 - Nine custom database-backed object classes:
   - `MjlConvention`
   - `MjlActivity`
@@ -91,7 +91,11 @@ Run checks:
 ```bash
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.3.0.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.4.0.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.5.0.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.8.0.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.9.0.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/acceptance_sample_data.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_scope_model.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_activity_workflow.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_traceability_exports.php
@@ -157,11 +161,17 @@ Statuses: Draft, Active, Closed.
 Table: `llx_mjlfinancement_activity`
 
 Key fields: `ref`, `label`, `fk_project`, `fk_convention`, optional `fk_task`,
-dates, notes, audit fields, and `status`.
+planned dates, responsible user, actual dates, physical execution percentage,
+execution status/comment, notes, audit fields, and `status`.
 
 Statuses: Draft (`0`), Ongoing (`1`), Completed (`2`), Submitted (`3`),
-Correction requested (`4`), Corrected (`5`), Validated (`6`), Rejected (`8`),
-Cancelled (`9`).
+Correction requested (`4`), Corrected (`5`), Validated definitively (`6`),
+Prevalidated (`7`), Rejected (`8`), Cancelled (`9`).
+
+Submitted activities are reviewed by `AGENT_VERIFICATEUR` through
+prevalidation. Prevalidated activities are reviewed by
+`VALIDATEUR_DEFINITIF` for final validation. Creator/responsible self-review is
+blocked server-side.
 
 `overdue` is not persisted. Deadline alerts are computed from `date_end` and
 are hidden only for completed or cancelled activities.

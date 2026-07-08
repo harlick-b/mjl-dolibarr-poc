@@ -20,7 +20,7 @@ consolidation work; check `git status --short` before handoff.
 
 - Dolibarr runs through Docker with MariaDB using `docker-compose.yml`.
 - Dolibarr is exposed on `http://127.0.0.1:8080/`.
-- The custom module is `MjlFinancement`, version `0.7.0`.
+- The custom module is `MjlFinancement`, version `0.8.0`.
 - The module depends on Dolibarr third parties, projects, ECM/documents, expense reports, and export modules.
 - Bootstrap is handled by `custom/mjlfinancement/scripts/bootstrap_poc.php`.
 - Sample data is loaded by `custom/mjlfinancement/scripts/seed_sample_data.php`.
@@ -72,7 +72,7 @@ Implemented tables cover:
 The schema includes entity support, references, audit fields, statuses, links to Dolibarr projects/third parties/users, and custom foreign-key style relationships between MJL objects.
 
 Upgrade scripts are present for schema versions `0.2.0`, `0.3.0`, `0.4.0`,
-and `0.5.0`; the module declaration is currently `0.7.0`.
+`0.5.0`, and `0.8.0`; the module declaration is currently `0.8.0`.
 
 ## Available user-facing features
 
@@ -361,8 +361,10 @@ Available scripts:
 - `custom/mjlfinancement/scripts/audit_schema_0.3.0.php`
 - `custom/mjlfinancement/scripts/audit_schema_0.4.0.php`
 - `custom/mjlfinancement/scripts/audit_schema_0.5.0.php`
+- `custom/mjlfinancement/scripts/audit_schema_0.8.0.php`
 - `custom/mjlfinancement/scripts/audit_schema_0.2.0.php`
 - `custom/mjlfinancement/scripts/acceptance_sample_data.php`
+- `custom/mjlfinancement/scripts/smoke_scope_model.php`
 - `custom/mjlfinancement/scripts/smoke_expense_validation.php`
 - `custom/mjlfinancement/scripts/smoke_activity_workflow.php`
 - `custom/mjlfinancement/scripts/smoke_traceability_exports.php`

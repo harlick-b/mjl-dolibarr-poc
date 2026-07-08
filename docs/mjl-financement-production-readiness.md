@@ -14,7 +14,7 @@ real data behavior, tests, and matching documentation.
 - Final readiness status: `READY`, `PARTIAL`, `BLOCKED`, or `OUT_OF_SCOPE`.
 - Do not mark a row `READY` when any required UI, backend/data, permission,
   test, or documentation evidence is missing.
-- Do not bump the module from `0.7.0` to `1.0.0` while any `IN_SCOPE` row is
+- Do not bump the module from the current pre-`1.0.0` version to `1.0.0` while any `IN_SCOPE` row is
   `PARTIAL` or `BLOCKED`.
 - Dolibarr core files remain out of scope.
 
@@ -89,5 +89,5 @@ real data behavior, tests, and matching documentation.
 
 ## Version Eligibility
 
-The module is not eligible for `1.0.0` yet. It remains `0.7.0` because no
+The module is not eligible for `1.0.0` yet. It remains below `1.0.0` because no
 `IN_SCOPE` production row has been proven `READY` by this matrix.

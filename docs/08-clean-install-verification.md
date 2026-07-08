@@ -19,8 +19,11 @@ docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mj
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.3.0.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.4.0.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.5.0.php
+docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.8.0.php
+docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.9.0.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/acceptance_sample_data.php
+docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_scope_model.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_activity_workflow.php
 docker compose -p mjl-clean-install exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_traceability_exports.php
@@ -32,7 +35,10 @@ The expected result is:
 MJL 0.3.0 schema audit: OK
 MJL 0.4.0 workflow foundation audit: OK
 MJL 0.5.0 activity status audit: OK
+MJL 0.8.0 role/scope schema audit: OK
+MJL 0.9.0 activity workflow schema audit: OK
 MJL sample data acceptance checks completed.
+MJL 0.8.0 scope model smoke: OK
 MJL expense validation smoke test completed.
 MJL activity workflow smoke test completed.
 MJL traceability/export smoke test completed.

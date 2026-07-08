@@ -24,3 +24,6 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Production readiness requires current evidence in the readiness matrix,
   deployment checks, and test results; historical pass counts are not current
   verification.
+- Dolibarr `fetchCommon()` object paths may expose `id` while SQL row arrays
+  expose `rowid`; MJL access helpers that accept both objects and arrays should
+  normalize the identifier before object-scope checks.
