@@ -219,7 +219,7 @@ function mjl_convention_document_download_rows($conventionId)
 		return array();
 	}
 	$convention = mjl_convention_document_fetch_convention_for_access((int) $conventionId);
-	if (empty($convention)) {
+	if (empty($convention) || !mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $conventionId)) {
 		return array();
 	}
 	return mjl_convention_downloadable_document_rows((int) $conventionId, (int) $conf->entity);
@@ -240,7 +240,14 @@ function mjl_convention_document_fetch_convention_for_access($conventionId)
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
-	return $obj ? (array) $obj : array();
+	if (!$obj) {
+		return array();
+	}
+	$row = (array) $obj;
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $row['convention_rowid'])) {
+		return array();
+	}
+	return $row;
 }
 
 function mjl_convention_document_fetch_download_row($fileId)
@@ -311,7 +318,7 @@ function mjl_fund_receipt_document_download_rows($receiptId)
 	}
 
 	$receipt = mjl_fund_receipt_document_fetch_receipt_for_access((int) $receiptId);
-	if (empty($receipt)) {
+	if (empty($receipt) || !mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', (int) $receiptId)) {
 		return array();
 	}
 
@@ -333,7 +340,14 @@ function mjl_fund_receipt_document_fetch_receipt_for_access($receiptId)
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
-	return $obj ? (array) $obj : array();
+	if (!$obj) {
+		return array();
+	}
+	$row = (array) $obj;
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', (int) $row['receipt_rowid'])) {
+		return array();
+	}
+	return $row;
 }
 
 function mjl_fund_receipt_document_fetch_download_row($fileId)

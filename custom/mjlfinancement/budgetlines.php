@@ -55,6 +55,9 @@ function mjl_budgetlines_handle_post($action)
 		$budgetLine->note_public = GETPOST('note_public', 'restricthtml');
 		$budgetLine->note_private = GETPOST('note_private', 'restricthtml');
 		$budgetLine->fk_user_creat = $user->id;
+		if (!mjl_budgetlines_can_use_links((int) $budgetLine->fk_project, (int) $budgetLine->fk_convention, (int) $budgetLine->fk_mjl_activity, (int) $budgetLine->fk_activity)) {
+			mjl_budgetlines_forbidden('Rattachement hors de votre perimetre');
+		}
 		$result = $budgetLine->create($user);
 		if ($result <= 0) {
 			setEventMessages($budgetLine->error ?: 'Creation ligne budgetaire refusee', null, 'errors');
@@ -69,8 +72,14 @@ function mjl_budgetlines_handle_post($action)
 	if ($id <= 0 || $budgetLine->fetch($id) <= 0 || (int) $budgetLine->entity !== (int) $conf->entity) {
 		mjl_budgetlines_forbidden('Ligne budgetaire introuvable ou hors de votre perimetre');
 	}
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_budget_line', $id)) {
+		mjl_budgetlines_forbidden('Ligne budgetaire hors de votre perimetre');
+	}
 
 	if ($action === 'update') {
+		if (!mjl_budgetlines_can_use_links(GETPOSTINT('fk_project'), GETPOSTINT('fk_convention'), GETPOSTINT('fk_mjl_activity'), GETPOSTINT('fk_activity'))) {
+			mjl_budgetlines_forbidden('Rattachement hors de votre perimetre');
+		}
 		$result = $budgetLine->updateGovernedFields($user, array(
 			'ref' => GETPOST('ref', 'alphanohtml'),
 			'label' => GETPOST('label', 'restricthtml'),
@@ -225,6 +234,7 @@ function mjl_budgetlines_render_list($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = bl.fk_mjl_activity AND a.entity = bl.entity';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
 	$sql .= ' ORDER BY bl.rowid DESC LIMIT 100';
 	$resql = $db->query($sql);
 	print '<section class="mjl-workspace-section"><div class="mjl-section-heading"><h2>Portefeuille budgetaire</h2><p>Les montants depenses et restants sont recalcules depuis les depenses validees.</p></div>';
@@ -335,6 +345,7 @@ function mjl_budgetlines_fetch_detail($id)
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet_task t ON t.rowid = bl.fk_activity AND t.entity = bl.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = bl.fk_user_creat';
 	$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.rowid = '.((int) $id);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
 	$resql = $db->query($sql);
 	if (!$resql) {
 		setEventMessages($db->lasterror(), null, 'errors');
@@ -381,15 +392,15 @@ function mjl_budgetlines_options($type)
 {
 	global $db, $conf;
 	if ($type === 'project') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' AND status = '.MjlConvention::STATUS_ACTIVE.' ORDER BY ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} elseif ($type === 'convention_all') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} elseif ($type === 'activity') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', label) AS label FROM '.$db->prefix().'mjlfinancement_activity WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT a.rowid, CONCAT(a.ref, \' - \', a.label) AS label FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity WHERE a.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY a.ref';
 	} elseif ($type === 'task') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', label) AS label FROM '.$db->prefix().'projet_task WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT t.rowid, CONCAT(t.ref, \' - \', t.label) AS label FROM '.$db->prefix().'projet_task t INNER JOIN '.$db->prefix().'projet p ON p.rowid = t.fk_projet AND p.entity = t.entity WHERE t.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY t.ref';
 	} else {
 		return array();
 	}
@@ -401,6 +412,31 @@ function mjl_budgetlines_options($type)
 		}
 	}
 	return $options;
+}
+
+function mjl_budgetlines_can_use_links($fkProject, $fkConvention, $fkMjlActivity, $fkTask)
+{
+	global $db, $conf, $user;
+	$fkProject = (int) $fkProject;
+	$fkConvention = (int) $fkConvention;
+	$fkMjlActivity = (int) $fkMjlActivity;
+	$fkTask = (int) $fkTask;
+	if ($fkProject <= 0 || $fkConvention <= 0) return false;
+	$sql = 'SELECT c.rowid, c.fk_soc, c.fk_project FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).' AND c.rowid = '.$fkConvention.' AND c.status = '.MjlConvention::STATUS_ACTIVE;
+	$resql = $db->query($sql);
+	$convention = $resql ? $db->fetch_object($resql) : null;
+	if (!$convention || !mjl_scope_can_access_fk_soc($user, (int) $convention->fk_soc)) return false;
+	if ((int) $convention->fk_project > 0 && (int) $convention->fk_project !== $fkProject) return false;
+	$sql = 'SELECT rowid FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkProject.' AND fk_soc = '.((int) $convention->fk_soc);
+	$resql = $db->query($sql);
+	if (!$resql || !$db->fetch_object($resql)) return false;
+	if ($fkMjlActivity > 0 && !mjl_scope_can_access_object($user, 'mjlfinancement_activity', $fkMjlActivity)) return false;
+	if ($fkTask > 0) {
+		$sql = 'SELECT t.rowid FROM '.$db->prefix().'projet_task t WHERE t.entity = '.((int) $conf->entity).' AND t.rowid = '.$fkTask.' AND t.fk_projet = '.$fkProject;
+		$resql = $db->query($sql);
+		if (!$resql || !$db->fetch_object($resql)) return false;
+	}
+	return true;
 }
 
 function mjl_budgetlines_select($name, $options, $selected, $required, $disabled, $emptyLabel = 'Aucun')

@@ -8,6 +8,9 @@ function mjl_expenses_can_open($expense)
 	global $user;
 
 	$row = is_array($expense) ? $expense : (array) $expense;
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_expense', (int) $row['rowid'])) {
+		return false;
+	}
 	if (mjl_workspace_can_access_supervision($user) || mjl_expenses_is_readonly_consultation()) {
 		return true;
 	}
@@ -26,22 +29,23 @@ function mjl_expenses_scope_sql($alias)
 
 	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
 	if (mjl_workspace_can_access_supervision($user) || mjl_expenses_is_readonly_consultation()) {
-		return '';
+		return mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	}
+	$scopeFilter = mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	if (mjl_expenses_is_level1_operational()) {
-		return ' AND '.$a.'.fk_user_creat = '.((int) $user->id);
+		return $scopeFilter.' AND '.$a.'.fk_user_creat = '.((int) $user->id);
 	}
 	if ($user->hasRight('mjlfinancement', 'expense', 'validate')) {
-		return ' AND ('.$a.'.status = '.MjlExpense::STATUS_SUBMITTED.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_validation vscope WHERE vscope.entity = '.$a.'.entity AND vscope.fk_expense = '.$a.'.rowid AND vscope.fk_user_action = '.((int) $user->id).'))';
+		return $scopeFilter.' AND ('.$a.'.status = '.MjlExpense::STATUS_SUBMITTED.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_validation vscope WHERE vscope.entity = '.$a.'.entity AND vscope.fk_expense = '.$a.'.rowid AND vscope.fk_user_action = '.((int) $user->id).'))';
 	}
-	return '';
+	return $scopeFilter;
 }
 
 function mjl_expenses_requires_own_scope(User $targetUser)
 {
 	$capabilities = mjl_workspace_capabilities($targetUser);
 	return $capabilities['operational']
-		&& !$targetUser->hasRight('mjlfinancement', 'expense', 'validate')
+		&& !mjl_workspace_can_apply_expense_validation($targetUser)
 		&& !$capabilities['supervision']
 		&& !$capabilities['admin'];
 }
@@ -49,13 +53,13 @@ function mjl_expenses_requires_own_scope(User $targetUser)
 function mjl_expenses_is_level1_operational()
 {
 	global $user;
-	return $user->hasRight('mjlfinancement', 'expense', 'write') && !$user->hasRight('mjlfinancement', 'expense', 'validate') && !mjl_workspace_can_access_supervision($user);
+	return mjl_workspace_can_apply_expense_write($user) && !mjl_workspace_can_apply_expense_validation($user) && !mjl_workspace_can_access_supervision($user);
 }
 
 function mjl_expenses_is_readonly_consultation()
 {
 	global $user;
-	return !$user->hasRight('mjlfinancement', 'expense', 'write') && !$user->hasRight('mjlfinancement', 'expense', 'validate');
+	return !mjl_workspace_can_apply_expense_write($user) && !mjl_workspace_can_apply_expense_validation($user);
 }
 
 function mjl_expenses_user_has_validation_history($expenseId)
@@ -72,6 +76,6 @@ function mjl_expenses_scope_label()
 	global $user;
 	if (mjl_workspace_can_access_supervision($user)) return 'Portefeuille MJL';
 	if (mjl_expenses_is_level1_operational()) return 'Mes depenses';
-	if ($user->hasRight('mjlfinancement', 'expense', 'validate')) return 'File de validation';
+	if (mjl_workspace_can_apply_expense_validation($user)) return 'File de validation';
 	return 'Consultation';
 }

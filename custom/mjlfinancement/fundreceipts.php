@@ -44,6 +44,9 @@ function mjl_fundreceipts_handle_post($action)
 		$receipt->entity = (int) $conf->entity;
 		$receipt->ref = GETPOST('ref', 'alphanohtml');
 		$receipt->fk_convention = GETPOSTINT('fk_convention');
+		if (!mjl_fundreceipts_can_use_convention((int) $receipt->fk_convention)) {
+			mjl_fundreceipts_forbidden('Enveloppe hors de votre périmètre');
+		}
 		$receipt->amount = GETPOST('amount', 'alpha');
 		$receipt->reception_date = GETPOST('reception_date', 'alphanohtml');
 		$receipt->comment = GETPOST('comment', 'restricthtml');
@@ -64,8 +67,14 @@ function mjl_fundreceipts_handle_post($action)
 	if ($id <= 0 || $receipt->fetch($id) <= 0 || (int) $receipt->entity !== (int) $conf->entity) {
 		mjl_fundreceipts_forbidden('Réception de fonds introuvable ou hors de votre périmètre');
 	}
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', $id)) {
+		mjl_fundreceipts_forbidden('Réception de fonds hors de votre périmètre');
+	}
 
 	if ($action === 'update') {
+		if (!mjl_fundreceipts_can_use_convention(GETPOSTINT('fk_convention'))) {
+			mjl_fundreceipts_forbidden('Enveloppe hors de votre périmètre');
+		}
 		$result = $receipt->updateGovernedFields($user, array(
 			'ref' => GETPOST('ref', 'alphanohtml'),
 			'fk_convention' => GETPOSTINT('fk_convention'),
@@ -216,6 +225,7 @@ function mjl_fundreceipts_render_list($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = fr.fk_convention AND c.entity = fr.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = fr.fk_soc';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('fr.fk_soc', $GLOBALS['user']);
 	$sql .= ' ORDER BY fr.reception_date DESC, fr.rowid DESC LIMIT 100';
 	$resql = $db->query($sql);
 	print '<section class="mjl-workspace-section"><div class="mjl-section-heading"><h2>Portefeuille fonds reçus</h2><p>Seules les réceptions marquées reçues alimentent les totaux financiers.</p></div>';
@@ -351,6 +361,7 @@ function mjl_fundreceipts_fetch_detail($id)
 	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = fr.fk_soc';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = fr.fk_user_creat';
 	$sql .= ' WHERE fr.entity = '.((int) $conf->entity).' AND fr.rowid = '.((int) $id);
+	$sql .= mjl_scope_partner_sql_filter('fr.fk_soc', $GLOBALS['user']);
 	$resql = $db->query($sql);
 	if (!$resql) {
 		setEventMessages($db->lasterror(), null, 'errors');
@@ -446,11 +457,11 @@ function mjl_fundreceipts_options($type)
 {
 	global $db, $conf;
 	if ($type === 'project') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
-		$sql = 'SELECT c.rowid, CONCAT(c.ref, \' - \', c.title, \' (\', p.ref, \' / \', s.nom, \')\') AS label FROM '.$db->prefix().'mjlfinancement_convention c INNER JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' ORDER BY c.ref';
+		$sql = 'SELECT c.rowid, CONCAT(c.ref, \' - \', c.title, \' (\', p.ref, \' / \', s.nom, \')\') AS label FROM '.$db->prefix().'mjlfinancement_convention c INNER JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} elseif ($type === 'convention_all') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} else {
 		return array();
 	}
@@ -458,6 +469,19 @@ function mjl_fundreceipts_options($type)
 	$options = array();
 	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = (string) $obj->label;
 	return $options;
+}
+
+function mjl_fundreceipts_can_use_convention($fkConvention)
+{
+	global $db, $conf, $user;
+	$fkConvention = (int) $fkConvention;
+	if ($fkConvention <= 0) return false;
+	$sql = 'SELECT c.rowid, c.fk_soc, c.fk_project FROM '.$db->prefix().'mjlfinancement_convention c';
+	$sql .= ' INNER JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
+	$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.rowid = '.$fkConvention.' AND c.status = '.MjlConvention::STATUS_ACTIVE;
+	$resql = $db->query($sql);
+	$row = $resql ? $db->fetch_object($resql) : null;
+	return $row && (int) $row->fk_project > 0 && mjl_scope_can_access_fk_soc($user, (int) $row->fk_soc);
 }
 
 function mjl_fundreceipts_select($name, $options, $selected, $required, $disabled, $emptyLabel = 'Aucun')

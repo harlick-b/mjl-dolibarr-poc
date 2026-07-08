@@ -159,6 +159,7 @@ function mjl_documents_convention_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity);
 	if ((int) $filters['project_id'] > 0) $sql .= ' AND c.fk_project = '.((int) $filters['project_id']);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY c.ref ASC';
 	$documents = array();
 	foreach (mjl_documents_fetch_all($sql) as $convention) {
@@ -180,6 +181,7 @@ function mjl_documents_fund_receipt_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = fr.fk_project AND p.entity = fr.entity';
 	$sql .= ' WHERE fr.entity = '.((int) $conf->entity);
 	if ((int) $filters['project_id'] > 0) $sql .= ' AND fr.fk_project = '.((int) $filters['project_id']);
+	$sql .= mjl_scope_partner_sql_filter('fr.fk_soc', $user);
 	$sql .= ' ORDER BY fr.ref ASC';
 	$documents = array();
 	foreach (mjl_documents_fetch_all($sql) as $receipt) {
@@ -243,14 +245,7 @@ function mjl_documents_project_scope_sql($alias)
 {
 	global $db, $user;
 	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
-	if (mjl_workspace_can_access_supervision($user) || (mjl_activities_is_readonly_consultation() && mjl_expenses_is_readonly_consultation())) return '';
-	if ($user->hasRight('mjlfinancement', 'activity', 'write') || $user->hasRight('mjlfinancement', 'expense', 'write')) {
-		return ' AND (EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_activity ascope WHERE ascope.entity = '.$a.'.entity AND ascope.fk_project = '.$a.'.rowid AND ascope.fk_user_creat = '.((int) $user->id).') OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense escope WHERE escope.entity = '.$a.'.entity AND escope.fk_project = '.$a.'.rowid AND escope.fk_user_creat = '.((int) $user->id).'))';
-	}
-	if ($user->hasRight('mjlfinancement', 'activity', 'validate') || $user->hasRight('mjlfinancement', 'expense', 'validate')) {
-		return ' AND (EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_activity ascope WHERE ascope.entity = '.$a.'.entity AND ascope.fk_project = '.$a.'.rowid AND ascope.status = 3) OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense escope WHERE escope.entity = '.$a.'.entity AND escope.fk_project = '.$a.'.rowid AND escope.status = 1))';
-	}
-	return '';
+	return mjl_scope_partner_sql_filter($a.'.fk_soc', $user);
 }
 
 function mjl_documents_fetch_all($sql)

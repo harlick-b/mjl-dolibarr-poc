@@ -9,7 +9,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 
-if (!$user->hasRight('mjlfinancement', 'expense', 'read')) {
+if (!mjl_workspace_can_access_expense($user)) {
 	accessforbidden();
 }
 
@@ -20,13 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		mjl_expenses_forbidden('Invalid security token');
 	}
-	if (!$user->hasRight('mjlfinancement', 'expense', 'write') && in_array($action, array('create', 'update', 'submit', 'correct'), true)) {
+	if (!mjl_workspace_can_apply_expense_write($user) && in_array($action, array('create', 'update', 'submit', 'correct'), true)) {
 		mjl_expenses_forbidden();
 	}
-	if (!$user->hasRight('mjlfinancement', 'expense', 'validate') && in_array($action, array('validate', 'reject'), true)) {
+	if (!mjl_workspace_can_apply_expense_validation($user) && in_array($action, array('validate', 'reject'), true)) {
 		mjl_expenses_forbidden();
 	}
-	if ($action === 'upload' && !$user->hasRight('mjlfinancement', 'expense', 'write')) {
+	if ($action === 'upload' && !mjl_workspace_can_apply_expense_write($user)) {
 		mjl_expenses_forbidden();
 	}
 	mjl_expenses_handle_post($action);
@@ -55,11 +55,15 @@ function mjl_expenses_handle_post($action)
 	global $db, $user, $conf;
 
 	if ($action === 'create') {
+		$fkConvention = GETPOSTINT('fk_convention');
+		if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $fkConvention)) {
+			mjl_expenses_forbidden('Convention hors de votre perimetre');
+		}
 		$expense = new MjlExpense($db);
 		$expense->entity = (int) $conf->entity;
 		$expense->ref = GETPOST('ref', 'alphanohtml');
 		$expense->fk_project = GETPOSTINT('fk_project');
-		$expense->fk_convention = GETPOSTINT('fk_convention');
+		$expense->fk_convention = $fkConvention;
 		$expense->fk_mjl_activity = GETPOSTINT('fk_mjl_activity');
 		$expense->fk_budget_line = GETPOSTINT('fk_budget_line');
 		$expense->amount = price2num(GETPOST('amount', 'alpha'));
@@ -247,7 +251,7 @@ function mjl_expenses_render_list_page()
 	print '<div class="mjl-user-context"><span>Perimetre</span><strong>'.dol_escape_htmltag(mjl_expenses_scope_label()).'</strong></div>';
 	print '</div>';
 
-	if ($GLOBALS['user']->hasRight('mjlfinancement', 'expense', 'write')) {
+	if (mjl_workspace_can_apply_expense_write($GLOBALS['user'])) {
 		mjl_expenses_create_form();
 	}
 	mjl_expenses_list();
@@ -306,6 +310,7 @@ function mjl_expenses_list()
 	$sql = 'SELECT e.rowid, e.entity, e.ref, e.expense_date, e.amount, e.status, e.description, e.fk_user_creat, e.supporting_document, bl.ref AS budget_line, p.ref AS project_ref, u.login AS creator_login, '.mjl_expense_document_present_sql('e').' AS document_present';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = e.fk_budget_line AND bl.entity = e.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = e.fk_user_creat';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity).mjl_expenses_scope_sql('e');
@@ -554,19 +559,22 @@ function mjl_expenses_can_apply_action($expense, $action)
 
 	$row = is_array($expense) ? $expense : (array) $expense;
 	$status = (int) $row['status'];
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_expense', (int) $row['rowid'])) {
+		return false;
+	}
 	if ($action === 'upload') {
-		if (!$user->hasRight('mjlfinancement', 'expense', 'write') || $status === MjlExpense::STATUS_VALIDATED) return false;
+		if (!mjl_workspace_can_apply_expense_write($user) || $status === MjlExpense::STATUS_VALIDATED) return false;
 		return !mjl_expenses_requires_own_scope($user) || (int) $row['fk_user_creat'] === (int) $user->id;
 	}
 	if (in_array($action, array('update', 'submit', 'correct'), true)) {
-		if (!$user->hasRight('mjlfinancement', 'expense', 'write')) return false;
+		if (!mjl_workspace_can_apply_expense_write($user)) return false;
 		if (mjl_expenses_requires_own_scope($user) && (int) $row['fk_user_creat'] !== (int) $user->id) return false;
 		if ($action === 'update') return $status === MjlExpense::STATUS_REJECTED;
 		if ($action === 'submit') return in_array($status, array(MjlExpense::STATUS_DRAFT, MjlExpense::STATUS_CORRECTED), true);
 		return $status === MjlExpense::STATUS_REJECTED;
 	}
 	if (in_array($action, array('validate', 'reject'), true)) {
-		if (!$user->hasRight('mjlfinancement', 'expense', 'validate') || $status !== MjlExpense::STATUS_SUBMITTED) return false;
+		if (!mjl_workspace_can_apply_expense_validation($user) || $status !== MjlExpense::STATUS_SUBMITTED) return false;
 		if ((int) $row['fk_user_creat'] === (int) $user->id) return false;
 		if ($action === 'validate' && array_key_exists('evidence_state', $row) && $row['evidence_state'] !== 'downloadable') return false;
 		if ($action === 'validate' && !array_key_exists('evidence_state', $row) && array_key_exists('document_present', $row) && (int) $row['document_present'] <= 0) return false;

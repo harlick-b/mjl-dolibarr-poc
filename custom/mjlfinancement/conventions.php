@@ -48,6 +48,9 @@ function mjl_conventions_handle_post($action)
 		$convention->title = GETPOST('title', 'restricthtml');
 		$convention->fk_soc = GETPOSTINT('fk_soc');
 		$convention->fk_project = GETPOSTINT('fk_project');
+		if (!mjl_conventions_can_use_partner_project((int) $convention->fk_soc, (int) $convention->fk_project)) {
+			mjl_conventions_forbidden('Partenaire ou projet hors de votre perimetre');
+		}
 		$convention->date_start = mjl_conventions_post_date('date_start');
 		$convention->date_end = mjl_conventions_post_date('date_end');
 		$convention->total_amount = price2num(GETPOST('total_amount', 'alpha'));
@@ -69,8 +72,14 @@ function mjl_conventions_handle_post($action)
 	if ($id <= 0 || $convention->fetch($id) <= 0 || (int) $convention->entity !== (int) $conf->entity) {
 		mjl_conventions_forbidden('Convention introuvable ou hors de votre perimetre');
 	}
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $id)) {
+		mjl_conventions_forbidden('Convention hors de votre perimetre');
+	}
 
 	if ($action === 'update') {
+		if (!mjl_conventions_can_use_partner_project(GETPOSTINT('fk_soc'), GETPOSTINT('fk_project'))) {
+			mjl_conventions_forbidden('Partenaire ou projet hors de votre perimetre');
+		}
 		$result = $convention->updateGovernedFields($user, array(
 			'ref' => GETPOST('ref', 'alphanohtml'),
 			'title' => GETPOST('title', 'restricthtml'),
@@ -108,8 +117,8 @@ function mjl_conventions_handle_post($action)
 function mjl_conventions_render_list_page()
 {
 	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Conventions</p><h1>Gestion des conventions MJL</h1>';
-	print '<p class="mjl-header-copy">Pilotez les conventions de financement avant les lignes budgetaires, depenses et rapports.</p></div>';
+	print '<div><p class="mjl-kicker">Enveloppes de financement</p><h1>Gestion des enveloppes de financement</h1>';
+	print '<p class="mjl-header-copy">Pilotez les enveloppes de financement avant les lignes budgetaires, depenses et rapports.</p></div>';
 	print '<div class="mjl-user-context"><span>Perimetre</span><strong>'.(mjl_conventions_can_manage() ? 'DPAF / Admin' : 'Consultation').'</strong></div>';
 	print '</div>';
 
@@ -131,7 +140,7 @@ function mjl_conventions_render_detail($id)
 
 	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">Retour aux conventions</a></p>';
 	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Convention</p><h1>'.dol_escape_htmltag($row['ref']).' - '.dol_escape_htmltag($row['title']).'</h1>';
+	print '<div><p class="mjl-kicker">Enveloppe de financement</p><h1>'.dol_escape_htmltag($row['ref']).' - '.dol_escape_htmltag($row['title']).'</h1>';
 	print '<p class="mjl-header-copy">'.dol_escape_htmltag(mjl_conventions_next_action_label($row, $hasLinks)).'</p></div>';
 	print '<div class="mjl-user-context"><span>Statut</span><strong>'.dol_escape_htmltag(mjl_convention_status_label($row['status'])).'</strong></div>';
 	print '</div>';
@@ -190,11 +199,11 @@ function mjl_conventions_render_create_form()
 	$ptfs = mjl_conventions_options('ptf');
 	$projects = mjl_conventions_options('project');
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
-	print '<div class="mjl-section-heading"><h2>Nouvelle convention</h2><p>Creer un brouillon avant activation et utilisation par les operations.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Nouvelle enveloppe</h2><p>Creer un brouillon avant activation et utilisation par les operations.</p></div>';
 	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">';
 	print '<input type="hidden" name="action" value="create"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_conventions_render_fields(array(), $ptfs, $projects, false);
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Creer la convention"></div>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Creer l enveloppe"></div>';
 	print '</form></section>';
 }
 
@@ -203,7 +212,7 @@ function mjl_conventions_render_edit_form($row, $hasLinks)
 	$ptfs = mjl_conventions_options('ptf');
 	$projects = mjl_conventions_options('project');
 	print '<section class="mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Parametres convention</h2><p>'.($hasLinks ? 'Les champs financiers structurants sont verrouilles car des objets sont lies.' : 'Modifier les donnees avant rattachement operationnel.').'</p></div>';
+	print '<div class="mjl-section-heading"><h2>Parametres enveloppe</h2><p>'.($hasLinks ? 'Les champs financiers structurants sont verrouilles car des objets sont lies.' : 'Modifier les donnees avant rattachement operationnel.').'</p></div>';
 	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'">';
 	print '<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_conventions_render_fields($row, $ptfs, $projects, $hasLinks);
@@ -218,7 +227,7 @@ function mjl_conventions_render_fields($row, $ptfs, $projects, $locked)
 	$hiddenLocked = array('ref', 'fk_soc', 'fk_project', 'total_amount', 'currency_code');
 	print '<label>Reference<input required name="ref" value="'.dol_escape_htmltag($row['ref'] ?? '').'"'.$disabled.'></label>';
 	print '<label>Intitule<input required name="title" value="'.dol_escape_htmltag($row['title'] ?? '').'"></label>';
-	print '<label>PTF / bailleur'.mjl_conventions_select('fk_soc', $ptfs, (int) ($row['fk_soc'] ?? 0), true, $locked).'</label>';
+	print '<label>Partenaire / Programme'.mjl_conventions_select('fk_soc', $ptfs, (int) ($row['fk_soc'] ?? 0), true, $locked).'</label>';
 	print '<label>Projet'.mjl_conventions_select('fk_project', $projects, (int) ($row['fk_project'] ?? 0), false, $locked).'</label>';
 	print '<label>Debut<input type="date" name="date_start" value="'.dol_escape_htmltag(mjl_conventions_date_value($row['date_start'] ?? '')).'"></label>';
 	print '<label>Fin<input type="date" name="date_end" value="'.dol_escape_htmltag(mjl_conventions_date_value($row['date_end'] ?? '')).'"></label>';
@@ -243,9 +252,10 @@ function mjl_conventions_render_list()
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
 	$sql .= ' ORDER BY c.rowid DESC LIMIT 100';
 	$resql = $db->query($sql);
-	print '<section class="mjl-workspace-section"><div class="mjl-section-heading"><h2>Portefeuille conventions</h2><p>Les conventions cloturees restent visibles pour les rapports et l historique.</p></div>';
+	print '<section class="mjl-workspace-section"><div class="mjl-section-heading"><h2>Portefeuille des enveloppes</h2><p>Les enveloppes cloturees restent visibles pour les rapports et l historique.</p></div>';
 	if (!$resql) {
 		print '<div class="error">'.$db->lasterror().'</div></section>';
 		return;
@@ -387,6 +397,7 @@ function mjl_conventions_fetch_detail($id)
 	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = c.fk_user_creat';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.rowid = '.((int) $id);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
 	$resql = $db->query($sql);
 	if (!$resql) {
 		setEventMessages($db->lasterror(), null, 'errors');
@@ -447,9 +458,9 @@ function mjl_conventions_options($type)
 {
 	global $db, $conf;
 	if ($type === 'ptf') {
-		$sql = 'SELECT rowid, nom AS label FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).' AND status = 1 ORDER BY nom';
+		$sql = 'SELECT rowid, nom AS label FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $GLOBALS['user']).' ORDER BY s.nom';
 	} else {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
 	}
 	$resql = $db->query($sql);
 	$options = array();
@@ -459,6 +470,21 @@ function mjl_conventions_options($type)
 		}
 	}
 	return $options;
+}
+
+function mjl_conventions_can_use_partner_project($fkSoc, $fkProject)
+{
+	global $db, $conf, $user;
+	$fkSoc = (int) $fkSoc;
+	$fkProject = (int) $fkProject;
+	if ($fkSoc <= 0 || !mjl_scope_can_access_fk_soc($user, $fkSoc)) return false;
+	$sql = 'SELECT rowid FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkSoc.' AND status = 1';
+	$resql = $db->query($sql);
+	if (!$resql || !$db->fetch_object($resql)) return false;
+	if ($fkProject <= 0) return true;
+	$sql = 'SELECT rowid FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkProject.' AND fk_soc = '.$fkSoc;
+	$resql = $db->query($sql);
+	return $resql && (bool) $db->fetch_object($resql);
 }
 
 function mjl_conventions_select($name, $options, $selected, $required, $disabled)
