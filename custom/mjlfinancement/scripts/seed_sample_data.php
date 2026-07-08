@@ -7,6 +7,7 @@ require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_sample_data.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
 global $conf, $db, $user;
 
@@ -49,6 +50,7 @@ foreach ($ptfs as $ptfId => $row) {
 	$ptfIds[$ptfId] = ensureThirdparty($row, $entity, $importKey, $adminUser);
 }
 mjl_out('PTF/Bailleurs: '.count($ptfIds));
+assignSampleProductionProfiles($users, $userIds, $ptfIds, $entity, $importKey, $adminUser);
 
 foreach ($projects as $projectId => $row) {
 	$projectIds[$projectId] = ensureProject($row, $ptfIds[$row['ptf_id']], $entity, $importKey, $adminUser);
@@ -146,6 +148,35 @@ function ensureSampleUsersExist($users)
 		$ids[$userId] = $id;
 	}
 	return $ids;
+}
+
+function assignSampleProductionProfiles($users, $userIds, $ptfIds, $entity, $importKey, User $adminUser)
+{
+	$roleMap = array(
+		'ADMIN' => 'ADMIN_PLATEFORME',
+		'AGENT' => 'AGENT_SAISIE',
+		'SUPERVISEUR_N1' => 'AGENT_VERIFICATEUR',
+		'SUPERVISEUR_N2' => 'AGENT_VERIFICATEUR',
+		'DPAF' => 'VALIDATEUR_DEFINITIF',
+	);
+	foreach ($users as $userId => $row) {
+		if (empty($roleMap[$row['role_code']]) || empty($userIds[$userId])) {
+			continue;
+		}
+		$fkUser = (int) $userIds[$userId];
+		if (mjl_scope_assign_active_role($fkUser, $roleMap[$row['role_code']], (int) $adminUser->id, (int) $entity, 'seed_sample_data', 'Profil de production POC', $importKey) <= 0) {
+			fail('Unable to assign production profile for '.$row['login']);
+		}
+		if ($roleMap[$row['role_code']] === 'ADMIN_PLATEFORME') {
+			continue;
+		}
+		foreach ($ptfIds as $fkSoc) {
+			if (mjl_scope_assign_soc_scope($fkUser, (int) $fkSoc, (int) $adminUser->id, (int) $entity, 'seed_sample_data', 'Perimetre partenaire POC', $importKey) <= 0) {
+				fail('Unable to assign production scope for '.$row['login']);
+			}
+		}
+	}
+	mjl_out('Production profiles/scopes: assigned');
 }
 
 function ensureThirdparty($row, $entity, $importKey, User $adminUser)

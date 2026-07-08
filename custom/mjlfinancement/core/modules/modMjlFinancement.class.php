@@ -14,7 +14,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'MJL financing POC';
 		$this->descriptionlong = 'MJL financing POC module for conventions, activities, budget lines, expenses, fund receipts, validations, workflow actions, exchange logs, and reports.';
-		$this->version = '0.7.0';
+		$this->version = '0.9.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(

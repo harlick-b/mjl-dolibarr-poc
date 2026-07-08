@@ -7,6 +7,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/usergroup.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_sample_data.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
 global $conf, $db, $user;
 
@@ -67,6 +68,7 @@ foreach ($users as $row) {
 	$isAdmin = $row['role_code'] === 'ADMIN' || $role['can_manage_setup'] === 'yes' || $role['can_manage_users'] === 'yes';
 	$createdUser = ensureUser($row['login'], $row['firstname'], $row['lastname'], $row['email'], $isAdmin ? 1 : 0, $row['active'] === 'yes' ? 1 : 0, $defaultPassword, $entity);
 	assignExactMjlGroup($createdUser->id, $groupIds[$row['role_code']], array_values($groupIds), $entity);
+	assignProductionProfile($createdUser, $row['role_code'], $adminUser, $entity);
 	if ($row['role_code'] === 'ADMIN') {
 		ensureApiKey($createdUser, $adminUser);
 	}
@@ -253,6 +255,49 @@ function ensureApiKey(User $targetUser, User $adminUser)
 		fail('Unable to set API key for '.$targetUser->login.': '.$targetUser->error);
 	}
 	mjl_out('API key for '.$targetUser->login.': '.$targetUser->api_key);
+}
+
+function assignProductionProfile(User $targetUser, $legacyRoleCode, User $adminUser, $entity)
+{
+	$roleMap = array(
+		'ADMIN' => 'ADMIN_PLATEFORME',
+		'AGENT' => 'AGENT_SAISIE',
+		'SUPERVISEUR_N1' => 'AGENT_VERIFICATEUR',
+		'SUPERVISEUR_N2' => 'AGENT_VERIFICATEUR',
+		'DPAF' => 'VALIDATEUR_DEFINITIF',
+	);
+	if (empty($roleMap[$legacyRoleCode])) {
+		return;
+	}
+
+	$roleId = mjl_scope_assign_active_role((int) $targetUser->id, $roleMap[$legacyRoleCode], (int) $adminUser->id, (int) $entity, 'bootstrap_poc', 'Profil de production POC', mjl_poc_import_key());
+	if ($roleId <= 0) {
+		fail('Unable to assign production role for '.$targetUser->login);
+	}
+	if ($roleMap[$legacyRoleCode] === 'ADMIN_PLATEFORME') {
+		return;
+	}
+	foreach (bootstrapPartnerScopeIds((int) $entity) as $fkSoc) {
+		if (mjl_scope_assign_soc_scope((int) $targetUser->id, (int) $fkSoc, (int) $adminUser->id, (int) $entity, 'bootstrap_poc', 'Perimetre partenaire POC', mjl_poc_import_key()) <= 0) {
+			fail('Unable to assign production scope for '.$targetUser->login);
+		}
+	}
+}
+
+function bootstrapPartnerScopeIds($entity)
+{
+	global $db;
+
+	$ids = array();
+	$sql = 'SELECT rowid FROM '.$db->prefix().'societe WHERE entity = '.((int) $entity).' ORDER BY rowid';
+	$resql = $db->query($sql);
+	if (!$resql) {
+		fail('Unable to load partner scopes: '.$db->lasterror());
+	}
+	while ($obj = $db->fetch_object($resql)) {
+		$ids[] = (int) $obj->rowid;
+	}
+	return $ids;
 }
 
 function mjl_ensure_phase4_auth_setup(User $adminUser, $entity)

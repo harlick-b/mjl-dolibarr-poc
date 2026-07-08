@@ -72,6 +72,12 @@ function mjl_ensure_schema()
 		fk_task INTEGER DEFAULT NULL,
 		date_start DATE DEFAULT NULL,
 		date_end DATE DEFAULT NULL,
+		fk_user_responsible INTEGER DEFAULT NULL,
+		date_actual_start DATE DEFAULT NULL,
+		date_actual_end DATE DEFAULT NULL,
+		physical_execution_percent INTEGER DEFAULT NULL,
+		execution_status VARCHAR(32) DEFAULT NULL,
+		execution_comment TEXT,
 		note_public TEXT,
 		note_private TEXT,
 		date_creation DATETIME NOT NULL,
@@ -200,6 +206,40 @@ function mjl_ensure_schema()
 		import_key VARCHAR(14)
 	) ENGINE=innodb', 'create project note table');
 
+	mjl_query('CREATE TABLE IF NOT EXISTS '.$db->prefix().'mjlfinancement_user_role (
+		rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+		entity INTEGER DEFAULT 1 NOT NULL,
+		fk_user INTEGER NOT NULL,
+		role_code VARCHAR(64) NOT NULL,
+		is_active TINYINT DEFAULT 1 NOT NULL,
+		date_start DATETIME DEFAULT NULL,
+		date_end DATETIME DEFAULT NULL,
+		source VARCHAR(64) DEFAULT NULL,
+		note TEXT,
+		date_creation DATETIME NOT NULL,
+		tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		fk_user_creat INTEGER DEFAULT NULL,
+		fk_user_modif INTEGER DEFAULT NULL,
+		import_key VARCHAR(14)
+	) ENGINE=innodb', 'create user role table');
+
+	mjl_query('CREATE TABLE IF NOT EXISTS '.$db->prefix().'mjlfinancement_user_soc_scope (
+		rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+		entity INTEGER DEFAULT 1 NOT NULL,
+		fk_user INTEGER NOT NULL,
+		fk_soc INTEGER NOT NULL,
+		is_active TINYINT DEFAULT 1 NOT NULL,
+		date_start DATETIME DEFAULT NULL,
+		date_end DATETIME DEFAULT NULL,
+		source VARCHAR(64) DEFAULT NULL,
+		note TEXT,
+		date_creation DATETIME NOT NULL,
+		tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		fk_user_creat INTEGER DEFAULT NULL,
+		fk_user_modif INTEGER DEFAULT NULL,
+		import_key VARCHAR(14)
+	) ENGINE=innodb', 'create user scope table');
+
 	mjl_add_column('mjlfinancement_convention', 'title', 'VARCHAR(255) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_convention', 'total_amount', 'DOUBLE(24,8) DEFAULT NULL');
 	mjl_add_column('mjlfinancement_convention', 'currency_code', "VARCHAR(3) DEFAULT 'XOF'");
@@ -227,6 +267,12 @@ function mjl_ensure_schema()
 	mjl_add_column('mjlfinancement_fund_receipt', 'fk_project', 'INTEGER DEFAULT NULL');
 	mjl_add_column('mjlfinancement_fund_receipt', 'status', 'INTEGER DEFAULT 0 NOT NULL');
 	mjl_add_column('mjlfinancement_password_reset', 'status', "VARCHAR(32) DEFAULT 'sent' NOT NULL");
+	mjl_add_column('mjlfinancement_activity', 'fk_user_responsible', 'INTEGER DEFAULT NULL');
+	mjl_add_column('mjlfinancement_activity', 'date_actual_start', 'DATE DEFAULT NULL');
+	mjl_add_column('mjlfinancement_activity', 'date_actual_end', 'DATE DEFAULT NULL');
+	mjl_add_column('mjlfinancement_activity', 'physical_execution_percent', 'INTEGER DEFAULT NULL');
+	mjl_add_column('mjlfinancement_activity', 'execution_status', 'VARCHAR(32) DEFAULT NULL');
+	mjl_add_column('mjlfinancement_activity', 'execution_comment', 'TEXT');
 
 	mjl_add_unique_index('mjlfinancement_convention', 'uk_mjlfinancement_convention_ref_entity', 'ref, entity');
 	mjl_add_unique_index('mjlfinancement_activity', 'uk_mjlfinancement_activity_ref_entity', 'ref, entity');
@@ -243,6 +289,7 @@ function mjl_ensure_schema()
 		array('mjlfinancement_activity', 'idx_mjlfinancement_activity_fk_project', 'fk_project'),
 		array('mjlfinancement_activity', 'idx_mjlfinancement_activity_fk_convention', 'fk_convention'),
 		array('mjlfinancement_activity', 'idx_mjlfinancement_activity_fk_task', 'fk_task'),
+		array('mjlfinancement_activity', 'idx_mjlfinancement_activity_fk_user_responsible', 'fk_user_responsible'),
 		array('mjlfinancement_budget_line', 'idx_mjlfinancement_budget_line_entity', 'entity'),
 		array('mjlfinancement_budget_line', 'idx_mjlfinancement_budget_line_fk_project', 'fk_project'),
 		array('mjlfinancement_budget_line', 'idx_mjlfinancement_budget_line_fk_convention', 'fk_convention'),
@@ -276,6 +323,14 @@ function mjl_ensure_schema()
 		array('mjlfinancement_project_note', 'idx_mjlfinancement_project_note_entity', 'entity'),
 		array('mjlfinancement_project_note', 'idx_mjlfinancement_project_note_fk_project', 'fk_project'),
 		array('mjlfinancement_project_note', 'idx_mjlfinancement_project_note_fk_user_author', 'fk_user_author'),
+		array('mjlfinancement_user_role', 'idx_mjlfinancement_user_role_entity', 'entity'),
+		array('mjlfinancement_user_role', 'idx_mjlfinancement_user_role_fk_user', 'fk_user'),
+		array('mjlfinancement_user_role', 'idx_mjlfinancement_user_role_active', 'entity, fk_user, is_active'),
+		array('mjlfinancement_user_role', 'idx_mjlfinancement_user_role_code', 'role_code'),
+		array('mjlfinancement_user_soc_scope', 'idx_mjlfinancement_user_soc_scope_entity', 'entity'),
+		array('mjlfinancement_user_soc_scope', 'idx_mjlfinancement_user_soc_scope_fk_user', 'fk_user'),
+		array('mjlfinancement_user_soc_scope', 'idx_mjlfinancement_user_soc_scope_fk_soc', 'fk_soc'),
+		array('mjlfinancement_user_soc_scope', 'idx_mjlfinancement_user_soc_scope_active', 'entity, fk_user, is_active'),
 	) as $index) {
 		mjl_add_index($index[0], $index[1], $index[2]);
 	}
