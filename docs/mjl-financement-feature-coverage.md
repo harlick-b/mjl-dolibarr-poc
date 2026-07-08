@@ -29,7 +29,7 @@ hardening work. It reflects the current codebase, not future production goals.
 - Dolibarr module entry point: top menu `MJLFinancement` routes to
   `/custom/mjlfinancement/index.php`.
 - Module declaration: `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`.
-- Current module version in code: `0.7.0`.
+- Current module version in code: `0.9.0`.
 - Current quick navigation is generated from the shared grouped navigation
   registry in `mjl_navigation.lib.php`.
 - Primary sidebar sections are Tableau de bord, Projets, Activites, Depenses,
@@ -147,7 +147,7 @@ Update targeted stale claims in:
 
 Known corrections:
 
-- The module version is `0.7.0` in code.
+- The module version is `0.9.0` in code.
 - Browser-level Playwright E2E tests are implemented and passing.
 - Remaining work is consolidation, navigation, documentation alignment,
   production readiness, official report templates, final wording, inline
