@@ -242,7 +242,7 @@ test('Admin sees administration access and can access invitations plus supervisi
   await page.goto('/custom/mjlfinancement/admin/access.php');
   await expect(page.getByText('Gestion des acces MJL').first()).toBeVisible();
   await expectSidebar(page);
-  await expect(page.getByRole('link', { name: /Invitations/ }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: /Acces utilisateurs/ }).first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
   await expect(page.getByText('Tableau de bord DPAF').first()).toBeVisible();
@@ -275,30 +275,17 @@ test('Admin sees administration access and can access invitations plus supervisi
   sql("UPDATE llx_const SET value = '0' WHERE name = 'MJL_SHOW_INTERNAL_ROADMAP' AND entity = 1");
 });
 
-test('Read-only audit user gets consultation workspace only', async ({ page }) => {
+test('Unresolved legacy reader fails closed', async ({ page }) => {
   await login(page, 'lecteur.audit');
-  await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
-  await expectSidebar(page);
-  await expect(page.getByRole('heading', { name: 'Acces rapides' })).toBeVisible();
-  await expect(page.getByLabel('Menu module MJL').getByRole('link', { name: /Supervision/ })).toBeVisible();
-  await expect(page.locator('body')).not.toContainText('Mes actions attendues');
-  await expect(page.locator('body')).not.toContainText('File de validation');
-  await expect(page.locator('body')).not.toContainText('Supervision DPAF');
-  await expect(page.locator('body')).not.toContainText('Administration');
-  await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
-  await expect(page.locator('body')).not.toContainText('Échanges');
-
-  await page.goto('/custom/mjlfinancement/validations.php');
-  await expect(page.getByText('Historique validations MJL').first()).toBeVisible();
-
-  await page.goto('/custom/mjlfinancement/workflowactions.php');
-  await expect(page.getByText('Actions workflow MJL').first()).toBeVisible();
-
-  await page.goto('/custom/mjlfinancement/exchangelogs.php');
-  await expect(page.getByText('Echanges MJL').first()).toBeVisible();
-  await expect(page.getByLabel('Menu module MJL')).not.toContainText('Échanges');
-
   await expectAccessDeniedForAll(page, [
+    '/custom/mjlfinancement/index.php',
+    '/custom/mjlfinancement/activities.php',
+    '/custom/mjlfinancement/expenses.php',
+    '/custom/mjlfinancement/projects.php',
+    '/custom/mjlfinancement/documents.php',
+    '/custom/mjlfinancement/validations.php',
+    '/custom/mjlfinancement/workflowactions.php',
+    '/custom/mjlfinancement/exchangelogs.php',
     '/custom/mjlfinancement/dpafdashboard.php',
     '/custom/mjlfinancement/reports.php',
     '/custom/mjlfinancement/roadmap.php',
@@ -309,7 +296,7 @@ test('Read-only audit user gets consultation workspace only', async ({ page }) =
 });
 
 test('Business roles do not see native Dolibarr workspaces as normal navigation', async ({ page }) => {
-  for (const loginName of ['agent.mjl', 'superviseur.n1', 'superviseur.n2', 'dpaf.mjl', 'lecteur.audit']) {
+  for (const loginName of ['agent.mjl', 'superviseur.n1', 'superviseur.n2', 'dpaf.mjl']) {
     await login(page, loginName);
     await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
     await expectNativeMenuLabelsHidden(page);
@@ -332,7 +319,7 @@ test('Business roles are redirected away from direct native workspace URLs', asy
     '/accountancy/index.php',
   ];
 
-  for (const loginName of ['agent.mjl', 'superviseur.n1', 'superviseur.n2', 'dpaf.mjl', 'lecteur.audit']) {
+  for (const loginName of ['agent.mjl', 'superviseur.n1', 'superviseur.n2', 'dpaf.mjl']) {
     await login(page, loginName);
     for (const nativePath of nativePaths) {
       await expectNativeWorkspaceBlocked(page, nativePath);
@@ -340,34 +327,19 @@ test('Business roles are redirected away from direct native workspace URLs', asy
   }
 });
 
-test('Narrow workflow-action reader only sees matching audit quick link', async ({ page }) => {
+test('Narrow workflow-action reader without production role fails closed', async ({ page }) => {
   await login(page, 'mjl.phase5.workflowonly');
-  await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
-  await expectSidebar(page);
-  await expect(page.getByLabel('Menu module MJL').getByRole('link', { name: /Supervision/ })).toBeVisible();
-  await expect(page.locator('body')).not.toContainText('Suivi des activités et décisions');
-  await expect(page.locator('body')).not.toContainText('Dépenses et pièces justificatives');
-  await expect(page.locator('body')).not.toContainText('Trace des décisions sur dépenses');
-  await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
-  await expect(page.locator('body')).not.toContainText('Échanges');
+  await expectAccessDenied(page, '/custom/mjlfinancement/index.php');
   await expectAccessDenied(page, '/custom/mjlfinancement/roadmap.php');
-
-  await page.goto('/custom/mjlfinancement/workflowactions.php');
-  await expect(page.getByText('Actions workflow MJL').first()).toBeVisible();
   await expectAccessDenied(page, '/custom/mjlfinancement/exchangelogs.php');
+  await expectAccessDenied(page, '/custom/mjlfinancement/workflowactions.php');
 });
 
-test('Narrow activity reader only sees activity quick link', async ({ page }) => {
+test('Narrow activity reader without production role fails closed', async ({ page }) => {
   await login(page, 'mjl.phase5.activityonly');
-  await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
-  await expectSidebar(page);
-  await expect(page.getByRole('main').getByText('Suivi des activités et décisions')).toBeVisible();
-  await expect(page.locator('body')).not.toContainText('Dépenses et pièces justificatives');
-  await expect(page.locator('body')).not.toContainText('Trace des décisions sur dépenses');
-  await expect(page.locator('body')).not.toContainText('Audit avancé');
-  await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
-  await expect(page.locator('body')).not.toContainText('Échanges');
   await expectAccessDeniedForAll(page, [
+    '/custom/mjlfinancement/index.php',
+    '/custom/mjlfinancement/activities.php',
     '/custom/mjlfinancement/roadmap.php',
     '/custom/mjlfinancement/conventions.php',
     '/custom/mjlfinancement/budgetlines.php',
@@ -378,40 +350,31 @@ test('Narrow activity reader only sees activity quick link', async ({ page }) =>
   ]);
 });
 
-test('Narrow reviewer without validation history right has no validation dead link', async ({ page }) => {
+test('Narrow reviewer without production role fails closed', async ({ page }) => {
   await login(page, 'mjl.phase5.reviewernovalidation');
-  await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
-  await expectSidebar(page);
-  await expect(page.getByRole('heading', { name: 'File de validation' })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Activités/ }).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: /Dépenses/ }).first()).toBeVisible();
-  await expect(page.locator('a[href$="/validations.php"]')).toHaveCount(0);
-
+  await expectAccessDenied(page, '/custom/mjlfinancement/index.php');
+  await expectAccessDenied(page, '/custom/mjlfinancement/activities.php');
+  await expectAccessDenied(page, '/custom/mjlfinancement/expenses.php');
   await expectAccessDenied(page, '/custom/mjlfinancement/validations.php');
 });
 
-test('Narrow activity reviewer gets no expense or validation dead links', async ({ page }) => {
+test('Narrow activity reviewer without production role fails closed', async ({ page }) => {
   await login(page, 'mjl.phase5.activityreviewer');
-  await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
-  await expectSidebar(page);
-  await expect(page.getByRole('heading', { name: 'File de validation' })).toBeVisible();
-  await expect(page.getByRole('main').getByText('Activites soumises a decision')).toBeVisible();
-  await expect(page.locator('a[href$="/expenses.php"]')).toHaveCount(0);
-  await expect(page.locator('a[href$="/validations.php"]')).toHaveCount(0);
-
+  await expectAccessDenied(page, '/custom/mjlfinancement/index.php');
+  await expectAccessDenied(page, '/custom/mjlfinancement/activities.php');
   await expectAccessDenied(page, '/custom/mjlfinancement/expenses.php');
   await expectAccessDenied(page, '/custom/mjlfinancement/validations.php');
 });
 
 test('Workspace keeps forbidden public registration labels out of the UI', async ({ page }) => {
-  await login(page, 'agent.mjl');
+  await login(page, 'admin.poc');
   await expect(page.locator('body')).not.toContainText(/Register|Sign up|Créer un compte|Inscription/);
 });
 
 test('Project detail exposes timeline notes and Reader cannot add notes', async ({ page }) => {
-  const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
+	const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
 
-  await login(page, 'agent.mjl');
+  await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
   await expect(page.getByRole('heading', { name: /Projet PRJ-JE-2026/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Notes / Commentaires' })).toBeVisible();
@@ -420,13 +383,11 @@ test('Project detail exposes timeline notes and Reader cannot add notes', async 
   await expect(page.locator('body')).toContainText('Commentaire projet phase 5');
 
   await login(page, 'lecteur.audit');
-  await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await expect(page.locator('body')).toContainText('Commentaire projet phase 5');
-  await expect(page.getByRole('button', { name: 'Ajouter le commentaire' })).toHaveCount(0);
+  await expectAccessDenied(page, `/custom/mjlfinancement/projects.php?id=${projectId}`);
 });
 
 test('Every visible sidebar link opens for the role that sees it', async ({ page }) => {
-  for (const loginName of ['agent.mjl', 'superviseur.n1', 'dpaf.mjl', 'admin.poc', 'lecteur.audit']) {
+  for (const loginName of ['agent.mjl', 'superviseur.n1', 'dpaf.mjl', 'admin.poc']) {
     await login(page, loginName);
     const hrefs = await page.getByLabel('Menu module MJL').locator('a').evaluateAll((links) => [...new Set(links.map((link) => link.getAttribute('href')).filter(Boolean))]);
     for (const href of hrefs) {

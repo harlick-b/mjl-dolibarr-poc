@@ -30,6 +30,8 @@ function cleanupTestState() {
     SET @mjl_e2e_users = (SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'mjl.e2e.%' OR login LIKE 'invite.%');
     DELETE FROM llx_const WHERE entity = 1 AND name LIKE 'MJL_AUTH_E2E_%';
     DELETE FROM llx_usergroup_user WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
+    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
+    DELETE FROM llx_mjlfinancement_user_role WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
     DELETE FROM llx_mjlfinancement_invitation WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
     DELETE FROM llx_mjlfinancement_password_reset WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
     DELETE FROM llx_mjlfinancement_access_audit WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, '')) OR FIND_IN_SET(fk_actor, COALESCE(@mjl_e2e_users, '')) OR context LIKE '%mjl.e2e.%' OR context LIKE '%invite.%' OR context LIKE '%delivery=e2e%';
@@ -66,15 +68,18 @@ async function inviteUser(page, suffix) {
   await page.locator('#mjl-firstname').fill('E2E');
   await page.locator('#mjl-lastname').fill('MJL');
   await page.locator('#mjl-email').fill(email);
+  const firstScope = await page.locator('select[name="scope_soc_ids[]"] option').first().getAttribute('value');
+  await page.locator('select[name="scope_soc_ids[]"]').first().selectOption(firstScope);
   await page.getByRole('button', { name: 'Envoyer l invitation' }).click();
   await expect(page.getByText('Invitation envoyee')).toBeVisible();
   const invitationLink = await page.locator('code').filter({ hasText: '/custom/mjlfinancement/invitation.php?invite=' }).textContent();
 
-  return { loginName, email, invitationLink: invitationLink.trim() };
+  return { loginName, email, invitationLink: invitationLink.trim(), firstScope };
 }
 
 test.beforeAll(() => {
   dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php');
+  dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php');
   cleanupTestState();
   enableE2eTokens();
 });
@@ -102,6 +107,9 @@ test('phase 4 auth schema exposes reset lifecycle status', async () => {
 
 test('Admin invitation flow, landing page, and non-admin access blocking', async ({ page }) => {
   const invited = await inviteUser(page, `invite.${Date.now()}`);
+  const invitedUserId = sqlScalar(`SELECT rowid FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`);
+  expect(sqlScalar(`SELECT role_code FROM llx_mjlfinancement_user_role WHERE fk_user = ${invitedUserId} AND is_active = 1 ORDER BY rowid DESC LIMIT 1`)).toBe('AGENT_SAISIE');
+  expect(sqlScalar(`SELECT fk_soc FROM llx_mjlfinancement_user_soc_scope WHERE fk_user = ${invitedUserId} AND is_active = 1 ORDER BY rowid DESC LIMIT 1`)).toBe(invited.firstScope);
 
   await page.goto(invited.invitationLink);
   await expect(page.getByRole('heading', { name: 'Invitation MJL' })).toBeVisible();
@@ -114,6 +122,32 @@ test('Admin invitation flow, landing page, and non-admin access blocking', async
   await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
 
   await page.goto('/custom/mjlfinancement/admin/access.php');
+  await expect(page.locator('body')).toContainText(/Accès refusé|Access denied|Forbidden|Non autorisé/);
+});
+
+test('Admin assignment UI blocks self-deactivation and unresolved legacy access fails closed', async ({ page }) => {
+  await login(page, 'admin.poc');
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  await expect(page.getByText('Profil legacy non resolu').first()).toBeVisible();
+
+  const adminId = sqlScalar("SELECT rowid FROM llx_user WHERE login = 'admin.poc' LIMIT 1");
+  await page.evaluate((userId) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/custom/mjlfinancement/admin/access.php';
+    for (const [name, value] of Object.entries({ action: 'deactivate', user_id: userId, token: document.querySelector('input[name="token"]').value })) {
+      const input = document.createElement('input');
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }, adminId);
+  await expect(page.getByText('Vous ne pouvez pas desactiver votre propre acces')).toBeVisible();
+
+  await login(page, 'lecteur.audit');
+  await page.goto('/custom/mjlfinancement/index.php');
   await expect(page.locator('body')).toContainText(/Accès refusé|Access denied|Forbidden|Non autorisé/);
 });
 

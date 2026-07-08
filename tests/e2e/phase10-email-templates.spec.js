@@ -48,6 +48,8 @@ async function inviteUser(page, suffix) {
   await page.locator('#mjl-firstname').fill('Phase10');
   await page.locator('#mjl-lastname').fill('Email');
   await page.locator('#mjl-email').fill(email);
+  const firstScope = await page.locator('select[name="scope_soc_ids[]"] option').first().getAttribute('value');
+  await page.locator('select[name="scope_soc_ids[]"]').first().selectOption(firstScope);
   await page.getByRole('button', { name: 'Envoyer l invitation' }).click();
   await expect(page.getByText('Invitation envoyee')).toBeVisible();
 
@@ -65,6 +67,8 @@ function cleanupPhase10() {
     DELETE FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND FIND_IN_SET(object_id, COALESCE(@phase10_activity_ids, ''));
     DELETE FROM llx_mjlfinancement_activity WHERE ref LIKE 'P10-%';
     DELETE FROM llx_usergroup_user WHERE FIND_IN_SET(fk_user, COALESCE(@phase10_users, ''));
+    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE FIND_IN_SET(fk_user, COALESCE(@phase10_users, ''));
+    DELETE FROM llx_mjlfinancement_user_role WHERE FIND_IN_SET(fk_user, COALESCE(@phase10_users, ''));
     DELETE FROM llx_user WHERE FIND_IN_SET(rowid, COALESCE(@phase10_users, ''));
   `);
   dockerExec("dolibarr sh -lc 'rm -rf /var/www/documents/mjlfinancement/email-test-outbox /var/www/documents/mjlfinancement/auth-test-outbox'");
@@ -166,7 +170,7 @@ test('activity submission notifies validators once per email address', async ({ 
   expect(new Set(recipientEmails).size).toBe(recipientEmails.length);
 });
 
-test('correction, validation, and rejection notify the creator', async ({ page }) => {
+test('correction, prevalidation, final validation, and rejection notify expected users', async ({ page }) => {
   await login(page, 'superviseur.n1');
 
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-CORRECTION')}`);
@@ -175,18 +179,25 @@ test('correction, validation, and rejection notify the creator', async ({ page }
   await expect(page.getByText('Correction demandee', { exact: true }).first()).toBeVisible();
 
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-VALIDATE')}`);
-  await page.getByLabel('Commentaire de validation').fill('Validation Phase 10');
-  await page.getByRole('button', { name: 'Valider l activite' }).click();
-  await expect(page.getByText('Validee').first()).toBeVisible();
+  await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 10');
+  await page.getByRole('button', { name: 'Prevalider l activite' }).click();
+  await expect(page.getByText('Prevalidee').first()).toBeVisible();
 
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-REJECT')}`);
   await page.getByLabel('Motif de rejet').fill('Rejet Phase 10');
   await page.getByRole('button', { name: 'Rejeter l activite' }).click();
   await expect(page.getByText('Rejetee').first()).toBeVisible();
 
+  await login(page, 'dpaf.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-VALIDATE')}`);
+  await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 10');
+  await page.getByRole('button', { name: 'Validation definitive' }).click();
+  await expect(page.getByText('Validee definitivement').first()).toBeVisible();
+
   const messages = outboxMessages();
   expect(messages.find((message) => message.template === 'activity_correction_requested' && message.body.includes('P10-CORRECTION')).body).toContain('Motif correction Phase 10');
-  expect(messages.find((message) => message.template === 'activity_validated' && message.body.includes('P10-VALIDATE')).body).toContain('Validation Phase 10');
+  expect(messages.find((message) => message.template === 'activity_prevalidated' && message.body.includes('P10-VALIDATE')).body).toContain('Prevalidation Phase 10');
+  expect(messages.find((message) => message.template === 'activity_validated' && message.body.includes('P10-VALIDATE')).body).toContain('Validation definitive Phase 10');
   expect(messages.find((message) => message.template === 'activity_rejected' && message.body.includes('P10-REJECT')).body).toContain('Rejet Phase 10');
 });
 

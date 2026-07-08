@@ -344,7 +344,7 @@ test('Tampered create POST with mismatched project and convention is rejected se
   expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_expense WHERE ref = 'P11-TAMPER-MISMATCH' AND entity = 1"))).toBe(0);
 });
 
-test('DPAF, Admin, and read-only visibility stays role-aware', async ({ page }) => {
+test('DPAF, Admin, and unresolved legacy reader visibility stays role-aware', async ({ page }) => {
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedMissingId}`);
   await expect(page.getByRole('heading', { name: 'P11-SUBMITTED-MISS' })).toBeVisible();
@@ -356,6 +356,6 @@ test('DPAF, Admin, and read-only visibility stays role-aware', async ({ page }) 
 
   await login(page, 'lecteur.audit');
   await page.goto('/custom/mjlfinancement/expenses.php');
-  await expect(page.getByText('Consultation')).toBeVisible();
+  await expectAccessDenied(page);
   await expect(page.locator('body')).not.toContainText(/Register|Sign up|Créer un compte|Inscription/);
 });

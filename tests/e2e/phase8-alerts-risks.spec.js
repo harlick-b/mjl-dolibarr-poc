@@ -163,15 +163,15 @@ test('DPAF and Admin see portfolio alerts', async ({ page }) => {
   await expect(page.getByText('P8-SUBMITTED-EXP').first()).toBeVisible();
 });
 
-test('Activity alert disappears after the underlying decision is recorded', async ({ page }) => {
+test('Activity alert disappears from verifier queue after prevalidation', async ({ page }) => {
   await login(page, 'superviseur.n1');
   await page.goto('/custom/mjlfinancement/alerts.php');
   await expect(page.getByText('P8-VALIDATE-ME').first()).toBeVisible();
 
   await page.goto(`/custom/mjlfinancement/activities.php?id=${validateActivityId}`);
-  await page.getByLabel('Commentaire de validation').fill('Validation Phase 8');
-  await page.getByRole('button', { name: 'Valider l activite' }).click();
-  await expect(page.getByText('Validee').first()).toBeVisible();
+  await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 8');
+  await page.getByRole('button', { name: 'Prevalider l activite' }).click();
+  await expect(page.getByText('Prevalidee').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/alerts.php');
   await expect(page.locator('body')).not.toContainText('P8-VALIDATE-ME');

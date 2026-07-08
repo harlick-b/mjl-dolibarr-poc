@@ -145,14 +145,17 @@ test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page
   await page.getByLabel('Libelle').fill('Activite Phase 7 creee par UI');
   await page.locator('select[name="fk_project"]').selectOption({ label: 'PRJ-JE-2026 - Projet Justice Enfants' });
   await page.locator('select[name="fk_convention"]').selectOption({ label: 'CONV-UNICEF-2026-001 - Convention UNICEF Justice Enfants 2026 (PRJ-JE-2026)' });
-  await page.getByLabel('Debut').fill('2026-06-20');
-  await page.getByLabel('Fin').fill('2026-06-28');
+  await page.locator('input[name="date_start"]').fill('2026-06-20');
+  await page.locator('input[name="date_end"]').fill('2026-06-28');
+  await page.getByLabel('Execution physique (%)').fill('25');
+  await page.locator('select[name="execution_status"]').selectOption('in_progress');
   await page.getByRole('button', { name: 'Creer l activite' }).click();
 
   await expect(page).toHaveURL(/activities\.php\?id=\d+/);
   createdActivityId = Number(new URL(page.url()).searchParams.get('id'));
   await expect(page.getByRole('heading', { name: /P7-UI-CREATE/ })).toBeVisible();
   await expect(page.getByText('Brouillon').first()).toBeVisible();
+  await expect(page.getByText('25% - En cours')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Historique de decision' })).toBeVisible();
   await expect(page.getByText('Activite creee', { exact: true })).toBeVisible();
 
@@ -208,6 +211,31 @@ test('Tampered create POST with mismatched project and convention is rejected se
   expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_activity WHERE ref = 'P7-TAMPER-MISMATCH' AND entity = 1"))).toBe(0);
 });
 
+test('Invalid physical execution percentage is rejected server-side', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/activities.php');
+  const token = await page.locator('form:has(input[name="action"][value="create"]) input[name="token"]').getAttribute('value');
+  const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
+  const conventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1");
+
+  const response = await page.request.post('/custom/mjlfinancement/activities.php', {
+    form: {
+      token,
+      action: 'create',
+      ref: 'P7-INVALID-PERCENT',
+      label: 'Activite Phase 7 pourcentage invalide',
+      fk_project: projectId,
+      fk_convention: conventionId,
+      physical_execution_percent: '120',
+      execution_status: 'in_progress'
+    },
+    maxRedirects: 0
+  });
+
+  expect(response.status()).toBe(302);
+  expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_activity WHERE ref = 'P7-INVALID-PERCENT' AND entity = 1"))).toBe(0);
+});
+
 test('Level 1 cannot open another operational user activity or another entity activity', async ({ page }) => {
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${otherActivityId}`);
@@ -217,7 +245,7 @@ test('Level 1 cannot open another operational user activity or another entity ac
   await expectAccessDenied(page);
 });
 
-test('Level 2 validates submitted activity and sees linked document checklist', async ({ page }) => {
+test('Level 2 prevalidates submitted activity, then final validator validates it', async ({ page }) => {
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
   await expect(page.getByRole('heading', { name: /P7-SUBMITTED/ })).toBeVisible();
@@ -227,10 +255,18 @@ test('Level 2 validates submitted activity and sees linked document checklist', 
   await expect(page.getByText('P7-EXP-DOC')).toBeVisible();
   await expect(page.getByText('P7-EXP-MISS')).toBeVisible();
 
-  await page.getByLabel('Commentaire de validation').fill('Validation Phase 7');
-  await page.getByRole('button', { name: 'Valider l activite' }).click();
-  await expect(page.getByText('Validee').first()).toBeVisible();
-  await expect(page.getByText('Validation Phase 7')).toBeVisible();
+  await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 7');
+  await page.getByRole('button', { name: 'Prevalider l activite' }).click();
+  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  await expect(page.getByText('Prevalidation Phase 7')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Validation definitive' })).toHaveCount(0);
+
+  await login(page, 'dpaf.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
+  await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 7');
+  await page.getByRole('button', { name: 'Validation definitive' }).click();
+  await expect(page.getByText('Validee definitivement').first()).toBeVisible();
+  await expect(page.getByText('Validation definitive Phase 7')).toBeVisible();
 });
 
 test('Return for correction preserves previous decision through correction and resubmission', async ({ page }) => {
@@ -265,11 +301,15 @@ test('Return for correction preserves previous decision through correction and r
 test('Self reviewer decisions are absent from UI and blocked server-side', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${adminSubmittedActivityId}`);
+  await expect(page.getByRole('button', { name: 'Prevalider l activite' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Validation definitive' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Valider l activite' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Retourner pour correction' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Rejeter l activite' })).toHaveCount(0);
 
   for (const attempt of [
+    { action: 'prevalidate', comment: 'Tentative auto-prevalidation Phase 7' },
+    { action: 'final_validate', comment: 'Tentative auto-validation-definitive Phase 7' },
     { action: 'validate', comment: 'Tentative auto-validation Phase 7' },
     { action: 'request_correction', comment: 'Tentative auto-correction Phase 7' },
     { action: 'reject', comment: 'Tentative auto-rejet Phase 7' }
@@ -281,7 +321,7 @@ test('Self reviewer decisions are absent from UI and blocked server-side', async
   }
 });
 
-test('DPAF, Admin, and read-only visibility stays role-aware', async ({ page }) => {
+test('DPAF, Admin, and unresolved legacy reader visibility stays role-aware', async ({ page }) => {
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
   await expect(page.getByRole('heading', { name: /P7-SUBMITTED/ })).toBeVisible();
@@ -293,6 +333,6 @@ test('DPAF, Admin, and read-only visibility stays role-aware', async ({ page }) 
 
   await login(page, 'lecteur.audit');
   await page.goto('/custom/mjlfinancement/activities.php');
-  await expect(page.getByText('Consultation')).toBeVisible();
+  await expectAccessDenied(page);
   await expect(page.locator('body')).not.toContainText(/Register|Sign up|Créer un compte|Inscription/);
 });
