@@ -1,5 +1,7 @@
 # Issue Tracker: GitHub
 
+MJL product decisions come from `../mjl-authoritative-decisions.md`.
+
 Needs confirmation: this repo appears to use GitHub Issues because `origin`
 points to `https://github.com/harlick-b/mjl-dolibarr-poc.git`.
 

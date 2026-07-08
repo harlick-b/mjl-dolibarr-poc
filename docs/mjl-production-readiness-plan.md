@@ -1,27 +1,23 @@
 # MJL Production Readiness Plan
 
-This document defines how production readiness will be earned during the
-phase-by-phase refactor. It complements
-`docs/mjl-financement-production-readiness.md`; it does not replace that
-evidence matrix.
+This plan defines how production readiness is evaluated. Target decisions come
+from `docs/mjl-authoritative-decisions.md`; current implementation evidence
+comes from `docs/mjl-current-app-functional-map.md`.
 
-## Readiness rule
+## Readiness Rule
 
-A phase is not production-ready because code was written. It is ready only when
-its route guards, data behavior, tests, documentation, and skipped-check notes
-support that claim.
+A feature is production-ready only when route guards, direct POST guards, data
+behavior, tests, documentation, and skipped-check notes support that claim.
 
 Use these statuses:
 
-- `implemented` - code/docs for the phase exist, but production evidence may be
-  incomplete.
-- `partial` - some acceptance criteria are implemented or verified, but gaps
-  remain.
-- `blocked` - a missing decision, dependency, or failed check prevents safe
-  progress.
-- `ready` - all phase acceptance criteria and verification checks passed.
+- `ready`: all acceptance criteria and verification checks passed.
+- `partial`: implemented or partly verified, with remaining gaps.
+- `blocked`: missing decision, dependency, or failed check prevents safe
+  production use.
+- `out_of_scope`: explicitly excluded from the current phase.
 
-## Non-negotiable gates
+## Non-Negotiable Gates
 
 - Dolibarr core files are untouched.
 - Active entity filtering remains present.
@@ -31,21 +27,19 @@ Use these statuses:
 - Documents are uploaded contextually and downloaded through guarded MJL routes.
 - Exports are server-filtered and audited when export audit is implemented.
 - No public registration is added.
-- Sample/default passwords remain dev-only and are never production behavior.
+- Sample/default passwords remain local development/test behavior only.
 
-## Migration policy
+## Migration Policy
 
-- The first production-role/scope phase uses `update_0.8.0.sql` and bumps the
-  module to `0.8.0`.
-- Later migration filenames follow the module version they introduce.
+- Migration filenames follow the module version they introduce.
 - Migrations must be non-destructive and idempotent where possible.
 - Backfills must log unresolved records instead of silently granting broad
   access.
 - The module stays below `1.0.0` until every in-scope production row is ready.
 
-## Verification policy
+## Verification Policy
 
-Use the smallest sufficient verification per phase, then expand when workflow,
+Use the smallest sufficient verification per change, then expand when workflow,
 security, documents, schema, exports, or UI are touched.
 
 Expected checks include:
@@ -59,15 +53,14 @@ Expected checks include:
 
 Unavailable commands must be reported explicitly.
 
-## Phase completion record
+## Current Readiness Summary
 
-Every phase file in `docs/implementation-phases/` must be updated with:
-
-- files changed;
-- schema changes;
-- migration/backfill notes;
-- verification commands and results;
-- skipped checks and reasons;
-- known limitations;
-- whether the phase is implemented, partial, blocked, or ready.
-
+- `ready`: no full production release claim yet.
+- `partial`: workspace, role/scope foundation, activities, expenses,
+  disbursement, guarded documents, dashboards, reports, exports, invitations,
+  and audit helpers.
+- `blocked`: final client permission matrix, official report templates,
+  production email/base URL/secrets, and deployment rehearsal.
+- `out_of_scope`: public registration, PDF/Word reports, full accounting ERP,
+  payroll, procurement, bank API, SMS, OCR, external portal, offline mode, and
+  AI reporting.

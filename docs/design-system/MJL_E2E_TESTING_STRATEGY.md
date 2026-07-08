@@ -1,5 +1,8 @@
 # MJL Clarity System — E2E Testing Strategy
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+file covers UI/E2E strategy only.
+
 ## Purpose
 
 Define E2E tests as the main validation method for the MJL Clarity System.

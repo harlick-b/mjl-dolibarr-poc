@@ -1,5 +1,8 @@
 # MJL Clarity System — Email System
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+file covers email UX only.
+
 ## Purpose
 
 Define system emails as part of the product experience, consistent with the app UI and official outputs.

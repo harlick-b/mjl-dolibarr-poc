@@ -1,5 +1,8 @@
 # MJL Design Memory
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
+file records durable design evidence and must defer to that authority.
+
 This file records confirmed design facts from current CSS and design-system
 documentation. It is not a redesign brief.
 
@@ -152,6 +155,6 @@ behavior, accessibility, French labels, role visibility, and E2E expectations.
 - Final MJL brand assets and whether an official brand palette exists.
 - Formal CSS custom-property token implementation.
 - Final icon-library policy, if Dolibarr pictos are not enough.
-- Official report/PDF/print visual templates.
+- Official report/export visual templates.
 - Inline document preview design.
 - Final production wording after client review.

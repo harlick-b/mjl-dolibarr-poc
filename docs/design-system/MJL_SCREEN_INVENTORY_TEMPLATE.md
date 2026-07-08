@@ -1,5 +1,8 @@
 # MJL Clarity System — Screen Inventory Template
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+template covers screen inventory evidence only.
+
 ## Purpose
 
 Provide the template for the later screen inventory. This file does not perform the inventory.

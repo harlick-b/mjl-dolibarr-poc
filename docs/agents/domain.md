@@ -1,9 +1,12 @@
 # Domain Docs
 
+MJL product decisions come from `../mjl-authoritative-decisions.md`.
+
 This is a single-context repo for Matt engineering skills.
 
 ## Read Before Exploration
 
+- `docs/mjl-authoritative-decisions.md` for MJL target decisions.
 - `CONTEXT.md` at the repo root for durable product and domain facts.
 - `docs/adr/` for architectural decisions that touch the area being changed.
 - `DESIGN.md` and `docs/design-system/` when work affects UI, auth, email,

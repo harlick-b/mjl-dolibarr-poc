@@ -1,10 +1,13 @@
 # MJL Clarity System
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+file records design direction only.
+
 Design system for a Dolibarr-based public-finance project monitoring workspace.
 
 ## Purpose
 
-The MJL Clarity System turns the Dolibarr POC into a calm administrative control room for externally funded projects. It should make projects, activities, validations, alerts, exports, documents, and audit history understandable without exposing unnecessary ERP complexity.
+The MJL Clarity System presents the Dolibarr-backed MJL workspace as a calm administrative control room for externally funded projects. It should make projects, activities, validations, alerts, exports, documents, and audit history understandable without exposing unnecessary ERP complexity.
 
 ## Product Direction
 

@@ -1,5 +1,8 @@
 # MJL Clarity System — Accessibility Checklist
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+checklist covers accessibility only.
+
 ## Purpose
 
 Define accessibility checks for app UI, auth pages, system emails, official outputs, and E2E-covered flows.

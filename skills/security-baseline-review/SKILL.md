@@ -13,6 +13,7 @@ document access, production configuration, or security-sensitive behavior.
 ## Read first
 
 - `AGENTS.md`
+- `docs/mjl-authoritative-decisions.md`
 - `CONTEXT.md`
 - Relevant access, auth, document, route, and deployment docs
 

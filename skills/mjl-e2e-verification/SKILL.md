@@ -14,7 +14,8 @@ installs.
 ## Read first
 
 - `AGENTS.md`
-- `docs/08-clean-install-verification.md`
+- `docs/mjl-authoritative-decisions.md`
+- `docs/mjl-acceptance-tests.md`
 - Relevant E2E specs under `tests/e2e`
 
 ## Workflow

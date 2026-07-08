@@ -1,5 +1,7 @@
 # Triage Labels
 
+MJL product decisions come from `../mjl-authoritative-decisions.md`.
+
 The Matt skills speak in terms of five canonical triage roles. This file maps
 those roles to the label strings to use in this repo's issue tracker.
 

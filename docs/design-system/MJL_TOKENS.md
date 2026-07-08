@@ -1,5 +1,8 @@
 # MJL Clarity System — Tokens
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+file covers design tokens only.
+
 ## Purpose
 
 Define token categories and names for future app UI, auth pages, system emails, official outputs, and E2E-stable selectors or visual checks.

@@ -1,5 +1,8 @@
 # MJL Clarity System — Information Architecture
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+file covers information architecture only.
+
 ## Purpose
 
 Define how the application is organized around MJL work instead of Dolibarr internals.

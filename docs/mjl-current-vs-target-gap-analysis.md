@@ -1,45 +1,42 @@
 # MJL Current vs Target Gap Analysis
 
-This gap analysis is based on `docs/mjl-current-app-functional-map.md` and the
-target decisions in `docs/mjl-target-client-spec.md`.
+This file tracks implementation debt against
+`docs/mjl-authoritative-decisions.md`. It is not the source of target
+decisions.
 
 ## Summary
 
-The current app is a strong POC with guarded documents, activity and expense
-workflows, dashboards, reports, exports, invitations, and audit helpers. The
-main production gaps are role/scope normalization, partner/programme scoping,
-project creation inside MJL, physical execution tracking, split
-prevalidation/final-validation/disbursement workflows, contextual timelines,
-download/export audit, and production readiness checks.
+The repository contains a strong production-readiness base: production role and
+scope tables, activity prevalidation/final validation, expense
+prevalidation/final validation/disbursement, guarded documents, dashboards,
+reports, exports, invitations, and audit helpers. Remaining gaps are mostly
+terminology cleanup in code, contextual exchange/timeline polish, audit events
+for downloads/exports, production permission finalization, deployment
+configuration, and final client report templates.
 
-## Gap matrix
+## Gap Matrix
 
-| Area | Current state | Target state | Required phase |
+| Area | Current state | Target state | Status |
 | --- | --- | --- | --- |
-| Roles | POC groups such as AGENT, SUPERVISEUR_N1, SUPERVISEUR_N2, DPAF, ADMIN | Four global production business roles | Phase 1, Phase 2 |
-| Scope | Ownership/reviewer/supervision helpers; no normalized user-to-partner scope | One global role and many assigned Partenaires / Programmes | Phase 1 |
-| Admin vs validation | DPAF/Admin concepts mixed in helpers and labels | Admin plateforme separate from Validateur definitif | Phase 1, Phase 2 |
-| Projects | MJL project list/detail exists; creation remains native/outside wrapper | Create/edit projects inside MJL for Admin plateforme and Validateur definitif | Phase 3 |
-| Partenaires / Programmes | Native third parties used through conventions/funds | Dedicated scoped workspace page using `llx_societe` | Phase 3 |
-| Funding envelopes | Conventions exist with POC labels | Enveloppes de financement terminology and partner/programme scope | Phase 3 |
-| Activities | One-step validation-oriented workflow | Prevalidation, final validation, execution status, physical progress | Phase 4 |
-| Expenses | One-step validation; no separate disbursement state | Prevalidation, final validation, disbursement, amount separation | Phase 5 |
-| Documents | Contextual upload and guarded download exist; download audit incomplete | Contextual only, scoped lists, guarded download audit | Phase 6 |
-| Exchanges | Hidden/advanced exchange log, activity-focused | Contextual timelines on object details; global search under audit only | Phase 6 |
-| Alerts | Computed alerts for deadlines, pending review, missing evidence | Production role/scope alerts for workflow, budget, execution, and funding risk | Phase 7 |
-| Reports/exports | Fixed CSV/XLSX reports; final official columns not confirmed | Scoped production CSV/XLSX reports, export audit | Phase 7 |
-| Production checks | Readiness docs exist; runtime checks are incomplete | Admin-only readiness script/page with config and deployment checks | Phase 8 |
-| Acceptance tests | Existing E2E suite covers POC workflows | Full production role/scope/workflow acceptance scenarios | Phase 9 |
+| Product stance | Repo and code still contain POC wording in bootstrap, sample data, module description, and local fixture names. | Production-ready MJL workspace inside Dolibarr. | Code/document wording debt. |
+| Roles | Production role/scope tables and helpers exist; legacy POC groups still backfill and simulate fixtures. | One global role per user: Agent de saisie, Agent verificateur, Validateur definitif, Admin plateforme. | Partially implemented; legacy mapping remains. |
+| Scope | User-to-partner scope helpers exist and fail closed in tested paths; some current-state docs were stale. | Non-admin access only to assigned Partenaires / Programmes; unresolved objects fail closed. | Implemented foundation; keep auditing each route. |
+| Admin vs validation | Code has `ADMIN_PLATEFORME` and `VALIDATEUR_DEFINITIF`, but UI/code labels still use DPAF/Admin in places. | Platform admin and business final validation are distinct concepts. | Terminology debt. |
+| Projects | MJL project list/detail and partner pages exist; project creation/editing inside MJL needs current runtime verification. | Admin plateforme and Validateur definitif can create/edit projects inside MJL. | Review required. |
+| Documents | Contextual uploads and guarded downloads exist for key objects; global Documents is read-only. | Contextual uploads, guarded downloads, upload/download audit. | Download audit remains debt. |
+| Exchanges | Standalone exchange log route exists and is hidden from primary navigation. | Contextual timelines/exchanges inside object detail pages; global search/audit only under Supervision/Audit. | Contextual UX debt. |
+| Reports/exports | CSV/XLSX exports exist with French headers and stable filenames in code. | CSV/XLSX only, UTF-8 BOM semicolon CSV, server-side filters, audited exports. | Export audit and final templates remain debt. |
+| Production config | Deployment docs exist but email/base URL/secrets remain unconfirmed. | Production tenant configured with secrets, email transport, base URL, storage, backup/restore. | Deployment blocker. |
+| Current-state evidence | `docs/mjl-current-app-functional-map.md` refreshed during cleanup. | Evidence docs describe code without overriding target decisions. | Active. |
 
-## Compatibility risks
+## Code-Level Conflicts Not Fixed In Documentation Cleanup
 
-- Existing activity and expense `status` columns are integer-based. Later
-  phases must not destructively repurpose these values.
-- Existing POC users/groups may not map cleanly to production roles. Backfill
-  must log unresolved users and avoid broad non-admin access.
-- Existing projects may not have a direct partner/programme relationship.
-  Object resolution must use conventions or other safe links and fail closed
-  for non-admin users when unresolved.
-- Current docs may lag code. Runtime behavior must be verified before marking a
-  row complete.
+- `bootstrap_poc.php`, sample-data CSVs, SQL migrations, and local fixture names
+  use POC and legacy role terms for compatibility.
+- Some PHP UI labels/routes still use `DPAF`, `Conventions`, `Depenses`, or
+  `Echanges`.
+- Module language/descriptor strings still say POC.
+- Sample document placeholders say POC.
 
+These are classified in `docs/mjl-stale-reference-audit.md`; they are not fixed
+in this documentation-only task.

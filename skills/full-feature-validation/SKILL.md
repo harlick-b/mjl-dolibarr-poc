@@ -12,6 +12,7 @@ Use before declaring a feature, workflow, or meaningful change complete.
 ## Read first
 
 - `AGENTS.md`
+- `docs/mjl-authoritative-decisions.md` for MJL target behavior
 - Relevant project memory, implementation docs, tests, and changed files
 
 ## Workflow

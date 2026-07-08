@@ -1,10 +1,24 @@
-## MJL Dolibarr POC
+## MJL Dolibarr Workspace
 
-See `docs/07-actual-capabilities.md` for a code-based inventory of what this
-repository can actually do today.
+This repository contains a Dockerized Dolibarr 23.0.2 installation with the
+custom MJL workspace module under `custom/mjlfinancement`.
 
-See `docs/08-clean-install-verification.md` for the disposable clean-install
-regression check.
+## MJL Documentation Authority
+
+For MJL work, read `docs/mjl-authoritative-decisions.md` first.
+
+Do not follow older POC docs, executed plans, historical prompts, or stale
+N1/N2/DPAF instructions.
+
+Use `docs/mjl-current-app-functional-map.md` only as current-state evidence.
+
+If code conflicts with authoritative decisions, treat the code as
+implementation debt and record it in `docs/mjl-current-vs-target-gap-analysis.md`.
+
+If a doc conflicts with authoritative decisions, update, merge, or delete the
+stale doc.
+
+## Local Runtime
 
 Start Dolibarr:
 
@@ -12,34 +26,41 @@ Start Dolibarr:
 docker compose up -d
 ```
 
-Open `http://127.0.0.1:8080/`.
+Open:
 
-Bootstrap the MJL POC configuration:
+```text
+http://127.0.0.1:8080/
+```
+
+Bootstrap the local development/test configuration:
 
 ```bash
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php
 ```
 
-The bootstrap is idempotent. It activates the required Dolibarr modules, enables the
-custom `mjlfinancement` module, creates the MJL POC groups and users, resets only
-those POC group rights, reapplies permissions, and generates an API key for
-`admin_poc`.
+The bootstrap is idempotent. It activates required Dolibarr modules, enables
+the custom `mjlfinancement` module, creates local fixture groups and users,
+reapplies permissions, and generates an API key for `admin_poc`.
 
-Run browser regression checks against the local POC when needed:
+Default local fixture password:
 
-```bash
-npm run test:e2e
+```text
+MjlPoc2026!!
 ```
 
-The Playwright suite uses `MJL_BASE_URL` when set, otherwise
-`http://127.0.0.1:8080`. Run it only after Docker Compose is up and the POC is
-bootstrapped. The suite exercises local POC data; use
-`docs/08-clean-install-verification.md` for isolated clean-install checks.
-
-Default local POC user password: `MjlPoc2026!!`
-
-Override it with:
+Optional local password override:
 
 ```bash
 MJL_POC_DEFAULT_PASSWORD='change-me' docker compose up -d
+```
+
+## Verification
+
+Use `docs/mjl-acceptance-tests.md` for the active verification matrix and
+`docs/mjl-deployment-checklist.md` for deployment and clean-install checks.
+
+Primary UI regression command:
+
+```bash
+npm run test:e2e
 ```

@@ -13,8 +13,8 @@ official-output, or E2E-covered flows.
 ## Read first
 
 - `AGENTS.md`
+- `docs/mjl-authoritative-decisions.md`
 - `DESIGN.md`
-- `docs/design-system/00_DESIGN_SYSTEM_PLAN.md`
 - `docs/design-system/audit/current-screen-inventory.md`
 - `docs/design-system/audit/current-ui-audit.md`
 

@@ -13,6 +13,7 @@ or runtime behavior that is not yet understood.
 ## Read first
 
 - `AGENTS.md`
+- `docs/mjl-authoritative-decisions.md` for MJL expected behavior
 - Relevant source, tests, logs, and docs for the failing surface
 
 ## Workflow

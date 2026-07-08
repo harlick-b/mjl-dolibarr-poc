@@ -13,9 +13,11 @@ production-style review.
 ## Read first
 
 - `AGENTS.md`
+- `docs/mjl-authoritative-decisions.md`
 - `CONTEXT.md`
-- `docs/mjl-financement-production-readiness.md`
-- `docs/mjl-financement-production-deployment.md`
+- `docs/mjl-production-readiness-plan.md`
+- `docs/mjl-deployment-checklist.md`
+- `docs/mjl-current-vs-target-gap-analysis.md`
 
 ## Workflow
 
@@ -23,7 +25,7 @@ production-style review.
 2. Identify blockers, missing decisions, and stale verification.
 3. Check security, storage, backup, secrets, permissions, and official-output
    risks where relevant.
-4. Distinguish POC-ready from production-ready.
+4. Distinguish local fixture/demo evidence from production-ready evidence.
 
 ## Output
 

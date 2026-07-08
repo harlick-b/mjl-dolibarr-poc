@@ -13,6 +13,7 @@ security-sensitive change, or plan the user explicitly asks to challenge.
 ## Read first
 
 - `AGENTS.md`
+- `docs/mjl-authoritative-decisions.md` for MJL plans
 - The proposed plan or decision
 - Relevant project memory and docs for the affected area
 

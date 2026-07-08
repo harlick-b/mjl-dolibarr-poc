@@ -1,5 +1,7 @@
 # ADR 0000: Title
 
+MJL product decisions come from `../mjl-authoritative-decisions.md`.
+
 ## Status
 
 Proposed | Accepted | Deprecated | Superseded

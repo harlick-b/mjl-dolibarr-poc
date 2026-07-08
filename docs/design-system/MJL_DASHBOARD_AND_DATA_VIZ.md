@@ -1,5 +1,8 @@
 # MJL Clarity System — Dashboard And Data Visualization
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+file covers dashboard and data-visualization UX only.
+
 ## Purpose
 
 Define meaningful dashboards and data visualization for administrative action, not decoration.
@@ -50,6 +53,6 @@ Allowed examples:
 
 Avoid decorative pie charts, unexplained percentages, multiple charts without actions, and charts without source or period.
 
-## DPAF Dashboard Priorities
+## Supervision Dashboard Priorities
 
-Level 3 / DPAF dashboard should prioritize global project status, activity status distribution, validation bottlenecks, deadline risks, overdue activities, export shortcuts, audit indicators, and missing documents.
+The supervision dashboard should prioritize global project status, activity status distribution, validation bottlenecks, deadline risks, overdue activities, export shortcuts, audit indicators, and missing documents.

@@ -1,5 +1,7 @@
 # Agent Configuration
 
+MJL product decisions come from `../mjl-authoritative-decisions.md`.
+
 This directory contains lightweight configuration consumed by global Matt
 engineering skills. `AGENTS.md` remains the canonical routing and safety layer.
 

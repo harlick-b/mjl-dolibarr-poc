@@ -1,26 +1,31 @@
-# MJL Dolibarr POC — Sample Data Pack
+# MJL Sample Data Pack
 
-This sample data pack is designed for a Dolibarr POC for the Ministry of Justice and Legislation (MJL) project-financing accounting tool.
+This package is local development/test fixture data only. Production decisions
+come from `../docs/mjl-authoritative-decisions.md`.
 
-The POC objective is to verify whether Dolibarr can support a web MVP for:
+Do not load these CSVs into a production tenant.
 
-- PTF / bailleurs
-- projects
-- conventions
-- activities
-- budget lines
-- funds received
-- expenses
-- supporting documents
-- validation / correction trace
-- fixed reports
-- role-based access
+## Fixture Purpose
 
-The sample data intentionally includes normal cases and edge cases.
+The fixture set exercises:
 
-## Import / manual creation order
+- Partenaires / Programmes;
+- projects;
+- conventions/funding envelopes;
+- activities;
+- budget lines;
+- fund receipts;
+- expenses;
+- supporting documents;
+- validation/correction traces;
+- fixed reports;
+- role-based access.
 
-Use this order when entering the data manually in Dolibarr or when asking an AI agent to create import scripts:
+Some filenames, rows, and fixture roles preserve legacy vocabulary so migration
+and compatibility paths can be tested. That legacy wording is not production
+terminology.
+
+## Import Order
 
 1. `roles_permissions.csv`
 2. `users.csv`
@@ -35,49 +40,47 @@ Use this order when entering the data manually in Dolibarr or when asking an AI 
 11. `validation_events.csv`
 12. `fixed_reports.csv`
 
-## Object mapping assumption
+## Object Mapping
 
-| MJL concept         | Dolibarr reuse or custom module                          |
-| ------------------- | -------------------------------------------------------- |
-| PTF / bailleur      | Dolibarr Third Party                                     |
-| Project             | Dolibarr Project                                         |
-| Convention          | Custom object: `MjlConvention`                           |
-| Activity            | Custom object: `MjlActivity`                             |
-| Budget line         | Custom object: `MjlBudgetLine`                           |
-| Fund receipt        | Custom object: `MjlFundReceipt`                          |
-| Expense             | Custom object: `MjlExpense`, or adapted expense workflow |
-| Supporting document | Dolibarr Documents / ECM                                 |
-| Validation trace    | Custom object: `MjlValidation`                           |
-| Fixed report        | Custom export/report inside `mjlfinancement` module      |
+| MJL concept | Dolibarr reuse or MJL custom module |
+| --- | --- |
+| Partenaire / Programme | Dolibarr Third Party |
+| Project | Dolibarr Project |
+| Convention / funding envelope | `MjlConvention` |
+| Activity | `MjlActivity` |
+| Budget line | `MjlBudgetLine` |
+| Fund receipt | `MjlFundReceipt` |
+| Expense | `MjlExpense` |
+| Supporting document | Dolibarr Documents / ECM |
+| Validation trace | `MjlValidation` |
+| Fixed report | MJL report/export inside `mjlfinancement` |
 
-## Important POC rule
+## Local Fixture Rule
 
-Do not modify Dolibarr core files.  
-All MJL-specific code must stay in the custom module, for example:
+Do not modify Dolibarr core files. All MJL-specific code must stay in the
+custom module:
 
-```txt
+```text
 /custom/mjlfinancement
 ```
 
-## Edge cases included
+## Edge Cases Included
 
 - `EXP-JE-003`: rejected because the amount exceeds the available budget line.
 - `EXP-JE-004`: corrected expense after an initial issue.
 - `EXP-JE-005`: draft expense with missing supporting document.
 - `PRJ-EXT-2026`: draft extension project with no funds received yet.
-- `LECTEUR`: read-only user who should not be able to modify financial data.
+- `LECTEUR`: legacy read-only fixture user.
 
-## Suggested first workflow to test
+## Suggested First Workflow To Test
 
-Start with:
-
-```txt
-PTF → Project → Convention → Activity → Budget Line → Expense → Document → Validation → Report
+```text
+Partenaire / Programme -> Project -> Convention -> Activity -> Budget Line -> Expense -> Document -> Validation -> Report
 ```
 
 Recommended first chain:
 
-```txt
+```text
 PTF-UNICEF
 PRJ-JE-2026
 CONV-UNICEF-2026-001

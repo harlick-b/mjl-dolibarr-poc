@@ -1,5 +1,8 @@
 # MJL Clarity System — Components
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+file covers UI components only.
+
 ## Purpose
 
 Define the reusable component catalog for app UI, auth pages, system emails, official outputs, and E2E-covered flows.

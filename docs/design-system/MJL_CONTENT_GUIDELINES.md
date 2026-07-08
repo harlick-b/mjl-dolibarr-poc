@@ -1,5 +1,8 @@
 # MJL Clarity System — Content Guidelines
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+file covers content style only.
+
 ## Purpose
 
 Ensure French-first content that is formal, clear, direct, calm, non-technical, and respectful.

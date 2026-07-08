@@ -1,33 +1,35 @@
-# MJL Dolibarr POC Context
+# MJL Dolibarr Context
 
-This file is the project memory layer for durable, repo-confirmed facts. It
-summarizes product and technical context without replacing detailed evidence in
-`docs/`.
+This file records durable product and domain vocabulary. Target decisions live
+in `docs/mjl-authoritative-decisions.md`; if this file conflicts with that
+authority, update this file.
 
-## Project purpose
+## Project Purpose
 
-This repository is a Dolibarr proof of concept for the Ministry of Justice and
-Legislation (MJL). The POC tests whether Dolibarr can support an internal web
-workspace for externally funded project monitoring.
+The MJL app is a production-target custom workspace inside Dolibarr for
+monitoring externally funded Ministry of Justice and Legislation projects.
+Dolibarr provides authentication, users/groups/rights, third parties, projects,
+ECM/documents, and export support. MJL-specific behavior stays in the custom
+module and documented supporting areas.
 
 Confirmed goals:
 
 - trace projects and activities;
-- follow expenses and supporting documents;
-- support hierarchical review;
-- preserve decision history and audit evidence;
-- provide DPAF-level visibility;
-- produce Excel-readable reports and exports;
-- show alerts for deadlines, pending reviews, and document issues.
+- follow expenses, disbursements, and supporting documents;
+- support verification, final validation, and audit history;
+- provide supervised portfolio visibility;
+- produce French, Excel-readable CSV/XLSX reports and exports;
+- show scoped alerts for deadlines, pending reviews, budget risk, and document
+  issues.
 
-Confirmed non-goals for the current POC:
+Confirmed non-goals for the current production-readiness phase:
 
 - full accounting ERP replacement;
 - public registration;
 - SMS, bank API, OCR, external partner portal, offline mode, dynamic report
-  builder, payroll, procurement, or AI reporting.
+  builder, payroll, procurement, PDF reports, Word reports, or AI reporting.
 
-## Runtime and deployment assumptions
+## Runtime And Deployment Assumptions
 
 - Local runtime uses Docker Compose.
 - `docker-compose.yml` runs Dolibarr `23.0.2` with MariaDB `11`.
@@ -36,12 +38,70 @@ Confirmed non-goals for the current POC:
 - The module declaration reports version `0.10.0`.
 - The module requires Dolibarr `23.0.x` and PHP `7.4+`.
 - Dolibarr documents are mounted under `./data/documents`.
-- The custom module is mounted into the container at `/var/www/html/custom`.
-- Production deployment documentation requires persistent database and document
-  storage, backup/restore procedures, schema audits, and guarded document
-  access.
+- Production deployment requires persistent database/document storage,
+  backup/restore procedures, schema audits, guarded document access, and
+  production secrets/email/base-URL configuration outside source control.
 
-## User roles
+## Language
+
+**Partenaire / Programme**:
+User-facing partner/programme scope for MJL data access and reporting,
+represented technically by native Dolibarr third parties.
+_Avoid_: Bailleurs / Programmes, Tiers in normal UI, PTF in production UI.
+
+**Projet**:
+Native Dolibarr project exposed through MJL workspace screens.
+_Avoid_: raw native project screens for normal MJL business users.
+
+**Convention**:
+Current MJL funding-envelope object linked to a partner/programme, project,
+dates, amount, currency, and status.
+_Avoid_: MjlMissionEnvelope unless future business rules prove it necessary.
+
+**Activite**:
+Operational activity under a project/convention with physical execution,
+documents, and staged validation.
+_Avoid_: task when referring to MJL business workflow; task is a native
+Dolibarr technical object.
+
+**Ligne budgetaire**:
+Budget allocation and execution tracking line.
+
+**Fonds recu**:
+Funding receipt trace linked to a convention/project/partner with proof
+documents and received/not-received lifecycle.
+
+**Depense**:
+Expense linked to project, convention, optional activity, budget line,
+supporting document, staged validation, and possible disbursement.
+
+**Piece justificative**:
+Supporting document stored in ECM and served only through guarded MJL routes.
+
+**Prevalidation**:
+Verifier decision that accepts a submitted activity or expense before final
+business validation.
+
+**Validation definitive**:
+Final business decision approving an activity or expense.
+
+**Decaissement**:
+Record that money actually moved for a final-validated expense.
+
+**Admin plateforme**:
+Technical/platform administration responsibility for access, invitations, and
+configuration.
+_Avoid_: treating Admin plateforme as the same concept as final business
+validation.
+
+**Validateur definitif**:
+Business role responsible for final validation and disbursement decisions.
+
+**Historique / audit**:
+Trace of decisions, status changes, actors, comments, dates, important changed
+values, exports, document uploads, and expected document downloads.
+
+## Roles
 
 The confirmed production business roles are:
 
@@ -56,44 +116,19 @@ The confirmed production business roles are:
 
 A user has one global business role and may be assigned to one or many
 Partenaires / Programmes. Admin plateforme and Validateur definitif are
-separate concepts; a person may hold platform admin rights and also have the
-business validation role, but those responsibilities remain distinct.
+separate concepts; one person may hold both powers.
 
-The legacy POC role simulation (`AGENT`, `SUPERVISEUR_N1`, `SUPERVISEUR_N2`,
-`DPAF`, `ADMIN`, and `LECTEUR`) remains relevant only for migration and
-backward compatibility until replaced.
-`LECTEUR` has no approved production role equivalent yet and remains an
-unresolved legacy read-only profile.
+Legacy role terms are migration-only vocabulary:
 
-## Core domain entities
+- `AGENT` maps to `AGENT_SAISIE`.
+- `SUPERVISEUR_N1` maps to `AGENT_VERIFICATEUR`.
+- `SUPERVISEUR_N2` maps to `AGENT_VERIFICATEUR` unless explicitly migrated
+  otherwise.
+- `DPAF` maps to `VALIDATEUR_DEFINITIF` or `ADMIN_PLATEFORME` depending user
+  intent.
+- `LECTEUR` has no approved production role equivalent.
 
-Native Dolibarr concepts are reused where they fit:
-
-- Partenaire / Programme: user-facing name for the partner/programme scope,
-  represented technically by native Third Party.
-- Project: native Project.
-- Users, groups, and permissions: native Dolibarr users/groups/rights.
-- Supporting documents: native ECM/documents.
-- Exports: MJL custom reports with Dolibarr export helpers where safe.
-
-Current MJL custom objects:
-
-- `MjlConvention`: convention/funding-envelope candidate linked to partner,
-  project, dates, amount, currency, and status.
-- `MjlActivity`: activity tracking and lifecycle workflow.
-- `MjlBudgetLine`: budget allocation and execution tracking.
-- `MjlFundReceipt`: received/not-received funding trace with proof documents.
-- `MjlExpense`: staged expense workflow, budget impact, and document validation.
-- `MjlValidation`: expense validation history with action-time actor role.
-- `MjlWorkflowAction`: generic workflow and field-change audit.
-- `MjlExchangeLog`: queryable exchange/comment trace.
-- `MjlReport`: fixed report definitions.
-
-`MjlConvention` is the current funding-envelope model. `MjlMissionEnvelope` is
-not implemented and should remain deferred unless confirmed business rules
-prove the convention model insufficient.
-
-## Business rules
+## Business Rules
 
 - MJL-specific implementation must remain outside Dolibarr core files.
 - User-facing labels and content are French-first.
@@ -102,97 +137,35 @@ prove the convention model insufficient.
 - Public registration is forbidden.
 - Active Dolibarr entity filtering is required for custom objects, dashboards,
   alerts, exports, audit lists, workflow lookups, and document lookups.
-- No-self-validation is a domain rule and must not depend only on hidden UI.
+- Non-admin users can access only data connected to assigned Partenaires /
+  Programmes.
+- If an object cannot resolve to a Partenaire / Programme, only Admin can
+  access it until the data is fixed.
+- UI hiding is not access control; direct URL and POST guards are required.
+- No-self-prevalidation, no-self-final-validation, and no-self-disbursement are
+  mandatory unless a future audited override is explicitly designed.
 - Workflow status is distinct from computed alert state.
-- `Échéance proche` and `En retard` are computed from activity dates and
-  completion/cancellation state.
-- Audit history should show actor, actor role, action date, from/to status,
-  reason/comment when relevant, and important changed values.
 - Supporting documents are stored through ECM and exposed through guarded MJL
   routes rather than raw public document links.
-- Official exports should be French-labeled and Excel-readable.
+- Global Documents remains read-only; uploads are contextual.
+- Official exports are French-labeled, Excel-readable, server-filtered,
+  audited, and stable in filename/format.
 
-## Permissions and visibility
+## Current MJL Custom Objects
 
-Confirmed visibility patterns:
+- `MjlConvention`
+- `MjlActivity`
+- `MjlBudgetLine`
+- `MjlFundReceipt`
+- `MjlExpense`
+- `MjlValidation`
+- `MjlWorkflowAction`
+- `MjlExchangeLog`
+- `MjlReport`
 
-- Sidebar/navigation visibility is capability-based, not raw read-right based.
-- DPAF/Admin-only surfaces include supervision dashboards, report/export center,
-  governed convention management, budget-line management, and fund-receipt
-  management.
-- Advanced audit and exchange-log surfaces are guarded and should not be normal
-  operational navigation.
-- Invitation acceptance and guarded document-download routes are contextual
-  helper routes, not sidebar destinations.
-- Normal MJL business users should work through MJL screens rather than raw
-  native Dolibarr menus.
-- Direct URL and direct POST guards are required; hiding links is not enough.
+## Needs Confirmation
 
-## Key workflows
-
-- Invitation and first access: Admin sends invitation, user opens token link,
-  defines password, account becomes active, and lifecycle is audited.
-- Activity lifecycle: create, update production execution fields, upload
-  documents, submit, request correction, correct/resubmit, prevalidate as
-  `AGENT_VERIFICATEUR`, final-validate as `VALIDATEUR_DEFINITIF`, reject, and
-  cancel/complete where applicable, with timeline/audit evidence.
-- Expense lifecycle: create draft, upload supporting document, submit,
-  prevalidate as `AGENT_VERIFICATEUR`, final-validate as
-  `VALIDATEUR_DEFINITIF`, disburse once, or reject/correct/resubmit, with
-  stage amounts, budget checks, no-self-action guards, and validation history.
-- Documents: upload from contextual object pages, store in ECM, download only
-  through guarded MJL document routes.
-- Finance/reference management: DPAF/Admin manage conventions, budget lines,
-  and fund receipts through governed MJL screens.
-- Reporting: DPAF/Admin use fixed MJL report/export center with server-side
-  filters and stable filenames.
-- Alerts: users see role-scoped actionable alerts for deadlines, pending
-  reviews, and missing/unavailable documents.
-
-## Integrations
-
-- Native Dolibarr modules used by the POC include third parties, projects,
-  ECM/documents, exports, users/groups, and module activation/update behavior.
-- Documents rely on Dolibarr ECM storage and MJL object-level access helpers.
-- XLSX output is allowed only through existing safe Dolibarr helpers or
-  dependencies already present.
-- Email/invitation/password-reset behavior exists in the custom module, but
-  production email transport and base URL settings are not finalized.
-
-## Terminology and glossary
-
-| Term | Meaning |
-| --- | --- |
-| MJL | Ministry of Justice and Legislation |
-| Partenaire / Programme | User-facing partner/programme scope, represented technically by native Dolibarr third party |
-| PTF / bailleur | Legacy POC wording for funding partner; avoid in normal production UI |
-| Projet | Native Dolibarr project exposed through MJL context where possible |
-| Convention | Current MJL funding-envelope object |
-| Activité | Operational activity under project/convention |
-| Ligne budgétaire | Budget allocation line |
-| Fonds reçu | Funding receipt linked to convention/project/PTF |
-| Dépense | Expense linked to project, convention, optional activity, and budget line |
-| Pièce justificative | Supporting document stored in ECM |
-| Prévalidation dépense | Verifier decision that accepts a submitted expense amount before final validation |
-| Validation définitive dépense | Final-validator decision that consumes budget using the final validated amount |
-| Décaissement | One-time Phase 5 record that the final validated expense amount was paid to a beneficiary |
-| DPAF | Supervision/finance-level profile for dashboards and reports |
-| Historique / audit | Trace of decisions, status changes, actors, comments, and dates |
-
-## Known constraints
-
-- Dolibarr core files are out of scope.
-- The current module is not production-ready `1.0.0`.
-- Production readiness is evidence-gated and currently blocked by client and
-  deployment decisions.
-- Browser E2E tests are the primary validation method for UI, auth, dashboards,
-  exports, official outputs, and workflow changes.
-- Final production wording and donor-specific official outputs are not yet
-  confirmed.
-
-## Needs confirmation
-
-- Final production permission matrix details for every route/action.
+- Final client-approved route/action permission matrix.
 - Final donor report canevas and official output columns.
 - Production email transport, public/base URL, and secrets configuration.
 - Budget-line close/deactivation lifecycle policy.

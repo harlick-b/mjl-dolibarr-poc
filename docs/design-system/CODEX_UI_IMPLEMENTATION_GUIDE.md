@@ -1,5 +1,8 @@
 # MJL Clarity System — Codex UI Implementation Guide
 
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
+guide covers UI implementation only.
+
 Note: `AGENTS.md` is the canonical in-repo agent instruction layer. This file
 is retained as scoped UI implementation guidance; if it conflicts with
 `AGENTS.md`, follow `AGENTS.md`.
