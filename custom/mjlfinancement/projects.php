@@ -14,7 +14,16 @@ $langs->load('mjlfinancement@mjlfinancement');
 
 $projectId = GETPOSTINT('id');
 $action = GETPOST('action', 'alphanohtml');
-if ($action === 'add_note') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, array('create', 'update'), true)) {
+	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
+		accessforbidden('Invalid security token');
+	}
+	if (!mjl_projects_can_manage_projects()) {
+		accessforbidden();
+	}
+	mjl_projects_handle_project_post($action, $projectId);
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add_note') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		accessforbidden('Invalid security token');
 	}
@@ -64,6 +73,53 @@ function mjl_projects_handle_note_post($projectId)
 	exit;
 }
 
+function mjl_projects_handle_project_post($action, $projectId)
+{
+	global $db, $conf, $user;
+
+	$fkSoc = GETPOSTINT('fk_soc');
+	if (!mjl_projects_can_use_partner($fkSoc)) {
+		accessforbidden('Partenaire hors de votre perimetre');
+	}
+	$ref = trim(GETPOST('ref', 'alphanohtml'));
+	$title = trim(GETPOST('title', 'restricthtml'));
+	if ($ref === '' || $title === '') {
+		setEventMessages('La reference et l intitule du projet sont obligatoires.', null, 'errors');
+		mjl_projects_redirect($projectId);
+	}
+	$status = GETPOSTINT('fk_statut') === 1 ? 1 : 0;
+	$dateStart = mjl_projects_post_date_sql('date_start');
+	$dateEnd = mjl_projects_post_date_sql('date_end');
+	$description = GETPOST('description', 'restricthtml');
+
+	if ($action === 'create') {
+		$sql = 'INSERT INTO '.$db->prefix().'projet';
+		$sql .= ' (entity, ref, title, description, fk_soc, fk_statut, dateo, datee, public, usage_task, datec, fk_user_creat)';
+		$sql .= ' VALUES ('.((int) $conf->entity).", '".$db->escape($ref)."', '".$db->escape($title)."', '".$db->escape($description)."', ".((int) $fkSoc).', '.$status.', '.$dateStart.', '.$dateEnd.', 0, 1, NOW(), '.((int) $user->id).')';
+		if (!$db->query($sql)) {
+			setEventMessages($db->lasterror(), null, 'errors');
+			mjl_projects_redirect(0);
+		}
+		setEventMessages('Projet MJL cree.', null, 'mesgs');
+		mjl_projects_redirect((int) $db->last_insert_id($db->prefix().'projet'));
+	}
+
+	$current = mjl_projects_fetch_project((int) $projectId);
+	if (empty($current) || !mjl_projects_can_open($current)) {
+		accessforbidden();
+	}
+	$sql = 'UPDATE '.$db->prefix().'projet SET';
+	$sql .= " ref = '".$db->escape($ref)."', title = '".$db->escape($title)."', description = '".$db->escape($description)."'";
+	$sql .= ', fk_soc = '.((int) $fkSoc).', fk_statut = '.$status.', dateo = '.$dateStart.', datee = '.$dateEnd.', fk_user_modif = '.((int) $user->id);
+	$sql .= ' WHERE entity = '.((int) $conf->entity).' AND rowid = '.((int) $projectId);
+	if (!$db->query($sql)) {
+		setEventMessages($db->lasterror(), null, 'errors');
+	} else {
+		setEventMessages('Projet MJL mis a jour.', null, 'mesgs');
+	}
+	mjl_projects_redirect((int) $projectId);
+}
+
 function mjl_projects_render_list()
 {
 	$rows = mjl_projects_fetch_rows();
@@ -74,6 +130,9 @@ function mjl_projects_render_list()
 		count($rows).' projet(s)'
 	);
 
+	if (mjl_projects_can_manage_projects()) {
+		mjl_projects_render_project_form(array(), 'create');
+	}
 	print '<section class="mjl-workspace-section">';
 	if (empty($rows)) {
 		print '<div class="mjl-empty-state">Aucun projet accessible dans votre perimetre.</div>';
@@ -117,10 +176,32 @@ function mjl_projects_render_detail($projectId)
 	);
 	mjl_dashboard_render_card_section('Resume', 'Vue consolidee du projet et de ses objets MJL rattaches.', $cards);
 
+	if (mjl_projects_can_manage_projects()) {
+		mjl_projects_render_project_form($project, 'update');
+	}
 	mjl_projects_render_related_table('Activites liees', mjl_projects_activity_rows((int) $project['rowid']), 'activities.php');
 	mjl_projects_render_related_table('Depenses liees', mjl_projects_expense_rows((int) $project['rowid']), 'expenses.php');
 	mjl_projects_render_document_table((int) $project['rowid']);
 	mjl_projects_render_notes($project);
+}
+
+function mjl_projects_render_project_form($row, $action)
+{
+	$isUpdate = $action === 'update';
+	print '<section class="mjl-workspace-section mjl-activity-panel">';
+	print '<div class="mjl-section-heading"><h2>'.($isUpdate ? 'Parametres projet' : 'Nouveau projet').'</h2><p>Le partenaire / programme est obligatoire et limite au perimetre actif.</p></div>';
+	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'.($isUpdate ? '?id='.((int) $row['rowid']) : '').'">';
+	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="'.dol_escape_htmltag($action).'">';
+	if ($isUpdate) print '<input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<label>Reference<input required name="ref" value="'.dol_escape_htmltag($row['ref'] ?? '').'"></label>';
+	print '<label>Intitule<input required name="title" value="'.dol_escape_htmltag($row['title'] ?? '').'"></label>';
+	print '<label>Partenaire / Programme'.mjl_projects_partner_select((int) ($row['fk_soc'] ?? 0)).'</label>';
+	print '<label>Debut<input type="date" name="date_start" value="'.dol_escape_htmltag(mjl_projects_date_value($row['dateo'] ?? '')).'"></label>';
+	print '<label>Fin<input type="date" name="date_end" value="'.dol_escape_htmltag(mjl_projects_date_value($row['datee'] ?? '')).'"></label>';
+	print '<label>Statut<select name="fk_statut"><option value="1"'.((int) ($row['fk_statut'] ?? 1) === 1 ? ' selected' : '').'>Ouvert</option><option value="0"'.((int) ($row['fk_statut'] ?? 1) !== 1 ? ' selected' : '').'>Brouillon / clos</option></select></label>';
+	print '<label>Description<textarea name="description">'.dol_escape_htmltag($row['description'] ?? '').'</textarea></label>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="'.($isUpdate ? 'Enregistrer le projet' : 'Creer le projet').'"></div>';
+	print '</form></section>';
 }
 
 function mjl_projects_render_related_table($title, $rows, $route)
@@ -205,25 +286,28 @@ function mjl_projects_fetch_project($projectId)
 function mjl_projects_base_sql()
 {
 	global $db;
-	return 'SELECT p.rowid, p.ref, p.title, p.description, p.dateo, p.datee, p.fk_statut,'
-		.' COALESCE((SELECT GROUP_CONCAT(c.ref ORDER BY c.ref SEPARATOR \', \') FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = p.entity AND c.fk_project = p.rowid), \'\') AS convention_refs,'
-		.' COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl WHERE bl.entity = p.entity AND bl.fk_project = p.rowid), 0) AS budget_total,'
-		.' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = p.entity AND e.fk_project = p.rowid AND e.status = 2), 0) AS budget_spent,'
-		.' COALESCE((SELECT SUM(bl.remaining_amount) FROM '.$db->prefix().'mjlfinancement_budget_line bl WHERE bl.entity = p.entity AND bl.fk_project = p.rowid), 0) AS budget_remaining,'
-		.' COALESCE((SELECT SUM(fr.amount) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = p.entity AND fr.fk_project = p.rowid AND fr.status = 1), 0) AS funds_received,'
-		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_activity a WHERE a.entity = p.entity AND a.fk_project = p.rowid), 0) AS activities_count,'
-		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = p.entity AND e.fk_project = p.rowid), 0) AS expenses_count,'
-		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'ecm_files f INNER JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = f.src_object_id AND f.src_object_type = \'mjlfinancement_activity\' AND a.entity = f.entity WHERE a.entity = p.entity AND a.fk_project = p.rowid), 0)'
-		.' + COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'ecm_files f INNER JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = f.src_object_id AND f.src_object_type = \'mjlfinancement_expense\' AND e.entity = f.entity WHERE e.entity = p.entity AND e.fk_project = p.rowid), 0)'
-		.' + COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'ecm_files f INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = f.src_object_id AND f.src_object_type = \'mjlfinancement_convention\' AND c.entity = f.entity WHERE c.entity = p.entity AND c.fk_project = p.rowid), 0)'
-		.' + COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'ecm_files f INNER JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = f.src_object_id AND f.src_object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = f.entity WHERE fr.entity = p.entity AND fr.fk_project = p.rowid), 0) AS documents_count'
-		.' FROM '.$db->prefix().'projet p';
+	return 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, p.dateo, p.datee, p.fk_statut,'
+		.' s.nom AS partner_name,'
+		.' COALESCE((SELECT GROUP_CONCAT(c.ref ORDER BY c.ref SEPARATOR \', \') FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = p.entity AND c.fk_project = p.rowid'.mjl_projects_related_scope_sql('c.fk_soc').'), \'\') AS convention_refs,'
+		.' COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention cbl ON cbl.rowid = bl.fk_convention AND cbl.entity = bl.entity WHERE bl.entity = p.entity AND bl.fk_project = p.rowid'.mjl_projects_related_scope_sql('cbl.fk_soc').'), 0) AS budget_total,'
+		.' COALESCE((SELECT SUM(e.amount) FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention ce ON ce.rowid = e.fk_convention AND ce.entity = e.entity WHERE e.entity = p.entity AND e.fk_project = p.rowid AND e.status = 2'.mjl_projects_related_scope_sql('ce.fk_soc').'), 0) AS budget_spent,'
+		.' COALESCE((SELECT SUM(bl.remaining_amount) FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention cbr ON cbr.rowid = bl.fk_convention AND cbr.entity = bl.entity WHERE bl.entity = p.entity AND bl.fk_project = p.rowid'.mjl_projects_related_scope_sql('cbr.fk_soc').'), 0) AS budget_remaining,'
+		.' COALESCE((SELECT SUM(fr.amount) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = p.entity AND fr.fk_project = p.rowid AND fr.status = 1'.mjl_projects_related_scope_sql('fr.fk_soc').'), 0) AS funds_received,'
+		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention ca ON ca.rowid = a.fk_convention AND ca.entity = a.entity WHERE a.entity = p.entity AND a.fk_project = p.rowid'.mjl_projects_related_scope_sql('ca.fk_soc').'), 0) AS activities_count,'
+		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention ced ON ced.rowid = e.fk_convention AND ced.entity = e.entity WHERE e.entity = p.entity AND e.fk_project = p.rowid'.mjl_projects_related_scope_sql('ced.fk_soc').'), 0) AS expenses_count,'
+		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'ecm_files f INNER JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = f.src_object_id AND f.src_object_type = \'mjlfinancement_activity\' AND a.entity = f.entity INNER JOIN '.$db->prefix().'mjlfinancement_convention cda ON cda.rowid = a.fk_convention AND cda.entity = a.entity WHERE a.entity = p.entity AND a.fk_project = p.rowid'.mjl_projects_related_scope_sql('cda.fk_soc').'), 0)'
+		.' + COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'ecm_files f INNER JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = f.src_object_id AND f.src_object_type = \'mjlfinancement_expense\' AND e.entity = f.entity INNER JOIN '.$db->prefix().'mjlfinancement_convention cde ON cde.rowid = e.fk_convention AND cde.entity = e.entity WHERE e.entity = p.entity AND e.fk_project = p.rowid'.mjl_projects_related_scope_sql('cde.fk_soc').'), 0)'
+		.' + COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'ecm_files f INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = f.src_object_id AND f.src_object_type = \'mjlfinancement_convention\' AND c.entity = f.entity WHERE c.entity = p.entity AND c.fk_project = p.rowid'.mjl_projects_related_scope_sql('c.fk_soc').'), 0)'
+		.' + COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'ecm_files f INNER JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = f.src_object_id AND f.src_object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = f.entity WHERE fr.entity = p.entity AND fr.fk_project = p.rowid'.mjl_projects_related_scope_sql('fr.fk_soc').'), 0) AS documents_count'
+		.' FROM '.$db->prefix().'projet p'
+		.' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = p.fk_soc AND s.entity = p.entity';
 }
 
 function mjl_projects_activity_rows($projectId)
 {
 	global $db, $conf;
 	$sql = 'SELECT a.rowid, a.ref, a.label, a.status, a.fk_user_creat FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 	$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND a.fk_project = '.((int) $projectId);
 	$sql .= mjl_activities_scope_sql('a');
 	$sql .= ' ORDER BY a.ref ASC';
@@ -239,6 +323,7 @@ function mjl_projects_expense_rows($projectId)
 {
 	global $db, $conf;
 	$sql = 'SELECT e.rowid, e.ref, e.description AS label, e.status, e.fk_user_creat FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity).' AND e.fk_project = '.((int) $projectId);
 	$sql .= mjl_expenses_scope_sql('e');
 	$sql .= ' ORDER BY e.ref ASC';
@@ -284,15 +369,15 @@ function mjl_projects_document_row($row, $downloadType, $typeLabel, $objectRef)
 function mjl_projects_convention_rows($projectId)
 {
 	global $db, $conf, $user;
-	if (!mjl_workspace_can_access_reference_data($user, 'convention')) return array();
-	return mjl_projects_fetch_all('SELECT rowid, ref, title AS label FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).' ORDER BY ref ASC');
+	if (!$user->hasRight('mjlfinancement', 'convention', 'read')) return array();
+	return mjl_projects_fetch_all('SELECT rowid, ref, title AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).mjl_scope_partner_sql_filter('c.fk_soc', $user).' ORDER BY ref ASC');
 }
 
 function mjl_projects_fund_receipt_rows($projectId)
 {
 	global $db, $conf, $user;
-	if (!mjl_workspace_can_access_reference_data($user, 'fundreceipt')) return array();
-	return mjl_projects_fetch_all('SELECT rowid, ref, comment AS label FROM '.$db->prefix().'mjlfinancement_fund_receipt WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).' ORDER BY ref ASC');
+	if (!$user->hasRight('mjlfinancement', 'fundreceipt', 'read')) return array();
+	return mjl_projects_fetch_all('SELECT rowid, ref, comment AS label FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).mjl_scope_partner_sql_filter('fr.fk_soc', $user).' ORDER BY ref ASC');
 }
 
 function mjl_projects_note_rows($projectId)
@@ -308,10 +393,9 @@ function mjl_projects_note_rows($projectId)
 function mjl_projects_can_open($project)
 {
 	global $user;
-	return mjl_workspace_can_access_supervision($user)
-		|| (mjl_activities_is_readonly_consultation() && mjl_expenses_is_readonly_consultation())
-		|| !empty(mjl_projects_activity_rows((int) $project['rowid']))
-		|| !empty(mjl_projects_expense_rows((int) $project['rowid']));
+	if (mjl_scope_is_platform_admin($user)) return true;
+	if (empty($project['fk_soc']) || (int) $project['fk_soc'] <= 0) return false;
+	return mjl_scope_can_access_fk_soc($user, (int) $project['fk_soc']);
 }
 
 function mjl_projects_can_add_note($project)
@@ -324,16 +408,65 @@ function mjl_projects_can_add_note($project)
 
 function mjl_projects_scope_sql($alias)
 {
-	global $db, $user;
+	global $user;
 	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
-	if (mjl_workspace_can_access_supervision($user) || (mjl_activities_is_readonly_consultation() && mjl_expenses_is_readonly_consultation())) return '';
-	if ($user->hasRight('mjlfinancement', 'activity', 'write') || $user->hasRight('mjlfinancement', 'expense', 'write')) {
-		return ' AND (EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_activity ascope WHERE ascope.entity = '.$a.'.entity AND ascope.fk_project = '.$a.'.rowid AND ascope.fk_user_creat = '.((int) $user->id).') OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense escope WHERE escope.entity = '.$a.'.entity AND escope.fk_project = '.$a.'.rowid AND escope.fk_user_creat = '.((int) $user->id).'))';
+	return mjl_scope_partner_sql_filter($a.'.fk_soc', $user);
+}
+
+function mjl_projects_related_scope_sql($column)
+{
+	global $user;
+	return mjl_scope_partner_sql_filter($column, $user);
+}
+
+function mjl_projects_can_manage_projects()
+{
+	global $user;
+	return mjl_workspace_user_has_production_access($user) && (mjl_scope_is_platform_admin($user) || mjl_scope_is_final_validator($user));
+}
+
+function mjl_projects_can_use_partner($fkSoc)
+{
+	global $db, $conf, $user;
+	$fkSoc = (int) $fkSoc;
+	if ($fkSoc <= 0 || !mjl_scope_can_access_fk_soc($user, $fkSoc)) return false;
+	$sql = 'SELECT rowid FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkSoc.' AND status = 1';
+	$resql = $db->query($sql);
+	return $resql && (bool) $db->fetch_object($resql);
+}
+
+function mjl_projects_partner_select($selected)
+{
+	global $db, $conf, $user;
+	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $user).' ORDER BY s.nom ASC';
+	$out = '<select required name="fk_soc"><option value="">Selectionner</option>';
+	foreach (mjl_projects_fetch_all($sql) as $row) {
+		$out .= '<option value="'.((int) $row['rowid']).'"'.((int) $selected === (int) $row['rowid'] ? ' selected' : '').'>'.dol_escape_htmltag($row['nom']).'</option>';
 	}
-	if ($user->hasRight('mjlfinancement', 'activity', 'validate') || $user->hasRight('mjlfinancement', 'expense', 'validate')) {
-		return ' AND (EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_activity ascope WHERE ascope.entity = '.$a.'.entity AND ascope.fk_project = '.$a.'.rowid AND ascope.status = 3) OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense escope WHERE escope.entity = '.$a.'.entity AND escope.fk_project = '.$a.'.rowid AND escope.status = 1))';
-	}
-	return '';
+	return $out.'</select>';
+}
+
+function mjl_projects_post_date_sql($field)
+{
+	global $db;
+	$value = GETPOST($field, 'alphanohtml');
+	if ($value === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) return 'NULL';
+	return "'".$db->escape($value)."'";
+}
+
+function mjl_projects_date_value($value)
+{
+	if (empty($value)) return '';
+	$time = strtotime((string) $value);
+	return $time > 0 ? date('Y-m-d', $time) : '';
+}
+
+function mjl_projects_redirect($id)
+{
+	$url = DOL_URL_ROOT.'/custom/mjlfinancement/projects.php';
+	if ((int) $id > 0) $url .= '?id='.((int) $id);
+	header('Location: '.$url);
+	exit;
 }
 
 function mjl_projects_fetch_all($sql)
@@ -358,7 +491,7 @@ function mjl_projects_status_label($status)
 
 function mjl_projects_activity_status_label($status)
 {
-	$labels = array(0 => 'Brouillon', 1 => 'En cours', 2 => 'Terminee', 3 => 'Soumise', 4 => 'Correction demandee', 5 => 'Corrigee', 6 => 'Validee', 8 => 'Rejetee', 9 => 'Annulee');
+	$labels = array(0 => 'Brouillon', 1 => 'En cours', 2 => 'Terminee', 3 => 'Soumise', 4 => 'Correction demandee', 5 => 'Corrigee', 6 => 'Validee definitivement', 7 => 'Prevalidee', 8 => 'Rejetee', 9 => 'Annulee');
 	return isset($labels[(int) $status]) ? $labels[(int) $status] : 'Statut '.$status;
 }
 
