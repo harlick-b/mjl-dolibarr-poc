@@ -49,7 +49,8 @@ assertSame('RPT-001 pending_expenses', 420000.0, (float) $projectReport['pending
 $budgetRows = mjl_report_convention_budget($convention);
 assertSame('RPT-002 line count for UNICEF convention', 5, count($budgetRows));
 $formation = findRow($budgetRows, 'ref', 'BL-JE-001');
-assertSame('BL-JE-001 stored spent amount', 950000.0, fetchAmount('SELECT spent_amount AS amount FROM '.$db->prefix().'mjlfinancement_budget_line WHERE rowid = '.$budgetLine));
+assertSame('BL-JE-001 stored committed amount', 950000.0, fetchAmount('SELECT committed_amount AS amount FROM '.$db->prefix().'mjlfinancement_budget_line WHERE rowid = '.$budgetLine));
+assertSame('BL-JE-001 stored spent amount', 0.0, fetchAmount('SELECT spent_amount AS amount FROM '.$db->prefix().'mjlfinancement_budget_line WHERE rowid = '.$budgetLine));
 assertSame('BL-JE-001 stored remaining amount', 850000.0, fetchAmount('SELECT remaining_amount AS amount FROM '.$db->prefix().'mjlfinancement_budget_line WHERE rowid = '.$budgetLine));
 assertSame('BL-JE-001 report remaining amount', 850000.0, (float) $formation['remaining_amount']);
 $perDiem = findRow($budgetRows, 'ref', 'BL-JE-003');

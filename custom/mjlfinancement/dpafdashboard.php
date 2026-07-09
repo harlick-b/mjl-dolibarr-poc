@@ -8,6 +8,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.ph
 mjl_workspace_require_supervision_access($user);
 
 $langs->load('mjlfinancement@mjlfinancement');
+$filters = mjl_dashboard_filters_from_request($user);
 
 llxHeader('', 'Tableau de supervision finance');
 
@@ -19,17 +20,18 @@ mjl_dashboard_render_header(
 	'Acces',
 	!empty($user->admin) ? 'Administrateur plateforme' : 'Validateur définitif'
 );
+mjl_dashboard_render_filters($filters, '/custom/mjlfinancement/dpafdashboard.php');
 
 mjl_dashboard_render_card_section(
 	'Synthese de supervision',
 	'Indicateurs principaux pour prioriser les controles.',
-	mjl_dashboard_dpaf_kpis()
+	mjl_dashboard_supervision_kpis($filters)
 );
 
 mjl_dashboard_render_alert_section(
 	'Risques echeance',
 	'Activites ouvertes avec une echeance proche ou depassee. Chaque alerte indique l objet, le risque et l action attendue.',
-	mjl_dashboard_deadline_risks(),
+	mjl_dashboard_deadline_risks(20, $filters),
 	'Aucun risque échéance détecté pour le moment.'
 );
 
@@ -44,7 +46,7 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Montant', 'class' => 'right'),
 		array('label' => 'Action'),
 	),
-	mjl_dashboard_pending_reviews(),
+	mjl_dashboard_pending_reviews(30, $filters),
 	'Aucune revue en attente.',
 	'mjl_dpaf_render_pending_review_row'
 );
@@ -59,7 +61,7 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Dépenses soumises', 'class' => 'right'),
 		array('label' => 'Disponible', 'class' => 'right'),
 	),
-	mjl_dashboard_budget_expense_rows(),
+	mjl_dashboard_budget_expense_rows($filters),
 	'Aucune donnée budgétaire.',
 	'mjl_dpaf_render_budget_row'
 );
@@ -75,7 +77,7 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Montant', 'class' => 'right'),
 		array('label' => 'Preuve'),
 	),
-	mjl_dashboard_recent_funds(),
+	mjl_dashboard_recent_funds(10, $filters),
 	'Aucune réception de fonds.',
 	'mjl_dpaf_render_fund_row'
 );
@@ -93,7 +95,7 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Date'),
 		array('label' => 'Commentaire'),
 	),
-	mjl_dashboard_recent_audit(),
+	mjl_dashboard_recent_audit(30, $filters),
 	'Aucune action auditée.',
 	'mjl_dpaf_render_audit_row'
 );

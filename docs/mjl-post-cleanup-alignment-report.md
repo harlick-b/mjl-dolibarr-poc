@@ -2,13 +2,13 @@
 
 ## Executive Verdict
 
-MOSTLY_ON_TRACK_WITH_GAPS
+FEATURE_ALIGNED_PENDING_CLIENT_VALIDATION
 
-The repository now has a clear documentation authority chain and active target
-docs consistently describe the intended production-ready MJL workspace. It is
-not fully `ON_TRACK` because classified code debt remains: POC/DPAF/N1/N2
-terms, incomplete proof of download/export audit coverage, project create/edit
-runtime verification, and production deployment blockers.
+The repository now has a clear documentation authority chain and Phase 12R
+client UAT/model documents for feature acceptance. The client-facing feature
+set is documented for validation, but the status remains pending because final
+client permission approval, final donor/client report templates, production
+configuration, and historical code/fixture vocabulary debt are not closed here.
 
 ## Gate Results
 
@@ -116,13 +116,23 @@ The full per-file inventory is in `docs/mjl-doc-cleanup-inventory.md`.
 ## Documentation Files Created
 
 - `docs/mjl-post-cleanup-alignment-report.md`
+- `docs/mjl-client-uat-checklist.md`
+- `docs/mjl-client-demo-scenario.md`
+- `docs/mjl-roles-permissions-matrix.md`
+- `docs/mjl-reports-exports-model.md`
+- `docs/mjl-dashboard-kpi-model.md`
 
 ## Documentation Files Updated
 
-- `docs/mjl-current-vs-target-gap-analysis.md`
-- `docs/mjl-doc-cleanup-inventory.md`
 - `docs/mjl-docs-index.md`
+- `docs/mjl-current-vs-target-gap-analysis.md`
 - `docs/mjl-stale-reference-audit.md`
+- `docs/mjl-implementation-summary.md`
+- `docs/mjl-post-cleanup-alignment-report.md`
+
+Earlier cleanup updated:
+
+- `docs/mjl-doc-cleanup-inventory.md`
 
 ## Documentation Files Deleted
 
@@ -205,9 +215,41 @@ to deleted docs remain only as cleanup history in inventory/index/audit files.
 
 ## Validation Commands
 
-Validation commands and results from the final pass:
+Validation commands and results from the latest Phase 12R pass:
 
-- `git status --short`: pending documentation-only changes.
+- `git status --short --untracked-files=all`: current worktree includes
+  Phase 10R/11R handoff changes and Phase 12R documentation/support-script
+  changes.
+- `git diff --check`: passed.
+- `find custom/mjlfinancement -name "*.php" -print0 | xargs -0 -n1 php -l`:
+  passed.
+- `npm run test:e2e`: passed with 125 tests after rerunning outside the
+  sandbox because the specs execute Docker commands.
+- `seed_sample_data.php`: passed.
+- `acceptance_sample_data.php`: passed after aligning the script to current
+  committed-vs-spent budget semantics.
+- `smoke_scope_model.php`: passed.
+- `smoke_activity_workflow.php`: passed.
+- `smoke_expense_validation.php`: passed.
+- `smoke_traceability_exports.php`: passed.
+- `audit_schema_0.2.0.php`: passed.
+- `audit_schema_0.3.0.php`: passed after aligning the script to current
+  committed-vs-spent budget semantics.
+- `audit_schema_0.4.0.php`: passed.
+- `audit_schema_0.5.0.php`: passed.
+- `audit_schema_0.8.0.php`: passed with legacy lecteur warnings.
+- `audit_schema_0.9.0.php`: passed.
+- `audit_schema_0.10.0.php`: passed.
+- `audit_unresolved_scope.php`: failed on local workflow-action rows pointing
+  to deleted test objects and generic report audit anchors; classified as
+  existing local verification data debt.
+- `check_production_readiness.php`: source-provable checks passed; production
+  email transport, public base URL, production secrets, backup/restore, and
+  monitoring/log retention remain `UNKNOWN`.
+
+Earlier cleanup validation also ran:
+
+- `git status --short`: pending documentation-only changes at that time.
 - Raw `find` documentation inventory: completed with expected permission-denied
   noise under `data/`.
 - Clean documentation inventory excluding `data`, `.git`, `vendor`, and
@@ -220,12 +262,23 @@ Validation commands and results from the final pass:
   history only.
 - Authority/reference scan: completed; active docs point to authority/gap/current
   evidence.
-- `git diff --check`: passed.
 - Markdown lint: skipped because `markdownlint` is not installed locally.
+
+## Phase 12R Client UAT Pack
+
+Phase 12R created the client UAT checklist, demo scenario, roles/permissions
+matrix, reports/exports model, and dashboard KPI model. These documents are
+current implementation and acceptance artifacts, not final client approval of
+permissions, KPI wording, or donor report templates.
+
+Phase 12R also aligned sample-data acceptance and 0.3.0 schema audit scripts
+with the current finance model: `committed_amount` is the budget-consuming
+validated amount, while `spent_amount` is the disbursed amount.
 
 ## Recommended Next Implementation Phase
 
-Run a source-code production wording and traceability phase:
+Run client UAT using the Phase 12R pack, then run a source-code production
+wording and traceability phase:
 
 1. Rename production-facing DPAF/POC/N1/N2 labels while preserving explicit
    migration compatibility.

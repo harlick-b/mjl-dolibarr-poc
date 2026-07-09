@@ -19,7 +19,7 @@ mjl_workspace_require_supervision_access($user);
 
 $langs->load('mjlfinancement@mjlfinancement');
 
-$report = GETPOST('report', 'alpha') ?: 'project_summary';
+$report = GETPOST('report', 'alpha') ?: 'financial_execution_project';
 $def = mjl_reports_def($report);
 $report = $def['key'];
 $action = GETPOST('action', 'alpha');
@@ -32,6 +32,12 @@ $csvFilename = mjl_reports_export_filename($def, $filters, 'csv');
 $xlsxFilename = mjl_reports_export_filename($def, $filters, 'xlsx');
 
 if ($action === 'export_csv' || $action === 'export_xlsx') {
+	if (empty($_SERVER['REQUEST_METHOD']) || strtoupper((string) $_SERVER['REQUEST_METHOD']) !== 'POST') {
+		accessforbidden('Export POST requis');
+	}
+	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
+		accessforbidden('Invalid security token');
+	}
 	if (empty($user->admin) && !$user->hasRight('mjlfinancement', 'export', 'write')) {
 		accessforbidden();
 	}
@@ -75,117 +81,203 @@ $db->close();
 function mjl_reports_defs()
 {
 	return array(
-		'project_summary' => array(
-			'key' => 'project_summary',
-			'label' => 'Synthèse financière par projet',
-			'description' => 'Comparer budget, fonds reçus et dépenses pour un projet sélectionné.',
-			'scope' => 'Projet',
-			'slug' => 'synthese_projet',
-			'filters' => array('project_id', 'date_start', 'date_end'),
-			'required_filters' => array('project_id'),
-			'status_domain' => '',
-			'headers' => array('project_ref' => 'Projet', 'project_title' => 'Titre projet', 'budget_total' => 'Budget total', 'funds_received' => 'Fonds reçus', 'total_expenses' => 'Dépenses totales', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'pending_expenses' => 'Dépenses soumises'),
-			'money_fields' => array('budget_total', 'funds_received', 'total_expenses', 'validated_expenses', 'disbursed_expenses', 'pending_expenses'),
+		'funding_received_partner' => array(
+			'key' => 'funding_received_partner',
+			'label' => 'Financements reçus par Partenaire / Programme',
+			'description' => 'Suivre les montants reçus par Partenaire / Programme, projet et période de réception.',
+			'scope' => 'Partenaire / Programme',
+			'slug' => 'financements_recus_partenaire_programme',
+			'filters' => array('fk_soc', 'project_id', 'status', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => 'fundreceipt',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'receipt_count' => 'Réceptions', 'funds_received' => 'Fonds reçus', 'first_reception_date' => 'Première réception', 'last_reception_date' => 'Dernière réception'),
+			'money_fields' => array('funds_received'),
+			'date_fields' => array('first_reception_date', 'last_reception_date'),
 		),
-		'convention_budget' => array(
-			'key' => 'convention_budget',
-			'label' => 'Exécution budgétaire par convention',
-			'description' => 'Suivre les lignes budgétaires, les dépenses validées et le solde restant.',
-			'scope' => 'Convention',
-			'slug' => 'budget_convention',
-			'filters' => array('convention_id', 'date_start', 'date_end'),
-			'required_filters' => array('convention_id'),
+		'budget_allocation_partner' => array(
+			'key' => 'budget_allocation_partner',
+			'label' => 'Allocation budgétaire par Partenaire / Programme',
+			'description' => 'Comparer les budgets initial et révisé par Partenaire / Programme.',
+			'scope' => 'Partenaire / Programme',
+			'slug' => 'allocation_budgetaire_partenaire_programme',
+			'filters' => array('fk_soc', 'project_id'),
+			'required_filters' => array(),
 			'status_domain' => '',
-			'headers' => array('ref' => 'Ligne budgétaire', 'label' => 'Libellé', 'initial_budget' => 'Budget initial', 'revised_budget' => 'Budget révisé', 'status' => 'Statut', 'submitted_expenses' => 'Dépenses soumises', 'prevalidated_expenses' => 'Dépenses prévalidées', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'remaining_amount' => 'Restant'),
-			'money_fields' => array('initial_budget', 'revised_budget', 'submitted_expenses', 'prevalidated_expenses', 'validated_expenses', 'disbursed_expenses', 'remaining_amount'),
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'initial_budget' => 'Budget initial', 'revised_budget' => 'Budget révisé', 'budget_lines' => 'Lignes budgétaires'),
+			'money_fields' => array('initial_budget', 'revised_budget'),
+		),
+		'budget_allocation_project' => array(
+			'key' => 'budget_allocation_project',
+			'label' => 'Allocation budgétaire par projet',
+			'description' => 'Suivre l’allocation budgétaire et les dépenses rattachées à chaque projet.',
+			'scope' => 'Projet',
+			'slug' => 'allocation_budgetaire_projet',
+			'filters' => array('fk_soc', 'project_id'),
+			'required_filters' => array(),
+			'status_domain' => '',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'initial_budget' => 'Budget initial', 'revised_budget' => 'Budget révisé', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'remaining_amount' => 'Restant', 'validation_rate' => 'Taux de validation', 'execution_rate' => 'Taux d’exécution financière'),
+			'money_fields' => array('initial_budget', 'revised_budget', 'validated_expenses', 'disbursed_expenses', 'remaining_amount'),
+		),
+		'financial_execution_partner' => array(
+			'key' => 'financial_execution_partner',
+			'label' => 'Exécution financière par Partenaire / Programme',
+			'description' => 'Comparer budget révisé, dépenses validées et décaissements par Partenaire / Programme.',
+			'scope' => 'Partenaire / Programme',
+			'slug' => 'execution_financiere_partenaire_programme',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => '',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'revised_budget' => 'Budget révisé', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'validation_rate' => 'Taux de validation', 'execution_rate' => 'Taux d’exécution financière'),
+			'money_fields' => array('revised_budget', 'validated_expenses', 'disbursed_expenses'),
+		),
+		'financial_execution_project' => array(
+			'key' => 'financial_execution_project',
+			'label' => 'Exécution financière par projet',
+			'description' => 'Comparer budget, fonds reçus, validation et décaissement pour chaque projet.',
+			'scope' => 'Projet',
+			'slug' => 'execution_financiere_projet',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => '',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'project_title' => 'Titre projet', 'budget_total' => 'Budget révisé', 'funds_received' => 'Fonds reçus', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'pending_expenses' => 'Dépenses soumises', 'validation_rate' => 'Taux de validation', 'execution_rate' => 'Taux d’exécution financière'),
+			'money_fields' => array('budget_total', 'funds_received', 'validated_expenses', 'disbursed_expenses', 'pending_expenses'),
+		),
+		'physical_execution_project' => array(
+			'key' => 'physical_execution_project',
+			'label' => 'Exécution physique par projet',
+			'description' => 'Suivre la progression physique moyenne et les activités par projet.',
+			'scope' => 'Projet',
+			'slug' => 'execution_physique_projet',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => '',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'activity_count' => 'Activités', 'average_progress' => 'Progression physique moyenne', 'completed_activities' => 'Activités terminées', 'late_activities' => 'Activités en retard'),
 		),
 		'expense_documents' => array(
 			'key' => 'expense_documents',
-			'label' => 'Liste des dépenses avec pièces justificatives',
+			'label' => 'Dépenses avec justificatifs',
 			'description' => 'Contrôler la présence des justificatifs et les motifs de correction.',
 			'scope' => 'Dépenses',
 			'slug' => 'depenses_pieces',
-			'filters' => array('project_id', 'convention_id', 'status', 'date_start', 'date_end'),
+			'filters' => array('fk_soc', 'project_id', 'status', 'date_start', 'date_end'),
 			'required_filters' => array(),
 			'status_domain' => 'expense',
-			'headers' => array('expense_ref' => 'Dépense', 'expense_date' => 'Date dépense', 'budget_line' => 'Ligne budgétaire', 'amount' => 'Montant', 'status' => 'Statut', 'document_present' => 'Pièce disponible', 'supporting_document' => 'Pièce justificative', 'validator' => 'Validateur', 'correction_reason' => 'Motif correction'),
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'expense_ref' => 'Dépense', 'expense_date' => 'Date dépense', 'budget_line' => 'Ligne budgétaire', 'amount' => 'Montant', 'status' => 'Statut', 'document_present' => 'Pièce disponible', 'supporting_document' => 'Pièce justificative', 'validator' => 'Validateur', 'correction_reason' => 'Motif correction'),
 			'money_fields' => array('amount'),
 			'date_fields' => array('expense_date'),
 		),
-		'activities' => array(
-			'key' => 'activities',
+		'activities_tracking' => array(
+			'key' => 'activities_tracking',
 			'label' => 'Suivi des activités',
 			'description' => 'Exporter les activités, leur statut, leur risque échéance et leurs indicateurs budgétaires.',
 			'scope' => 'Activités',
 			'slug' => 'suivi_activites',
-			'filters' => array('project_id', 'convention_id', 'status', 'date_start', 'date_end'),
+			'filters' => array('fk_soc', 'project_id', 'status', 'date_start', 'date_end'),
 			'required_filters' => array(),
 			'status_domain' => 'activity',
-			'headers' => array('partner' => 'Partenaire', 'project' => 'Projet', 'envelope' => 'Mission / enveloppe de financement', 'activity_ref' => 'Référence activité', 'activity_title' => 'Titre activité', 'date_start' => 'Date de début', 'date_end' => 'Date de fin', 'status_label' => 'Statut', 'physical_progress_percent' => 'Taux d’exécution physique', 'performance_index' => 'Indice de performance', 'current_reviewer' => 'Responsable actuel', 'deadline_alert' => 'Alerte échéance', 'allocated_budget' => 'Budget alloué', 'validated_expenses' => 'Dépenses validées', 'remaining_budget' => 'Budget restant'),
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'activity_ref' => 'Référence activité', 'activity_title' => 'Titre activité', 'date_start' => 'Date de début', 'date_end' => 'Date de fin', 'status_label' => 'Statut', 'physical_progress_percent' => 'Taux d’exécution physique', 'performance_index' => 'Indice de performance', 'current_reviewer' => 'Responsable actuel', 'deadline_alert' => 'Alerte échéance', 'allocated_budget' => 'Budget alloué', 'validated_expenses' => 'Dépenses validées définitivement', 'remaining_budget' => 'Budget restant'),
 			'money_fields' => array('allocated_budget', 'validated_expenses', 'remaining_budget'),
 			'date_fields' => array('date_start', 'date_end'),
 		),
-		'workflow_actions' => array(
-			'key' => 'workflow_actions',
-			'label' => 'Historique décisions / audit',
+		'expenses_disbursements' => array(
+			'key' => 'expenses_disbursements',
+			'label' => 'Suivi des dépenses / décaissements',
+			'description' => 'Exporter les dépenses, leurs statuts de validation et leurs décaissements.',
+			'scope' => 'Dépenses',
+			'slug' => 'suivi_depenses_decaissements',
+			'filters' => array('fk_soc', 'project_id', 'status', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => 'expense',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'activity' => 'Activité', 'expense_ref' => 'Référence dépense', 'expense_date' => 'Date dépense', 'amount' => 'Montant demandé', 'prevalidated_amount' => 'Montant prévalidé', 'final_validated_amount' => 'Montant validé définitivement', 'disbursed_amount' => 'Montant décaissé', 'expense_status' => 'Statut', 'document_present' => 'Pièce disponible', 'creator' => 'Créée par', 'prevalidator' => 'Prévalidée par', 'validator' => 'Validée définitivement par', 'disburser' => 'Décaissée par', 'validation_date' => 'Date de validation', 'disbursement_date' => 'Date décaissement', 'beneficiary_name' => 'Bénéficiaire', 'correction_reason' => 'Motif de correction'),
+			'money_fields' => array('amount', 'prevalidated_amount', 'final_validated_amount', 'disbursed_amount'),
+			'date_fields' => array('expense_date', 'validation_date', 'disbursement_date'),
+		),
+		'validated_not_disbursed' => array(
+			'key' => 'validated_not_disbursed',
+			'label' => 'Dépenses validées non décaissées',
+			'description' => 'Identifier les dépenses validées définitivement qui attendent le décaissement.',
+			'scope' => 'Dépenses',
+			'slug' => 'depenses_validees_non_decaissees',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => '',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'expense_ref' => 'Référence dépense', 'expense_date' => 'Date dépense', 'final_validated_amount' => 'Montant validé définitivement', 'validator' => 'Validée définitivement par', 'validation_date' => 'Date de validation', 'beneficiary_name' => 'Bénéficiaire'),
+			'money_fields' => array('final_validated_amount'),
+			'date_fields' => array('expense_date', 'validation_date'),
+		),
+		'pending_prevalidations' => array(
+			'key' => 'pending_prevalidations',
+			'label' => 'Prévalidations en attente',
+			'description' => 'Lister les dépenses soumises en attente de prévalidation.',
+			'scope' => 'Workflow dépenses',
+			'slug' => 'prevalidations_en_attente',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => '',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'expense_ref' => 'Référence dépense', 'expense_date' => 'Date dépense', 'amount' => 'Montant demandé', 'creator' => 'Créée par', 'beneficiary_name' => 'Bénéficiaire'),
+			'money_fields' => array('amount'),
+			'date_fields' => array('expense_date'),
+		),
+		'pending_final_validations' => array(
+			'key' => 'pending_final_validations',
+			'label' => 'Validations définitives en attente',
+			'description' => 'Lister les dépenses prévalidées en attente de validation définitive.',
+			'scope' => 'Workflow dépenses',
+			'slug' => 'validations_definitives_en_attente',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => '',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'expense_ref' => 'Référence dépense', 'expense_date' => 'Date dépense', 'prevalidated_amount' => 'Montant prévalidé', 'prevalidator' => 'Prévalidée par', 'prevalidation_date' => 'Date de prévalidation', 'beneficiary_name' => 'Bénéficiaire'),
+			'money_fields' => array('prevalidated_amount'),
+			'date_fields' => array('expense_date', 'prevalidation_date'),
+		),
+		'corrections_rejections' => array(
+			'key' => 'corrections_rejections',
+			'label' => 'Corrections / invalidations / rejets',
+			'description' => 'Lister les dépenses et activités en correction, invalidées ou rejetées.',
+			'scope' => 'Workflow',
+			'slug' => 'corrections_invalidations_rejets',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => '',
+			'headers' => array('partner' => 'Partenaire / Programme', 'project' => 'Projet', 'object_type_label' => 'Type d’objet', 'object_ref' => 'Référence objet', 'status_label' => 'Statut', 'event_date' => 'Date', 'reason' => 'Motif'),
+			'date_fields' => array('event_date'),
+		),
+		'workflow_decisions' => array(
+			'key' => 'workflow_decisions',
+			'label' => 'Historique des décisions',
 			'description' => 'Exporter les décisions et transitions auditées sur activités et dépenses.',
 			'scope' => 'Audit',
 			'slug' => 'historique_decisions_audit',
-			'filters' => array('date_start', 'date_end'),
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
 			'required_filters' => array(),
 			'status_domain' => '',
 			'headers' => array('object_type_label' => 'Type d’objet', 'object_ref' => 'Référence objet', 'decision' => 'Action / décision', 'from_status' => 'Ancien statut', 'to_status' => 'Nouveau statut', 'previous_value' => 'Ancienne valeur', 'new_value' => 'Nouvelle valeur', 'actor' => 'Acteur', 'actor_role' => 'Rôle', 'action_date' => 'Date', 'comment' => 'Commentaire / motif'),
 			'date_fields' => array('action_date'),
 		),
-		'fund_receipts' => array(
-			'key' => 'fund_receipts',
-			'label' => 'Suivi des fonds reçus',
-			'description' => 'Exporter les réceptions de fonds, leurs statuts et la disponibilité des preuves documentaires.',
-			'scope' => 'Fonds reçus',
-			'slug' => 'fonds_recus',
-			'filters' => array('project_id', 'convention_id', 'status', 'date_start', 'date_end'),
-			'required_filters' => array(),
-			'status_domain' => 'fundreceipt',
-			'headers' => array('receipt_ref' => 'Référence réception', 'ptf' => 'Partenaire', 'project' => 'Projet', 'convention' => 'Programme', 'reception_date' => 'Date de réception', 'amount' => 'Montant', 'status' => 'Statut', 'document_present' => 'Preuve disponible', 'supporting_document' => 'Preuve documentaire', 'comment' => 'Commentaire'),
-			'money_fields' => array('amount'),
-			'date_fields' => array('reception_date'),
-		),
-		'expenses_validations' => array(
-			'key' => 'expenses_validations',
-			'label' => 'Suivi des dépenses',
-			'description' => 'Exporter les dépenses, leurs statuts de validation et les justificatifs associés.',
-			'scope' => 'Dépenses',
-			'slug' => 'suivi_depenses',
-			'filters' => array('project_id', 'convention_id', 'status', 'date_start', 'date_end'),
-			'required_filters' => array(),
-			'status_domain' => 'expense',
-			'headers' => array('partner' => 'Partenaire', 'project' => 'Projet', 'envelope' => 'Mission / enveloppe de financement', 'activity' => 'Activité', 'expense_ref' => 'Référence dépense', 'expense_date' => 'Date dépense', 'amount' => 'Montant demandé', 'prevalidated_amount' => 'Montant prévalidé', 'final_validated_amount' => 'Montant validé définitivement', 'disbursed_amount' => 'Montant décaissé', 'expense_status' => 'Statut', 'document_present' => 'Pièce disponible', 'creator' => 'Créée par', 'prevalidator' => 'Prévalidée par', 'validator' => 'Validée définitivement par', 'disburser' => 'Décaissée par', 'validation_date' => 'Date de validation', 'disbursement_date' => 'Date décaissement', 'beneficiary_name' => 'Bénéficiaire', 'correction_reason' => 'Motif de correction'),
-			'money_fields' => array('amount', 'prevalidated_amount', 'final_validated_amount', 'disbursed_amount'),
-			'date_fields' => array('expense_date', 'validation_date', 'disbursement_date'),
-		),
-		'exchanges' => array(
-			'key' => 'exchanges',
-			'label' => 'Export échanges',
-			'description' => 'Exporter les échanges rattachés aux objets MJL pour la traçabilité.',
-			'scope' => 'Échanges',
-			'slug' => 'echanges',
-			'filters' => array('date_start', 'date_end'),
+		'contextual_comments' => array(
+			'key' => 'contextual_comments',
+			'label' => 'Historique des commentaires contextuels',
+			'description' => 'Exporter les commentaires contextualisés rattachés aux objets MJL pour la traçabilité.',
+			'scope' => 'Commentaires contextuels',
+			'slug' => 'commentaires_contextuels',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
 			'required_filters' => array(),
 			'status_domain' => '',
-			'headers' => array('ref' => 'Réf échange', 'object_type' => 'Type objet', 'object_id' => 'ID objet', 'activity_ref' => 'Activité', 'exchange_date' => 'Date échange', 'login' => 'Acteur', 'actor_role' => 'Rôle acteur', 'channel' => 'Canal', 'subject' => 'Sujet', 'message' => 'Message'),
+			'headers' => array('ref' => 'Référence commentaire', 'object_type' => 'Type objet', 'object_id' => 'ID objet', 'activity_ref' => 'Objet', 'exchange_date' => 'Date commentaire', 'login' => 'Acteur', 'actor_role' => 'Rôle acteur', 'channel' => 'Canal', 'subject' => 'Sujet', 'message' => 'Message'),
 			'date_fields' => array('exchange_date'),
 		),
-		'dpaf_summary' => array(
-			'key' => 'dpaf_summary',
-			'label' => 'Export synthèse finance',
-			'description' => 'Exporter une synthèse portefeuille par programme pour la supervision financière.',
-			'scope' => 'Portefeuille finance',
-			'slug' => 'synthese_dpaf',
-			'filters' => array('project_id', 'convention_id'),
+		'general_audit' => array(
+			'key' => 'general_audit',
+			'label' => 'Audit général',
+			'description' => 'Exporter les lignes d’audit résolues; les audits génériques d’export restent visibles aux administrateurs uniquement.',
+			'scope' => 'Audit',
+			'slug' => 'audit_general',
+			'filters' => array('fk_soc', 'project_id', 'date_start', 'date_end'),
 			'required_filters' => array(),
 			'status_domain' => '',
-			'headers' => array('convention_ref' => 'Convention', 'budget_revise' => 'Budget révisé', 'depenses_validees' => 'Dépenses validées définitivement', 'depenses_decaissees' => 'Dépenses décaissées', 'depenses_soumises' => 'Dépenses soumises', 'fonds_recus' => 'Fonds reçus', 'activites_en_revue' => 'Activités en revue', 'depenses_en_revue' => 'Dépenses en revue'),
-			'money_fields' => array('budget_revise', 'depenses_validees', 'depenses_decaissees', 'depenses_soumises', 'fonds_recus'),
+			'headers' => array('object_type_label' => 'Type d’objet', 'object_ref' => 'Référence objet', 'decision' => 'Action / décision', 'actor' => 'Acteur', 'actor_role' => 'Rôle', 'action_date' => 'Date', 'comment' => 'Commentaire / motif'),
+			'date_fields' => array('action_date'),
 		),
 	);
 }
@@ -193,12 +285,53 @@ function mjl_reports_defs()
 function mjl_reports_def($report)
 {
 	$defs = mjl_reports_defs();
-	return isset($defs[$report]) ? $defs[$report] : $defs['project_summary'];
+	if ($report === 'convention_budget') {
+		return array(
+			'key' => 'convention_budget',
+			'label' => 'Exécution budgétaire par programme',
+			'description' => 'Suivre les lignes budgétaires, les dépenses validées et le solde restant.',
+			'scope' => 'Programme',
+			'slug' => 'budget_programme',
+			'filters' => array('fk_soc', 'convention_id', 'date_start', 'date_end'),
+			'required_filters' => array('convention_id'),
+			'status_domain' => '',
+			'headers' => array('ref' => 'Ligne budgétaire', 'label' => 'Libellé', 'initial_budget' => 'Budget initial', 'revised_budget' => 'Budget révisé', 'status' => 'Statut', 'submitted_expenses' => 'Dépenses soumises', 'prevalidated_expenses' => 'Dépenses prévalidées', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'remaining_amount' => 'Restant'),
+			'money_fields' => array('initial_budget', 'revised_budget', 'submitted_expenses', 'prevalidated_expenses', 'validated_expenses', 'disbursed_expenses', 'remaining_amount'),
+		);
+	}
+	if ($report === 'fund_receipts') {
+		return array(
+			'key' => 'fund_receipts',
+			'label' => 'Suivi des fonds reçus',
+			'description' => 'Exporter les réceptions de fonds, leurs statuts et la disponibilité des preuves documentaires.',
+			'scope' => 'Fonds reçus',
+			'slug' => 'fonds_recus',
+			'filters' => array('fk_soc', 'project_id', 'convention_id', 'status', 'date_start', 'date_end'),
+			'required_filters' => array(),
+			'status_domain' => 'fundreceipt',
+			'headers' => array('receipt_ref' => 'Référence réception', 'ptf' => 'Partenaire / Programme', 'project' => 'Projet', 'programme' => 'Programme', 'reception_date' => 'Date de réception', 'amount' => 'Montant', 'status' => 'Statut', 'document_present' => 'Preuve disponible', 'supporting_document' => 'Preuve documentaire', 'comment' => 'Commentaire'),
+			'money_fields' => array('amount'),
+			'date_fields' => array('reception_date'),
+		);
+	}
+	$aliases = array(
+		'project_summary' => 'financial_execution_project',
+		'activities' => 'activities_tracking',
+		'workflow_actions' => 'workflow_decisions',
+		'expenses_validations' => 'expenses_disbursements',
+		'exchanges' => 'contextual_comments',
+		'dpaf_summary' => 'financial_execution_partner',
+	);
+	if (isset($aliases[$report])) {
+		$report = $aliases[$report];
+	}
+	return isset($defs[$report]) ? $defs[$report] : $defs['financial_execution_project'];
 }
 
 function mjl_reports_raw_filters()
 {
 	return array(
+		'fk_soc' => GETPOSTINT('fk_soc'),
 		'project_id' => GETPOSTINT('project_id'),
 		'convention_id' => GETPOSTINT('convention_id'),
 		'status' => GETPOST('status', 'alpha'),
@@ -210,6 +343,7 @@ function mjl_reports_raw_filters()
 function mjl_reports_normalize_filters($def, $raw)
 {
 	$filters = array(
+		'fk_soc' => 0,
 		'project_id' => 0,
 		'convention_id' => 0,
 		'status' => '',
@@ -220,7 +354,7 @@ function mjl_reports_normalize_filters($def, $raw)
 		if (!in_array($key, $def['filters'], true)) {
 			continue;
 		}
-		if ($key === 'project_id' || $key === 'convention_id') {
+		if ($key === 'fk_soc' || $key === 'project_id' || $key === 'convention_id') {
 			$filters[$key] = max(0, (int) $raw[$key]);
 		} elseif ($key === 'status') {
 			$filters[$key] = mjl_reports_valid_status($def['status_domain'], $raw[$key]);
@@ -257,11 +391,14 @@ function mjl_reports_missing_required_filters($def, $filters)
 {
 	$missing = array();
 	foreach ($def['required_filters'] as $filter) {
+		if ($filter === 'fk_soc' && empty($filters['fk_soc'])) {
+			$missing[] = 'Partenaire / Programme';
+		}
 		if ($filter === 'project_id' && empty($filters['project_id'])) {
 			$missing[] = 'Projet';
 		}
 		if ($filter === 'convention_id' && empty($filters['convention_id'])) {
-			$missing[] = 'Convention';
+			$missing[] = 'Programme';
 		}
 	}
 	return $missing;
@@ -271,46 +408,80 @@ function mjl_reports_inaccessible_filters($def, $filters)
 {
 	global $user;
 	$errors = array();
+	if (in_array('fk_soc', $def['filters'], true) && !empty($filters['fk_soc']) && !mjl_scope_can_access_fk_soc($user, (int) $filters['fk_soc'])) {
+		$errors[] = 'Partenaire / Programme';
+	}
 	if (in_array('project_id', $def['filters'], true) && !empty($filters['project_id']) && !mjl_scope_can_access_object($user, 'project', (int) $filters['project_id'])) {
 		$errors[] = 'Projet';
 	}
 	if (in_array('convention_id', $def['filters'], true) && !empty($filters['convention_id']) && !mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $filters['convention_id'])) {
-		$errors[] = 'Convention';
+		$errors[] = 'Programme';
+	}
+	if (empty($errors) && !empty($filters['fk_soc']) && !empty($filters['project_id']) && !mjl_reports_project_belongs_to_partner((int) $filters['project_id'], (int) $filters['fk_soc'])) {
+		$errors[] = 'Projet';
+	}
+	if (empty($errors) && !empty($filters['fk_soc']) && !empty($filters['convention_id']) && !mjl_reports_convention_belongs_to_partner((int) $filters['convention_id'], (int) $filters['fk_soc'])) {
+		$errors[] = 'Programme';
 	}
 	return $errors;
 }
 
 function mjl_reports_rows($report, $filters)
 {
-	if ($report === 'project_summary') {
-		if (empty($filters['project_id'])) return array();
-		$row = mjl_report_project_summary($filters['project_id'], $filters);
-		return empty($row) ? array() : array($row);
+	if ($report === 'funding_received_partner') {
+		return mjl_reports_funding_received_partner_rows($filters);
+	}
+	if ($report === 'budget_allocation_partner') {
+		return mjl_reports_budget_allocation_partner_rows($filters);
+	}
+	if ($report === 'budget_allocation_project') {
+		return mjl_reports_budget_allocation_project_rows($filters);
 	}
 	if ($report === 'convention_budget') {
 		if (empty($filters['convention_id'])) return array();
 		return mjl_report_convention_budget($filters['convention_id'], $filters);
 	}
+	if ($report === 'financial_execution_partner') {
+		return mjl_reports_financial_execution_partner_rows($filters);
+	}
+	if ($report === 'financial_execution_project') {
+		return mjl_reports_financial_execution_project_rows($filters);
+	}
+	if ($report === 'physical_execution_project') {
+		return mjl_reports_physical_execution_project_rows($filters);
+	}
 	if ($report === 'expense_documents') {
 		return mjl_report_expense_documents($filters);
 	}
-	if ($report === 'activities') {
+	if ($report === 'activities_tracking') {
 		return mjl_reports_activities_rows($filters);
 	}
-	if ($report === 'workflow_actions') {
-		return mjl_reports_workflow_rows($filters);
+	if ($report === 'expenses_disbursements') {
+		return mjl_reports_expenses_validations_rows($filters);
 	}
 	if ($report === 'fund_receipts') {
 		return mjl_reports_fund_receipt_rows($filters);
 	}
-	if ($report === 'expenses_validations') {
-		return mjl_reports_expenses_validations_rows($filters);
+	if ($report === 'validated_not_disbursed') {
+		return mjl_reports_validated_not_disbursed_rows($filters);
 	}
-	if ($report === 'exchanges') {
+	if ($report === 'pending_prevalidations') {
+		return mjl_reports_pending_prevalidation_rows($filters);
+	}
+	if ($report === 'pending_final_validations') {
+		return mjl_reports_pending_final_validation_rows($filters);
+	}
+	if ($report === 'corrections_rejections') {
+		return mjl_reports_corrections_rejections_rows($filters);
+	}
+	if ($report === 'workflow_decisions') {
+		return mjl_reports_workflow_rows($filters, false);
+	}
+	if ($report === 'contextual_comments') {
 		return mjl_reports_exchange_rows($filters);
 	}
-	if ($report === 'dpaf_summary') {
-		return mjl_reports_dpaf_rows($filters);
+	if ($report === 'general_audit') {
+		return mjl_reports_general_audit_rows($filters);
 	}
 	return array();
 }
@@ -331,10 +502,10 @@ function mjl_reports_format_row($def, $row)
 	if ($def['key'] === 'expense_documents' && isset($row['status'])) {
 		$row['status'] = mjl_reports_expense_status_label($row['status']);
 	}
-	if ($def['key'] === 'convention_budget' && isset($row['status'])) {
+	if (($def['key'] === 'budget_allocation_project' || $def['key'] === 'convention_budget') && isset($row['status'])) {
 		$row['status'] = mjl_reports_budget_status_label($row['status']);
 	}
-	if ($def['key'] === 'fund_receipts' && isset($row['status'])) {
+	if (($def['key'] === 'funding_received_partner' || $def['key'] === 'fund_receipts') && isset($row['status'])) {
 		$row['status'] = mjl_reports_fund_receipt_status_label($row['status']);
 	}
 	if (isset($row['actor_role'])) {
@@ -355,7 +526,20 @@ function mjl_reports_format_row($def, $row)
 			$row[$field] = mjl_reports_format_date($row[$field]);
 		}
 	}
+	foreach ($row as $key => $value) {
+		if (is_string($value)) {
+			$row[$key] = mjl_reports_target_wording($value);
+		}
+	}
 	return $row;
+}
+
+function mjl_reports_target_wording($value)
+{
+	$value = str_replace('PTF', 'Partenaire', (string) $value);
+	$value = str_replace('Convention', 'Programme', $value);
+	$value = str_replace('Validee legacy', 'Validée définitivement', $value);
+	return $value;
 }
 
 function mjl_reports_render_selector($selectedReport)
@@ -378,17 +562,21 @@ function mjl_reports_render_selector($selectedReport)
 
 function mjl_reports_render_filter_bar($def, $filters)
 {
+	$partnerOptions = mjl_reports_partner_options();
 	$projectOptions = mjl_reports_project_options();
 	$conventionOptions = mjl_reports_convention_options();
 	print '<section class="mjl-workspace-section">';
 	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Seuls les filtres utiles au rapport sélectionné sont affichés.</p></div>';
 	print '<form class="mjl-report-filter-bar" method="GET" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'">';
 	print '<input type="hidden" name="report" value="'.dol_escape_htmltag($def['key']).'">';
+	if (in_array('fk_soc', $def['filters'], true)) {
+		print '<label>Partenaire / Programme'.mjl_reports_required_marker($def, 'fk_soc').mjl_reports_select('fk_soc', $partnerOptions, $filters['fk_soc'], 'Tous les périmètres').'</label>';
+	}
 	if (in_array('project_id', $def['filters'], true)) {
 		print '<label>Projet'.mjl_reports_required_marker($def, 'project_id').mjl_reports_select('project_id', $projectOptions, $filters['project_id'], 'Tous les projets').'</label>';
 	}
 	if (in_array('convention_id', $def['filters'], true)) {
-		print '<label>Convention'.mjl_reports_required_marker($def, 'convention_id').mjl_reports_select('convention_id', $conventionOptions, $filters['convention_id'], 'Toutes les conventions').'</label>';
+		print '<label>Programme'.mjl_reports_required_marker($def, 'convention_id').mjl_reports_select('convention_id', $conventionOptions, $filters['convention_id'], 'Tous les programmes').'</label>';
 	}
 	if (in_array('status', $def['filters'], true)) {
 		$options = $def['status_domain'] === 'activity' ? mjl_reports_activity_status_options() : ($def['status_domain'] === 'fundreceipt' ? mjl_reports_fund_receipt_status_options() : mjl_reports_expense_status_options());
@@ -430,10 +618,11 @@ function mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename,
 		print '<div class="mjl-empty-state">Filtre hors de votre périmètre: '.dol_escape_htmltag(implode(', ', $inaccessibleFilters)).'.</div>';
 	}
 	if ($canExport) {
-		print '<form class="mjl-report-export-toolbar" method="GET" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'">';
+		print '<form class="mjl-report-export-toolbar" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'">';
+		print '<input type="hidden" name="token" value="'.dol_escape_htmltag(function_exists('newToken') ? newToken() : '').'">';
 		print '<input type="hidden" name="report" value="'.dol_escape_htmltag($def['key']).'">';
 		foreach ($filters as $key => $value) {
-			if (($key === 'project_id' || $key === 'convention_id') && (int) $value <= 0) {
+			if (($key === 'fk_soc' || $key === 'project_id' || $key === 'convention_id') && (int) $value <= 0) {
 				continue;
 			}
 			if (($key === 'status' || $key === 'date_start' || $key === 'date_end') && $value === '') {
@@ -511,13 +700,17 @@ function mjl_reports_select($name, $options, $selected, $emptyLabel)
 function mjl_reports_filter_summary($def, $filters)
 {
 	$parts = array();
+	$partnerOptions = mjl_reports_partner_options();
 	$projectOptions = mjl_reports_project_options();
 	$conventionOptions = mjl_reports_convention_options();
+	if (in_array('fk_soc', $def['filters'], true) && !empty($filters['fk_soc'])) {
+		$parts[] = 'Partenaire / Programme: '.(isset($partnerOptions[$filters['fk_soc']]) ? $partnerOptions[$filters['fk_soc']] : '#'.$filters['fk_soc']);
+	}
 	if (in_array('project_id', $def['filters'], true) && !empty($filters['project_id'])) {
 		$parts[] = 'Projet: '.(isset($projectOptions[$filters['project_id']]) ? $projectOptions[$filters['project_id']] : '#'.$filters['project_id']);
 	}
 	if (in_array('convention_id', $def['filters'], true) && !empty($filters['convention_id'])) {
-		$parts[] = 'Convention: '.(isset($conventionOptions[$filters['convention_id']]) ? $conventionOptions[$filters['convention_id']] : '#'.$filters['convention_id']);
+		$parts[] = 'Programme: '.(isset($conventionOptions[$filters['convention_id']]) ? $conventionOptions[$filters['convention_id']] : '#'.$filters['convention_id']);
 	}
 	if (in_array('status', $def['filters'], true) && $filters['status'] !== '') {
 		$options = $def['status_domain'] === 'activity' ? mjl_reports_activity_status_options() : ($def['status_domain'] === 'fundreceipt' ? mjl_reports_fund_receipt_status_options() : mjl_reports_expense_status_options());
@@ -550,8 +743,11 @@ function mjl_reports_export_filename($def, $filters, $extension = 'csv')
 	if ($filters['project_id'] > 0) {
 		$parts[] = 'projet-'.$filters['project_id'];
 	}
+	if ($filters['fk_soc'] > 0) {
+		$parts[] = 'partenaire-programme-'.$filters['fk_soc'];
+	}
 	if ($filters['convention_id'] > 0) {
-		$parts[] = 'convention-'.$filters['convention_id'];
+		$parts[] = 'programme-'.$filters['convention_id'];
 	}
 	if ($filters['status'] !== '') {
 		$parts[] = 'statut-'.$filters['status'];
@@ -609,10 +805,10 @@ function mjl_reports_expense_status_options()
 	return array(
 		(string) MjlExpense::STATUS_DRAFT => 'Brouillon',
 		(string) MjlExpense::STATUS_SUBMITTED => 'Soumise',
-		(string) MjlExpense::STATUS_VALIDATED => 'Validee legacy',
+		(string) MjlExpense::STATUS_VALIDATED => 'Validée définitivement',
 		(string) MjlExpense::STATUS_CORRECTED => 'Corrigee',
 		(string) MjlExpense::STATUS_PREVALIDATED => 'Prevalidee',
-		(string) MjlExpense::STATUS_FINAL_VALIDATED => 'Validee definitivement',
+		(string) MjlExpense::STATUS_FINAL_VALIDATED => 'Validée définitivement',
 		(string) MjlExpense::STATUS_DISBURSED => 'Decaissee',
 		(string) MjlExpense::STATUS_REJECTED => 'Rejetee',
 	);
@@ -634,7 +830,18 @@ function mjl_reports_project_options()
 	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('fk_soc', $user).' ORDER BY ref';
 	$resql = $db->query($sql);
 	$options = array();
-	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = $obj->ref.' - '.$obj->title;
+	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = mjl_reports_target_wording($obj->ref.' - '.$obj->title);
+	return $options;
+}
+
+function mjl_reports_partner_options()
+{
+	global $db, $conf, $user;
+
+	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('rowid', $user).' ORDER BY nom';
+	$resql = $db->query($sql);
+	$options = array();
+	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = mjl_reports_target_wording($obj->nom);
 	return $options;
 }
 
@@ -645,8 +852,30 @@ function mjl_reports_convention_options()
 	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('fk_soc', $user).' ORDER BY ref';
 	$resql = $db->query($sql);
 	$options = array();
-	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = $obj->ref.' - '.$obj->title;
+	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = mjl_reports_target_wording($obj->ref.' - '.$obj->title);
 	return $options;
+}
+
+function mjl_reports_project_belongs_to_partner($projectId, $fkSoc)
+{
+	global $db, $conf;
+	$projectId = (int) $projectId;
+	$fkSoc = (int) $fkSoc;
+	if ($projectId <= 0 || $fkSoc <= 0) return false;
+	$sql = 'SELECT rowid FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND rowid = '.$projectId.' AND fk_soc = '.$fkSoc;
+	$resql = $db->query($sql);
+	return $resql && (bool) $db->fetch_object($resql);
+}
+
+function mjl_reports_convention_belongs_to_partner($conventionId, $fkSoc)
+{
+	global $db, $conf;
+	$conventionId = (int) $conventionId;
+	$fkSoc = (int) $fkSoc;
+	if ($conventionId <= 0 || $fkSoc <= 0) return false;
+	$sql = 'SELECT rowid FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' AND rowid = '.$conventionId.' AND fk_soc = '.$fkSoc;
+	$resql = $db->query($sql);
+	return $resql && (bool) $db->fetch_object($resql);
 }
 
 function mjl_reports_fetch_rows($sql)
@@ -833,18 +1062,167 @@ function mjl_reports_changes_values($changesJson)
 	return array('previous' => implode(' | ', $previous), 'new' => implode(' | ', $new));
 }
 
+function mjl_reports_partner_filter_sql($column, $filters)
+{
+	$column = mjl_scope_sanitized_sql_identifier($column);
+	if ($column === '') {
+		return ' AND 1=0';
+	}
+	if (!empty($filters['fk_soc'])) {
+		return ' AND '.$column.' = '.((int) $filters['fk_soc']);
+	}
+	return mjl_scope_partner_sql_filter($column, $GLOBALS['user']);
+}
+
+function mjl_reports_project_filter_sql($column, $filters)
+{
+	$column = mjl_scope_sanitized_sql_identifier($column);
+	if ($column === '') {
+		return ' AND 1=0';
+	}
+	return !empty($filters['project_id']) ? ' AND '.$column.' = '.((int) $filters['project_id']) : '';
+}
+
+function mjl_reports_date_filter_sql($column, $filters, $endOfDay = false)
+{
+	global $db;
+	$column = mjl_scope_sanitized_sql_identifier($column);
+	if ($column === '') {
+		return ' AND 1=0';
+	}
+	$sql = '';
+	if ($filters['date_start'] !== '') {
+		$sql .= " AND ".$column." >= '".$db->escape($filters['date_start'].($endOfDay ? ' 00:00:00' : ''))."'";
+	}
+	if ($filters['date_end'] !== '') {
+		$sql .= " AND ".$column." <= '".$db->escape($filters['date_end'].($endOfDay ? ' 23:59:59' : ''))."'";
+	}
+	return $sql;
+}
+
+function mjl_reports_rate($amount, $base)
+{
+	$base = (float) $base;
+	return $base > 0 ? round(((float) $amount / $base) * 100, 2).'%' : '0%';
+}
+
+function mjl_reports_funding_received_partner_rows($filters)
+{
+	global $db, $conf;
+
+	$sql = 'SELECT s.nom AS partner, p.ref AS project, COUNT(fr.rowid) AS receipt_count, COALESCE(SUM(CASE WHEN fr.status = '.MjlFundReceipt::STATUS_RECEIVED.' THEN fr.amount ELSE 0 END), 0) AS funds_received, MIN(fr.reception_date) AS first_reception_date, MAX(fr.reception_date) AS last_reception_date';
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_fund_receipt fr';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe s ON s.rowid = fr.fk_soc AND s.entity = fr.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = fr.fk_project AND p.entity = fr.entity';
+	$sql .= ' WHERE fr.entity = '.((int) $conf->entity);
+	$sql .= mjl_reports_partner_filter_sql('fr.fk_soc', $filters).mjl_reports_project_filter_sql('fr.fk_project', $filters).mjl_reports_date_filter_sql('fr.reception_date', $filters);
+	if ($filters['status'] !== '') $sql .= ' AND fr.status = '.((int) $filters['status']);
+	$sql .= ' GROUP BY s.nom, p.ref ORDER BY s.nom, p.ref';
+	return mjl_reports_fetch_rows($sql);
+}
+
+function mjl_reports_budget_allocation_partner_rows($filters)
+{
+	global $db, $conf;
+
+	$sql = 'SELECT s.nom AS partner, p.ref AS project, COALESCE(SUM(bl.initial_budget), 0) AS initial_budget, COALESCE(SUM(bl.revised_budget), 0) AS revised_budget, COUNT(bl.rowid) AS budget_lines';
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = bl.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project AND p.entity = bl.entity';
+	$sql .= ' WHERE bl.entity = '.((int) $conf->entity);
+	$sql .= mjl_reports_partner_filter_sql('c.fk_soc', $filters).mjl_reports_project_filter_sql('bl.fk_project', $filters);
+	$sql .= ' GROUP BY s.nom, p.ref ORDER BY s.nom, p.ref';
+	return mjl_reports_fetch_rows($sql);
+}
+
+function mjl_reports_budget_allocation_project_rows($filters)
+{
+	$rows = mjl_reports_financial_execution_project_rows($filters);
+	foreach ($rows as &$row) {
+		$row['initial_budget'] = isset($row['initial_budget']) ? $row['initial_budget'] : 0;
+		$row['revised_budget'] = isset($row['budget_total']) ? $row['budget_total'] : 0;
+		$row['remaining_amount'] = (float) $row['revised_budget'] - (float) $row['validated_expenses'];
+	}
+	unset($row);
+	return $rows;
+}
+
+function mjl_reports_financial_execution_partner_rows($filters)
+{
+	global $db, $conf;
+
+	$sql = 'SELECT s.nom AS partner, p.ref AS project, COALESCE(SUM(bl.revised_budget), 0) AS revised_budget,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_final_validated_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention ce ON ce.rowid = e.fk_convention AND ce.entity = e.entity WHERE e.entity = c.entity AND ce.fk_soc = c.fk_soc AND (c.fk_project IS NULL OR e.fk_project = c.fk_project)'.mjl_reports_project_filter_sql('e.fk_project', $filters).mjl_reports_date_filter_sql('e.expense_date', $filters).'), 0) AS validated_expenses,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_disbursed_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention ce ON ce.rowid = e.fk_convention AND ce.entity = e.entity WHERE e.entity = c.entity AND ce.fk_soc = c.fk_soc AND (c.fk_project IS NULL OR e.fk_project = c.fk_project)'.mjl_reports_project_filter_sql('e.fk_project', $filters).mjl_reports_date_filter_sql('e.expense_date', $filters).'), 0) AS disbursed_expenses';
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_convention c';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = c.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.fk_convention = c.rowid AND bl.entity = c.entity';
+	$sql .= ' WHERE c.entity = '.((int) $conf->entity);
+	$sql .= mjl_reports_partner_filter_sql('c.fk_soc', $filters).mjl_reports_project_filter_sql('c.fk_project', $filters);
+	$sql .= ' GROUP BY c.fk_soc, s.nom, p.ref ORDER BY s.nom, p.ref';
+	$rows = mjl_reports_fetch_rows($sql);
+	foreach ($rows as &$row) {
+		$row['validation_rate'] = mjl_reports_rate($row['validated_expenses'], $row['revised_budget']);
+		$row['execution_rate'] = mjl_reports_rate($row['disbursed_expenses'], $row['revised_budget']);
+	}
+	unset($row);
+	return $rows;
+}
+
+function mjl_reports_financial_execution_project_rows($filters)
+{
+	global $db, $conf;
+
+	$sql = 'SELECT s.nom AS partner, p.ref AS project, p.title AS project_title, COALESCE(SUM(bl.initial_budget), 0) AS initial_budget, COALESCE(SUM(bl.revised_budget), 0) AS budget_total,';
+	$sql .= ' COALESCE((SELECT SUM(fr.amount) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = p.entity AND fr.fk_project = p.rowid AND fr.status = '.MjlFundReceipt::STATUS_RECEIVED.mjl_reports_date_filter_sql('fr.reception_date', $filters).'), 0) AS funds_received,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_final_validated_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = p.entity AND e.fk_project = p.rowid'.mjl_reports_date_filter_sql('e.expense_date', $filters).'), 0) AS validated_expenses,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_disbursed_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = p.entity AND e.fk_project = p.rowid'.mjl_reports_date_filter_sql('e.expense_date', $filters).'), 0) AS disbursed_expenses,';
+	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_submitted_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = p.entity AND e.fk_project = p.rowid'.mjl_reports_date_filter_sql('e.expense_date', $filters).'), 0) AS pending_expenses';
+	$sql .= ' FROM '.$db->prefix().'projet p';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe s ON s.rowid = p.fk_soc AND s.entity = p.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.fk_project = p.rowid AND bl.entity = p.entity';
+	$sql .= ' WHERE p.entity = '.((int) $conf->entity);
+	$sql .= mjl_reports_partner_filter_sql('p.fk_soc', $filters).mjl_reports_project_filter_sql('p.rowid', $filters);
+	$sql .= ' GROUP BY p.rowid, s.nom, p.ref, p.title ORDER BY s.nom, p.ref';
+	$rows = mjl_reports_fetch_rows($sql);
+	foreach ($rows as &$row) {
+		$row['validation_rate'] = mjl_reports_rate($row['validated_expenses'], $row['budget_total']);
+		$row['execution_rate'] = mjl_reports_rate($row['disbursed_expenses'], $row['budget_total']);
+	}
+	unset($row);
+	return $rows;
+}
+
+function mjl_reports_physical_execution_project_rows($filters)
+{
+	global $db, $conf;
+
+	$sql = 'SELECT s.nom AS partner, p.ref AS project, COUNT(a.rowid) AS activity_count, ROUND(AVG(COALESCE(a.physical_execution_percent, t.progress, 0)), 2) AS average_progress,';
+	$sql .= ' SUM(CASE WHEN a.status = '.MjlActivity::STATUS_COMPLETED.' THEN 1 ELSE 0 END) AS completed_activities,';
+	$sql .= ' SUM(CASE WHEN a.date_end IS NOT NULL AND a.date_end < CURDATE() AND a.status NOT IN ('.MjlActivity::STATUS_COMPLETED.', '.MjlActivity::STATUS_CANCELLED.') THEN 1 ELSE 0 END) AS late_activities';
+	$sql .= ' FROM '.$db->prefix().'projet p';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe s ON s.rowid = p.fk_soc AND s.entity = p.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.fk_project = p.rowid AND a.entity = p.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet_task t ON t.rowid = a.fk_task AND t.entity = a.entity';
+	$sql .= ' WHERE p.entity = '.((int) $conf->entity);
+	$sql .= mjl_reports_partner_filter_sql('p.fk_soc', $filters).mjl_reports_project_filter_sql('p.rowid', $filters).mjl_reports_date_filter_sql('a.date_start', $filters);
+	$sql .= ' GROUP BY p.rowid, s.nom, p.ref ORDER BY s.nom, p.ref';
+	return mjl_reports_fetch_rows($sql);
+}
+
 function mjl_reports_activities_rows($filters)
 {
 	global $db, $conf, $user;
 
 	$where = array('a.entity = '.((int) $conf->entity));
 	if (!empty($filters['project_id'])) $where[] = 'a.fk_project = '.((int) $filters['project_id']);
-	if (!empty($filters['convention_id'])) $where[] = 'a.fk_convention = '.((int) $filters['convention_id']);
 	if ($filters['status'] !== '') $where[] = 'a.status = '.((int) $filters['status']);
 	if ($filters['date_start'] !== '') $where[] = "a.date_start >= '".$db->escape($filters['date_start'])."'";
 	if ($filters['date_end'] !== '') $where[] = "a.date_end <= '".$db->escape($filters['date_end'])."'";
 
-	$sql = 'SELECT s.nom AS partner, p.ref AS project, c.ref AS envelope, a.ref AS activity_ref, a.label AS activity_title, a.date_start, a.date_end, a.status, COALESCE(t.progress, 0) AS physical_progress_percent,';
+	$sql = 'SELECT s.nom AS partner, p.ref AS project, a.ref AS activity_ref, a.label AS activity_title, a.date_start, a.date_end, a.status, COALESCE(a.physical_execution_percent, t.progress, 0) AS physical_progress_percent,';
 	$sql .= ' COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl WHERE bl.entity = a.entity AND bl.fk_mjl_activity = a.rowid), 0) AS allocated_budget,';
 	$sql .= ' COALESCE((SELECT SUM('.mjl_expense_budget_amount_sql('e').') FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = a.entity AND e.fk_mjl_activity = a.rowid AND e.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).')), 0) AS validated_expenses';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
@@ -853,7 +1231,7 @@ function mjl_reports_activities_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet_task t ON t.rowid = a.fk_task AND t.entity = a.entity';
 	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
+	$sql .= mjl_reports_partner_filter_sql('c.fk_soc', $filters);
 	$sql .= ' ORDER BY a.date_end ASC, a.ref';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -867,13 +1245,14 @@ function mjl_reports_activities_rows($filters)
 	return $rows;
 }
 
-function mjl_reports_workflow_rows($filters)
+function mjl_reports_workflow_rows($filters, $includeReportAudits = false)
 {
 	global $db, $conf, $user;
 
 	$where = array('w.entity = '.((int) $conf->entity));
 	if ($filters['date_start'] !== '') $where[] = "w.action_date >= '".$db->escape($filters['date_start'])." 00:00:00'";
 	if ($filters['date_end'] !== '') $where[] = "w.action_date <= '".$db->escape($filters['date_end'])." 23:59:59'";
+	if (!$includeReportAudits) $where[] = "w.object_type <> 'mjlfinancement_report'";
 
 	$sql = 'SELECT w.object_type, w.object_id, CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_expense\' THEN e.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref ELSE NULL END AS object_ref, w.action, w.from_status, w.to_status, u.login AS actor, w.actor_role, w.action_date, COALESCE(w.comment, w.reason) AS comment, w.changes_json';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
@@ -885,9 +1264,10 @@ function mjl_reports_workflow_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention cb ON cb.rowid = bl.fk_convention AND cb.entity = bl.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = w.object_id AND w.object_type = \'mjlfinancement_project\' AND p.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
 	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_reports_workflow_scope_sql();
+	$sql .= mjl_reports_workflow_scope_sql($filters, $includeReportAudits);
 	$sql .= ' ORDER BY w.action_date DESC, w.rowid DESC';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -901,7 +1281,7 @@ function mjl_reports_workflow_rows($filters)
 	}
 	unset($row);
 
-	$expenseRows = mjl_reports_expense_audit_rows($filters);
+	$expenseRows = $includeReportAudits ? array() : mjl_reports_expense_audit_rows($filters);
 	return array_merge($rows, $expenseRows);
 }
 
@@ -916,7 +1296,7 @@ function mjl_reports_fund_receipt_rows($filters)
 	if ($filters['date_start'] !== '') $where[] = "fr.reception_date >= '".$db->escape($filters['date_start'])."'";
 	if ($filters['date_end'] !== '') $where[] = "fr.reception_date <= '".$db->escape($filters['date_end'])."'";
 
-	$sql = 'SELECT fr.rowid, fr.entity AS evidence_entity, fr.supporting_document AS stored_supporting_document, fr.ref AS receipt_ref, s.nom AS ptf, p.ref AS project, c.ref AS convention, fr.reception_date, fr.amount, fr.status,';
+	$sql = 'SELECT fr.rowid, fr.entity AS evidence_entity, fr.supporting_document AS stored_supporting_document, fr.ref AS receipt_ref, s.nom AS ptf, p.ref AS project, c.ref AS programme, fr.reception_date, fr.amount, fr.status,';
 	$sql .= ' CASE WHEN '.mjl_fund_receipt_document_present_sql('fr').' THEN 1 ELSE 0 END AS document_present,';
 	$sql .= ' '.mjl_fund_receipt_supporting_document_sql('fr').' AS supporting_document, fr.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_fund_receipt fr';
@@ -924,7 +1304,7 @@ function mjl_reports_fund_receipt_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = fr.fk_project AND p.entity = fr.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = fr.fk_convention AND c.entity = fr.entity';
 	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_scope_partner_sql_filter('fr.fk_soc', $user);
+	$sql .= mjl_reports_partner_filter_sql('fr.fk_soc', $filters);
 	$sql .= ' ORDER BY fr.reception_date DESC, fr.rowid DESC';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -943,12 +1323,11 @@ function mjl_reports_expenses_validations_rows($filters)
 
 	$where = array('e.entity = '.((int) $conf->entity));
 	if (!empty($filters['project_id'])) $where[] = 'e.fk_project = '.((int) $filters['project_id']);
-	if (!empty($filters['convention_id'])) $where[] = 'e.fk_convention = '.((int) $filters['convention_id']);
 	if ($filters['status'] !== '') $where[] = 'e.status = '.((int) $filters['status']);
 	if ($filters['date_start'] !== '') $where[] = "e.expense_date >= '".$db->escape($filters['date_start'])."'";
 	if ($filters['date_end'] !== '') $where[] = "e.expense_date <= '".$db->escape($filters['date_end'])."'";
 
-	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.supporting_document AS stored_supporting_document, s.nom AS partner, p.ref AS project, c.ref AS envelope, a.ref AS activity, e.ref AS expense_ref, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, e.disbursed_amount, e.status AS expense_status,';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.supporting_document AS stored_supporting_document, s.nom AS partner, p.ref AS project, a.ref AS activity, e.ref AS expense_ref, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, e.disbursed_amount, e.status AS expense_status,';
 	$sql .= ' CASE WHEN '.mjl_expense_document_present_sql('e').' THEN 1 ELSE 0 END AS document_present,';
 	$sql .= ' creator.login AS creator, prevalidator.login AS prevalidator, validator.login AS validator, disburser.login AS disburser, COALESCE(e.final_validation_date, e.validation_date) AS validation_date, e.disbursement_date, e.beneficiary_name, e.correction_reason';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
@@ -961,7 +1340,7 @@ function mjl_reports_expenses_validations_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'user validator ON validator.rowid = COALESCE(e.fk_user_final_valid, e.fk_user_valid)';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user disburser ON disburser.rowid = e.fk_user_disbursed';
 	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
+	$sql .= mjl_reports_partner_filter_sql('c.fk_soc', $filters);
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -979,6 +1358,7 @@ function mjl_reports_exchange_rows($filters)
 	global $db, $conf, $user;
 
 	$where = array('x.entity = '.((int) $conf->entity));
+	if (!empty($filters['project_id'])) $where[] = '(a.fk_project = '.((int) $filters['project_id']).' OR e.fk_project = '.((int) $filters['project_id']).' OR c.fk_project = '.((int) $filters['project_id']).' OR bl.fk_project = '.((int) $filters['project_id']).' OR fr.fk_project = '.((int) $filters['project_id']).' OR p.rowid = '.((int) $filters['project_id']).')';
 	if ($filters['date_start'] !== '') $where[] = "x.exchange_date >= '".$db->escape($filters['date_start'])." 00:00:00'";
 	if ($filters['date_end'] !== '') $where[] = "x.exchange_date <= '".$db->escape($filters['date_end'])." 23:59:59'";
 
@@ -992,9 +1372,106 @@ function mjl_reports_exchange_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = x.object_id AND x.object_type = \'mjlfinancement_project\' AND p.entity = x.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = x.actor';
 	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_timeline_exchange_scope_filter_sql('x', $user);
+	$sql .= mjl_reports_exchange_scope_sql($filters);
 	$sql .= ' ORDER BY x.exchange_date DESC, x.rowid DESC';
 	return mjl_reports_fetch_rows($sql);
+}
+
+function mjl_reports_expense_queue_rows($filters, $status)
+{
+	global $db, $conf;
+
+	$where = array('e.entity = '.((int) $conf->entity), 'e.status = '.((int) $status));
+	if (!empty($filters['project_id'])) $where[] = 'e.fk_project = '.((int) $filters['project_id']);
+	if ($filters['date_start'] !== '') $where[] = "e.expense_date >= '".$db->escape($filters['date_start'])."'";
+	if ($filters['date_end'] !== '') $where[] = "e.expense_date <= '".$db->escape($filters['date_end'])."'";
+
+	$sql = 'SELECT s.nom AS partner, p.ref AS project, e.ref AS expense_ref, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, creator.login AS creator, prevalidator.login AS prevalidator, validator.login AS validator, e.prevalidation_date, COALESCE(e.final_validation_date, e.validation_date) AS validation_date, e.beneficiary_name';
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = e.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user creator ON creator.rowid = e.fk_user_creat';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user prevalidator ON prevalidator.rowid = e.fk_user_prevalidated';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user validator ON validator.rowid = COALESCE(e.fk_user_final_valid, e.fk_user_valid)';
+	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_reports_partner_filter_sql('c.fk_soc', $filters);
+	$sql .= ' ORDER BY e.expense_date ASC, e.ref';
+	return mjl_reports_fetch_rows($sql);
+}
+
+function mjl_reports_validated_not_disbursed_rows($filters)
+{
+	return mjl_reports_expense_queue_rows($filters, MjlExpense::STATUS_FINAL_VALIDATED);
+}
+
+function mjl_reports_pending_prevalidation_rows($filters)
+{
+	return mjl_reports_expense_queue_rows($filters, MjlExpense::STATUS_SUBMITTED);
+}
+
+function mjl_reports_pending_final_validation_rows($filters)
+{
+	return mjl_reports_expense_queue_rows($filters, MjlExpense::STATUS_PREVALIDATED);
+}
+
+function mjl_reports_corrections_rejections_rows($filters)
+{
+	global $db, $conf;
+
+	$expenseStatuses = array(MjlExpense::STATUS_CORRECTED, MjlExpense::STATUS_REJECTED);
+	$activityStatuses = array(MjlActivity::STATUS_CORRECTION_REQUESTED, MjlActivity::STATUS_CORRECTED, MjlActivity::STATUS_REJECTED);
+	$sql = 'SELECT s.nom AS partner, p.ref AS project, \'Dépense\' AS object_type_label, e.ref AS object_ref, e.status AS raw_status, e.expense_date AS event_date, e.correction_reason AS reason';
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = e.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
+	$sql .= ' WHERE e.entity = '.((int) $conf->entity).' AND e.status IN ('.implode(',', array_map('intval', $expenseStatuses)).')';
+	$sql .= mjl_reports_partner_filter_sql('c.fk_soc', $filters).mjl_reports_project_filter_sql('e.fk_project', $filters).mjl_reports_date_filter_sql('e.expense_date', $filters);
+	$sql .= ' UNION ALL SELECT s.nom AS partner, p.ref AS project, \'Activité\' AS object_type_label, a.ref AS object_ref, a.status AS raw_status, COALESCE(a.date_actual_end, a.date_end, a.date_start) AS event_date, a.execution_comment AS reason';
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
+	$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND a.status IN ('.implode(',', array_map('intval', $activityStatuses)).')';
+	$sql .= mjl_reports_partner_filter_sql('c.fk_soc', $filters).mjl_reports_project_filter_sql('a.fk_project', $filters);
+	if ($filters['date_start'] !== '') $sql .= " AND COALESCE(a.date_actual_end, a.date_end, a.date_start) >= '".$db->escape($filters['date_start'])."'";
+	if ($filters['date_end'] !== '') $sql .= " AND COALESCE(a.date_actual_end, a.date_end, a.date_start) <= '".$db->escape($filters['date_end'])."'";
+	$sql .= ' ORDER BY event_date DESC, object_ref';
+	$rows = mjl_reports_fetch_rows($sql);
+	foreach ($rows as &$row) {
+		$row['status_label'] = $row['object_type_label'] === 'Dépense' ? mjl_reports_expense_status_label($row['raw_status']) : mjl_reports_activity_status_label($row['raw_status']);
+	}
+	unset($row);
+	return $rows;
+}
+
+function mjl_reports_general_audit_rows($filters)
+{
+	global $user;
+	$rows = mjl_reports_workflow_rows($filters, !empty($user->admin));
+	foreach ($rows as &$row) {
+		unset($row['from_status'], $row['to_status'], $row['previous_value'], $row['new_value']);
+	}
+	unset($row);
+	return $rows;
+}
+
+function mjl_reports_exchange_scope_sql($filters)
+{
+	global $user;
+	if (!empty($filters['fk_soc'])) {
+		$fkSoc = (int) $filters['fk_soc'];
+		return ' AND ('
+			.' EXISTS (SELECT 1 FROM '.$GLOBALS['db']->prefix().'mjlfinancement_activity sa INNER JOIN '.$GLOBALS['db']->prefix().'mjlfinancement_convention sc ON sc.rowid = sa.fk_convention AND sc.entity = sa.entity WHERE x.object_type = \'mjlfinancement_activity\' AND x.object_id = sa.rowid AND sa.entity = x.entity AND sc.fk_soc = '.$fkSoc.')'
+			.' OR EXISTS (SELECT 1 FROM '.$GLOBALS['db']->prefix().'mjlfinancement_expense se INNER JOIN '.$GLOBALS['db']->prefix().'mjlfinancement_convention sc ON sc.rowid = se.fk_convention AND sc.entity = se.entity WHERE x.object_type = \'mjlfinancement_expense\' AND x.object_id = se.rowid AND se.entity = x.entity AND sc.fk_soc = '.$fkSoc.')'
+			.' OR EXISTS (SELECT 1 FROM '.$GLOBALS['db']->prefix().'mjlfinancement_convention sc WHERE x.object_type = \'mjlfinancement_convention\' AND x.object_id = sc.rowid AND sc.entity = x.entity AND sc.fk_soc = '.$fkSoc.')'
+			.' OR EXISTS (SELECT 1 FROM '.$GLOBALS['db']->prefix().'mjlfinancement_budget_line sb INNER JOIN '.$GLOBALS['db']->prefix().'mjlfinancement_convention sc ON sc.rowid = sb.fk_convention AND sc.entity = sb.entity WHERE x.object_type = \'mjlfinancement_budget_line\' AND x.object_id = sb.rowid AND sb.entity = x.entity AND sc.fk_soc = '.$fkSoc.')'
+			.' OR EXISTS (SELECT 1 FROM '.$GLOBALS['db']->prefix().'mjlfinancement_fund_receipt sf WHERE x.object_type = \'mjlfinancement_fund_receipt\' AND x.object_id = sf.rowid AND sf.entity = x.entity AND sf.fk_soc = '.$fkSoc.')'
+			.' OR EXISTS (SELECT 1 FROM '.$GLOBALS['db']->prefix().'projet sp WHERE x.object_type = \'mjlfinancement_project\' AND x.object_id = sp.rowid AND sp.entity = x.entity AND sp.fk_soc = '.$fkSoc.')'
+			.')';
+	}
+	return mjl_timeline_exchange_scope_filter_sql('x', $user);
 }
 
 function mjl_reports_dpaf_rows($filters)
@@ -1048,18 +1525,31 @@ function mjl_reports_expense_audit_rows($filters)
 	return $rows;
 }
 
-function mjl_reports_workflow_scope_sql()
+function mjl_reports_workflow_scope_sql($filters = array(), $includeReportAudits = false)
 {
 	global $user;
+	$projectFilter = '';
+	if (!empty($filters['project_id'])) {
+		$projectId = (int) $filters['project_id'];
+		$projectFilter = ' AND (a.fk_project = '.$projectId.' OR e.fk_project = '.$projectId.' OR c.fk_project = '.$projectId.' OR bl.fk_project = '.$projectId.' OR fr.fk_project = '.$projectId.' OR p.rowid = '.$projectId.')';
+	}
+	if (!empty($filters['fk_soc'])) {
+		$fkSoc = (int) $filters['fk_soc'];
+		$scope = ' AND (ca.fk_soc = '.$fkSoc.' OR ce.fk_soc = '.$fkSoc.' OR c.fk_soc = '.$fkSoc.' OR cb.fk_soc = '.$fkSoc.' OR fr.fk_soc = '.$fkSoc.' OR p.fk_soc = '.$fkSoc;
+		if ($includeReportAudits && !empty($user->admin)) {
+			$scope .= ' OR w.object_type = \'mjlfinancement_report\'';
+		}
+		return $scope.')'.$projectFilter;
+	}
 	$scopeIds = mjl_scope_user_soc_ids($user);
 	if ($scopeIds === null) {
-		return '';
+		return $projectFilter.($includeReportAudits ? '' : ' AND w.object_type <> \'mjlfinancement_report\'');
 	}
 	if (empty($scopeIds)) {
 		return ' AND 1=0';
 	}
 	$list = implode(',', array_map('intval', $scopeIds));
-	return ' AND (ca.fk_soc IN ('.$list.') OR ce.fk_soc IN ('.$list.') OR c.fk_soc IN ('.$list.') OR cb.fk_soc IN ('.$list.') OR fr.fk_soc IN ('.$list.'))';
+	return ' AND (ca.fk_soc IN ('.$list.') OR ce.fk_soc IN ('.$list.') OR c.fk_soc IN ('.$list.') OR cb.fk_soc IN ('.$list.') OR fr.fk_soc IN ('.$list.') OR p.fk_soc IN ('.$list.'))'.$projectFilter;
 }
 
 function mjl_reports_audit_export($def, $filters, $format, $rowCount)

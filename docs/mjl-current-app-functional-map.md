@@ -37,7 +37,7 @@ Those references are current-state/code debt, not target behavior.
 
 | Surface | Route/file | Current purpose | Current-state notes |
 | --- | --- | --- | --- |
-| Dashboard | `index.php` | Role-aware workspace dashboard. | Contains some legacy DPAF wording. |
+| Dashboard | `index.php` | Role-aware workspace dashboard with Phase 10R scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | Compatibility fixture names still contain POC-era vocabulary. |
 | Partenaires / Programmes | `partners.php` | Partner/programme context and related data. | Uses native third parties as data source. |
 | Projects | `projects.php` | MJL project list/detail, related objects, legacy notes, and contextual comments. | Project create/edit needs current runtime verification before production claim. |
 | Activities | `activities.php` | Activity lifecycle, physical execution, documents, workflow timeline, contextual comments. | Code has prevalidation and final validation. |
@@ -47,7 +47,7 @@ Those references are current-state/code debt, not target behavior.
 | Budget lines | `budgetlines.php` | Governed budget-line management and contextual comments. | Uses DPAF/Admin wording in places. |
 | Fund receipts | `fundreceipts.php` | Governed received/not-received funding traces with proof documents and contextual comments. | Uses DPAF/Admin wording in places. |
 | Alerts | `alerts.php` | Computed activity/expense alerts. | Alerts are computed, not stored. |
-| Supervision dashboard | `dpafdashboard.php` | Portfolio supervision dashboard. | Route and labels still use DPAF. |
+| Supervision dashboard | `dpafdashboard.php` | Portfolio supervision dashboard with shared scoped filters, role-specific queues, finance rows, fund rows, and resolvable audit history. | Route filename remains a DPAF-era compatibility name; UI labels use production wording. |
 | Reports/exports | `reports.php` | CSV/XLSX report center. | Export audit still needs full proof. |
 | Validations | `validations.php` | Expense validation history. | Read-only. |
 | Workflow audit | `workflowactions.php` | Advanced workflow/audit history. | Advanced/audit surface. |

@@ -32,7 +32,9 @@ were not changed in this documentation-only task.
 | `docs/mjl-current-vs-target-gap-analysis.md`: POC/DPAF/Conventions/Echanges debt | CURRENT_STATE_EVIDENCE_OK | Tracks code-vs-target debt and required next actions. |
 | `docs/mjl-implementation-summary.md`: POC/DPAF/Conventions/Depenses/Echanges compatibility debt | CURRENT_STATE_EVIDENCE_OK | Summary of implemented state and known compatibility debt. |
 | `docs/design-system/audit/current-ui-audit.md`, `docs/design-system/audit/current-screen-inventory.md`: DPAF/Convention notes | CURRENT_STATE_EVIDENCE_OK | UI evidence identifies labels that need future production wording cleanup. |
+| `docs/design-system/*.md`: old temporary Level 1/2/3 access model | STALE_DOC_FIX | Phase 10R normalized active design-system guidance to the production role model. |
 | `docs/mjl-doc-cleanup-inventory.md`, `docs/mjl-docs-index.md`: deleted doc names and stale-doc history | CLEANUP_HISTORY_OK | These are historical cleanup records, not active implementation guidance. |
+| `docs/mjl-client-uat-checklist.md`, `docs/mjl-client-demo-scenario.md`, `docs/mjl-roles-permissions-matrix.md`, `docs/mjl-reports-exports-model.md`, `docs/mjl-dashboard-kpi-model.md`: Phase 12R UAT/model docs | TARGET_OK | These documents use production role and Partenaires / Programmes vocabulary and mark client decisions as pending validation. |
 | `tasks/lessons.md`: sample POC role lesson | LEGACY_MAPPING_OK | Durable lesson warning that sample POC roles are not production permissions. |
 | `docs/agents/issue-tracker.md`: `Conventions` heading | TARGET_OK | Generic issue-tracker convention wording, unrelated to MJL funding-envelope UI terminology. |
 
@@ -45,7 +47,8 @@ were not changed in this documentation-only task.
 | `custom/mjlfinancement/scripts/seed_sample_data.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Maps old fixture roles into production role table and still uses POC comments/labels. |
 | `custom/mjlfinancement/sql/update_0.8.0.sql`, `audit_schema_0.8.0.php` | LEGACY_MAPPING_OK | Migration/backfill evidence for old POC groups. |
 | `custom/mjlfinancement/lib/mjl_scope.lib.php`, `mjl_auth.lib.php`, `admin/access.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Reads legacy `MJL POC - %` Dolibarr groups for compatibility. |
-| `custom/mjlfinancement/index.php`, `dpafdashboard.php`, `budgetlines.php`, `fundreceipts.php`, `conventions.php`, related classes | CODE_LEGACY_DEBT | Production-facing labels and some actor-role helpers still expose DPAF/Admin wording. |
+| `custom/mjlfinancement/dpafdashboard.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | The filename remains a compatibility route, but Phase 10R removed DPAF wording from the dashboard UI. |
+| `custom/mjlfinancement/budgetlines.php`, `fundreceipts.php`, `conventions.php`, related classes | CODE_LEGACY_DEBT | Production-facing labels and some actor-role helpers still expose DPAF/Admin wording. |
 | `custom/mjlfinancement/class/mjlactivity.class.php`, `activities.php`, `smoke_activity_workflow.php` | CODE_LEGACY_DEBT / LEGACY_MAPPING_OK | Legacy `SUPERVISEUR_N1`, `SUPERVISEUR_N2`, `DPAF`, and `AGENT` actor-role values remain in workflow compatibility paths. |
 | `custom/mjlfinancement/roadmap.php` | CODE_LEGACY_DEBT | Internal roadmap still describes POC limits and should be retired or rewritten before production exposure. |
 | `custom/mjlfinancement/sample_data/**` | FIXTURE_ONLY_OK / LEGACY_MAPPING_OK | Local development/test sample data only; not production guidance. Fixed-report fixture formats are CSV/XLSX, not PDF/Word. |
@@ -75,7 +78,9 @@ this audit pass and now appear only as cleanup history:
 - Bootstrap and seed scripts still create or read local fixture groups named
   `MJL POC - ...`.
 - SQL migrations preserve legacy mappings for existing data.
-- Some UI labels still say DPAF, Conventions, and Echanges.
+- Some UI labels still say DPAF, Conventions, and Echanges. Phase 10R cleaned
+  dashboard-facing wording but did not rename the compatibility
+  `dpafdashboard.php` route.
 - Sample-data CSVs and placeholder documents retain fixture-era vocabulary.
 - Download/export audit coverage is not fully proven across every route.
 

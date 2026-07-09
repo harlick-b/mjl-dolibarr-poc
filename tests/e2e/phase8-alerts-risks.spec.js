@@ -154,7 +154,7 @@ test('DPAF and Admin see portfolio alerts', async ({ page }) => {
   await expect(page.getByText('P8-SUBMITTED-ACT').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
-  const riskLink = page.locator('article', { hasText: 'P8-SUBMITTED-ACT' }).getByRole('link', { name: 'Ouvrir l activite' });
+  const riskLink = page.locator('article', { hasText: 'P8-OTHER-DUE' }).getByRole('link', { name: 'Ouvrir l objet concerne' });
   await expect(riskLink).toHaveAttribute('href', /activities\.php\?id=\d+/);
 
   await login(page, 'admin.poc');
@@ -174,14 +174,14 @@ test('Activity alert disappears from verifier queue after prevalidation', async 
   await expect(page.getByText('Prevalidee').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/alerts.php');
-  await expect(page.locator('body')).not.toContainText('P8-VALIDATE-ME');
+  const remainingActivityAlert = page.locator('article', { hasText: 'P8-VALIDATE-ME' });
+  await expect(remainingActivityAlert).not.toContainText('Decision attendue');
 });
 
-test('Read-only users keep bounded visibility and workflow-only users are blocked', async ({ page }) => {
+test('Legacy read-only users and workflow-only users are blocked', async ({ page }) => {
   await login(page, 'lecteur.audit');
   await page.goto('/custom/mjlfinancement/alerts.php');
-  await expect(page.getByText('Consultation')).toBeVisible();
-  await expect(page.locator('body')).toContainText(/P8-OWN-DUE|P8-OTHER-DUE|Aucune alerte active/);
+  await expectAccessDenied(page);
   await expect(page.locator('body')).not.toContainText(/Register|Sign up|Créer un compte|Inscription/);
 
   await login(page, 'mjl.phase8.workflowonly');

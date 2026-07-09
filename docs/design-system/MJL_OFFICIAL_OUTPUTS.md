@@ -11,7 +11,7 @@ Define how reports and exports should look and behave.
 
 - Dolibarr core files must not be modified.
 - MJL-specific implementation must remain inside safe custom module/theme boundaries.
-- The temporary access model is exactly Level 1, Level 2, Level 3, Admin.
+- The production access model uses one global business role per user: AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF, or ADMIN_PLATEFORME.
 - Access is invitation-only.
 - Only Admin can send invitations for now.
 - There is no public register page.
@@ -32,6 +32,10 @@ Do not add a separate spreadsheet dependency while the Dolibarr-native driver re
 ## Export UI
 
 Each export page should show report name, description, filters, period, format, scope, role restriction, and generated filename previews for CSV and XLSX when both are available.
+
+Exports are state-changing because they create audit rows. Preview and filter
+forms stay GET-based, but CSV/XLSX generation must be POST-only and protected
+by a Dolibarr token.
 
 Example:
 
@@ -67,6 +71,12 @@ mjl_activites_2026-01-01_2026-12-31.xlsx
 mjl_alertes_2026-06-26.csv
 mjl_audit_activite_A-2026-014.csv
 ```
+
+Phase 11R report filenames include the report slug plus active date,
+Partenaire / Programme, project, and status filters when present. Labels in the
+report center should use target French wording such as `Partenaire /
+Programme`, `Validation définitive`, `Décaissement`, `Historique des décisions`,
+and `Commentaires contextuels`.
 
 ## Template Boundary
 

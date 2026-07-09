@@ -26,6 +26,11 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`.
 | `docs/mjl-doc-cleanup-inventory.md` | ACTIVE_PROGRESS | Documentation classification inventory. | Yes for doc cleanup | Records keep/delete/merge decisions. |
 | `docs/mjl-stale-reference-audit.md` | ACTIVE_PROGRESS | Stale-term classification. | Yes for cleanup/debt triage | Classifies remaining stale terms. |
 | `docs/mjl-post-cleanup-alignment-report.md` | ACTIVE_PROGRESS | Final alignment verdict and gate results. | Yes for next phase planning | Created by cleanup audit. |
+| `docs/mjl-client-uat-checklist.md` | ACTIVE_PROGRESS | Client UAT checklist for feature acceptance. | Yes for UAT | Phase 12R artifact; pending client validation. |
+| `docs/mjl-client-demo-scenario.md` | ACTIVE_PROGRESS | End-to-end demo and scope-isolation scenarios. | Yes for UAT | Phase 12R artifact; not production release sign-off. |
+| `docs/mjl-roles-permissions-matrix.md` | ACTIVE_PROGRESS | Current role/action matrix for client validation. | Yes for UAT | Pending final client approval. |
+| `docs/mjl-reports-exports-model.md` | ACTIVE_PROGRESS | Current CSV/XLSX report model and pending template decisions. | Yes for reports | Pending final donor/client canevas. |
+| `docs/mjl-dashboard-kpi-model.md` | ACTIVE_PROGRESS | Current dashboard KPI model for client validation. | Yes for dashboards | Pending final client wording/permission approval. |
 
 ## Current-State Evidence
 

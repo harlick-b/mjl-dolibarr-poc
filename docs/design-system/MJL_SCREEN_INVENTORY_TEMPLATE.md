@@ -11,7 +11,7 @@ Provide the template for the later screen inventory. This file does not perform 
 
 - Dolibarr core files must not be modified.
 - MJL-specific implementation must remain inside safe custom module/theme boundaries.
-- The temporary access model is exactly Level 1, Level 2, Level 3, Admin.
+- The production access model uses one global business role per user: AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF, or ADMIN_PLATEFORME.
 - Access is invitation-only.
 - Only Admin can send invitations for now.
 - There is no public register page.
@@ -37,7 +37,7 @@ Do not modify UI source code before this inventory is created and reviewed.
 - Current purpose:
 - Target purpose:
 - Current users:
-- Target access level: Level 1 / Level 2 / Level 3 / Admin
+- Target business role: AGENT_SAISIE / AGENT_VERIFICATEUR / VALIDATEUR_DEFINITIF / ADMIN_PLATEFORME
 - Current problems:
 - Recommended action: redesign / hide / rename / keep / advanced-only
 - Safe files to modify:
@@ -51,4 +51,4 @@ Do not modify UI source code before this inventory is created and reviewed.
 - Include app UI, auth pages, dashboards, exports, official outputs, and administration screens.
 - Identify screens that expose raw Dolibarr complexity.
 - Do not hide, rename, or redesign screens before inventory review.
-- Do not invent final permissions beyond the temporary Level 1, Level 2, Level 3, Admin model.
+- Do not invent permissions beyond the production role model in docs/mjl-authoritative-decisions.md.

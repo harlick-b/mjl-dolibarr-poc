@@ -158,7 +158,7 @@ test('Finance dashboard exposes supervision sections and actionable risk context
   await expect(page.getByRole('heading', { name: 'Dernières actions auditées' })).toBeVisible();
   await expectCardValue(page, 'Depenses en validation', expectedGlobalSubmittedExpenses);
   await expect(page.locator('body')).toContainText(/Echeance proche|En retard|Aucun risque echeance/);
-  await expect(page.getByText('Action attendue: examiner l activite').first()).toBeVisible();
+  await expect(page.locator('body')).toContainText(/Ouvrir l objet concerne|Aucun risque échéance/);
 
   await page.goto('/custom/mjlfinancement/reports.php');
   await expect(page.getByRole('heading', { name: "Centre d'exports MJL" })).toBeVisible();

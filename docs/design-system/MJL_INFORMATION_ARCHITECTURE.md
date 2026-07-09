@@ -11,7 +11,7 @@ Define how the application is organized around MJL work instead of Dolibarr inte
 
 - Dolibarr core files must not be modified.
 - MJL-specific implementation must remain inside safe custom module/theme boundaries.
-- The temporary access model is exactly Level 1, Level 2, Level 3, Admin.
+- The production access model uses one global business role per user: AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF, or ADMIN_PLATEFORME.
 - Access is invitation-only.
 - Only Admin can send invitations for now.
 - There is no public register page.
@@ -77,10 +77,10 @@ Administration
 
 ## Entry Points
 
-- Level 1 lands on `Tableau de bord personnel`.
-- Level 2 lands on `File de validation`.
-- Level 3 lands on `Tableau de bord global`.
-- Admin lands on `Administration / Utilisateurs` unless also assigned to a functional role.
+- `AGENT_SAISIE` lands on `Mes actions attendues`.
+- `AGENT_VERIFICATEUR` lands on `File de validation`.
+- `VALIDATEUR_DEFINITIF` lands on `Supervision finance`.
+- `ADMIN_PLATEFORME` lands on administration and platform diagnostics.
 
 ## Breadcrumbs
 

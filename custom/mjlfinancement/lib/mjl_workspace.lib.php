@@ -258,13 +258,13 @@ function mjl_workspace_can_apply_expense_validation(User $targetUser)
 	return mjl_scope_can_apply_business_validation($targetUser) && $targetUser->hasRight('mjlfinancement', 'expense', 'validate');
 }
 
-function mjl_workspace_metrics(User $targetUser)
+function mjl_workspace_metrics(User $targetUser, $filters = null)
 {
 	$capabilities = mjl_workspace_capabilities($targetUser);
 	$metrics = array(
-		'own_activity_drafts' => mjl_workspace_own_activity_drafts($targetUser),
-		'own_expenses_submitted' => mjl_workspace_own_expense_count($targetUser, array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses())),
-		'own_missing_expense_documents' => mjl_workspace_own_missing_expense_document_count($targetUser),
+		'own_activity_drafts' => mjl_workspace_own_activity_drafts($targetUser, $filters),
+		'own_expenses_submitted' => mjl_workspace_own_expense_count($targetUser, array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters),
+		'own_missing_expense_documents' => mjl_workspace_own_missing_expense_document_count($targetUser, $filters),
 		'activities_submitted' => 0,
 		'expenses_submitted' => 0,
 		'overdue_activities' => 0,
@@ -273,9 +273,9 @@ function mjl_workspace_metrics(User $targetUser)
 	);
 
 	if ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['supervision']) {
-		$metrics['activities_submitted'] = mjl_workspace_activity_count(mjl_scope_is_final_validator($targetUser) ? MjlActivity::finalReviewStatuses() : MjlActivity::verifierReviewStatuses());
-		$metrics['expenses_submitted'] = mjl_workspace_expense_review_count($targetUser);
-		$metrics['overdue_activities'] = mjl_workspace_overdue_activity_count();
+		$metrics['activities_submitted'] = mjl_workspace_activity_count(mjl_scope_is_final_validator($targetUser) ? MjlActivity::finalReviewStatuses() : MjlActivity::verifierReviewStatuses(), $filters);
+		$metrics['expenses_submitted'] = mjl_workspace_expense_review_count($targetUser, $filters);
+		$metrics['overdue_activities'] = mjl_workspace_overdue_activity_count($filters);
 	}
 	if ($capabilities['admin'] || $capabilities['supervision']) {
 		$metrics['reports_available'] = mjl_workspace_count('mjlfinancement_report');
@@ -287,38 +287,53 @@ function mjl_workspace_metrics(User $targetUser)
 	return $metrics;
 }
 
-function mjl_workspace_own_activity_drafts(User $targetUser)
+function mjl_workspace_own_activity_drafts(User $targetUser, $filters = null)
 {
 	global $db, $conf;
 
 	$statuses = array(MjlActivity::STATUS_DRAFT, MjlActivity::STATUS_CORRECTION_REQUESTED, MjlActivity::STATUS_CORRECTED);
-	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity';
-	$sql .= ' WHERE entity = '.((int) $conf->entity);
-	$sql .= ' AND fk_user_creat = '.((int) $targetUser->id);
-	$sql .= ' AND status IN ('.implode(',', array_map('intval', $statuses)).')';
+	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' WHERE a.entity = '.((int) $conf->entity);
+	$sql .= ' AND a.fk_user_creat = '.((int) $targetUser->id);
+	$sql .= ' AND a.status IN ('.implode(',', array_map('intval', $statuses)).')';
+	$sql .= mjl_workspace_dashboard_partner_filter_sql('c.fk_soc', $filters);
+	$sql .= mjl_workspace_dashboard_project_filter_sql('a.fk_project', $filters);
+	$sql .= mjl_workspace_dashboard_date_filter_sql('a.date_end', $filters);
+	$sql .= mjl_workspace_dashboard_activity_status_filter_sql('a', $filters);
 	return mjl_workspace_scalar($sql);
 }
 
-function mjl_workspace_own_expense_count(User $targetUser, $statuses)
+function mjl_workspace_own_expense_count(User $targetUser, $statuses, $filters = null)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense';
-	$sql .= ' WHERE entity = '.((int) $conf->entity);
-	$sql .= ' AND fk_user_creat = '.((int) $targetUser->id);
-	$sql .= ' AND status IN ('.implode(',', array_map('intval', $statuses)).')';
+	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
+	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
+	$sql .= ' AND e.fk_user_creat = '.((int) $targetUser->id);
+	$sql .= ' AND e.status IN ('.implode(',', array_map('intval', $statuses)).')';
+	$sql .= mjl_workspace_dashboard_partner_filter_sql('c.fk_soc', $filters);
+	$sql .= mjl_workspace_dashboard_project_filter_sql('e.fk_project', $filters);
+	$sql .= mjl_workspace_dashboard_date_filter_sql('e.expense_date', $filters);
+	$sql .= mjl_workspace_dashboard_expense_status_filter_sql('e', $filters);
 	return mjl_workspace_scalar($sql);
 }
 
-function mjl_workspace_own_missing_expense_document_count(User $targetUser)
+function mjl_workspace_own_missing_expense_document_count(User $targetUser, $filters = null)
 {
 	global $db, $conf;
 
 	$statuses = array(MjlExpense::STATUS_DRAFT, MjlExpense::STATUS_CORRECTED, MjlExpense::STATUS_SUBMITTED);
 	$sql = 'SELECT e.rowid, e.entity, e.supporting_document FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
 	$sql .= ' AND e.fk_user_creat = '.((int) $targetUser->id);
 	$sql .= ' AND e.status IN ('.implode(',', array_map('intval', $statuses)).')';
+	$sql .= mjl_workspace_dashboard_partner_filter_sql('c.fk_soc', $filters);
+	$sql .= mjl_workspace_dashboard_project_filter_sql('e.fk_project', $filters);
+	$sql .= mjl_workspace_dashboard_date_filter_sql('e.expense_date', $filters);
+	$sql .= mjl_workspace_dashboard_expense_status_filter_sql('e', $filters);
 	$resql = $db->query($sql);
 	if (!$resql) {
 		return 0;
@@ -332,13 +347,18 @@ function mjl_workspace_own_missing_expense_document_count(User $targetUser)
 	return $count;
 }
 
-function mjl_workspace_activity_count($statuses)
+function mjl_workspace_activity_count($statuses, $filters = null)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity';
-	$sql .= ' WHERE entity = '.((int) $conf->entity);
-	$sql .= ' AND status IN ('.implode(',', array_map('intval', $statuses)).')';
+	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' WHERE a.entity = '.((int) $conf->entity);
+	$sql .= ' AND a.status IN ('.implode(',', array_map('intval', $statuses)).')';
+	$sql .= mjl_workspace_dashboard_partner_filter_sql('c.fk_soc', $filters);
+	$sql .= mjl_workspace_dashboard_project_filter_sql('a.fk_project', $filters);
+	$sql .= mjl_workspace_dashboard_date_filter_sql('a.date_end', $filters);
+	$sql .= mjl_workspace_dashboard_activity_status_filter_sql('a', $filters);
 	return mjl_workspace_scalar($sql);
 }
 
@@ -352,29 +372,43 @@ function mjl_workspace_expense_count($statuses)
 	return mjl_workspace_scalar($sql);
 }
 
-function mjl_workspace_expense_review_count(User $targetUser)
+function mjl_workspace_expense_review_count(User $targetUser, $filters = null)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense';
-	$sql .= ' WHERE entity = '.((int) $conf->entity);
-	$statuses = mjl_scope_is_final_validator($targetUser) ? mjl_expense_pending_final_validator_statuses() : mjl_expense_pending_verifier_statuses();
-	$sql .= ' AND status IN ('.mjl_expense_status_sql_list($statuses).')';
-	if (!mjl_workspace_can_access_supervision($targetUser) && $targetUser->hasRight('mjlfinancement', 'expense', 'validate')) {
-		$sql .= ' AND fk_user_creat <> '.((int) $targetUser->id);
+	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
+	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
+	if (mjl_scope_is_final_validator($targetUser)) {
+		$statuses = array_merge(mjl_expense_pending_final_validator_statuses(), array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED));
+	} else {
+		$statuses = mjl_expense_pending_verifier_statuses();
 	}
+	$sql .= ' AND e.status IN ('.mjl_expense_status_sql_list($statuses).')';
+	if (!mjl_workspace_can_access_supervision($targetUser) && $targetUser->hasRight('mjlfinancement', 'expense', 'validate')) {
+		$sql .= ' AND e.fk_user_creat <> '.((int) $targetUser->id);
+	}
+	$sql .= mjl_workspace_dashboard_partner_filter_sql('c.fk_soc', $filters);
+	$sql .= mjl_workspace_dashboard_project_filter_sql('e.fk_project', $filters);
+	$sql .= mjl_workspace_dashboard_date_filter_sql('e.expense_date', $filters);
+	$sql .= mjl_workspace_dashboard_expense_status_filter_sql('e', $filters);
 	return mjl_workspace_scalar($sql);
 }
 
-function mjl_workspace_overdue_activity_count()
+function mjl_workspace_overdue_activity_count($filters = null)
 {
 	global $db, $conf;
 
 	$openStatuses = MjlActivity::openStatuses();
-	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity';
-	$sql .= ' WHERE entity = '.((int) $conf->entity);
-	$sql .= ' AND status IN ('.implode(',', array_map('intval', $openStatuses)).')';
-	$sql .= " AND date_end IS NOT NULL AND date_end < '".$db->escape(date('Y-m-d'))."'";
+	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' WHERE a.entity = '.((int) $conf->entity);
+	$sql .= ' AND a.status IN ('.implode(',', array_map('intval', $openStatuses)).')';
+	$sql .= " AND a.date_end IS NOT NULL AND a.date_end < '".$db->escape(date('Y-m-d'))."'";
+	$sql .= mjl_workspace_dashboard_partner_filter_sql('c.fk_soc', $filters);
+	$sql .= mjl_workspace_dashboard_project_filter_sql('a.fk_project', $filters);
+	$sql .= mjl_workspace_dashboard_date_filter_sql('a.date_end', $filters);
+	$sql .= mjl_workspace_dashboard_activity_status_filter_sql('a', $filters);
 	return mjl_workspace_scalar($sql);
 }
 
@@ -408,4 +442,45 @@ function mjl_workspace_scalar($sql)
 
 	$obj = $db->fetch_object($resql);
 	return $obj && isset($obj->nb) ? (int) $obj->nb : 0;
+}
+
+function mjl_workspace_dashboard_partner_filter_sql($column, $filters = null)
+{
+	if (function_exists('mjl_dashboard_partner_filter_sql')) {
+		return mjl_dashboard_partner_filter_sql($column, $filters);
+	}
+	global $user;
+	return mjl_scope_partner_sql_filter($column, $user);
+}
+
+function mjl_workspace_dashboard_project_filter_sql($column, $filters = null)
+{
+	if (function_exists('mjl_dashboard_project_filter_sql')) {
+		return mjl_dashboard_project_filter_sql($column, $filters);
+	}
+	return '';
+}
+
+function mjl_workspace_dashboard_date_filter_sql($column, $filters = null)
+{
+	if (function_exists('mjl_dashboard_date_filter_sql')) {
+		return mjl_dashboard_date_filter_sql($column, $filters);
+	}
+	return '';
+}
+
+function mjl_workspace_dashboard_activity_status_filter_sql($alias, $filters = null)
+{
+	if (function_exists('mjl_dashboard_activity_status_filter_sql')) {
+		return mjl_dashboard_activity_status_filter_sql($alias, $filters);
+	}
+	return '';
+}
+
+function mjl_workspace_dashboard_expense_status_filter_sql($alias, $filters = null)
+{
+	if (function_exists('mjl_dashboard_expense_status_filter_sql')) {
+		return mjl_dashboard_expense_status_filter_sql($alias, $filters);
+	}
+	return '';
 }

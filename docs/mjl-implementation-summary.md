@@ -34,14 +34,17 @@ This file summarizes what is actually implemented. Target decisions remain in
 - Governed convention, budget-line, and fund-receipt management.
 - Guarded document downloads for expenses, fund receipts, activities, and
   conventions.
-- CSV/XLSX report/export center with French labels, server-side filters, and
-  stable filenames.
+- Phase 11R CSV/XLSX report/export center with French labels, server-side
+  filters, explicit Partenaire / Programme filtering, stable filenames, and
+  POST-only export generation with Dolibarr token validation.
 - Report option lists and export row queries are partner/programme scoped for
   non-admin users; unresolved rows fail closed through scope joins/filters.
 - Guarded document downloads record best-effort `document_downloaded` workflow
   audit rows after successful path resolution.
 - CSV/XLSX exports record `export_generated` workflow audit rows anchored to
-  stable `mjlfinancement_report` rows.
+  stable `mjlfinancement_report` rows; generic report audit rows remain
+  Admin-only in the report center's scoped audit view because no formal
+  report-scope model exists yet.
 - Project create/update inside the MJL workspace records workflow audit rows
   with production actor-role labels.
 - Phase 8R contextual exchanges are implemented for project, activity, expense,
@@ -63,6 +66,30 @@ This file summarizes what is actually implemented. Target decisions remain in
   Programme through the target object's convention/project partner. Only
   `ADMIN_PLATEFORME` or Dolibarr admin gets unrestricted scope; finance alerts
   are suppressed when the current user cannot open the guarded target route.
+- Phase 10R dashboard alignment is implemented for the MJL home dashboard and
+  supervision dashboard. Dashboard filters are shared across cards, queues,
+  budget rows, fund rows, and audit rows with active-entity filtering, assigned
+  Partenaire / Programme scope, project validation, date semantics by object
+  type, and semantic status buckets.
+- Phase 10R keeps `dpafdashboard.php` as a compatibility route name, but the
+  dashboard UI and focused E2E assertions use production role wording:
+  `AGENT_SAISIE`, `AGENT_VERIFICATEUR`, `VALIDATEUR_DEFINITIF`, and
+  `ADMIN_PLATEFORME`.
+- Platform Admin now sees an Admin-only unresolved-data diagnostic card based
+  on the same categories as `audit_unresolved_scope.php`. Normal recent-audit
+  dashboard rows hide unresolved targets and stay scoped to resolvable MJL
+  objects.
+- Phase 11R report keys are implemented or mapped in `reports.php`:
+  `funding_received_partner`, `budget_allocation_partner`,
+  `budget_allocation_project`, `financial_execution_partner`,
+  `financial_execution_project`, `physical_execution_project`,
+  `activities_tracking`, `expenses_disbursements`, `expense_documents`,
+  `validated_not_disbursed`, `pending_prevalidations`,
+  `pending_final_validations`, `corrections_rejections`,
+  `workflow_decisions`, `contextual_comments`, and `general_audit`.
+- Phase 12R client UAT and model documents now exist for feature acceptance:
+  UAT checklist, demo scenario, roles/permissions matrix, reports/exports
+  model, and dashboard KPI model.
 
 ## Current Compatibility Debt
 
@@ -81,7 +108,18 @@ This file summarizes what is actually implemented. Target decisions remain in
 - The known Phase 8R unresolved-scope historical orphan-row debt remains data
   debt unless a current verification run reports new Phase 9R-owned unresolved
   rows.
+- Phase 10R does not clean historical unresolved audit/workflow rows; it only
+  exposes an Admin-only diagnostic count and prevents those unresolved rows from
+  appearing in normal scoped dashboard audit tables.
 - Final client-approved permission matrix and report templates remain pending.
+- Final report status remains `FEATURE_ALIGNED_PENDING_CLIENT_VALIDATION`
+  because donor/client report canevas and the final permission matrix are not
+  approved.
+- Phase 12R documents are current implementation/UAT artifacts, not final
+  client approval of permissions, KPI wording, or donor report templates.
+- Sample-data acceptance and the 0.3.0 schema audit now distinguish budget
+  `committed_amount` from disbursed `spent_amount`, matching the current
+  finance model.
 - 5R partner funding totals use received fund receipts as `Financement total
   recu`; envelope amounts are not treated as received funding. Negative
   unallocated budget is displayed as an over-allocation warning rather than
@@ -139,6 +177,82 @@ Historical docs recorded successful focused checks for:
 
 Historical pass counts are not current verification. Re-run checks from
 `docs/mjl-acceptance-tests.md` before making production-readiness claims.
+
+## July 9, 2026 Phase 12R Client UAT Pack
+
+- Created the client UAT checklist, end-to-end demo scenario, role/permission
+  matrix, reports/exports model, and dashboard KPI model.
+- Indexed the new Phase 12R documents in `docs/mjl-docs-index.md`.
+- Updated `acceptance_sample_data.php` and `audit_schema_0.3.0.php` to verify
+  budget `committed_amount` as budget-consuming/final-validated amount and
+  `spent_amount` as disbursed amount.
+- The UAT pack covers invitation/login, assigned-scope isolation, project
+  creation/editing, funding envelopes, funds received, budget allocation,
+  activities, physical execution, expenses, justificatifs, workflow decisions,
+  disbursement, documents, guarded downloads, contextual timelines, alerts,
+  dashboards, CSV/XLSX exports, and audit evidence.
+- The role matrix uses only the production roles `AGENT_SAISIE`,
+  `AGENT_VERIFICATEUR`, `VALIDATEUR_DEFINITIF`, and `ADMIN_PLATEFORME`.
+- The report and dashboard models explicitly remain
+  `PENDING_CLIENT_VALIDATION`; they do not close final permission approval,
+  final donor/client report canevas, or production deployment blockers.
+- Verification run during this pass:
+  `git diff --check` passed;
+  PHP syntax checks passed for all `custom/mjlfinancement` PHP files;
+  full Playwright `npm run test:e2e` passed with 125 tests after rerunning
+  outside the sandbox because specs invoke Docker;
+  `seed_sample_data.php`, `acceptance_sample_data.php`,
+  `smoke_scope_model.php`, `smoke_activity_workflow.php`,
+  `smoke_expense_validation.php`, and `smoke_traceability_exports.php` passed;
+  schema audits `0.2.0`, `0.3.0`, `0.4.0`, `0.5.0`, `0.8.0`, `0.9.0`, and
+  `0.10.0` passed.
+- `audit_unresolved_scope.php` still fails in the current local database on
+  workflow-action rows pointing to deleted test objects and generic report
+  audit anchors. This is classified as local verification data debt, not
+  Phase 12R product-code debt.
+- `check_production_readiness.php` passed source-provable checks and reported
+  expected `UNKNOWN` deployment items for production email transport, public
+  base URL, production secrets, backup/restore, and monitoring/log retention.
+
+## July 9, 2026 Phase 10R Dashboard Alignment Pass
+
+- Added shared dashboard filter parsing for `fk_soc`, `fk_project`,
+  `date_start`, `date_end`, and semantic `status_bucket` values:
+  `all`, `to_prevalidate`, `to_final_validate`, `to_disburse`, `correction`,
+  and `overdue`.
+- Home-dashboard workspace metrics and supervision-dashboard KPIs/tables now
+  consume the same validated filters and scope rules.
+- Filter option lists are scope-filtered. Direct URL tampering with an
+  unassigned Partenaire / Programme or project fails closed to zeroed results
+  with a visible warning.
+- Review queues are role-specific: `AGENT_VERIFICATEUR` sees prevalidation
+  work; `VALIDATEUR_DEFINITIF` sees final-validation and disbursement work;
+  `ADMIN_PLATEFORME` sees platform administration and diagnostic oversight.
+- Recent audit dashboard rows now require a resolvable supported MJL target and
+  apply partner/project/date/status filtering. Generic report-export audit
+  scope remains a later design point outside Phase 10R.
+- Active design-system docs were updated to stop presenting the old temporary
+  Level 1/2/3 model as target behavior.
+- Focused E2E coverage was added in
+  `tests/e2e/phase10r-dashboards-alignment.spec.js` for production role
+  dashboards, filtered scoped queues/KPIs, direct filter tampering, Admin-only
+  unresolved diagnostics, and absence of legacy dashboard wording.
+- Verification run during this pass:
+  `git diff --check` passed;
+  `find custom/mjlfinancement -name "*.php" -print0 | xargs -0 -n1 php -l`
+  passed;
+  focused Playwright
+  `tests/e2e/phase10r-dashboards-alignment.spec.js` passed;
+  full Playwright `npm run test:e2e` passed with 121 tests;
+  `smoke_scope_model.php`, `smoke_activity_workflow.php`,
+  `smoke_expense_validation.php`, and `smoke_traceability_exports.php`
+  passed.
+- `audit_unresolved_scope.php` still fails in the current local database on
+  historical/deleted fixture workflow-action rows. A direct database check
+  after the Phase 10R full-suite run found zero remaining `P10R-*` projects,
+  conventions, budget lines, activities, expenses, fund receipts, or Phase 10R
+  workflow actions/comments, so no Phase 10R-owned unresolved row is currently
+  recorded.
 
 ## July 9, 2026 Phase 9R Alerts Alignment Pass
 

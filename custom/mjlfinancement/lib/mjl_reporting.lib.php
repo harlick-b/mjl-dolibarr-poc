@@ -49,16 +49,22 @@ function mjl_report_expense_documents($filters = array())
 	global $db, $conf;
 
 	$entity = (int) $conf->entity;
-	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.ref AS expense_ref, e.expense_date, bl.ref AS budget_line, e.amount, e.prevalidated_amount, e.final_validated_amount, e.disbursed_amount, e.status, e.supporting_document AS stored_supporting_document,';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, s.nom AS partner, p.ref AS project, e.ref AS expense_ref, e.expense_date, bl.ref AS budget_line, e.amount, e.prevalidated_amount, e.final_validated_amount, e.disbursed_amount, e.status, e.supporting_document AS stored_supporting_document,';
 	$sql .= ' CASE WHEN '.mjl_expense_document_present_sql('e').' THEN 1 ELSE 0 END AS document_present,';
 	$sql .= ' '.mjl_expense_supporting_document_sql('e').' AS supporting_document,';
 	$sql .= ' u.login AS validator, e.correction_reason';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = e.fk_budget_line';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention cscope ON cscope.rowid = e.fk_convention AND cscope.entity = e.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = cscope.fk_soc AND s.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = e.fk_user_valid';
 	$sql .= ' WHERE e.entity = '.$entity;
-	$sql .= mjl_report_partner_scope_sql('cscope.fk_soc');
+	if (!empty($filters['fk_soc'])) {
+		$sql .= ' AND cscope.fk_soc = '.((int) $filters['fk_soc']);
+	} else {
+		$sql .= mjl_report_partner_scope_sql('cscope.fk_soc');
+	}
 	$sql .= mjl_report_expense_filter_sql('e', $filters, false);
 	$sql .= ' ORDER BY e.ref';
 	$rows = mjl_report_fetch_rows($sql);

@@ -11,7 +11,7 @@ Define the cross-screen UI rules for app UI, auth pages, dashboards, exports, of
 
 - Dolibarr core files must not be modified.
 - MJL-specific implementation must remain inside safe custom module/theme boundaries.
-- The temporary access model is exactly Level 1, Level 2, Level 3, Admin.
+- The production access model uses one global business role per user: AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF, or ADMIN_PLATEFORME.
 - Access is invitation-only.
 - Only Admin can send invitations for now.
 - There is no public register page.

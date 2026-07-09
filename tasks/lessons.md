@@ -27,3 +27,6 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Dolibarr `fetchCommon()` object paths may expose `id` while SQL row arrays
   expose `rowid`; MJL access helpers that accept both objects and arrays should
   normalize the identifier before object-scope checks.
+- Budget-line checks must distinguish committed budget consumption from actual
+  disbursement: `committed_amount` follows final-validated/budget-consuming
+  expenses, while `spent_amount` follows disbursed expenses.

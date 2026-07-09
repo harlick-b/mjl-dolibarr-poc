@@ -134,7 +134,7 @@ test.afterAll(() => {
   cleanupPhase9Fixtures();
 });
 
-test('reports access stays limited to DPAF and Admin', async ({ page }) => {
+test('reports access stays limited to final validator and Admin', async ({ page }) => {
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/reports.php');
   await expectAccessDenied(page);
@@ -164,21 +164,23 @@ test('report metadata, required filters, and unsupported filters are explicit', 
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/reports.php');
 
-  await expect(page.getByText('Comparer budget, fonds reçus et dépenses pour un projet sélectionné.')).toBeVisible();
+  await expect(page.getByText('Comparer budget, fonds reçus, validation et décaissement pour chaque projet.')).toBeVisible();
   await expect(page.getByText('CSV compatible Excel et XLSX')).toBeVisible();
-  await expect(page.getByText('Sélection requise avant export: Projet.')).toBeVisible();
+  await expect(page.getByText('Aucun filtre optionnel actif')).toBeVisible();
+  await expect(page.locator('select[name="fk_soc"]')).toHaveCount(1);
   await expect(page.locator('select[name="project_id"]')).toHaveCount(1);
   await expect(page.locator('select[name="convention_id"]')).toHaveCount(0);
   await expect(page.locator('select[name="status"]')).toHaveCount(0);
 
-  await page.goto('/custom/mjlfinancement/reports.php?report=convention_budget');
-  await expect(page.getByText('Sélection requise avant export: Convention.')).toBeVisible();
-  await expect(page.locator('select[name="convention_id"]')).toHaveCount(1);
+  await page.goto('/custom/mjlfinancement/reports.php?report=budget_allocation_project');
+  await expect(page.locator('.mjl-report-context dd', { hasText: 'Allocation budgétaire par projet' })).toBeVisible();
+  await expect(page.locator('select[name="fk_soc"]')).toHaveCount(1);
   await expect(page.locator('select[name="status"]')).toHaveCount(0);
 
-  await page.goto('/custom/mjlfinancement/reports.php?report=workflow_actions');
+  await page.goto('/custom/mjlfinancement/reports.php?report=workflow_decisions');
   await expect(page.getByText('Exporter les décisions et transitions auditées')).toBeVisible();
-  await expect(page.locator('select[name="project_id"]')).toHaveCount(0);
+  await expect(page.locator('select[name="fk_soc"]')).toHaveCount(1);
+  await expect(page.locator('select[name="project_id"]')).toHaveCount(1);
   await expect(page.locator('select[name="convention_id"]')).toHaveCount(0);
   await expect(page.locator('select[name="status"]')).toHaveCount(0);
   await expect(page.locator('input[name="date_start"]')).toHaveCount(1);
@@ -186,7 +188,7 @@ test('report metadata, required filters, and unsupported filters are explicit', 
 
 test('filtered activity preview and CSV export share filters, filename, and entity scope', async ({ page }) => {
   await login(page, 'dpaf.mjl');
-  await page.goto('/custom/mjlfinancement/reports.php?report=activities&status=3&date_start=2026-06-01&date_end=2026-06-30');
+  await page.goto('/custom/mjlfinancement/reports.php?report=activities_tracking&status=3&date_start=2026-06-01&date_end=2026-06-30');
 
   await expect(page.getByText('Exporter les activités, leur statut')).toBeVisible();
   await expect(page.getByText('Statut: Soumise')).toBeVisible();
@@ -232,7 +234,7 @@ test('filtered activity preview and CSV export share filters, filename, and enti
   expect(sharedStrings).toContain('P9-ACT-SUBMITTED');
   expect(sharedStrings).toContain('Soumise');
   expect(sharedStrings).not.toContain('P9-ENTITY-ACT');
-  expect(Number(sqlScalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action w INNER JOIN llx_mjlfinancement_report r ON r.rowid = w.object_id AND r.entity = w.entity WHERE w.object_type = 'mjlfinancement_report' AND w.action = 'export_generated' AND r.ref = 'REPORT-ACTIVITIES' AND w.actor_role = 'VALIDATEUR_DEFINITIF'"))).toBeGreaterThanOrEqual(2);
+  expect(Number(sqlScalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action w INNER JOIN llx_mjlfinancement_report r ON r.rowid = w.object_id AND r.entity = w.entity WHERE w.object_type = 'mjlfinancement_report' AND w.action = 'export_generated' AND r.ref = 'REPORT-ACTIVITIES-TRACKING' AND w.actor_role = 'VALIDATEUR_DEFINITIF'"))).toBeGreaterThanOrEqual(2);
 });
 
 test('expense report exports French-readable statuses and document flags', async ({ page }) => {
@@ -258,12 +260,12 @@ test('expense report exports French-readable statuses and document flags', async
 test('forced export without required filters is refused server-side', async ({ page }) => {
   await login(page, 'dpaf.mjl');
   let downloadPromise = page.waitForEvent('download', { timeout: 1500 }).then(() => 'downloaded').catch(() => 'no-download');
-  await page.goto('/custom/mjlfinancement/reports.php?report=project_summary&action=export_csv').catch(() => {});
-  await expect(page.locator('body')).toContainText(/Sélection requise avant export|Acces refuse|Accès refusé|Access denied|Forbidden/);
+  await page.goto('/custom/mjlfinancement/reports.php?report=financial_execution_project&action=export_csv').catch(() => {});
+  await expect(page.locator('body')).toContainText(/Export POST requis|Acces refuse|Accès refusé|Access denied|Forbidden/);
   expect(await downloadPromise).toBe('no-download');
 
   downloadPromise = page.waitForEvent('download', { timeout: 1500 }).then(() => 'downloaded').catch(() => 'no-download');
-  await page.goto('/custom/mjlfinancement/reports.php?report=project_summary&action=export_xlsx').catch(() => {});
-  await expect(page.locator('body')).toContainText(/Sélection requise avant export|Acces refuse|Accès refusé|Access denied|Forbidden/);
+  await page.goto('/custom/mjlfinancement/reports.php?report=financial_execution_project&action=export_xlsx').catch(() => {});
+  await expect(page.locator('body')).toContainText(/Export POST requis|Acces refuse|Accès refusé|Access denied|Forbidden/);
   expect(await downloadPromise).toBe('no-download');
 });

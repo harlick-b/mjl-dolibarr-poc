@@ -33,8 +33,8 @@ timelines/exchanges, and final client review for official outputs.
 
 | Screen | Alignment | Main UI Debt | Safe Area |
 | --- | --- | --- | --- |
-| Workspace dashboard | Partial | Final role wording and next-action hierarchy need review. | `custom/mjlfinancement/index.php` |
-| Supervision dashboard | Partial | Legacy DPAF wording and dense KPI/table presentation. | `custom/mjlfinancement/dpafdashboard.php` |
+| Workspace dashboard | Medium | Phase 10R aligned production role wording and scoped filters; final client KPI wording can still be reviewed. | `custom/mjlfinancement/index.php` |
+| Supervision dashboard | Medium | Phase 10R aligned production role wording, scoped filters, and audit-row resolution; route filename remains compatibility debt. | `custom/mjlfinancement/dpafdashboard.php` |
 | Partenaires / Programmes | Partial | Needs current browser review for production scope clarity. | `custom/mjlfinancement/partners.php` |
 | Projects | Partial | Project creation/editing inside MJL needs current UX verification. | `custom/mjlfinancement/projects.php` |
 | Activities | Medium | Dense workflow detail; document preview deferred; wording review needed. | `custom/mjlfinancement/activities.php` |
@@ -43,7 +43,7 @@ timelines/exchanges, and final client review for official outputs.
 | Conventions | Partial | Legacy label and DPAF/Admin wording need target review. | `custom/mjlfinancement/conventions.php` |
 | Budget lines | Partial | Advanced finance setup should stay guarded; wording needs review. | `custom/mjlfinancement/budgetlines.php` |
 | Fund receipts | Partial | Proof-document ergonomics and final wording need review. | `custom/mjlfinancement/fundreceipts.php` |
-| Reports / exports | Medium | Final donor canevas and export audit remain pending. | `custom/mjlfinancement/reports.php` |
+| Reports / exports | Good | Phase 11R aligns report inventory, target French wording, explicit Partenaire / Programme filters, POST-token exports, CSV/XLSX filename previews, and scoped audit visibility. Final donor canevas and permission matrix remain pending. | `custom/mjlfinancement/reports.php` |
 | Validation/audit history | Partial | Should be more contextual inside object detail pages. | `validations.php`, `workflowactions.php` |
 | Exchange logs | Partial | Standalone route should not be primary navigation. | `custom/mjlfinancement/exchangelogs.php` |
 | Auth/invitations | Medium | Invitation-only stance is correct; production email/base URL pending. | Auth templates, `admin/access.php`, `invitation.php` |

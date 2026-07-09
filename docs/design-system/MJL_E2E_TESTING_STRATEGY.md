@@ -11,7 +11,7 @@ Define E2E tests as the main validation method for the MJL Clarity System.
 
 - Dolibarr core files must not be modified.
 - MJL-specific implementation must remain inside safe custom module/theme boundaries.
-- The temporary access model is exactly Level 1, Level 2, Level 3, Admin.
+- The production access model uses one global business role per user: AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF, or ADMIN_PLATEFORME.
 - Access is invitation-only.
 - Only Admin can send invitations for now.
 - There is no public register page.
@@ -38,15 +38,17 @@ User requests reset, neutral confirmation appears, user opens reset link, sets n
 
 ### Scenario 3 — Activity Lifecycle
 
-Level 1 user creates and submits an activity, Level 2 reviewer validates or returns it, timeline updates, audit updates, dashboard updates, and export reflects the result where applicable.
+AGENT_SAISIE creates and submits an activity, AGENT_VERIFICATEUR prevalidates or returns it, timeline updates, audit updates, dashboard updates, and export reflects the result where applicable.
 
 ### Scenario 4 — Return For Correction
 
-Reviewer returns an activity with comment, Level 1 corrects it, resubmits it, and previous decision remains visible.
+Reviewer returns an activity with comment, AGENT_SAISIE corrects it, resubmits it, and previous decision remains visible.
 
 ### Scenario 5 — Alerts
 
-Seed approaching or overdue activity, correct level sees alert, alert links to object, user acts, and alert state updates if applicable.
+Seed approaching or overdue activity, the appropriate production role sees the
+alert, the alert links to the object, user acts, and alert state updates if
+applicable.
 
 ### Scenario 6 — Export
 
@@ -54,4 +56,6 @@ User applies filters, exports, export respects filters, file is Excel-readable, 
 
 ### Scenario 7 — Role Visibility
 
-Level 1 sees operational workspace, Level 2 sees validation workspace, Level 3 sees supervision dashboard, Admin sees user/invitation management, and unauthorized pages are blocked.
+AGENT_SAISIE sees operational workspace, AGENT_VERIFICATEUR sees prevalidation
+workspace, VALIDATEUR_DEFINITIF sees business supervision, ADMIN_PLATEFORME
+sees platform administration, and unauthorized pages are blocked.
