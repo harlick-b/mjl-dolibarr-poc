@@ -33,13 +33,18 @@ function mjl_activities_can_apply_action($activity, $action)
 	if (!mjl_scope_can_access_object($user, 'mjlfinancement_activity', mjl_activities_row_id($row))) {
 		return false;
 	}
-		if ($action === 'upload') {
-			if (mjl_activities_is_final_status($status)) return false;
-			if (mjl_workspace_can_access_supervision($user)) {
-				return true;
-			}
-			return mjl_workspace_can_apply_activity_write($user) && mjl_activities_user_owns_or_responsible($row, $user);
+	if ($action === 'upload') {
+		if (mjl_activities_is_final_status($status)) return false;
+		if (mjl_workspace_can_access_supervision($user)) {
+			return true;
 		}
+		return mjl_workspace_can_apply_activity_write($user) && mjl_activities_user_owns_or_responsible($row, $user);
+	}
+	if ($action === 'update_execution') {
+		return mjl_workspace_can_apply_activity_write($user)
+			&& mjl_activities_user_owns_or_responsible($row, $user)
+			&& in_array($status, MjlActivity::executionEditableStatuses(), true);
+	}
 	if (in_array($action, array('update', 'submit', 'correct'), true)) {
 		if (!mjl_workspace_can_apply_activity_write($user) || !mjl_activities_user_owns_or_responsible($row, $user)) return false;
 		if ($action === 'update') return in_array($status, MjlActivity::editableStatuses(), true);

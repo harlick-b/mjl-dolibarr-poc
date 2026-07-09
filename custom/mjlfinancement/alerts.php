@@ -10,7 +10,8 @@ if (!mjl_alerts_user_can_read($user)) {
 }
 
 $langs->load('mjlfinancement@mjlfinancement');
-$alerts = mjl_alerts_for_user($user);
+$scope = mjl_alerts_normalize_scope(GETPOST('scope', 'alphanohtml'));
+$alerts = mjl_alerts_for_user($user, 100, $scope);
 
 llxHeader('', 'Alertes MJL');
 
@@ -25,6 +26,7 @@ mjl_dashboard_render_header(
 
 print '<section class="mjl-workspace-section">';
 print '<div class="mjl-section-heading"><h2>Alertes actives</h2><p>Ces alertes sont calculees depuis les activites, depenses et pieces justificatives existantes.</p></div>';
+mjl_alerts_render_scope_filter($scope);
 if (empty($alerts)) {
 	print '<div class="mjl-empty-state">Aucune alerte active dans votre perimetre.</div>';
 } else {
@@ -76,4 +78,20 @@ function mjl_alerts_render_card($alert)
 	print '</dl>';
 	print '<a class="mjl-card-link" href="'.mjl_dashboard_url($alert['href']).'">Ouvrir l objet concerne</a>';
 	print '</article>';
+}
+
+function mjl_alerts_render_scope_filter($activeScope)
+{
+	$options = array(
+		'all' => 'Toutes',
+		'activities' => 'Activites',
+		'expenses' => 'Depenses',
+		'finance' => 'Finance',
+	);
+	print '<nav class="mjl-tabs" aria-label="Filtrer les alertes">';
+	foreach ($options as $scope => $label) {
+		$class = $scope === $activeScope ? ' class="mjl-tab-active"' : '';
+		print '<a'.$class.' href="'.DOL_URL_ROOT.'/custom/mjlfinancement/alerts.php?scope='.$scope.'">'.dol_escape_htmltag($label).'</a>';
+	}
+	print '</nav>';
 }

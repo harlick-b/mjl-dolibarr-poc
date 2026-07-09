@@ -312,6 +312,33 @@ a.tmenu[href^="/api/"] {
 	color: #8a1f15;
 }
 
+.mjl-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0 0 16px;
+}
+
+.mjl-tabs a {
+	background: #ffffff;
+	border: 1px solid #c5ced4;
+	border-radius: 6px;
+	color: #34414a;
+	font-size: 13px;
+	font-weight: 700;
+	line-height: 1.2;
+	padding: 8px 11px;
+	text-decoration: none;
+}
+
+.mjl-tabs a:hover,
+.mjl-tabs a:focus,
+.mjl-tabs .mjl-tab-active {
+	background: #16324f;
+	border-color: #16324f;
+	color: #ffffff;
+}
+
 .mjl-alert-grid {
 	display: grid;
 	gap: 12px;

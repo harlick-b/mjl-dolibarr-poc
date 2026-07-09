@@ -9,6 +9,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
 
 if (!mjl_workspace_can_access_activity($user)) {
 	accessforbidden();
@@ -21,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		mjl_activities_forbidden('Invalid security token');
 	}
-	if (!mjl_workspace_can_apply_activity_write($user) && in_array($action, array('create', 'update', 'submit', 'correct'), true)) {
+	if (!mjl_workspace_can_apply_activity_write($user) && in_array($action, array('create', 'update', 'update_execution', 'submit', 'correct'), true)) {
 		mjl_activities_forbidden();
 	}
 	if (!mjl_workspace_can_apply_activity_validation($user) && in_array($action, array('prevalidate', 'final_validate', 'validate', 'reject', 'request_correction'), true)) {
@@ -53,7 +54,11 @@ function mjl_activities_handle_post($action)
 	global $db, $user, $conf;
 
 	if ($action === 'create') {
+		$fkProject = GETPOSTINT('fk_project');
 		$fkConvention = GETPOSTINT('fk_convention');
+		if (!mjl_scope_can_access_object($user, 'mjlfinancement_project', $fkProject)) {
+			mjl_activities_forbidden('Projet hors de votre perimetre');
+		}
 		if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $fkConvention)) {
 			mjl_activities_forbidden('Convention hors de votre perimetre');
 		}
@@ -61,7 +66,7 @@ function mjl_activities_handle_post($action)
 		$activity->entity = (int) $conf->entity;
 		$activity->ref = GETPOST('ref', 'alphanohtml');
 		$activity->label = GETPOST('label', 'restricthtml');
-		$activity->fk_project = GETPOSTINT('fk_project');
+		$activity->fk_project = $fkProject;
 		$activity->fk_convention = $fkConvention;
 		$activity->fk_task = GETPOSTINT('fk_task');
 		$activity->date_start = mjl_activities_post_date('date_start');
@@ -88,14 +93,22 @@ function mjl_activities_handle_post($action)
 	if ($id <= 0 || $activity->fetch($id) <= 0 || (int) $activity->entity !== (int) $conf->entity || !mjl_activities_can_open($activity)) {
 		mjl_activities_forbidden('Activite introuvable ou hors de votre perimetre');
 	}
+
+	if ($action === 'add_exchange') {
+		list($result, $message) = mjl_timeline_create_comment($user, 'mjlfinancement_activity', $id, GETPOST('message', 'restricthtml'));
+		setEventMessages($message, null, $result > 0 ? 'mesgs' : 'errors');
+		mjl_activities_redirect($id);
+	}
+
 	if (!mjl_activities_can_apply_action($activity, $action)) {
 		mjl_activities_forbidden();
 	}
 
 	if ($action === 'update') $result = mjl_activities_update_for_correction($activity);
-	elseif ($action === 'submit') $result = $activity->submit($user, GETPOST('comment', 'restricthtml'), 'AGENT');
+	elseif ($action === 'update_execution') $result = mjl_activities_update_execution($activity);
+	elseif ($action === 'submit') $result = $activity->submit($user, GETPOST('comment', 'restricthtml'), mjl_activities_actor_role_code());
 	elseif ($action === 'request_correction') $result = $activity->requestCorrection($user, GETPOST('comment', 'restricthtml'), mjl_activities_actor_role_code());
-	elseif ($action === 'correct') $result = $activity->correct($user, GETPOST('comment', 'restricthtml'), 'AGENT');
+	elseif ($action === 'correct') $result = $activity->correct($user, GETPOST('comment', 'restricthtml'), mjl_activities_actor_role_code());
 	elseif ($action === 'prevalidate') $result = $activity->prevalidate($user, GETPOST('comment', 'restricthtml'), 'AGENT_VERIFICATEUR');
 	elseif ($action === 'final_validate') $result = $activity->finalValidate($user, GETPOST('comment', 'restricthtml'), 'VALIDATEUR_DEFINITIF');
 	elseif ($action === 'validate') $result = $activity->validate($user, GETPOST('comment', 'restricthtml'), mjl_activities_actor_role_code());
@@ -149,12 +162,25 @@ function mjl_activities_update_for_correction(MjlActivity $activity)
 		'date_start' => $dateStart,
 		'date_end' => $dateEnd,
 		'fk_user_responsible' => GETPOSTINT('fk_user_responsible'),
+	), GETPOST('comment', 'restricthtml'), mjl_activities_actor_role_code());
+}
+
+function mjl_activities_update_execution(MjlActivity $activity)
+{
+	global $user;
+
+	if (!$user->hasRight('mjlfinancement', 'activity', 'write')) {
+		$activity->error = 'Permission denied for activity execution update';
+		return -1;
+	}
+	return $activity->updateExecution($user, array(
+		'fk_user_responsible' => GETPOSTINT('fk_user_responsible'),
 		'date_actual_start' => GETPOST('date_actual_start', 'alphanohtml'),
 		'date_actual_end' => GETPOST('date_actual_end', 'alphanohtml'),
 		'physical_execution_percent' => GETPOST('physical_execution_percent', 'alphanohtml'),
 		'execution_status' => GETPOST('execution_status', 'alpha'),
 		'execution_comment' => GETPOST('execution_comment', 'restricthtml'),
-	), GETPOST('comment', 'restricthtml'), 'AGENT');
+	), mjl_activities_actor_role_code());
 }
 
 function mjl_activities_upload_document(MjlActivity $activity)
@@ -182,7 +208,7 @@ function mjl_activities_upload_document(MjlActivity $activity)
 		$activity->error = $error;
 		return -1;
 	}
-	$role = mjl_workspace_can_access_supervision($user) ? (!empty($user->admin) ? 'ADMIN' : 'DPAF') : 'AGENT';
+	$role = mjl_activities_actor_role_code();
 	$statusLabel = mjl_activity_status_label($activity->status);
 	$comment = 'Document ajoute: '.$document['original'];
 	$audit = mjl_workflow_audit_insert('mjlfinancement_activity', $activityId, (int) $activity->entity, $statusLabel, $user, $role, 'document_uploaded', $comment, array(
@@ -231,6 +257,7 @@ function mjl_activities_render_detail($id)
 	mjl_activities_render_summary_card($row);
 	mjl_activities_render_decision_panel($row);
 	print '</div>';
+	mjl_activities_render_execution_panel($row);
 	mjl_activities_render_activity_document_panel($row);
 	mjl_activities_render_document_checklist((int) $row['rowid']);
 	mjl_activities_render_timeline($row);
@@ -273,10 +300,10 @@ function mjl_activities_list()
 
 	$sql = 'SELECT a.rowid, a.ref, a.label, a.fk_user_creat, a.fk_user_responsible, a.date_start, a.date_end, a.physical_execution_percent, a.execution_status, a.status, p.ref AS project_ref, c.ref AS convention_ref, u.login AS creator_login, ru.login AS responsible_login';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
-	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = a.fk_user_creat';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user ru ON ru.rowid = a.fk_user_responsible';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = a.fk_user_creat AND u.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user ru ON ru.rowid = a.fk_user_responsible AND ru.entity = a.entity';
 	$sql .= ' WHERE a.entity = '.((int) $conf->entity).mjl_activities_scope_sql('a');
 	$sql .= ' ORDER BY a.rowid DESC LIMIT 100';
 	$resql = $db->query($sql);
@@ -354,11 +381,6 @@ function mjl_activities_render_decision_panel($row)
 		print '<label>Responsable'.mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Createur par defaut', (int) $row['fk_user_responsible']).'</label>';
 		print '<label>Debut<input type="date" name="date_start" value="'.dol_escape_htmltag(substr((string) $row['date_start'], 0, 10)).'"></label>';
 		print '<label>Fin<input type="date" name="date_end" value="'.dol_escape_htmltag(substr((string) $row['date_end'], 0, 10)).'"></label>';
-		print '<label>Debut reel<input type="date" name="date_actual_start" value="'.dol_escape_htmltag(substr((string) $row['date_actual_start'], 0, 10)).'"></label>';
-		print '<label>Fin reelle<input type="date" name="date_actual_end" value="'.dol_escape_htmltag(substr((string) $row['date_actual_end'], 0, 10)).'"></label>';
-		print '<label>Execution physique (%)<input type="number" min="0" max="100" name="physical_execution_percent" value="'.dol_escape_htmltag((string) $row['physical_execution_percent']).'"></label>';
-		print '<label>Statut execution'.mjl_activities_execution_status_select('execution_status', (string) $row['execution_status']).'</label>';
-		print '<label>Commentaire execution<textarea name="execution_comment">'.dol_escape_htmltag($row['execution_comment']).'</textarea></label>';
 		print '<label>Motif de modification<input required name="comment"></label>';
 		print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer la correction"></div>';
 		print '</form>';
@@ -371,6 +393,29 @@ function mjl_activities_render_decision_panel($row)
 		print '<input class="button" type="submit" value="'.dol_escape_htmltag($meta['label']).'">';
 		print '</form>';
 	}
+	print '</section>';
+}
+
+function mjl_activities_render_execution_panel($row)
+{
+	print '<section class="mjl-workspace-section mjl-activity-card">';
+	print '<div class="mjl-section-heading"><h2>Execution physique</h2><p>Avancement operationnel separe des decisions de validation.</p></div>';
+	if (!mjl_activities_can_apply_action($row, 'update_execution')) {
+		print '<div class="mjl-empty-state">Aucune mise a jour execution disponible pour votre role ou l etat actuel.</div>';
+		print '</section>';
+		return;
+	}
+	$responsibleOptions = mjl_activities_options('responsible');
+	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
+	print mjl_activities_token_input().'<input type="hidden" name="action" value="update_execution"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<label>Responsable'.mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Createur par defaut', (int) $row['fk_user_responsible']).'</label>';
+	print '<label>Debut reel<input type="date" name="date_actual_start" value="'.dol_escape_htmltag(substr((string) $row['date_actual_start'], 0, 10)).'"></label>';
+	print '<label>Fin reelle<input type="date" name="date_actual_end" value="'.dol_escape_htmltag(substr((string) $row['date_actual_end'], 0, 10)).'"></label>';
+	print '<label>Execution physique (%)<input type="number" min="0" max="100" name="physical_execution_percent" value="'.dol_escape_htmltag((string) $row['physical_execution_percent']).'"></label>';
+	print '<label>Statut execution'.mjl_activities_execution_status_select('execution_status', (string) $row['execution_status']).'</label>';
+	print '<label>Commentaire execution<textarea name="execution_comment">'.dol_escape_htmltag($row['execution_comment']).'</textarea></label>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Mettre a jour l execution"></div>';
+	print '</form>';
 	print '</section>';
 }
 
@@ -438,7 +483,8 @@ function mjl_activities_render_timeline($activity)
 {
 	$items = mjl_activities_timeline_items($activity);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Historique de decision</h2><p>Creation, corrections et decisions conservees dans la trace workflow.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Historique de decision et commentaires</h2><p>Creation, corrections, decisions et echanges contextualises.</p></div>';
+	mjl_timeline_render_comment_form('mjlfinancement_activity', (int) $activity['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $activity['rowid']));
 	print '<ol class="mjl-activity-timeline">';
 	foreach ($items as $item) {
 		print '<li><span class="mjl-status-pill">'.dol_escape_htmltag($item['label']).'</span>';
@@ -454,20 +500,33 @@ function mjl_activities_render_timeline($activity)
 
 function mjl_activities_options($type)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	if ($type === 'project') {
-		$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $user).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
 		$sql = 'SELECT c.rowid, c.ref, c.title, c.fk_project, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_convention c';
-		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project';
-		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' ORDER BY c.ref';
+		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
+		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $user).' ORDER BY c.ref';
 	} elseif ($type === 'task') {
 		$sql = 'SELECT t.rowid, t.ref, t.label, t.fk_projet, p.ref AS project_ref FROM '.$db->prefix().'projet_task t';
-		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = t.fk_projet';
-		$sql .= ' WHERE t.entity = '.((int) $conf->entity).' ORDER BY p.ref, t.ref';
+		$sql .= ' INNER JOIN '.$db->prefix().'projet p ON p.rowid = t.fk_projet AND p.entity = t.entity';
+		$sql .= ' WHERE t.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $user).' ORDER BY p.ref, t.ref';
 	} elseif ($type === 'responsible') {
-		$sql = 'SELECT rowid, login, firstname, lastname FROM '.$db->prefix().'user WHERE entity = '.((int) $conf->entity).' AND statut = 1 ORDER BY lastname, firstname, login';
+		$sql = 'SELECT DISTINCT u.rowid, u.login, u.firstname, u.lastname FROM '.$db->prefix().'user u';
+		$scopeIds = mjl_scope_user_soc_ids($user);
+		if ($scopeIds !== null) {
+			$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_user_soc_scope uscope ON uscope.entity = u.entity AND uscope.fk_user = u.rowid AND uscope.is_active = 1';
+		}
+		$sql .= ' WHERE u.entity = '.((int) $conf->entity).' AND u.statut = 1';
+		if ($scopeIds !== null) {
+			$sql .= ' AND (u.rowid = '.((int) $user->id);
+			if (!empty($scopeIds)) {
+				$sql .= ' OR uscope.fk_soc IN ('.implode(',', array_map('intval', $scopeIds)).')';
+			}
+			$sql .= ')';
+		}
+		$sql .= ' ORDER BY u.lastname, u.firstname, u.login';
 	} else {
 		return array();
 	}
@@ -522,11 +581,11 @@ function mjl_activities_select($name, $options, $required = 0, $emptyLabel = '',
 function mjl_activities_execution_status_select($name, $selected)
 {
 	$options = array(
-		'' => 'Non renseigne',
-		'not_started' => 'Non demarree',
+		'' => 'Non renseigné',
+		'not_started' => 'Planifiée',
 		'in_progress' => 'En cours',
-		'completed' => 'Terminee',
-		'blocked' => 'Bloquee',
+		'completed' => 'Exécutée',
+		'blocked' => 'Bloquée',
 	);
 	$html = '<select name="'.dol_escape_htmltag($name).'">';
 	foreach ($options as $value => $label) {
@@ -538,11 +597,11 @@ function mjl_activities_execution_status_select($name, $selected)
 function mjl_activities_execution_status_label($status)
 {
 	$map = array(
-		'' => 'Non renseigne',
-		'not_started' => 'Non demarree',
+		'' => 'Non renseigné',
+		'not_started' => 'Planifiée',
 		'in_progress' => 'En cours',
-		'completed' => 'Terminee',
-		'blocked' => 'Bloquee',
+		'completed' => 'Exécutée',
+		'blocked' => 'Bloquée',
 	);
 	$status = (string) $status;
 	return isset($map[$status]) ? $map[$status] : $status;
@@ -550,9 +609,16 @@ function mjl_activities_execution_status_label($status)
 
 function mjl_activities_execution_summary($row)
 {
-	$percent = $row['physical_execution_percent'] === null || $row['physical_execution_percent'] === '' ? 'Non renseigne' : ((int) $row['physical_execution_percent']).'%';
-	$status = mjl_activities_execution_status_label($row['execution_status'] ?? '');
-	if ($status === 'Non renseigne') {
+	if (mjl_activity_deadline_alert($row['date_end'] ?? '', $row['status'] ?? 0) === 'En retard') {
+		return 'En retard';
+	}
+	$percent = $row['physical_execution_percent'] === null || $row['physical_execution_percent'] === '' ? 'Non renseigné' : ((int) $row['physical_execution_percent']).'%';
+	$statusCode = (string) ($row['execution_status'] ?? '');
+	$status = mjl_activities_execution_status_label($statusCode);
+	if ($statusCode === 'in_progress' && $row['physical_execution_percent'] !== null && $row['physical_execution_percent'] !== '' && (int) $row['physical_execution_percent'] > 0 && (int) $row['physical_execution_percent'] < 100) {
+		$status = 'Partiellement exécutée';
+	}
+	if ($status === 'Non renseigné') {
 		return $percent;
 	}
 	return $percent.' - '.$status;
@@ -585,11 +651,11 @@ function mjl_activities_fetch_detail($id)
 	$sql = 'SELECT a.rowid, a.entity, a.ref, a.label, a.fk_user_creat, a.fk_user_responsible, a.date_creation, a.date_start, a.date_end, a.date_actual_start, a.date_actual_end, a.physical_execution_percent, a.execution_status, a.execution_comment, a.status,';
 	$sql .= ' p.ref AS project_ref, p.title AS project_title, c.ref AS convention_ref, c.title AS convention_title, t.ref AS task_ref, t.label AS task_label, u.login AS creator_login, ru.login AS responsible_login';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
-	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention';
-	$sql .= ' LEFT JOIN '.$db->prefix().'projet_task t ON t.rowid = a.fk_task';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = a.fk_user_creat';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user ru ON ru.rowid = a.fk_user_responsible';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet_task t ON t.rowid = a.fk_task AND t.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = a.fk_user_creat AND u.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user ru ON ru.rowid = a.fk_user_responsible AND ru.entity = a.entity';
 	$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND a.rowid = '.((int) $id);
 	$resql = $db->query($sql);
 	if (!$resql) {
@@ -676,6 +742,9 @@ function mjl_activities_timeline_items($activity)
 			'comment' => (string) $row->comment,
 		);
 	}
+	foreach (mjl_timeline_exchange_items('mjlfinancement_activity', (int) $activity['rowid'], true) as $item) {
+		$items[] = $item;
+	}
 	return $items;
 }
 
@@ -732,6 +801,7 @@ function mjl_activity_action_label($action)
 {
 	$map = array(
 		'field_changed' => 'Modification',
+		'execution_updated' => 'Execution mise a jour',
 		'document_uploaded' => 'Document ajoute',
 		'submitted' => 'Soumission',
 		'correction_requested' => 'Correction demandee',

@@ -472,8 +472,8 @@ class MjlFundReceipt extends CommonObject
 			$this->error = 'La référence de réception est obligatoire';
 			return false;
 		}
-		if ((int) $this->fk_convention <= 0 || (int) $this->fk_soc <= 0 || (int) $this->fk_project <= 0) {
-			$this->error = 'Une convention active avec PTF et projet est obligatoire';
+		if ((int) $this->fk_convention <= 0 || (int) $this->fk_soc <= 0) {
+			$this->error = 'Une enveloppe active avec partenaire est obligatoire';
 			return false;
 		}
 		if ((float) $this->amount < 0) {
@@ -540,7 +540,7 @@ class MjlFundReceipt extends CommonObject
 				return false;
 			}
 			$normalized['fk_soc'] = (int) $links['fk_soc'];
-			$normalized['fk_project'] = (int) $links['fk_project'];
+			$normalized['fk_project'] = $links['fk_project'] === null ? null : (int) $links['fk_project'];
 		}
 		return $normalized;
 	}
@@ -553,7 +553,7 @@ class MjlFundReceipt extends CommonObject
 		}
 		$this->fk_convention = (int) $links['rowid'];
 		$this->fk_soc = (int) $links['fk_soc'];
-		$this->fk_project = (int) $links['fk_project'];
+		$this->fk_project = $links['fk_project'] === null ? null : (int) $links['fk_project'];
 		return true;
 	}
 
@@ -567,19 +567,20 @@ class MjlFundReceipt extends CommonObject
 		$sql = 'SELECT c.rowid, c.fk_soc, c.fk_project, c.status';
 		$sql .= ' FROM '.$this->db->prefix().'mjlfinancement_convention c';
 		$sql .= ' INNER JOIN '.$this->db->prefix().'societe s ON s.rowid = c.fk_soc';
-		$sql .= ' INNER JOIN '.$this->db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
+		$sql .= ' LEFT JOIN '.$this->db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
 		$sql .= ' WHERE c.rowid = '.$conventionId.' AND c.entity = '.((int) $entity);
+		$sql .= ' AND (c.fk_project IS NULL OR p.rowid IS NOT NULL)';
 		$row = mjl_integrity_fetch_row($sql);
 		if (empty($row)) {
-			$this->error = 'Convention introuvable dans l’entité active ou sans PTF/projet';
+			$this->error = 'Enveloppe introuvable dans l entité active ou sans partenaire';
 			return array();
 		}
 		if ($requireActive && (int) $row['status'] !== MjlConvention::STATUS_ACTIVE) {
 			$this->error = 'La convention doit être active pour les réceptions de fonds';
 			return array();
 		}
-		if ((int) $row['fk_soc'] <= 0 || (int) $row['fk_project'] <= 0) {
-			$this->error = 'La convention doit avoir un PTF et un projet pour les réceptions de fonds';
+		if ((int) $row['fk_soc'] <= 0) {
+			$this->error = 'L enveloppe doit avoir un partenaire pour les réceptions de fonds';
 			return array();
 		}
 		return $row;
@@ -591,7 +592,9 @@ class MjlFundReceipt extends CommonObject
 		if (empty($links)) {
 			return false;
 		}
-		if ((int) $current['fk_soc'] !== (int) $links['fk_soc'] || (int) $current['fk_project'] !== (int) $links['fk_project']) {
+		$currentProject = $current['fk_project'] === null ? null : (int) $current['fk_project'];
+		$linkProject = $links['fk_project'] === null ? null : (int) $links['fk_project'];
+		if ((int) $current['fk_soc'] !== (int) $links['fk_soc'] || $currentProject !== $linkProject) {
 			$this->error = 'Les rattachements de la réception ne correspondent pas à la convention sélectionnée';
 			return false;
 		}
@@ -632,7 +635,7 @@ class MjlFundReceipt extends CommonObject
 
 	private function actorRole(User $user)
 	{
-		return !empty($user->admin) ? 'ADMIN' : 'DPAF';
+		return mjl_actor_role_code($user);
 	}
 
 	private function statusLabel($status)
@@ -673,7 +676,7 @@ class MjlFundReceipt extends CommonObject
 			}
 		}
 		if (in_array($field, array('fk_soc', 'fk_project', 'fk_convention'), true)) {
-			return (string) ((int) $value);
+			return $value === null ? 'NULL' : (string) ((int) $value);
 		}
 		if ($field === 'amount') {
 			return (string) price2num($value);

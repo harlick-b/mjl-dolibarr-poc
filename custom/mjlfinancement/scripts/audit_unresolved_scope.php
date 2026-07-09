@@ -37,8 +37,30 @@ reportRows(
 	'SELECT rowid, ref, entity, object_type, object_id FROM '.$db->prefix().'mjlfinancement_workflow_action WHERE object_type IS NULL OR object_type = \'\' OR object_id IS NULL OR object_id <= 0'
 );
 reportRows(
+	'workflow_action_without_resolvable_target',
+	'SELECT w.rowid, w.ref, w.entity, w.object_type, w.object_id FROM '.$db->prefix().'mjlfinancement_workflow_action w'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = w.object_id AND w.object_type = \'mjlfinancement_expense\' AND e.entity = w.entity'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity'
+	.' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = w.object_id AND w.object_type = \'mjlfinancement_project\' AND p.entity = w.entity'
+	.' WHERE w.object_type IS NOT NULL AND w.object_type <> \'\' AND w.object_id > 0 AND COALESCE(a.rowid, e.rowid, c.rowid, bl.rowid, fr.rowid, p.rowid) IS NULL'
+);
+reportRows(
 	'exchange_log_without_positive_object',
 	'SELECT rowid, ref, entity, object_type, object_id FROM '.$db->prefix().'mjlfinancement_exchange_log WHERE object_type IS NULL OR object_type = \'\' OR object_id IS NULL OR object_id <= 0'
+);
+reportRows(
+	'exchange_log_without_resolvable_target',
+	'SELECT x.rowid, x.ref, x.entity, x.object_type, x.object_id FROM '.$db->prefix().'mjlfinancement_exchange_log x'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = x.object_id AND x.object_type = \'mjlfinancement_activity\' AND a.entity = x.entity'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = x.object_id AND x.object_type = \'mjlfinancement_expense\' AND e.entity = x.entity'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = x.object_id AND x.object_type = \'mjlfinancement_convention\' AND c.entity = x.entity'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = x.object_id AND x.object_type = \'mjlfinancement_budget_line\' AND bl.entity = x.entity'
+	.' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = x.object_id AND x.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = x.entity'
+	.' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = x.object_id AND x.object_type = \'mjlfinancement_project\' AND p.entity = x.entity'
+	.' WHERE x.object_type IS NOT NULL AND x.object_type <> \'\' AND x.object_id > 0 AND COALESCE(a.rowid, e.rowid, c.rowid, bl.rowid, fr.rowid, p.rowid) IS NULL'
 );
 reportRows(
 	'document_without_positive_source',

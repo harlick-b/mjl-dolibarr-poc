@@ -8,6 +8,8 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
 
 if (!mjl_workspace_can_access_expense($user)) {
 	accessforbidden();
@@ -55,17 +57,20 @@ function mjl_expenses_handle_post($action)
 	global $db, $user, $conf;
 
 	if ($action === 'create') {
+		$fkProject = GETPOSTINT('fk_project');
 		$fkConvention = GETPOSTINT('fk_convention');
-		if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $fkConvention)) {
-			mjl_expenses_forbidden('Convention hors de votre perimetre');
+		$fkActivity = GETPOSTINT('fk_mjl_activity');
+		$fkBudgetLine = GETPOSTINT('fk_budget_line');
+		if (!mjl_expenses_can_use_links($fkProject, $fkConvention, $fkActivity, $fkBudgetLine)) {
+			mjl_expenses_forbidden('Rattachement financier hors de votre perimetre');
 		}
 		$expense = new MjlExpense($db);
 		$expense->entity = (int) $conf->entity;
 		$expense->ref = GETPOST('ref', 'alphanohtml');
-		$expense->fk_project = GETPOSTINT('fk_project');
+		$expense->fk_project = $fkProject;
 		$expense->fk_convention = $fkConvention;
-		$expense->fk_mjl_activity = GETPOSTINT('fk_mjl_activity');
-		$expense->fk_budget_line = GETPOSTINT('fk_budget_line');
+		$expense->fk_mjl_activity = $fkActivity;
+		$expense->fk_budget_line = $fkBudgetLine;
 		$expense->amount = price2num(GETPOST('amount', 'alpha'));
 		$date = GETPOST('expense_date', 'alphanohtml');
 		$expense->expense_date = empty($date) ? dol_now() : strtotime($date);
@@ -85,6 +90,11 @@ function mjl_expenses_handle_post($action)
 	$row = mjl_expenses_fetch_detail($id);
 	if (empty($row) || !mjl_expenses_can_open($row)) {
 		mjl_expenses_forbidden('Depense introuvable ou hors de votre perimetre');
+	}
+	if ($action === 'add_exchange') {
+		list($result, $message) = mjl_timeline_create_comment($user, 'mjlfinancement_expense', $id, GETPOST('message', 'restricthtml'));
+		setEventMessages($message, null, $result > 0 ? 'mesgs' : 'errors');
+		mjl_expenses_redirect($id);
 	}
 	if (!mjl_expenses_can_apply_action($row, $action)) {
 		mjl_expenses_forbidden();
@@ -239,6 +249,20 @@ function mjl_expenses_upload_document(MjlExpense $expense)
 		$db->rollback();
 		@unlink($target);
 		$expense->error = $db->lasterror();
+		return -1;
+	}
+	if (mjl_record_expense_validation_event($expense, $expense->status, $expense->status, $user, dol_now(), 'document_uploaded', 'Piece justificative ajoutee', mjl_actor_role_code($user)) < 0) {
+		$db->rollback();
+		@unlink($target);
+		$expense->error = mjl_integrity_error();
+		return -1;
+	}
+	if (mjl_workflow_audit_insert('mjlfinancement_expense', $expenseId, (int) $expense->entity, mjl_expense_status_label($expense->status), $user, mjl_actor_role_code($user), 'document_uploaded', 'Piece justificative ajoutee: '.$filename, array(
+		'supporting_document' => array('before' => '', 'after' => $filename),
+	), 'WFA-EXP') < 0) {
+		$db->rollback();
+		@unlink($target);
+		$expense->error = 'Impossible d enregistrer l audit de la piece justificative';
 		return -1;
 	}
 	$db->commit();
@@ -460,7 +484,8 @@ function mjl_expenses_render_timeline($expense)
 {
 	$items = mjl_expenses_timeline_items($expense);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Historique de decision</h2><p>Soumissions, corrections et decisions conservees dans la trace de validation.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Historique de decision et commentaires</h2><p>Soumissions, corrections, decisions et echanges contextualises.</p></div>';
+	mjl_timeline_render_comment_form('mjlfinancement_expense', (int) $expense['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $expense['rowid']));
 	print '<ol class="mjl-activity-timeline">';
 	foreach ($items as $item) {
 		print '<li><span class="mjl-status-pill">'.dol_escape_htmltag($item['label']).'</span>';
@@ -479,20 +504,21 @@ function mjl_expenses_options($type)
 	global $db, $conf;
 
 	if ($type === 'project') {
-		$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+		$sql = 'SELECT p.rowid, p.ref, p.title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
 		$sql = 'SELECT c.rowid, c.ref, c.title, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_convention c';
-		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project';
-		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' ORDER BY c.ref';
+		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
+		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' AND c.fk_project IS NOT NULL'.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} elseif ($type === 'activity') {
 		$sql = 'SELECT a.rowid, a.ref, a.label, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_activity a';
-		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project';
-		$sql .= ' WHERE a.entity = '.((int) $conf->entity).' ORDER BY p.ref, a.ref';
+		$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
+		$sql .= ' WHERE a.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY p.ref, a.ref';
 	} elseif ($type === 'budget_line') {
 		$sql = 'SELECT bl.rowid, bl.ref, bl.label, p.ref AS project_ref, c.ref AS convention_ref FROM '.$db->prefix().'mjlfinancement_budget_line bl';
-		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project';
+		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project AND p.entity = bl.entity';
 		$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity AND c.status = '.MjlConvention::STATUS_ACTIVE;
-		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.status = '.MjlBudgetLine::STATUS_ACTIVE.' ORDER BY p.ref, c.ref, bl.ref';
+		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.status = '.MjlBudgetLine::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY p.ref, c.ref, bl.ref';
 	} else {
 		return array();
 	}
@@ -523,6 +549,37 @@ function mjl_expenses_options($type)
 	}
 
 	return $options;
+}
+
+function mjl_expenses_can_use_links($fkProject, $fkConvention, $fkMjlActivity, $fkBudgetLine)
+{
+	global $db, $conf, $user;
+
+	$fkProject = (int) $fkProject;
+	$fkConvention = (int) $fkConvention;
+	$fkMjlActivity = (int) $fkMjlActivity;
+	$fkBudgetLine = (int) $fkBudgetLine;
+	if ($fkProject <= 0 || $fkConvention <= 0 || $fkBudgetLine <= 0) {
+		return false;
+	}
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $fkConvention) || !mjl_scope_can_access_object($user, 'project', $fkProject) || !mjl_scope_can_access_object($user, 'mjlfinancement_budget_line', $fkBudgetLine)) {
+		return false;
+	}
+	if ($fkMjlActivity > 0 && !mjl_scope_can_access_object($user, 'mjlfinancement_activity', $fkMjlActivity)) {
+		return false;
+	}
+	$probe = new stdClass();
+	$probe->fk_project = $fkProject;
+	$probe->fk_convention = $fkConvention;
+	$probe->fk_mjl_activity = $fkMjlActivity;
+	$probe->fk_budget_line = $fkBudgetLine;
+	if (mjl_assert_expense_links($probe, (int) $conf->entity, true) < 0) {
+		return false;
+	}
+	$sql = 'SELECT c.fk_soc FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.rowid = '.$fkConvention.' AND c.entity = '.((int) $conf->entity);
+	$resql = $db->query($sql);
+	$row = $resql ? $db->fetch_object($resql) : null;
+	return $row && mjl_scope_can_access_fk_soc($user, (int) $row->fk_soc);
 }
 
 function mjl_expenses_select($name, $options, $required = 0, $emptyLabel = '')
@@ -649,6 +706,9 @@ function mjl_expenses_timeline_items($expense)
 			'comment' => (string) $row->comment,
 		);
 	}
+	foreach (mjl_timeline_exchange_items('mjlfinancement_expense', (int) $expense['rowid'], true) as $item) {
+		$items[] = $item;
+	}
 	return $items;
 }
 
@@ -717,6 +777,7 @@ function mjl_expense_action_label($action)
 		'prevalidated' => 'Prevalidation',
 		'final_validated' => 'Validation definitive',
 		'disbursed' => 'Decaissement',
+		'document_uploaded' => 'Piece justificative ajoutee',
 		'rejected' => 'Rejet',
 		'corrected' => 'Correction',
 	);

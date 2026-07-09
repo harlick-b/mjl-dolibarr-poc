@@ -12,6 +12,7 @@ function mjl_workflow_audit_insert($objectType, $objectId, $entity, $statusLabel
 	if ($objectType === '' || $objectId <= 0 || $entity <= 0) {
 		return -1;
 	}
+	$actorRole = mjl_workflow_audit_actor_role_code($actorRole);
 	$actionDate = dol_now();
 	$ref = $refPrefix.'-'.$objectId.'-'.date('YmdHis', $actionDate).'-'.substr(str_replace('.', '', (string) microtime(true)), -6).'-'.((int) $user->id).'-'.strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', (string) $action), 0, 8));
 
@@ -40,4 +41,17 @@ function mjl_workflow_audit_insert($objectType, $objectId, $entity, $statusLabel
 		return -1;
 	}
 	return (int) $db->last_insert_id($db->prefix().'mjlfinancement_workflow_action');
+}
+
+function mjl_workflow_audit_actor_role_code($actorRole)
+{
+	$map = array(
+		'AGENT' => 'AGENT_SAISIE',
+		'SUPERVISEUR_N1' => 'AGENT_VERIFICATEUR',
+		'SUPERVISEUR_N2' => 'AGENT_VERIFICATEUR',
+		'DPAF' => 'VALIDATEUR_DEFINITIF',
+		'ADMIN' => 'ADMIN_PLATEFORME',
+	);
+	$actorRole = (string) $actorRole;
+	return isset($map[$actorRole]) ? $map[$actorRole] : $actorRole;
 }

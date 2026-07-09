@@ -350,7 +350,7 @@ test('Tampered create POST with mismatched project and convention is rejected se
     maxRedirects: 0
   });
 
-  expect(response.status()).toBe(302);
+  expect([302, 403]).toContain(response.status());
   expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_expense WHERE ref = 'P11-TAMPER-MISMATCH' AND entity = 1"))).toBe(0);
 });
 

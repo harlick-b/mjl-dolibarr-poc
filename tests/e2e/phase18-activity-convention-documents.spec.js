@@ -54,6 +54,8 @@ function cleanupPhase18Fixtures() {
     DELETE FROM llx_mjlfinancement_workflow_action WHERE (object_type = 'mjlfinancement_activity' AND FIND_IN_SET(object_id, COALESCE(@phase18_activities, ''))) OR (object_type = 'mjlfinancement_convention' AND FIND_IN_SET(object_id, COALESCE(@phase18_conventions, '')));
     DELETE FROM llx_mjlfinancement_activity WHERE ref LIKE 'P18-%';
     DELETE FROM llx_mjlfinancement_convention WHERE ref LIKE 'P18-%';
+    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE fk_user = @phase18_user;
+    DELETE FROM llx_mjlfinancement_user_role WHERE fk_user = @phase18_user;
     DELETE FROM llx_usergroup_user WHERE fk_user = @phase18_user;
     DELETE FROM llx_user WHERE rowid = @phase18_user;
   `);
@@ -159,7 +161,7 @@ test('DPAF uploads and downloads an activity document without activity write', a
   await expect(page.getByText('Disponible').first()).toBeVisible();
   const href = await page.getByRole('link', { name: 'Telecharger le document' }).first().getAttribute('href');
   await expectDownload(page, href, 'Phase 18 DPAF activity document');
-  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'document_uploaded' AND actor_role = 'DPAF'`))).toBe(1);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'document_uploaded' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
 });
 
 test('Activity direct downloads deny unrelated Level 1, cross-entity, orphan, and path-tampered ECM rows', async ({ page }) => {

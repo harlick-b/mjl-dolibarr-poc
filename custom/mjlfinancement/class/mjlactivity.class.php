@@ -94,6 +94,11 @@ class MjlActivity extends CommonObject
 		return array(self::STATUS_DRAFT, self::STATUS_CORRECTION_REQUESTED);
 	}
 
+	public static function executionEditableStatuses()
+	{
+		return array(self::STATUS_DRAFT, self::STATUS_ONGOING, self::STATUS_CORRECTION_REQUESTED, self::STATUS_CORRECTED, self::STATUS_VALIDATED, self::STATUS_COMPLETED);
+	}
+
 	public static function submitStatuses()
 	{
 		return array(self::STATUS_DRAFT, self::STATUS_CORRECTED);
@@ -122,7 +127,7 @@ class MjlActivity extends CommonObject
 		if (!$this->normalizeProductionFields()) {
 			return -1;
 		}
-		if (!$this->assertLinks($activeEntity, true)) {
+		if (!$this->assertLinks($activeEntity, true, $user)) {
 			return -1;
 		}
 
@@ -162,7 +167,7 @@ class MjlActivity extends CommonObject
 		if (!$this->normalizeProductionFields()) {
 			return -1;
 		}
-		if (!$this->assertLinks($current['entity'])) {
+		if (!$this->assertLinks($current['entity'], false, $user)) {
 			return -1;
 		}
 
@@ -174,7 +179,7 @@ class MjlActivity extends CommonObject
 		return $this->deleteCommon($user, $notrigger);
 	}
 
-	public function updateImportantFields(User $user, $fields, $comment, $actorRole = 'AGENT', $notrigger = 0)
+	public function updateImportantFields(User $user, $fields, $comment, $actorRole = 'AGENT_SAISIE', $notrigger = 0)
 	{
 		$id = (int) ($this->id ?: $this->rowid);
 		if ($id <= 0) {
@@ -273,6 +278,10 @@ class MjlActivity extends CommonObject
 		if (array_key_exists('fk_user_responsible', $fields)) {
 			$value = (int) $fields['fk_user_responsible'];
 			if ($value < 0) $value = 0;
+			if (!$this->assertResponsibleUser((int) $current['entity'], $value, $user, (int) $current['fk_project'], (int) $current['fk_convention'])) {
+				$this->db->rollback();
+				return -1;
+			}
 			$currentValue = (int) $current['fk_user_responsible'];
 			if ($value !== $currentValue) {
 				$sets[] = 'fk_user_responsible = '.($value > 0 ? $value : 'NULL');
@@ -300,6 +309,108 @@ class MjlActivity extends CommonObject
 		}
 		if (empty($notrigger)) {
 			$result = $this->call_trigger('MJLFINANCEMENT_ACTIVITY_FIELD_CHANGE', $user);
+			if ($result < 0) {
+				$this->db->rollback();
+				return -1;
+			}
+		}
+
+		$this->db->commit();
+		return 1;
+	}
+
+	public function updateExecution(User $user, $fields, $actorRole = 'AGENT_SAISIE', $notrigger = 0)
+	{
+		$id = (int) ($this->id ?: $this->rowid);
+		if ($id <= 0) {
+			$this->error = 'Missing activity id';
+			return -1;
+		}
+		if (!$this->canDo($user, 'activity', 'write')) {
+			$this->error = 'Permission denied for activity execution update';
+			return -1;
+		}
+
+		$this->db->begin();
+		$current = $this->fetchCurrentForWorkflow($id, true);
+		if (empty($current)) {
+			$this->db->rollback();
+			return -1;
+		}
+		if (!in_array((int) $current['status'], self::executionEditableStatuses(), true)) {
+			$this->error = 'Activity execution cannot be updated while the activity is under review or unusable';
+			$this->db->rollback();
+			return -1;
+		}
+		$responsibleForValidation = array_key_exists('fk_user_responsible', $fields) ? (int) $fields['fk_user_responsible'] : (int) $current['fk_user_responsible'];
+		if (!$this->assertResponsibleUser((int) $current['entity'], $responsibleForValidation, $user, (int) $current['fk_project'], (int) $current['fk_convention'])) {
+			$this->db->rollback();
+			return -1;
+		}
+
+		$normalized = $this->normalizeExecutionFields($fields, $current);
+		if ($normalized === false) {
+			$this->db->rollback();
+			return -1;
+		}
+		if (!$this->assertExecutionConsistency($normalized['physical_execution_percent'], $normalized['execution_status'], $normalized['execution_comment'])) {
+			$this->db->rollback();
+			return -1;
+		}
+
+		$sets = array();
+		$changes = array();
+		foreach (array('date_actual_start', 'date_actual_end') as $dateField) {
+			if ($normalized[$dateField] !== $this->normalizeDateValue($current[$dateField])) {
+				$sets[] = $dateField.' = '.($normalized[$dateField] === null ? 'NULL' : "'".$this->db->escape($normalized[$dateField])."'");
+				$changes[$dateField] = array('before' => $this->normalizeDateValue($current[$dateField]), 'after' => $normalized[$dateField]);
+				$this->{$dateField} = $normalized[$dateField];
+			}
+		}
+		$currentPercent = $current['physical_execution_percent'] === null ? null : (int) $current['physical_execution_percent'];
+		if ($normalized['physical_execution_percent'] !== $currentPercent) {
+			$sets[] = 'physical_execution_percent = '.($normalized['physical_execution_percent'] === null ? 'NULL' : ((int) $normalized['physical_execution_percent']));
+			$changes['physical_execution_percent'] = array('before' => $currentPercent, 'after' => $normalized['physical_execution_percent']);
+			$this->physical_execution_percent = $normalized['physical_execution_percent'];
+		}
+		$currentStatus = $current['execution_status'] === null ? '' : (string) $current['execution_status'];
+		if ($normalized['execution_status'] !== $currentStatus) {
+			$sets[] = 'execution_status = '.($normalized['execution_status'] === '' ? 'NULL' : "'".$this->db->escape($normalized['execution_status'])."'");
+			$changes['execution_status'] = array('before' => $currentStatus, 'after' => $normalized['execution_status']);
+			$this->execution_status = $normalized['execution_status'];
+		}
+		$currentComment = $current['execution_comment'] === null ? '' : (string) $current['execution_comment'];
+		if ($normalized['execution_comment'] !== $currentComment) {
+			$sets[] = 'execution_comment = '.($normalized['execution_comment'] === '' ? 'NULL' : "'".$this->db->escape($normalized['execution_comment'])."'");
+			$changes['execution_comment'] = array('before' => $currentComment, 'after' => $normalized['execution_comment']);
+			$this->execution_comment = $normalized['execution_comment'];
+		}
+		$currentResponsible = (int) $current['fk_user_responsible'];
+		if ($normalized['fk_user_responsible'] !== $currentResponsible) {
+			$sets[] = 'fk_user_responsible = '.($normalized['fk_user_responsible'] > 0 ? ((int) $normalized['fk_user_responsible']) : 'NULL');
+			$changes['fk_user_responsible'] = array('before' => $currentResponsible > 0 ? $currentResponsible : null, 'after' => $normalized['fk_user_responsible'] > 0 ? $normalized['fk_user_responsible'] : null);
+			$this->fk_user_responsible = $normalized['fk_user_responsible'] > 0 ? $normalized['fk_user_responsible'] : null;
+		}
+
+		if (empty($changes)) {
+			$this->db->commit();
+			return 0;
+		}
+
+		$sets[] = 'fk_user_modif = '.((int) $user->id);
+		$sql = 'UPDATE '.$this->db->prefix().$this->table_element.' SET '.implode(', ', $sets);
+		$sql .= ' WHERE rowid = '.$id.' AND entity = '.((int) $current['entity']);
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			$this->db->rollback();
+			return -1;
+		}
+		if ($this->insertWorkflowAction($current, $this->statusLabel($current['status']), $this->statusLabel($current['status']), $user, $actorRole, dol_now(), 'execution_updated', $normalized['execution_comment'], $changes) < 0) {
+			$this->db->rollback();
+			return -1;
+		}
+		if (empty($notrigger)) {
+			$result = $this->call_trigger('MJLFINANCEMENT_ACTIVITY_EXECUTION_UPDATE', $user);
 			if ($result < 0) {
 				$this->db->rollback();
 				return -1;
@@ -511,6 +622,7 @@ class MjlActivity extends CommonObject
 	private function insertWorkflowAction($current, $fromStatusLabel, $toStatusLabel, User $user, $actorRole, $actionDate, $action, $comment, $changes)
 	{
 		$id = (int) ($this->id ?: $this->rowid);
+		$actorRole = $this->normalizeActorRoleCode($actorRole);
 		$ref = 'WFA-ACT-'.$id.'-'.date('YmdHis', $actionDate).'-'.substr(str_replace('.', '', (string) microtime(true)), -6).'-'.((int) $user->id).'-'.strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', $action), 0, 8));
 
 		$sql = 'INSERT INTO '.$this->db->prefix().'mjlfinancement_workflow_action';
@@ -542,12 +654,25 @@ class MjlActivity extends CommonObject
 		return (int) $this->db->last_insert_id($this->db->prefix().'mjlfinancement_workflow_action');
 	}
 
+	private function normalizeActorRoleCode($actorRole)
+	{
+		$map = array(
+			'AGENT' => 'AGENT_SAISIE',
+			'SUPERVISEUR_N1' => 'AGENT_VERIFICATEUR',
+			'SUPERVISEUR_N2' => 'AGENT_VERIFICATEUR',
+			'DPAF' => 'VALIDATEUR_DEFINITIF',
+			'ADMIN' => 'ADMIN_PLATEFORME',
+		);
+		$actorRole = (string) $actorRole;
+		return isset($map[$actorRole]) ? $map[$actorRole] : $actorRole;
+	}
+
 	private function canDo(User $user, $perms, $subperms)
 	{
 		return mjl_user_has_right($user, 'mjlfinancement', $perms, $subperms);
 	}
 
-	private function assertLinks($entity, $requireActiveConvention = false)
+	private function assertLinks($entity, $requireActiveConvention = false, User $actor = null)
 	{
 		$projectId = (int) $this->fk_project;
 		$conventionId = (int) $this->fk_convention;
@@ -556,12 +681,12 @@ class MjlActivity extends CommonObject
 			return false;
 		}
 
-		$project = mjl_integrity_fetch_row('SELECT rowid FROM '.$this->db->prefix().'projet WHERE rowid = '.$projectId.' AND entity = '.((int) $entity));
+		$project = mjl_integrity_fetch_row('SELECT rowid, fk_soc FROM '.$this->db->prefix().'projet WHERE rowid = '.$projectId.' AND entity = '.((int) $entity));
 		if (empty($project)) {
 			$this->error = 'Project not found in active entity';
 			return false;
 		}
-		$convention = mjl_integrity_fetch_row('SELECT rowid, fk_project, status FROM '.$this->db->prefix().'mjlfinancement_convention WHERE rowid = '.$conventionId.' AND entity = '.((int) $entity));
+		$convention = mjl_integrity_fetch_row('SELECT rowid, fk_project, fk_soc, status FROM '.$this->db->prefix().'mjlfinancement_convention WHERE rowid = '.$conventionId.' AND entity = '.((int) $entity));
 		if (empty($convention)) {
 			$this->error = 'Convention not found in active entity';
 			return false;
@@ -572,6 +697,10 @@ class MjlActivity extends CommonObject
 		}
 		if (!empty($convention['fk_project']) && (int) $convention['fk_project'] !== $projectId) {
 			$this->error = 'Convention does not belong to selected project';
+			return false;
+		}
+		if ((int) $project['fk_soc'] <= 0 || (int) $convention['fk_soc'] <= 0 || (int) $project['fk_soc'] !== (int) $convention['fk_soc']) {
+			$this->error = 'Project and convention must resolve to the same Partenaire / Programme';
 			return false;
 		}
 		if ((int) $this->fk_task > 0) {
@@ -585,14 +714,40 @@ class MjlActivity extends CommonObject
 				return false;
 			}
 		}
-		if ((int) $this->fk_user_responsible > 0) {
-			$responsible = mjl_integrity_fetch_row('SELECT rowid FROM '.$this->db->prefix().'user WHERE rowid = '.((int) $this->fk_user_responsible).' AND entity = '.((int) $entity));
-			if (empty($responsible)) {
-				$this->error = 'Responsible user not found in active entity';
-				return false;
-			}
+		if (!$this->assertResponsibleUser((int) $entity, (int) $this->fk_user_responsible, $actor, $projectId, $conventionId)) {
+			return false;
 		}
 
+		return true;
+	}
+
+	private function assertResponsibleUser($entity, $responsibleId, User $actor = null, $projectId = 0, $conventionId = 0)
+	{
+		if ((int) $responsibleId <= 0) {
+			return true;
+		}
+		$responsible = mjl_integrity_fetch_row('SELECT rowid, statut FROM '.$this->db->prefix().'user WHERE rowid = '.((int) $responsibleId).' AND entity = '.((int) $entity));
+		if (empty($responsible) || (int) $responsible['statut'] !== 1) {
+			$this->error = 'Responsible user must be active in the active entity';
+			return false;
+		}
+		if ($actor && (int) $responsibleId === (int) $actor->id) {
+			return true;
+		}
+		if ($actor && mjl_scope_is_platform_admin($actor, $entity)) {
+			return true;
+		}
+		$fkSoc = null;
+		if ((int) $conventionId > 0) {
+			$fkSoc = mjl_scope_object_fk_soc('mjlfinancement_convention', (int) $conventionId, (int) $entity);
+		}
+		if ($fkSoc === null && (int) $projectId > 0) {
+			$fkSoc = mjl_scope_object_fk_soc('mjlfinancement_project', (int) $projectId, (int) $entity);
+		}
+		if ($fkSoc === null || !mjl_scope_can_access_fk_soc((object) array('id' => (int) $responsibleId), (int) $fkSoc, (int) $entity)) {
+			$this->error = 'Responsible user is not scoped to the selected Partenaire / Programme';
+			return false;
+		}
 		return true;
 	}
 
@@ -687,7 +842,46 @@ class MjlActivity extends CommonObject
 		if ($this->execution_comment === '') {
 			$this->execution_comment = null;
 		}
+		if (!$this->assertExecutionConsistency($this->physical_execution_percent, $this->execution_status, $this->execution_comment)) {
+			return false;
+		}
 		$this->fk_user_responsible = (int) $this->fk_user_responsible > 0 ? (int) $this->fk_user_responsible : null;
+		return true;
+	}
+
+	private function normalizeExecutionFields($fields, $current)
+	{
+		$percent = array_key_exists('physical_execution_percent', $fields) ? $this->normalizePercentValue($fields['physical_execution_percent']) : ($current['physical_execution_percent'] === null ? null : (int) $current['physical_execution_percent']);
+		if ($percent === false) {
+			return false;
+		}
+		$status = array_key_exists('execution_status', $fields) ? $this->normalizeExecutionStatus($fields['execution_status']) : ($current['execution_status'] === null ? '' : (string) $current['execution_status']);
+		if ($status === false) {
+			return false;
+		}
+		return array(
+			'date_actual_start' => array_key_exists('date_actual_start', $fields) ? $this->normalizeDateValue($fields['date_actual_start']) : $this->normalizeDateValue($current['date_actual_start']),
+			'date_actual_end' => array_key_exists('date_actual_end', $fields) ? $this->normalizeDateValue($fields['date_actual_end']) : $this->normalizeDateValue($current['date_actual_end']),
+			'physical_execution_percent' => $percent,
+			'execution_status' => $status,
+			'execution_comment' => array_key_exists('execution_comment', $fields) ? trim((string) $fields['execution_comment']) : ($current['execution_comment'] === null ? '' : (string) $current['execution_comment']),
+			'fk_user_responsible' => array_key_exists('fk_user_responsible', $fields) ? max(0, (int) $fields['fk_user_responsible']) : (int) $current['fk_user_responsible'],
+		);
+	}
+
+	private function assertExecutionConsistency($percent, $status, $comment)
+	{
+		$percentValue = $percent === null || $percent === '' ? null : (int) $percent;
+		$statusValue = (string) $status;
+		$commentValue = trim((string) $comment);
+		if ($statusValue === 'completed' && $percentValue !== 100 && $commentValue === '') {
+			$this->error = 'Completed execution with a percentage other than 100 requires an execution comment';
+			return false;
+		}
+		if ($statusValue === 'not_started' && $percentValue !== null && $percentValue > 0 && $commentValue === '') {
+			$this->error = 'Not-started execution with progress greater than 0 requires an execution comment';
+			return false;
+		}
 		return true;
 	}
 

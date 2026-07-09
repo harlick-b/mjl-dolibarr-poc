@@ -1,5 +1,7 @@
 <?php
 
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
+
 function mjl_integrity_set_error($message)
 {
 	global $mjl_integrity_error;
@@ -51,6 +53,16 @@ function mjl_expense_disbursed_statuses()
 	return array(7);
 }
 
+function mjl_expense_submitted_statuses()
+{
+	return array(1);
+}
+
+function mjl_expense_prevalidated_statuses()
+{
+	return array(4);
+}
+
 function mjl_expense_status_sql_list($statuses)
 {
 	return implode(',', array_map('intval', $statuses));
@@ -82,6 +94,30 @@ function mjl_user_has_right(User $user, $module, $perms, $subperms)
 		return $user->hasRight($module, $perms, $subperms);
 	}
 	return !empty($user->rights->{$module}->{$perms}->{$subperms});
+}
+
+function mjl_actor_role_code(User $user)
+{
+	if (mjl_scope_is_verifier($user)) return 'AGENT_VERIFICATEUR';
+	if (mjl_scope_is_final_validator($user)) return 'VALIDATEUR_DEFINITIF';
+	if (mjl_scope_is_platform_admin($user)) return 'ADMIN_PLATEFORME';
+	if (mjl_scope_is_input_agent($user)) return 'AGENT_SAISIE';
+	return 'LEGACY';
+}
+
+function mjl_actor_role_label($role)
+{
+	$map = array(
+		'AGENT_SAISIE' => 'Agent de saisie',
+		'AGENT_VERIFICATEUR' => 'Agent verificateur',
+		'VALIDATEUR_DEFINITIF' => 'Validateur definitif',
+		'ADMIN_PLATEFORME' => 'Administrateur plateforme',
+		'ADMIN' => 'Administrateur plateforme',
+		'DPAF' => 'Validateur definitif',
+	);
+	$role = (string) $role;
+	if ($role === '') return '';
+	return isset($map[$role]) ? $map[$role] : $role;
 }
 
 function mjl_active_entity()
@@ -499,9 +535,11 @@ function mjl_recalculate_budget_line_amounts($budgetLineIds, $entity = null)
 	}
 
 	$sql = 'UPDATE '.$db->prefix().'mjlfinancement_budget_line bl SET';
-	$statusList = mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses());
-	$sql .= ' spent_amount = (SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status IN ('.$statusList.'))';
-	$sql .= ', remaining_amount = COALESCE(bl.revised_budget, 0) - (SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status IN ('.$statusList.'))';
+	$committedStatusList = mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses());
+	$disbursedStatusList = mjl_expense_status_sql_list(mjl_expense_disbursed_statuses());
+	$sql .= ' committed_amount = (SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status IN ('.$committedStatusList.'))';
+	$sql .= ', spent_amount = (SELECT COALESCE(SUM('.mjl_expense_disbursed_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status IN ('.$disbursedStatusList.'))';
+	$sql .= ', remaining_amount = COALESCE(bl.revised_budget, 0) - (SELECT COALESCE(SUM('.mjl_expense_budget_amount_sql('e').'), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.fk_budget_line = bl.rowid AND e.entity = bl.entity AND e.status IN ('.$committedStatusList.'))';
 	$sql .= ' WHERE bl.rowid IN ('.implode(',', $ids).')';
 	if ($entity !== null) {
 		$sql .= ' AND bl.entity = '.((int) $entity);

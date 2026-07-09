@@ -7,6 +7,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_access.l
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_expense_access.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
 
 mjl_workspace_require_projects_access($user);
 
@@ -23,11 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, array('create', '
 	}
 	mjl_projects_handle_project_post($action, $projectId);
 }
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add_note') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, array('add_note', 'add_exchange'), true)) {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		accessforbidden('Invalid security token');
 	}
-	mjl_projects_handle_note_post($projectId);
+	mjl_projects_handle_exchange_post($projectId);
 }
 
 llxHeader('', 'Projets MJL');
@@ -45,30 +46,17 @@ mjl_navigation_shell_end();
 llxFooter();
 $db->close();
 
-function mjl_projects_handle_note_post($projectId)
+function mjl_projects_handle_exchange_post($projectId)
 {
-	global $db, $conf, $user;
+	global $user;
 
 	$project = mjl_projects_fetch_project((int) $projectId);
-	if (empty($project) || !mjl_projects_can_open($project) || !mjl_projects_can_add_note($project)) {
+	if (empty($project) || !mjl_projects_can_open($project) || !mjl_timeline_can_comment($user)) {
 		accessforbidden();
 	}
 	$message = trim(GETPOST('message', 'restricthtml'));
-	if ($message === '') {
-		setEventMessages('Le commentaire est obligatoire.', null, 'errors');
-		header('Location: '.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $projectId));
-		exit;
-	}
-
-	$sql = 'INSERT INTO '.$db->prefix().'mjlfinancement_project_note';
-	$sql .= ' (entity, fk_project, message, date_note, fk_user_author, date_creation, fk_user_creat)';
-	$sql .= ' VALUES ('.((int) $conf->entity).', '.((int) $projectId).", '".$db->escape($message)."', '".$db->idate(dol_now())."', ".((int) $user->id).", '".$db->idate(dol_now())."', ".((int) $user->id).')';
-	if (!$db->query($sql)) {
-		setEventMessages($db->lasterror(), null, 'errors');
-	} else {
-		mjl_workflow_audit_insert('mjlfinancement_project', (int) $projectId, (int) $conf->entity, 'Note projet', $user, mjl_projects_actor_role(), 'note_added', $message, array(), 'WFA-PRJ');
-		setEventMessages('Commentaire ajoute au projet.', null, 'mesgs');
-	}
+	list($result, $statusMessage) = mjl_timeline_create_comment($user, 'mjlfinancement_project', (int) $projectId, $message);
+	setEventMessages($statusMessage, null, $result > 0 ? 'mesgs' : 'errors');
 	header('Location: '.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $projectId));
 	exit;
 }
@@ -184,11 +172,17 @@ function mjl_projects_render_detail($projectId)
 	}
 	mjl_dashboard_render_header('Projet '.$project['ref'], $project['title'], 'Statut', mjl_projects_status_label($project['fk_statut']));
 	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php">Retour aux projets</a></p>';
+	mjl_projects_render_identity($project);
 
 	$cards = array(
+		array('label' => 'Execution physique', 'value' => mjl_projects_physical_execution_percent((int) $project['rowid']).'%', 'context' => 'Moyenne des activites rattachees avec avancement renseigne', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites', 'status' => 'Execution', 'tone' => 'neutral'),
+		array('label' => 'Execution financiere', 'value' => mjl_projects_financial_execution_percent($project).'%', 'context' => 'Depenses validees rapportees au budget revise', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'Finances', 'tone' => 'neutral'),
 		array('label' => 'Budget total', 'value' => mjl_projects_price($project['budget_total']), 'context' => 'Lignes budgetaires rattachees', 'href' => '/custom/mjlfinancement/budgetlines.php', 'action' => 'Voir les budgets', 'status' => 'Financement', 'tone' => 'neutral'),
 		array('label' => 'Budget consomme', 'value' => mjl_projects_price($project['budget_spent']), 'context' => 'Depenses validees', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'Execution', 'tone' => 'neutral'),
 		array('label' => 'Fonds recus', 'value' => mjl_projects_price($project['funds_received']), 'context' => 'Receptions de fonds confirmees', 'href' => '/custom/mjlfinancement/fundreceipts.php', 'action' => 'Voir les fonds', 'status' => 'Financement', 'tone' => 'neutral'),
+		array('label' => 'Activites', 'value' => (int) $project['activities_count'], 'context' => 'Activites operationnelles rattachees', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Ouvrir les activites', 'status' => 'Suivi', 'tone' => 'neutral'),
+		array('label' => 'Depenses', 'value' => (int) $project['expenses_count'], 'context' => 'Depenses rattachees au projet', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les depenses', 'status' => 'Suivi', 'tone' => 'neutral'),
+		array('label' => 'Documents', 'value' => (int) $project['documents_count'], 'context' => 'Pieces accessibles via routes MJL gardees', 'href' => '/custom/mjlfinancement/documents.php', 'action' => 'Voir les documents', 'status' => 'Pieces', 'tone' => 'neutral'),
 	);
 	mjl_dashboard_render_card_section('Resume', 'Vue consolidee du projet et de ses objets MJL rattaches.', $cards);
 
@@ -197,8 +191,24 @@ function mjl_projects_render_detail($projectId)
 	}
 	mjl_projects_render_related_table('Activites liees', mjl_projects_activity_rows((int) $project['rowid']), 'activities.php');
 	mjl_projects_render_related_table('Depenses liees', mjl_projects_expense_rows((int) $project['rowid']), 'expenses.php');
+	mjl_projects_render_alerts((int) $project['rowid']);
 	mjl_projects_render_document_table((int) $project['rowid']);
+	mjl_projects_render_timeline((int) $project['rowid']);
 	mjl_projects_render_notes($project);
+}
+
+function mjl_projects_render_identity($project)
+{
+	print '<section class="mjl-workspace-section">';
+	print '<div class="mjl-section-heading"><h2>Identite du projet</h2><p>Rattachement Partenaire / Programme et dates de suivi.</p></div>';
+	print '<dl class="mjl-activity-meta">';
+	print '<div><dt>Partenaire / Programme</dt><dd>'.dol_escape_htmltag($project['partner_name'] ?: 'Non renseigne').'</dd></div>';
+	print '<div><dt>Reference</dt><dd>'.dol_escape_htmltag($project['ref']).'</dd></div>';
+	print '<div><dt>Intitule</dt><dd>'.dol_escape_htmltag($project['title']).'</dd></div>';
+	print '<div><dt>Debut</dt><dd>'.dol_escape_htmltag(mjl_projects_date($project['dateo'])).'</dd></div>';
+	print '<div><dt>Fin</dt><dd>'.dol_escape_htmltag(mjl_projects_date($project['datee'])).'</dd></div>';
+	print '<div><dt>Conventions</dt><dd>'.dol_escape_htmltag($project['convention_refs'] ?: 'Non renseignee').'</dd></div>';
+	print '</dl></section>';
 }
 
 function mjl_projects_render_project_form($row, $action)
@@ -255,15 +265,50 @@ function mjl_projects_render_document_table($projectId)
 	print '</table></div></section>';
 }
 
+function mjl_projects_render_alerts($projectId)
+{
+	$alerts = mjl_projects_alert_rows($projectId);
+	print '<section class="mjl-workspace-section">';
+	print '<div class="mjl-section-heading"><h2>Alertes du projet</h2><p>Activites ouvertes avec echeance proche ou depassee.</p></div>';
+	if (empty($alerts)) {
+		print '<div class="mjl-empty-state">Aucune alerte projet active.</div>';
+		print '</section>';
+		return;
+	}
+	print '<div class="div-table-responsive"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><th>Activite</th><th>Echeance</th><th>Alerte</th><th>Statut</th></tr>';
+	foreach ($alerts as $row) {
+		print '<tr class="oddeven"><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['ref']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['label']).'</span></td><td>'.dol_escape_htmltag(mjl_projects_date($row['date_end'])).'</td><td>'.dol_escape_htmltag(mjl_projects_activity_deadline_alert($row['date_end'], $row['status'])).'</td><td>'.dol_escape_htmltag(mjl_projects_activity_status_label($row['status'])).'</td></tr>';
+	}
+	print '</table></div></section>';
+}
+
+function mjl_projects_render_timeline($projectId)
+{
+	$items = mjl_projects_timeline_rows($projectId);
+	print '<section class="mjl-workspace-section">';
+	print '<div class="mjl-section-heading"><h2>Historique contextualise</h2><p>Actions recentes rattachees au projet et a ses objets MJL.</p></div>';
+	if (empty($items)) {
+		print '<div class="mjl-empty-state">Aucune action recente rattachee au projet.</div>';
+		print '</section>';
+		return;
+	}
+	print '<ol class="mjl-timeline">';
+	foreach ($items as $item) {
+		print '<li><strong>'.dol_escape_htmltag($item['object_ref'].' - '.mjl_projects_workflow_action_label($item['action'])).'</strong> <span class="opacitymedium">'.dol_escape_htmltag($item['action_date']).'</span><p class="mjl-timeline-comment">'.dol_escape_htmltag($item['comment']).'</p></li>';
+	}
+	print '</ol></section>';
+}
+
 function mjl_projects_render_notes($project)
 {
-	$notes = mjl_projects_note_rows((int) $project['rowid']);
+	$notes = mjl_projects_contextual_comment_rows((int) $project['rowid']);
 	print '<section class="mjl-workspace-section">';
 	print '<div class="mjl-section-heading"><h2>Notes / Commentaires</h2><p>Commentaires humains separes de l audit automatique.</p></div>';
-	if (mjl_projects_can_add_note($project)) {
+	if (mjl_timeline_can_comment($GLOBALS['user'])) {
 		print '<form method="POST" class="mjl-form-grid" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $project['rowid']).'">';
 		print '<input type="hidden" name="token" value="'.dol_escape_htmltag(function_exists('newToken') ? newToken() : '').'">';
-		print '<input type="hidden" name="action" value="add_note">';
+		print '<input type="hidden" name="action" value="add_exchange">';
 		print '<label>Commentaire<textarea required name="message"></textarea></label>';
 		print '<div><button class="button" type="submit">Ajouter le commentaire</button></div>';
 		print '</form>';
@@ -396,6 +441,52 @@ function mjl_projects_fund_receipt_rows($projectId)
 	return mjl_projects_fetch_all('SELECT rowid, ref, comment AS label FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).mjl_scope_partner_sql_filter('fr.fk_soc', $user).' ORDER BY ref ASC');
 }
 
+function mjl_projects_alert_rows($projectId)
+{
+	global $db, $conf;
+	$sql = 'SELECT a.rowid, a.ref, a.label, a.date_end, a.status FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND a.fk_project = '.((int) $projectId);
+	$sql .= ' AND a.status IN ('.implode(',', array_map('intval', MjlActivity::openStatuses())).')';
+	$sql .= " AND a.date_end IS NOT NULL AND a.date_end <= '".$db->escape(date('Y-m-d', strtotime('+7 days')))."'";
+	$sql .= mjl_activities_scope_sql('a');
+	$sql .= ' ORDER BY a.date_end ASC, a.ref ASC';
+	return mjl_projects_fetch_all($sql);
+}
+
+function mjl_projects_timeline_rows($projectId)
+{
+	global $db, $conf;
+	$sql = 'SELECT w.action, w.action_date, w.comment, COALESCE(a.ref, e.ref, c.ref, fr.ref, p.ref) AS object_ref';
+	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity AND a.fk_project = '.((int) $projectId);
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = w.object_id AND w.object_type = \'mjlfinancement_expense\' AND e.entity = w.entity AND e.fk_project = '.((int) $projectId);
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity AND c.fk_project = '.((int) $projectId);
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity AND fr.fk_project = '.((int) $projectId);
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = w.object_id AND w.object_type = \'mjlfinancement_project\' AND p.entity = w.entity AND p.rowid = '.((int) $projectId);
+	$sql .= ' WHERE w.entity = '.((int) $conf->entity).' AND COALESCE(a.rowid, e.rowid, c.rowid, fr.rowid, p.rowid) IS NOT NULL';
+	$sql .= ' ORDER BY w.action_date DESC, w.rowid DESC LIMIT 20';
+	return mjl_projects_fetch_all($sql);
+}
+
+function mjl_projects_physical_execution_percent($projectId)
+{
+	global $db, $conf;
+	$sql = 'SELECT ROUND(COALESCE(AVG(a.physical_execution_percent), 0)) AS value FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND a.fk_project = '.((int) $projectId).' AND a.physical_execution_percent IS NOT NULL';
+	$sql .= mjl_activities_scope_sql('a');
+	$row = mjl_projects_fetch_one($sql);
+	return empty($row) ? 0 : (int) $row['value'];
+}
+
+function mjl_projects_financial_execution_percent($project)
+{
+	$total = (float) $project['budget_total'];
+	if ($total <= 0) return 0;
+	return (int) round(((float) $project['budget_spent'] / $total) * 100);
+}
+
 function mjl_projects_note_rows($projectId)
 {
 	global $db, $conf;
@@ -404,6 +495,24 @@ function mjl_projects_note_rows($projectId)
 	$sql .= ' WHERE n.entity = '.((int) $conf->entity).' AND n.fk_project = '.((int) $projectId);
 	$sql .= ' ORDER BY n.date_note DESC, n.rowid DESC';
 	return mjl_projects_fetch_all($sql);
+}
+
+function mjl_projects_contextual_comment_rows($projectId)
+{
+	$rows = array();
+	foreach (mjl_timeline_exchange_items('mjlfinancement_project', (int) $projectId, false) as $item) {
+		$rows[] = array('date_note' => $item['meta'], 'author' => $item['title'], 'message' => $item['comment'], 'sort_date' => $item['sort_date'], 'rowid' => (int) $item['rowid']);
+	}
+	foreach (mjl_projects_note_rows((int) $projectId) as $note) {
+		$note['sort_date'] = $note['date_note'];
+		$note['rowid'] = -1;
+		$rows[] = $note;
+	}
+	usort($rows, function ($a, $b) {
+		if ((string) $a['sort_date'] === (string) $b['sort_date']) return (int) $b['rowid'] - (int) $a['rowid'];
+		return strcmp((string) $b['sort_date'], (string) $a['sort_date']);
+	});
+	return $rows;
 }
 
 function mjl_projects_can_open($project)
@@ -500,6 +609,12 @@ function mjl_projects_fetch_all($sql)
 	return $rows;
 }
 
+function mjl_projects_fetch_one($sql)
+{
+	$rows = mjl_projects_fetch_all($sql);
+	return empty($rows) ? array() : $rows[0];
+}
+
 function mjl_projects_status_label($status)
 {
 	return ((int) $status === 1) ? 'Ouvert' : 'Brouillon / clos';
@@ -515,6 +630,38 @@ function mjl_projects_expense_status_label($status)
 {
 	$labels = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee legacy', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
 	return isset($labels[(int) $status]) ? $labels[(int) $status] : 'Statut '.$status;
+}
+
+function mjl_projects_activity_deadline_alert($dateEnd, $status)
+{
+	if (in_array((int) $status, MjlActivity::finalStatuses(), true) || empty($dateEnd)) {
+		return '';
+	}
+	$end = strtotime((string) $dateEnd);
+	if ($end <= 0) return '';
+	$today = strtotime(date('Y-m-d'));
+	if ($end < $today) return 'En retard';
+	if ($end <= strtotime('+7 days', $today)) return 'Echeance proche';
+	return '';
+}
+
+function mjl_projects_workflow_action_label($action)
+{
+	$map = array(
+		'created' => 'Creation',
+		'field_changed' => 'Modification',
+		'execution_updated' => 'Execution mise a jour',
+		'document_uploaded' => 'Document ajoute',
+		'note_added' => 'Commentaire ajoute',
+		'submitted' => 'Soumission',
+		'correction_requested' => 'Correction demandee',
+		'corrected' => 'Correction',
+		'prevalidated' => 'Prevalidation',
+		'validated' => 'Validation definitive',
+		'final_validated' => 'Validation definitive',
+		'rejected' => 'Rejet',
+	);
+	return isset($map[(string) $action]) ? $map[(string) $action] : (string) $action;
 }
 
 function mjl_projects_price($value)

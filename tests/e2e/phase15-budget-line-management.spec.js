@@ -236,7 +236,7 @@ test('Locked edits, revised-budget floor, and computed amount tampering are reje
     },
     maxRedirects: 0
   });
-  expect(response.status()).toBe(302);
+  expect([302, 403]).toContain(response.status());
   expect(scalar(`SELECT ref FROM llx_mjlfinancement_budget_line WHERE rowid = ${budgetLineId}`)).toBe('BL-JE-001');
   expect(Number(scalar(`
     SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action
@@ -270,9 +270,10 @@ test('Locked edits, revised-budget floor, and computed amount tampering are reje
     },
     maxRedirects: 0
   });
-  expect(response.status()).toBe(302);
+  expect([302, 403]).toContain(response.status());
   expect(scalar(`SELECT label FROM llx_mjlfinancement_budget_line WHERE rowid = ${budgetLineId}`)).toBe('Formation Phase 15');
-  expect(Number(scalar(`SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE rowid = ${budgetLineId}`))).toBe(950000);
+  expect(Number(scalar(`SELECT ROUND(committed_amount) FROM llx_mjlfinancement_budget_line WHERE rowid = ${budgetLineId}`))).toBe(950000);
+  expect(Number(scalar(`SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE rowid = ${budgetLineId}`))).toBe(0);
   expect(Number(scalar(`SELECT ROUND(remaining_amount) FROM llx_mjlfinancement_budget_line WHERE rowid = ${budgetLineId}`))).toBe(950000);
 });
 
@@ -306,7 +307,7 @@ test('Inactive budget lines cannot be used by expense create, submit, or validat
     },
     maxRedirects: 0
   });
-  expect(response.status()).toBe(302);
+  expect([302, 403]).toContain(response.status());
   expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_expense WHERE ref = 'P15-INACTIVE-CREATE' AND entity = 1"))).toBe(0);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${draftExpenseId}`);

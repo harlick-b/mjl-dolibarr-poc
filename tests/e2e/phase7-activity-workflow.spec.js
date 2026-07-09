@@ -146,7 +146,7 @@ test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page
   await page.locator('select[name="fk_project"]').selectOption({ label: 'PRJ-JE-2026 - Projet Justice Enfants' });
   await page.locator('select[name="fk_convention"]').selectOption({ label: 'CONV-UNICEF-2026-001 - Convention UNICEF Justice Enfants 2026 (PRJ-JE-2026)' });
   await page.locator('input[name="date_start"]').fill('2026-06-20');
-  await page.locator('input[name="date_end"]').fill('2026-06-28');
+  await page.locator('input[name="date_end"]').fill('2026-07-28');
   await page.getByLabel('Execution physique (%)').fill('25');
   await page.locator('select[name="execution_status"]').selectOption('in_progress');
   await page.getByRole('button', { name: 'Creer l activite' }).click();
@@ -155,7 +155,7 @@ test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page
   createdActivityId = Number(new URL(page.url()).searchParams.get('id'));
   await expect(page.getByRole('heading', { name: /P7-UI-CREATE/ })).toBeVisible();
   await expect(page.getByText('Brouillon').first()).toBeVisible();
-  await expect(page.getByText('25% - En cours')).toBeVisible();
+  await expect(page.getByText('25% - Partiellement exécutée')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Historique de decision' })).toBeVisible();
   await expect(page.getByText('Activite creee', { exact: true })).toBeVisible();
 

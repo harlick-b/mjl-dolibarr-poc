@@ -51,6 +51,7 @@ function cleanupPhase16Fixtures() {
     DELETE FROM llx_ecm_files WHERE ref LIKE 'P16-%';
     DELETE FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_fund_receipt' AND FIND_IN_SET(object_id, COALESCE(@phase16_receipts, ''));
     DELETE FROM llx_mjlfinancement_fund_receipt WHERE ref LIKE 'P16-%';
+    DELETE FROM llx_mjlfinancement_convention WHERE ref LIKE 'P16-%';
   `);
 }
 
@@ -60,6 +61,9 @@ function seedPhase16SecurityFixtures() {
     SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1);
     SET @convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1);
     SET @ptf = (SELECT fk_soc FROM llx_mjlfinancement_convention WHERE rowid = @convention);
+
+    INSERT INTO llx_mjlfinancement_convention (entity, ref, title, fk_soc, fk_project, date_start, date_end, total_amount, currency_code, date_creation, fk_user_creat, status, import_key)
+    VALUES (1, 'P16-GLOBAL-CONV', 'Programme global Phase 16', @ptf, NULL, '2026-07-01', '2026-12-31', 5000000, 'XOF', NOW(), @admin, 1, 'P16GLOBAL');
 
     INSERT INTO llx_mjlfinancement_fund_receipt (entity, ref, fk_soc, fk_project, fk_convention, amount, reception_date, supporting_document, comment, status, date_creation, fk_user_creat, import_key)
     VALUES
@@ -189,6 +193,26 @@ test('Seeded fund receipt proof labels prefer public ECM filenames over stored d
   const csv = fs.readFileSync(await download.path(), 'utf8');
   expect(csv).toContain('FR-UNICEF-001_avis-credit.txt');
   expect(csv).not.toContain('DOC-FR-UNICEF-001');
+});
+
+test('Global programme envelope can create a fund receipt without project', async ({ page }) => {
+  const globalConventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'P16-GLOBAL-CONV' AND entity = 1 LIMIT 1");
+
+  await login(page, 'dpaf.mjl');
+  await page.goto('/custom/mjlfinancement/fundreceipts.php');
+  await expect(page.locator('select[name="fk_convention"] option', { hasText: 'P16-GLOBAL-CONV' })).toHaveCount(1);
+
+  await page.getByLabel('Référence').fill('P16-GLOBAL-FR');
+  await page.locator('select[name="fk_convention"]').selectOption(globalConventionId);
+  await page.getByLabel('Montant').fill('345678');
+  await page.getByLabel('Date de réception').fill('2026-07-05');
+  await page.getByLabel('Commentaire').fill('Reception globale Phase 16');
+  await page.getByRole('button', { name: 'Créer la réception' }).click();
+
+  await expect(page).toHaveURL(/fundreceipts\.php\?id=\d+/);
+  await expect(page.getByRole('heading', { name: 'P16-GLOBAL-FR' })).toBeVisible();
+  await expect(page.locator('body')).toContainText('Enveloppe globale');
+  expect(scalar("SELECT COALESCE(CAST(fk_project AS CHAR), 'NULL') FROM llx_mjlfinancement_fund_receipt WHERE ref = 'P16-GLOBAL-FR' AND entity = 1")).toBe('NULL');
 });
 
 test('Fund proof label resolution ignores path-tampered rows when a valid download exists', async ({ page }) => {

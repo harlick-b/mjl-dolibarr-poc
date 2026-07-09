@@ -29,6 +29,9 @@ foreach ($expenseColumns as $column) {
 if (!columnExists('mjlfinancement_validation', 'actor_role')) {
 	finding('missing_validation_column', 'actor_role');
 }
+if (columnExists('mjlfinancement_fund_receipt', 'fk_project') && !columnNullable('mjlfinancement_fund_receipt', 'fk_project')) {
+	finding('fund_receipt_fk_project_not_nullable', 'Run update_0.11.0.sql before using global funding envelopes.');
+}
 
 if (columnExists('mjlfinancement_expense', 'status')) {
 	reportRows(
@@ -76,6 +79,19 @@ function columnExists($table, $column)
 	$sql .= " AND TABLE_NAME = '".$db->escape($db->prefix().$table)."'";
 	$sql .= " AND COLUMN_NAME = '".$db->escape($column)."'";
 	return scalar($sql) > 0;
+}
+
+function columnNullable($table, $column)
+{
+	global $db;
+
+	$sql = 'SELECT IS_NULLABLE AS nullable_flag FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()';
+	$sql .= " AND TABLE_NAME = '".$db->escape($db->prefix().$table)."'";
+	$sql .= " AND COLUMN_NAME = '".$db->escape($column)."'";
+	$resql = $db->query($sql);
+	if (!$resql) fail('Unable to inspect column nullability: '.$db->lasterror());
+	$obj = $db->fetch_object($resql);
+	return $obj && strtoupper((string) $obj->nullable_flag) === 'YES';
 }
 
 function reportRows($name, $sql)

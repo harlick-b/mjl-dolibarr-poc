@@ -259,9 +259,13 @@ if ($overBudgetExpense->submit($adminUser, 'Submit over budget expense', 1) <= 0
 	cleanup($importKey);
 	fail('Unable to submit over budget smoke expense: '.$overBudgetExpense->error);
 }
-if ($overBudgetExpense->validate($validatorUser) >= 0) {
+if ($overBudgetExpense->prevalidate($validatorUser, 200000, 'Prevalidate over budget expense', 1) <= 0) {
 	cleanup($importKey);
-	fail('Over budget validation should have been rejected.');
+	fail('Over budget prevalidation should remain allowed until final budget commitment: '.$overBudgetExpense->error);
+}
+if ($overBudgetExpense->finalValidate($finalValidatorUser, 200000, 'Final validate over budget expense', 1) >= 0) {
+	cleanup($importKey);
+	fail('Over budget final validation should have been rejected.');
 }
 
 $ecmOnlyExpense = new MjlExpense($db);

@@ -126,7 +126,7 @@ function mjl_navigation_sections(User $targetUser)
 	}
 	$supervisionChildren = array();
 	if ($capabilities['supervision']) {
-		$supervisionChildren[] = array('key' => 'dpaf', 'label' => 'Tableau DPAF', 'href' => '/custom/mjlfinancement/dpafdashboard.php', 'description' => 'Supervision globale');
+		$supervisionChildren[] = array('key' => 'dpaf', 'label' => 'Supervision finance', 'href' => '/custom/mjlfinancement/dpafdashboard.php', 'description' => 'Supervision globale');
 	}
 	if (mjl_workspace_can_access_validation_history($targetUser)) {
 		$supervisionChildren[] = array('key' => 'validations', 'label' => 'Historique des validations', 'href' => '/custom/mjlfinancement/validations.php', 'description' => 'Décisions sur dépenses');

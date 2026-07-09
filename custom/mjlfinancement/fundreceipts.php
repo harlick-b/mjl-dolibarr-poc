@@ -4,6 +4,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlfundreceipt.clas
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
 
 mjl_workspace_require_reference_data_access($user, 'fundreceipt');
 
@@ -12,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		mjl_fundreceipts_forbidden('Jeton de sécurité invalide');
 	}
-	if (!mjl_fundreceipts_can_manage()) {
+	if ($action !== 'add_exchange' && !mjl_fundreceipts_can_manage()) {
 		mjl_fundreceipts_forbidden();
 	}
 	mjl_fundreceipts_handle_post($action);
@@ -71,6 +72,12 @@ function mjl_fundreceipts_handle_post($action)
 		mjl_fundreceipts_forbidden('Réception de fonds hors de votre périmètre');
 	}
 
+	if ($action === 'add_exchange') {
+		list($result, $message) = mjl_timeline_create_comment($user, 'mjlfinancement_fund_receipt', $id, GETPOST('message', 'restricthtml'));
+		setEventMessages($message, null, $result > 0 ? 'mesgs' : 'errors');
+		mjl_fundreceipts_redirect($id);
+	}
+
 	if ($action === 'update') {
 		if (!mjl_fundreceipts_can_use_convention(GETPOSTINT('fk_convention'))) {
 			mjl_fundreceipts_forbidden('Enveloppe hors de votre périmètre');
@@ -116,7 +123,7 @@ function mjl_fundreceipts_render_list_page()
 	print '<div class="mjl-workspace-header">';
 	print '<div><p class="mjl-kicker">Fonds reçus</p><h1>Gestion des réceptions de fonds</h1>';
 	print '<p class="mjl-header-copy">Enregistrer les tranches reçues, contrôler la preuve documentaire et garder une trace auditable des décisions.</p></div>';
-	print '<div class="mjl-user-context"><span>Périmètre</span><strong>'.(mjl_fundreceipts_can_manage() ? 'DPAF / Admin' : 'Consultation').'</strong></div>';
+	print '<div class="mjl-user-context"><span>Périmètre</span><strong>'.(mjl_fundreceipts_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation').'</strong></div>';
 	print '</div>';
 
 	if (mjl_fundreceipts_can_manage()) {
@@ -155,7 +162,7 @@ function mjl_fundreceipts_render_detail($id)
 function mjl_fundreceipts_render_create_form()
 {
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
-	print '<div class="mjl-section-heading"><h2>Nouvelle réception de fonds</h2><p>Créer un brouillon rattaché à une convention active. Le PTF et le projet sont dérivés de la convention.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Nouvelle réception de fonds</h2><p>Créer un brouillon rattaché à une enveloppe active. Le partenaire et le projet éventuel sont dérivés de l enveloppe.</p></div>';
 	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">';
 	print '<input type="hidden" name="action" value="create"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_fundreceipts_render_fields(array(), false);
@@ -263,9 +270,9 @@ function mjl_fundreceipts_render_summary($row)
 	print '<div class="mjl-section-heading"><h2>Synthèse de la réception</h2><p>Rattachement financier et preuve documentaire.</p></div>';
 	print '<dl class="mjl-activity-meta">';
 	print '<div><dt>Statut</dt><dd>'.mjl_fundreceipts_status_badge($row['status']).'</dd></div>';
-	print '<div><dt>PTF</dt><dd>'.dol_escape_htmltag($row['ptf_name']).'</dd></div>';
-	print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($row['project_ref']).' - '.dol_escape_htmltag($row['project_title']).'</dd></div>';
-	print '<div><dt>Convention</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
+	print '<div><dt>Partenaire</dt><dd>'.dol_escape_htmltag($row['ptf_name']).'</dd></div>';
+	print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($row['project_ref'] ? $row['project_ref'].' - '.$row['project_title'] : 'Enveloppe globale').'</dd></div>';
+	print '<div><dt>Programme</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
 	print '<div><dt>Date de réception</dt><dd>'.dol_escape_htmltag(mjl_fundreceipts_format_date($row['reception_date'])).'</dd></div>';
 	print '<div><dt>Montant</dt><dd>'.price($row['amount']).'</dd></div>';
 	print '<div><dt>Preuve</dt><dd>'.dol_escape_htmltag(mjl_fundreceipts_evidence_label($state)).'</dd></div>';
@@ -332,7 +339,8 @@ function mjl_fundreceipts_render_timeline($row)
 {
 	$items = mjl_fundreceipts_timeline_items($row);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Historique réception de fonds</h2><p>Création, modifications, preuves et décisions finales.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Historique réception de fonds</h2><p>Création, modifications, preuves, décisions finales et commentaires.</p></div>';
+	mjl_timeline_render_comment_form('mjlfinancement_fund_receipt', (int) $row['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']));
 	print '<ol class="mjl-activity-timeline">';
 	foreach ($items as $item) {
 		print '<li><span class="mjl-status-pill">'.dol_escape_htmltag($item['label']).'</span>';
@@ -407,6 +415,9 @@ function mjl_fundreceipts_timeline_items($row)
 	if (!$hasCreatedAction) {
 		array_unshift($items, mjl_fundreceipts_legacy_creation_timeline_item($row));
 	}
+	foreach (mjl_timeline_exchange_items('mjlfinancement_fund_receipt', (int) $row['rowid'], true) as $item) {
+		$items[] = $item;
+	}
 	return $items;
 }
 
@@ -459,7 +470,7 @@ function mjl_fundreceipts_options($type)
 	if ($type === 'project') {
 		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
-		$sql = 'SELECT c.rowid, CONCAT(c.ref, \' - \', c.title, \' (\', p.ref, \' / \', s.nom, \')\') AS label FROM '.$db->prefix().'mjlfinancement_convention c INNER JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
+		$sql = 'SELECT c.rowid, CONCAT(c.ref, \' - \', c.title, \' (\', COALESCE(p.ref, \'global\'), \' / \', s.nom, \')\') AS label FROM '.$db->prefix().'mjlfinancement_convention c LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity INNER JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} elseif ($type === 'convention_all') {
 		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} else {
@@ -477,11 +488,12 @@ function mjl_fundreceipts_can_use_convention($fkConvention)
 	$fkConvention = (int) $fkConvention;
 	if ($fkConvention <= 0) return false;
 	$sql = 'SELECT c.rowid, c.fk_soc, c.fk_project FROM '.$db->prefix().'mjlfinancement_convention c';
-	$sql .= ' INNER JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.rowid = '.$fkConvention.' AND c.status = '.MjlConvention::STATUS_ACTIVE;
+	$sql .= ' AND (c.fk_project IS NULL OR p.rowid IS NOT NULL)';
 	$resql = $db->query($sql);
 	$row = $resql ? $db->fetch_object($resql) : null;
-	return $row && (int) $row->fk_project > 0 && mjl_scope_can_access_fk_soc($user, (int) $row->fk_soc);
+	return $row && mjl_scope_can_access_fk_soc($user, (int) $row->fk_soc);
 }
 
 function mjl_fundreceipts_select($name, $options, $selected, $required, $disabled, $emptyLabel = 'Aucun')
@@ -521,9 +533,8 @@ function mjl_fundreceipt_action_label($action)
 
 function mjl_fundreceipt_actor_role_label($role)
 {
-	$map = array('ADMIN' => 'Admin', 'DPAF' => 'DPAF');
 	if ((string) $role === '') return '';
-	return isset($map[$role]) ? $map[$role] : (string) $role;
+	return mjl_actor_role_label($role);
 }
 
 function mjl_fundreceipts_status_badge($status)

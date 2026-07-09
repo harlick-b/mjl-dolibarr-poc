@@ -6,6 +6,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.ph
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
 
 mjl_workspace_require_reference_data_access($user, 'convention');
 
@@ -14,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		mjl_conventions_forbidden('Jeton de securite invalide');
 	}
-	if (!mjl_conventions_can_manage()) {
+	if ($action !== 'add_exchange' && !mjl_conventions_can_manage()) {
 		mjl_conventions_forbidden();
 	}
 	mjl_conventions_handle_post($action);
@@ -74,6 +75,12 @@ function mjl_conventions_handle_post($action)
 	}
 	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $id)) {
 		mjl_conventions_forbidden('Convention hors de votre perimetre');
+	}
+
+	if ($action === 'add_exchange') {
+		list($result, $message) = mjl_timeline_create_comment($user, 'mjlfinancement_convention', $id, GETPOST('message', 'restricthtml'));
+		setEventMessages($message, null, $result > 0 ? 'mesgs' : 'errors');
+		mjl_conventions_redirect($id);
 	}
 
 	if ($action === 'update') {
@@ -366,7 +373,8 @@ function mjl_conventions_render_timeline($row)
 {
 	$items = mjl_conventions_timeline_items($row);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Historique convention</h2><p>Creation, modifications, activation, cloture et tentatives refusees.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Historique convention</h2><p>Creation, modifications, activation, cloture, tentatives refusees et commentaires.</p></div>';
+	mjl_timeline_render_comment_form('mjlfinancement_convention', (int) $row['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']));
 	print '<ol class="mjl-activity-timeline">';
 	foreach ($items as $item) {
 		print '<li><span class="mjl-status-pill">'.dol_escape_htmltag($item['label']).'</span>';
@@ -450,6 +458,9 @@ function mjl_conventions_timeline_items($row)
 			'comment' => (string) $obj->comment,
 			'changes' => is_array($changes) ? $changes : array(),
 		);
+	}
+	foreach (mjl_timeline_exchange_items('mjlfinancement_convention', (int) $row['rowid'], true) as $item) {
+		$items[] = $item;
 	}
 	return $items;
 }

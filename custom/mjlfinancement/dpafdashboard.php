@@ -9,15 +9,15 @@ mjl_workspace_require_supervision_access($user);
 
 $langs->load('mjlfinancement@mjlfinancement');
 
-llxHeader('', 'Tableau de bord DPAF');
+llxHeader('', 'Tableau de supervision finance');
 
 mjl_navigation_shell_start($user, 'dpaf');
 print '<div class="mjl-workspace">';
 mjl_dashboard_render_header(
-	'Tableau de bord DPAF',
+	'Tableau de supervision finance',
 	'Suivre les risques, les revues en attente, les budgets, les fonds et les dernieres decisions auditees.',
 	'Acces',
-	!empty($user->admin) ? 'Administration' : 'Supervision DPAF'
+	!empty($user->admin) ? 'Administrateur plateforme' : 'Validateur définitif'
 );
 
 mjl_dashboard_render_card_section(
@@ -53,7 +53,7 @@ mjl_dashboard_render_table_section(
 	'Budgets et dépenses',
 	'Situation budgétaire par convention, conservée comme lecture de supervision.',
 	array(
-		array('label' => 'Convention'),
+		array('label' => 'Programme'),
 		array('label' => 'Budget révisé', 'class' => 'right'),
 		array('label' => 'Dépenses validées', 'class' => 'right'),
 		array('label' => 'Dépenses soumises', 'class' => 'right'),
@@ -71,7 +71,7 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Ref'),
 		array('label' => 'Date'),
 		array('label' => 'Projet'),
-		array('label' => 'Convention'),
+		array('label' => 'Programme'),
 		array('label' => 'Montant', 'class' => 'right'),
 		array('label' => 'Preuve'),
 	),
@@ -137,7 +137,7 @@ function mjl_dpaf_render_fund_row($row)
 	print '<tr class="oddeven">';
 	print '<td>'.dol_escape_htmltag($row['ref']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['reception_date']).'</td>';
-	print '<td>'.dol_escape_htmltag($row['project_ref']).'</td>';
+	print '<td>'.dol_escape_htmltag($row['project_ref'] ?: 'Enveloppe globale').'</td>';
 	print '<td>'.dol_escape_htmltag($row['convention_ref']).'</td>';
 	print '<td class="right">'.price($row['amount']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['document_state']).'</td>';

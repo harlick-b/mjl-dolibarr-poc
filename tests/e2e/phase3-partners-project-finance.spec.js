@@ -145,6 +145,41 @@ test('partner list/detail stay inside assigned partner scope and finance referen
   await expectAccessDenied(page, '/custom/mjlfinancement/fundreceipts.php');
 });
 
+test('partner workspace shows 5R portfolio metrics without leaking cross-scope rows', async ({ page }) => {
+  const unicefPartner = scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1");
+
+  await login(page, 'mjl.phase3.unicef');
+  await page.goto(`/custom/mjlfinancement/partners.php?id=${unicefPartner}`);
+  await expect(page.getByRole('heading', { name: /Partenaire \/ Programme UNICEF/ })).toBeVisible();
+  await expect(page.locator('body')).toContainText('Financement total recu');
+  await expect(page.locator('body')).toContainText('Budget alloue');
+  await expect(page.locator('body')).toContainText('Budget non alloue');
+  await expect(page.locator('body')).toContainText('Depenses validees');
+  await expect(page.locator('body')).toContainText('Depenses decaissees');
+  await expect(page.locator('body')).toContainText('Solde disponible');
+  await expect(page.locator('body')).toContainText('Taux execution financiere');
+  await expect(page.locator('body')).toContainText('Taux validation financiere');
+  await expect(page.locator('body')).toContainText('Execution physique moyenne');
+  await expect(page.locator('body')).toContainText('Validation en attente');
+  await expect(page.locator('body')).toContainText('Activites en retard');
+  await expect(page.locator('body')).toContainText('Pieces manquantes');
+  await expect(page.getByRole('heading', { name: 'Identite partenaire / programme' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lignes budgetaires' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Documents lies' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Alertes' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Historique contextuel' })).toBeVisible();
+  await expect(page.locator('a[href*="documentdownload.php"]')).not.toHaveCount(0);
+  await expect(page.locator('a[href*="/document.php"]')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('Utilisateurs assignes');
+  await expect(page.locator('body')).not.toContainText('P3-CROSS-');
+  await expect(page.locator('body')).not.toContainText('999 999 999');
+
+  await login(page, 'admin.poc');
+  await page.goto(`/custom/mjlfinancement/partners.php?id=${unicefPartner}`);
+  await expect(page.getByRole('heading', { name: 'Utilisateurs assignes' })).toBeVisible();
+  await expect(page.locator('body')).toContainText('mjl.phase3.unicef');
+});
+
 test('UNICEF project detail excludes cross-scope related rows and aggregates', async ({ page }) => {
   const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
 

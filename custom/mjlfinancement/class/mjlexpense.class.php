@@ -381,7 +381,7 @@ class MjlExpense extends CommonObject
 			$this->db->rollback();
 			return -1;
 		}
-		if (($toStatus === self::STATUS_PREVALIDATED || $toStatus === self::STATUS_FINAL_VALIDATED || $toStatus === self::STATUS_DISBURSED) && mjl_assert_no_budget_overspend_on_validation($id, $current['fk_budget_line'], $stageAmount, $current['entity']) < 0) {
+		if (($toStatus === self::STATUS_FINAL_VALIDATED || $toStatus === self::STATUS_DISBURSED) && mjl_assert_no_budget_overspend_on_validation($id, $current['fk_budget_line'], $stageAmount, $current['entity']) < 0) {
 			$this->error = mjl_integrity_error();
 			$this->db->rollback();
 			return -1;
@@ -599,11 +599,7 @@ class MjlExpense extends CommonObject
 
 	private function actorRole(User $user)
 	{
-		if (mjl_scope_is_verifier($user)) return 'AGENT_VERIFICATEUR';
-		if (mjl_scope_is_final_validator($user)) return 'VALIDATEUR_DEFINITIF';
-		if (mjl_scope_is_platform_admin($user)) return 'ADMIN_PLATEFORME';
-		if (mjl_scope_is_input_agent($user)) return 'AGENT_SAISIE';
-		return 'LEGACY';
+		return mjl_actor_role_code($user);
 	}
 
 	private function normalizeStageAmount($value, $default)

@@ -137,7 +137,8 @@ test('expense moves through prevalidation, final validation, and disbursement wi
   await page.getByRole('button', { name: 'Valider definitivement' }).click();
   await expect(page.getByText('Validee definitivement').first()).toBeVisible();
   await expect(page.getByText('Validation definitive Phase 5')).toBeVisible();
-  expect(Number(scalar("SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(1000);
+  expect(Number(scalar("SELECT ROUND(committed_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(1000);
+  expect(Number(scalar("SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(0);
 
   await page.getByLabel('Beneficiaire').fill('Cabinet Phase 5');
   await page.getByLabel('Date decaissement').fill('2026-07-08');
@@ -145,6 +146,7 @@ test('expense moves through prevalidation, final validation, and disbursement wi
   await expect(page.getByText('Decaissee').first()).toBeVisible();
   await expect(page.getByText('Cabinet Phase 5')).toBeVisible();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${flowId}`))).toBe(7);
+  expect(Number(scalar("SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(1000);
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'disbursed' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
 });
 
@@ -159,8 +161,15 @@ test('missing document and overspend block final approval paths', async ({ page 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${overBudgetId}`);
   await page.getByLabel('Montant prevalide').fill('12000');
   await page.getByRole('button', { name: 'Prevalider la depense' }).click();
+  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${overBudgetId}`))).toBe(4);
+
+  await login(page, 'dpaf.mjl');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${overBudgetId}`);
+  await page.getByLabel('Montant valide definitivement').fill('12000');
+  await page.getByRole('button', { name: 'Valider definitivement' }).click();
   await expect(page.getByText(/exceeds|depasse|dépasse|budget/i).first()).toBeVisible();
-  expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${overBudgetId}`))).toBe(1);
+  expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${overBudgetId}`))).toBe(4);
 });
 
 test('wrong role and self-action direct POST attempts are rejected', async ({ page }) => {

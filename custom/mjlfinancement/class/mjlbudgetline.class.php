@@ -281,8 +281,8 @@ class MjlBudgetLine extends CommonObject
 			return -1;
 		}
 		$refreshed = $this->fetchCurrentForGovernance($id, true);
-		if ((float) $refreshed['revised_budget'] + 0.001 < (float) $refreshed['spent_amount']) {
-			$this->error = 'Budget line revised budget cannot be below spent amount';
+		if ((float) $refreshed['revised_budget'] + 0.001 < (float) $refreshed['committed_amount']) {
+			$this->error = 'Budget line revised budget cannot be below final validated amount';
 			$this->db->rollback();
 			return -1;
 		}
@@ -580,7 +580,7 @@ class MjlBudgetLine extends CommonObject
 
 	private function actorRole(User $user)
 	{
-		return !empty($user->admin) ? 'ADMIN' : 'DPAF';
+		return mjl_actor_role_code($user);
 	}
 
 	private function statusLabel($status)

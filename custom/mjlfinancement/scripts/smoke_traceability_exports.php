@@ -15,6 +15,7 @@ $user = $adminUser;
 $agent = loadUser('agent.mjl');
 $projectId = requireId('projet', "ref = 'PRJ-JE-2026' AND entity = ".$entity);
 $conventionId = requireId('mjlfinancement_convention', "ref = 'CONV-UNICEF-2026-001' AND entity = ".$entity);
+$budgetLineId = requireId('mjlfinancement_budget_line', 'fk_convention = '.$conventionId.' AND entity = '.$entity);
 $ref = 'SMOKE-TRACE';
 
 cleanupSmokeRows($ref, $entity);
@@ -50,9 +51,29 @@ if ($exchange->create($agent, 1) <= 0) {
 	fail('Unable to create exchange log: '.$exchange->error.' '.$db->lasterror());
 }
 
+$budgetExchange = new MjlExchangeLog($db);
+$budgetExchange->entity = $entity;
+$budgetExchange->ref = 'EXC-'.$ref.'-BUD';
+$budgetExchange->object_type = 'mjlfinancement_budget_line';
+$budgetExchange->object_id = $budgetLineId;
+$budgetExchange->exchange_date = dol_now();
+$budgetExchange->actor = $agent->id;
+$budgetExchange->actor_role = 'AGENT_SAISIE';
+$budgetExchange->channel = 'commentaire';
+$budgetExchange->subject = 'Smoke budget exchange';
+$budgetExchange->message = 'Smoke non activity exchange message';
+$budgetExchange->fk_user_creat = $agent->id;
+if ($budgetExchange->create($agent, 1) <= 0) {
+	fail('Unable to create non-activity exchange log: '.$budgetExchange->error.' '.$db->lasterror());
+}
+
 $exchangeCount = scalar('SELECT COUNT(*) AS nb FROM '.$db->prefix()."mjlfinancement_exchange_log WHERE entity = ".$entity." AND object_type = 'mjlfinancement_activity' AND object_id = ".$activityId);
 if ($exchangeCount !== 1) {
 	fail('Expected 1 exchange log, got '.$exchangeCount);
+}
+$budgetExchangeCount = scalar('SELECT COUNT(*) AS nb FROM '.$db->prefix()."mjlfinancement_exchange_log WHERE entity = ".$entity." AND object_type = 'mjlfinancement_budget_line' AND object_id = ".$budgetLineId." AND ref = 'EXC-".$db->escape($ref)."-BUD'");
+if ($budgetExchangeCount !== 1) {
+	fail('Expected 1 non-activity exchange log, got '.$budgetExchangeCount);
 }
 
 $dashboardCount = scalar('SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_activity WHERE entity = '.$entity.' AND date_end IS NOT NULL');
@@ -104,6 +125,7 @@ function cleanupSmokeRows($ref, $entity)
 {
 	global $db;
 
+	query('DELETE FROM '.$db->prefix()."mjlfinancement_exchange_log WHERE entity = ".((int) $entity)." AND ref = 'EXC-".$db->escape($ref)."-BUD'");
 	$activityId = scalar('SELECT rowid AS nb FROM '.$db->prefix()."mjlfinancement_activity WHERE entity = ".((int) $entity)." AND ref = '".$db->escape($ref)."'");
 	if ($activityId > 0) {
 		query('DELETE FROM '.$db->prefix()."mjlfinancement_exchange_log WHERE entity = ".((int) $entity)." AND object_type = 'mjlfinancement_activity' AND object_id = ".$activityId);

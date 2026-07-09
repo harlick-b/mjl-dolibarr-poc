@@ -2,6 +2,7 @@
 
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 
 mjl_workspace_require_advanced_traceability_access($user, 'workflowaction');
 
@@ -65,10 +66,11 @@ function mjl_workflowactions_list($filters)
 	}
 
 	$sql = 'SELECT w.ref, w.object_type, w.object_id,';
-	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref ELSE NULL END AS object_ref,';
+	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_expense\' THEN e.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref ELSE NULL END AS object_ref,';
 	$sql .= ' w.action, w.from_status, w.to_status, u.login, w.actor_role, w.action_date, w.reason, w.comment, w.changes_json';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = w.object_id AND w.object_type = \'mjlfinancement_expense\' AND e.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity';
@@ -94,7 +96,7 @@ function mjl_workflowactions_list($filters)
 		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->from_status)).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->to_status)).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->login).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->actor_role).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_actor_role_label($obj->actor_role)).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->action_date).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->reason).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->comment).'</td>';
@@ -108,7 +110,8 @@ function mjl_workflowactions_object_type_label($objectType)
 {
 	$map = array(
 		'mjlfinancement_activity' => 'Activite',
-		'mjlfinancement_convention' => 'Convention',
+		'mjlfinancement_expense' => 'Depense',
+		'mjlfinancement_convention' => 'Programme',
 		'mjlfinancement_budget_line' => 'Ligne budgetaire',
 		'mjlfinancement_fund_receipt' => 'Reception de fonds',
 	);

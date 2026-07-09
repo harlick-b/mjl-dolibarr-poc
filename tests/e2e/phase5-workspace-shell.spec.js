@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
-const forbiddenResponsePattern = /Acces refuse|Accès refusé|Acc&egrave;s refus&eacute;|Access denied|Forbidden|Non autorise|Non autorisé|Non autoris&eacute;|pas autorise|pas autorisé|pas autoris&eacute;|not authorized|Not Found|404/i;
+const forbiddenResponsePattern = /Acces refuse|Accès refusé|Acc&egrave;s refus&eacute;|Access denied|Forbidden|Non autorise|Non autorisé|Non autoris&eacute;|pas autorise|pas autorisé|pas autoris&eacute;|not authorized|Not Found|\b404\b/i;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -129,7 +129,7 @@ test('Level 1 user sees operational workspace and cannot access supervision page
   await expect(page.getByRole('link', { name: /Activités/ }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /Dépenses/ }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /Documents/ }).first()).toBeVisible();
-  await expect(page.locator('body')).not.toContainText('Supervision DPAF');
+  await expect(page.locator('body')).not.toContainText('Supervision finance');
   await expect(page.locator('body')).not.toContainText('Administration');
   await expect(page.locator('body')).not.toContainText('Rapports disponibles');
   await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
@@ -164,7 +164,7 @@ test('Level 2 reviewer sees validation workspace and cannot access supervision p
   await expect(page.getByRole('heading', { name: 'File de validation' })).toBeVisible();
   await expect(page.getByText('Activites en revue').first()).toBeVisible();
   await expect(page.getByRole('link', { name: /Supervision/ }).first()).toBeVisible();
-  await expect(page.locator('body')).not.toContainText('Supervision DPAF');
+  await expect(page.locator('body')).not.toContainText('Supervision finance');
   await expect(page.locator('body')).not.toContainText('Administration');
   await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
   await expect(page.locator('body')).not.toContainText('Échanges');
@@ -186,11 +186,11 @@ test('Level 2 reviewer sees validation workspace and cannot access supervision p
   await expect(page.getByRole('link', { name: /Historique des validations/ })).toBeVisible();
 });
 
-test('DPAF user sees supervision workspace and can access DPAF reports', async ({ page }) => {
+test('Finance validator sees supervision workspace and can access finance reports', async ({ page }) => {
   await login(page, 'dpaf.mjl');
   await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
   await expectSidebar(page);
-  await expect(page.getByRole('heading', { name: 'Supervision DPAF' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Supervision finance' })).toBeVisible();
   await expect(page.getByText('Rapports disponibles')).toBeVisible();
   await expect(page.getByRole('link', { name: /Supervision/ }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /Financement/ }).first()).toBeVisible();
@@ -199,7 +199,7 @@ test('DPAF user sees supervision workspace and can access DPAF reports', async (
   await expect(page.locator('body')).not.toContainText('Échanges');
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
-  await expect(page.getByText('Tableau de bord DPAF').first()).toBeVisible();
+  await expect(page.getByText('Tableau de supervision finance').first()).toBeVisible();
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/reports.php');
@@ -245,7 +245,7 @@ test('Admin sees administration access and can access invitations plus supervisi
   await expect(page.getByRole('link', { name: /Acces utilisateurs/ }).first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
-  await expect(page.getByText('Tableau de bord DPAF').first()).toBeVisible();
+  await expect(page.getByText('Tableau de supervision finance').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/reports.php');
   await expect(page.getByRole('heading', { name: "Centre d'exports MJL" })).toBeVisible();

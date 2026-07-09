@@ -39,19 +39,19 @@ Those references are current-state/code debt, not target behavior.
 | --- | --- | --- | --- |
 | Dashboard | `index.php` | Role-aware workspace dashboard. | Contains some legacy DPAF wording. |
 | Partenaires / Programmes | `partners.php` | Partner/programme context and related data. | Uses native third parties as data source. |
-| Projects | `projects.php` | MJL project list/detail and related objects. | Project create/edit needs current runtime verification before production claim. |
-| Activities | `activities.php` | Activity lifecycle, physical execution, documents, workflow timeline. | Code has prevalidation and final validation. |
-| Expenses | `expenses.php` | Expense lifecycle, supporting evidence, prevalidation, final validation, disbursement. | Code has separate final validation and disbursement states. |
+| Projects | `projects.php` | MJL project list/detail, related objects, legacy notes, and contextual comments. | Project create/edit needs current runtime verification before production claim. |
+| Activities | `activities.php` | Activity lifecycle, physical execution, documents, workflow timeline, contextual comments. | Code has prevalidation and final validation. |
+| Expenses | `expenses.php` | Expense lifecycle, supporting evidence, prevalidation, final validation, disbursement, contextual comments. | Code has separate final validation and disbursement states. |
 | Documents | `documents.php` | Read-only accessible document library. | Uploads remain contextual. |
-| Conventions | `conventions.php` | Governed funding-envelope management. | User-facing terminology still needs alignment. |
-| Budget lines | `budgetlines.php` | Governed budget-line management. | Uses DPAF/Admin wording in places. |
-| Fund receipts | `fundreceipts.php` | Governed received/not-received funding traces with proof documents. | Uses DPAF/Admin wording in places. |
+| Conventions | `conventions.php` | Governed funding-envelope management and contextual comments. | User-facing terminology still needs alignment. |
+| Budget lines | `budgetlines.php` | Governed budget-line management and contextual comments. | Uses DPAF/Admin wording in places. |
+| Fund receipts | `fundreceipts.php` | Governed received/not-received funding traces with proof documents and contextual comments. | Uses DPAF/Admin wording in places. |
 | Alerts | `alerts.php` | Computed activity/expense alerts. | Alerts are computed, not stored. |
 | Supervision dashboard | `dpafdashboard.php` | Portfolio supervision dashboard. | Route and labels still use DPAF. |
 | Reports/exports | `reports.php` | CSV/XLSX report center. | Export audit still needs full proof. |
 | Validations | `validations.php` | Expense validation history. | Read-only. |
 | Workflow audit | `workflowactions.php` | Advanced workflow/audit history. | Advanced/audit surface. |
-| Exchange logs | `exchangelogs.php` | Exchange log list/create surface. | Hidden from primary navigation; contextual UX remains target debt. |
+| Exchange logs | `exchangelogs.php` | Advanced exchange-log search/audit surface. | Hidden from primary navigation; normal creation is contextual on object detail pages. |
 | Admin access | `admin/access.php` | Invitation and access administration. | Admin-only. |
 | Roadmap | `roadmap.php` | Internal roadmap/readiness page. | Hidden unless configured. |
 | Document download | `documentdownload.php` | Guarded ECM file download. | Contextual helper route. |
