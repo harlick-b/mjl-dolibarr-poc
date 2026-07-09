@@ -2,32 +2,48 @@
 
 This file tracks implementation debt against
 `docs/mjl-authoritative-decisions.md`. It is not the source of target
-decisions.
+decisions. `docs/mjl-current-app-functional-map.md` remains current-state
+evidence only.
 
 ## Summary
 
-The repository contains a strong production-readiness base: production role and
-scope tables, activity prevalidation/final validation, expense
-prevalidation/final validation/disbursement, guarded documents, dashboards,
-reports, exports, invitations, and audit helpers. Remaining gaps are mostly
-terminology cleanup in code, contextual exchange/timeline polish, audit events
-for downloads/exports, production permission finalization, deployment
-configuration, and final client report templates.
+The repository is aligned at the documentation-authority level, but the code is
+not yet fully aligned with the production target. Remaining gaps are clearly
+classified as code debt, runtime verification needs, or production deployment
+blockers. This cleanup did not modify application business logic.
 
 ## Gap Matrix
 
-| Area | Current state | Target state | Status |
-| --- | --- | --- | --- |
-| Product stance | Repo and code still contain POC wording in bootstrap, sample data, module description, and local fixture names. | Production-ready MJL workspace inside Dolibarr. | Code/document wording debt. |
-| Roles | Production role/scope tables and helpers exist; legacy POC groups still backfill and simulate fixtures. | One global role per user: Agent de saisie, Agent verificateur, Validateur definitif, Admin plateforme. | Partially implemented; legacy mapping remains. |
-| Scope | User-to-partner scope helpers exist and fail closed in tested paths; some current-state docs were stale. | Non-admin access only to assigned Partenaires / Programmes; unresolved objects fail closed. | Implemented foundation; keep auditing each route. |
-| Admin vs validation | Code has `ADMIN_PLATEFORME` and `VALIDATEUR_DEFINITIF`, but UI/code labels still use DPAF/Admin in places. | Platform admin and business final validation are distinct concepts. | Terminology debt. |
-| Projects | MJL project list/detail and partner pages exist; project creation/editing inside MJL needs current runtime verification. | Admin plateforme and Validateur definitif can create/edit projects inside MJL. | Review required. |
-| Documents | Contextual uploads and guarded downloads exist for key objects; global Documents is read-only. | Contextual uploads, guarded downloads, upload/download audit. | Download audit remains debt. |
-| Exchanges | Standalone exchange log route exists and is hidden from primary navigation. | Contextual timelines/exchanges inside object detail pages; global search/audit only under Supervision/Audit. | Contextual UX debt. |
-| Reports/exports | CSV/XLSX exports exist with French headers and stable filenames in code. | CSV/XLSX only, UTF-8 BOM semicolon CSV, server-side filters, audited exports. | Export audit and final templates remain debt. |
-| Production config | Deployment docs exist but email/base URL/secrets remain unconfirmed. | Production tenant configured with secrets, email transport, base URL, storage, backup/restore. | Deployment blocker. |
-| Current-state evidence | `docs/mjl-current-app-functional-map.md` refreshed during cleanup. | Evidence docs describe code without overriding target decisions. | Active. |
+| Target decision | Current code/doc status | Gap status | Risk | Next action | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| Production-ready stance, not POC/MVP | Active authority and operational docs state production-ready. Code, bootstrap scripts, module descriptors, and fixture names still contain POC wording. | CODE_LEGACY_DEBT | Fresh agents could mistake code labels for target if they skip authority docs. | Rename production-facing code labels in a future source-code phase; keep fixture-only wording classified. | `docs/mjl-authoritative-decisions.md`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/scripts/bootstrap_poc.php` |
+| Partenaires / Programmes terminology | Active target docs use Partenaires / Programmes. Some code/data still use technical or legacy object labels such as Conventions and DPAF. | PARTIAL | User-facing screens may still expose older vocabulary. | Audit and rename production UI labels without changing schema unless a schema migration is explicitly planned. | `docs/mjl-authoritative-decisions.md`, `custom/mjlfinancement/partners.php`, `custom/mjlfinancement/conventions.php` |
+| One global business role per user | Role/scope tables and helpers exist; legacy Dolibarr groups still backfill fixture roles. | PARTIAL | Legacy groups can obscure the production role model during implementation. | Keep one active `mjlfinancement_user_role` per user and treat old groups as migration/fixture compatibility only. | `custom/mjlfinancement/lib/mjl_scope.lib.php`, `custom/mjlfinancement/sql/update_0.8.0.sql` |
+| Many Partenaires / Programmes per user | Scope helper and user-scope table exist; sample data assigns partner scopes. Report options/rows, exchange lists, and touched audit queries are scope-filtered. | PARTIAL | Untouched dashboards/lists still need route-by-route verification before production claims. | Continue verifying every dashboard, document, audit, and workflow query filters by entity and assigned scope. | `custom/mjlfinancement/lib/mjl_scope.lib.php`, `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/exchangelogs.php` |
+| No role-per-Partenaire model for now | Active docs define one global role plus many scopes; no active target doc requires per-partner roles. | DONE | Low documentation risk. | Preserve this model unless a future explicit product decision changes it. | `docs/mjl-authoritative-decisions.md`, `CONTEXT.md` |
+| Admin sees all | Code has admin/supervision helpers and scope bypasses for admin-like users. `mjl_scope_user_soc_ids()` intentionally returns `null` for unrestricted admin SQL filters. | PARTIAL | Runtime permissions need final client approval and route verification. | Verify direct URL and POST guards for admin and non-admin accounts. | `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `custom/mjlfinancement/lib/mjl_scope.lib.php` |
+| Non-admin access only to assigned scopes | Scope helpers exist and current docs describe fail-closed target behavior. | PARTIAL | Any unscoped query can leak cross-partner data. | Keep auditing each custom query and export path. | `docs/mjl-current-app-functional-map.md`, `custom/mjlfinancement/lib/mjl_scope.lib.php` |
+| Unresolved scope fails closed | Target documented; foundation exists; `audit_unresolved_scope.php` reports objects that cannot resolve to a stable scope. | PARTIAL | Objects without resolvable partner/programme can be overexposed if route guards miss the helper. | Run unresolved-scope audit in Docker and keep route-level evidence for touched objects. | `docs/mjl-authoritative-decisions.md`, `custom/mjlfinancement/lib/mjl_scope.lib.php`, `custom/mjlfinancement/scripts/audit_unresolved_scope.php` |
+| Admin plateforme differs from Validateur definitif | Active docs distinguish the concepts. Code still uses DPAF/Admin labels in several screens and audit actor helpers. | CODE_LEGACY_DEBT | Business validation and technical administration can be confused in UI/audit output. | Replace DPAF/Admin-facing labels with production role labels in a future UI/code cleanup. | `docs/mjl-authoritative-decisions.md`, `custom/mjlfinancement/budgetlines.php`, `custom/mjlfinancement/fundreceipts.php` |
+| Validé définitivement differs from Décaissé | Expense workflow has separate final validation and disbursement states; docs preserve the distinction. | PARTIAL | Activity status helper includes a legacy `Decaissee` label, which may confuse activity vs expense semantics. | Verify status displays and remove misleading activity disbursement labels if not part of target workflow. | `custom/mjlfinancement/class/mjlexpense.class.php`, `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/projects.php` |
+| Project creation/editing inside MJL | MJL project route exists with direct POST token/role guards and create/update audit. Runtime verification is still required. | PARTIAL | Normal users may still depend on native Dolibarr project screens if create/edit is incomplete. | Browser-test project create/edit inside MJL for Admin plateforme and Validateur definitif. | `custom/mjlfinancement/projects.php`, `docs/mjl-current-app-functional-map.md` |
+| Only Admin plateforme and Validateur definitif create/edit projects | Target documented; implementation needs runtime verification. | UNKNOWN_REVIEW_REQUIRED | Incorrect route guards could allow or block project management. | Add/verify direct URL and POST tests for project creation/editing. | `docs/mjl-authoritative-decisions.md`, `custom/mjlfinancement/projects.php` |
+| Global Documents page read-only | Current docs state read-only; uploads are contextual. | PARTIAL | Needs browser/runtime proof for all upload entrypoints. | Verify no global upload action is exposed or accepted. | `custom/mjlfinancement/documents.php`, `docs/mjl-current-app-functional-map.md` |
+| Contextual uploads | Implemented for key objects according to current map. | PARTIAL | Upload audit and every object route need proof. | Verify expense, fund receipt, activity, and convention upload routes and audit rows. | `custom/mjlfinancement/lib/mjl_document.lib.php`, `custom/mjlfinancement/conventions.php` |
+| Guarded downloads | Guarded route exists. | PARTIAL | Direct ECM/public links or missing audit can weaken document controls. | Verify all document links use `documentdownload.php` and no raw ECM links are exposed. | `custom/mjlfinancement/documentdownload.php`, `custom/mjlfinancement/lib/mjl_document.lib.php` |
+| Download audit expected | Guarded downloads now add best-effort `document_downloaded` workflow audit after path resolution. | PARTIAL | Runtime tests still need to prove every document type and audit failure path. | Run document E2E/smoke checks and inspect workflow audit rows. | `custom/mjlfinancement/documentdownload.php`, `docs/mjl-implementation-summary.md` |
+| Export audit expected | CSV/XLSX exports add `export_generated` workflow audit anchored to `mjlfinancement_report` rows. Runtime verification remains required. | PARTIAL | Generic report audit rows have no partner/programme scope and may be admin-only in scoped audit views. | Run export smoke/E2E checks and decide whether generic report audits need a formal scope model. | `custom/mjlfinancement/reports.php`, `docs/mjl-implementation-summary.md` |
+| Contextual exchanges/timeline | Standalone `exchangelogs.php` exists and is hidden from primary navigation; contextual UX remains target debt. | CODE_LEGACY_DEBT | Users may see exchanges as a primary object rather than contextual history. | Move exchange interactions into object detail timelines; keep global view only under Supervision/Audit if retained. | `custom/mjlfinancement/exchangelogs.php`, `custom/mjlfinancement/lib/mjl_navigation.lib.php` |
+| No primary Échanges menu | Navigation helper does not expose exchanges as a primary top-level item. | DONE | Low current risk. | Keep direct route guarded and position any global view under audit/supervision only. | `custom/mjlfinancement/lib/mjl_navigation.lib.php` |
+| Reports CSV/XLSX only | Report center provides CSV/XLSX; active docs exclude PDF/Word; fixed-report fixtures now say `CSV/XLSX`. | DONE | Low documentation risk. | Preserve CSV/XLSX-only scope until an explicit future decision changes it. | `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/sample_data/seed/fixed_reports.csv`, `docs/mjl-authoritative-decisions.md` |
+| CSV format stable: BOM, semicolon, French headers, stable filenames | Current docs and export helpers identify this as target/current behavior. | PARTIAL | Needs current export regression proof before production claim. | Re-run export E2E/smoke checks after any report change. | `custom/mjlfinancement/lib/mjl_csv_export.lib.php`, `docs/mjl-acceptance-tests.md` |
+| No PDF/Word reports in this phase | Active target and readiness docs exclude PDF/Word reports. | DONE | Low current risk. | Keep excluded unless explicitly requested later. | `docs/mjl-authoritative-decisions.md`, `docs/mjl-production-readiness-plan.md` |
+| No self-prevalidation, self-final-validation, self-disbursement | Activity and expense workflow code contains no-self checks and smoke tests exist. | PARTIAL | Needs current test run before production claim. | Run workflow smoke/E2E checks when workflow code is touched. | `custom/mjlfinancement/class/mjlactivity.class.php`, `custom/mjlfinancement/class/mjlexpense.class.php`, `docs/mjl-acceptance-tests.md` |
+| Invitation-only access and no public registration | Active docs preserve invitation-only stance; invitation route exists. | PARTIAL | Runtime auth/access still needs verification before production. | Keep testing invitation flow and absence of register route in E2E. | `custom/mjlfinancement/invitation.php`, `docs/mjl-acceptance-tests.md` |
+| Active Dolibarr entity filtering | Target documented; custom helpers and schemas include entity fields. | PARTIAL | Cross-entity leakage risk if any custom query misses entity filtering. | Continue query-by-query entity audit for touched code. | `docs/mjl-authoritative-decisions.md`, `custom/mjlfinancement/sql/*.sql` |
+| Legacy DPAF/N1/N2 removed from active target docs | Active target docs only mention legacy terms as deprecated mappings or stale-reference classifications. | DOC_FIXED | Low documentation risk if future docs keep the authority chain. | Do not reintroduce legacy terms as target behavior. | `docs/mjl-authoritative-decisions.md`, `docs/mjl-stale-reference-audit.md` |
+| Historical POC/MVP docs no longer drive implementation | Stale docs were deleted or recorded as merged/deleted; remaining references are cleanup history or code debt. | DOC_FIXED | Low documentation risk; code names still contain POC. | Keep deleted docs absent and classify any remaining references. | `docs/mjl-docs-index.md`, `docs/mjl-doc-cleanup-inventory.md` |
+| Production deployment readiness | Deployment checklist exists, but email/base URL/secrets/final permissions remain unconfirmed. | BLOCKED | Cannot claim production release readiness. | Resolve client-approved permission matrix, official report templates, production email/base URL/secrets, backup/restore rehearsal. | `docs/mjl-deployment-checklist.md`, `docs/mjl-production-readiness-plan.md` |
 
 ## Code-Level Conflicts Not Fixed In Documentation Cleanup
 
@@ -37,6 +53,9 @@ configuration, and final client report templates.
   `Echanges`.
 - Module language/descriptor strings still say POC.
 - Sample document placeholders say POC.
+- Download and export audit coverage is not fully proven across every path.
+- Project creation/editing inside the MJL workspace requires runtime
+  verification before production claims.
 
 These are classified in `docs/mjl-stale-reference-audit.md`; they are not fixed
 in this documentation-only task.

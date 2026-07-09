@@ -1,6 +1,7 @@
 <?php
 
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
 function mjl_report_project_summary($projectId, $filters = array())
 {
@@ -17,7 +18,7 @@ function mjl_report_project_summary($projectId, $filters = array())
 	$sql .= ' (SELECT COALESCE(SUM(e.amount), 0) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = '.$entity.' AND e.fk_project = '.$projectId.' AND e.status = 1'.mjl_report_expense_filter_sql('e', $filters, false).') AS pending_expenses';
 	$sql .= ' FROM '.$db->prefix().'projet p';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.fk_project = p.rowid AND bl.entity = '.$entity;
-	$sql .= ' WHERE p.rowid = '.$projectId.' AND p.entity = '.$entity.' GROUP BY p.rowid, p.ref, p.title';
+	$sql .= ' WHERE p.rowid = '.$projectId.' AND p.entity = '.$entity.mjl_report_partner_scope_sql('p.fk_soc').' GROUP BY p.rowid, p.ref, p.title';
 	return mjl_report_fetch_row($sql);
 }
 
@@ -35,6 +36,7 @@ function mjl_report_convention_budget($conventionId, $filters = array())
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.fk_budget_line = bl.rowid AND e.entity = '.$entity.mjl_report_expense_filter_sql('e', $filters, true);
 	$sql .= ' WHERE bl.entity = '.$entity.' AND bl.fk_convention = '.$conventionId;
+	$sql .= ' AND EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_convention cscope WHERE cscope.entity = bl.entity AND cscope.rowid = bl.fk_convention'.mjl_report_partner_scope_sql('cscope.fk_soc').')';
 	$sql .= ' GROUP BY bl.rowid, bl.ref, bl.label, bl.initial_budget, bl.revised_budget, bl.status';
 	$sql .= ' ORDER BY bl.ref';
 	return mjl_report_fetch_rows($sql);
@@ -51,8 +53,10 @@ function mjl_report_expense_documents($filters = array())
 	$sql .= ' u.login AS validator, e.correction_reason';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = e.fk_budget_line';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention cscope ON cscope.rowid = e.fk_convention AND cscope.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = e.fk_user_valid';
 	$sql .= ' WHERE e.entity = '.$entity;
+	$sql .= mjl_report_partner_scope_sql('cscope.fk_soc');
 	$sql .= mjl_report_expense_filter_sql('e', $filters, false);
 	$sql .= ' ORDER BY e.ref';
 	$rows = mjl_report_fetch_rows($sql);
@@ -92,6 +96,14 @@ function mjl_report_expense_filter_sql($alias, $filters, $joinClause)
 		$sql .= " AND ".$alias.".expense_date <= '".$db->escape($filters['date_end'])."'";
 	}
 	return $sql;
+}
+
+function mjl_report_partner_scope_sql($column)
+{
+	if (empty($GLOBALS['user']) || empty($GLOBALS['user']->id)) {
+		return '';
+	}
+	return mjl_scope_partner_sql_filter($column, $GLOBALS['user']);
 }
 
 function mjl_report_fetch_row($sql)

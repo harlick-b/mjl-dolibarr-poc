@@ -227,7 +227,7 @@ function mjl_convention_document_download_rows($conventionId)
 
 function mjl_convention_document_fetch_convention_for_access($conventionId)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	if ((int) $conventionId <= 0) {
 		return array();
@@ -327,7 +327,7 @@ function mjl_fund_receipt_document_download_rows($receiptId)
 
 function mjl_fund_receipt_document_fetch_receipt_for_access($receiptId)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	if ((int) $receiptId <= 0) {
 		return array();
@@ -344,7 +344,7 @@ function mjl_fund_receipt_document_fetch_receipt_for_access($receiptId)
 		return array();
 	}
 	$row = (array) $obj;
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', (int) $row['receipt_rowid'])) {
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', (int) $row['rowid'])) {
 		return array();
 	}
 	return $row;
@@ -407,7 +407,7 @@ function mjl_document_candidate_rows($objectType, $objectId, $entity)
 {
 	global $db;
 
-	$allowed = array('mjlfinancement_activity', 'mjlfinancement_convention');
+	$allowed = array('mjlfinancement_activity', 'mjlfinancement_convention', 'mjlfinancement_expense', 'mjlfinancement_fund_receipt');
 	if (!in_array((string) $objectType, $allowed, true) || (int) $objectId <= 0 || (int) $entity <= 0) {
 		return array();
 	}

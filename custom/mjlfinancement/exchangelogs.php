@@ -3,6 +3,7 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexchangelog.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
 mjl_workspace_require_advanced_traceability_access($user, 'exchangelog');
 
@@ -53,7 +54,7 @@ function mjl_exchangelogs_handle_post($action)
 
 	$objectType = GETPOST('object_type', 'alphanohtml') ?: 'mjlfinancement_activity';
 	$objectId = GETPOSTINT('object_id');
-	if (!mjl_exchangelogs_object_exists($objectType, $objectId)) {
+	if (!mjl_exchangelogs_object_exists($objectType, $objectId) || !mjl_scope_can_access_object($user, $objectType, $objectId)) {
 		setEventMessages('Objet lie introuvable dans l\'entite active', null, 'errors');
 		return;
 	}
@@ -65,7 +66,7 @@ function mjl_exchangelogs_handle_post($action)
 	$log->object_id = $objectId;
 	$log->exchange_date = dol_now();
 	$log->actor = (int) $user->id;
-	$log->actor_role = GETPOST('actor_role', 'alphanohtml') ?: 'AGENT';
+	$log->actor_role = mjl_exchangelogs_actor_role();
 	$log->channel = GETPOST('channel', 'alphanohtml');
 	$log->subject = GETPOST('subject', 'restricthtml');
 	$log->message = GETPOST('message', 'restricthtml');
@@ -91,7 +92,7 @@ function mjl_exchangelogs_create_form()
 	print '<table class="border centpercent">';
 	print '<tr class="liste_titre"><th colspan="6">Nouvel echange</th></tr>';
 	print '<tr><td>Objet</td><td>'.mjl_exchangelogs_object_type_select('object_type', 'mjlfinancement_activity').'</td><td>Activite</td><td>'.mjl_exchangelogs_select('object_id', mjl_exchangelogs_activity_options(), 0, 'Choisir').'</td><td>Canal</td><td>'.mjl_exchangelogs_select('channel', mjl_exchangelogs_channels(), '', 'Choisir').'</td></tr>';
-	print '<tr><td>Role acteur</td><td>'.mjl_exchangelogs_select('actor_role', mjl_exchangelogs_roles(), 'AGENT', '').'</td><td>Sujet</td><td colspan="3"><input class="flat minwidth500" name="subject"></td></tr>';
+	print '<tr><td>Role acteur</td><td>'.mjl_exchangelogs_select('actor_role', mjl_exchangelogs_roles(), mjl_exchangelogs_actor_role(), '').'</td><td>Sujet</td><td colspan="3"><input class="flat minwidth500" name="subject"></td></tr>';
 	print '<tr><td>Message</td><td colspan="5"><textarea required class="flat centpercent" name="message" rows="3"></textarea></td></tr>';
 	print '<tr><td colspan="6" class="right"><input class="button" type="submit" value="Enregistrer"></td></tr>';
 	print '</table></form><br>';
@@ -111,7 +112,7 @@ function mjl_exchangelogs_filter_form($filters)
 
 function mjl_exchangelogs_list($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('x.entity = '.((int) $conf->entity));
 	if ($filters['object_type'] !== '') {
@@ -127,8 +128,10 @@ function mjl_exchangelogs_list($filters)
 	$sql = 'SELECT x.ref, x.object_type, x.object_id, a.ref AS activity_ref, x.exchange_date, u.login, x.actor_role, x.channel, x.subject, x.message';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_exchange_log x';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = x.object_id AND x.object_type = \'mjlfinancement_activity\' AND a.entity = x.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = x.actor';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY x.exchange_date DESC, x.rowid DESC LIMIT 200';
 	$resql = $db->query($sql);
 	if (!$resql) {
@@ -157,9 +160,11 @@ function mjl_exchangelogs_list($filters)
 
 function mjl_exchangelogs_activity_options()
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
-	$sql = 'SELECT rowid, ref, label FROM '.$db->prefix().'mjlfinancement_activity WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+	$sql = 'SELECT a.rowid, a.ref, a.label FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' WHERE a.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $user).' ORDER BY a.ref';
 	$resql = $db->query($sql);
 	if (!$resql) {
 		return array();
@@ -190,12 +195,15 @@ function mjl_exchangelogs_next_ref($objectId)
 
 function mjl_exchangelogs_distinct_options($column)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	if ($column !== 'channel') {
 		return array();
 	}
-	$sql = 'SELECT DISTINCT channel AS value FROM '.$db->prefix().'mjlfinancement_exchange_log WHERE entity = '.((int) $conf->entity)." AND channel IS NOT NULL AND channel <> '' ORDER BY channel";
+	$sql = 'SELECT DISTINCT x.channel AS value FROM '.$db->prefix().'mjlfinancement_exchange_log x';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = x.object_id AND x.object_type = \'mjlfinancement_activity\' AND a.entity = x.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
+	$sql .= ' WHERE x.entity = '.((int) $conf->entity)." AND x.channel IS NOT NULL AND x.channel <> ''".mjl_scope_partner_sql_filter('c.fk_soc', $user).' ORDER BY x.channel';
 	$resql = $db->query($sql);
 	if (!$resql) {
 		return array();
@@ -219,7 +227,7 @@ function mjl_exchangelogs_channels()
 
 function mjl_exchangelogs_roles()
 {
-	return array('AGENT' => 'AGENT', 'SUPERVISEUR_N1' => 'SUPERVISEUR_N1', 'SUPERVISEUR_N2' => 'SUPERVISEUR_N2', 'DPAF' => 'DPAF', 'ADMIN' => 'ADMIN', 'LECTEUR' => 'LECTEUR');
+	return array('AGENT_SAISIE' => 'Agent de saisie', 'AGENT_VERIFICATEUR' => 'Agent verificateur', 'VALIDATEUR_DEFINITIF' => 'Validateur definitif', 'ADMIN_PLATEFORME' => 'Admin plateforme');
 }
 
 function mjl_exchangelogs_select($name, $options, $selected, $emptyLabel)
@@ -240,4 +248,14 @@ function mjl_exchangelogs_token_input()
 	global $mjl_exchangelogs_page_token;
 
 	return '<input type="hidden" name="token" value="'.dol_escape_htmltag($mjl_exchangelogs_page_token).'">';
+}
+
+function mjl_exchangelogs_actor_role()
+{
+	global $user;
+	if (mjl_scope_is_platform_admin($user)) return 'ADMIN_PLATEFORME';
+	if (mjl_scope_is_final_validator($user)) return 'VALIDATEUR_DEFINITIF';
+	if (mjl_scope_is_verifier($user)) return 'AGENT_VERIFICATEUR';
+	if (mjl_scope_is_input_agent($user)) return 'AGENT_SAISIE';
+	return 'PROFIL_NON_RESOLU';
 }

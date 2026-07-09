@@ -31,6 +31,14 @@ This file summarizes what is actually implemented. Target decisions remain in
   conventions.
 - CSV/XLSX report/export center with French labels, server-side filters, and
   stable filenames.
+- Report option lists and export row queries are partner/programme scoped for
+  non-admin users; unresolved rows fail closed through scope joins/filters.
+- Guarded document downloads record best-effort `document_downloaded` workflow
+  audit rows after successful path resolution.
+- CSV/XLSX exports record `export_generated` workflow audit rows anchored to
+  stable `mjlfinancement_report` rows.
+- Project create/update inside the MJL workspace records workflow audit rows
+  with production actor-role labels.
 
 ## Current Compatibility Debt
 
@@ -39,6 +47,9 @@ This file summarizes what is actually implemented. Target decisions remain in
 - Some code labels still use DPAF, Conventions, Depenses, and Echanges.
 - The module descriptor and language files still contain POC wording.
 - Download/export audit is not fully proven across every path.
+- Generic report-export audit rows do not resolve to a Partenaire / Programme;
+  non-admin audit views that enforce object-scope resolution may therefore hide
+  those generic report audit rows until a report-scope model is defined.
 - Final client-approved permission matrix and report templates remain pending.
 
 ## Durable Verification Evidence
@@ -56,3 +67,18 @@ Historical docs recorded successful focused checks for:
 
 Historical pass counts are not current verification. Re-run checks from
 `docs/mjl-acceptance-tests.md` before making production-readiness claims.
+
+## July 8, 2026 Baseline And Alignment Pass
+
+- Starting worktree already had modified docs:
+  `docs/mjl-current-vs-target-gap-analysis.md`,
+  `docs/mjl-doc-cleanup-inventory.md`, `docs/mjl-docs-index.md`, and
+  `docs/mjl-stale-reference-audit.md`, plus untracked
+  `docs/mjl-post-cleanup-alignment-report.md`.
+- Baseline `git diff --check`: passed.
+- Baseline PHP syntax check:
+  `find custom/mjlfinancement -name "*.php" -print0 | xargs -0 -n1 php -l`:
+  passed.
+- Available npm scripts: `test:e2e` only. No `composer.json`,
+  `composer test`, `vendor/bin/phpunit`, `npm test`, or `npm run test` script
+  was present at baseline.

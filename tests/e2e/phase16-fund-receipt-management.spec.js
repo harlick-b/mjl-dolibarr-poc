@@ -287,6 +287,8 @@ test('Fund proof downloads allow valid DPAF rows and deny cross-object, cross-en
   const valid = await page.request.get(`/custom/mjlfinancement/documentdownload.php?type=fundreceipt&id=${validId}`);
   expect(valid.status()).toBe(200);
   expect(await valid.text()).toContain('Phase 16 fund proof');
+  const receiptId = scalar("SELECT rowid FROM llx_mjlfinancement_fund_receipt WHERE ref = 'P16-DOWNLOAD-OK' AND entity = 1 LIMIT 1");
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_fund_receipt' AND object_id = ${receiptId} AND action = 'document_downloaded' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBeGreaterThanOrEqual(1);
 
   for (const ref of ['P16-CROSS-ENTITY', 'P16-CROSS-OBJECT', 'P16-ORPHAN', 'P16-POISON']) {
     const id = scalar(`SELECT rowid FROM llx_ecm_files WHERE ref = '${ref}' ORDER BY entity ASC LIMIT 1`);

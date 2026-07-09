@@ -14,31 +14,55 @@ were not changed in this documentation-only task.
 | TECHNICAL_DOLIBARR_TERM_OK | Technical Dolibarr explanation may use the term. |
 | LEGACY_MAPPING_OK | Legacy migration/backfill/sample mapping is explicit. |
 | CURRENT_STATE_EVIDENCE_OK | Current-state evidence describes existing code only. |
+| FIXTURE_ONLY_OK | Local development/test fixture data only; not production guidance. |
+| CLEANUP_HISTORY_OK | Deleted/merged document names appear only as cleanup records. |
 | STALE_DOC_FIX | Active doc was normalized during cleanup. |
 | STALE_DOC_DELETE | Stale doc was deleted. |
 | CODE_LEGACY_DEBT | Code/data still contains legacy term; not fixed here. |
 | AMBIGUOUS_REVIEW_REQUIRED | Needs future human review. |
 
-## Remaining Stale-Term Classifications
+## Remaining Documentation References
 
-| Term/pattern | Locations | Classification | Notes |
-| --- | --- | --- | --- |
-| `DPAF` | PHP routes/labels/helpers including `dpafdashboard.php`, `reports.php`, `conventions.php`, `exchangelogs.php`; SQL backfill; sample CSVs; docs that classify legacy terms | CODE_LEGACY_DEBT / LEGACY_MAPPING_OK | Route and labels are implementation debt; SQL/sample mappings are valid migration fixtures. |
-| `SUPERVISEUR_N1`, `SUPERVISEUR_N2`, `N1`, `N2` | Bootstrap, seed scripts, SQL update `0.8.0`, sample CSVs, exchange actor-role options | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Valid where mapping old fixture roles; actor-role UI/options remain code debt. |
-| `MJL POC`, `POC` | Bootstrap/local fixture names, module descriptor/language, sample placeholders, sample-data package, stale-term audit itself | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | Local fixture compatibility remains; production docs no longer use POC as product stance. |
-| `MVP` | Deleted legacy docs or fixture background only after cleanup | STALE_DOC_DELETE | No active target guidance should use MVP. |
-| `Bailleurs / Programmes` | Deleted docs only after cleanup | STALE_DOC_DELETE | Target term is `Partenaires / Programmes`. |
-| `Tiers` | Technical Dolibarr explanations in authority/context/current-state docs | TECHNICAL_DOLIBARR_TERM_OK | Avoid in normal user-facing wording. |
-| `Conventions` | Code route/labels, sample data, technical object docs | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | Current object exists; user-facing terminology may need future alignment. |
-| `Depenses` / `Dépenses` | Code labels/routes/reports and docs describing current surfaces | TARGET_OK / CURRENT_STATE_EVIDENCE_OK | Expense wording is still acceptable; disbursement must remain separate. |
-| `Echanges` / `Échanges` | Hidden exchange route, reports, current-state docs, audit | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | Route exists; target forbids primary top-level menu exposure. |
-| `role per Tiers`, `role-per-Tiers` | No active references expected after cleanup | STALE_DOC_DELETE | Target is one global role plus many scopes. |
+| File/result group | Classification | Notes |
+| --- | --- | --- |
+| `AGENTS.md`, `README.md`: POC/N1/N2/DPAF warnings | STALE_DOC_FIX | These are negative instructions telling agents not to follow stale concepts. |
+| `docs/mjl-authoritative-decisions.md`: POC/MVP, Bailleurs, Tiers, DPAF, N1/N2 mappings, Echanges | TARGET_OK / LEGACY_MAPPING_OK / TECHNICAL_DOLIBARR_TERM_OK | The authority file uses these only to define prohibited terms, legacy mappings, or technical Dolibarr wording. |
+| `CONTEXT.md`: Bailleurs/Tiers avoidance and legacy role mappings | TARGET_OK / LEGACY_MAPPING_OK / TECHNICAL_DOLIBARR_TERM_OK | Domain glossary explicitly marks these as avoid/migration-only terms. |
+| `docs/mjl-current-app-functional-map.md`: POC/DPAF/Conventions current-state notes | CURRENT_STATE_EVIDENCE_OK | Describes existing implementation debt without making it target behavior. |
+| `docs/mjl-current-vs-target-gap-analysis.md`: POC/DPAF/Conventions/Echanges debt | CURRENT_STATE_EVIDENCE_OK | Tracks code-vs-target debt and required next actions. |
+| `docs/mjl-implementation-summary.md`: POC/DPAF/Conventions/Depenses/Echanges compatibility debt | CURRENT_STATE_EVIDENCE_OK | Summary of implemented state and known compatibility debt. |
+| `docs/design-system/audit/current-ui-audit.md`, `docs/design-system/audit/current-screen-inventory.md`: DPAF/Convention notes | CURRENT_STATE_EVIDENCE_OK | UI evidence identifies labels that need future production wording cleanup. |
+| `docs/mjl-doc-cleanup-inventory.md`, `docs/mjl-docs-index.md`: deleted doc names and stale-doc history | CLEANUP_HISTORY_OK | These are historical cleanup records, not active implementation guidance. |
+| `tasks/lessons.md`: sample POC role lesson | LEGACY_MAPPING_OK | Durable lesson warning that sample POC roles are not production permissions. |
+| `docs/agents/issue-tracker.md`: `Conventions` heading | TARGET_OK | Generic issue-tracker convention wording, unrelated to MJL funding-envelope UI terminology. |
+
+## Remaining Code And Fixture References
+
+| File/result group | Classification | Notes |
+| --- | --- | --- |
+| `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, language files | CODE_LEGACY_DEBT | Module descriptor still describes a POC. |
+| `custom/mjlfinancement/scripts/bootstrap_poc.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Local bootstrap name and messages are fixture-era compatibility; not production target wording. |
+| `custom/mjlfinancement/scripts/seed_sample_data.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Maps old fixture roles into production role table and still uses POC comments/labels. |
+| `custom/mjlfinancement/sql/update_0.8.0.sql`, `audit_schema_0.8.0.php` | LEGACY_MAPPING_OK | Migration/backfill evidence for old POC groups. |
+| `custom/mjlfinancement/lib/mjl_scope.lib.php`, `mjl_auth.lib.php`, `admin/access.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Reads legacy `MJL POC - %` Dolibarr groups for compatibility. |
+| `custom/mjlfinancement/index.php`, `dpafdashboard.php`, `budgetlines.php`, `fundreceipts.php`, `conventions.php`, related classes | CODE_LEGACY_DEBT | Production-facing labels and some actor-role helpers still expose DPAF/Admin wording. |
+| `custom/mjlfinancement/class/mjlactivity.class.php`, `activities.php`, `smoke_activity_workflow.php` | CODE_LEGACY_DEBT / LEGACY_MAPPING_OK | Legacy `SUPERVISEUR_N1`, `SUPERVISEUR_N2`, `DPAF`, and `AGENT` actor-role values remain in workflow compatibility paths. |
+| `custom/mjlfinancement/roadmap.php` | CODE_LEGACY_DEBT | Internal roadmap still describes POC limits and should be retired or rewritten before production exposure. |
+| `custom/mjlfinancement/sample_data/**` | FIXTURE_ONLY_OK / LEGACY_MAPPING_OK | Local development/test sample data only; not production guidance. Fixed-report fixture formats are CSV/XLSX, not PDF/Word. |
+| `mjl_dolibarr_poc_sample_data/seed/*.csv` | FIXTURE_ONLY_OK / LEGACY_MAPPING_OK | External fixture package still contains legacy roles for sample import tests. Fixed-report fixture formats are CSV/XLSX, not PDF/Word. |
+| `mjl_dolibarr_poc_sample_data/documents_placeholders/*.txt` | FIXTURE_ONLY_OK | Placeholder text says POC and is local fixture data only. |
+| `custom/mjlfinancement/*`, report/export labels containing `Depenses` or `Dépenses` | TARGET_OK | Expense wording remains acceptable; final validation and disbursement must stay separate. |
+| `custom/mjlfinancement/exchangelogs.php`, report scope `Échanges` | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | The route exists, but target says exchanges should be contextual or audit/supervision-only. |
+| `custom/mjlfinancement/conventions.php`, navigation/report references to Conventions | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | Current object exists; user-facing production wording may need alignment. |
+| Technical `Tiers` references in docs | TECHNICAL_DOLIBARR_TERM_OK | Allowed only in Dolibarr technical explanations. |
 
 ## Deleted Stale Documentation
 
-The following stale result groups were removed from active documentation:
+The following stale result groups were removed from active documentation before
+this audit pass and now appear only as cleanup history:
 
-- numbered POC docs `docs/00-context.md` through `docs/15-production-menu-scope.md`;
+- numbered POC docs `docs/00-context.md` through
+  `docs/15-production-menu-scope.md`;
 - previous target spec and feature/deployment/readiness duplicates;
 - navigation unification plans and trackers;
 - implementation phase plans and trackers;
@@ -48,10 +72,11 @@ The following stale result groups were removed from active documentation:
 ## Code-Level Conflicts Not Fixed
 
 - Module descriptor/language still describes a POC.
-- Bootstrap and seed scripts still create local fixture groups named
+- Bootstrap and seed scripts still create or read local fixture groups named
   `MJL POC - ...`.
 - SQL migrations preserve legacy mappings for existing data.
 - Some UI labels still say DPAF, Conventions, and Echanges.
 - Sample-data CSVs and placeholder documents retain fixture-era vocabulary.
+- Download/export audit coverage is not fully proven across every route.
 
 These are implementation debt to address in future source-code work.

@@ -144,6 +144,7 @@ test('Activity creator uploads and downloads a direct activity document', async 
   const href = await page.getByRole('link', { name: 'Telecharger le document' }).first().getAttribute('href');
   await expectDownload(page, href, 'Phase 18 creator activity document');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'document_uploaded'`))).toBe(1);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'document_downloaded' AND actor_role = 'AGENT_SAISIE'`))).toBe(1);
 });
 
 test('DPAF uploads and downloads an activity document without activity write', async ({ page }) => {

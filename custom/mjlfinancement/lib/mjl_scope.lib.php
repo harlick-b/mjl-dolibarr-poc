@@ -79,6 +79,9 @@ function mjl_scope_active_role_code($userId, $entity = null)
 
 function mjl_scope_user_has_role($userId, $roleCode, $entity = null)
 {
+	if (is_object($userId) && !empty($userId->id)) {
+		$userId = (int) $userId->id;
+	}
 	return mjl_scope_active_role_code($userId, $entity) === (string) $roleCode;
 }
 
@@ -307,6 +310,7 @@ function mjl_scope_user_soc_ids($userObj, $entity = null)
 {
 	global $db, $conf;
 
+	// Existing SQL builders rely on null meaning unrestricted platform admin.
 	if (mjl_scope_is_platform_admin($userObj, $entity)) {
 		return null;
 	}
@@ -356,6 +360,16 @@ function mjl_scope_programme_sql_filter($column, $userObj, $entity = null)
 	return mjl_scope_partner_sql_filter($column, $userObj, $entity);
 }
 
+function mjl_scope_partner_ids_for_sql($userObj, $entity = null)
+{
+	return mjl_scope_user_soc_ids($userObj, $entity);
+}
+
+function mjl_scope_programme_ids_for_sql($userObj, $entity = null)
+{
+	return mjl_scope_user_soc_ids($userObj, $entity);
+}
+
 function mjl_scope_can_access_fk_soc($userObj, $fkSoc, $entity = null)
 {
 	$fkSoc = (int) $fkSoc;
@@ -400,6 +414,9 @@ function mjl_scope_object_fk_soc($objectType, $objectId, $entity = null, $depth 
 	}
 	if ($objectType === 'mjlfinancement_project_note') {
 		return mjl_scope_scalar_int('SELECT p.fk_soc FROM '.$db->prefix().'mjlfinancement_project_note n INNER JOIN '.$db->prefix().'projet p ON p.rowid = n.fk_project AND p.entity = n.entity WHERE n.entity = '.$entity.' AND n.rowid = '.$objectId);
+	}
+	if ($objectType === 'mjlfinancement_project') {
+		return mjl_scope_scalar_int('SELECT fk_soc FROM '.$db->prefix().'projet WHERE entity = '.$entity.' AND rowid = '.$objectId);
 	}
 	if ($objectType === 'projet' || $objectType === 'project') {
 		return mjl_scope_scalar_int('SELECT fk_soc FROM '.$db->prefix().'projet WHERE entity = '.$entity.' AND rowid = '.$objectId);

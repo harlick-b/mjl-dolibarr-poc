@@ -11,6 +11,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_dashboard.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
 
 mjl_workspace_require_supervision_access($user);
 
@@ -22,8 +23,9 @@ $report = $def['key'];
 $action = GETPOST('action', 'alpha');
 $rawFilters = mjl_reports_raw_filters();
 $filters = mjl_reports_normalize_filters($def, $rawFilters);
+$inaccessibleFilters = mjl_reports_inaccessible_filters($def, $filters);
 $missingRequired = mjl_reports_missing_required_filters($def, $filters);
-$rows = empty($missingRequired) ? mjl_reports_formatted_rows($report, $filters) : array();
+$rows = empty($missingRequired) && empty($inaccessibleFilters) ? mjl_reports_formatted_rows($report, $filters) : array();
 $csvFilename = mjl_reports_export_filename($def, $filters, 'csv');
 $xlsxFilename = mjl_reports_export_filename($def, $filters, 'xlsx');
 
@@ -34,6 +36,10 @@ if ($action === 'export_csv' || $action === 'export_xlsx') {
 	if (!empty($missingRequired)) {
 		accessforbidden('Sélection requise avant export: '.implode(', ', $missingRequired));
 	}
+	if (!empty($inaccessibleFilters)) {
+		accessforbidden('Filtre hors de votre perimetre: '.implode(', ', $inaccessibleFilters));
+	}
+	mjl_reports_audit_export($def, $filters, $action === 'export_xlsx' ? 'xlsx' : 'csv', count($rows));
 	if ($action === 'export_xlsx') {
 		mjl_xlsx_export_output($xlsxFilename, $def['headers'], $rows);
 	} else {
@@ -55,8 +61,8 @@ mjl_dashboard_render_header(
 
 mjl_reports_render_selector($report);
 mjl_reports_render_filter_bar($def, $filters);
-mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename, $missingRequired, $user);
-mjl_reports_render_table($def, $rows, $missingRequired);
+mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename, $missingRequired, $inaccessibleFilters, $user);
+mjl_reports_render_table($def, $rows, array_merge($missingRequired, $inaccessibleFilters));
 
 print '</div>';
 mjl_navigation_shell_end();
@@ -259,6 +265,19 @@ function mjl_reports_missing_required_filters($def, $filters)
 	return $missing;
 }
 
+function mjl_reports_inaccessible_filters($def, $filters)
+{
+	global $user;
+	$errors = array();
+	if (in_array('project_id', $def['filters'], true) && !empty($filters['project_id']) && !mjl_scope_can_access_object($user, 'project', (int) $filters['project_id'])) {
+		$errors[] = 'Projet';
+	}
+	if (in_array('convention_id', $def['filters'], true) && !empty($filters['convention_id']) && !mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $filters['convention_id'])) {
+		$errors[] = 'Convention';
+	}
+	return $errors;
+}
+
 function mjl_reports_rows($report, $filters)
 {
 	if ($report === 'project_summary') {
@@ -383,7 +402,7 @@ function mjl_reports_render_filter_bar($def, $filters)
 	print '</section>';
 }
 
-function mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename, $missingRequired, User $targetUser)
+function mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename, $missingRequired, $inaccessibleFilters, User $targetUser)
 {
 	$canExport = !empty($targetUser->admin) || $targetUser->hasRight('mjlfinancement', 'export', 'write');
 	print '<section class="mjl-workspace-section">';
@@ -401,6 +420,9 @@ function mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename,
 	print '<div class="mjl-report-active-filters"><strong>Filtres actifs</strong><span>'.dol_escape_htmltag(mjl_reports_filter_summary($def, $filters)).'</span></div>';
 	if (!empty($missingRequired)) {
 		print '<div class="mjl-empty-state">Sélection requise avant export: '.dol_escape_htmltag(implode(', ', $missingRequired)).'.</div>';
+	}
+	if (!empty($inaccessibleFilters)) {
+		print '<div class="mjl-empty-state">Filtre hors de votre périmètre: '.dol_escape_htmltag(implode(', ', $inaccessibleFilters)).'.</div>';
 	}
 	if ($canExport) {
 		print '<form class="mjl-report-export-toolbar" method="GET" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'">';
@@ -602,9 +624,9 @@ function mjl_reports_fund_receipt_status_options()
 
 function mjl_reports_project_options()
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
-	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('fk_soc', $user).' ORDER BY ref';
 	$resql = $db->query($sql);
 	$options = array();
 	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = $obj->ref.' - '.$obj->title;
@@ -613,9 +635,9 @@ function mjl_reports_project_options()
 
 function mjl_reports_convention_options()
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
-	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' ORDER BY ref';
+	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('fk_soc', $user).' ORDER BY ref';
 	$resql = $db->query($sql);
 	$options = array();
 	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = $obj->ref.' - '.$obj->title;
@@ -808,7 +830,7 @@ function mjl_reports_changes_values($changesJson)
 
 function mjl_reports_activities_rows($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('a.entity = '.((int) $conf->entity));
 	if (!empty($filters['project_id'])) $where[] = 'a.fk_project = '.((int) $filters['project_id']);
@@ -826,6 +848,7 @@ function mjl_reports_activities_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet_task t ON t.rowid = a.fk_task AND t.entity = a.entity';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY a.date_end ASC, a.ref';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -841,20 +864,25 @@ function mjl_reports_activities_rows($filters)
 
 function mjl_reports_workflow_rows($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('w.entity = '.((int) $conf->entity));
 	if ($filters['date_start'] !== '') $where[] = "w.action_date >= '".$db->escape($filters['date_start'])." 00:00:00'";
 	if ($filters['date_end'] !== '') $where[] = "w.action_date <= '".$db->escape($filters['date_end'])." 23:59:59'";
 
-	$sql = 'SELECT w.object_type, w.object_id, CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref ELSE NULL END AS object_ref, w.action, w.from_status, w.to_status, u.login AS actor, w.actor_role, w.action_date, COALESCE(w.comment, w.reason) AS comment, w.changes_json';
+	$sql = 'SELECT w.object_type, w.object_id, CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_expense\' THEN e.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref ELSE NULL END AS object_ref, w.action, w.from_status, w.to_status, u.login AS actor, w.actor_role, w.action_date, COALESCE(w.comment, w.reason) AS comment, w.changes_json';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention ca ON ca.rowid = a.fk_convention AND ca.entity = a.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = w.object_id AND w.object_type = \'mjlfinancement_expense\' AND e.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention ce ON ce.rowid = e.fk_convention AND ce.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention cb ON cb.rowid = bl.fk_convention AND cb.entity = bl.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_reports_workflow_scope_sql();
 	$sql .= ' ORDER BY w.action_date DESC, w.rowid DESC';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -874,7 +902,7 @@ function mjl_reports_workflow_rows($filters)
 
 function mjl_reports_fund_receipt_rows($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('fr.entity = '.((int) $conf->entity));
 	if (!empty($filters['project_id'])) $where[] = 'fr.fk_project = '.((int) $filters['project_id']);
@@ -887,10 +915,11 @@ function mjl_reports_fund_receipt_rows($filters)
 	$sql .= ' CASE WHEN '.mjl_fund_receipt_document_present_sql('fr').' THEN 1 ELSE 0 END AS document_present,';
 	$sql .= ' '.mjl_fund_receipt_supporting_document_sql('fr').' AS supporting_document, fr.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_fund_receipt fr';
-	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = fr.fk_soc';
+	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = fr.fk_soc AND s.entity = fr.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = fr.fk_project AND p.entity = fr.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = fr.fk_convention AND c.entity = fr.entity';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('fr.fk_soc', $user);
 	$sql .= ' ORDER BY fr.reception_date DESC, fr.rowid DESC';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -905,7 +934,7 @@ function mjl_reports_fund_receipt_rows($filters)
 
 function mjl_reports_expenses_validations_rows($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('e.entity = '.((int) $conf->entity));
 	if (!empty($filters['project_id'])) $where[] = 'e.fk_project = '.((int) $filters['project_id']);
@@ -927,6 +956,7 @@ function mjl_reports_expenses_validations_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'user validator ON validator.rowid = COALESCE(e.fk_user_final_valid, e.fk_user_valid)';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user disburser ON disburser.rowid = e.fk_user_disbursed';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -941,7 +971,7 @@ function mjl_reports_expenses_validations_rows($filters)
 
 function mjl_reports_exchange_rows($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('x.entity = '.((int) $conf->entity));
 	if ($filters['date_start'] !== '') $where[] = "x.exchange_date >= '".$db->escape($filters['date_start'])." 00:00:00'";
@@ -950,15 +980,17 @@ function mjl_reports_exchange_rows($filters)
 	$sql = 'SELECT x.ref, x.object_type, x.object_id, a.ref AS activity_ref, x.exchange_date, u.login, x.actor_role, x.channel, x.subject, x.message';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_exchange_log x';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = x.object_id AND x.object_type = \'mjlfinancement_activity\' AND a.entity = x.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = x.actor';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY x.exchange_date DESC, x.rowid DESC';
 	return mjl_reports_fetch_rows($sql);
 }
 
 function mjl_reports_dpaf_rows($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('c.entity = '.((int) $conf->entity));
 	if (!empty($filters['project_id'])) $where[] = 'c.fk_project = '.((int) $filters['project_id']);
@@ -974,13 +1006,14 @@ function mjl_reports_dpaf_rows($filters)
 	$sql .= ' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_SUBMITTED.'), 0) AS depenses_en_revue';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_convention c';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY c.ref';
 	return mjl_reports_fetch_rows($sql);
 }
 
 function mjl_reports_expense_audit_rows($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('v.entity = '.((int) $conf->entity));
 	if ($filters['date_start'] !== '') $where[] = "v.action_date >= '".$db->escape($filters['date_start'])." 00:00:00'";
@@ -990,8 +1023,70 @@ function mjl_reports_expense_audit_rows($filters)
 	$sql .= ' v.from_status AS previous_value, v.to_status AS new_value, u.login AS actor, v.actor_role, v.action_date, v.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = v.fk_expense AND e.entity = v.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention cscope ON cscope.rowid = e.fk_convention AND cscope.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = v.fk_user_action';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_scope_partner_sql_filter('cscope.fk_soc', $user);
 	$sql .= ' ORDER BY v.action_date DESC, v.rowid DESC';
 	return mjl_reports_fetch_rows($sql);
+}
+
+function mjl_reports_workflow_scope_sql()
+{
+	global $user;
+	$scopeIds = mjl_scope_user_soc_ids($user);
+	if ($scopeIds === null) {
+		return '';
+	}
+	if (empty($scopeIds)) {
+		return ' AND 1=0';
+	}
+	$list = implode(',', array_map('intval', $scopeIds));
+	return ' AND (ca.fk_soc IN ('.$list.') OR ce.fk_soc IN ('.$list.') OR c.fk_soc IN ('.$list.') OR cb.fk_soc IN ('.$list.') OR fr.fk_soc IN ('.$list.'))';
+}
+
+function mjl_reports_audit_export($def, $filters, $format, $rowCount)
+{
+	global $conf, $user;
+
+	$changes = array(
+		'report' => $def['key'],
+		'format' => $format,
+		'rows' => (int) $rowCount,
+		'filters' => $filters,
+	);
+	$reportId = mjl_reports_get_or_create_report_row($def);
+	$id = $reportId > 0 ? mjl_workflow_audit_insert('mjlfinancement_report', $reportId, (int) $conf->entity, 'Export '.$format, $user, mjl_reports_actor_role(), 'export_generated', 'Export '.$def['label'].' en '.$format, $changes, 'WFA-EXP') : -1;
+	if ($id <= 0 && function_exists('dol_syslog')) {
+		dol_syslog('MJL export audit failed for report '.$def['key'], LOG_WARNING);
+	}
+}
+
+function mjl_reports_get_or_create_report_row($def)
+{
+	global $db, $conf, $user;
+
+	$ref = 'REPORT-'.strtoupper(preg_replace('/[^A-Za-z0-9]+/', '-', (string) $def['key']));
+	$sql = 'SELECT rowid FROM '.$db->prefix().'mjlfinancement_report WHERE entity = '.((int) $conf->entity)." AND ref = '".$db->escape($ref)."' ORDER BY rowid DESC LIMIT 1";
+	$resql = $db->query($sql);
+	if ($resql && ($obj = $db->fetch_object($resql))) {
+		return (int) $obj->rowid;
+	}
+	$sql = 'INSERT INTO '.$db->prefix().'mjlfinancement_report';
+	$sql .= ' (entity, ref, name, scope, expected_format, filters, must_include, date_creation, fk_user_creat, import_key)';
+	$sql .= ' VALUES ('.((int) $conf->entity).", '".$db->escape($ref)."', '".$db->escape((string) $def['label'])."', '".$db->escape((string) $def['scope'])."', 'CSV/XLSX', '', '', NOW(), ".((int) $user->id).", 'PRODREPORT')";
+	if (!$db->query($sql)) {
+		return 0;
+	}
+	return (int) $db->last_insert_id($db->prefix().'mjlfinancement_report');
+}
+
+function mjl_reports_actor_role()
+{
+	global $user;
+	if (mjl_scope_is_platform_admin($user)) return 'ADMIN_PLATEFORME';
+	if (mjl_scope_is_final_validator($user)) return 'VALIDATEUR_DEFINITIF';
+	if (mjl_scope_is_verifier($user)) return 'AGENT_VERIFICATEUR';
+	if (mjl_scope_is_input_agent($user)) return 'AGENT_SAISIE';
+	return 'PROFIL_NON_RESOLU';
 }

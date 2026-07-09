@@ -15,6 +15,10 @@ function sql(query) {
   dockerExec(`mariadb mariadb -udolidbuser -ppoc_pwd dolidb -e "${query.replace(/"/g, '\\"')}"`);
 }
 
+function sqlScalar(query) {
+  return dockerExec(`mariadb mariadb -udolidbuser -ppoc_pwd dolidb -N -B -e "${query.replace(/"/g, '\\"')}"`).toString().trim();
+}
+
 function seedPhase9Files() {
   dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense && rm -f /var/www/documents/ecm/mjlfinancement_expense/P9-*.pdf && printf "%s" "Phase 9 submitted expense document" > /var/www/documents/ecm/mjlfinancement_expense/P9-EXP-SUBMITTED.pdf\'');
 }
@@ -228,6 +232,7 @@ test('filtered activity preview and CSV export share filters, filename, and enti
   expect(sharedStrings).toContain('P9-ACT-SUBMITTED');
   expect(sharedStrings).toContain('Soumise');
   expect(sharedStrings).not.toContain('P9-ENTITY-ACT');
+  expect(Number(sqlScalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action w INNER JOIN llx_mjlfinancement_report r ON r.rowid = w.object_id AND r.entity = w.entity WHERE w.object_type = 'mjlfinancement_report' AND w.action = 'export_generated' AND r.ref = 'REPORT-ACTIVITIES' AND w.actor_role = 'VALIDATEUR_DEFINITIF'"))).toBeGreaterThanOrEqual(2);
 });
 
 test('expense report exports French-readable statuses and document flags', async ({ page }) => {

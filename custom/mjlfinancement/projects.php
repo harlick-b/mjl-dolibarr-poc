@@ -100,8 +100,14 @@ function mjl_projects_handle_project_post($action, $projectId)
 			setEventMessages($db->lasterror(), null, 'errors');
 			mjl_projects_redirect(0);
 		}
+		$newProjectId = (int) $db->last_insert_id($db->prefix().'projet');
+		mjl_workflow_audit_insert('mjlfinancement_project', $newProjectId, (int) $conf->entity, 'Projet cree', $user, mjl_projects_actor_role(), 'created', 'Projet MJL cree', array(
+			'ref' => array('before' => '', 'after' => $ref),
+			'title' => array('before' => '', 'after' => $title),
+			'fk_soc' => array('before' => '', 'after' => $fkSoc),
+		), 'WFA-PRJ');
 		setEventMessages('Projet MJL cree.', null, 'mesgs');
-		mjl_projects_redirect((int) $db->last_insert_id($db->prefix().'projet'));
+		mjl_projects_redirect($newProjectId);
 	}
 
 	$current = mjl_projects_fetch_project((int) $projectId);
@@ -115,6 +121,16 @@ function mjl_projects_handle_project_post($action, $projectId)
 	if (!$db->query($sql)) {
 		setEventMessages($db->lasterror(), null, 'errors');
 	} else {
+		$changes = mjl_projects_changed_fields($current, array(
+			'ref' => $ref,
+			'title' => $title,
+			'description' => $description,
+			'fk_soc' => $fkSoc,
+			'fk_statut' => $status,
+			'dateo' => trim($dateStart, "'"),
+			'datee' => trim($dateEnd, "'"),
+		));
+		mjl_workflow_audit_insert('mjlfinancement_project', (int) $projectId, (int) $conf->entity, 'Projet mis a jour', $user, mjl_projects_actor_role(), 'field_changed', 'Projet MJL mis a jour', $changes, 'WFA-PRJ');
 		setEventMessages('Projet MJL mis a jour.', null, 'mesgs');
 	}
 	mjl_projects_redirect((int) $projectId);
@@ -506,6 +522,19 @@ function mjl_projects_price($value)
 	return function_exists('price') ? price((float) $value, 0, '', 1, -1, -1, 'XOF') : number_format((float) $value, 0, ',', ' ').' XOF';
 }
 
+function mjl_projects_changed_fields($before, $after)
+{
+	$changes = array();
+	foreach ($after as $field => $value) {
+		$old = isset($before[$field]) ? (string) $before[$field] : '';
+		$new = $value === 'NULL' ? '' : (string) $value;
+		if ($old !== $new) {
+			$changes[$field] = array('before' => $old, 'after' => $new);
+		}
+	}
+	return $changes;
+}
+
 function mjl_projects_date($value)
 {
 	return trim((string) $value) === '' ? 'Non renseignee' : (string) $value;
@@ -514,8 +543,9 @@ function mjl_projects_date($value)
 function mjl_projects_actor_role()
 {
 	global $user;
-	if (!empty($user->admin)) return 'ADMIN';
-	if (mjl_workspace_can_access_supervision($user)) return 'DPAF';
-	if ($user->hasRight('mjlfinancement', 'activity', 'validate') || $user->hasRight('mjlfinancement', 'expense', 'validate')) return 'SUPERVISEUR';
-	return 'AGENT';
+	if (mjl_scope_is_platform_admin($user)) return 'ADMIN_PLATEFORME';
+	if (mjl_scope_is_final_validator($user)) return 'VALIDATEUR_DEFINITIF';
+	if (mjl_scope_is_verifier($user)) return 'AGENT_VERIFICATEUR';
+	if (mjl_scope_is_input_agent($user)) return 'AGENT_SAISIE';
+	return 'PROFIL_NON_RESOLU';
 }
