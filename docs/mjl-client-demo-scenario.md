@@ -1,16 +1,36 @@
-# MJL Client Demo Scenario
+# Scenario de demonstration client - MJL
 
 Target decisions come from `docs/mjl-authoritative-decisions.md`. This scenario
 is for client-facing feature validation, not production deployment closure.
 
 Status: `PENDING_CLIENT_VALIDATION`.
 
-## Scenario A: UNICEF Funding To Export Trace
+## Preparation avant demonstration
 
-Purpose: demonstrate one complete, audited monitoring path from external
-funding to execution reporting.
+- Use the local/dev UAT dataset only.
+- Confirm Dolibarr and MariaDB are running.
+- Confirm demo users can log in.
+- Confirm no production SMTP, public URL, secrets, backup/restore, or
+  monitoring claim is made during the demonstration.
 
-1. `ADMIN_PLATEFORME` invites the demo users and assigns production roles.
+## Utilisateurs de demonstration
+
+- `ADMIN_PLATEFORME`: invitations, roles, scopes, diagnostics.
+- `VALIDATEUR_DEFINITIF`: projects, financing, final validation,
+  decaissement.
+- `AGENT_VERIFICATEUR`: prevalidation.
+- `AGENT_SAISIE`: activity and expense entry.
+
+## Donnees de demonstration
+
+- UNICEF.
+- Programme Redevabilite.
+- Funding envelope, funds received, budget line, project, activity, expense,
+  justificatif, timeline entries, alerts, dashboard KPIs, CSV/XLSX reports.
+
+## Scenario principal - UNICEF
+
+1. `ADMIN_PLATEFORME` invites or confirms the demo users and assigns production roles.
 2. `ADMIN_PLATEFORME` assigns UNICEF to the users who should see the scenario.
 3. `VALIDATEUR_DEFINITIF` creates or confirms the UNICEF funding envelope.
 4. `VALIDATEUR_DEFINITIF` records funds received and attaches proof.
@@ -26,20 +46,10 @@ funding to execution reporting.
 14. `AGENT_VERIFICATEUR` prevalidates the expense.
 15. `VALIDATEUR_DEFINITIF` validates the expense definitively.
 16. `VALIDATEUR_DEFINITIF` marks the expense as decaisse.
-17. The dashboard shows updated activity, financial, validation, and
-    disbursement indicators.
-18. The reports center exports CSV and XLSX outputs for activity, financial
-    execution, expense/disbursement, and workflow history.
-19. The object timelines and audit screens show decisions, comments, document
-    activity, and export audit rows.
+17. The dashboard shows updated activity, financial, validation, and disbursement indicators.
+18. The object timeline shows decisions, comments, and document activity.
 
-Expected result: the client can follow the full path without native Dolibarr
-business screens, raw ECM links, public registration, PDF/Word reports, or
-cross-scope leakage.
-
-## Scenario B: Programme Redevabilite Scope Isolation
-
-Purpose: prove assigned-scope isolation.
+## Scenario d'isolation - Programme Redevabilite
 
 1. `ADMIN_PLATEFORME` assigns a user only to Programme Redevabilite.
 2. The user opens the Partenaires / Programmes workspace.
@@ -51,11 +61,49 @@ Expected result: the Programme Redevabilite user sees only assigned data or
 empty results for unassigned filters, while Admin can see all scopes and
 diagnostics.
 
-## Demonstration Notes
+## Points a montrer
 
-- Use French labels during the demo.
-- Keep `ADMIN_PLATEFORME` and `VALIDATEUR_DEFINITIF` distinct.
-- Treat final validation and disbursement as separate decisions.
-- Do not present the permission matrix or report columns as client-approved
-  final templates until the client confirms them.
-- Do not claim production release readiness during this demo.
+- Partenaires / Programmes.
+- One global role plus one or many assigned scopes.
+- No public registration.
+- No self-prevalidation, no self-final-validation, no self-disbursement.
+- Valide definitivement and Decaisse as separate states.
+- Contextual uploads and guarded downloads.
+- Contextual timeline/exchanges inside detail pages.
+- Scoped alerts, dashboards, and reports.
+
+## Exports a produire
+
+- CSV activity tracking or financial execution export.
+- XLSX expense/disbursement or workflow decision export.
+- Show stable filename, French headers, and server-side filters.
+
+## Questions a poser au client
+
+- Are the permission matrix and role labels approved?
+- Are dashboard KPI labels and formulas approved?
+- Are report/export columns, ordering, and wording approved?
+- Are alert thresholds approved?
+- Are final report templates approved?
+
+## Points a ne pas promettre pendant la demonstration
+
+- Production SMTP.
+- Final public URL.
+- Production secrets.
+- Backup/restore.
+- Monitoring/log retention.
+- PDF/Word reports.
+- SMS.
+- OCR.
+- Bank API.
+- Public partner portal.
+- Offline mode.
+
+## Criteres de reussite de la demonstration
+
+- The client can follow the full UNICEF path from funding to export trace.
+- Programme Redevabilite isolation is visible and understandable.
+- Workflow, permissions, dashboard, report, and business validation questions
+  are captured as client decisions.
+- No production release readiness or client approval is claimed prematurely.

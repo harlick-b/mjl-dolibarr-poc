@@ -26,6 +26,13 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`.
 | `docs/mjl-doc-cleanup-inventory.md` | ACTIVE_PROGRESS | Documentation classification inventory. | Yes for doc cleanup | Records keep/delete/merge decisions. |
 | `docs/mjl-stale-reference-audit.md` | ACTIVE_PROGRESS | Stale-term classification. | Yes for cleanup/debt triage | Classifies remaining stale terms. |
 | `docs/mjl-post-cleanup-alignment-report.md` | ACTIVE_PROGRESS | Final alignment verdict and gate results. | Yes for next phase planning | Created by cleanup audit. |
+| `docs/prompts/mjl-phase-13-feature-freeze-uat-client-validation-readiness-prompt.md` | ACTIVE_TASK | Phase 13 feature-freeze, internal UAT, and client-validation readiness prompt. | Yes for Phase 13 | Saved from the current task prompt. |
+| `docs/mjl-feature-freeze-notes.md` | ACTIVE_PROGRESS | Phase 13 feature-freeze declaration and allowed-change boundary. | Yes for UAT | Created during Phase 13. |
+| `docs/mjl-uat-data-readiness.md` | ACTIVE_PROGRESS | UAT users, scopes, fixtures, and data-readiness verdict. | Yes for UAT | Created during Phase 13. |
+| `docs/mjl-internal-uat-dry-run-plan.md` | ACTIVE_PROGRESS | Internal UAT scenario plan with evidence rules. | Yes for UAT | Created during Phase 13. |
+| `docs/mjl-internal-uat-results.md` | ACTIVE_PROGRESS | Internal UAT execution evidence and issue classification. | Yes for UAT | Created during Phase 13. |
+| `docs/mjl-client-validation-pack.md` | ACTIVE_PROGRESS | Client-facing validation pack in French business wording. | Yes for UAT | Created during Phase 13; not client approval. |
+| `docs/mjl-phase-13-final-report.md` | ACTIVE_PROGRESS | Final Phase 13 client-validation readiness verdict. | Yes for next phase planning | Created during Phase 13. |
 | `docs/mjl-client-uat-checklist.md` | ACTIVE_PROGRESS | Client UAT checklist for feature acceptance. | Yes for UAT | Phase 12R artifact; pending client validation. |
 | `docs/mjl-client-demo-scenario.md` | ACTIVE_PROGRESS | End-to-end demo and scope-isolation scenarios. | Yes for UAT | Phase 12R artifact; not production release sign-off. |
 | `docs/mjl-roles-permissions-matrix.md` | ACTIVE_PROGRESS | Current role/action matrix for client validation. | Yes for UAT | Pending final client approval. |

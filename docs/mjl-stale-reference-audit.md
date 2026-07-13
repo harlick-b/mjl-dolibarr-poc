@@ -35,6 +35,8 @@ were not changed in this documentation-only task.
 | `docs/design-system/*.md`: old temporary Level 1/2/3 access model | STALE_DOC_FIX | Phase 10R normalized active design-system guidance to the production role model. |
 | `docs/mjl-doc-cleanup-inventory.md`, `docs/mjl-docs-index.md`: deleted doc names and stale-doc history | CLEANUP_HISTORY_OK | These are historical cleanup records, not active implementation guidance. |
 | `docs/mjl-client-uat-checklist.md`, `docs/mjl-client-demo-scenario.md`, `docs/mjl-roles-permissions-matrix.md`, `docs/mjl-reports-exports-model.md`, `docs/mjl-dashboard-kpi-model.md`: Phase 12R UAT/model docs | TARGET_OK | These documents use production role and Partenaires / Programmes vocabulary and mark client decisions as pending validation. |
+| `docs/prompts/mjl-feature-alignment-rebased-prompt.md`, `docs/prompts/mjl-phase-13-feature-freeze-uat-client-validation-readiness-prompt.md`: active saved prompts | STALE_DOC_FIX / LEGACY_MAPPING_OK | The prompts mention POC/MVP/Bailleurs/DPAF/N1/N2 only as prohibited concepts, legacy context, or stale-term scan examples. They are task evidence, not target wording. |
+| `docs/mjl-feature-freeze-notes.md`, `docs/mjl-uat-data-readiness.md`, `docs/mjl-internal-uat-dry-run-plan.md`, `docs/mjl-internal-uat-results.md`, `docs/mjl-client-validation-pack.md`, `docs/mjl-phase-13-final-report.md`: Phase 13 readiness docs | TARGET_OK / CURRENT_STATE_EVIDENCE_OK | Phase 13 docs use production target wording; any DPAF references are fixture-login or historical test-output evidence, not target roles. |
 | `tasks/lessons.md`: sample POC role lesson | LEGACY_MAPPING_OK | Durable lesson warning that sample POC roles are not production permissions. |
 | `docs/agents/issue-tracker.md`: `Conventions` heading | TARGET_OK | Generic issue-tracker convention wording, unrelated to MJL funding-envelope UI terminology. |
 
@@ -82,6 +84,7 @@ this audit pass and now appear only as cleanup history:
   dashboard-facing wording but did not rename the compatibility
   `dpafdashboard.php` route.
 - Sample-data CSVs and placeholder documents retain fixture-era vocabulary.
-- Download/export audit coverage is not fully proven across every route.
+- Download/export audit coverage is broadly covered by Phase 13 E2E, but
+  historical unresolved local audit rows remain data debt.
 
 These are implementation debt to address in future source-code work.

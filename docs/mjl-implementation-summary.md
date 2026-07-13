@@ -214,6 +214,38 @@ Historical pass counts are not current verification. Re-run checks from
   expected `UNKNOWN` deployment items for production email transport, public
   base URL, production secrets, backup/restore, and monitoring/log retention.
 
+## July 13, 2026 Phase 13 Feature Freeze And Internal UAT
+
+- Saved the Phase 13 task prompt under `docs/prompts/` and indexed the new
+  Phase 13 evidence documents in `docs/mjl-docs-index.md`.
+- Created feature-freeze notes, UAT data readiness, internal UAT dry-run plan,
+  internal UAT results, client validation pack, and final Phase 13 report.
+- Updated the client demo scenario into a repeatable client-demonstration guide
+  with UNICEF and Programme Redevabilite isolation paths.
+- Phase 13 verdict is
+  `READY_FOR_CLIENT_VALIDATION_WITH_MINOR_GAPS`: internal UAT evidence passed,
+  no feature-validation blocker remains, and the remaining gaps are historical
+  local audit data debt, client decisions, and production-release blockers.
+- Verification run during this pass:
+  `git diff --check` passed before documentation edits;
+  PHP syntax checks passed for all `custom/mjlfinancement` PHP files;
+  `bootstrap_poc.php` and `seed_sample_data.php` completed for local/dev UAT
+  setup;
+  schema audits `0.3.0`, `0.4.0`, `0.5.0`, `0.8.0`, `0.9.0`, and `0.10.0`
+  passed, with the known legacy lecteur warning in `0.8.0`;
+  `acceptance_sample_data.php`, `smoke_scope_model.php`,
+  `smoke_activity_workflow.php`, `smoke_expense_validation.php`, and
+  `smoke_traceability_exports.php` passed;
+  full Playwright `npm run test:e2e` passed with 125 tests after rerunning with
+  Docker access because the first sandboxed run failed before app assertions;
+  `check_production_readiness.php` passed source-provable checks and kept
+  expected production deployment confirmations as `UNKNOWN`.
+- `audit_unresolved_scope.php` still fails in the current local database on
+  historical workflow/action rows and generic report audit anchors. E2E
+  fail-closed checks for unresolved and scoped access passed, so this remains
+  local verification data debt rather than a Phase 13 feature-validation
+  blocker.
+
 ## July 9, 2026 Phase 10R Dashboard Alignment Pass
 
 - Added shared dashboard filter parsing for `fk_soc`, `fk_project`,
