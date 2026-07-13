@@ -30,3 +30,9 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Budget-line checks must distinguish committed budget consumption from actual
   disbursement: `committed_amount` follows final-validated/budget-consuming
   expenses, while `spent_amount` follows disbursed expenses.
+- For Apache `ErrorDocument` pages that should use the authenticated Dolibarr
+  session, prefer `NOREDIRECTBYMAINTOLOGIN` over `NOLOGIN`; `NOLOGIN` avoids a
+  login redirect but does not hydrate the session user for MJL shell rendering.
+- Native-boundary checks must probe adjacent Dolibarr route families, not only
+  named blocker routes; `/admin/*`, native `/user/*`, and dormant module routes
+  can render native chrome even when the first blocked routes pass.

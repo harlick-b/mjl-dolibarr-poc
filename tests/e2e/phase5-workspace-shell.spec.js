@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
-const forbiddenResponsePattern = /Acces refuse|Accès refusé|Acc&egrave;s refus&eacute;|Access denied|Forbidden|Non autorise|Non autorisé|Non autoris&eacute;|pas autorise|pas autorisé|pas autoris&eacute;|not authorized|Not Found|\b404\b/i;
+const forbiddenResponsePattern = /Acces refuse|Accès refusé|Acc&egrave;s refus&eacute;|Acces non autorise|Access denied|Forbidden|Non autorise|Non autorisé|Non autoris&eacute;|pas autorise|pas autorisé|pas autoris&eacute;|not authorized|Not Found|\b404\b/i;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -44,11 +44,11 @@ async function expectAccessDeniedForAll(page, paths) {
 }
 
 async function expectNativeWorkspaceBlocked(page, path) {
-  await page.goto(path);
-  if (/custom\/mjlfinancement\/index\.php/.test(page.url())) {
-    return;
-  }
-  await expect(page.locator('body')).toContainText(forbiddenResponsePattern);
+  const response = await page.goto(path);
+  expect(response.status(), path).toBe(403);
+  await expect(page.locator('body')).toContainText(/Acces non autorise|Retour au tableau de bord/);
+  await expect(page.getByLabel('Menu module MJL')).toBeVisible();
+  await expect(page.locator('body')).not.toContainText(/Accueil|Rechercher|Mon tableau de bord|Configuration|Outils d'administration|Utilisateurs & Groupes|Espace RH|Module Builder|Espace facturation et paiement|Module Category not enabled|Not enough permissions|Accès refusé/);
 }
 
 async function expectNativeMenuLabelsHidden(page) {
@@ -69,6 +69,7 @@ async function expectNativeMenuLabelsHidden(page) {
   for (const label of labels) {
     await expect(page.getByRole('link', { name: new RegExp(`^${label}$`, 'i') })).toHaveCount(0);
   }
+  await expect(page.locator('body')).not.toContainText(/Rechercher|Mon tableau de bord|Configuration|Outils d'administration|Utilisateurs & Groupes|Espace RH|Module Builder/);
 }
 
 function cleanupNarrowUsers() {
@@ -181,7 +182,7 @@ test('Level 2 reviewer sees validation workspace and cannot access supervision p
   ]);
 
   await page.goto('/custom/mjlfinancement/validations.php');
-  await expect(page.getByText('Historique validations MJL').first()).toBeVisible();
+  await expect(page.getByText('Historique des validations').first()).toBeVisible();
   await expectSidebar(page);
   await expect(page.getByRole('link', { name: /Historique des validations/ })).toBeVisible();
 });
@@ -303,28 +304,89 @@ test('Business roles do not see native Dolibarr workspaces as normal navigation'
   }
 });
 
-test('Business roles are redirected away from direct native workspace URLs', async ({ page }) => {
+test('MJL users receive a branded 403 for direct native workspace URLs', async ({ page }) => {
+  test.setTimeout(180000);
+
   const nativePaths = [
-    '/societe/index.php',
     '/projet/index.php',
+    '/societe/index.php',
     '/ecm/index.php',
+    '/comm/index.php',
+    '/commande/list.php',
+    '/fourn/index.php',
     '/expensereport/list.php',
+    '/hrm/index.php',
+    '/holiday/list.php',
     '/core/tools.php',
+    '/admin/modules.php',
     '/admin/tools/index.php',
+    '/admin/system/index.php',
+    '/admin/dict.php',
     '/modulebuilder/index.php',
     '/api/index.php',
     '/compta/facture/list.php',
+    '/tax/index.php',
     '/compta/paiement/list.php',
     '/banque/list.php',
     '/accountancy/index.php',
+    '/admin/index.php',
+    '/admin/company.php',
+    '/user/list.php',
+    '/user/card.php',
+    '/user/group/list.php',
+    '/categories/index.php',
+    '/product/index.php',
+    '/imports/index.php',
+    '/ticket/index.php',
+    '/don/index.php',
+    '/contrat/index.php',
+    '/fichinter/index.php',
+    '/website/index.php',
   ];
 
-  for (const loginName of ['agent.mjl', 'superviseur.n1', 'superviseur.n2', 'dpaf.mjl']) {
+  for (const loginName of ['agent.mjl', 'superviseur.n1', 'superviseur.n2', 'dpaf.mjl', 'admin.poc']) {
     await login(page, loginName);
     for (const nativePath of nativePaths) {
       await expectNativeWorkspaceBlocked(page, nativePath);
     }
   }
+});
+
+test('Required authentication helper routes stay reachable outside the native route block', async ({ page }) => {
+  await page.goto('/user/logout.php').catch(() => {});
+
+  await page.goto('/index.php');
+  await expect(page.getByLabel('Identifiant')).toBeVisible();
+  await expect(page.getByLabel('Mot de passe')).toBeVisible();
+
+  await page.goto('/user/passwordforgotten.php');
+  await expect(page.locator('body')).toContainText(/Mot de passe|Identifiant|Adresse/);
+  await expect(page.locator('body')).not.toContainText(/Acces non autorise|Retour au tableau de bord/);
+});
+
+test('Native module state keeps only required Dolibarr support modules enabled', async () => {
+  const disabledConstants = [
+    'MAIN_MODULE_ACCOUNTING',
+    'MAIN_MODULE_COMPTABILITE',
+    'MAIN_MODULE_FACTURE',
+    'MAIN_MODULE_BANQUE',
+    'MAIN_MODULE_TAX',
+    'MAIN_MODULE_EXPENSEREPORT',
+    'MAIN_MODULE_HOLIDAY',
+    'MAIN_MODULE_HRM',
+    'MAIN_MODULE_MODULEBUILDER',
+    'MAIN_MODULE_API',
+  ];
+  const requiredConstants = [
+    'MAIN_MODULE_SOCIETE',
+    'MAIN_MODULE_PROJET',
+    'MAIN_MODULE_ECM',
+    'MAIN_MODULE_EXPORT',
+    'MAIN_MODULE_MJLFINANCEMENT',
+  ];
+
+  expect(scalar(`SELECT COUNT(*) FROM llx_const WHERE entity = 1 AND name IN (${disabledConstants.map((name) => `'${name}'`).join(',')}) AND value = '1'`)).toBe('0');
+  expect(scalar(`SELECT COUNT(DISTINCT name) FROM llx_const WHERE entity = 1 AND name IN (${requiredConstants.map((name) => `'${name}'`).join(',')}) AND value = '1'`)).toBe(String(requiredConstants.length));
 });
 
 test('Narrow workflow-action reader without production role fails closed', async ({ page }) => {

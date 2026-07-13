@@ -2,10 +2,10 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 mjl_workspace_require_validation_history_access($user);
-llxHeader('', 'Historique validations MJL');
+llxHeader('', 'Historique des validations');
 mjl_navigation_shell_start($user, 'validations');
 print '<div class="mjl-workspace">';
-print load_fiche_titre('Historique validations MJL', '', 'check');
+print load_fiche_titre('Historique des validations', '', 'check');
 global $db, $conf;
 $sql = 'SELECT v.ref, e.ref AS expense_ref, v.action, v.from_status, v.to_status, u.login, v.actor_role, v.action_date, v.comment';
 $sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';

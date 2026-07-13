@@ -8,6 +8,14 @@ Recommendation: NOT_DEMO_READY / NOT_PRODUCTION_READY
 
 The MJL sidebar, dashboard landing, Projects page, read-only Documents page, contextual project comments, validation-history label, and Roadmap flag are substantially implemented. However, normal MJL users still see native Dolibarr chrome in the client-facing workspace, and direct native routes are not redirected to the MJL dashboard. Runtime evidence shows `/projet`, `/ecm`, `/societe`, `/comm`, and `/admin/modules.php` render native Dolibarr access-denied pages with old top chrome; `/hrm`, `/compta`, and `/modulebuilder` expose native workspace/error surfaces. This fails the target requirement that old Dolibarr UI must not be exposed to normal MJL users.
 
+Remediation note, July 13 2026: the accepted boundary policy changed from
+hook-based native-route interception to Apache route-family blocking. Browser
+access to the listed native workspace/admin/config families is blocked for
+everyone and routed to the MJL 403 page. Native module maintenance is now an
+operator/bootstrap procedure, not a browser workflow inside the MJL workspace.
+The original findings remain historical evidence until the focused runtime
+boundary tests are rerun against the patched deployment config.
+
 ## 2. Repo State
 
 - Branch: `main...origin/main [ahead 1]`
@@ -48,16 +56,16 @@ Screenshots captured:
 |---|---|---|---|
 | MJL dashboard is post-login landing | OK for active sample business users | Runtime: `admin.poc`, `agent.mjl`, `superviseur.n1`, `superviseur.n2`, `dpaf.mjl`, and `lecteur.audit` landed on `/custom/mjlfinancement/index.php`. Static caveat: `ActionsMjlfinancement::redirectAfterConnection()` is no-op at `custom/mjlfinancement/class/actions_mjlfinancement.class.php:18`. | Medium |
 | Unified MJL sidebar | Mostly OK | Central registry in `mjl_navigation_sections()` at `custom/mjlfinancement/lib/mjl_navigation.lib.php:31`; shell renderer at lines 193-223; runtime sidebars visible for active business users. | Medium |
-| Hide old Dolibarr UI from normal users | Broken | Runtime: `agent.mjl` dashboard body includes `Rechercher`, `Mon tableau de bord`, `Configuration`, `Outils d'administration`, `Utilisateurs & Groupes`; native routes do not redirect. CSS only hides selected top menu anchors at `custom/mjlfinancement/css/mjl_app.css.php:4`. | Blocker |
+| Hide old Dolibarr UI from normal users | Remediated pending re-audit | Historical runtime showed native chrome and native-route exposure. July 13 2026 remediation adds Apache route-family blocking and an `llxHeader` hook that hides native top/left menus on MJL pages. | Re-audit |
 | New MJL Projects page | Mostly OK | `projects.php` requires workspace access at line 12, renders MJL shell at lines 34-35, list at lines 127-165, detail at lines 167-198, native Dolibarr project table wrapper at lines 83-108 and 347-364. | Low |
 | Project notes/comments timeline/list | OK | Notes/comment section renders ordered timeline at `custom/mjlfinancement/projects.php:303`; POST is contextual and guarded at lines 27-31 and 49-61. | Low |
 | Global read-only Documents page | OK | Guard at `custom/mjlfinancement/documents.php:10`; read-only header at lines 24-29; no global upload copy at lines 61-63; secured download route links at line 83. | Low |
 | Guarded document downloads | Mostly OK | Download route forbids missing/invalid rows at `custom/mjlfinancement/documentdownload.php:18-40`, audits at lines 42-43 and 92-110. Not clicked during audit to avoid audit-row mutation. | Low |
-| Validations moved under Supervision and relabeled | Mostly OK | Navigation label is `Historique des validations` under Supervision at `custom/mjlfinancement/lib/mjl_navigation.lib.php:127-146`. Page title still says `Historique validations MJL` at `custom/mjlfinancement/validations.php:5`. | Medium |
+| Validations moved under Supervision and relabeled | Remediated pending re-audit | Navigation label and route title now use `Historique des validations`. | Low |
 | Échanges not primary navigation | Mostly OK | No `Échanges` entry in `mjl_navigation_sections()`; `exchangelogs.php` guarded as advanced traceability at `custom/mjlfinancement/exchangelogs.php:9`; POST creation forbidden at lines 14-15. | Low |
 | Roadmap hidden by default | OK | Flag check at `custom/mjlfinancement/lib/mjl_workspace.lib.php:174`; admin-only access at lines 183-190; SQL query returned `MJL_SHOW_INTERNAL_ROADMAP 0`; runtime direct access returned 404/forbidden. | Low |
-| Role-aware route guards | Partial | Route guards exist in workspace helpers, e.g. reference-data guards at `custom/mjlfinancement/lib/mjl_workspace.lib.php:30`; runtime showed expected forbidden pages for many MJL routes. Native-route guard did not redirect. | High |
-| Coherent design system | Partial | MJL shell and CSS are consistent (`custom/mjlfinancement/css/mjl_app.css.php:36` onward), but native Dolibarr top chrome remains visible. | High |
+| Role-aware route guards | Partial | Route guards exist in workspace helpers, e.g. reference-data guards at `custom/mjlfinancement/lib/mjl_workspace.lib.php:30`; native browser route families are now blocked at Apache level for all users. | Medium |
+| Coherent design system | Remediated pending re-audit | MJL shell and CSS are consistent (`custom/mjlfinancement/css/mjl_app.css.php:36` onward); native top/left chrome is now suppressed on MJL pages by the `llxHeader` hook. | Re-audit |
 
 ## 5. Navigation Registry Audit
 
@@ -99,7 +107,7 @@ Runtime evidence command output:
 | `/custom/mjlfinancement/activities.php` | Activities | Yes | `mjl_workspace_can_access_activity()` then `accessforbidden()` at `activities.php:15` | OK | Runtime accessible to `agent.mjl`. |
 | `/custom/mjlfinancement/expenses.php` | Expenses | Yes | `mjl_workspace_can_access_expense()` at `expenses.php:15` | OK | Runtime accessible to `agent.mjl`. |
 | `/custom/mjlfinancement/alerts.php` | Alerts | Yes for alert-capable users | `mjl_alerts_user_can_read()` at `alerts.php:9` | OK | Runtime accessible to `agent.mjl`. |
-| `/custom/mjlfinancement/validations.php` | Validation history | Supervision child | `mjl_workspace_require_validation_history_access()` at `validations.php:4` | Mostly OK | Label mismatch on page title: `Historique validations MJL`, not exact sidebar label. |
+| `/custom/mjlfinancement/validations.php` | Validation history | Supervision child | `mjl_workspace_require_validation_history_access()` at `validations.php:4` | Remediated pending re-audit | Page title and heading now match `Historique des validations`. |
 | `/custom/mjlfinancement/dpafdashboard.php` | Finance supervision | Supervision child for final/admin | `mjl_workspace_require_supervision_access()` at `dpafdashboard.php:8` | OK | Route filename remains DPAF legacy debt. |
 | `/custom/mjlfinancement/reports.php` | Reports/exports | Supervision child for final/admin | `mjl_workspace_require_supervision_access()` at `reports.php:18` | OK | Exports not clicked. |
 | `/custom/mjlfinancement/conventions.php` | Funding envelopes | Finance child | `mjl_workspace_require_reference_data_access()` at `conventions.php:11` | OK | User-facing label still uses Enveloppe; route name legacy. |
@@ -114,13 +122,17 @@ Runtime evidence command output:
 
 ## 8. Native Dolibarr Exposure Audit
 
-Static implementation has three intended guard layers:
+Historical static implementation had three intended guard layers:
 
 - CSS hides selected native menu items at `custom/mjlfinancement/css/mjl_app.css.php:4-33`.
 - JS fallback guard defines denied prefixes and redirects to MJL at `custom/mjlfinancement/js/native_guard.js.php:15-60`.
-- PHP hook `redirectRestrictedNativeWorkspace()` redirects denied native paths at `custom/mjlfinancement/class/actions_mjlfinancement.class.php:79-105`, with prefix list at lines 114-135.
+- PHP hook `redirectRestrictedNativeWorkspace()` redirected denied native paths. This hook strategy has been removed as the primary enforcement layer.
 
-Runtime shows those layers are insufficient:
+Current remediation uses Apache `LocationMatch` route-family blocking with
+`ErrorDocument 403 /custom/mjlfinancement/nativeforbidden.php`, plus the
+`llxHeader` chrome-suppression hook for MJL workspace pages.
+
+Historical runtime showed those layers were insufficient:
 
 | Route | User | Runtime result | Classification |
 |---|---|---|---|
@@ -186,7 +198,7 @@ Validations:
 
 - Sidebar label is `Historique des validations` under Supervision at `custom/mjlfinancement/lib/mjl_navigation.lib.php:131-132`.
 - Route works for authorized users in the first runtime probe.
-- Page title is `Historique validations MJL` at `custom/mjlfinancement/validations.php:5`, which is close but not the exact target label.
+- Page title is now aligned to `Historique des validations`.
 - The page is read-only table output, not a live validation queue.
 
 Échanges:
@@ -303,10 +315,10 @@ Test needed: Screenshot/accessibility test for forbidden states.
 ID: NAV-MED-001  
 Severity: Medium  
 Area: Validations wording  
-Finding: Sidebar label is target-compliant, but page title is `Historique validations MJL` rather than exact `Historique des validations`.  
-Evidence: Sidebar label at `custom/mjlfinancement/lib/mjl_navigation.lib.php:131-132`; page title at `custom/mjlfinancement/validations.php:5`.  
-Impact: Wording inconsistency in client-facing supervision.  
-Recommended fix: Align route title and visible heading to `Historique des validations`.  
+Finding: Remediated. Sidebar label, page title, and visible heading now use `Historique des validations`.  
+Evidence: Sidebar label at `custom/mjlfinancement/lib/mjl_navigation.lib.php:131-132`; title/heading at `custom/mjlfinancement/validations.php`.  
+Impact: Low residual risk until the audit is rerun.  
+Recommended fix: Keep focused E2E coverage asserting the exact label.  
 Files likely affected: `custom/mjlfinancement/validations.php`, language files if used.  
 Test needed: UI text assertion for sidebar and page heading.
 

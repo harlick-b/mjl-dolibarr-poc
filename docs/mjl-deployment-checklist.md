@@ -14,11 +14,15 @@ Target decisions come from `docs/mjl-authoritative-decisions.md`.
    - ECM/documents;
    - export;
    - `MjlFinancement`.
-4. Activate or reactivate the MJL module so SQL definitions and guarded update
+4. Keep browser access to native admin/config/workspace families blocked by
+   `custom/mjlfinancement/deployment/apache-native-guard.conf`.
+5. Keep unused native modules disabled through the operator cleanup path:
+   `custom/mjlfinancement/scripts/disable_native_workspace_modules.php`.
+6. Activate or reactivate the MJL module so SQL definitions and guarded update
    scripts run.
-5. Configure production users, groups, rights, roles, and Partenaires /
+7. Configure production users, groups, rights, roles, and Partenaires /
    Programmes according to the final permission matrix.
-6. Confirm invitation-only access and no public registration.
+8. Confirm invitation-only access and no public registration.
 
 ## Environment And Configuration
 
@@ -56,6 +60,15 @@ Target decisions come from `docs/mjl-authoritative-decisions.md`.
   document lookups, and workflow lookups.
 - Confirm normal users cannot reach hidden advanced/reference pages by direct
   URL.
+- Confirm native Dolibarr route families (`/projet`, `/societe`, `/ecm`,
+  `/comm`, `/commande`, `/fourn`, `/hrm`, `/holiday`, `/expensereport`,
+  `/compta`, `/accountancy`, `/banque`, `/tax`, `/modulebuilder`, `/api`,
+  `/core/tools.php`, all `/admin/*`, native `/user/*` except logout/password
+  reset, and dormant native module families such as categories, products,
+  imports, tickets, donations, contracts, intervention, and website) return
+  the MJL 403 page in the browser.
+- Native module maintenance is an operator/bootstrap task, not a browser
+  workflow in the MJL workspace.
 - Confirm project creation/editing is available inside MJL only for Admin
   plateforme and Validateur definitif.
 - Confirm documents are stored in ECM, not publicly exposed, and downloaded

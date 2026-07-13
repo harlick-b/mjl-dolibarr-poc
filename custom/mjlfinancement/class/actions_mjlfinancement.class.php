@@ -36,8 +36,6 @@ class ActionsMjlfinancement extends CommonHookActions
 
 	public function doActions($parameters, &$object, &$action, $hookmanager)
 	{
-		$this->redirectRestrictedNativeWorkspace();
-
 		if (empty($parameters['currentcontext']) || strpos($parameters['currentcontext'], 'passwordforgottenpage') === false) {
 			return 0;
 		}
@@ -76,17 +74,22 @@ class ActionsMjlfinancement extends CommonHookActions
 		return 0;
 	}
 
-	private function redirectRestrictedNativeWorkspace()
+	public function llxHeader($parameters, &$object, &$action, $hookmanager)
 	{
-		global $user;
+		global $conf, $user;
 
-		if (empty($user) || empty($user->id) || !mjl_workspace_user_can_read($user)) {
-			return;
+		if (!empty($user) && !empty($user->id) && mjl_workspace_user_can_read($user) && $this->isMjlWorkspacePath()) {
+			$conf->dol_hide_topmenu = 1;
+			$conf->dol_hide_leftmenu = 1;
 		}
+		return 0;
+	}
 
+	private function isMjlWorkspacePath()
+	{
 		$path = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 		if (!is_string($path) || $path === '') {
-			return;
+			return false;
 		}
 
 		$root = rtrim((string) DOL_URL_ROOT, '/');
@@ -95,55 +98,6 @@ class ActionsMjlfinancement extends CommonHookActions
 		}
 		$path = '/'.ltrim($path, '/');
 
-		if (strpos($path, '/custom/mjlfinancement/') === 0 || $path === '/index.php') {
-			return;
-		}
-
-		if ($this->isDeniedNativeWorkspacePath($path, $user)) {
-			header('Location: '.DOL_URL_ROOT.'/custom/mjlfinancement/index.php', true, 302);
-			exit;
-		}
-	}
-
-	private function isDeniedNativeWorkspacePath($path, User $targetUser)
-	{
-		if (!empty($targetUser->admin)) {
-			return false;
-		}
-
-		$businessDeniedPaths = array(
-			'/societe',
-			'/comm',
-			'/projet',
-			'/ecm',
-			'/expensereport',
-			'/hrm',
-			'/holiday',
-			'/modulebuilder',
-			'/api',
-			'/core/tools.php',
-			'/commande',
-			'/fourn',
-			'/compta',
-			'/accountancy',
-			'/banque',
-			'/tax',
-			'/admin/tools',
-			'/admin/system',
-			'/admin/dict',
-			'/admin/modules.php',
-		);
-		foreach ($businessDeniedPaths as $prefix) {
-			if ($this->pathStartsWith($path, $prefix)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	private function pathStartsWith($path, $prefix)
-	{
-		return $path === $prefix || strpos($path, rtrim($prefix, '/').'/') === 0;
+		return strpos($path, '/custom/mjlfinancement/') === 0;
 	}
 }

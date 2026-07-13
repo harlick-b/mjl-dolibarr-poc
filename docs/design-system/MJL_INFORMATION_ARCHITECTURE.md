@@ -21,13 +21,13 @@ Define how the application is organized around MJL work instead of Dolibarr inte
 ## Primary Areas
 
 1. Tableau de bord
-2. Projets
-3. Activités
-4. Validations
-5. Alertes
+2. Partenaires / Programmes
+3. Projets
+4. Activités
+5. Dépenses
 6. Documents
-7. Exports
-8. Historique / Audit
+7. Financement
+8. Supervision
 9. Administration
 
 ## Page Hierarchy
@@ -38,6 +38,11 @@ Tableau de bord
   - Alertes
   - Activités récentes
   - Raccourcis d’export
+
+Partenaires / Programmes
+  - Liste des partenaires
+  - Détail partenaire / programme
+  - Portefeuille rattaché
 
 Projets
   - Liste des projets
@@ -52,27 +57,35 @@ Activités
   - Modifier brouillon
   - Historique de décision
 
-Validations
-  - File d’attente
-  - Détail à valider
-  - Décisions passées
+Dépenses
+  - Liste des dépenses
+  - Créer une dépense
+  - Détail dépense
+  - Justificatifs
+  - Prévalidation, validation définitive et décaissement
 
-Alertes
-  - Toutes les alertes
-  - Alertes urgentes
-  - Alertes résolues si applicable
+Documents
+  - Bibliothèque
+  - Téléchargements gardés
+  - Uploads contextuels depuis les objets métier
 
-Exports
-  - Centre d’exports
-  - Export activités
-  - Export projets
-  - Export audit si autorisé
+Financement
+  - Enveloppes de financement
+  - Budgets
+  - Fonds reçus
+
+Supervision
+  - Supervision finance
+  - Historique des validations
+  - Alertes globales
+  - Rapports / Exports
+  - Historique / Audit
 
 Administration
-  - Utilisateurs
+  - Accès utilisateurs
   - Invitations
-  - Rôles
-  - Paramètres techniques
+  - Rôles et périmètres
+  - Préparation production si explicitement activée
 ```
 
 ## Entry Points

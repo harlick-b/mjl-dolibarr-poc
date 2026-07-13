@@ -6,6 +6,7 @@ require '/var/www/html/main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/usergroup.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_native_modules.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_sample_data.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
@@ -25,10 +26,7 @@ $modules = array(
 	'modSociete',
 	'modProjet',
 	'modECM',
-	'modAccounting',
 	'modExport',
-	'modModuleBuilder',
-	'modApi',
 	'modMjlFinancement',
 );
 
@@ -38,6 +36,11 @@ foreach ($modules as $module) {
 		fail('Failed to activate '.$module);
 	}
 	mjl_out('Activated '.$module);
+}
+
+$nativeCleanupErrors = mjl_native_modules_disable_workspace_modules('mjl_out');
+if (!empty($nativeCleanupErrors)) {
+	fail('Unable to disable unsafe native modules: '.implode('; ', $nativeCleanupErrors));
 }
 
 mjl_ensure_schema();

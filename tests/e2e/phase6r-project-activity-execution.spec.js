@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
-const deniedPattern = /Acces refuse|Accès refusé|Access denied|Forbidden|Non autorise|Non autorisé|hors de votre perimetre|hors de votre périmètre/i;
+const deniedPattern = /Acces refuse|Accès refusé|Acc&egrave;s refus&eacute;|Access denied|Forbidden|Non autorise|Non autorisé|Non autoris&eacute;|hors de votre perimetre|hors de votre périmètre/i;
 
 test.describe.configure({ mode: 'serial' });
 
