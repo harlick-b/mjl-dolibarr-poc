@@ -120,7 +120,7 @@ function mjl_navigation_sections(User $targetUser)
 			'key' => 'finance',
 			'label' => 'Financement',
 			'href' => $financeChildren[0]['href'],
-			'description' => 'Conventions, budgets et fonds',
+			'description' => 'Enveloppes, budgets et fonds',
 			'children' => $financeChildren,
 		);
 	}

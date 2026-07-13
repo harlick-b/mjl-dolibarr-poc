@@ -144,7 +144,7 @@ function mjl_projects_render_list()
 		return;
 	}
 	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Projet</th><th>Convention liee</th><th>Budget total</th><th>Budget consomme</th><th>Budget restant</th><th>Fonds recus</th><th>Activites</th><th>Depenses</th><th>Documents</th><th>Echeance</th><th>Statut</th></tr>';
+	print '<tr class="liste_titre"><th>Projet</th><th>Enveloppe liee</th><th>Budget total</th><th>Budget consomme</th><th>Budget restant</th><th>Fonds recus</th><th>Activites</th><th>Depenses</th><th>Documents</th><th>Echeance</th><th>Statut</th></tr>';
 	foreach ($rows as $row) {
 		print '<tr class="oddeven">';
 		print '<td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['ref']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['title']).'</span></td>';
@@ -207,7 +207,7 @@ function mjl_projects_render_identity($project)
 	print '<div><dt>Intitule</dt><dd>'.dol_escape_htmltag($project['title']).'</dd></div>';
 	print '<div><dt>Debut</dt><dd>'.dol_escape_htmltag(mjl_projects_date($project['dateo'])).'</dd></div>';
 	print '<div><dt>Fin</dt><dd>'.dol_escape_htmltag(mjl_projects_date($project['datee'])).'</dd></div>';
-	print '<div><dt>Conventions</dt><dd>'.dol_escape_htmltag($project['convention_refs'] ?: 'Non renseignee').'</dd></div>';
+	print '<div><dt>Enveloppes</dt><dd>'.dol_escape_htmltag($project['convention_refs'] ?: 'Non renseignee').'</dd></div>';
 	print '</dl></section>';
 }
 
@@ -411,7 +411,7 @@ function mjl_projects_document_rows($projectId)
 	}
 	foreach (mjl_projects_convention_rows($projectId) as $convention) {
 		foreach (mjl_convention_document_download_rows((int) $convention['rowid']) as $row) {
-			$documents[] = mjl_projects_document_row($row, 'convention', 'Convention', $convention['ref']);
+			$documents[] = mjl_projects_document_row($row, 'convention', 'Enveloppe de financement', $convention['ref']);
 		}
 	}
 	foreach (mjl_projects_fund_receipt_rows($projectId) as $receipt) {
@@ -628,7 +628,7 @@ function mjl_projects_activity_status_label($status)
 
 function mjl_projects_expense_status_label($status)
 {
-	$labels = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee legacy', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
+	$labels = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee definitivement (compatibilite historique)', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
 	return isset($labels[(int) $status]) ? $labels[(int) $status] : 'Statut '.$status;
 }
 

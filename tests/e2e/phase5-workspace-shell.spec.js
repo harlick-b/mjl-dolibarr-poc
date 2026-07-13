@@ -223,7 +223,7 @@ test('Finance validator sees supervision workspace and can access finance report
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/exchangelogs.php');
-  await expect(page.getByText('Echanges MJL').first()).toBeVisible();
+  await expect(page.getByText('Historique / Audit - recherche des echanges').first()).toBeVisible();
   await expectSidebar(page);
   await expect(page.getByLabel('Menu module MJL')).not.toContainText('Échanges');
 
@@ -263,7 +263,7 @@ test('Admin sees administration access and can access invitations plus supervisi
   await expect(page.getByText('Actions workflow MJL').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/exchangelogs.php');
-  await expect(page.getByText('Echanges MJL').first()).toBeVisible();
+  await expect(page.getByText('Historique / Audit - recherche des echanges').first()).toBeVisible();
   await expect(page.getByLabel('Menu module MJL')).not.toContainText('Échanges');
 
   await expectAccessDenied(page, '/custom/mjlfinancement/roadmap.php');

@@ -33,6 +33,18 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`.
 | `docs/mjl-internal-uat-results.md` | ACTIVE_PROGRESS | Internal UAT execution evidence and issue classification. | Yes for UAT | Created during Phase 13. |
 | `docs/mjl-client-validation-pack.md` | ACTIVE_PROGRESS | Client-facing validation pack in French business wording. | Yes for UAT | Created during Phase 13; not client approval. |
 | `docs/mjl-phase-13-final-report.md` | ACTIVE_PROGRESS | Final Phase 13 client-validation readiness verdict. | Yes for next phase planning | Created during Phase 13. |
+| `docs/prompts/mjl-phase-14-client-validation-preparation-prompt.md` | ACTIVE_TASK | Phase 14 client validation preparation, evidence capture, and feedback classification prompt. | Yes for Phase 14 | Saved from the current task prompt. |
+| `docs/mjl-client-demo-readiness-checklist.md` | ACTIVE_PROGRESS | Phase 14 demo readiness verdict and client-demo go/no-go checklist. | Yes for client validation | Prepared during Phase 14; not client approval. |
+| `docs/mjl-client-demo-hygiene-checklist.md` | ACTIVE_PROGRESS | Phase 14 hygiene checklist for avoiding local/test noise and false promises. | Yes for client validation | Prepared during Phase 14. |
+| `docs/mjl-client-demo-runbook.md` | ACTIVE_PROGRESS | Repeatable French business runbook for the client demo. | Yes for client validation | Prepared during Phase 14. |
+| `docs/mjl-client-demo-rehearsal-results.md` | ACTIVE_PROGRESS | Phase 14 rehearsal evidence and demo go/no-go result. | Yes for client validation | Uses Phase 13 UAT and Phase 14 verification evidence. |
+| `docs/mjl-client-decision-log.md` | ACTIVE_PROGRESS | Structured log for client decisions. | Yes for client validation | Pending real client feedback. |
+| `docs/mjl-client-validation-results.md` | ACTIVE_PROGRESS | Actual client validation result record. | Yes for client validation | Verdict remains CLIENT_VALIDATION_NOT_RUN until real feedback is recorded. |
+| `docs/mjl-client-change-requests.md` | ACTIVE_PROGRESS | Structured change-request classification table. | Yes for client validation | No client change requests recorded yet. |
+| `docs/mjl-phase-14-final-report.md` | ACTIVE_PROGRESS | Final Phase 14 preparation and validation-status report. | Yes for next phase planning | Does not claim production release readiness. |
+| `docs/mjl-demo-ui-polish-plan.md` | ACTIVE_TASK | Phase 14.9 gated UI/navigation polish plan with status-label mapping and stop conditions. | Yes for Phase 14.9 | Created before source changes. |
+| `docs/mjl-demo-data-hygiene.md` | ACTIVE_PROGRESS | Phase 14.9 classification of remaining local fixture and compatibility vocabulary. | Yes for demo preparation | Does not authorize changing fixture identifiers. |
+| `docs/mjl-phase-14-9-ui-polish-report.md` | ACTIVE_PROGRESS | Phase 14.9 UI polish verdict, changed files, verification, and deferred decisions. | Yes for next phase planning | Does not claim client approval or production release readiness. |
 | `docs/mjl-client-uat-checklist.md` | ACTIVE_PROGRESS | Client UAT checklist for feature acceptance. | Yes for UAT | Phase 12R artifact; pending client validation. |
 | `docs/mjl-client-demo-scenario.md` | ACTIVE_PROGRESS | End-to-end demo and scope-isolation scenarios. | Yes for UAT | Phase 12R artifact; not production release sign-off. |
 | `docs/mjl-roles-permissions-matrix.md` | ACTIVE_PROGRESS | Current role/action matrix for client validation. | Yes for UAT | Pending final client approval. |

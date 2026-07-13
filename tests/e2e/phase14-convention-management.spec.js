@@ -100,7 +100,7 @@ test('DPAF creates, edits, activates, closes, and views convention history', asy
   await expect(page).toHaveURL(/conventions\.php\?id=\d+/);
   await expect(page.getByRole('heading', { name: /P14-UI-CONV/ })).toBeVisible();
   await expect(page.getByText('Brouillon').first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Historique convention' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Historique enveloppe' })).toBeVisible();
 
   await page.getByLabel('Intitule').fill('Convention Phase 14 modifiee');
   await page.getByLabel('Motif de modification').fill('Correction libelle Phase 14');
@@ -108,12 +108,12 @@ test('DPAF creates, edits, activates, closes, and views convention history', asy
   await expect(page.getByRole('heading', { name: /Convention Phase 14 modifiee/ })).toBeVisible();
   await expect(page.getByText('Correction libelle Phase 14')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Activer la convention' }).click();
+  await page.getByRole('button', { name: 'Activer l enveloppe' }).click();
   await expect(page.getByText('Active').first()).toBeVisible();
   await expect(page.getByText('Activation', { exact: true })).toBeVisible();
 
   await page.getByLabel('Motif de cloture').fill('Cloture test Phase 14');
-  await page.getByRole('button', { name: 'Cloturer la convention' }).click();
+  await page.getByRole('button', { name: 'Cloturer l enveloppe' }).click();
   await expect(page.getByText('Cloturee').first()).toBeVisible();
   await expect(page.getByText('Cloture test Phase 14')).toBeVisible();
 

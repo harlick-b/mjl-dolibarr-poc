@@ -557,7 +557,7 @@ function mjl_dashboard_recent_audit($limit = 30, $filters = null)
 
 	$scopeSql = mjl_dashboard_audit_partner_filter_sql('w', $filters);
 	$projectSql = mjl_dashboard_audit_project_filter_sql('w', $filters);
-	$sql = 'SELECT CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN \'Activite\' WHEN w.object_type = \'mjlfinancement_expense\' THEN \'Depense\' WHEN w.object_type = \'mjlfinancement_convention\' THEN \'Convention\' WHEN w.object_type = \'mjlfinancement_budget_line\' THEN \'Ligne budgetaire\' WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN \'Réception de fonds\' WHEN w.object_type = \'mjlfinancement_project\' THEN \'Projet\' ELSE w.object_type END AS source,';
+	$sql = 'SELECT CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN \'Activite\' WHEN w.object_type = \'mjlfinancement_expense\' THEN \'Depense\' WHEN w.object_type = \'mjlfinancement_convention\' THEN \'Enveloppe de financement\' WHEN w.object_type = \'mjlfinancement_budget_line\' THEN \'Ligne budgetaire\' WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN \'Réception de fonds\' WHEN w.object_type = \'mjlfinancement_project\' THEN \'Projet\' ELSE w.object_type END AS source,';
 	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_expense\' THEN e.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref WHEN w.object_type = \'mjlfinancement_project\' THEN p.ref ELSE NULL END AS object_ref,';
 	$sql .= ' w.action, w.from_status, w.to_status, u.login, w.action_date, w.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
@@ -824,7 +824,7 @@ function mjl_dashboard_render_alert_section($title, $description, $alerts, $empt
 			}
 		} else {
 			print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($alert['project_ref']).'</dd></div>';
-			print '<div><dt>Convention</dt><dd>'.dol_escape_htmltag($alert['convention_ref']).'</dd></div>';
+			print '<div><dt>Enveloppe</dt><dd>'.dol_escape_htmltag($alert['convention_ref']).'</dd></div>';
 			print '<div><dt>Echeance</dt><dd>'.dol_escape_htmltag($alert['date_end']).'</dd></div>';
 			print '<div><dt>Statut</dt><dd>'.dol_escape_htmltag($alert['status_label']).'</dd></div>';
 		}

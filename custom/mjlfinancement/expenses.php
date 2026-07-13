@@ -320,7 +320,7 @@ function mjl_expenses_create_form()
 	print mjl_expenses_token_input();
 	print '<label>Reference<input required name="ref"></label>';
 	print '<label>Projet'.mjl_expenses_select('fk_project', $projectOptions, 1, 'Choisir').'</label>';
-	print '<label>Convention'.mjl_expenses_select('fk_convention', $conventionOptions, 1, 'Choisir').'</label>';
+	print '<label>Enveloppe de financement'.mjl_expenses_select('fk_convention', $conventionOptions, 1, 'Choisir').'</label>';
 	print '<label>Activite'.mjl_expenses_select('fk_mjl_activity', $activityOptions, 0, 'Aucune').'</label>';
 	print '<label>Ligne budgetaire'.mjl_expenses_select('fk_budget_line', $budgetLineOptions, 1, 'Choisir').'</label>';
 	print '<label>Montant<input required name="amount"></label>';
@@ -383,7 +383,7 @@ function mjl_expenses_render_summary_card($row)
 	print '<div><dt>Action attendue</dt><dd>'.dol_escape_htmltag(mjl_expenses_next_action_label($row)).'</dd></div>';
 	print '<div><dt>Piece justificative</dt><dd>'.dol_escape_htmltag(mjl_expenses_evidence_label($row['evidence_state'] ?? '')).'</dd></div>';
 	print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($row['project_ref']).' - '.dol_escape_htmltag($row['project_title']).'</dd></div>';
-	print '<div><dt>Convention</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
+	print '<div><dt>Enveloppe</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
 	print '<div><dt>Activite</dt><dd>'.dol_escape_htmltag($row['activity_ref'] ?: 'Aucune').'</dd></div>';
 	print '<div><dt>Ligne budgetaire</dt><dd>'.dol_escape_htmltag($row['budget_line_ref']).' - '.dol_escape_htmltag($row['budget_line_label']).'</dd></div>';
 	print '<div><dt>Montant demande</dt><dd>'.price($row['amount']).'</dd></div>';
@@ -748,7 +748,7 @@ function mjl_expense_status_text($status)
 	$map = array(
 		(string) MjlExpense::STATUS_DRAFT => 'Brouillon',
 		(string) MjlExpense::STATUS_SUBMITTED => 'Soumise',
-		(string) MjlExpense::STATUS_VALIDATED => 'Validee legacy',
+		(string) MjlExpense::STATUS_VALIDATED => 'Validee definitivement (compatibilite historique)',
 		(string) MjlExpense::STATUS_CORRECTED => 'Corrigee',
 		(string) MjlExpense::STATUS_PREVALIDATED => 'Prevalidee',
 		(string) MjlExpense::STATUS_FINAL_VALIDATED => 'Validee definitivement',
@@ -756,8 +756,8 @@ function mjl_expense_status_text($status)
 		(string) MjlExpense::STATUS_REJECTED => 'Rejetee',
 		'draft' => 'Brouillon',
 		'submitted' => 'Soumise',
-		'legacy_validated' => 'Validee legacy',
-		'validated' => 'Validee legacy',
+		'legacy_validated' => 'Validee definitivement (compatibilite historique)',
+		'validated' => 'Validee definitivement (compatibilite historique)',
 		'prevalidated' => 'Prevalidee',
 		'final_validated' => 'Validee definitivement',
 		'disbursed' => 'Decaissee',

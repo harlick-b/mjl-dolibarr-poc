@@ -167,7 +167,7 @@ function mjl_budgetlines_render_detail($id)
 function mjl_budgetlines_render_create_form()
 {
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
-	print '<div class="mjl-section-heading"><h2>Nouvelle ligne budgetaire</h2><p>Creer un brouillon rattache a une convention active avant activation.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Nouvelle ligne budgetaire</h2><p>Creer un brouillon rattache a une enveloppe active avant activation.</p></div>';
 	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php">';
 	print '<input type="hidden" name="action" value="create"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_budgetlines_render_fields(array(), false);
@@ -194,7 +194,7 @@ function mjl_budgetlines_render_fields($row, $locked)
 	print '<label>Reference<input required name="ref" value="'.dol_escape_htmltag($row['ref'] ?? '').'"'.$disabled.'></label>';
 	print '<label>Libelle<input required name="label" value="'.dol_escape_htmltag($row['label'] ?? '').'"></label>';
 	print '<label>Projet'.mjl_budgetlines_select('fk_project', mjl_budgetlines_options('project'), (int) ($row['fk_project'] ?? 0), true, $locked).'</label>';
-	print '<label>Convention active'.mjl_budgetlines_select('fk_convention', mjl_budgetlines_options('convention'), (int) ($row['fk_convention'] ?? 0), true, $locked).'</label>';
+	print '<label>Enveloppe active'.mjl_budgetlines_select('fk_convention', mjl_budgetlines_options('convention'), (int) ($row['fk_convention'] ?? 0), true, $locked).'</label>';
 	print '<label>Activite MJL'.mjl_budgetlines_select('fk_mjl_activity', mjl_budgetlines_options('activity'), (int) ($row['fk_mjl_activity'] ?? 0), false, $locked).'</label>';
 	print '<label>Tache projet'.mjl_budgetlines_select('fk_activity', mjl_budgetlines_options('task'), (int) ($row['fk_activity'] ?? 0), false, $locked).'</label>';
 	print '<label>Budget initial<input name="initial_budget" value="'.dol_escape_htmltag($row['initial_budget'] ?? '').'"'.$disabled.'></label>';
@@ -215,9 +215,9 @@ function mjl_budgetlines_render_fields($row, $locked)
 function mjl_budgetlines_render_filters($filters)
 {
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Limiter la vue par projet, convention, activite ou statut.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Limiter la vue par projet, enveloppe, activite ou statut.</p></div>';
 	print '<form method="GET" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php">';
-	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>Projet</th><th>Convention</th><th>Activite</th><th>Statut</th><th></th></tr>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>Projet</th><th>Enveloppe</th><th>Activite</th><th>Statut</th><th></th></tr>';
 	print '<tr class="oddeven">';
 	print '<td>'.mjl_budgetlines_select('project_id', mjl_budgetlines_options('project'), $filters['project_id'], false, false, 'Tous').'</td>';
 	print '<td>'.mjl_budgetlines_select('convention_id', mjl_budgetlines_options('convention_all'), $filters['convention_id'], false, false, 'Toutes').'</td>';
@@ -256,7 +256,7 @@ function mjl_budgetlines_render_list($filters)
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Ligne</th><th>Projet</th><th>Programme</th><th>Activite</th><th class="right">Budget revise</th><th class="right">Soumis</th><th class="right">Prevalide</th><th class="right">Valide definitif</th><th class="right">Decaisse</th><th class="right">Restant</th><th>Statut</th><th>Liens</th></tr>';
+	print '<tr class="liste_titre"><th>Ligne</th><th>Projet</th><th>Enveloppe</th><th>Activite</th><th class="right">Budget revise</th><th class="right">Soumis</th><th class="right">Prevalide</th><th class="right">Valide definitif</th><th class="right">Decaisse</th><th class="right">Restant</th><th>Statut</th><th>Liens</th></tr>';
 	$count = 0;
 	while ($obj = $db->fetch_object($resql)) {
 		$count++;
@@ -289,7 +289,7 @@ function mjl_budgetlines_render_summary($row)
 	print '<dl class="mjl-activity-meta">';
 	print '<div><dt>Statut</dt><dd>'.mjl_budgetlines_status_badge($row['status']).'</dd></div>';
 	print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($row['project_ref']).' - '.dol_escape_htmltag($row['project_title']).'</dd></div>';
-	print '<div><dt>Programme</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
+	print '<div><dt>Enveloppe</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
 	print '<div><dt>Activite</dt><dd>'.dol_escape_htmltag($row['activity_ref']).' '.dol_escape_htmltag($row['activity_label']).'</dd></div>';
 	print '<div><dt>Tache projet</dt><dd>'.dol_escape_htmltag($row['task_label']).'</dd></div>';
 	print '<div><dt>Budget initial</dt><dd>'.price($row['initial_budget']).'</dd></div>';

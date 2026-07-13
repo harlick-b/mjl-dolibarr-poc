@@ -136,7 +136,7 @@ function mjl_email_render($template, array $context)
 		$details['Projet'] = $projectRef;
 	}
 	if ($conventionRef !== '') {
-		$details['Convention'] = $conventionRef;
+		$details['Enveloppe'] = $conventionRef;
 	}
 	if ($comment !== '') {
 		$details['Commentaire'] = $comment;

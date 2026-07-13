@@ -1,7 +1,7 @@
 MJLFinancement=MJL Financing
 ModuleMjlFinancementName=MJL Financing
 ModuleMjlFinancementDesc=MJL financing POC
-MJLConvention=Convention
+MJLConvention=Funding envelope
 MJLBudgetLine=Budget line
 MJLFundReceipt=Fund receipt
 MJLExpense=Expense
@@ -10,7 +10,7 @@ MJLWorkflowAction=Workflow action
 MJLExchangeLog=Exchange log
 MJLReport=Report
 MJLTitle=Title
-MJLPTFBailleur=PTF / donor
+MJLPTFBailleur=Partner / Programme
 MJLTotalAmount=Total amount
 MJLActivity=Activity
 MJLProjectTask=Project task

@@ -36,7 +36,10 @@ were not changed in this documentation-only task.
 | `docs/mjl-doc-cleanup-inventory.md`, `docs/mjl-docs-index.md`: deleted doc names and stale-doc history | CLEANUP_HISTORY_OK | These are historical cleanup records, not active implementation guidance. |
 | `docs/mjl-client-uat-checklist.md`, `docs/mjl-client-demo-scenario.md`, `docs/mjl-roles-permissions-matrix.md`, `docs/mjl-reports-exports-model.md`, `docs/mjl-dashboard-kpi-model.md`: Phase 12R UAT/model docs | TARGET_OK | These documents use production role and Partenaires / Programmes vocabulary and mark client decisions as pending validation. |
 | `docs/prompts/mjl-feature-alignment-rebased-prompt.md`, `docs/prompts/mjl-phase-13-feature-freeze-uat-client-validation-readiness-prompt.md`: active saved prompts | STALE_DOC_FIX / LEGACY_MAPPING_OK | The prompts mention POC/MVP/Bailleurs/DPAF/N1/N2 only as prohibited concepts, legacy context, or stale-term scan examples. They are task evidence, not target wording. |
+| `docs/prompts/mjl-phase-14-client-validation-preparation-prompt.md`: active saved prompt | STALE_DOC_FIX / LEGACY_MAPPING_OK | The prompt mentions POC/MVP/Bailleurs/DPAF/N1/N2 only as prohibited concepts, legacy context, or stale-term scan examples. It is Phase 14 task evidence, not target wording. |
 | `docs/mjl-feature-freeze-notes.md`, `docs/mjl-uat-data-readiness.md`, `docs/mjl-internal-uat-dry-run-plan.md`, `docs/mjl-internal-uat-results.md`, `docs/mjl-client-validation-pack.md`, `docs/mjl-phase-13-final-report.md`: Phase 13 readiness docs | TARGET_OK / CURRENT_STATE_EVIDENCE_OK | Phase 13 docs use production target wording; any DPAF references are fixture-login or historical test-output evidence, not target roles. |
+| `docs/mjl-client-demo-readiness-checklist.md`: Phase 14 demo readiness doc | CURRENT_STATE_EVIDENCE_OK / LEGACY_MAPPING_OK | The checklist mentions fixture-only POC/N1/N2/DPAF names only as local/test noise to avoid presenting as production wording. |
+| `docs/mjl-demo-ui-polish-plan.md`, `docs/mjl-demo-data-hygiene.md`, `docs/mjl-phase-14-9-ui-polish-report.md`: Phase 14.9 UI polish docs | TARGET_OK / CURRENT_STATE_EVIDENCE_OK / FIXTURE_ONLY_OK | These docs classify remaining fixture/compatibility terms and record that Phase 14.9 was UI polish only. |
 | `tasks/lessons.md`: sample POC role lesson | LEGACY_MAPPING_OK | Durable lesson warning that sample POC roles are not production permissions. |
 | `docs/agents/issue-tracker.md`: `Conventions` heading | TARGET_OK | Generic issue-tracker convention wording, unrelated to MJL funding-envelope UI terminology. |
 
@@ -44,21 +47,21 @@ were not changed in this documentation-only task.
 
 | File/result group | Classification | Notes |
 | --- | --- | --- |
-| `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, language files | CODE_LEGACY_DEBT | Module descriptor still describes a POC. |
+| `custom/mjlfinancement/core/modules/modMjlFinancement.class.php` | CODE_LEGACY_DEBT | Module descriptor still describes a POC. Phase 14.9 updated touched language labels for funding envelope and partner/programme wording. |
 | `custom/mjlfinancement/scripts/bootstrap_poc.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Local bootstrap name and messages are fixture-era compatibility; not production target wording. |
 | `custom/mjlfinancement/scripts/seed_sample_data.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Maps old fixture roles into production role table and still uses POC comments/labels. |
 | `custom/mjlfinancement/sql/update_0.8.0.sql`, `audit_schema_0.8.0.php` | LEGACY_MAPPING_OK | Migration/backfill evidence for old POC groups. |
 | `custom/mjlfinancement/lib/mjl_scope.lib.php`, `mjl_auth.lib.php`, `admin/access.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | Reads legacy `MJL POC - %` Dolibarr groups for compatibility. |
 | `custom/mjlfinancement/dpafdashboard.php` | LEGACY_MAPPING_OK / CODE_LEGACY_DEBT | The filename remains a compatibility route, but Phase 10R removed DPAF wording from the dashboard UI. |
-| `custom/mjlfinancement/budgetlines.php`, `fundreceipts.php`, `conventions.php`, related classes | CODE_LEGACY_DEBT | Production-facing labels and some actor-role helpers still expose DPAF/Admin wording. |
+| `custom/mjlfinancement/budgetlines.php`, `fundreceipts.php`, `conventions.php`, related classes | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | Phase 14.9 aligned production-facing labels on these pages. Technical class names, route names, DB fields, and compatibility actor-role values remain unchanged. |
 | `custom/mjlfinancement/class/mjlactivity.class.php`, `activities.php`, `smoke_activity_workflow.php` | CODE_LEGACY_DEBT / LEGACY_MAPPING_OK | Legacy `SUPERVISEUR_N1`, `SUPERVISEUR_N2`, `DPAF`, and `AGENT` actor-role values remain in workflow compatibility paths. |
 | `custom/mjlfinancement/roadmap.php` | CODE_LEGACY_DEBT | Internal roadmap still describes POC limits and should be retired or rewritten before production exposure. |
 | `custom/mjlfinancement/sample_data/**` | FIXTURE_ONLY_OK / LEGACY_MAPPING_OK | Local development/test sample data only; not production guidance. Fixed-report fixture formats are CSV/XLSX, not PDF/Word. |
 | `mjl_dolibarr_poc_sample_data/seed/*.csv` | FIXTURE_ONLY_OK / LEGACY_MAPPING_OK | External fixture package still contains legacy roles for sample import tests. Fixed-report fixture formats are CSV/XLSX, not PDF/Word. |
 | `mjl_dolibarr_poc_sample_data/documents_placeholders/*.txt` | FIXTURE_ONLY_OK | Placeholder text says POC and is local fixture data only. |
 | `custom/mjlfinancement/*`, report/export labels containing `Depenses` or `Dépenses` | TARGET_OK | Expense wording remains acceptable; final validation and disbursement must stay separate. |
-| `custom/mjlfinancement/exchangelogs.php`, report scope `Échanges` | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | The route exists, but target says exchanges should be contextual or audit/supervision-only. |
-| `custom/mjlfinancement/conventions.php`, navigation/report references to Conventions | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | Current object exists; user-facing production wording may need alignment. |
+| `custom/mjlfinancement/exchangelogs.php`, report scope `Échanges` | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | The route exists and remains guarded; Phase 14.9 retitled the page as an advanced Historique / Audit search surface. |
+| `custom/mjlfinancement/conventions.php`, navigation/report references to Conventions | CODE_LEGACY_DEBT / CURRENT_STATE_EVIDENCE_OK | Phase 14.9 aligned touched user-facing labels to Enveloppe de financement. Technical route/report/filter identifiers still use convention compatibility names. |
 | Technical `Tiers` references in docs | TECHNICAL_DOLIBARR_TERM_OK | Allowed only in Dolibarr technical explanations. |
 
 ## Deleted Stale Documentation
@@ -76,13 +79,14 @@ this audit pass and now appear only as cleanup history:
 
 ## Code-Level Conflicts Not Fixed
 
-- Module descriptor/language still describes a POC.
+- Module descriptor still describes a POC.
 - Bootstrap and seed scripts still create or read local fixture groups named
   `MJL POC - ...`.
 - SQL migrations preserve legacy mappings for existing data.
-- Some UI labels still say DPAF, Conventions, and Echanges. Phase 10R cleaned
-  dashboard-facing wording but did not rename the compatibility
-  `dpafdashboard.php` route.
+- Fixture/test names, technical route names, class names, table names, DB
+  fields, and migration/backfill code still use DPAF, Convention, PTF, and
+  POC-era compatibility terms. Phase 14.9 aligned touched production-facing UI
+  labels but did not rename compatibility routes or technical objects.
 - Sample-data CSVs and placeholder documents retain fixture-era vocabulary.
 - Download/export audit coverage is broadly covered by Phase 13 E2E, but
   historical unresolved local audit rows remain data debt.

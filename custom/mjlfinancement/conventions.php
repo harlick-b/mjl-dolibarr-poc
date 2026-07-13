@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $conventionId = GETPOSTINT('id');
 
-llxHeader('', 'Conventions MJL');
+llxHeader('', 'Enveloppes de financement MJL');
 mjl_navigation_shell_start($user, 'conventions');
 print '<div class="mjl-workspace mjl-convention-workspace">';
 
@@ -64,17 +64,17 @@ function mjl_conventions_handle_post($action)
 			setEventMessages($convention->error ?: 'Creation convention refusee', null, 'errors');
 			mjl_conventions_redirect(0);
 		}
-		setEventMessages('Convention creee en brouillon', null, 'mesgs');
+		setEventMessages('Enveloppe creee en brouillon', null, 'mesgs');
 		mjl_conventions_redirect((int) $result);
 	}
 
 	$id = GETPOSTINT('id');
 	$convention = new MjlConvention($db);
 	if ($id <= 0 || $convention->fetch($id) <= 0 || (int) $convention->entity !== (int) $conf->entity) {
-		mjl_conventions_forbidden('Convention introuvable ou hors de votre perimetre');
+		mjl_conventions_forbidden('Enveloppe introuvable ou hors de votre perimetre');
 	}
 	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $id)) {
-		mjl_conventions_forbidden('Convention hors de votre perimetre');
+		mjl_conventions_forbidden('Enveloppe hors de votre perimetre');
 	}
 
 	if ($action === 'add_exchange') {
@@ -112,11 +112,11 @@ function mjl_conventions_handle_post($action)
 	}
 
 	if ($result < 0) {
-		setEventMessages($convention->error ?: 'Action convention refusee', null, 'errors');
+		setEventMessages($convention->error ?: 'Action enveloppe refusee', null, 'errors');
 	} elseif ($result === 0) {
 		setEventMessages('Aucun changement applique', null, 'warnings');
 	} else {
-		setEventMessages('Action convention enregistree', null, 'mesgs');
+		setEventMessages('Action enveloppe enregistree', null, 'mesgs');
 	}
 	mjl_conventions_redirect($action === 'delete' && $result > 0 ? 0 : $id);
 }
@@ -125,8 +125,8 @@ function mjl_conventions_render_list_page()
 {
 	print '<div class="mjl-workspace-header">';
 	print '<div><p class="mjl-kicker">Enveloppes de financement</p><h1>Gestion des enveloppes de financement</h1>';
-	print '<p class="mjl-header-copy">Pilotez les enveloppes de financement avant les lignes budgetaires, depenses et rapports.</p></div>';
-	print '<div class="mjl-user-context"><span>Perimetre</span><strong>'.(mjl_conventions_can_manage() ? 'DPAF / Admin' : 'Consultation').'</strong></div>';
+	print '<p class="mjl-header-copy">Pilotez les enveloppes avant les lignes budgetaires, depenses et rapports.</p></div>';
+	print '<div class="mjl-user-context"><span>Perimetre</span><strong>'.(mjl_conventions_can_manage() ? 'Administration / validation definitive' : 'Consultation').'</strong></div>';
 	print '</div>';
 
 	if (mjl_conventions_can_manage()) {
@@ -139,13 +139,13 @@ function mjl_conventions_render_detail($id)
 {
 	$row = mjl_conventions_fetch_detail($id);
 	if (empty($row)) {
-		mjl_conventions_forbidden('Convention introuvable ou hors de votre perimetre');
+		mjl_conventions_forbidden('Enveloppe introuvable ou hors de votre perimetre');
 	}
 	$linked = mjl_conventions_link_counts($id);
 	$hasLinks = array_sum($linked) > 0;
 	$canManage = mjl_conventions_can_manage();
 
-	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">Retour aux conventions</a></p>';
+	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">Retour aux enveloppes</a></p>';
 	print '<div class="mjl-workspace-header">';
 	print '<div><p class="mjl-kicker">Enveloppe de financement</p><h1>'.dol_escape_htmltag($row['ref']).' - '.dol_escape_htmltag($row['title']).'</h1>';
 	print '<p class="mjl-header-copy">'.dol_escape_htmltag(mjl_conventions_next_action_label($row, $hasLinks)).'</p></div>';
@@ -179,7 +179,7 @@ function mjl_conventions_upload_document(MjlConvention $convention)
 
 	$db->begin();
 	$error = '';
-	$document = mjl_document_upload_to_ecm('mjlfinancement_convention', $conventionId, (int) $convention->entity, 'supporting_document', 'mjlfinancement_convention', 'MJL-CONV', 'Document convention MJL', $error);
+	$document = mjl_document_upload_to_ecm('mjlfinancement_convention', $conventionId, (int) $convention->entity, 'supporting_document', 'mjlfinancement_convention', 'MJL-CONV', 'Document enveloppe MJL', $error);
 	if (empty($document)) {
 		$db->rollback();
 		$convention->error = $error;
@@ -268,7 +268,7 @@ function mjl_conventions_render_list()
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Convention</th><th>PTF</th><th>Projet</th><th class="right">Montant</th><th>Statut</th><th>Liens</th></tr>';
+	print '<tr class="liste_titre"><th>Enveloppe</th><th>Partenaire / Programme</th><th>Projet</th><th class="right">Montant</th><th>Statut</th><th>Liens</th></tr>';
 	$count = 0;
 	while ($obj = $db->fetch_object($resql)) {
 		$count++;
@@ -282,7 +282,7 @@ function mjl_conventions_render_list()
 		print '</tr>';
 	}
 	if ($count === 0) {
-		print '<tr class="oddeven"><td colspan="6">Aucune convention dans votre perimetre.</td></tr>';
+		print '<tr class="oddeven"><td colspan="6">Aucune enveloppe dans votre perimetre.</td></tr>';
 	}
 	print '</table></div></section>';
 }
@@ -290,10 +290,10 @@ function mjl_conventions_render_list()
 function mjl_conventions_render_summary($row, $linked)
 {
 	print '<section class="mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Synthese convention</h2><p>Controle du financement et des rattachements operationnels.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Synthese enveloppe</h2><p>Controle du financement et des rattachements operationnels.</p></div>';
 	print '<dl class="mjl-activity-meta">';
 	print '<div><dt>Statut</dt><dd>'.mjl_conventions_status_badge($row['status']).'</dd></div>';
-	print '<div><dt>PTF</dt><dd>'.dol_escape_htmltag($row['ptf_name']).'</dd></div>';
+	print '<div><dt>Partenaire / Programme</dt><dd>'.dol_escape_htmltag($row['ptf_name']).'</dd></div>';
 	print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($row['project_ref']).' - '.dol_escape_htmltag($row['project_title']).'</dd></div>';
 	print '<div><dt>Periode</dt><dd>'.dol_escape_htmltag(mjl_conventions_format_date($row['date_start'])).' - '.dol_escape_htmltag(mjl_conventions_format_date($row['date_end'])).'</dd></div>';
 	print '<div><dt>Montant</dt><dd>'.price($row['total_amount']).' '.dol_escape_htmltag($row['currency_code']).'</dd></div>';
@@ -310,14 +310,14 @@ function mjl_conventions_render_actions($row, $hasLinks, $canManage)
 	print '<section class="mjl-workspace-section mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Cycle de vie</h2><p>Activation, cloture ou suppression selon les regles de gouvernance.</p></div>';
 	if ((int) $row['status'] === MjlConvention::STATUS_DRAFT) {
-		mjl_conventions_action_form($row['rowid'], 'activate', 'Activer la convention', 'Commentaire d activation', false);
+		mjl_conventions_action_form($row['rowid'], 'activate', 'Activer l enveloppe', 'Commentaire d activation', false);
 		if (!$hasLinks) {
 			mjl_conventions_action_form($row['rowid'], 'delete', 'Supprimer le brouillon', '', false);
 		}
 	} elseif ((int) $row['status'] === MjlConvention::STATUS_ACTIVE) {
-		mjl_conventions_action_form($row['rowid'], 'close', 'Cloturer la convention', 'Motif de cloture', true);
+		mjl_conventions_action_form($row['rowid'], 'close', 'Cloturer l enveloppe', 'Motif de cloture', true);
 	} else {
-		print '<div class="mjl-empty-state">Convention cloturee: aucune nouvelle operation ne peut y etre rattachee.</div>';
+		print '<div class="mjl-empty-state">Enveloppe cloturee: aucune nouvelle operation ne peut y etre rattachee.</div>';
 	}
 	print '</section>';
 }
@@ -327,7 +327,7 @@ function mjl_conventions_render_document_panel($row, $canManage)
 	$state = mjl_convention_evidence_state((int) $row['rowid'], (int) $row['entity']);
 	$documents = mjl_convention_document_download_rows((int) $row['rowid']);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Documents convention</h2><p>Pieces contractuelles et annexes conservees dans ECM.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Documents enveloppe</h2><p>Pieces contractuelles et annexes conservees dans ECM.</p></div>';
 	print '<div class="mjl-document-summary mjl-document-summary-'.$state.'">';
 	print '<span>'.dol_escape_htmltag(mjl_conventions_evidence_label($state)).'</span>';
 	print '<span>'.dol_escape_htmltag(!empty($documents) ? mjl_convention_document_display_filename($documents[0]) : 'Aucun fichier detecte').'</span>';
@@ -335,7 +335,7 @@ function mjl_conventions_render_document_panel($row, $canManage)
 	if ($state === 'unavailable') {
 		print '<div class="mjl-empty-state mjl-empty-state-warning">Reference ECM presente, mais aucun fichier telechargeable n est disponible.</div>';
 	} elseif ($state === 'missing') {
-		print '<div class="mjl-empty-state">Aucun document n est rattache a cette convention.</div>';
+		print '<div class="mjl-empty-state">Aucun document n est rattache a cette enveloppe.</div>';
 	}
 	if (!empty($documents)) {
 		print '<div class="mjl-document-list">';
@@ -351,7 +351,7 @@ function mjl_conventions_render_document_panel($row, $canManage)
 	if ($canManage && mjl_conventions_can_upload_document($row)) {
 		print '<form class="mjl-activity-form" method="POST" enctype="multipart/form-data" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'">';
 		print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print '<label>Document convention<input required type="file" name="supporting_document"></label>';
+		print '<label>Document enveloppe<input required type="file" name="supporting_document"></label>';
 		print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter le document"></div>';
 		print '</form>';
 	}
@@ -373,7 +373,7 @@ function mjl_conventions_render_timeline($row)
 {
 	$items = mjl_conventions_timeline_items($row);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Historique convention</h2><p>Creation, modifications, activation, cloture, tentatives refusees et commentaires.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Historique enveloppe</h2><p>Creation, modifications, activation, cloture, tentatives refusees et commentaires.</p></div>';
 	mjl_timeline_render_comment_form('mjlfinancement_convention', (int) $row['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']));
 	print '<ol class="mjl-activity-timeline">';
 	foreach ($items as $item) {
@@ -434,7 +434,7 @@ function mjl_conventions_timeline_items($row)
 	global $db, $conf;
 	$items = array(array(
 		'label' => 'Creee',
-		'title' => 'Convention creee',
+		'title' => 'Enveloppe creee',
 		'meta' => mjl_conventions_format_datetime($row['date_creation']).' par '.$row['creator_login'],
 		'comment' => '',
 		'changes' => array(),
@@ -546,7 +546,7 @@ function mjl_convention_action_label($action)
 
 function mjl_convention_actor_role_label($role)
 {
-	$map = array('ADMIN' => 'Admin', 'DPAF' => 'DPAF');
+	$map = array('ADMIN' => 'Administrateur plateforme', 'DPAF' => 'Validateur definitif');
 	return isset($map[$role]) ? $map[$role] : (string) $role;
 }
 
@@ -559,16 +559,16 @@ function mjl_conventions_status_badge($status)
 
 function mjl_conventions_next_action_label($row, $hasLinks)
 {
-	if ((int) $row['status'] === MjlConvention::STATUS_DRAFT) return 'Verifier les donnees puis activer la convention.';
-	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE && $hasLinks) return 'Convention active: les champs structurants sont verrouilles.';
-	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE) return 'Convention active disponible pour les operations.';
-	return 'Convention cloturee: consultation, rapports et historique restent disponibles.';
+	if ((int) $row['status'] === MjlConvention::STATUS_DRAFT) return 'Verifier les donnees puis activer l enveloppe.';
+	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE && $hasLinks) return 'Enveloppe active: les champs structurants sont verrouilles.';
+	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE) return 'Enveloppe active disponible pour les operations.';
+	return 'Enveloppe cloturee: consultation, rapports et historique restent disponibles.';
 }
 
 function mjl_conventions_timeline_title($action, $fromStatus, $toStatus)
 {
 	if ((string) $action === 'document_uploaded') {
-		return 'Document ajoute a la convention';
+		return 'Document ajoute a l enveloppe';
 	}
 	if ((string) $fromStatus === '' || (string) $toStatus === '' || (string) $fromStatus === (string) $toStatus) {
 		return mjl_convention_action_label($action);

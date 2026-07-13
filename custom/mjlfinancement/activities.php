@@ -60,7 +60,7 @@ function mjl_activities_handle_post($action)
 			mjl_activities_forbidden('Projet hors de votre perimetre');
 		}
 		if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $fkConvention)) {
-			mjl_activities_forbidden('Convention hors de votre perimetre');
+			mjl_activities_forbidden('Enveloppe hors de votre perimetre');
 		}
 		$activity = new MjlActivity($db);
 		$activity->entity = (int) $conf->entity;
@@ -849,7 +849,7 @@ function mjl_activity_actor_role_label($role)
 
 function mjl_expense_status_label_fr($status)
 {
-	$map = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee legacy', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
+	$map = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee definitivement (compatibilite historique)', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
 	return isset($map[(int) $status]) ? $map[(int) $status] : (string) $status;
 }
 

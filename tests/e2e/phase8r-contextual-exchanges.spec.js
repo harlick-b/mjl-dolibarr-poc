@@ -180,7 +180,7 @@ test('global exchanges route is advanced audit only and absent from primary navi
   await expect(page.getByLabel('Menu module MJL')).not.toContainText('Échanges');
 
   await page.goto('/custom/mjlfinancement/exchangelogs.php');
-  await expect(page.getByText('Echanges MJL - recherche avancee').first()).toBeVisible();
+  await expect(page.getByText('Historique / Audit - recherche des echanges').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enregistrer' })).toHaveCount(0);
   await expect(page.locator('textarea[name="message"]')).toHaveCount(0);
   await expect(page.locator('select[name="object_type"]')).toContainText('Projet');

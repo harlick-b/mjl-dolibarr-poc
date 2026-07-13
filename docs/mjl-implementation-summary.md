@@ -246,6 +246,72 @@ Historical pass counts are not current verification. Re-run checks from
   local verification data debt rather than a Phase 13 feature-validation
   blocker.
 
+## July 13, 2026 Phase 14 Client Validation Preparation
+
+- Saved the Phase 14 task prompt under `docs/prompts/` and indexed the new
+  Phase 14 evidence documents in `docs/mjl-docs-index.md`.
+- Created demo readiness, demo hygiene, demo runbook, demo rehearsal, client
+  decision log, client validation results, client change request, and final
+  Phase 14 report documents.
+- Phase 14 verdict is `CLIENT_VALIDATION_NOT_RUN`: no real client validation
+  session or client feedback was provided, so no client approval, rejection, or
+  change request is recorded.
+- Demo preparation verdicts are `DEMO_READY_WITH_MINOR_GAPS`,
+  `DEMO_HYGIENE_READY_WITH_NOTES`, and
+  `DEMO_REHEARSAL_PASS_WITH_NOTES`, based on Phase 13 UAT evidence, Phase 14
+  runbook/checklists, and current verification.
+- Verification run during this pass:
+  `git diff --check` passed;
+  `find custom/mjlfinancement -name "*.php" -print0 | xargs -0 -n1 php -l`
+  passed for all MJL PHP files;
+  `bootstrap_poc.php` and `seed_sample_data.php` completed for local/dev
+  setup;
+  schema audits `0.2.0`, `0.3.0`, `0.4.0`, `0.5.0`, `0.8.0`, `0.9.0`, and
+  `0.10.0` passed, with known legacy lecteur warnings in `0.8.0`;
+  `acceptance_sample_data.php`, `smoke_scope_model.php`,
+  `smoke_activity_workflow.php`, `smoke_expense_validation.php`, and
+  `smoke_traceability_exports.php` passed;
+  full Playwright `npm run test:e2e` first failed in the sandbox with
+  `spawnSync /bin/sh EPERM`, then passed with 125 tests in 12.5 minutes after
+  rerunning with Docker access;
+  `check_production_readiness.php` passed source-provable checks and kept the
+  expected production deployment confirmations as `UNKNOWN`.
+- `audit_unresolved_scope.php` still fails in the current local database on
+  historical workflow/action rows and generic report audit anchors. This
+  remains local data debt and a demo hygiene note, not client feedback and not
+  production release closure.
+
+## July 13, 2026 Phase 14.9 Demo UI Polish
+
+- Phase 14.9 was implemented as a UI/navigation polish pass only. It did not
+  change schema, route filenames, table names, DB fields, permission codes,
+  workflow transitions, KPI formulas, report keys, export columns, or export
+  filenames.
+- Created `docs/mjl-demo-ui-polish-plan.md` before source changes with the
+  status-label mapping, safe fixes, deferred decisions, and stop conditions.
+- Production-facing labels on touched pages were aligned toward
+  `Enveloppe de financement`, `Partenaire / Programme`, `Fonds reçus`,
+  `Historique / Audit`, and production role wording.
+- Display-only legacy expense status `Validee legacy` is now rendered as
+  final-validation compatibility wording where the code already treats the
+  stored status as historical final validation. Stored constants and statuses
+  were not changed.
+- The global exchange-log route remains guarded and absent from primary
+  navigation; its page title now presents it as an advanced
+  `Historique / Audit` search surface.
+- Created `docs/mjl-demo-data-hygiene.md` and
+  `docs/mjl-phase-14-9-ui-polish-report.md` to record remaining fixture debt,
+  verification evidence, and deferred client decisions.
+- Verification for this pass:
+  `git diff --check` passed;
+  `find custom/mjlfinancement -name "*.php" -print0 | xargs -0 -n1 php -l`
+  passed;
+  targeted Playwright checks for workspace shell, contextual exchanges, and
+  envelope management passed 25/25;
+  broader targeted Playwright checks passed after updating one document-label
+  expectation;
+  full `npm run test:e2e` passed 125/125.
+
 ## July 9, 2026 Phase 10R Dashboard Alignment Pass
 
 - Added shared dashboard filter parsing for `fk_soc`, `fk_project`,

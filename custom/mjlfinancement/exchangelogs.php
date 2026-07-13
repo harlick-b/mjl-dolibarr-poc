@@ -21,10 +21,10 @@ $filters = array(
 	'channel' => GETPOST('channel', 'alphanohtml'),
 );
 
-llxHeader('', 'Echanges MJL');
+llxHeader('', 'Historique / Audit MJL');
 mjl_navigation_shell_start($user, 'exchanges');
 print '<div class="mjl-workspace">';
-print load_fiche_titre('Echanges MJL - recherche avancee', '', 'comments');
+print load_fiche_titre('Historique / Audit - recherche des echanges', '', 'comments');
 
 mjl_exchangelogs_filter_form($filters);
 mjl_exchangelogs_list($filters);

@@ -162,7 +162,7 @@ function mjl_fundreceipts_render_detail($id)
 function mjl_fundreceipts_render_create_form()
 {
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
-	print '<div class="mjl-section-heading"><h2>Nouvelle réception de fonds</h2><p>Créer un brouillon rattaché à une enveloppe active. Le partenaire et le projet éventuel sont dérivés de l enveloppe.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Nouvelle réception de fonds</h2><p>Créer un brouillon rattaché à une enveloppe active. Le partenaire / programme et le projet éventuel sont dérivés de l enveloppe.</p></div>';
 	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">';
 	print '<input type="hidden" name="action" value="create"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_fundreceipts_render_fields(array(), false);
@@ -191,7 +191,7 @@ function mjl_fundreceipts_render_fields($row, $locked)
 {
 	$disabled = $locked ? ' disabled' : '';
 	print '<label>Référence<input required name="ref" value="'.dol_escape_htmltag($row['ref'] ?? '').'"'.$disabled.'></label>';
-	print '<label>Convention active'.mjl_fundreceipts_select('fk_convention', mjl_fundreceipts_options('convention'), (int) ($row['fk_convention'] ?? 0), true, $locked).'</label>';
+	print '<label>Enveloppe active'.mjl_fundreceipts_select('fk_convention', mjl_fundreceipts_options('convention'), (int) ($row['fk_convention'] ?? 0), true, $locked).'</label>';
 	print '<label>Montant<input name="amount" value="'.dol_escape_htmltag($row['amount'] ?? '').'"'.$disabled.'></label>';
 	print '<label>Date de réception<input type="date" name="reception_date" value="'.dol_escape_htmltag(mjl_fundreceipts_date_value($row['reception_date'] ?? '')).'"'.$disabled.'></label>';
 	print '<label>Commentaire<textarea name="comment"'.$disabled.'>'.dol_escape_htmltag($row['comment'] ?? '').'</textarea></label>';
@@ -202,9 +202,9 @@ function mjl_fundreceipts_render_fields($row, $locked)
 function mjl_fundreceipts_render_filters($filters)
 {
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Limiter la vue par projet, convention, statut ou date de réception.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Limiter la vue par projet, enveloppe, statut ou date de réception.</p></div>';
 	print '<form method="GET" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">';
-	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>Projet</th><th>Convention</th><th>Statut</th><th>Date de début</th><th>Date de fin</th><th></th></tr>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>Projet</th><th>Enveloppe</th><th>Statut</th><th>Date de début</th><th>Date de fin</th><th></th></tr>';
 	print '<tr class="oddeven">';
 	print '<td>'.mjl_fundreceipts_select('project_id', mjl_fundreceipts_options('project'), $filters['project_id'], false, false, 'Tous').'</td>';
 	print '<td>'.mjl_fundreceipts_select('convention_id', mjl_fundreceipts_options('convention_all'), $filters['convention_id'], false, false, 'Toutes').'</td>';
@@ -241,7 +241,7 @@ function mjl_fundreceipts_render_list($filters)
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Réception</th><th>PTF</th><th>Projet</th><th>Convention</th><th>Date</th><th class="right">Montant</th><th>Preuve</th><th>Statut</th></tr>';
+	print '<tr class="liste_titre"><th>Réception</th><th>Partenaire / Programme</th><th>Projet</th><th>Enveloppe</th><th>Date</th><th class="right">Montant</th><th>Preuve</th><th>Statut</th></tr>';
 	$count = 0;
 	while ($obj = $db->fetch_object($resql)) {
 		$count++;
@@ -270,9 +270,9 @@ function mjl_fundreceipts_render_summary($row)
 	print '<div class="mjl-section-heading"><h2>Synthèse de la réception</h2><p>Rattachement financier et preuve documentaire.</p></div>';
 	print '<dl class="mjl-activity-meta">';
 	print '<div><dt>Statut</dt><dd>'.mjl_fundreceipts_status_badge($row['status']).'</dd></div>';
-	print '<div><dt>Partenaire</dt><dd>'.dol_escape_htmltag($row['ptf_name']).'</dd></div>';
+	print '<div><dt>Partenaire / Programme</dt><dd>'.dol_escape_htmltag($row['ptf_name']).'</dd></div>';
 	print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($row['project_ref'] ? $row['project_ref'].' - '.$row['project_title'] : 'Enveloppe globale').'</dd></div>';
-	print '<div><dt>Programme</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
+	print '<div><dt>Enveloppe</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
 	print '<div><dt>Date de réception</dt><dd>'.dol_escape_htmltag(mjl_fundreceipts_format_date($row['reception_date'])).'</dd></div>';
 	print '<div><dt>Montant</dt><dd>'.price($row['amount']).'</dd></div>';
 	print '<div><dt>Preuve</dt><dd>'.dol_escape_htmltag(mjl_fundreceipts_evidence_label($state)).'</dd></div>';

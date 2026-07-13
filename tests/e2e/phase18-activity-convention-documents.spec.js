@@ -203,7 +203,7 @@ test('DPAF uploads and downloads convention documents; normal users are denied d
   await page.setInputFiles('input[name="supporting_document"]', tmpFile);
   await page.getByRole('button', { name: 'Ajouter le document' }).click();
   await expect(page.getByText('Disponible').first()).toBeVisible();
-  await expect(page.getByText('Document ajoute a la convention')).toBeVisible();
+  await expect(page.getByText('Document ajoute a l enveloppe')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Active vers Active');
   await page.reload();
   const fileId = scalar(`SELECT rowid FROM llx_ecm_files WHERE entity = 1 AND src_object_type = 'mjlfinancement_convention' AND src_object_id = ${conventionId} ORDER BY rowid DESC LIMIT 1`);
@@ -235,7 +235,7 @@ test('Convention document states show available, unavailable, and missing labels
   ]) {
     const conventionId = scalar(`SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = '${ref}' AND entity = 1`);
     await page.goto(`/custom/mjlfinancement/conventions.php?id=${conventionId}`);
-    const panel = page.getByRole('heading', { name: 'Documents convention' }).locator('xpath=ancestor::section[1]');
+    const panel = page.getByRole('heading', { name: 'Documents enveloppe' }).locator('xpath=ancestor::section[1]');
     await expect(panel).toContainText(label);
   }
 

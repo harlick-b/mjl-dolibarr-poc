@@ -42,7 +42,7 @@ function mjl_documents_render_filters($filters)
 	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Les resultats restent limites a votre perimetre d acces.</p></div>';
 	print '<form method="GET" class="mjl-form-grid">';
 	print '<label>Type<select name="type">';
-	$options = array('' => 'Tous', 'activity' => 'Activite', 'expense' => 'Depense', 'convention' => 'Convention', 'fundreceipt' => 'Fonds recu');
+	$options = array('' => 'Tous', 'activity' => 'Activite', 'expense' => 'Depense', 'convention' => 'Enveloppe de financement', 'fundreceipt' => 'Fonds recu');
 	foreach ($options as $value => $label) {
 		print '<option value="'.dol_escape_htmltag($value).'"'.($filters['type'] === $value ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
 	}
@@ -59,7 +59,7 @@ function mjl_documents_render_library($filters)
 {
 	$documents = mjl_documents_rows($filters);
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Bibliotheque</h2><p>Les documents sont ajoutes depuis la fiche activite, depense, convention, fonds recu ou projet concerne.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Bibliotheque</h2><p>Les documents sont ajoutes depuis la fiche activite, depense, enveloppe, fonds recu ou projet concerne.</p></div>';
 	print '<div class="mjl-empty-state">Aucun bouton d upload global n est disponible. Ajoutez les documents depuis leur objet metier.</div>';
 	if (empty($documents)) {
 		print '<div class="mjl-empty-state">Aucun document accessible avec ces filtres.</div>';
@@ -67,7 +67,7 @@ function mjl_documents_render_library($filters)
 		return;
 	}
 	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Nom du document</th><th>Type</th><th>Objet lie</th><th>Projet</th><th>Convention</th><th>Activite</th><th>Depense</th><th>Ajoute par</th><th>Date ajout</th><th>Statut</th><th>Action telecharger</th></tr>';
+	print '<tr class="liste_titre"><th>Nom du document</th><th>Type</th><th>Objet lie</th><th>Projet</th><th>Enveloppe</th><th>Activite</th><th>Depense</th><th>Ajoute par</th><th>Date ajout</th><th>Statut</th><th>Action telecharger</th></tr>';
 	foreach ($documents as $document) {
 		print '<tr class="oddeven">';
 		print '<td>'.dol_escape_htmltag($document['name']).'</td>';
@@ -165,7 +165,7 @@ function mjl_documents_convention_rows($filters)
 	foreach (mjl_documents_fetch_all($sql) as $convention) {
 		foreach (mjl_convention_document_download_rows((int) $convention['rowid']) as $row) {
 			if (!mjl_documents_date_matches($row, $filters)) continue;
-			$documents[] = mjl_documents_make_row($row, 'convention', 'Convention', $convention['ref'], $convention['project_ref'], $convention['ref'], '', '', $convention['title']);
+			$documents[] = mjl_documents_make_row($row, 'convention', 'Enveloppe de financement', $convention['ref'], $convention['project_ref'], $convention['ref'], '', '', $convention['title']);
 		}
 	}
 	return $documents;

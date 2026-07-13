@@ -438,7 +438,7 @@ function mjl_alerts_budget_consumption(User $targetUser, $limit)
 			'sort_date' => sprintf('%010.2f', 100 - $rate),
 			'meta' => array(
 				'Projet' => $row['project_ref'],
-				'Convention' => $row['convention_ref'],
+				'Enveloppe' => $row['convention_ref'],
 				'Budget revise' => price($row['revised_budget']),
 				'Consommation validee' => price($row['final_validated_amount']),
 				'Taux' => round($rate, 2).'%',
@@ -493,7 +493,7 @@ function mjl_alerts_activity_payload(User $targetUser, $row, $options)
 {
 	$meta = array(
 		'Projet' => $row['project_ref'],
-		'Convention' => $row['convention_ref'],
+		'Enveloppe' => $row['convention_ref'],
 		'Echeance' => mjl_alerts_format_date($row['date_end']),
 		'Statut' => mjl_alerts_activity_status_label($row['status']),
 	);
@@ -521,7 +521,7 @@ function mjl_alerts_expense_payload(User $targetUser, $row, $options)
 {
 	$meta = array(
 		'Projet' => $row['project_ref'],
-		'Convention' => $row['convention_ref'],
+		'Enveloppe' => $row['convention_ref'],
 		'Activite' => $row['activity_ref'],
 		'Montant' => price($row['amount']),
 		'Date depense' => mjl_alerts_format_date($row['expense_date']),
@@ -789,7 +789,7 @@ function mjl_alerts_expense_status_label($status)
 	$map = array(
 		MjlExpense::STATUS_DRAFT => 'Brouillon',
 		MjlExpense::STATUS_SUBMITTED => 'Soumise',
-		MjlExpense::STATUS_VALIDATED => 'Validee legacy',
+		MjlExpense::STATUS_VALIDATED => 'Validee definitivement (compatibilite historique)',
 		MjlExpense::STATUS_CORRECTED => 'Corrigee',
 		MjlExpense::STATUS_PREVALIDATED => 'Prevalidee',
 		MjlExpense::STATUS_FINAL_VALIDATED => 'Validee definitivement',
