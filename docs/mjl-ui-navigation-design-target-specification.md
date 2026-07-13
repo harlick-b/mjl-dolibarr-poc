@@ -1,7 +1,7 @@
 # MJL UI, Navigation, And Design System Target Specification
 
 > Planning artifact only. No code, no file edits, no Dolibarr core changes proposed.
-> Grounded in: `docs/mjl-authoritative-decisions.md` (highest authority), `docs/audits/mjl-navigation-design-full-audit.md` (latest FAIL/NOT_DEMO_READY audit), `docs/mjl-roles-permissions-matrix.md`, `docs/mjl-current-vs-target-gap-analysis.md`, and the existing `docs/design-system/*.md` scaffolding, reconciled against actual code in `custom/mjlfinancement/`.
+> Grounded in: `docs/mjl-authoritative-decisions.md` (highest authority), `CONTEXT.md` (durable role/report/KPI rules and pending client decisions), `docs/audits/mjl-navigation-design-full-audit.md` (kept historical FAIL/NOT_DEMO_READY audit evidence), `docs/mjl-current-vs-target-gap-analysis.md`, and the existing `docs/design-system/*.md` scaffolding, reconciled against actual code in `custom/mjlfinancement/`.
 > Role vocabulary decision (confirmed with client stakeholder): authoritative names (`AGENT_SAISIE`, `AGENT_VERIFICATEUR`, `VALIDATEUR_DEFINITIF`, `ADMIN_PLATEFORME`) are primary throughout. `Superviseur N1/N2`, `DPAF`, `Agent`, `Admin` (the older prompt/audit vocabulary) appear only as a legacy-mapping footnote. `Lecteur / Audit` is **not** a fifth role — it is a read-only capability overlay, by default layered on `ADMIN_PLATEFORME` (see §3.3), with an explicit scope caveat noted there.
 > Revision note: this version incorporates a self-review pass — see the eight fixes summarized inline where relevant (native-route enforcement strategy, token naming, Supervision role visibility, screen-spec completeness, and two newly surfaced risks). Nothing in the original nine-section navigation model or role framing changed; the fixes tighten enforcement mechanics, wording precision, and close gaps against the literal ask.
 
@@ -139,7 +139,12 @@ For each section: purpose, visible roles (capability-based, not name-branched), 
 
 ### 3.3 Role Visibility Principles
 
-Do not hardcode a final permission matrix in this spec — `docs/mjl-roles-permissions-matrix.md` is explicitly `PENDING_CLIENT_VALIDATION`. Instead, the UI must be built against **capabilities**, computed once per request (as `mjl_workspace_capabilities()` already does), never against inline role-name checks scattered through templates. Principles:
+Do not hardcode a final permission matrix in this spec — `CONTEXT.md` records
+the durable permission principles and keeps final route/action approval marked
+as pending client validation. Instead, the UI must be built against
+**capabilities**, computed once per request (as `mjl_workspace_capabilities()`
+already does), never against inline role-name checks scattered through
+templates. Principles:
 
 - **Admin (`ADMIN_PLATEFORME`) sees administration tools** — invitations, access, roles, platform diagnostics — and sees all data across all Partenaires/Programmes.
 - **Agent (`AGENT_SAISIE`) sees operational actions** — create, submit, correct — scoped to assigned Partenaires/Programmes.
@@ -147,7 +152,7 @@ Do not hardcode a final permission matrix in this spec — `docs/mjl-roles-permi
 - **Validateur (`VALIDATEUR_DEFINITIF`)** sees final-validation, disbursement marking, project creation/edit, and finance supervision, scoped.
 - **Reader/Audit is a capability overlay, not a fifth role.** Per the confirmed decision, the default and primary carrier is `ADMIN_PLATEFORME`: grant a `read_only_audit` capability alongside the admin role so every write action (buttons, forms, POST routes) is hidden and server-blocked, while all read/consultation/export surfaces remain available at admin's normal (unrestricted, all-Partenaires/Programmes) scope. This resolves the audit's open question about `lecteur.audit` without inventing a permission model the client hasn't approved.
   **Scope caveat — do not treat as solved:** because the default carrier is `ADMIN_PLATEFORME`, a `read_only_audit` user sees *all* Partenaires/Programmes, not a scoped subset. If the client's actual intent for "Lecteur/Audit" is a scoped external auditor (e.g. a UNICEF-only reviewer who should not see Programme Redevabilité data), this model does not fit as-is — it would need the capability layered on a scoped role (`VALIDATEUR_DEFINITIF`) or paired with an independent scope assignment. This spec does not build that broader case speculatively; it is tracked as an explicit open question (§17), not a current commitment.
-- **Every visibility rule doubles as a route guard.** If a link is hidden because a capability is false, the destination route must also 403/404 for that capability being false — the audit's finding "UI hiding is not access control" (`docs/mjl-roles-permissions-matrix.md:57`) is binding here.
+- **Every visibility rule doubles as a route guard.** If a link is hidden because a capability is false, the destination route must also 403/404 for that capability being false — the durable rule in `CONTEXT.md` that UI hiding is not access control is binding here.
 
 Legacy mapping (documentation aid only, not for use in new UI/code):
 
@@ -501,10 +506,17 @@ Apply §8/§9 rules consistently — Required Document Warning, mandatory reason
 Wire every guarded MJL route and every native-route interception from Phase 1 into the same shared forbidden/404 shell component — single implementation, reused everywhere, no per-route bespoke error page.
 
 ### Phase 6: Tests and screenshots
-Repair/add the native-route E2E coverage the audit found stale (final-URL/status/absence-of-native-chrome assertions, not text-presence-of-access-denied assertions), add non-mutating smoke checks so demo-readiness can be re-verified without seeding/mutating data, and re-capture the desktop/tablet/mobile screenshot set post-fix as the audit's own Phase 3 recommends.
+Repair/add the native-route E2E coverage the audit found stale
+(final-URL/status/absence-of-native-chrome assertions, not
+text-presence-of-access-denied assertions), add non-mutating smoke checks so
+demo-readiness can be re-verified without seeding/mutating data, and refresh
+the desktop/tablet/mobile screenshot evidence after fixes.
 
 ### Phase 7: Documentation
-Update `docs/mjl-current-vs-target-gap-analysis.md` to reflect the native-UI blocker status post-fix, update `MJL_INFORMATION_ARCHITECTURE.md` to match §3, update `docs/design-system` changelog per `MJL_DESIGN_GOVERNANCE.md`'s required change-process fields, and reconcile the audit's DOC-MED-001 finding (missing `docs/15-production-menu-scope.md`, `docs/mjl-financement-feature-coverage.md`) by either recreating them or removing stale references.
+Update `docs/mjl-current-vs-target-gap-analysis.md` to reflect native-UI
+blocker status after fixes, update `MJL_INFORMATION_ARCHITECTURE.md` to match
+§3, and update the active design-system docs per
+`MJL_DESIGN_GOVERNANCE.md`'s required change-process fields.
 
 ## 16. Acceptance Criteria
 
@@ -523,11 +535,10 @@ Update `docs/mjl-current-vs-target-gap-analysis.md` to reflect the native-UI blo
 
 ## 17. Open Questions
 
-- **`Lecteur / Audit` capability model formal approval.** This spec treats it as a `read_only_audit` overlay on the four existing roles (per the confirmed decision in this planning session), not a fifth role. This still needs formal client sign-off before `docs/mjl-roles-permissions-matrix.md` can move out of `PENDING_CLIENT_VALIDATION` for this dimension.
-- **Final route/action permission matrix approval** — `docs/mjl-roles-permissions-matrix.md` is explicitly pending; this spec's capability-based approach is designed to absorb whatever the final matrix says without a navigation rewrite, but the matrix itself is not this document's to finalize.
+- **`Lecteur / Audit` capability model formal approval.** This spec treats it as a `read_only_audit` overlay on the four existing roles (per the confirmed decision in this planning session), not a fifth role. This still needs formal client sign-off before `CONTEXT.md` can move this dimension out of pending validation.
+- **Final route/action permission matrix approval** — `CONTEXT.md` keeps this pending; this spec's capability-based approach is designed to absorb whatever the final matrix says without a navigation rewrite, but the matrix itself is not this document's to finalize.
 - **Legacy route/file naming cleanup scope** (`dpafdashboard.php`, `conventions.php` as the Enveloppes route, POC-era bootstrap/fixture names) — not user-facing, so out of this UI spec's scope, but should be scheduled as a follow-up code-debt phase; confirm priority with the client/product owner.
 - **Document library global search** (§11) — flagged as nice-to-have; confirm whether it's in scope for the current phase or deferred.
-- **Missing referenced docs** (`docs/15-production-menu-scope.md`, `docs/mjl-financement-feature-coverage.md`) flagged by the audit as documentation drift — confirm whether to recreate them or strip references from active prompts/checklists.
 - **Dolibarr module dependency check for Track A (§3.4).** Before disabling `comm`/`hrm`/`holiday`/`expensereport`/`compta`/`accountancy`/`banque`/`tax`/`modulebuilder`, Codex must confirm none of MJL's own code (including scheduled scripts and exports, not just the screens in this spec) reads from their tables/classes. This is a discovery task, not a design question, but it blocks Phase 1 sign-off until done.
 - **Dolibarr REST API module status.** Not investigated as part of this planning pass — is it currently enabled for the MJL entity, and if so, does anything (internal or external) actually consume it? This determines whether the recommended fix is "disable it" (simple) or "audit every endpoint for scope enforcement" (materially more work) — see §18.
 - **`read_only_audit` scope breadth.** This spec anchors the capability to `ADMIN_PLATEFORME` (unrestricted scope) per the confirmed decision. If the client's real need is a *scoped* external auditor, that's a different, unaddressed design — flag for client clarification before broadening the capability model.
@@ -555,7 +566,7 @@ Prevention: fix status labels at the single source function(s) (`mjl_dashboard_a
 Codex verification: grep for `str_replace` calls touching status strings after the fix; there should be none needed for correctly-sourced labels.
 
 **Risk: `read_only_audit` capability overlay is implemented as a UI-only hide (buttons removed) without a matching server-side POST guard.**
-Why it matters: this is the same class of failure as the native-route blocker — "UI hiding is not access control" is explicitly called out as an open gap in `docs/mjl-roles-permissions-matrix.md:57`.
+Why it matters: this is the same class of failure as the native-route blocker — `CONTEXT.md` records the durable rule that UI hiding is not access control.
 Prevention: every write route must check the capability server-side independent of whether the triggering UI element was rendered.
 Codex verification: with a `read_only_audit`-flagged session, attempt a direct POST to a write endpoint (e.g. activity submission) and confirm a server-side rejection, not just an absent button.
 

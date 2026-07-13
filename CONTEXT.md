@@ -128,6 +128,22 @@ Legacy role terms are migration-only vocabulary:
   intent.
 - `LECTEUR` has no approved production role equivalent.
 
+## Permissions And Scope
+
+The current role/action matrix remains pending client validation, but these
+rules are durable unless `docs/mjl-authoritative-decisions.md` changes:
+
+- `AGENT_SAISIE` creates, submits, corrects, uploads contextual justificatifs,
+  and updates physical execution for assigned Partenaires / Programmes.
+- `AGENT_VERIFICATEUR` prevalidates or returns assigned activities and
+  expenses, without self-review.
+- `VALIDATEUR_DEFINITIF` performs final validation, rejection, closure,
+  disbursement decisions, and MJL project creation/editing where granted.
+- `ADMIN_PLATEFORME` manages platform access, invitations, roles, scopes, and
+  diagnostics; this is not the same responsibility as business validation.
+- Report export rights, advanced audit access, and any read-only audit overlay
+  require final client approval before they can be treated as final.
+
 ## Business Rules
 
 - MJL-specific implementation must remain outside Dolibarr core files.
@@ -150,6 +166,50 @@ Legacy role terms are migration-only vocabulary:
 - Global Documents remains read-only; uploads are contextual.
 - Official exports are French-labeled, Excel-readable, server-filtered,
   audited, and stable in filename/format.
+
+## Reports And Exports
+
+The active report model is CSV/XLSX only. Current report families include:
+
+- financements recus par Partenaire / Programme;
+- allocation budgetaire by Partenaire / Programme and by project;
+- execution financiere by Partenaire / Programme and by project;
+- execution physique par projet;
+- suivi des activites;
+- suivi des depenses / decaissements;
+- depenses avec justificatifs;
+- depenses validees non decaissees;
+- prevalidations and validations definitives en attente;
+- corrections, invalidations, rejets;
+- historique des decisions;
+- historique des echanges / commentaires;
+- audit general.
+
+Client-readable exports should include Partenaire / Programme and project
+context, workflow status, relevant dates, actors/last decision where useful,
+amounts split between submitted/prevalidated/final-validated/disbursed, and
+justificatif presence for expense flows. Final donor/client canevas, required
+columns/order, and role-by-report export rights remain pending validation.
+
+## Dashboards And KPIs
+
+Dashboard cards, queues, filters, and tables must apply active Dolibarr entity
+and assigned Partenaire / Programme scope. Direct filter tampering to an
+unassigned scope must fail closed to empty or zeroed results.
+
+Durable KPI families are:
+
+- activity status and physical execution;
+- expense workflow and disbursement status;
+- financial execution: allocated, submitted, prevalidated, final validated,
+  disbursed, remaining balance, validation rate, and execution rate;
+- alerts for deadlines, missing documents, pending validation, budget risk, and
+  final-validated-not-disbursed risk;
+- recent resolvable audit/timeline activity;
+- Admin-only unresolved-data diagnostics.
+
+Final KPI labels, dashboard exposure by role, and client-specific risk
+threshold wording remain pending validation.
 
 ## Current MJL Custom Objects
 
