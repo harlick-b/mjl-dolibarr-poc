@@ -12,7 +12,7 @@ $hasFindings = false;
 if (tableExists('mjlfinancement_activity') && columnExists('mjlfinancement_activity', 'status')) {
 	reportRows(
 		'activity_invalid_status',
-		'SELECT rowid, ref, entity, status FROM '.$db->prefix().'mjlfinancement_activity WHERE status NOT IN (0, 1, 2, 3, 4, 5, 6, 8, 9)'
+		'SELECT rowid, ref, entity, status FROM '.$db->prefix().'mjlfinancement_activity WHERE status NOT IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)'
 	);
 	reportRows(
 		'activity_submitted_status_not_migrated',
