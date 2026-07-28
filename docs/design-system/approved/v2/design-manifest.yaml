@@ -1,0 +1,264 @@
+manifest_version: 0.2.0
+
+project:
+  name: MJL Financement
+  slug: mjl-financement
+  target_repository: mjl-dolibarr-poc
+  target_commit: 16522d48de4731436eed97117ab46424742ea0f4
+
+context:
+  path: inputs/mjl-financement/design-context.md
+  file_sha256: 00e37c197ed0867ad53271782c63a15b22fd52cb9cbb5684e6d93361655f4a52
+  tracked: false
+  git_revision: Unknown
+  readiness: COMPLETE_WITH_ASSUMPTIONS
+  last_updated: 2026-07-28
+  trust_classification: untrusted-target-context
+  instructions_executable: false
+  evidence_independently_verified: false
+
+generation:
+  generation_version: v2
+  previous_generation: v1
+  mode: design
+  write_mode: export-only
+  generated_at: 2026-07-28T13:55:52Z
+  generation_date: 2026-07-28
+  proj_design_revision: 929e013ba585ded32337026676d1086a90b68cb0
+  proj_design_tree: 603a9d3968fa70bfbc37d17d98347c580b9dd24f
+  original_execution_specification_sha256: 4bd128364ffe276721d62e5d554c6cb2a1016b93ea7c627fda9a01e781887474
+  hardened_plan_sha256: 14502b2f2e67f8d709bc649c170883d2bef3c53a32125199f6996b3e9b0a51de
+  authorization_decision: PD-DEC-028
+  original_v1_stage_1_aggregate_sha256: d0173413c2d07bdc27b10c139951016009c35d5fc4ff77b6221aca45353466ce
+  v1_manifest_sha256: e88fa797d35187cb6ba375ebd614896b606b0142bd6480207b7026656e66affb
+  correction_basis: user-supplied v1 manual-review response
+  template_versions:
+    project-design-context: "1"
+    project-design-brief: 0.1.0
+    product: 0.1.0
+    design-system: 0.1.0
+    design-decision: 0.1.0
+    design-assumptions: 0.1.0
+    design-provenance: 0.2.0
+    source-selection: 0.2.0
+    design-manifest: 0.2.0
+    validation-report: 0.2.0
+  knowledge_schema_version: 1
+  skill_versions:
+    orchestrate-project-design:
+      path: .agents/skills/orchestrate-project-design/SKILL.md
+      git_blob: 79acd07a3a236182214d84089064d7bf1d6511c8
+    prepare-project-design-brief:
+      path: .agents/skills/prepare-project-design-brief/SKILL.md
+      git_blob: ff6a12b8cd8f993484d1bdae868e2484368be3ec
+    analyze-product-model:
+      path: .agents/skills/analyze-product-model/SKILL.md
+      git_blob: 76426f332fcd8c32b4ca4ad21fe65f38e81922d6
+    select-design-sources:
+      path: .agents/skills/select-design-sources/SKILL.md
+      git_blob: a72b0ddb1337421500a3fa55b11ba845f212bfb0
+    synthesize-design-system:
+      path: .agents/skills/synthesize-design-system/SKILL.md
+      git_blob: a5269102a5acbd061bd8362c07af293a909accef
+    package-target-project:
+      path: .agents/skills/package-target-project/SKILL.md
+      git_blob: 0952799f3c7aefd8735275d35187b8e9813d1616
+    audit-generated-design-system:
+      path: .agents/skills/audit-generated-design-system/SKILL.md
+      git_blob: 1dfa3b576962dfbdd0511b95410f536429ae8d14
+
+knowledge:
+  selected_items:
+    - PD-KNOW-001
+    - PD-KNOW-002
+    - PD-KNOW-003
+    - PD-KNOW-004
+    - PD-KNOW-005
+    - PD-KNOW-006
+    - PD-KNOW-007
+    - PD-KNOW-008
+    - PD-KNOW-009
+    - PD-KNOW-010
+    - PD-KNOW-011
+    - PD-KNOW-012
+    - PD-KNOW-013
+    - PD-KNOW-014
+  excluded_items: []
+  maturity_summary:
+    provisional: 12
+    contextual: 2
+    canonical: 0
+  exportability_summary:
+    requires_review: 14
+  conflicts:
+    - id: PD-CONFLICT-001
+      resolution: compact expert desktop density with spacious recovery and responsive transformation
+    - id: PD-CONFLICT-002
+      resolution: semantic contrast and non-color cues override provisional brand expression
+
+sources:
+  selected:
+    - id: w3c-wcag-2-2-2024-12-12
+      lane: normative
+      classification_version: 2
+      review_path: sources/reviews/w3c/w3c-wcag-2-2-2024-12-12.review.md
+      checksum: 6e3c5fe397257cae509a2fb4752b73062cf8cbeb92c2cec618989b17e4cf7057
+      review_state: reviewed
+      recommendation: recommended
+      rights_basis: license
+      distribution_scope: metadata-only
+      security: clear
+      synthesis_allowed: true
+      revocation: active
+      derived_knowledge_exportability: export-safe
+      influence: normative accessibility requirement reasoning
+      prohibited_reuse: [raw HTML, W3C marks, source expression, derivative technical specification, conformance claims]
+    - id: govuk-public-service-guidance-2026-07-15
+      lane: authoritative-guidance
+      classification_version: 2
+      review_path: sources/reviews/govuk/govuk-public-service-guidance-2026-07-15.review.md
+      checksum: c678d8a754eaba6b5c21b63c6f11604900564b3fc1ddca01d4c29967c1b2e200
+      review_state: reviewed
+      recommendation: recommended
+      rights_basis: license
+      distribution_scope: metadata-only
+      security: clear
+      synthesis_allowed: true
+      revocation: active
+      derived_knowledge_exportability: export-safe
+      influence: transformed public-service clarity and recovery guidance
+      prohibited_reuse: [raw HTML, GOV.UK branding, Crown assets, code examples, linked assets, legal or target-proof claims]
+      selected_documents:
+        govuk--error-summary: 370dd44119b85a6c6358cca510296bd7a9cbed0d3caf7c460f908567e5e31998
+        govuk--error-message: 9acb3b6f8be7eb29f590c896efda4e383712d73d97a67e469e2219c010d0e973
+        govuk--validation: 8adb68a47ea9914da23a34990392d774fb82c5b370b7ea3b757b950badec85f4
+        govuk--skip-link: 885c133a32f93b187331a7664d76efe9f4c47e848a0c2114ca4be2eb997b6ad4
+        govuk--task-list: 1114b9d76b8009f74ea7ae8843780cc1494f36eb887b81f069771d463612eae2
+        govuk--complete-multiple-tasks: 875085ea996763c1f40c1b4bfab2b1ad5c070d8361acd68e5ff70308e57f84f8
+    - id: ibm-carbon-operational-guidance-2026-07-16
+      lane: authoritative-guidance
+      classification_version: 2
+      review_path: sources/reviews/carbon/ibm-carbon-operational-guidance-2026-07-16.review.md
+      checksum: a4e97adcf81cfdc65cd5a27279faa8ddd6fd9aa944e9655c24a41bdc7cbfd8dc
+      review_state: reviewed
+      recommendation: recommended
+      rights_basis: license
+      distribution_scope: metadata-only
+      security: clear
+      synthesis_allowed: true
+      revocation: active
+      derived_knowledge_exportability: export-safe
+      influence: transformed operational interface guidance
+      prohibited_reuse: [raw HTML, IBM or Carbon branding, logos, code, design kits, complete tokens or system, authorization or legal audit models]
+      selected_documents:
+        carbon--data-table-usage: 1ac049f3dfe8e88d236e92e4ff3ba2e6f6dbfc0bfaf991f2f319db9a80e51213
+        carbon--search-usage: a63f297abdc847c75c6ccc9e84ffe5511e4c1d5084f69b569c6f4c2f06c488b2
+        carbon--pagination-usage: 17d446b85a4a3bb3455108fccabc3b9251480dff2bb24219f312ab3ca619f932
+        carbon--loading-pattern: b5e8c4dafa8fa22d4cd40f6fe271615bd16a8b0adc84193efdf2cb738d089996
+        carbon--empty-states-pattern: 7f6771ca9c4be5687cfd324e1f6af269071d549502d609b20379304e96242c9c
+        carbon--notification-usage: 353a6194d8815e61320f4112ee476ce1e41d158263f5e3a70ce079a3ff10f009
+        carbon--dashboards: 5332934f53f8b6ded133cd2cb5b5fa313f7c1a6965fff2100b8f41b6be264f9c
+        carbon--forms-pattern: f9e6cff467d81a92f6a413227fff1382d10559be6478b983f554b5eff9818ff2
+  excluded:
+    - id: hp-design-reference-2026-07-15
+      reason: restricted internal-only commercial evidence is unnecessary for MJL
+    - id: airbnb-design-reference-2026-07-15
+      reason: restricted consumer-marketplace evidence is not applicable authority
+    - id: starbucks-design-reference-2026-07-15
+      reason: restricted retail evidence is not applicable authority
+    - id: revolut-design-reference-2026-07-15
+      reason: restricted fintech-marketing evidence is superseded by eligible operational guidance
+    - id: fictionalco-dashboard-2026-07-14
+      reason: validation fixture, not a real synthesis source
+
+review_correction:
+  supplied_by: user
+  supplied_at: 2026-07-28
+  independently_retrieved_by_proj_design: false
+  target_access_authorized: false
+  target_access_performed: false
+  reclassified_facts:
+    - FACT-001
+    - FACT-002
+    - FACT-003
+    - FACT-004
+    - FACT-005
+    - FACT-006
+    - FACT-007
+    - FACT-008
+  runtime_evidence:
+    - EVID-001
+    - EVID-002
+  reported_test_snapshot:
+    e2e_passed: 127
+    e2e_failed: 1
+    e2e_not_run: 2
+    schema_and_workflow_smokes: mostly_passed
+    unresolved_scope_integrity_audit: failed
+
+assumptions:
+  - ASM-002
+  - ASM-003
+  - ASM-005
+  - ASM-006
+  - ASM-008
+  - ASM-009
+  - ASM-010
+  - ASM-011
+
+outputs:
+  - transfer/PRODUCT.md
+  - transfer/DESIGN.md
+  - transfer/design-manifest.yaml
+  - transfer/MANUAL-REVIEW.md
+  - transfer/skills-recommendation.yaml
+  - transfer/docs/design/design-brief.md
+  - transfer/docs/design/product-model.md
+  - transfer/docs/design/interaction-flows.md
+  - transfer/docs/design/design-decisions.md
+  - transfer/docs/design/design-assumptions.md
+  - transfer/docs/design/component-inventory.md
+  - transfer/docs/design/implementation-plan.md
+  - transfer/docs/design/design-validation-report.md
+  - transfer/design-tokens/tokens.json
+  - transfer/design-tokens/semantic-tokens.json
+  - transfer/design-tokens/README.md
+  - internal/knowledge-selection.md
+  - internal/source-selection.md
+  - internal/design-provenance.md
+  - internal/rights-and-source-restrictions.md
+  - internal/anti-cloning-report.md
+  - internal/assumption-audit.md
+  - internal/retrieval-audit.md
+  - internal/cross-document-consistency-report.md
+
+validation:
+  status: pass
+  commands:
+    - python3 tools/validate.py
+    - python3 -m unittest discover -s tests
+    - git diff --check
+    - git status --short
+    - git diff --stat
+    - deterministic package UTF-8, whitespace, inventory, token, contrast, consistency, rights, and anti-cloning checks
+  token_validation:
+    status: pass
+    unique_token_paths: 126
+    references_resolved: true
+    circular_references: false
+    contrast_matrix: pass
+    focus_visibility: pass
+    ordered_breakpoints: true
+    reduced_motion: true
+  cross_document_consistency: pass
+  anti_cloning:
+    automated_and_agent_audit: pass
+    human_review: pending
+  evidence_limitation: Evidence paths and interpretations came from target-project context and user review; proj-design did not independently access or execute the target.
+
+manual_review:
+  design_package: PENDING_USER_REVIEW
+  target_documentation_write: NOT_AUTHORIZED
+  implementation: NOT_AUTHORIZED
+
+status: READY_WITH_ASSUMPTIONS

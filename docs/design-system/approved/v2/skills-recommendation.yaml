@@ -1,0 +1,31 @@
+status: recommendation-only
+installation_performed: false
+target_stack:
+  known: true
+  summary: server-rendered Dolibarr/PHP with custom CSS and JavaScript
+
+recommended:
+  - skill: impeccable
+    use_case: later target-project UI implementation or visual/responsive review
+    installation_scope: target-project-only
+    approved_command: npx impeccable install
+    activation_condition: separate explicit target-project implementation or UI-review authorization
+    prohibited_use:
+      - install in proj-design
+      - overwrite existing PRODUCT.md or DESIGN.md without an approved merge policy
+      - define source eligibility
+      - approve generated output
+      - modify UI during export-only generation
+    target_stack_sufficiently_known: true
+
+not_recommended_for_current_stack:
+  - skill: shadcn-improve
+    reason: the confirmed target is not a shadcn, React, or Tailwind application
+    approved_command_if_future_stack_changes: npx skills add shadcn/improve -a codex -a claude-code
+    activation_condition: separately approved shadcn-based implementation audit
+    prohibited_use:
+      - framework migration by implication
+      - automatic execution
+      - design-source selection
+      - generated-output approval
+    target_stack_sufficiently_known: false

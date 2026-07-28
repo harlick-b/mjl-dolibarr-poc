@@ -1,0 +1,77 @@
+{
+  "$description": "MJL Financement semantic aliases. All brand-facing mappings are provisional-brand-foundation.",
+  "semantic": {
+    "surface": {
+      "page": {"$type": "color", "$value": "{color.surface.subtle}"},
+      "panel": {"$type": "color", "$value": "{color.surface.base}"},
+      "selected": {"$type": "color", "$value": "{color.surface.selected}"},
+      "disabled": {"$type": "color", "$value": "{color.surface.disabled}"}
+    },
+    "text": {
+      "primary": {"$type": "color", "$value": "{color.text.strong}"},
+      "secondary": {"$type": "color", "$value": "{color.text.secondary}"},
+      "muted": {"$type": "color", "$value": "{color.text.muted}"},
+      "inverse": {"$type": "color", "$value": "{color.text.inverse}"},
+      "link": {"$type": "color", "$value": "{color.actionBlue}"}
+    },
+    "action": {
+      "primaryBackground": {"$type": "color", "$value": "{color.actionBlue}"},
+      "primaryText": {"$type": "color", "$value": "{color.text.inverse}"},
+      "secondaryBackground": {"$type": "color", "$value": "{color.surface.base}"},
+      "secondaryText": {"$type": "color", "$value": "{color.actionBlue}"},
+      "disabledBackground": {"$type": "color", "$value": "{color.surface.disabled}"},
+      "disabledText": {"$type": "color", "$value": "{color.text.muted}"}
+    },
+    "border": {
+      "default": {"$type": "color", "$value": "{color.border.default}"},
+      "subtle": {"$type": "color", "$value": "{color.border.subtle}"},
+      "strong": {"$type": "color", "$value": "{color.border.strong}"}
+    },
+    "focus": {
+      "ring": {"$type": "color", "$value": "{color.focusBlue}"},
+      "ringOnDark": {"$type": "color", "$value": "{color.text.inverse}"},
+      "width": {"$type": "dimension", "$value": "{border.width.focus}"},
+      "offset": {"$type": "dimension", "$value": "{space.1}"}
+    },
+    "status": {
+      "success": {
+        "text": {"$type": "color", "$value": "{color.status.successText}"},
+        "surface": {"$type": "color", "$value": "{color.status.successSurface}"}
+      },
+      "warning": {
+        "text": {"$type": "color", "$value": "{color.status.warningText}"},
+        "surface": {"$type": "color", "$value": "{color.status.warningSurface}"}
+      },
+      "danger": {
+        "text": {"$type": "color", "$value": "{color.status.dangerText}"},
+        "surface": {"$type": "color", "$value": "{color.status.dangerSurface}"}
+      },
+      "info": {
+        "text": {"$type": "color", "$value": "{color.status.infoText}"},
+        "surface": {"$type": "color", "$value": "{color.status.infoSurface}"}
+      }
+    },
+    "type": {
+      "body": {"$type": "dimension", "$value": "{font.size.sm}"},
+      "formTouch": {"$type": "dimension", "$value": "{font.size.md}"},
+      "headingPage": {"$type": "dimension", "$value": "{font.size.xl}"},
+      "headingSection": {"$type": "dimension", "$value": "{font.size.lg}"}
+    },
+    "layout": {
+      "pageGap": {"$type": "dimension", "$value": "{space.6}"},
+      "sectionGap": {"$type": "dimension", "$value": "{space.4}"},
+      "formGroupGap": {"$type": "dimension", "$value": "{space.6}"}
+    },
+    "component": {
+      "controlHeight": {"$type": "dimension", "$value": "{size.controlStandard}"},
+      "touchTarget": {"$type": "dimension", "$value": "{size.touchTarget}"},
+      "tableRowCompact": {"$type": "dimension", "$value": "{table.rowCompact}"},
+      "tableRowStandard": {"$type": "dimension", "$value": "{table.rowStandard}"}
+    },
+    "motion": {
+      "feedback": {"$type": "duration", "$value": "{motion.duration.fast}"},
+      "transition": {"$type": "duration", "$value": "{motion.duration.standard}"},
+      "reduced": {"$type": "duration", "$value": "{motion.reduced.duration}"}
+    }
+  }
+}
