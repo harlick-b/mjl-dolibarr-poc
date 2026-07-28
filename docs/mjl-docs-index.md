@@ -39,6 +39,8 @@ records, and stale POC notes are not active implementation guidance.
 | Document | Purpose |
 | --- | --- |
 | `DESIGN.md` | Durable design memory. |
+| `docs/design-context.md` | Sole active target-project context copied into `proj-design` for design-system generation. |
+| `docs/design-system/README.md` | Active entry point for the approved MJL Financement v2 design documentation; UI implementation remains separately gated. |
 | `docs/mjl-ui-navigation-design-target-specification.md` | Kept UI/navigation target specification and repair plan. |
 | `docs/audits/mjl-navigation-design-full-audit.md` | Kept historical navigation/design audit evidence, including referenced screenshots. |
 | `docs/design-system/CODEX_UI_IMPLEMENTATION_GUIDE.md` | UI implementation guidance. |
