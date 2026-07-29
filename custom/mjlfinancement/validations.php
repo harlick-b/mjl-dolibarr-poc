@@ -5,7 +5,13 @@ mjl_workspace_require_validation_history_access($user);
 llxHeader('', 'Historique des validations');
 mjl_navigation_shell_start($user, 'validations');
 print '<div class="mjl-workspace">';
-print load_fiche_titre('Historique des validations', '', 'check');
+mjl_dashboard_render_header(
+	'Historique des validations',
+	'Consultez les décisions enregistrées sur les dépenses accessibles à votre rôle.',
+	'Accès',
+	'Lecture avancée',
+	'Supervision / Audit'
+);
 global $db, $conf;
 $sql = 'SELECT v.ref, e.ref AS expense_ref, v.action, v.from_status, v.to_status, u.login, v.actor_role, v.action_date, v.comment';
 $sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';

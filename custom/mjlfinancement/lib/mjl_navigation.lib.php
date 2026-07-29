@@ -47,9 +47,9 @@ function mjl_navigation_sections(User $targetUser)
 			'key' => 'partners',
 			'label' => 'Partenaires / Programmes',
 			'href' => '/custom/mjlfinancement/partners.php',
-			'description' => 'Perimetres et donnees rattachees',
+			'description' => 'Périmètres et données rattachées',
 			'children' => array(
-				array('key' => 'partners_list', 'label' => 'Liste des partenaires', 'href' => '/custom/mjlfinancement/partners.php', 'description' => 'Consultation des perimetres'),
+				array('key' => 'partners_list', 'label' => 'Liste des partenaires', 'href' => '/custom/mjlfinancement/partners.php', 'description' => 'Consultation des périmètres'),
 			),
 		);
 	}
@@ -151,7 +151,7 @@ function mjl_navigation_sections(User $targetUser)
 	}
 	$adminChildren = array();
 	if ($capabilities['admin']) {
-		$adminChildren[] = array('key' => 'admin_access', 'label' => 'Acces utilisateurs', 'href' => '/custom/mjlfinancement/admin/access.php', 'description' => 'Roles et perimetres');
+		$adminChildren[] = array('key' => 'admin_access', 'label' => 'Accès utilisateurs', 'href' => '/custom/mjlfinancement/admin/access.php', 'description' => 'Rôles et périmètres');
 		if ($capabilities['roadmap_read']) {
 			$adminChildren[] = array('key' => 'roadmap', 'label' => 'Préparation production', 'href' => '/custom/mjlfinancement/roadmap.php', 'description' => 'Pilotage interne');
 		}
@@ -184,25 +184,33 @@ function mjl_navigation_quick_items(User $targetUser)
 function mjl_navigation_render_quick_section(User $targetUser)
 {
 	mjl_dashboard_render_link_section(
-		'Acces rapides',
-		'Les liens affiches respectent le profil temporaire et les droits actifs.',
+		'Accès rapides',
+		'Les liens affichés respectent votre rôle et vos droits actifs.',
 		mjl_navigation_quick_items($targetUser)
 	);
 }
 
 function mjl_navigation_shell_start(User $targetUser, $activeKey = '')
 {
+	$contextSectionKey = mjl_navigation_context_section_key($activeKey);
 	print '<div class="mjl-module-shell">';
+	print '<a class="mjl-skip-link" href="#mjl-main-content">Aller au contenu principal</a>';
 	print '<aside class="mjl-module-sidebar" aria-label="Menu module MJL">';
-	print '<div class="mjl-sidebar-title"><span>MJL-Financement</span><strong>Espace de travail</strong></div>';
+	print '<div class="mjl-sidebar-title"><span>MJL Financement</span><strong>Espace de travail</strong></div>';
 	print '<nav class="mjl-sidebar-nav">';
 	foreach (mjl_navigation_sections($targetUser) as $section) {
-		$isActive = mjl_navigation_section_is_active($section, $activeKey);
+		$isActive = mjl_navigation_section_is_active($section, $activeKey) || ($contextSectionKey !== '' && $contextSectionKey === $section['key']);
 		$classes = 'mjl-sidebar-link mjl-sidebar-section-link';
 		if ($isActive) {
 			$classes .= ' mjl-sidebar-link-active';
 		}
-		print '<a class="'.$classes.'" href="'.mjl_dashboard_url($section['href']).'">';
+		$currentAttribute = '';
+		if ($activeKey !== '' && $activeKey === $section['key']) {
+			$currentAttribute = ' aria-current="page"';
+		} elseif ($contextSectionKey !== '' && $contextSectionKey === $section['key']) {
+			$currentAttribute = ' aria-current="location"';
+		}
+		print '<a class="'.$classes.'" href="'.mjl_dashboard_url($section['href']).'"'.$currentAttribute.'>';
 		print '<span>'.dol_escape_htmltag($section['label']).'</span>';
 		print '<small>'.dol_escape_htmltag($section['description']).'</small>';
 		print '</a>';
@@ -213,14 +221,23 @@ function mjl_navigation_shell_start(User $targetUser, $activeKey = '')
 				if ($activeKey !== '' && $activeKey === $child['key']) {
 					$childClasses .= ' mjl-sidebar-child-link-active';
 				}
-				print '<a class="'.$childClasses.'" href="'.mjl_dashboard_url($child['href']).'">'.dol_escape_htmltag($child['label']).'</a>';
+				$currentAttribute = ($activeKey !== '' && $activeKey === $child['key']) ? ' aria-current="page"' : '';
+				print '<a class="'.$childClasses.'" href="'.mjl_dashboard_url($child['href']).'"'.$currentAttribute.'>'.dol_escape_htmltag($child['label']).'</a>';
 			}
 			print '</div>';
 		}
 	}
 	print '</nav>';
 	print '</aside>';
-	print '<main class="mjl-module-main">';
+	print '<main class="mjl-module-main" id="mjl-main-content" tabindex="-1">';
+}
+
+function mjl_navigation_context_section_key($activeKey)
+{
+	$contextSections = array(
+		'exchanges' => 'supervision',
+	);
+	return isset($contextSections[$activeKey]) ? $contextSections[$activeKey] : '';
 }
 
 function mjl_navigation_section_is_active($section, $activeKey)

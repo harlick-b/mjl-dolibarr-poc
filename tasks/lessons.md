@@ -36,3 +36,6 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Native-boundary checks must probe adjacent Dolibarr route families, not only
   named blocker routes; `/admin/*`, native `/user/*`, and dormant module routes
   can render native chrome even when the first blocked routes pass.
+- E2E assertions for dated activities must not assume a fixed fixture remains
+  before its deadline. Assert persisted execution controls and workflow state
+  separately from the date-sensitive overdue label.

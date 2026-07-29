@@ -24,23 +24,25 @@ $conf->dol_hide_leftmenu = 1;
 
 $canEnterMjl = !empty($user) && !empty($user->id) && mjl_workspace_user_can_enter($user);
 
-llxHeader('', 'Acces refuse');
+llxHeader('', 'Accès refusé');
 
 if ($canEnterMjl) {
 	mjl_navigation_shell_start($user, 'dashboard');
 }
 
 print '<div class="mjl-workspace">';
-print '<section class="mjl-workspace-header">';
-print '<div><p class="mjl-kicker">Acces refuse</p>';
-print '<h1>Acces non autorise</h1>';
-print '<p class="mjl-header-copy">Cette adresse ne fait pas partie de l espace MJL autorise. Utilisez le tableau de bord pour continuer votre travail.</p></div>';
-print '</section>';
+mjl_dashboard_render_header(
+	'Accès non autorisé',
+	'Cette adresse ne fait pas partie de l’espace MJL autorisé. Utilisez le tableau de bord pour continuer votre travail.',
+	'',
+	'',
+	'Accès refusé'
+);
 print '<section class="mjl-workspace-section">';
 print '<div class="mjl-empty-state mjl-empty-state-warning">';
-print '<p>Les ecrans natifs Dolibarr de configuration, administration technique ou modules non exposes sont bloques dans le navigateur.</p>';
+print '<p>Les écrans natifs Dolibarr de configuration, administration technique ou modules non exposés sont bloqués dans le navigateur.</p>';
 if ($canEnterMjl) {
-	print '<p><a class="button" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/index.php">Retour au tableau de bord</a></p>';
+	print '<p><a class="mjl-action mjl-action-primary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/index.php">Retour au tableau de bord</a></p>';
 }
 print '</div>';
 print '</section>';

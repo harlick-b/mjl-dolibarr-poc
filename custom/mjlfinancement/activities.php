@@ -227,11 +227,13 @@ function mjl_activities_upload_document(MjlActivity $activity)
 
 function mjl_activities_render_list_page()
 {
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Activites</p><h1>Suivi des activites et decisions</h1>';
-	print '<p class="mjl-header-copy">Consultez les activites de votre perimetre, ouvrez le detail et traitez les actions attendues.</p></div>';
-	print '<div class="mjl-user-context"><span>Perimetre</span><strong>'.dol_escape_htmltag(mjl_activities_scope_label()).'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		'Suivi des activités et décisions',
+		'Consultez les activités de votre périmètre, ouvrez le détail et traitez les actions attendues.',
+		'Périmètre',
+		mjl_activities_scope_label(),
+		'Activités'
+	);
 
 	if (mjl_workspace_can_apply_activity_write($GLOBALS['user'])) {
 		mjl_activities_create_form();
@@ -247,11 +249,13 @@ function mjl_activities_render_detail($id)
 	}
 
 	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php">Retour aux activites</a></p>';
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Activite</p><h1>'.dol_escape_htmltag($row['ref']).' - '.dol_escape_htmltag($row['label']).'</h1>';
-	print '<p class="mjl-header-copy">'.dol_escape_htmltag(mjl_activities_next_action_label($row)).'</p></div>';
-	print '<div class="mjl-user-context"><span>Statut</span><strong>'.dol_escape_htmltag(mjl_activity_status_label($row['status'])).'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		$row['ref'].' - '.$row['label'],
+		mjl_activities_next_action_label($row),
+		'Statut',
+		mjl_activity_status_label($row['status']),
+		'Activité'
+	);
 
 	print '<div class="mjl-activity-detail-grid">';
 	mjl_activities_render_summary_card($row);

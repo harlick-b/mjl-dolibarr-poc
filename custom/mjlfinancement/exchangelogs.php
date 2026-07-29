@@ -24,7 +24,13 @@ $filters = array(
 llxHeader('', 'Historique / Audit MJL');
 mjl_navigation_shell_start($user, 'exchanges');
 print '<div class="mjl-workspace">';
-print load_fiche_titre('Historique / Audit - recherche des echanges', '', 'comments');
+mjl_dashboard_render_header(
+	'Recherche dans l’historique des échanges',
+	'Consultez les échanges contextualisés accessibles à votre rôle et à votre périmètre.',
+	'Accès',
+	'Lecture avancée',
+	'Supervision / Audit'
+);
 
 mjl_exchangelogs_filter_form($filters);
 mjl_exchangelogs_list($filters);

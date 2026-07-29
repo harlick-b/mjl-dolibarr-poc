@@ -118,7 +118,7 @@ test('DPAF creates, edits, activates, filters, and views budget-line history', a
 
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/budgetlines.php');
-  await expect(page.getByRole('heading', { name: 'Gestion des lignes budgetaires' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gestion des lignes budgétaires' })).toBeVisible();
 
   await page.getByLabel('Reference').fill('P15-UI-BL');
   await page.getByLabel('Libelle').fill('Budget Phase 15 UI');
@@ -154,7 +154,7 @@ test('DPAF creates, edits, activates, filters, and views budget-line history', a
 test('Admin can open management, while Agent direct URL and POST are blocked', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/budgetlines.php');
-  await expect(page.getByRole('heading', { name: 'Gestion des lignes budgetaires' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gestion des lignes budgétaires' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Creer la ligne' })).toBeVisible();
 
   await login(page, 'agent.mjl');

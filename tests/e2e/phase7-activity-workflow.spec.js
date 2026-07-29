@@ -23,6 +23,12 @@ function scalar(query) {
   return dockerExec(`mariadb mariadb -udolidbuser -ppoc_pwd dolidb -N -B -e "${query.replace(/"/g, '\\"')}"`).toString().trim();
 }
 
+function relativeDate(daysFromToday) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + daysFromToday);
+  return date.toISOString().slice(0, 10);
+}
+
 function seedPhase7Files() {
   dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense && rm -f /var/www/documents/ecm/mjlfinancement_expense/P7-*.pdf && printf "%s" "Phase 7 expense document" > /var/www/documents/ecm/mjlfinancement_expense/P7-EXP-DOC.pdf\'');
 }
@@ -138,7 +144,7 @@ test.afterAll(() => {
 test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page }) => {
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/activities.php');
-  await expect(page.getByRole('heading', { name: 'Suivi des activites et decisions' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Suivi des activités et décisions' })).toBeVisible();
   await expect(page.getByText('Mes activites')).toBeVisible();
 
   await page.getByLabel('Reference').fill('P7-UI-CREATE');
@@ -146,7 +152,7 @@ test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page
   await page.locator('select[name="fk_project"]').selectOption({ label: 'PRJ-JE-2026 - Projet Justice Enfants' });
   await page.locator('select[name="fk_convention"]').selectOption({ label: 'CONV-UNICEF-2026-001 - Convention UNICEF Justice Enfants 2026 (PRJ-JE-2026)' });
   await page.locator('input[name="date_start"]').fill('2026-06-20');
-  await page.locator('input[name="date_end"]').fill('2026-07-28');
+  await page.locator('input[name="date_end"]').fill(relativeDate(14));
   await page.getByLabel('Execution physique (%)').fill('25');
   await page.locator('select[name="execution_status"]').selectOption('in_progress');
   await page.getByRole('button', { name: 'Creer l activite' }).click();

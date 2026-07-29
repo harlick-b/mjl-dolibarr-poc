@@ -125,11 +125,13 @@ function mjl_budgetlines_render_list_page()
 		'activity_id' => GETPOSTINT('activity_id'),
 		'status' => GETPOST('status', 'alphanohtml'),
 	);
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Lignes budgetaires MJL</p><h1>Gestion des lignes budgetaires</h1>';
-	print '<p class="mjl-header-copy">Cadrez les enveloppes actives utilisees par les depenses, rapports et controles de solde.</p></div>';
-	print '<div class="mjl-user-context"><span>Perimetre</span><strong>'.(mjl_budgetlines_can_manage() ? 'Validateur definitif / Administrateur plateforme' : 'Consultation').'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		'Gestion des lignes budgétaires',
+		'Cadrez les enveloppes actives utilisées par les dépenses, rapports et contrôles de solde.',
+		'Périmètre',
+		mjl_budgetlines_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation',
+		'Lignes budgétaires MJL'
+	);
 
 	if (mjl_budgetlines_can_manage()) {
 		mjl_budgetlines_render_create_form();
@@ -148,11 +150,13 @@ function mjl_budgetlines_render_detail($id)
 	$hasExpenses = (int) $row['expenses'] > 0;
 
 	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php">Retour aux budgets</a></p>';
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Ligne budgetaire</p><h1>'.dol_escape_htmltag($row['ref']).' - '.dol_escape_htmltag($row['label']).'</h1>';
-	print '<p class="mjl-header-copy">'.dol_escape_htmltag(mjl_budgetlines_next_action_label($row, $hasExpenses)).'</p></div>';
-	print '<div class="mjl-user-context"><span>Statut</span><strong>'.dol_escape_htmltag(mjl_budgetline_status_label($row['status'])).'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		$row['ref'].' - '.$row['label'],
+		mjl_budgetlines_next_action_label($row, $hasExpenses),
+		'Statut',
+		mjl_budgetline_status_label($row['status']),
+		'Ligne budgétaire'
+	);
 
 	print '<div class="mjl-activity-detail-grid">';
 	mjl_budgetlines_render_summary($row);

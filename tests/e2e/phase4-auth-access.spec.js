@@ -63,7 +63,7 @@ async function inviteUser(page, suffix) {
 
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/admin/access.php');
-  await expect(page.getByText('Gestion des acces MJL').first()).toBeVisible();
+  await expect(page.getByText('Gestion des accès MJL').first()).toBeVisible();
   await page.locator('#mjl-login').fill(loginName);
   await page.locator('#mjl-firstname').fill('E2E');
   await page.locator('#mjl-lastname').fill('MJL');

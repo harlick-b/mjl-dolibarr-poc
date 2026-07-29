@@ -175,7 +175,7 @@ test('Admin dashboard is administration-first with supervision shortcuts', async
   await expect(page.locator('body')).not.toContainText('File de validation');
 
   await page.goto('/custom/mjlfinancement/admin/access.php');
-  await expect(page.getByText('Gestion des acces MJL').first()).toBeVisible();
+  await expect(page.getByText('Gestion des accès MJL').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
   await expect(page.getByRole('heading', { name: 'Tableau de supervision finance' })).toBeVisible();

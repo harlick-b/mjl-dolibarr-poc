@@ -75,10 +75,16 @@ $roles = mjl_scope_role_labels();
 $partners = mjl_access_partner_options();
 $users = mjl_access_users();
 
-llxHeader('', 'Gestion des acces MJL');
+llxHeader('', 'Gestion des accès MJL');
 mjl_navigation_shell_start($user, 'admin_access');
 print '<div class="mjl-workspace">';
-print load_fiche_titre('Gestion des acces MJL', '', 'user');
+mjl_dashboard_render_header(
+	'Gestion des accès MJL',
+	'Invitez les utilisateurs et gérez leur rôle ainsi que leurs Partenaires / Programmes autorisés.',
+	'Accès',
+	'Administration',
+	'Administration'
+);
 
 if ($message !== '') {
 	print '<div class="ok">'.dol_escape_htmltag($message).'</div>';

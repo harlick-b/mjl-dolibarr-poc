@@ -62,6 +62,18 @@ records, and stale POC notes are not active implementation guidance.
 | `docs/design-system/audit/current-screen-inventory.md` | Current UI screen inventory. |
 | `docs/design-system/audit/current-ui-audit.md` | Current UI audit. |
 
+## Approved v2 Implementation-Readiness Audit
+
+| Document | Purpose |
+| --- | --- |
+| `docs/implementation/mjl-design-system-v2-gap-matrix.md` | Material approved-v2 versus committed-implementation gap matrix. |
+| `docs/implementation/mjl-design-system-v2-component-mapping.md` | Current-to-approved component and interface-pattern mapping. |
+| `docs/implementation/mjl-design-system-v2-assumption-resolution.md` | Evidence-based assessment of all eight approved assumptions. |
+| `docs/implementation/mjl-design-system-v2-implementation-readiness-audit.md` | Main audit with separate implementation and release readiness assessments. |
+| `docs/implementation/mjl-design-system-v2-phased-implementation-plan.md` | Six-phase, separately authorized implementation and journey-validation plan. |
+| `docs/implementation/mjl-design-system-v2-implementation-readiness-report.md` | Final execution record, verdict, evidence, commands, blockers, and next action. |
+| `docs/implementation/mjl-design-system-v2-phase1-implementation-report.md` | Authorized Phase 1 implementation scope, verification evidence, review corrections, exclusions, and rollback. |
+
 ## Agent Support Docs
 
 | Document | Purpose |

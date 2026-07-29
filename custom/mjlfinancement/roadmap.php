@@ -7,13 +7,13 @@ mjl_workspace_require_roadmap_access($user);
 
 $langs->load('mjlfinancement@mjlfinancement');
 
-llxHeader('', 'Preparation production');
+llxHeader('', 'Préparation production');
 mjl_navigation_shell_start($user, 'roadmap');
 print '<div class="mjl-workspace mjl-roadmap-workspace">';
 mjl_dashboard_render_header(
-	'Pr&eacute;paration production',
-	'Clarifier les limites actuelles du POC et les sujets a arbitrer avant une version de production.',
-	'Acces',
+	'Préparation production',
+	'Suivez les confirmations et preuves encore requises avant une mise en production.',
+	'Accès',
 	'Administration'
 );
 

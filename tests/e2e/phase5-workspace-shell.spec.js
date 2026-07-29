@@ -48,7 +48,7 @@ async function expectNativeWorkspaceBlocked(page, path) {
   expect(response.status(), path).toBe(403);
   await expect(page.locator('body')).toContainText(/Acces non autorise|Retour au tableau de bord/);
   await expect(page.getByLabel('Menu module MJL')).toBeVisible();
-  await expect(page.locator('body')).not.toContainText(/Accueil|Rechercher|Mon tableau de bord|Configuration|Outils d'administration|Utilisateurs & Groupes|Espace RH|Module Builder|Espace facturation et paiement|Module Category not enabled|Not enough permissions|Accès refusé/);
+  await expect(page.locator('body')).not.toContainText(/Accueil|Rechercher|Mon tableau de bord|Configuration|Outils d'administration|Utilisateurs & Groupes|Espace RH|Module Builder|Espace facturation et paiement|Module Category not enabled|Not enough permissions/);
 }
 
 async function expectNativeMenuLabelsHidden(page) {
@@ -212,7 +212,7 @@ test('Finance validator sees supervision workspace and can access finance report
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/budgetlines.php');
-  await expect(page.getByText('Lignes budgetaires MJL').first()).toBeVisible();
+  await expect(page.getByText('Lignes budgétaires MJL').first()).toBeVisible();
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/fundreceipts.php');
@@ -220,11 +220,11 @@ test('Finance validator sees supervision workspace and can access finance report
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/workflowactions.php');
-  await expect(page.getByText('Actions workflow MJL').first()).toBeVisible();
+  await expect(page.getByText('Historique des actions').first()).toBeVisible();
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/exchangelogs.php');
-  await expect(page.getByText('Historique / Audit - recherche des echanges').first()).toBeVisible();
+  await expect(page.getByText('Recherche dans l’historique des échanges').first()).toBeVisible();
   await expectSidebar(page);
   await expect(page.getByLabel('Menu module MJL')).not.toContainText('Échanges');
 
@@ -241,9 +241,9 @@ test('Admin sees administration access and can access invitations plus supervisi
   await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
 
   await page.goto('/custom/mjlfinancement/admin/access.php');
-  await expect(page.getByText('Gestion des acces MJL').first()).toBeVisible();
+  await expect(page.getByText('Gestion des accès MJL').first()).toBeVisible();
   await expectSidebar(page);
-  await expect(page.getByRole('link', { name: /Acces utilisateurs/ }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: /Accès utilisateurs/ }).first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
   await expect(page.getByText('Tableau de supervision finance').first()).toBeVisible();
@@ -255,16 +255,16 @@ test('Admin sees administration access and can access invitations plus supervisi
   await expect(page.getByText('Enveloppes de financement').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/budgetlines.php');
-  await expect(page.getByText('Lignes budgetaires MJL').first()).toBeVisible();
+  await expect(page.getByText('Lignes budgétaires MJL').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/fundreceipts.php');
   await expect(page.getByRole('heading', { name: 'Gestion des réceptions de fonds' })).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/workflowactions.php');
-  await expect(page.getByText('Actions workflow MJL').first()).toBeVisible();
+  await expect(page.getByText('Historique des actions').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/exchangelogs.php');
-  await expect(page.getByText('Historique / Audit - recherche des echanges').first()).toBeVisible();
+  await expect(page.getByText('Recherche dans l’historique des échanges').first()).toBeVisible();
   await expect(page.getByLabel('Menu module MJL')).not.toContainText('Échanges');
 
   await expectAccessDenied(page, '/custom/mjlfinancement/roadmap.php');

@@ -272,11 +272,13 @@ function mjl_expenses_upload_document(MjlExpense $expense)
 
 function mjl_expenses_render_list_page()
 {
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Depenses</p><h1>Depenses et pieces justificatives</h1>';
-	print '<p class="mjl-header-copy">Consultez les depenses de votre perimetre, ouvrez le detail et traitez les pieces ou decisions attendues.</p></div>';
-	print '<div class="mjl-user-context"><span>Perimetre</span><strong>'.dol_escape_htmltag(mjl_expenses_scope_label()).'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		'Dépenses et pièces justificatives',
+		'Consultez les dépenses de votre périmètre, ouvrez le détail et traitez les pièces ou décisions attendues.',
+		'Périmètre',
+		mjl_expenses_scope_label(),
+		'Dépenses'
+	);
 
 	if (mjl_workspace_can_apply_expense_write($GLOBALS['user'])) {
 		mjl_expenses_create_form();
@@ -292,11 +294,13 @@ function mjl_expenses_render_detail($id)
 	}
 
 	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php">Retour aux depenses</a></p>';
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Depense</p><h1>'.dol_escape_htmltag($row['ref']).'</h1>';
-	print '<p class="mjl-header-copy">'.dol_escape_htmltag(mjl_expenses_next_action_label($row)).'</p></div>';
-	print '<div class="mjl-user-context"><span>Statut</span><strong>'.dol_escape_htmltag(mjl_expenses_status_label($row['status'])).'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		$row['ref'],
+		mjl_expenses_next_action_label($row),
+		'Statut',
+		mjl_expenses_status_label($row['status']),
+		'Dépense'
+	);
 
 	print '<div class="mjl-activity-detail-grid">';
 	mjl_expenses_render_summary_card($row);

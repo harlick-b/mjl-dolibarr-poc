@@ -123,11 +123,13 @@ function mjl_conventions_handle_post($action)
 
 function mjl_conventions_render_list_page()
 {
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Enveloppes de financement</p><h1>Gestion des enveloppes de financement</h1>';
-	print '<p class="mjl-header-copy">Pilotez les enveloppes avant les lignes budgetaires, depenses et rapports.</p></div>';
-	print '<div class="mjl-user-context"><span>Perimetre</span><strong>'.(mjl_conventions_can_manage() ? 'Administration / validation definitive' : 'Consultation').'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		'Gestion des enveloppes de financement',
+		'Pilotez les enveloppes avant les lignes budgétaires, dépenses et rapports.',
+		'Périmètre',
+		mjl_conventions_can_manage() ? 'Administration / validation définitive' : 'Consultation',
+		'Enveloppes de financement'
+	);
 
 	if (mjl_conventions_can_manage()) {
 		mjl_conventions_render_create_form();
@@ -146,11 +148,13 @@ function mjl_conventions_render_detail($id)
 	$canManage = mjl_conventions_can_manage();
 
 	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">Retour aux enveloppes</a></p>';
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Enveloppe de financement</p><h1>'.dol_escape_htmltag($row['ref']).' - '.dol_escape_htmltag($row['title']).'</h1>';
-	print '<p class="mjl-header-copy">'.dol_escape_htmltag(mjl_conventions_next_action_label($row, $hasLinks)).'</p></div>';
-	print '<div class="mjl-user-context"><span>Statut</span><strong>'.dol_escape_htmltag(mjl_convention_status_label($row['status'])).'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		$row['ref'].' - '.$row['title'],
+		mjl_conventions_next_action_label($row, $hasLinks),
+		'Statut',
+		mjl_convention_status_label($row['status']),
+		'Enveloppe de financement'
+	);
 
 	print '<div class="mjl-activity-detail-grid">';
 	mjl_conventions_render_summary($row, $linked);

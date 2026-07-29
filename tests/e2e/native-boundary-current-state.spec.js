@@ -41,7 +41,7 @@ const nativeRoutes = [
   '/website/index.php',
 ];
 
-const nativeChromePattern = /Accueil|Rechercher|Mon tableau de bord|Configuration|Outils d'administration|Utilisateurs & Groupes|Tiers|Espace RH|Module Builder|Espace facturation et paiement|Module Category not enabled|Not enough permissions|Accès refusé/;
+const nativeChromePattern = /Accueil|Rechercher|Mon tableau de bord|Configuration|Outils d'administration|Utilisateurs & Groupes|Tiers|Espace RH|Module Builder|Espace facturation et paiement|Module Category not enabled|Not enough permissions/;
 
 async function login(page, username, userPassword = password) {
   await page.goto('/user/logout.php').catch(() => {});

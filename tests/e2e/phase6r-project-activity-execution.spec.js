@@ -151,7 +151,8 @@ test('P6R update_execution updates only execution fields and writes production a
   await page.getByLabel('Commentaire execution').fill('Avancement Phase 6R');
   await page.getByRole('button', { name: 'Mettre a jour l execution' }).click();
 
-  await expect(page.locator('body')).toContainText('80% - Partiellement exécutée');
+  await expect(page.getByLabel('Execution physique (%)')).toHaveValue('80');
+  await expect(page.locator('select[name="execution_status"]')).toHaveValue('in_progress');
   expect(scalar(`SELECT status FROM llx_mjlfinancement_activity WHERE rowid = ${activityId}`)).toBe(beforeStatus);
   expect(scalar(`SELECT physical_execution_percent FROM llx_mjlfinancement_activity WHERE rowid = ${activityId}`)).toBe('80');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'execution_updated' AND actor_role = 'AGENT_SAISIE'`))).toBe(1);

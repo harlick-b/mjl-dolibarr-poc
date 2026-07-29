@@ -16,10 +16,16 @@ $filters = array(
 	'date_end' => GETPOST('date_end', 'alphanohtml'),
 );
 
-llxHeader('', 'Actions workflow MJL');
+llxHeader('', 'Historique des actions');
 mjl_navigation_shell_start($user, 'workflowactions');
 print '<div class="mjl-workspace">';
-print load_fiche_titre('Actions workflow MJL', '', 'check');
+mjl_dashboard_render_header(
+	'Historique des actions',
+	'Recherchez les événements de workflow accessibles à votre rôle et à votre périmètre.',
+	'Accès',
+	'Lecture avancée',
+	'Supervision / Audit'
+);
 
 mjl_workflowactions_filter_form($filters);
 mjl_workflowactions_list($filters);

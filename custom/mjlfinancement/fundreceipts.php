@@ -120,11 +120,13 @@ function mjl_fundreceipts_render_list_page()
 		'date_start' => GETPOST('date_start', 'alphanohtml'),
 		'date_end' => GETPOST('date_end', 'alphanohtml'),
 	);
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Fonds reçus</p><h1>Gestion des réceptions de fonds</h1>';
-	print '<p class="mjl-header-copy">Enregistrer les tranches reçues, contrôler la preuve documentaire et garder une trace auditable des décisions.</p></div>';
-	print '<div class="mjl-user-context"><span>Périmètre</span><strong>'.(mjl_fundreceipts_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation').'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		'Gestion des réceptions de fonds',
+		'Enregistrer les tranches reçues, contrôler la preuve documentaire et garder une trace auditable des décisions.',
+		'Périmètre',
+		mjl_fundreceipts_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation',
+		'Fonds reçus'
+	);
 
 	if (mjl_fundreceipts_can_manage()) {
 		mjl_fundreceipts_render_create_form();
@@ -142,11 +144,13 @@ function mjl_fundreceipts_render_detail($id)
 	$canManage = mjl_fundreceipts_can_manage();
 
 	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">Retour aux fonds reçus</a></p>';
-	print '<div class="mjl-workspace-header">';
-	print '<div><p class="mjl-kicker">Réception de fonds</p><h1>'.dol_escape_htmltag($row['ref']).'</h1>';
-	print '<p class="mjl-header-copy">'.dol_escape_htmltag(mjl_fundreceipts_next_action_label($row)).'</p></div>';
-	print '<div class="mjl-user-context"><span>Statut</span><strong>'.dol_escape_htmltag(mjl_fundreceipt_status_label($row['status'])).'</strong></div>';
-	print '</div>';
+	mjl_dashboard_render_header(
+		$row['ref'],
+		mjl_fundreceipts_next_action_label($row),
+		'Statut',
+		mjl_fundreceipt_status_label($row['status']),
+		'Réception de fonds'
+	);
 
 	print '<div class="mjl-activity-detail-grid">';
 	mjl_fundreceipts_render_summary($row);
