@@ -395,7 +395,7 @@ function mjl_activities_list()
 	if (!$filters['fail_closed']) {
 		$orderBy = mjl_activities_list_order_sql($filters['sort']);
 		$offset = max(0, ((int) $filters['page'] - 1) * (int) $filters['page_size']);
-		$sql = 'SELECT DISTINCT a.rowid, a.ref, a.label, a.fk_user_creat, a.fk_user_responsible, a.date_start, a.date_end, a.physical_execution_percent, a.execution_status, a.status, p.ref AS project_ref, u.login AS creator_login, ru.login AS responsible_login';
+		$sql = 'SELECT DISTINCT a.rowid, a.ref, a.label, a.date_start, a.date_end, a.physical_execution_percent, a.execution_status, a.status, p.ref AS project_ref';
 		$sql .= $fragments['from'].$fragments['where'].$orderBy;
 		$sql .= ' LIMIT '.((int) $filters['page_size'] + 1).' OFFSET '.$offset;
 		$resql = $db->query($sql);
@@ -420,7 +420,7 @@ function mjl_activities_list()
 	}
 	print '<p class="mjl-scoped-count">Résultats dans votre périmètre : <strong data-mjl-scoped-count>'.($total === null ? 'Indisponible' : (int) $total).'</strong></p>';
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table mjl-operational-table"><table class="noborder centpercent" aria-label="Activités du périmètre">';
-	print '<thead><tr class="liste_titre"><th>Activité</th><th>Statut</th><th>Projet</th><th>Échéance</th><th>Risque</th><th>Exécution</th><th>Responsable</th><th>Ouvrir</th></tr></thead><tbody>';
+	print '<thead><tr class="liste_titre"><th>Activité</th><th>Statut</th><th>Projet</th><th>Échéance</th><th>Risque</th><th>Exécution</th><th>Prochaine action</th><th>Ouvrir</th></tr></thead><tbody>';
 	foreach ($rows as $row) {
 		$href = DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']);
 		print '<tr class="oddeven">';
@@ -430,7 +430,7 @@ function mjl_activities_list()
 		print '<td data-label="Échéance">'.dol_escape_htmltag(mjl_activities_format_date($row['date_end'])).'</td>';
 		print '<td data-label="Risque">'.dol_escape_htmltag(mjl_activity_deadline_alert($row['date_end'], $row['status']) ?: 'Aucun').'</td>';
 		print '<td data-label="Exécution">'.dol_escape_htmltag(mjl_activities_execution_summary($row)).'</td>';
-		print '<td data-label="Responsable">'.dol_escape_htmltag($row['responsible_login'] ?: $row['creator_login']).'</td>';
+		print '<td data-label="Prochaine action">'.dol_escape_htmltag(mjl_activities_next_action_label($row)).'</td>';
 		print '<td data-label="Ouvrir"><a class="mjl-table-link" href="'.dol_escape_htmltag($href).'">Ouvrir</a></td>';
 		print '</tr>';
 	}
@@ -452,8 +452,6 @@ function mjl_activities_list_fragments($filters)
 	$from = ' FROM '.$db->prefix().'mjlfinancement_activity a';
 	$from .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
 	$from .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
-	$from .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = a.fk_user_creat AND u.entity = a.entity';
-	$from .= ' LEFT JOIN '.$db->prefix().'user ru ON ru.rowid = a.fk_user_responsible AND ru.entity = a.entity';
 	$where = ' WHERE a.entity = '.((int) $conf->entity).mjl_activities_scope_sql('a');
 	if (!empty($filters['fail_closed'])) return array('from' => $from, 'where' => $where.' AND 1 = 0');
 	if ($filters['status'] !== '') $where .= ' AND a.status = '.((int) $filters['status']);
@@ -548,24 +546,26 @@ function mjl_activities_render_decision_panel($row)
 	}
 	if (!empty($actions['update'])) {
 		$responsibleOptions = mjl_activities_options('responsible');
-		print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
+		$prefix = 'mjl-correction-';
+		print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-correction">';
 		print mjl_activities_token_input().'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print mjl_form_error_summary($correctionRecovery['errors']);
-		print '<label>Libelle<input required name="label" value="'.dol_escape_htmltag($correctionRecovery['values']['label'] ?? $row['label']).'"></label>';
-		print '<label>Responsable'.mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Createur par defaut', (int) ($correctionRecovery['values']['fk_user_responsible'] ?? $row['fk_user_responsible'])).'</label>';
-		print '<label>Debut<input type="date" name="date_start" value="'.dol_escape_htmltag($correctionRecovery['values']['date_start'] ?? substr((string) $row['date_start'], 0, 10)).'"></label>';
-		print '<label>Fin<input type="date" name="date_end" value="'.dol_escape_htmltag($correctionRecovery['values']['date_end'] ?? substr((string) $row['date_end'], 0, 10)).'"></label>';
-		print '<label>Motif de modification<input required name="comment" value="'.dol_escape_htmltag($correctionRecovery['values']['comment'] ?? '').'"></label>';
+		print '<div data-mjl-form-errors>'.mjl_form_error_summary($correctionRecovery['errors'], 'Corrigez les champs indiqués', $prefix).'</div>';
+		print mjl_form_field('label', 'Libellé', '<input required name="label" value="'.dol_escape_htmltag($correctionRecovery['values']['label'] ?? $row['label']).'">', true, '', $correctionRecovery['errors']['label'] ?? '', $prefix);
+		print mjl_form_field('fk_user_responsible', 'Responsable', mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Créateur par défaut', (int) ($correctionRecovery['values']['fk_user_responsible'] ?? $row['fk_user_responsible'])), false, '', $correctionRecovery['errors']['fk_user_responsible'] ?? '', $prefix);
+		print mjl_form_field('date_start', 'Début', '<input type="date" name="date_start" value="'.dol_escape_htmltag($correctionRecovery['values']['date_start'] ?? substr((string) $row['date_start'], 0, 10)).'">', false, '', $correctionRecovery['errors']['date_start'] ?? '', $prefix);
+		print mjl_form_field('date_end', 'Fin', '<input type="date" name="date_end" value="'.dol_escape_htmltag($correctionRecovery['values']['date_end'] ?? substr((string) $row['date_end'], 0, 10)).'">', false, '', $correctionRecovery['errors']['date_end'] ?? '', $prefix);
+		print mjl_form_field('comment', 'Motif de modification', '<textarea required name="comment">'.dol_escape_htmltag($correctionRecovery['values']['comment'] ?? '').'</textarea>', true, '', $correctionRecovery['errors']['comment'] ?? '', $prefix);
 		print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer la correction"></div>';
 		print '</form>';
 	}
 	foreach ($actions as $action => $meta) {
 		if ($action === 'update') continue;
 		$actionRecovery = $decisionRecovery['action'] === $action ? $decisionRecovery : ($correctionRecovery['action'] === $action ? $correctionRecovery : array('values' => array(), 'errors' => array(), 'action' => ''));
-		print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
+		$prefix = 'mjl-decision-'.preg_replace('/[^a-z0-9_-]/i', '', (string) $action).'-';
+		print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-decision">';
 		print mjl_activities_token_input().'<input type="hidden" name="action" value="'.dol_escape_htmltag($action).'"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print mjl_form_error_summary($actionRecovery['errors']);
-		print '<label>'.dol_escape_htmltag($meta['comment']).'<input'.(!empty($meta['required']) ? ' required' : '').' name="comment" value="'.dol_escape_htmltag($actionRecovery['values']['comment'] ?? '').'"></label>';
+		print '<div data-mjl-form-errors>'.mjl_form_error_summary($actionRecovery['errors'], 'Corrigez les champs indiqués', $prefix).'</div>';
+		print mjl_form_field('comment', $meta['comment'], '<textarea'.(!empty($meta['required']) ? ' required' : '').' name="comment">'.dol_escape_htmltag($actionRecovery['values']['comment'] ?? '').'</textarea>', !empty($meta['required']), '', $actionRecovery['errors']['comment'] ?? '', $prefix);
 		print '<input class="button" type="submit" value="'.dol_escape_htmltag($meta['label']).'">';
 		print '</form>';
 	}
@@ -583,15 +583,16 @@ function mjl_activities_render_execution_panel($row)
 		return;
 	}
 	$responsibleOptions = mjl_activities_options('responsible');
-	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
+	$prefix = 'mjl-execution-';
+	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-execution">';
 	print mjl_activities_token_input().'<input type="hidden" name="action" value="update_execution"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-	print mjl_form_error_summary($recovery['errors']);
-	print '<label>Responsable'.mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Createur par defaut', (int) ($recovery['values']['fk_user_responsible'] ?? $row['fk_user_responsible'])).'</label>';
-	print '<label>Debut reel<input type="date" name="date_actual_start" value="'.dol_escape_htmltag($recovery['values']['date_actual_start'] ?? substr((string) $row['date_actual_start'], 0, 10)).'"></label>';
-	print '<label>Fin reelle<input type="date" name="date_actual_end" value="'.dol_escape_htmltag($recovery['values']['date_actual_end'] ?? substr((string) $row['date_actual_end'], 0, 10)).'"></label>';
-	print '<label>Execution physique (%)<input type="number" min="0" max="100" name="physical_execution_percent" value="'.dol_escape_htmltag($recovery['values']['physical_execution_percent'] ?? (string) $row['physical_execution_percent']).'"></label>';
-	print '<label>Statut execution'.mjl_activities_execution_status_select('execution_status', $recovery['values']['execution_status'] ?? (string) $row['execution_status']).'</label>';
-	print '<label>Commentaire execution<textarea name="execution_comment">'.dol_escape_htmltag($recovery['values']['execution_comment'] ?? $row['execution_comment']).'</textarea></label>';
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($recovery['errors'], 'Corrigez les champs indiqués', $prefix).'</div>';
+	print mjl_form_field('fk_user_responsible', 'Responsable', mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Créateur par défaut', (int) ($recovery['values']['fk_user_responsible'] ?? $row['fk_user_responsible'])), false, '', $recovery['errors']['fk_user_responsible'] ?? '', $prefix);
+	print mjl_form_field('date_actual_start', 'Début réel', '<input type="date" name="date_actual_start" value="'.dol_escape_htmltag($recovery['values']['date_actual_start'] ?? substr((string) $row['date_actual_start'], 0, 10)).'">', false, '', $recovery['errors']['date_actual_start'] ?? '', $prefix);
+	print mjl_form_field('date_actual_end', 'Fin réelle', '<input type="date" name="date_actual_end" value="'.dol_escape_htmltag($recovery['values']['date_actual_end'] ?? substr((string) $row['date_actual_end'], 0, 10)).'">', false, '', $recovery['errors']['date_actual_end'] ?? '', $prefix);
+	print mjl_form_field('physical_execution_percent', 'Exécution physique (%)', '<input type="number" min="0" max="100" name="physical_execution_percent" aria-label="Execution physique (%)" value="'.dol_escape_htmltag($recovery['values']['physical_execution_percent'] ?? (string) $row['physical_execution_percent']).'">', false, '', $recovery['errors']['physical_execution_percent'] ?? '', $prefix);
+	print mjl_form_field('execution_status', 'Statut d’exécution', mjl_activities_execution_status_select('execution_status', $recovery['values']['execution_status'] ?? (string) $row['execution_status']), false, '', $recovery['errors']['execution_status'] ?? '', $prefix);
+	print mjl_form_field('execution_comment', 'Commentaire d’exécution', '<textarea name="execution_comment" aria-label="Commentaire execution">'.dol_escape_htmltag($recovery['values']['execution_comment'] ?? $row['execution_comment']).'</textarea>', false, '', $recovery['errors']['execution_comment'] ?? '', $prefix);
 	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Mettre a jour l execution"></div>';
 	print '</form>';
 	print '</section>';
@@ -753,13 +754,7 @@ function mjl_activities_select($name, $options, $required = 0, $emptyLabel = '',
 
 function mjl_activities_execution_status_select($name, $selected)
 {
-	$options = array(
-		'' => 'Non renseigné',
-		'not_started' => 'Planifiée',
-		'in_progress' => 'En cours',
-		'completed' => 'Exécutée',
-		'blocked' => 'Bloquée',
-	);
+	$options = mjl_activities_execution_status_options();
 	$html = '<select name="'.dol_escape_htmltag($name).'">';
 	foreach ($options as $value => $label) {
 		$html .= '<option value="'.dol_escape_htmltag($value).'"'.((string) $selected === (string) $value ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
@@ -767,17 +762,22 @@ function mjl_activities_execution_status_select($name, $selected)
 	return $html.'</select>';
 }
 
-function mjl_activities_execution_status_label($status)
+function mjl_activities_execution_status_options()
 {
-	$map = array(
+	return array(
 		'' => 'Non renseigné',
 		'not_started' => 'Planifiée',
 		'in_progress' => 'En cours',
 		'completed' => 'Exécutée',
 		'blocked' => 'Bloquée',
 	);
+}
+
+function mjl_activities_execution_status_label($status)
+{
+	$map = mjl_activities_execution_status_options();
 	$status = (string) $status;
-	return isset($map[$status]) ? $map[$status] : $status;
+	return isset($map[$status]) ? $map[$status] : 'Statut d’exécution non reconnu';
 }
 
 function mjl_activities_execution_summary($row)
@@ -920,12 +920,14 @@ function mjl_activities_timeline_result($activity)
 	$sql .= ' ORDER BY w.action_date ASC, w.rowid ASC';
 	$resql = $db->query($sql);
 	$workflow = array('source' => 'workflow', 'order' => 10, 'items' => array(), 'errors' => array());
+	$documents = array('source' => 'documents', 'order' => 20, 'items' => array(), 'errors' => array());
 	if (!$resql) {
 		$workflow['errors'][] = 'database';
+		$documents['errors'][] = 'database';
 		mjl_ui_log_error('database', mjl_activities_error_context('timeline_workflow') + array('object_type' => 'activity', 'object_id' => (int) $activity['rowid']), $db->lasterror());
 	} else {
 		while ($row = $db->fetch_object($resql)) {
-			$workflow['items'][] = array(
+			$item = array(
 				'rowid' => (int) $row->rowid,
 				'label' => mjl_activity_action_label($row->action),
 				'title' => mjl_activities_timeline_title($row->action, $row->from_status, $row->to_status),
@@ -934,10 +936,12 @@ function mjl_activities_timeline_result($activity)
 				'changes' => mjl_activities_timeline_changes($row->changes_json),
 				'sort_date' => (string) $row->action_date,
 			);
+			if ((string) $row->action === 'document_uploaded') $documents['items'][] = $item;
+			else $workflow['items'][] = $item;
 		}
 	}
 	$comments = mjl_timeline_exchange_result('mjlfinancement_activity', (int) $activity['rowid'], true);
-	return mjl_timeline_aggregate_sources(array($creation, $workflow, $comments), true);
+	return mjl_timeline_aggregate_sources(array($creation, $workflow, $documents, $comments), true);
 }
 
 function mjl_activities_timeline_changes($changesJson)
@@ -957,9 +961,41 @@ function mjl_activities_timeline_changes($changesJson)
 		if (!isset($decoded[$field]) || !is_array($decoded[$field])) continue;
 		$before = is_scalar($decoded[$field]['before'] ?? null) ? (string) $decoded[$field]['before'] : '';
 		$after = is_scalar($decoded[$field]['after'] ?? null) ? (string) $decoded[$field]['after'] : '';
+		if ($field === 'fk_user_responsible') {
+			$before = mjl_activities_timeline_responsible_label($before);
+			$after = mjl_activities_timeline_responsible_label($after);
+		} elseif ($field === 'execution_status') {
+			$before = mjl_activities_execution_status_label($before);
+			$after = mjl_activities_execution_status_label($after);
+		} elseif ($field === 'physical_execution_percent') {
+			$before = $before === '' ? 'Non renseigné' : $before.' %';
+			$after = $after === '' ? 'Non renseigné' : $after.' %';
+		} elseif (in_array($field, array('date_start', 'date_end'), true)) {
+			$before = $before === '' ? 'Non renseignée' : mjl_activities_format_date($before);
+			$after = $after === '' ? 'Non renseignée' : mjl_activities_format_date($after);
+		} else {
+			$before = $before === '' ? 'Non renseigné' : $before;
+			$after = $after === '' ? 'Non renseigné' : $after;
+		}
 		$changes[$label] = $before.' → '.$after;
 	}
 	return $changes;
+}
+
+function mjl_activities_timeline_responsible_label($userId)
+{
+	global $db, $conf;
+
+	$userId = (int) $userId;
+	if ($userId <= 0) return 'Non renseigné';
+	$sql = 'SELECT login, firstname, lastname FROM '.$db->prefix().'user WHERE entity = '.((int) $conf->entity).' AND rowid = '.$userId;
+	$resql = $db->query($sql);
+	if (!$resql || !($row = $db->fetch_object($resql))) {
+		if (!$resql) mjl_ui_log_error('database', mjl_activities_error_context('timeline_responsible'), $db->lasterror());
+		return 'Utilisateur indisponible';
+	}
+	$name = trim((string) $row->firstname.' '.(string) $row->lastname);
+	return $name !== '' ? $name.' ('.$row->login.')' : (string) $row->login;
 }
 
 function mjl_activities_next_action_label($row)

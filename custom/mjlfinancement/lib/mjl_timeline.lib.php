@@ -203,13 +203,20 @@ function mjl_timeline_render_comment_form($objectType, $objectId, $actionUrl, $r
 	if (!mjl_timeline_can_comment($user)) {
 		return;
 	}
-	print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($actionUrl).'">';
+	$prefix = 'mjl-comment-';
+	print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($actionUrl).'" data-mjl-validate data-mjl-form="contextual-comment">';
 	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(function_exists('newToken') ? newToken() : '').'">';
 	print '<input type="hidden" name="action" value="add_exchange">';
 	print '<input type="hidden" name="object_type" value="'.dol_escape_htmltag($objectType).'">';
 	print '<input type="hidden" name="id" value="'.((int) $objectId).'">';
-	if (!empty($recovery['errors']) && function_exists('mjl_form_error_summary')) print mjl_form_error_summary($recovery['errors']);
-	print '<label>Commentaire<textarea required name="message">'.dol_escape_htmltag($recovery['values']['message'] ?? '').'</textarea></label>';
+	print '<div data-mjl-form-errors>';
+	if (!empty($recovery['errors']) && function_exists('mjl_form_error_summary')) print mjl_form_error_summary($recovery['errors'], 'Corrigez les champs indiqués', $prefix);
+	print '</div>';
+	if (function_exists('mjl_form_field')) {
+		print mjl_form_field('message', 'Commentaire', '<textarea required name="message">'.dol_escape_htmltag($recovery['values']['message'] ?? '').'</textarea>', true, '', $recovery['errors']['message'] ?? '', $prefix);
+	} else {
+		print '<label for="mjl-comment-message">Commentaire (obligatoire)</label><textarea id="mjl-comment-message" required name="message">'.dol_escape_htmltag($recovery['values']['message'] ?? '').'</textarea>';
+	}
 	print '<div><button class="button" type="submit">Ajouter le commentaire</button></div>';
 	print '</form>';
 }

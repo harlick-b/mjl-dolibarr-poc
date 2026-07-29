@@ -39,3 +39,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - E2E assertions for dated activities must not assume a fixed fixture remains
   before its deadline. Assert persisted execution controls and workflow state
   separately from the date-sensitive overdue label.
+- HTTP filter normalizers must treat absent and empty default controls
+  consistently. Test the unfiltered route as well as malformed values; a
+  fail-closed parser can otherwise turn every default list request into an
+  empty result without exposing a syntax or runtime error.

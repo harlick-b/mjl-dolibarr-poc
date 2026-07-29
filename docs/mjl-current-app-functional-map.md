@@ -22,6 +22,12 @@ centralized live alert generation, shared dashboard filters, Phase 11R
 CSV/XLSX report keys, and admin-only unresolved-data diagnostics. These facts
 are implementation evidence, not target authority.
 
+The authenticated workspace also has shared presentation-only status and
+system-state helpers, bounded session form recovery, a normalized operational
+activity table, consequence-aware expense decisions, and partial-result
+timeline/alert loaders. These helpers do not change stored workflow values,
+routes, permissions, schemas, or export mappings.
+
 Legacy POC vocabulary remains in compatibility areas such as bootstrap scripts,
 seed data, SQL backfills, route names, module descriptors, and some labels.
 Those references are current-state/code debt, not target behavior.
@@ -46,13 +52,13 @@ Those references are current-state/code debt, not target behavior.
 | Dashboard | `index.php` | Role-aware workspace dashboard with Phase 10R scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | Compatibility fixture names still contain POC-era vocabulary. |
 | Partenaires / Programmes | `partners.php` | Partner/programme context and related data. | Uses native third parties as data source. |
 | Projects | `projects.php` | MJL project list/detail, related objects, legacy notes, and contextual comments. | Project create/edit needs current runtime verification before production claim. |
-| Activities | `activities.php` | Activity lifecycle, physical execution, documents, workflow timeline, contextual comments. | Code has prevalidation and final validation. |
-| Expenses | `expenses.php` | Expense lifecycle, supporting evidence, prevalidation, final validation, disbursement, contextual comments. | Code has separate final validation and disbursement states. |
+| Activities | `activities.php` | Activity lifecycle, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Filters and sorting are allowlisted; malformed or inaccessible filters fail closed. |
+| Expenses | `expenses.php` | Expense lifecycle, supporting evidence, prevalidation, final validation, disbursement, contextual comments, and consequence-aware decisions. | Final validation, rejection, and disbursement use a keyboard modal enhancement while retaining server markup and no-JavaScript submission. |
 | Documents | `documents.php` | Read-only accessible document library. | Uploads remain contextual. |
 | Conventions | `conventions.php` | Governed funding-envelope management and contextual comments. | User-facing terminology still needs alignment. |
 | Budget lines | `budgetlines.php` | Governed budget-line management and contextual comments. | Uses DPAF/Admin wording in places. |
 | Fund receipts | `fundreceipts.php` | Governed received/not-received funding traces with proof documents and contextual comments. | Uses DPAF/Admin wording in places. |
-| Alerts | `alerts.php` | Computed activity/expense alerts. | Alerts are computed, not stored. |
+| Alerts | `alerts.php` | Computed activity/expense/finance alerts with partial-load reporting. | Alerts are computed, not stored; successful sources remain visible if another source fails. |
 | Supervision dashboard | `dpafdashboard.php` | Portfolio supervision dashboard with shared scoped filters, role-specific queues, finance rows, fund rows, and resolvable audit history. | Route filename remains a DPAF-era compatibility name; UI labels use production wording. |
 | Reports/exports | `reports.php` | CSV/XLSX report center. | Export audit still needs full proof. |
 | Validations | `validations.php` | Expense validation history. | Read-only. |
@@ -78,7 +84,23 @@ Those references are current-state/code debt, not target behavior.
   remains an advanced read-only audit/search surface.
 - Operational alerts are computed live through
   `custom/mjlfinancement/lib/mjl_alerts.lib.php`; no alert table is the source
-  of truth.
+  of truth. The compatibility `mjl_alerts_for_user()` interface still returns
+  items, while the page uses an explicit items/errors result.
+- Normal UI status labels are centralized separately from persistence/export
+  mappings. Unknown activity or expense values render as neutral
+  `Statut non reconnu`; final validation and disbursement remain distinct.
+- Activity creation, correction, execution, decision, and contextual-comment
+  failures can preserve allowlisted scalar values through a random,
+  session/user/entity/route/form/action/object-bound one-use handle. Handles
+  expire after ten minutes and are bounded by per-user count and storage caps.
+- The activity list uses shared normalized metadata for status, scoped
+  project, deadline-risk, sort, and page values. Count and row queries reuse
+  the same entity/scope/filter fragments and the row query fetches one extra
+  item for count-failure degradation.
+- Activity and expense detail histories merge explicit creation,
+  workflow/validation, and contextual-comment sources with stable ordering.
+  A failed source produces a persistent partial-history state instead of
+  masquerading as an empty history.
 - Dashboard filters cover Partenaire / Programme, project, period, and
   semantic status buckets. Admin-only unresolved-data diagnostics are visible
   without making unresolved rows visible to non-admin users.
@@ -123,6 +145,10 @@ Current code includes:
 - `MjlExpense::disburse()`;
 - supporting-document and budget checks;
 - no-self-review/disbursement checks.
+- server-authorized action rendering with visible consequences for final
+  validation, rejection, and disbursement;
+- stale enhanced decision submissions returning safe recoverable feedback
+  without weakening direct POST transition guards.
 
 Evidence:
 

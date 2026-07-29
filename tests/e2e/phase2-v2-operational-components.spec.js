@@ -5,6 +5,7 @@ const path = require('path');
 const projectRoot = path.resolve(__dirname, '../..');
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 const cleanupActivityRefs = new Set();
+const cleanupActivityPrefixes = new Set();
 
 async function login(page, username) {
   await page.goto('/user/logout.php').catch(() => {});
@@ -21,6 +22,13 @@ function phpJson(code) {
   }));
 }
 
+function dockerSql(query) {
+  execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', query], {
+    cwd: projectRoot,
+    stdio: 'pipe',
+  });
+}
+
 function cleanupActivities() {
   for (const ref of cleanupActivityRefs) {
     if (!/^[A-Z0-9-]+$/.test(ref)) continue;
@@ -29,12 +37,19 @@ function cleanupActivities() {
       DELETE FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = @activity_id;
       DELETE FROM llx_mjlfinancement_activity WHERE rowid = @activity_id;
     `;
-    execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', query], {
-      cwd: projectRoot,
-      stdio: 'pipe',
-    });
+    dockerSql(query);
+  }
+  for (const prefix of cleanupActivityPrefixes) {
+    if (!/^[A-Z0-9-]+$/.test(prefix)) continue;
+    dockerSql(`
+      DELETE FROM llx_mjlfinancement_workflow_action
+      WHERE object_type = 'mjlfinancement_activity'
+        AND object_id IN (SELECT rowid FROM llx_mjlfinancement_activity WHERE ref LIKE '${prefix}%');
+      DELETE FROM llx_mjlfinancement_activity WHERE ref LIKE '${prefix}%';
+    `);
   }
   cleanupActivityRefs.clear();
+  cleanupActivityPrefixes.clear();
 }
 
 test.afterEach(() => {
@@ -81,6 +96,21 @@ test('partial-result aggregation preserves successful items and stable ordering'
 
   expect(result.items.map((item) => item.title)).toEqual(['Première', 'Deuxième', 'Troisième']);
   expect(result.errors).toEqual([{ source: 'documents', category: 'unavailable' }]);
+});
+
+test('exact activity execution failures translate only to their linked fields', () => {
+  const result = phpJson(`
+    require 'custom/mjlfinancement/lib/mjl_form.lib.php';
+    echo json_encode([
+      'percent' => mjl_form_translate_domain_error('Physical execution percentage must be between 0 and 100'),
+      'comment' => mjl_form_translate_domain_error('Completed execution with a percentage other than 100 requires an execution comment'),
+      'unknown' => mjl_form_translate_domain_error('driver-specific unknown failure'),
+    ]);
+  `);
+
+  expect(result.percent).toEqual({ physical_execution_percent: 'Le taux d’exécution doit être compris entre 0 et 100.' });
+  expect(result.comment).toEqual({ execution_comment: 'Un commentaire est obligatoire lorsqu’une activité exécutée n’est pas renseignée à 100 %.' });
+  expect(result.unknown).toEqual([]);
 });
 
 test('form recovery handles are opaque, one-use, bounded, and context-bound', () => {
@@ -252,6 +282,7 @@ test('activity form progressively enhances linked French validation errors', asy
 
   const form = page.locator('form[data-mjl-validate][data-mjl-form="activity-create"]');
   await expect(form).toHaveAttribute('novalidate', '');
+  await form.locator('#mjl-field-execution_comment').fill('Valeur valide conservée');
   await form.getByRole('button', { name: 'Créer l’activité' }).click();
 
   const summary = form.locator('[data-mjl-error-summary]');
@@ -260,6 +291,9 @@ test('activity form progressively enhances linked French validation errors', asy
   await expect(summary.getByRole('link', { name: 'La référence est obligatoire.' })).toHaveAttribute('href', '#mjl-field-ref');
   await expect(form.locator('#mjl-field-ref')).toHaveAttribute('aria-invalid', 'true');
   await expect(form.locator('#mjl-field-ref-error')).toHaveText('La référence est obligatoire.');
+  await expect(summary.getByRole('link')).toHaveCount(4);
+  await expect(summary.getByRole('link', { name: 'Ce champ est obligatoire.' })).toHaveCount(2);
+  await expect(form.locator('#mjl-field-execution_comment')).toHaveValue('Valeur valide conservée');
 });
 
 test('activity server recovery retains safe values once and rejects invalid security context', async ({ page }) => {
@@ -381,6 +415,10 @@ test('activity table retains semantic desktop layout and labeled cards at 768px 
   });
   expect(createResponse.status()).toBe(302);
   expect(createResponse.headers().location).toMatch(/activities\.php\?id=\d+$/);
+  await page.goto(createResponse.headers().location);
+  await expect(page.locator('form[data-mjl-form="activity-correction"] #mjl-correction-label')).toBeVisible();
+  await expect(page.locator('form[data-mjl-form="activity-execution"] #mjl-execution-physical_execution_percent')).toBeVisible();
+  await expect(page.locator('form[data-mjl-form="contextual-comment"] #mjl-comment-message')).toBeVisible();
   await page.goto('/custom/mjlfinancement/activities.php');
   const table = page.getByRole('table', { name: 'Activités du périmètre' });
   await expect(table.locator('thead')).toHaveCSS('position', 'static');
@@ -391,8 +429,48 @@ test('activity table retains semantic desktop layout and labeled cards at 768px 
     await expect(firstCard).toBeVisible();
     await expect(firstCard.locator('td[data-label="Activité"]')).toHaveCSS('display', 'grid');
     await expect(firstCard.locator('td[data-label="Statut"]')).toBeVisible();
+    await expect(firstCard.locator('td[data-label="Prochaine action"]')).toBeVisible();
     await expect(firstCard.locator('td[data-label="Ouvrir"] a')).toHaveText('Ouvrir');
   }
+});
+
+test('activity pagination retains normalized sort and filter queries at boundaries', async ({ page }) => {
+  const prefix = `P2PAGE${Date.now()}-`;
+  cleanupActivityPrefixes.add(prefix);
+  dockerSql(`
+    SET @agent = (SELECT rowid FROM llx_user WHERE login = 'agent.mjl' AND entity = 1 LIMIT 1);
+    SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1);
+    SET @convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1);
+    INSERT INTO llx_mjlfinancement_activity
+      (entity, ref, label, fk_project, fk_convention, date_creation, fk_user_creat, status, date_end)
+    WITH RECURSIVE seq AS (
+      SELECT 1 AS n
+      UNION ALL
+      SELECT n + 1 FROM seq WHERE n < 51
+    )
+    SELECT 1, CONCAT('${prefix}', LPAD(n, 2, '0')), CONCAT('Pagination Phase 2 ', n),
+      @project, @convention, DATE_ADD(NOW(), INTERVAL n SECOND), @agent, 9,
+      DATE_ADD(CURDATE(), INTERVAL n DAY)
+    FROM seq;
+  `);
+
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/activities.php?status=9&sort=recent&page=1');
+  const table = page.getByRole('table', { name: 'Activités du périmètre' });
+  await expect(table.locator('tbody tr:not(.mjl-table-empty-row)')).toHaveCount(50);
+  await expect(page.locator('[data-mjl-scoped-count]')).toHaveText('51');
+  const next = page.getByRole('link', { name: 'Page suivante' });
+  await expect(next).toHaveAttribute('href', /status=9/);
+  await expect(next).toHaveAttribute('href', /sort=recent/);
+  await expect(next).toHaveAttribute('href', /page=2/);
+  await next.click();
+  await expect(page).toHaveURL(/status=9.*sort=recent.*page=2/);
+  await expect(table.locator('tbody tr:not(.mjl-table-empty-row)')).toHaveCount(1);
+  await expect(page.getByRole('link', { name: 'Page précédente' })).toBeVisible();
+
+  await page.goto('/custom/mjlfinancement/activities.php?project=999999999&sort=deadline');
+  await expect(page.locator('[data-mjl-scoped-count]')).toHaveText('0');
+  await expect(page.getByText('Aucune activité ne correspond aux filtres appliqués.')).toBeVisible();
 });
 
 test('expense consequences are present without JavaScript and enhanced to a keyboard modal', async ({ browser, page }) => {
@@ -410,6 +488,12 @@ test('expense consequences are present without JavaScript and enhanced to a keyb
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('Bénéficiaire Phase 2');
   await expect(dialog).toContainText('29/07/2026');
+  await expect(dialog.getByRole('button', { name: 'Annuler' })).toBeFocused();
+  await dialog.getByRole('button', { name: 'Annuler' }).press('Shift+Tab');
+  const confirmButton = dialog.getByRole('button', { name: 'Confirmer', exact: true });
+  await expect(confirmButton).toBeFocused();
+  await confirmButton.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Annuler' })).toBeFocused();
   await dialog.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
@@ -427,4 +511,46 @@ test('expense consequences are present without JavaScript and enhanced to a keyb
   await page.goto('/custom/mjlfinancement/expenses.php?id=14');
   await expect(page.locator('form input[name="action"][value="prevalidate"]')).toHaveCount(1);
   await expect(page.locator('form[data-mjl-confirm="prevalidate"]')).toHaveCount(0);
+});
+
+test('stale, invalid-token, and premature expense decisions remain server-rejected', async ({ page }) => {
+  await login(page, 'dpaf.mjl');
+  await page.goto('/custom/mjlfinancement/expenses.php?id=13');
+  const token = await page.locator('meta[name="anti-csrf-newtoken"]').getAttribute('content');
+
+  const stale = await page.request.post('/custom/mjlfinancement/expenses.php?id=13', {
+    form: {
+      token,
+      action: 'final_validate',
+      id: '13',
+      expected_status: '4',
+      final_validated_amount: '100',
+    },
+    maxRedirects: 0,
+  });
+  expect(stale.status()).toBe(403);
+  expect(await stale.text()).toContain('a déjà été traitée');
+
+  const invalidToken = await page.request.post('/custom/mjlfinancement/expenses.php?id=13', {
+    form: {
+      token: 'invalid',
+      action: 'final_validate',
+      id: '13',
+      expected_status: '4',
+    },
+    maxRedirects: 0,
+  });
+  expect(invalidToken.status()).toBe(403);
+
+  const premature = await page.request.post('/custom/mjlfinancement/expenses.php?id=14', {
+    form: {
+      token,
+      action: 'final_validate',
+      id: '14',
+      expected_status: '4',
+      final_validated_amount: '100',
+    },
+    maxRedirects: 0,
+  });
+  expect(premature.status()).toBe(403);
 });

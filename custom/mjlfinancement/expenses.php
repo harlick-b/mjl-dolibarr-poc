@@ -119,11 +119,10 @@ function mjl_expenses_handle_post($action)
 		setEventMessages($message, null, 'mesgs');
 		mjl_expenses_redirect($id);
 	}
-	if (mjl_expenses_handle_stale_form($row, $action)) {
-		setEventMessages('Cette décision a déjà été traitée ou l’état de la dépense a changé. La page a été actualisée.', null, 'warnings');
-		mjl_expenses_redirect($id);
-	}
 	if (!mjl_expenses_can_apply_action($row, $action)) {
+		if (mjl_expenses_is_verified_stale_form($row, $action)) {
+			mjl_expenses_forbidden('Cette décision a déjà été traitée ou l’état de la dépense a changé. Rechargez la page avant de continuer.');
+		}
 		mjl_expenses_forbidden();
 	}
 
@@ -153,7 +152,7 @@ function mjl_expenses_handle_post($action)
 	mjl_expenses_redirect($id);
 }
 
-function mjl_expenses_handle_stale_form($row, $action)
+function mjl_expenses_is_verified_stale_form($row, $action)
 {
 	global $user;
 	$posted = GETPOST('expected_status', 'alphanohtml');
@@ -779,12 +778,14 @@ function mjl_expenses_timeline_result($expense)
 	$sql .= ' ORDER BY v.action_date ASC, v.rowid ASC';
 	$resql = $db->query($sql);
 	$validations = array('source' => 'validation', 'order' => 10, 'items' => array(), 'errors' => array());
+	$documents = array('source' => 'documents', 'order' => 20, 'items' => array(), 'errors' => array());
 	if (!$resql) {
 		$validations['errors'][] = 'database';
+		$documents['errors'][] = 'database';
 		mjl_ui_log_error('database', array('route' => 'expenses', 'action' => 'timeline_validation', 'entity' => (int) $conf->entity, 'object_type' => 'expense', 'object_id' => (int) $expense['rowid']), $db->lasterror());
 	} else {
 		while ($row = $db->fetch_object($resql)) {
-			$validations['items'][] = array(
+			$item = array(
 				'rowid' => (int) $row->rowid,
 				'label' => mjl_expense_action_label($row->action),
 				'title' => mjl_expense_status_text($row->from_status).' vers '.mjl_expense_status_text($row->to_status),
@@ -793,10 +794,12 @@ function mjl_expenses_timeline_result($expense)
 				'changes' => array(),
 				'sort_date' => (string) $row->action_date,
 			);
+			if ((string) $row->action === 'document_uploaded') $documents['items'][] = $item;
+			else $validations['items'][] = $item;
 		}
 	}
 	$comments = mjl_timeline_exchange_result('mjlfinancement_expense', (int) $expense['rowid'], true);
-	return mjl_timeline_aggregate_sources(array($creation, $validations, $comments), true);
+	return mjl_timeline_aggregate_sources(array($creation, $validations, $documents, $comments), true);
 }
 
 function mjl_expenses_next_action_label($row)
@@ -839,8 +842,8 @@ function mjl_expense_action_label($action)
 {
 	$map = array(
 		'submitted' => 'Soumission',
-		'validated' => 'Validation legacy',
-		'legacy_validated' => 'Validation legacy',
+		'validated' => 'Validation enregistrée',
+		'legacy_validated' => 'Validation enregistrée',
 		'prevalidated' => 'Prevalidation',
 		'final_validated' => 'Validation definitive',
 		'disbursed' => 'Decaissement',

@@ -289,7 +289,7 @@ test('Return for correction preserves previous decision through correction and r
   await expect(page.getByText('Correction demandee', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enregistrer la correction' })).toBeVisible();
   await page.locator('input[name="label"]').fill('Activite Phase 7 corrigee');
-  await page.locator('input[name="comment"]').first().fill('Libelle corrige Phase 7');
+  await page.locator('#mjl-correction-comment').fill('Libelle corrige Phase 7');
   await page.getByRole('button', { name: 'Enregistrer la correction' }).click();
   await expect(page.getByText('Libelle corrige Phase 7')).toBeVisible();
 
