@@ -25,11 +25,18 @@ function scalar(query) {
 }
 
 async function login(page, username, userPassword = password) {
-  await page.goto('/user/logout.php').catch(() => {});
-  await page.goto('/index.php');
-  await page.getByLabel('Identifiant').fill(username);
-  await page.getByLabel('Mot de passe').fill(userPassword);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+	await page.goto('/user/logout.php').catch(() => {});
+	await page.goto('/index.php');
+	await page.getByLabel('Identifiant').fill(username);
+	await page.getByLabel('Mot de passe').fill(userPassword);
+	await page.getByRole('button', { name: 'Connexion' }).click();
+}
+
+async function confirmDecision(page, buttonName) {
+	await page.getByRole('button', { name: buttonName }).click();
+	const dialog = page.getByRole('dialog', { name: 'Confirmer la décision' });
+	await expect(dialog).toBeVisible();
+	await dialog.getByRole('button', { name: 'Confirmer', exact: true }).click();
 }
 
 async function expensePostToken(page, expenseId) {
@@ -127,23 +134,23 @@ test('expense moves through prevalidation, final validation, and disbursement wi
   await page.getByLabel('Montant prevalide').fill('1000');
   await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 5');
   await page.getByRole('button', { name: 'Prevalider la depense' }).click();
-  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  await expect(page.getByText('Prévalidée').first()).toBeVisible();
   await expect(page.getByText('Prevalidation Phase 5')).toBeVisible();
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
   await page.getByLabel('Montant valide definitivement').fill('1000');
   await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 5');
-  await page.getByRole('button', { name: 'Valider definitivement' }).click();
-  await expect(page.getByText('Validee definitivement').first()).toBeVisible();
+  await confirmDecision(page, 'Valider definitivement');
+  await expect(page.getByText('Validée définitivement').first()).toBeVisible();
   await expect(page.getByText('Validation definitive Phase 5')).toBeVisible();
   expect(Number(scalar("SELECT ROUND(committed_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(1000);
   expect(Number(scalar("SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(0);
 
   await page.getByLabel('Beneficiaire').fill('Cabinet Phase 5');
   await page.getByLabel('Date decaissement').fill('2026-07-08');
-  await page.getByRole('button', { name: 'Enregistrer le decaissement' }).click();
-  await expect(page.getByText('Decaissee').first()).toBeVisible();
+  await confirmDecision(page, 'Enregistrer le decaissement');
+  await expect(page.getByText('Décaissée').first()).toBeVisible();
   await expect(page.getByText('Cabinet Phase 5')).toBeVisible();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${flowId}`))).toBe(7);
   expect(Number(scalar("SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(1000);
@@ -161,13 +168,13 @@ test('missing document and overspend block final approval paths', async ({ page 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${overBudgetId}`);
   await page.getByLabel('Montant prevalide').fill('12000');
   await page.getByRole('button', { name: 'Prevalider la depense' }).click();
-  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  await expect(page.getByText('Prévalidée').first()).toBeVisible();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${overBudgetId}`))).toBe(4);
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${overBudgetId}`);
   await page.getByLabel('Montant valide definitivement').fill('12000');
-  await page.getByRole('button', { name: 'Valider definitivement' }).click();
+  await confirmDecision(page, 'Valider definitivement');
   await expect(page.getByText(/exceeds|depasse|dépasse|budget/i).first()).toBeVisible();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${overBudgetId}`))).toBe(4);
 });

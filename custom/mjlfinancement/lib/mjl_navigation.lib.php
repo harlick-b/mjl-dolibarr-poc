@@ -255,6 +255,8 @@ function mjl_navigation_section_is_active($section, $activeKey)
 
 function mjl_navigation_shell_end()
 {
+	print '<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/activities.js"></script>';
+	print '<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_components.js"></script>';
 	print '</main>';
 	print '</div>';
 }

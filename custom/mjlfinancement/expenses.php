@@ -10,6 +10,8 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.ph
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
 
 if (!mjl_workspace_can_access_expense($user)) {
 	accessforbidden();
@@ -36,6 +38,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $mjl_expenses_page_token = function_exists('newToken') ? newToken() : '';
 $expenseId = GETPOSTINT('id');
+$mjl_expense_recovery = mjl_form_recovery_consume_route(
+	GETPOST('mjl_recovery', 'alphanohtml'),
+	array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'expenses', 'object_id' => $expenseId),
+	array('comment' => array('add_exchange'))
+);
 
 llxHeader('', 'Depenses MJL');
 mjl_navigation_shell_start($user, 'expenses');
@@ -79,7 +86,9 @@ function mjl_expenses_handle_post($action)
 		$expense->fk_user_creat = $user->id;
 		$result = $expense->create($user);
 		if ($result <= 0) {
-			setEventMessages($expense->error ?: 'Creation depense refusee', null, 'errors');
+			$errors = mjl_form_translate_domain_error($expense->error);
+			setEventMessages(!empty($errors) ? reset($errors) : mjl_ui_safe_error_message('unknown'), null, 'errors');
+			mjl_ui_log_error('domain', array('route' => 'expenses', 'action' => 'create', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id, 'object_type' => 'expense'), $expense->error);
 			mjl_expenses_redirect(0);
 		}
 		setEventMessages('Depense creee en brouillon', null, 'mesgs');
@@ -93,7 +102,25 @@ function mjl_expenses_handle_post($action)
 	}
 	if ($action === 'add_exchange') {
 		list($result, $message) = mjl_timeline_create_comment($user, 'mjlfinancement_expense', $id, GETPOST('message', 'restricthtml'));
-		setEventMessages($message, null, $result > 0 ? 'mesgs' : 'errors');
+		if ($result <= 0) {
+			$reason = '';
+			$handle = mjl_form_recovery_store(array(
+				'user_id' => (int) $user->id,
+				'entity' => (int) $conf->entity,
+				'route' => 'expenses',
+				'form' => 'comment',
+				'action' => 'add_exchange',
+				'object_id' => $id,
+			), array('message' => GETPOST('message', 'restricthtml')), array('message'), $reason, array('message' => $message));
+			if ($handle === '' && $reason === 'capacity') setEventMessages('La récupération du commentaire est indisponible. Copiez votre texte avant de réessayer.', null, 'warnings');
+			setEventMessages($message, null, 'errors');
+			mjl_expenses_redirect($id, $handle);
+		}
+		setEventMessages($message, null, 'mesgs');
+		mjl_expenses_redirect($id);
+	}
+	if (mjl_expenses_handle_stale_form($row, $action)) {
+		setEventMessages('Cette décision a déjà été traitée ou l’état de la dépense a changé. La page a été actualisée.', null, 'warnings');
 		mjl_expenses_redirect($id);
 	}
 	if (!mjl_expenses_can_apply_action($row, $action)) {
@@ -116,10 +143,35 @@ function mjl_expenses_handle_post($action)
 	elseif ($action === 'upload') $result = mjl_expenses_upload_document($expense);
 	else mjl_expenses_redirect($id);
 
-	if ($result < 0) setEventMessages($expense->error ?: 'Action refusee', null, 'errors');
+	if ($result < 0) {
+		$errors = mjl_form_translate_domain_error($expense->error);
+		setEventMessages(!empty($errors) ? reset($errors) : mjl_ui_safe_error_message('unknown'), null, 'errors');
+		mjl_ui_log_error('domain', array('route' => 'expenses', 'action' => $action, 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id, 'object_type' => 'expense', 'object_id' => $id), $expense->error);
+	}
 	elseif ($result === 0) setEventMessages('Aucun changement applique', null, 'warnings');
 	else setEventMessages('Action enregistree', null, 'mesgs');
 	mjl_expenses_redirect($id);
+}
+
+function mjl_expenses_handle_stale_form($row, $action)
+{
+	global $user;
+	$posted = GETPOST('expected_status', 'alphanohtml');
+	if ($posted === '' || !preg_match('/^[0-9]+$/', (string) $posted)) return false;
+	if ((int) $row['fk_user_creat'] === (int) $user->id) return false;
+	$current = (int) $row['status'];
+	$expected = (int) $posted;
+	if ($current === $expected) return false;
+	if ($action === 'final_validate' && mjl_scope_is_final_validator($user) && $expected === MjlExpense::STATUS_PREVALIDATED) {
+		return in_array($current, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_DISBURSED, MjlExpense::STATUS_REJECTED), true);
+	}
+	if ($action === 'disburse' && mjl_scope_is_final_validator($user) && in_array($expected, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED), true)) {
+		return $current === MjlExpense::STATUS_DISBURSED;
+	}
+	if ($action === 'reject' && (mjl_scope_is_verifier($user) || mjl_scope_is_final_validator($user)) && in_array($expected, array(MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_PREVALIDATED), true)) {
+		return in_array($current, array(MjlExpense::STATUS_CORRECTED, MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_DISBURSED, MjlExpense::STATUS_REJECTED), true);
+	}
+	return false;
 }
 
 function mjl_expenses_forbidden($message = '')
@@ -132,12 +184,13 @@ function mjl_expenses_forbidden($message = '')
 	accessforbidden($message);
 }
 
-function mjl_expenses_redirect($id)
+function mjl_expenses_redirect($id, $recoveryHandle = '')
 {
 	$url = DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php';
-	if ((int) $id > 0) {
-		$url .= '?id='.((int) $id);
-	}
+	$query = array();
+	if ((int) $id > 0) $query['id'] = (int) $id;
+	if ((string) $recoveryHandle !== '') $query['mjl_recovery'] = (string) $recoveryHandle;
+	if (!empty($query)) $url .= '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 	header('Location: '.$url);
 	exit;
 }
@@ -348,7 +401,8 @@ function mjl_expenses_list()
 	$sql .= ' ORDER BY e.rowid DESC LIMIT 100';
 	$resql = $db->query($sql);
 	if (!$resql) {
-		print '<div class="error">'.$db->lasterror().'</div>';
+		mjl_ui_log_error('database', array('route' => 'expenses', 'action' => 'list', 'entity' => (int) $conf->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
+		print mjl_ui_system_state('danger', 'Liste indisponible', mjl_ui_safe_error_message('database'), array('href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php', 'action' => 'Réessayer'));
 		return;
 	}
 
@@ -426,8 +480,14 @@ function mjl_expenses_render_decision_panel($row)
 	}
 	foreach ($actions as $action => $meta) {
 		if ($action === 'update') continue;
-		print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
+		$consequence = mjl_expenses_decision_consequence($action);
+		print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate';
+		if ($consequence !== '') {
+			print ' data-mjl-confirm="'.dol_escape_htmltag($action).'" data-mjl-object="'.dol_escape_htmltag($row['ref']).'" data-mjl-transition="'.dol_escape_htmltag($meta['label']).'"';
+		}
+		print '>';
 		print mjl_expenses_token_input().'<input type="hidden" name="action" value="'.dol_escape_htmltag($action).'"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+		print '<input type="hidden" name="expected_status" value="'.((int) $row['status']).'">';
 		if (!empty($meta['amount_field'])) {
 			print '<label>'.dol_escape_htmltag($meta['amount_label']).'<input required name="'.dol_escape_htmltag($meta['amount_field']).'" value="'.dol_escape_htmltag((string) $meta['amount_default']).'"></label>';
 		}
@@ -436,12 +496,27 @@ function mjl_expenses_render_decision_panel($row)
 			print '<label>Date decaissement<input required type="date" name="disbursement_date" value="'.dol_escape_htmltag(date('Y-m-d')).'"></label>';
 		}
 		if (!empty($meta['comment'])) {
-			print '<label>'.dol_escape_htmltag($meta['comment']).'<input'.(!empty($meta['required']) ? ' required' : '').' name="comment"></label>';
+			if (in_array($action, array('reject', 'correct'), true)) {
+				print '<label>'.dol_escape_htmltag($meta['comment']).'<textarea'.(!empty($meta['required']) ? ' required' : '').' name="comment"></textarea></label>';
+			} else {
+				print '<label>'.dol_escape_htmltag($meta['comment']).'<input'.(!empty($meta['required']) ? ' required' : '').' name="comment"></label>';
+			}
 		}
-		print '<input class="button" type="submit" value="'.dol_escape_htmltag($meta['label']).'">';
+		if ($consequence !== '') {
+			print '<div class="mjl-decision-consequence" data-mjl-consequence><strong>Conséquence de cette décision</strong><p>'.dol_escape_htmltag($consequence).'</p></div>';
+		}
+		print '<button class="button" type="submit">'.dol_escape_htmltag($meta['label']).'</button>';
 		print '</form>';
 	}
 	print '</section>';
+}
+
+function mjl_expenses_decision_consequence($action)
+{
+	if ($action === 'final_validate') return 'La validation définitive approuve la décision métier. Elle ne signifie pas que les fonds ont été décaissés.';
+	if ($action === 'reject') return 'Le rejet interrompt le traitement et exige une correction motivée avant toute nouvelle soumission.';
+	if ($action === 'disburse') return 'Le décaissement confirme que les fonds ont effectivement été versés.';
+	return '';
 }
 
 function mjl_expenses_render_document_panel($row)
@@ -486,21 +561,16 @@ function mjl_expenses_render_document_panel($row)
 
 function mjl_expenses_render_timeline($expense)
 {
-	$items = mjl_expenses_timeline_items($expense);
+	$result = mjl_expenses_timeline_result($expense);
+	$commentRecovery = array('values' => array(), 'errors' => array());
+	if (is_array($GLOBALS['mjl_expense_recovery'] ?? null) && ($GLOBALS['mjl_expense_recovery']['context']['form'] ?? '') === 'comment') {
+		$commentRecovery = array('values' => (array) ($GLOBALS['mjl_expense_recovery']['values'] ?? array()), 'errors' => (array) ($GLOBALS['mjl_expense_recovery']['errors'] ?? array()));
+	}
 	print '<section class="mjl-workspace-section mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Historique de decision et commentaires</h2><p>Soumissions, corrections, decisions et echanges contextualises.</p></div>';
-	mjl_timeline_render_comment_form('mjlfinancement_expense', (int) $expense['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $expense['rowid']));
-	print '<ol class="mjl-activity-timeline">';
-	foreach ($items as $item) {
-		print '<li><span class="mjl-status-pill">'.dol_escape_htmltag($item['label']).'</span>';
-		print '<strong>'.dol_escape_htmltag($item['title']).'</strong>';
-		print '<p>'.dol_escape_htmltag($item['meta']).'</p>';
-		if ($item['comment'] !== '') {
-			print '<p class="mjl-timeline-comment">'.dol_escape_htmltag($item['comment']).'</p>';
-		}
-		print '</li>';
-	}
-	print '</ol></section>';
+	mjl_timeline_render_comment_form('mjlfinancement_expense', (int) $expense['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $expense['rowid']), $commentRecovery);
+	mjl_timeline_render($result, 'Aucun événement enregistré pour cette dépense.');
+	print '</section>';
 }
 
 function mjl_expenses_options($type)
@@ -622,7 +692,8 @@ function mjl_expenses_fetch_detail($id)
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity).' AND e.rowid = '.((int) $id);
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'expenses', 'action' => 'detail', 'entity' => (int) $conf->entity, 'user_id' => (int) $GLOBALS['user']->id, 'object_type' => 'expense', 'object_id' => (int) $id), $db->lasterror());
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
@@ -684,36 +755,48 @@ function mjl_expenses_available_actions($row)
 
 function mjl_expenses_timeline_items($expense)
 {
+	$result = mjl_expenses_timeline_result($expense);
+	return $result['items'];
+}
+
+function mjl_expenses_timeline_result($expense)
+{
 	global $db, $conf;
 
-	$items = array(array(
-		'label' => 'Creee',
-		'title' => 'Depense creee',
+	$creation = array('source' => 'creation', 'order' => 0, 'errors' => array(), 'items' => array(array(
+		'rowid' => 0,
+		'label' => 'Créée',
+		'title' => 'Dépense créée',
 		'meta' => mjl_expenses_format_datetime($expense['date_creation'] ?? '').' par '.$expense['creator_login'],
 		'comment' => '',
-	));
-	$sql = 'SELECT v.action, v.from_status, v.to_status, v.action_date, v.comment, v.actor_role, u.login';
+		'changes' => array(),
+		'sort_date' => (string) ($expense['date_creation'] ?? ''),
+	)));
+	$sql = 'SELECT v.rowid, v.action, v.from_status, v.to_status, v.action_date, v.comment, v.actor_role, u.login';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = v.fk_user_action';
 	$sql .= ' WHERE v.entity = '.((int) $conf->entity).' AND v.fk_expense = '.((int) $expense['rowid']);
 	$sql .= ' ORDER BY v.action_date ASC, v.rowid ASC';
 	$resql = $db->query($sql);
+	$validations = array('source' => 'validation', 'order' => 10, 'items' => array(), 'errors' => array());
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
-		return $items;
+		$validations['errors'][] = 'database';
+		mjl_ui_log_error('database', array('route' => 'expenses', 'action' => 'timeline_validation', 'entity' => (int) $conf->entity, 'object_type' => 'expense', 'object_id' => (int) $expense['rowid']), $db->lasterror());
+	} else {
+		while ($row = $db->fetch_object($resql)) {
+			$validations['items'][] = array(
+				'rowid' => (int) $row->rowid,
+				'label' => mjl_expense_action_label($row->action),
+				'title' => mjl_expense_status_text($row->from_status).' vers '.mjl_expense_status_text($row->to_status),
+				'meta' => mjl_expenses_format_datetime($row->action_date).' par '.($row->login ?: 'système').($row->actor_role ? ' ('.mjl_expense_actor_role_label($row->actor_role).')' : ''),
+				'comment' => (string) $row->comment,
+				'changes' => array(),
+				'sort_date' => (string) $row->action_date,
+			);
+		}
 	}
-	while ($row = $db->fetch_object($resql)) {
-		$items[] = array(
-			'label' => mjl_expense_action_label($row->action),
-			'title' => mjl_expense_status_text($row->from_status).' vers '.mjl_expense_status_text($row->to_status),
-			'meta' => mjl_expenses_format_datetime($row->action_date).' par '.$row->login.($row->actor_role ? ' ('.mjl_expense_actor_role_label($row->actor_role).')' : ''),
-			'comment' => (string) $row->comment,
-		);
-	}
-	foreach (mjl_timeline_exchange_items('mjlfinancement_expense', (int) $expense['rowid'], true) as $item) {
-		$items[] = $item;
-	}
-	return $items;
+	$comments = mjl_timeline_exchange_result('mjlfinancement_expense', (int) $expense['rowid'], true);
+	return mjl_timeline_aggregate_sources(array($creation, $validations, $comments), true);
 }
 
 function mjl_expenses_next_action_label($row)
@@ -749,27 +832,7 @@ function mjl_expenses_status_label($status)
 
 function mjl_expense_status_text($status)
 {
-	$map = array(
-		(string) MjlExpense::STATUS_DRAFT => 'Brouillon',
-		(string) MjlExpense::STATUS_SUBMITTED => 'Soumise',
-		(string) MjlExpense::STATUS_VALIDATED => 'Validee definitivement (compatibilite historique)',
-		(string) MjlExpense::STATUS_CORRECTED => 'Corrigee',
-		(string) MjlExpense::STATUS_PREVALIDATED => 'Prevalidee',
-		(string) MjlExpense::STATUS_FINAL_VALIDATED => 'Validee definitivement',
-		(string) MjlExpense::STATUS_DISBURSED => 'Decaissee',
-		(string) MjlExpense::STATUS_REJECTED => 'Rejetee',
-		'draft' => 'Brouillon',
-		'submitted' => 'Soumise',
-		'legacy_validated' => 'Validee definitivement (compatibilite historique)',
-		'validated' => 'Validee definitivement (compatibilite historique)',
-		'prevalidated' => 'Prevalidee',
-		'final_validated' => 'Validee definitivement',
-		'disbursed' => 'Decaissee',
-		'corrected' => 'Corrigee',
-		'rejected' => 'Rejetee',
-	);
-	$key = (string) $status;
-	return isset($map[$key]) ? $map[$key] : $key;
+	return mjl_ui_expense_status($status)['label'];
 }
 
 function mjl_expense_action_label($action)
@@ -790,10 +853,7 @@ function mjl_expense_action_label($action)
 
 function mjl_expenses_status_badge($status)
 {
-	$tone = in_array((int) $status, array(MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_CORRECTED, MjlExpense::STATUS_PREVALIDATED, MjlExpense::STATUS_FINAL_VALIDATED), true) ? 'warning' : 'neutral';
-	if ((int) $status === MjlExpense::STATUS_DISBURSED) $tone = 'success';
-	if ((int) $status === MjlExpense::STATUS_REJECTED) $tone = 'danger';
-	return '<span class="mjl-status-pill'.($tone !== 'neutral' ? ' mjl-status-'.$tone : '').'">'.dol_escape_htmltag(mjl_expenses_status_label($status)).'</span>';
+	return mjl_ui_status_badge(mjl_ui_expense_status($status));
 }
 
 function mjl_expenses_money_or_empty($value)

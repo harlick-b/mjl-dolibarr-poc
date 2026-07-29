@@ -6,6 +6,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_access.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_expense_access.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
 mjl_workspace_require_partners_access($user);
 
@@ -429,7 +430,8 @@ function mjl_partners_fetch_all($sql)
 	global $db;
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'partners', 'action' => 'load_summary', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
 		return array();
 	}
 	$rows = array();
@@ -445,14 +447,12 @@ function mjl_partners_status($status)
 
 function mjl_partners_activity_status($status)
 {
-	$map = array(0 => 'Brouillon', 1 => 'En cours', 2 => 'Terminee', 3 => 'Soumise', 4 => 'Correction demandee', 5 => 'Corrigee', 6 => 'Validee definitivement', 7 => 'Prevalidee', 8 => 'Rejetee', 9 => 'Annulee');
-	return isset($map[(int) $status]) ? $map[(int) $status] : 'Statut '.$status;
+	return mjl_ui_activity_status($status)['label'];
 }
 
 function mjl_partners_expense_status($status)
 {
-	$map = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee definitivement (compatibilite historique)', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
-	return isset($map[(int) $status]) ? $map[(int) $status] : 'Statut '.$status;
+	return mjl_ui_expense_status($status)['label'];
 }
 
 function mjl_partners_action_label($action)

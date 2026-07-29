@@ -34,11 +34,18 @@ function scalar(query) {
 }
 
 async function login(page, username, userPassword = password) {
-  await page.goto('/user/logout.php').catch(() => {});
-  await page.goto('/index.php');
-  await page.getByLabel('Identifiant').fill(username);
-  await page.getByLabel('Mot de passe').fill(userPassword);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+	await page.goto('/user/logout.php').catch(() => {});
+	await page.goto('/index.php');
+	await page.getByLabel('Identifiant').fill(username);
+	await page.getByLabel('Mot de passe').fill(userPassword);
+	await page.getByRole('button', { name: 'Connexion' }).click();
+}
+
+async function confirmDecision(page, buttonName) {
+	await page.getByRole('button', { name: buttonName }).click();
+	const dialog = page.getByRole('dialog', { name: 'Confirmer la décision' });
+	await expect(dialog).toBeVisible();
+	await dialog.getByRole('button', { name: 'Confirmer', exact: true }).click();
 }
 
 async function expectAccessDenied(page) {
@@ -223,15 +230,15 @@ test('Level 2 prevalidates submitted expense, DPAF final-validates it, and ECM-o
   await page.getByLabel('Montant prevalide').fill('1100');
   await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 11');
   await page.getByRole('button', { name: 'Prevalider la depense' }).click();
-  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  await expect(page.getByText('Prévalidée').first()).toBeVisible();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'prevalidated' AND actor_role = 'AGENT_VERIFICATEUR'`))).toBe(1);
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedDocId}`);
   await page.getByLabel('Montant valide definitivement').fill('1100');
   await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 11');
-  await page.getByRole('button', { name: 'Valider definitivement' }).click();
-  await expect(page.getByText('Validee definitivement').first()).toBeVisible();
+  await confirmDecision(page, 'Valider definitivement');
+  await expect(page.getByText('Validée définitivement').first()).toBeVisible();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'final_validated' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${ecmOnlyId}`);
@@ -291,8 +298,8 @@ test('Reject, correct, and resubmit preserves decision comments', async ({ page 
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${correctionId}`);
   await page.getByLabel('Motif de rejet').fill('Motif rejet Phase 11');
-  await page.getByRole('button', { name: 'Rejeter la depense' }).click();
-  await expect(page.getByText('Rejetee').first()).toBeVisible();
+  await confirmDecision(page, 'Rejeter la depense');
+  await expect(page.getByText('Rejetée').first()).toBeVisible();
   await expect(page.getByText('Motif rejet Phase 11')).toBeVisible();
 
   await login(page, 'agent.mjl');
@@ -301,7 +308,7 @@ test('Reject, correct, and resubmit preserves decision comments', async ({ page 
   await page.getByRole('button', { name: 'Enregistrer la correction' }).click();
   await page.getByLabel('Motif de correction').fill('Correction Phase 11');
   await page.getByRole('button', { name: 'Marquer corrigee' }).click();
-  await expect(page.getByText('Corrigee').first()).toBeVisible();
+  await expect(page.getByText('Corrigée').first()).toBeVisible();
   await page.getByLabel('Commentaire de soumission').fill('Resoumission Phase 11');
   await page.getByRole('button', { name: 'Soumettre la depense' }).click();
   await expect(page.getByText('Soumise').first()).toBeVisible();

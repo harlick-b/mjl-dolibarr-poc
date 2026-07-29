@@ -155,7 +155,7 @@ test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page
   await page.locator('input[name="date_end"]').fill(relativeDate(14));
   await page.getByLabel('Execution physique (%)').fill('25');
   await page.locator('select[name="execution_status"]').selectOption('in_progress');
-  await page.getByRole('button', { name: 'Creer l activite' }).click();
+  await page.getByRole('button', { name: 'Créer l’activité' }).click();
 
   await expect(page).toHaveURL(/activities\.php\?id=\d+/);
   createdActivityId = Number(new URL(page.url()).searchParams.get('id'));
@@ -263,7 +263,7 @@ test('Level 2 prevalidates submitted activity, then final validator validates it
 
   await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 7');
   await page.getByRole('button', { name: 'Prevalider l activite' }).click();
-  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  await expect(page.getByText('Prévalidée').first()).toBeVisible();
   await expect(page.getByText('Prevalidation Phase 7')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Validation definitive' })).toHaveCount(0);
 
@@ -271,7 +271,7 @@ test('Level 2 prevalidates submitted activity, then final validator validates it
   await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
   await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 7');
   await page.getByRole('button', { name: 'Validation definitive' }).click();
-  await expect(page.getByText('Validee definitivement').first()).toBeVisible();
+  await expect(page.getByText('Validée définitivement').first()).toBeVisible();
   await expect(page.getByText('Validation definitive Phase 7')).toBeVisible();
 });
 
@@ -295,7 +295,7 @@ test('Return for correction preserves previous decision through correction and r
 
   await page.getByLabel('Commentaire de correction').fill('Correction terminee Phase 7');
   await page.getByRole('button', { name: 'Marquer corrigee' }).click();
-  await expect(page.getByText('Corrigee').first()).toBeVisible();
+  await expect(page.getByText('Corrigée').first()).toBeVisible();
 
   await page.getByLabel('Commentaire de soumission').fill('Resoumission Phase 7');
   await page.getByRole('button', { name: 'Soumettre l activite' }).click();

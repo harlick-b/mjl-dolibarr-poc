@@ -11,7 +11,8 @@ if (!mjl_alerts_user_can_read($user)) {
 
 $langs->load('mjlfinancement@mjlfinancement');
 $scope = mjl_alerts_normalize_scope(GETPOST('scope', 'alphanohtml'));
-$alerts = mjl_alerts_for_user($user, 100, $scope);
+$alertResult = mjl_alerts_result_for_user($user, 100, $scope);
+$alerts = $alertResult['items'];
 
 llxHeader('', 'Alertes MJL');
 
@@ -27,6 +28,9 @@ mjl_dashboard_render_header(
 print '<section class="mjl-workspace-section">';
 print '<div class="mjl-section-heading"><h2>Alertes actives</h2><p>Ces alertes sont calculees depuis les activites, depenses et pieces justificatives existantes.</p></div>';
 mjl_alerts_render_scope_filter($scope);
+if (!empty($alertResult['errors'])) {
+	print mjl_ui_system_state('partial-error', 'Alertes partiellement disponibles', mjl_ui_safe_error_message('alerts'));
+}
 if (empty($alerts)) {
 	print '<div class="mjl-empty-state">Aucune alerte active dans votre perimetre.</div>';
 } else {

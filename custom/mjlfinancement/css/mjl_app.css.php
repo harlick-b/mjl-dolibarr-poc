@@ -668,6 +668,168 @@ a.tmenu[href^="/api/"] {
 	align-self: end;
 }
 
+.mjl-form-field {
+	display: grid;
+	gap: 5px;
+}
+
+.mjl-field-requirement,
+.mjl-field-description {
+	color: var(--mjl-color-text-muted);
+	font-size: 12px;
+	font-weight: 400;
+	margin: 0;
+}
+
+.mjl-form-field-error :where(input, select, textarea),
+.mjl-module-shell [aria-invalid="true"] {
+	border-color: var(--mjl-color-danger);
+}
+
+.mjl-field-error-message {
+	color: var(--mjl-color-danger);
+	font-size: 13px;
+	font-weight: 700;
+	margin: 0;
+}
+
+.mjl-form-error-summary {
+	background: var(--mjl-color-danger-surface);
+	border: 2px solid var(--mjl-color-danger);
+	border-radius: var(--mjl-radius-card);
+	color: var(--mjl-color-danger);
+	grid-column: 1 / -1;
+	padding: var(--mjl-space-4);
+}
+
+.mjl-form-error-summary ul {
+	margin: var(--mjl-space-2) 0 0;
+	padding-left: var(--mjl-space-5);
+}
+
+.mjl-form-error-summary a {
+	color: var(--mjl-color-danger);
+}
+
+.mjl-system-state {
+	border: 1px solid var(--mjl-color-border-subtle);
+	border-left-width: 4px;
+	border-radius: var(--mjl-radius-card);
+	margin: var(--mjl-space-3) 0;
+	padding: var(--mjl-space-3) var(--mjl-space-4);
+}
+
+.mjl-system-state strong,
+.mjl-system-state p {
+	display: block;
+	margin: 0 0 var(--mjl-space-2);
+}
+
+.mjl-system-state-info,
+.mjl-system-state-loading {
+	background: var(--mjl-color-surface-selected);
+	border-left-color: var(--mjl-color-action);
+}
+
+.mjl-system-state-success {
+	background: #edf7f1;
+	border-left-color: #1f6b3a;
+}
+
+.mjl-system-state-warning,
+.mjl-system-state-partial-error,
+.mjl-system-state-unavailable {
+	background: #fff4df;
+	border-left-color: #d99a2b;
+}
+
+.mjl-system-state-danger,
+.mjl-system-state-permission {
+	background: var(--mjl-color-danger-surface);
+	border-left-color: var(--mjl-color-danger);
+}
+
+.mjl-table-filters {
+	align-items: end;
+	display: grid;
+	gap: var(--mjl-space-3);
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	margin-bottom: var(--mjl-space-4);
+}
+
+.mjl-table-filters label {
+	display: grid;
+	font-size: 13px;
+	font-weight: 700;
+	gap: var(--mjl-space-1);
+}
+
+.mjl-table-filters select {
+	box-sizing: border-box;
+	min-height: 40px;
+	width: 100%;
+}
+
+.mjl-scoped-count {
+	color: var(--mjl-color-text-secondary);
+	font-size: 13px;
+}
+
+.mjl-pagination {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--mjl-space-3);
+	justify-content: space-between;
+	margin-top: var(--mjl-space-4);
+}
+
+.mjl-decision-consequence {
+	background: #fff4df;
+	border: 1px solid #d99a2b;
+	border-radius: var(--mjl-radius-card);
+	color: #6f4200;
+	padding: var(--mjl-space-3);
+}
+
+.mjl-decision-consequence strong,
+.mjl-decision-consequence p {
+	display: block;
+	margin: 0 0 var(--mjl-space-1);
+}
+
+.mjl-confirmation-dialog {
+	background: transparent;
+	border: 0;
+	max-width: min(560px, calc(100vw - 32px));
+	padding: 0;
+}
+
+.mjl-confirmation-dialog::backdrop {
+	background: rgba(22, 50, 79, 0.55);
+}
+
+.mjl-confirmation-panel {
+	background: var(--mjl-color-surface);
+	border-radius: var(--mjl-radius-panel);
+	box-shadow: var(--mjl-shadow-panel);
+	color: var(--mjl-color-text);
+	padding: var(--mjl-space-6);
+}
+
+.mjl-confirmation-panel h2 {
+	color: var(--mjl-color-primary);
+	margin-top: 0;
+}
+
+.mjl-confirmation-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--mjl-space-3);
+	justify-content: flex-end;
+	margin-top: var(--mjl-space-5);
+}
+
 .mjl-activity-meta {
 	display: grid;
 	gap: 12px;
@@ -870,6 +1032,66 @@ a.tmenu[href^="/api/"] {
 		box-sizing: border-box;
 		display: grid;
 		min-height: var(--mjl-touch-target);
+	}
+}
+
+@media (max-width: 768px) {
+	.mjl-operational-table table,
+	.mjl-operational-table tbody,
+	.mjl-operational-table tr,
+	.mjl-operational-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.mjl-operational-table thead {
+		border: 0;
+		clip: rect(0 0 0 0);
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		padding: 0;
+		position: absolute;
+		white-space: nowrap;
+		width: 1px;
+	}
+
+	.mjl-operational-table tr {
+		border: 1px solid var(--mjl-color-border-subtle);
+		border-radius: var(--mjl-radius-card);
+		box-sizing: border-box;
+		margin-bottom: var(--mjl-space-3);
+		padding: var(--mjl-space-3);
+	}
+
+	.mjl-operational-table td {
+		border: 0;
+		box-sizing: border-box;
+		display: grid;
+		gap: var(--mjl-space-2);
+		grid-template-columns: minmax(110px, 35%) 1fr;
+		padding: var(--mjl-space-2) 0;
+		text-align: left !important;
+	}
+
+	.mjl-operational-table td::before {
+		color: var(--mjl-color-text-muted);
+		content: attr(data-label);
+		font-size: 12px;
+		font-weight: 700;
+		text-transform: uppercase;
+	}
+
+	.mjl-operational-table .mjl-table-empty-row {
+		display: table-row;
+	}
+
+	.mjl-operational-table .mjl-table-empty-row td {
+		display: block;
+	}
+
+	.mjl-operational-table .mjl-table-empty-row td::before {
+		content: none;
 	}
 }
 

@@ -8,6 +8,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_expense_access.li
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
 mjl_workspace_require_projects_access($user);
 
@@ -85,7 +86,8 @@ function mjl_projects_handle_project_post($action, $projectId)
 		$sql .= ' (entity, ref, title, description, fk_soc, fk_statut, dateo, datee, public, usage_task, datec, fk_user_creat)';
 		$sql .= ' VALUES ('.((int) $conf->entity).", '".$db->escape($ref)."', '".$db->escape($title)."', '".$db->escape($description)."', ".((int) $fkSoc).', '.$status.', '.$dateStart.', '.$dateEnd.', 0, 1, NOW(), '.((int) $user->id).')';
 		if (!$db->query($sql)) {
-			setEventMessages($db->lasterror(), null, 'errors');
+			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+			mjl_ui_log_error('database', array('route' => 'projects', 'action' => 'create', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id), $db->lasterror());
 			mjl_projects_redirect(0);
 		}
 		$newProjectId = (int) $db->last_insert_id($db->prefix().'projet');
@@ -107,7 +109,8 @@ function mjl_projects_handle_project_post($action, $projectId)
 	$sql .= ', fk_soc = '.((int) $fkSoc).', fk_statut = '.$status.', dateo = '.$dateStart.', datee = '.$dateEnd.', fk_user_modif = '.((int) $user->id);
 	$sql .= ' WHERE entity = '.((int) $conf->entity).' AND rowid = '.((int) $projectId);
 	if (!$db->query($sql)) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'projects', 'action' => 'update', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id, 'object_type' => 'project', 'object_id' => (int) $projectId), $db->lasterror());
 	} else {
 		$changes = mjl_projects_changed_fields($current, array(
 			'ref' => $ref,
@@ -599,7 +602,8 @@ function mjl_projects_fetch_all($sql)
 	global $db;
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'projects', 'action' => 'load_summary', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
 		return array();
 	}
 	$rows = array();
@@ -622,14 +626,12 @@ function mjl_projects_status_label($status)
 
 function mjl_projects_activity_status_label($status)
 {
-	$labels = array(0 => 'Brouillon', 1 => 'En cours', 2 => 'Terminee', 3 => 'Soumise', 4 => 'Correction demandee', 5 => 'Corrigee', 6 => 'Validee definitivement', 7 => 'Prevalidee', 8 => 'Rejetee', 9 => 'Annulee');
-	return isset($labels[(int) $status]) ? $labels[(int) $status] : 'Statut '.$status;
+	return mjl_ui_activity_status($status)['label'];
 }
 
 function mjl_projects_expense_status_label($status)
 {
-	$labels = array(0 => 'Brouillon', 1 => 'Soumise', 2 => 'Validee definitivement (compatibilite historique)', 3 => 'Corrigee', 4 => 'Prevalidee', 6 => 'Validee definitivement', 7 => 'Decaissee', 8 => 'Rejetee');
-	return isset($labels[(int) $status]) ? $labels[(int) $status] : 'Statut '.$status;
+	return mjl_ui_expense_status($status)['label'];
 }
 
 function mjl_projects_activity_deadline_alert($dateEnd, $status)

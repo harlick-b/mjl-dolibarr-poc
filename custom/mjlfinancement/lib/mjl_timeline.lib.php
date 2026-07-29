@@ -3,6 +3,8 @@
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexchangelog.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_result.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
 function mjl_timeline_supported_object_types()
 {
@@ -120,17 +122,24 @@ function mjl_timeline_create_comment(User $actor, $objectType, $objectId, $messa
 	$log->fk_user_creat = (int) $actor->id;
 	$result = $log->create($actor);
 	if ($result <= 0) {
-		return array(-1, $log->error ?: $db->lasterror());
+		mjl_ui_log_error('database', array('route' => 'timeline', 'action' => 'create_comment', 'entity' => (int) $conf->entity, 'user_id' => (int) $actor->id, 'object_type' => $objectType, 'object_id' => $objectId), $log->error ?: $db->lasterror());
+		return array(-1, 'Le commentaire n’a pas pu être ajouté. Veuillez réessayer.');
 	}
 	return array((int) $result, 'Commentaire ajoute.');
 }
 
 function mjl_timeline_exchange_items($objectType, $objectId, $ascending = true)
 {
+	$result = mjl_timeline_exchange_result($objectType, $objectId, $ascending);
+	return $result['items'];
+}
+
+function mjl_timeline_exchange_result($objectType, $objectId, $ascending = true)
+{
 	global $db, $conf;
 
 	if (!mjl_timeline_is_supported_object_type($objectType) || (int) $objectId <= 0) {
-		return array();
+		return array('source' => 'comments', 'order' => 30, 'items' => array(), 'errors' => array());
 	}
 	$order = $ascending ? 'ASC' : 'DESC';
 	$sql = 'SELECT x.rowid, x.exchange_date, x.subject, x.message, x.actor_role, x.channel, u.login';
@@ -142,8 +151,8 @@ function mjl_timeline_exchange_items($objectType, $objectId, $ascending = true)
 	$sql .= ' ORDER BY x.exchange_date '.$order.', x.rowid '.$order;
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
-		return array();
+		mjl_ui_log_error('database', array('route' => 'timeline', 'action' => 'load_comments', 'entity' => (int) $conf->entity, 'object_type' => $objectType, 'object_id' => (int) $objectId), $db->lasterror());
+		return array('source' => 'comments', 'order' => 30, 'items' => array(), 'errors' => array('database'));
 	}
 	$items = array();
 	while ($obj = $db->fetch_object($resql)) {
@@ -157,10 +166,37 @@ function mjl_timeline_exchange_items($objectType, $objectId, $ascending = true)
 			'sort_date' => (string) $obj->exchange_date,
 		);
 	}
-	return $items;
+	return array('source' => 'comments', 'order' => 30, 'items' => $items, 'errors' => array());
 }
 
-function mjl_timeline_render_comment_form($objectType, $objectId, $actionUrl)
+function mjl_timeline_render($result, $emptyMessage = 'Aucun événement enregistré.')
+{
+	if (!empty($result['errors'])) {
+		print mjl_ui_system_state('partial-error', 'Historique partiellement disponible', mjl_ui_safe_error_message('timeline'));
+	}
+	if (empty($result['items'])) {
+		print mjl_ui_system_state('initial-empty', 'Historique vide', $emptyMessage);
+		return;
+	}
+	print '<ol class="mjl-activity-timeline">';
+	foreach ($result['items'] as $item) {
+		print '<li><span class="mjl-status-pill">'.dol_escape_htmltag($item['label'] ?? 'Événement').'</span>';
+		print '<strong>'.dol_escape_htmltag($item['title'] ?? 'Événement').'</strong>';
+		if (!empty($item['meta'])) print '<p>'.dol_escape_htmltag($item['meta']).'</p>';
+		if (!empty($item['comment'])) print '<p class="mjl-timeline-comment">'.dol_escape_htmltag($item['comment']).'</p>';
+		if (!empty($item['changes'])) {
+			print '<dl class="mjl-timeline-changes">';
+			foreach ($item['changes'] as $label => $value) {
+				print '<div><dt>'.dol_escape_htmltag($label).'</dt><dd>'.dol_escape_htmltag($value).'</dd></div>';
+			}
+			print '</dl>';
+		}
+		print '</li>';
+	}
+	print '</ol>';
+}
+
+function mjl_timeline_render_comment_form($objectType, $objectId, $actionUrl, $recovery = array())
 {
 	global $user;
 
@@ -172,33 +208,20 @@ function mjl_timeline_render_comment_form($objectType, $objectId, $actionUrl)
 	print '<input type="hidden" name="action" value="add_exchange">';
 	print '<input type="hidden" name="object_type" value="'.dol_escape_htmltag($objectType).'">';
 	print '<input type="hidden" name="id" value="'.((int) $objectId).'">';
-	print '<label>Commentaire<textarea required name="message"></textarea></label>';
+	if (!empty($recovery['errors']) && function_exists('mjl_form_error_summary')) print mjl_form_error_summary($recovery['errors']);
+	print '<label>Commentaire<textarea required name="message">'.dol_escape_htmltag($recovery['values']['message'] ?? '').'</textarea></label>';
 	print '<div><button class="button" type="submit">Ajouter le commentaire</button></div>';
 	print '</form>';
 }
 
 function mjl_timeline_render_contextual_exchange_section($objectType, $objectId, $actionUrl)
 {
-	$items = mjl_timeline_exchange_items($objectType, $objectId, false);
+	$result = mjl_timeline_exchange_result($objectType, $objectId, false);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Commentaires contextuels</h2><p>Echanges rattaches directement a cet objet.</p></div>';
 	mjl_timeline_render_comment_form($objectType, $objectId, $actionUrl);
-	if (empty($items)) {
-		print '<div class="mjl-empty-state">Aucun commentaire contextuel.</div>';
-		print '</section>';
-		return;
-	}
-	print '<ol class="mjl-activity-timeline">';
-	foreach ($items as $item) {
-		print '<li><span class="mjl-status-pill">'.dol_escape_htmltag($item['label']).'</span>';
-		print '<strong>'.dol_escape_htmltag($item['title']).'</strong>';
-		print '<p>'.dol_escape_htmltag($item['meta']).'</p>';
-		if ($item['comment'] !== '') {
-			print '<p class="mjl-timeline-comment">'.dol_escape_htmltag($item['comment']).'</p>';
-		}
-		print '</li>';
-	}
-	print '</ol></section>';
+	mjl_timeline_render(array('items' => $result['items'], 'errors' => $result['errors']), 'Aucun commentaire contextuel.');
+	print '</section>';
 }
 
 function mjl_timeline_next_exchange_ref($objectType, $objectId)

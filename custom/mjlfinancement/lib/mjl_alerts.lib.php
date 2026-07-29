@@ -9,6 +9,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_expense_access.li
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_metrics.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
 function mjl_alerts_user_can_read(User $targetUser)
 {
@@ -20,22 +21,49 @@ function mjl_alerts_user_can_read(User $targetUser)
 
 function mjl_alerts_for_user(User $targetUser, $limit = 100, $scope = 'all')
 {
+	$result = mjl_alerts_result_for_user($targetUser, $limit, $scope);
+	return $result['items'];
+}
+
+function mjl_alerts_result_for_user(User $targetUser, $limit = 100, $scope = 'all')
+{
 	$scope = mjl_alerts_normalize_scope($scope);
-	$alerts = array();
 	$limit = max(1, (int) $limit);
+	$GLOBALS['mjl_alerts_load_errors'] = array();
+	$sources = array();
 
 	if (($scope === 'all' || $scope === 'activities') && mjl_workspace_can_access_activity($targetUser)) {
-		$alerts = array_merge($alerts, mjl_alerts_activity_alerts($targetUser, $limit));
+		$sources[] = mjl_alerts_capture_source('activities', function () use ($targetUser, $limit) {
+			return mjl_alerts_activity_alerts($targetUser, $limit);
+		});
 	}
 	if (($scope === 'all' || $scope === 'expenses') && mjl_workspace_can_access_expense($targetUser)) {
-		$alerts = array_merge($alerts, mjl_alerts_expense_alerts($targetUser, $limit));
+		$sources[] = mjl_alerts_capture_source('expenses', function () use ($targetUser, $limit) {
+			return mjl_alerts_expense_alerts($targetUser, $limit);
+		});
 	}
 	if ($scope === 'all' || $scope === 'finance') {
-		$alerts = array_merge($alerts, mjl_alerts_finance_alerts($targetUser, $limit));
+		$sources[] = mjl_alerts_capture_source('finance', function () use ($targetUser, $limit) {
+			return mjl_alerts_finance_alerts($targetUser, $limit);
+		});
 	}
-
+	$alerts = array();
+	$errors = array();
+	foreach ($sources as $source) {
+		$alerts = array_merge($alerts, $source['items']);
+		foreach ($source['errors'] as $category) $errors[] = array('source' => $source['source'], 'category' => $category);
+	}
 	usort($alerts, 'mjl_alerts_sort');
-	return array_slice($alerts, 0, $limit);
+	return array('items' => array_slice($alerts, 0, $limit), 'errors' => $errors);
+}
+
+function mjl_alerts_capture_source($source, $loader)
+{
+	$before = count((array) ($GLOBALS['mjl_alerts_load_errors'] ?? array()));
+	$items = call_user_func($loader);
+	$allErrors = (array) ($GLOBALS['mjl_alerts_load_errors'] ?? array());
+	$errors = array_slice($allErrors, $before);
+	return array('source' => (string) $source, 'items' => $items, 'errors' => array_values(array_unique($errors)));
 }
 
 function mjl_alerts_count_for_user(User $targetUser, $scope = 'all')
@@ -749,9 +777,11 @@ function mjl_alerts_fetch_rows($sql)
 
 	$resql = $db->query($sql);
 	if (!$resql) {
-		if (function_exists('setEventMessages')) {
-			setEventMessages($db->lasterror(), null, 'errors');
-		}
+		if (!isset($GLOBALS['mjl_alerts_load_errors'])) $GLOBALS['mjl_alerts_load_errors'] = array();
+		$GLOBALS['mjl_alerts_load_errors'][] = 'database';
+		$entity = isset($GLOBALS['conf']->entity) ? (int) $GLOBALS['conf']->entity : 0;
+		$userId = isset($GLOBALS['user']->id) ? (int) $GLOBALS['user']->id : 0;
+		mjl_ui_log_error('database', array('route' => 'alerts', 'action' => 'load_source', 'entity' => $entity, 'user_id' => $userId), $db->lasterror());
 		return array();
 	}
 	$rows = array();
@@ -769,32 +799,10 @@ function mjl_alerts_fetch_one($sql)
 
 function mjl_alerts_activity_status_label($status)
 {
-	$map = array(
-		MjlActivity::STATUS_DRAFT => 'Brouillon',
-		MjlActivity::STATUS_ONGOING => 'En cours',
-		MjlActivity::STATUS_COMPLETED => 'Terminee',
-		MjlActivity::STATUS_SUBMITTED => 'Soumise',
-		MjlActivity::STATUS_CORRECTION_REQUESTED => 'Correction demandee',
-		MjlActivity::STATUS_CORRECTED => 'Corrigee',
-		MjlActivity::STATUS_VALIDATED => 'Validee definitivement',
-		MjlActivity::STATUS_PREVALIDATED => 'Prevalidee',
-		MjlActivity::STATUS_REJECTED => 'Rejetee',
-		MjlActivity::STATUS_CANCELLED => 'Annulee',
-	);
-	return isset($map[(int) $status]) ? $map[(int) $status] : (string) $status;
+	return mjl_ui_activity_status($status)['label'];
 }
 
 function mjl_alerts_expense_status_label($status)
 {
-	$map = array(
-		MjlExpense::STATUS_DRAFT => 'Brouillon',
-		MjlExpense::STATUS_SUBMITTED => 'Soumise',
-		MjlExpense::STATUS_VALIDATED => 'Validee definitivement (compatibilite historique)',
-		MjlExpense::STATUS_CORRECTED => 'Corrigee',
-		MjlExpense::STATUS_PREVALIDATED => 'Prevalidee',
-		MjlExpense::STATUS_FINAL_VALIDATED => 'Validee definitivement',
-		MjlExpense::STATUS_DISBURSED => 'Decaissee',
-		MjlExpense::STATUS_REJECTED => 'Rejetee',
-	);
-	return isset($map[(int) $status]) ? $map[(int) $status] : (string) $status;
+	return mjl_ui_expense_status($status)['label'];
 }

@@ -171,7 +171,7 @@ test('Activity alert disappears from verifier queue after prevalidation', async 
   await page.goto(`/custom/mjlfinancement/activities.php?id=${validateActivityId}`);
   await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 8');
   await page.getByRole('button', { name: 'Prevalider l activite' }).click();
-  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  await expect(page.getByText('Prévalidée').first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/alerts.php');
   const remainingActivityAlert = page.locator('article', { hasText: 'P8-VALIDATE-ME' });

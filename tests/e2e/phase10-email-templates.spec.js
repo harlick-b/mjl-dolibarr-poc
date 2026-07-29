@@ -181,18 +181,18 @@ test('correction, prevalidation, final validation, and rejection notify expected
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-VALIDATE')}`);
   await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 10');
   await page.getByRole('button', { name: 'Prevalider l activite' }).click();
-  await expect(page.getByText('Prevalidee').first()).toBeVisible();
+  await expect(page.getByText('Prévalidée').first()).toBeVisible();
 
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-REJECT')}`);
   await page.getByLabel('Motif de rejet').fill('Rejet Phase 10');
   await page.getByRole('button', { name: 'Rejeter l activite' }).click();
-  await expect(page.getByText('Rejetee').first()).toBeVisible();
+  await expect(page.getByText('Rejetée').first()).toBeVisible();
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-VALIDATE')}`);
   await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 10');
   await page.getByRole('button', { name: 'Validation definitive' }).click();
-  await expect(page.getByText('Validee definitivement').first()).toBeVisible();
+  await expect(page.getByText('Validée définitivement').first()).toBeVisible();
 
   const messages = outboxMessages();
   expect(messages.find((message) => message.template === 'activity_correction_requested' && message.body.includes('P10-CORRECTION')).body).toContain('Motif correction Phase 10');

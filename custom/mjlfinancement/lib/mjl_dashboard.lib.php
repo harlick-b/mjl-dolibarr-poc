@@ -8,6 +8,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_alerts.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_metrics.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_reporting.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
 function mjl_dashboard_count($table)
 {
@@ -936,8 +937,11 @@ function mjl_dashboard_fetch_rows($sql)
 
 function mjl_dashboard_error($message)
 {
+	$entity = isset($GLOBALS['conf']->entity) ? (int) $GLOBALS['conf']->entity : 0;
+	$userId = isset($GLOBALS['user']->id) ? (int) $GLOBALS['user']->id : 0;
+	mjl_ui_log_error('database', array('route' => 'dashboard', 'action' => 'load', 'entity' => $entity, 'user_id' => $userId), $message);
 	if (function_exists('setEventMessages')) {
-		setEventMessages($message, null, 'errors');
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 	}
 }
 
@@ -959,17 +963,5 @@ function mjl_dashboard_deadline_alert($dateEnd)
 
 function mjl_dashboard_activity_status_label($status)
 {
-	$map = array(
-		MjlActivity::STATUS_DRAFT => 'Brouillon',
-		MjlActivity::STATUS_ONGOING => 'En cours',
-		MjlActivity::STATUS_COMPLETED => 'Terminee',
-		MjlActivity::STATUS_SUBMITTED => 'Soumise',
-		MjlActivity::STATUS_CORRECTION_REQUESTED => 'Correction demandee',
-		MjlActivity::STATUS_CORRECTED => 'Corrigee',
-		MjlActivity::STATUS_VALIDATED => 'Validee definitivement',
-		MjlActivity::STATUS_PREVALIDATED => 'Prevalidee',
-		MjlActivity::STATUS_REJECTED => 'Rejetee',
-		MjlActivity::STATUS_CANCELLED => 'Annulee',
-	);
-	return isset($map[(int) $status]) ? $map[(int) $status] : (string) $status;
+	return mjl_ui_activity_status($status)['label'];
 }
