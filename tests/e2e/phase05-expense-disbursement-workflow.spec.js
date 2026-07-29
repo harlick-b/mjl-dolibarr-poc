@@ -136,6 +136,10 @@ test('expense moves through prevalidation, final validation, and disbursement wi
   await page.getByRole('button', { name: 'Prevalider la depense' }).click();
   await expect(page.getByText('Prévalidée').first()).toBeVisible();
   await expect(page.getByText('Prevalidation Phase 5')).toBeVisible();
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'prevalidated'`))).toBe(1);
+  let replay = await postExpenseAction(page, flowId, { action: 'prevalidate', prevalidated_amount: '1000', comment: 'Prevalidation Phase 5 dupliquee' });
+  expect(replay.status()).toBe(403);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'prevalidated'`))).toBe(1);
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
@@ -144,9 +148,14 @@ test('expense moves through prevalidation, final validation, and disbursement wi
   await confirmDecision(page, 'Valider definitivement');
   await expect(page.getByText('Validée définitivement').first()).toBeVisible();
   await expect(page.getByText('Validation definitive Phase 5')).toBeVisible();
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'final_validated'`))).toBe(1);
+  replay = await postExpenseAction(page, flowId, { action: 'final_validate', final_validated_amount: '1000', comment: 'Validation definitive Phase 5 dupliquee' });
+  expect(replay.status()).toBe(403);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'final_validated'`))).toBe(1);
   expect(Number(scalar("SELECT ROUND(committed_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(1000);
   expect(Number(scalar("SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(0);
 
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
   await page.getByLabel('Beneficiaire').fill('Cabinet Phase 5');
   await page.getByLabel('Date decaissement').fill('2026-07-08');
   await confirmDecision(page, 'Enregistrer le decaissement');
@@ -155,6 +164,9 @@ test('expense moves through prevalidation, final validation, and disbursement wi
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${flowId}`))).toBe(7);
   expect(Number(scalar("SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(1000);
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'disbursed' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
+  replay = await postExpenseAction(page, flowId, { action: 'disburse', beneficiary_name: 'Cabinet Phase 5 duplique', disbursement_date: '2026-07-08' });
+  expect(replay.status()).toBe(403);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'disbursed'`))).toBe(1);
 });
 
 test('missing document and overspend block final approval paths', async ({ page }) => {

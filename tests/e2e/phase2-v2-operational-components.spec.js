@@ -24,6 +24,13 @@ function phpJson(code) {
   }));
 }
 
+function dockerPhpJson(code) {
+  return JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'php', '-r', code], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+  }));
+}
+
 function dockerSql(query) {
   execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', query], {
     cwd: projectRoot,
@@ -126,8 +133,44 @@ function cleanupActivities() {
   cleanupActivityPrefixes.clear();
 }
 
+function cleanupEmptyScopeUser() {
+  dockerSql(`
+    SET @phase2_empty_user = (SELECT rowid FROM llx_user WHERE login = 'mjl.phase2.empty' AND entity = 1 LIMIT 1);
+    DELETE FROM llx_usergroup_user WHERE fk_user = @phase2_empty_user;
+    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE fk_user = @phase2_empty_user;
+    DELETE FROM llx_mjlfinancement_user_role WHERE fk_user = @phase2_empty_user;
+    DELETE FROM llx_user WHERE rowid = @phase2_empty_user;
+  `);
+}
+
+function seedEmptyScopeUser() {
+  cleanupEmptyScopeUser();
+  dockerSql(`
+    SET @agent_group = (SELECT rowid FROM llx_usergroup WHERE nom = 'MJL POC - Agent' AND entity = 1 LIMIT 1);
+    SET @admin = (SELECT rowid FROM llx_user WHERE login = 'admin.poc' AND entity = 1 LIMIT 1);
+    SET @empty_soc = (SELECT rowid FROM llx_societe s WHERE s.entity = 1 AND NOT EXISTS (
+      SELECT 1 FROM llx_mjlfinancement_convention c
+      INNER JOIN llx_mjlfinancement_activity a ON a.entity = c.entity AND a.fk_convention = c.rowid
+      WHERE c.entity = s.entity AND c.fk_soc = s.rowid
+    ) ORDER BY s.rowid LIMIT 1);
+    INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec)
+    SELECT 1, 'mjl.phase2.empty', 'Vide', 'Phase2', 'mjl.phase2.empty@mjl-poc.local', pass_crypted, 1, 0, NOW()
+    FROM llx_user WHERE login = 'agent.mjl' AND entity = 1 LIMIT 1;
+    SET @phase2_empty_user = LAST_INSERT_ID();
+    INSERT INTO llx_usergroup_user (entity, fk_user, fk_usergroup)
+    VALUES (1, @phase2_empty_user, @agent_group);
+    INSERT INTO llx_mjlfinancement_user_role
+      (entity, fk_user, role_code, is_active, date_start, source, note, date_creation, fk_user_creat)
+    VALUES (1, @phase2_empty_user, 'AGENT_SAISIE', 1, CURDATE(), 'phase2_e2e', 'Etat initial vide', NOW(), @admin);
+    INSERT INTO llx_mjlfinancement_user_soc_scope
+      (entity, fk_user, fk_soc, is_active, date_start, source, note, date_creation, fk_user_creat)
+    VALUES (1, @phase2_empty_user, @empty_soc, 1, CURDATE(), 'phase2_e2e', 'Etat initial vide', NOW(), @admin);
+  `);
+}
+
 test.afterEach(() => {
   cleanupActivities();
+  cleanupEmptyScopeUser();
 });
 
 test('shared UI vocabulary separates business status and renders unknown values safely', () => {
@@ -173,26 +216,62 @@ test('partial-result aggregation preserves successful items and stable ordering'
 });
 
 test('partial timeline and alert warnings render successful content without technical leakage', async ({ page }) => {
-  const result = phpJson(`
-    require 'custom/mjlfinancement/lib/mjl_ui.lib.php';
-    echo json_encode([
-      'timeline' => mjl_ui_system_state('partial-error', 'Historique partiellement disponible', mjl_ui_safe_error_message('timeline'))
-        .'<ol class="mjl-activity-timeline"><li><strong>Événement disponible</strong></li></ol>',
-      'alerts' => mjl_ui_system_state('partial-error', 'Alertes partiellement disponibles', mjl_ui_safe_error_message('alerts'))
-        .'<article><strong>Alerte disponible</strong></article>',
-      'initial' => mjl_ui_system_state('initial-empty', 'Aucune activité', 'Créez la première activité accessible.'),
-      'filtered' => mjl_ui_system_state('filtered-empty', 'Aucun résultat', 'Modifiez ou réinitialisez les filtres.'),
+  const result = dockerPhpJson(`
+    define('NOLOGIN', 1);
+    require '/var/www/html/main.inc.php';
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_dashboard.lib.php';
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_alerts.lib.php';
+    ob_start();
+    mjl_timeline_render([
+      'items' => [[
+        'label' => 'Décision',
+        'title' => 'Événement disponible',
+        'meta' => '29/07/2026 à 10:00',
+        'comment' => 'Contenu conservé',
+        'changes' => [],
+      ]],
+      'errors' => [['source' => 'documents', 'category' => 'database']],
     ]);
+    $timeline = ob_get_clean();
+    ob_start();
+    mjl_alerts_render_result([
+      'items' => [[
+        'tone' => 'warning',
+        'severity' => 'Action attendue',
+        'object_type' => 'Activité',
+        'ref' => 'P2-ALERT',
+        'label' => 'Alerte disponible',
+        'audience' => 'Agent de saisie',
+        'expected_action' => 'Ouvrir et vérifier.',
+        'meta' => ['Projet' => 'P2'],
+        'href' => '/custom/mjlfinancement/activities.php?id=1',
+      ]],
+      'errors' => [['source' => 'finance', 'category' => 'database']],
+    ]);
+    $alerts = ob_get_clean();
+    echo json_encode(['timeline' => $timeline, 'alerts' => $alerts]);
   `);
-  await page.setContent(`<main>${result.timeline}${result.alerts}${result.initial}${result.filtered}</main>`);
+  await page.setContent(`<main>${result.timeline}${result.alerts}</main>`);
 
   await expect(page.locator('.mjl-system-state-partial-error').filter({ hasText: 'Historique partiellement disponible' })).toBeVisible();
   await expect(page.getByText('Événement disponible')).toBeVisible();
+  await expect(page.getByText('Contenu conservé')).toBeVisible();
   await expect(page.locator('.mjl-system-state-partial-error').filter({ hasText: 'Alertes partiellement disponibles' })).toBeVisible();
   await expect(page.getByText('Alerte disponible')).toBeVisible();
-  await expect(page.locator('.mjl-system-state-initial-empty')).toContainText('Créez la première activité accessible.');
-  await expect(page.locator('.mjl-system-state-filtered-empty')).toContainText('réinitialisez les filtres');
   await expect(page.locator('body')).not.toContainText(/SQLSTATE|SELECT |Unknown column|driver/i);
+});
+
+test('activity route distinguishes an initially empty scope from filtered-empty recovery', async ({ page }) => {
+  seedEmptyScopeUser();
+  await login(page, 'mjl.phase2.empty');
+  await page.goto('/custom/mjlfinancement/activities.php');
+  await expect(page.getByRole('table', { name: 'Activités du périmètre' })).toContainText('Aucune activité dans votre périmètre pour le moment.');
+  await expect(page.locator('[data-mjl-scoped-count]')).toHaveText('0');
+
+  await page.goto('/custom/mjlfinancement/activities.php?status=3');
+  await expect(page.getByRole('table', { name: 'Activités du périmètre' })).toContainText('Aucune activité ne correspond aux filtres appliqués.');
+  await expect(page.getByRole('link', { name: 'Réinitialiser' })).toHaveAttribute('href', /activities\.php$/);
 });
 
 test('exact activity execution failures translate only to their linked fields', () => {

@@ -301,6 +301,10 @@ test('Reject, correct, and resubmit preserves decision comments', async ({ page 
   await confirmDecision(page, 'Rejeter la depense');
   await expect(page.getByText('Rejetée').first()).toBeVisible();
   await expect(page.getByText('Motif rejet Phase 11')).toBeVisible();
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${correctionId} AND action = 'rejected'`))).toBe(1);
+  const replay = await postExpenseAction(page, correctionId, 'reject', 'Motif rejet Phase 11 duplique');
+  expect(replay.status()).toBe(403);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${correctionId} AND action = 'rejected'`))).toBe(1);
 
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${correctionId}`);

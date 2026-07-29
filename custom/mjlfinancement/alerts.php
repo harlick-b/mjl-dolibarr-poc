@@ -12,7 +12,6 @@ if (!mjl_alerts_user_can_read($user)) {
 $langs->load('mjlfinancement@mjlfinancement');
 $scope = mjl_alerts_normalize_scope(GETPOST('scope', 'alphanohtml'));
 $alertResult = mjl_alerts_result_for_user($user, 100, $scope);
-$alerts = $alertResult['items'];
 
 llxHeader('', 'Alertes MJL');
 
@@ -28,18 +27,7 @@ mjl_dashboard_render_header(
 print '<section class="mjl-workspace-section">';
 print '<div class="mjl-section-heading"><h2>Alertes actives</h2><p>Ces alertes sont calculees depuis les activites, depenses et pieces justificatives existantes.</p></div>';
 mjl_alerts_render_scope_filter($scope);
-if (!empty($alertResult['errors'])) {
-	print mjl_ui_system_state('partial-error', 'Alertes partiellement disponibles', mjl_ui_safe_error_message('alerts'));
-}
-if (empty($alerts)) {
-	print '<div class="mjl-empty-state">Aucune alerte active dans votre perimetre.</div>';
-} else {
-	print '<div class="mjl-alert-grid">';
-	foreach ($alerts as $alert) {
-		mjl_alerts_render_card($alert);
-	}
-	print '</div>';
-}
+mjl_alerts_render_result($alertResult);
 print '</section>';
 print '</div>';
 mjl_navigation_shell_end();
@@ -59,29 +47,6 @@ function mjl_alerts_context_label(User $targetUser)
 		return 'File de validation';
 	}
 	return 'Consultation';
-}
-
-function mjl_alerts_render_card($alert)
-{
-	$tone = empty($alert['tone']) ? 'warning' : $alert['tone'];
-	print '<article class="mjl-alert-card mjl-alert-'.$tone.'">';
-	print '<div class="mjl-alert-card-main">';
-	print '<span class="mjl-status-pill mjl-status-'.$tone.'">'.dol_escape_htmltag($alert['severity']).'</span>';
-	print '<h3>'.dol_escape_htmltag($alert['object_type']).' '.dol_escape_htmltag($alert['ref']).'</h3>';
-	print '<p>'.dol_escape_htmltag($alert['label']).'</p>';
-	print '</div>';
-	print '<dl class="mjl-alert-meta">';
-	print '<div><dt>Acteur concerne</dt><dd>'.dol_escape_htmltag($alert['audience']).'</dd></div>';
-	print '<div><dt>Action attendue</dt><dd>'.dol_escape_htmltag($alert['expected_action']).'</dd></div>';
-	foreach ($alert['meta'] as $label => $value) {
-		if ((string) $value === '') {
-			continue;
-		}
-		print '<div><dt>'.dol_escape_htmltag($label).'</dt><dd>'.dol_escape_htmltag($value).'</dd></div>';
-	}
-	print '</dl>';
-	print '<a class="mjl-card-link" href="'.mjl_dashboard_url($alert['href']).'">Ouvrir l objet concerne</a>';
-	print '</article>';
 }
 
 function mjl_alerts_render_scope_filter($activeScope)
