@@ -450,7 +450,8 @@ function mjl_conventions_timeline_items($row)
 	$sql .= ' ORDER BY w.action_date ASC, w.rowid ASC';
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		setEventMessages(mjl_ui_safe_error_message('timeline'), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'conventions', 'action' => 'timeline', 'entity' => (int) $conf->entity, 'object_type' => 'mjlfinancement_convention', 'object_id' => (int) $row['rowid']), $db->lasterror());
 		return $items;
 	}
 	while ($obj = $db->fetch_object($resql)) {
@@ -458,7 +459,7 @@ function mjl_conventions_timeline_items($row)
 		$items[] = array(
 			'label' => mjl_convention_action_label($obj->action),
 			'title' => mjl_conventions_timeline_title($obj->action, $obj->from_status, $obj->to_status),
-			'meta' => mjl_conventions_format_datetime($obj->action_date).' par '.$obj->login.' ('.mjl_convention_actor_role_label($obj->actor_role).')',
+			'meta' => mjl_conventions_format_datetime($obj->action_date).' par '.$obj->login.' ('.mjl_convention_actor_role_label($obj->actor_role, $obj->action).')',
 			'comment' => (string) $obj->comment,
 			'changes' => is_array($changes) ? $changes : array(),
 		);
@@ -529,29 +530,17 @@ function mjl_conventions_can_upload_document($row)
 
 function mjl_convention_status_label($status)
 {
-	$map = array(
-		(string) MjlConvention::STATUS_DRAFT => 'Brouillon',
-		(string) MjlConvention::STATUS_ACTIVE => 'Active',
-		(string) MjlConvention::STATUS_CLOSED => 'Cloturee',
-		'draft' => 'Brouillon',
-		'active' => 'Active',
-		'closed' => 'Cloturee',
-		'deleted' => 'Supprimee',
-	);
-	$key = (string) $status;
-	return isset($map[$key]) ? $map[$key] : $key;
+	return mjl_timeline_presentation_status_label('mjlfinancement_convention', $status);
 }
 
 function mjl_convention_action_label($action)
 {
-	$map = array('created' => 'Creation', 'field_changed' => 'Modification', 'document_uploaded' => 'Document ajoute', 'unsafe_edit_rejected' => 'Modification refusee', 'activated' => 'Activation', 'closed' => 'Cloture', 'deleted' => 'Suppression');
-	return isset($map[$action]) ? $map[$action] : (string) $action;
+	return mjl_timeline_presentation_action_label('mjlfinancement_convention', $action);
 }
 
-function mjl_convention_actor_role_label($role)
+function mjl_convention_actor_role_label($role, $action = '')
 {
-	$map = array('ADMIN' => 'Administrateur plateforme', 'DPAF' => 'Validateur definitif');
-	return isset($map[$role]) ? $map[$role] : (string) $role;
+	return mjl_timeline_presentation_actor_role_label('mjlfinancement_convention', $action, $role);
 }
 
 function mjl_conventions_status_badge($status)

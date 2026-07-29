@@ -24,6 +24,9 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Production readiness requires current evidence in the readiness matrix,
   deployment checks, and test results; historical pass counts are not current
   verification.
+- Validation verdicts must name their evidence boundary. Automated responsive
+  checks cannot stand in for a required signed human keyboard/reflow/real
+  browser-zoom matrix; keep the verdict pending until that evidence exists.
 - Dolibarr `fetchCommon()` object paths may expose `id` while SQL row arrays
   expose `rowid`; MJL access helpers that accept both objects and arrays should
   normalize the identifier before object-scope checks.

@@ -164,6 +164,9 @@ function mjl_expenses_is_verified_stale_form($row, $action)
 	if ($action === 'final_validate' && mjl_scope_is_final_validator($user) && $expected === MjlExpense::STATUS_PREVALIDATED) {
 		return in_array($current, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_DISBURSED, MjlExpense::STATUS_REJECTED), true);
 	}
+	if ($action === 'prevalidate' && mjl_scope_is_verifier($user) && $expected === MjlExpense::STATUS_SUBMITTED) {
+		return in_array($current, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_PREVALIDATED, MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_DISBURSED, MjlExpense::STATUS_REJECTED), true);
+	}
 	if ($action === 'disburse' && mjl_scope_is_final_validator($user) && in_array($expected, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED), true)) {
 		return $current === MjlExpense::STATUS_DISBURSED;
 	}
@@ -789,7 +792,7 @@ function mjl_expenses_timeline_result($expense)
 				'rowid' => (int) $row->rowid,
 				'label' => mjl_expense_action_label($row->action),
 				'title' => mjl_expense_status_text($row->from_status).' vers '.mjl_expense_status_text($row->to_status),
-				'meta' => mjl_expenses_format_datetime($row->action_date).' par '.($row->login ?: 'système').($row->actor_role ? ' ('.mjl_expense_actor_role_label($row->actor_role).')' : ''),
+				'meta' => mjl_expenses_format_datetime($row->action_date).' par '.($row->login ?: 'système').' ('.mjl_expense_actor_role_label($row->actor_role, $row->action).')',
 				'comment' => (string) $row->comment,
 				'changes' => array(),
 				'sort_date' => (string) $row->action_date,
@@ -840,18 +843,7 @@ function mjl_expense_status_text($status)
 
 function mjl_expense_action_label($action)
 {
-	$map = array(
-		'submitted' => 'Soumission',
-		'validated' => 'Validation enregistrée',
-		'legacy_validated' => 'Validation enregistrée',
-		'prevalidated' => 'Prevalidation',
-		'final_validated' => 'Validation definitive',
-		'disbursed' => 'Decaissement',
-		'document_uploaded' => 'Piece justificative ajoutee',
-		'rejected' => 'Rejet',
-		'corrected' => 'Correction',
-	);
-	return isset($map[$action]) ? $map[$action] : (string) $action;
+	return mjl_timeline_presentation_action_label('mjlfinancement_expense', $action);
 }
 
 function mjl_expenses_status_badge($status)
@@ -864,15 +856,9 @@ function mjl_expenses_money_or_empty($value)
 	return $value === null || $value === '' ? 'Non renseigne' : price($value);
 }
 
-function mjl_expense_actor_role_label($role)
+function mjl_expense_actor_role_label($role, $action = '')
 {
-	$map = array(
-		'AGENT_SAISIE' => 'Agent de saisie',
-		'AGENT_VERIFICATEUR' => 'Agent verificateur',
-		'VALIDATEUR_DEFINITIF' => 'Validateur definitif',
-		'ADMIN_PLATEFORME' => 'Administrateur plateforme',
-	);
-	return isset($map[$role]) ? $map[$role] : (string) $role;
+	return mjl_timeline_presentation_actor_role_label('mjlfinancement_expense', $action, $role);
 }
 
 function mjl_expenses_format_date($value)

@@ -411,7 +411,7 @@ function mjl_fundreceipts_timeline_items($row)
 		$items[] = array(
 			'label' => mjl_fundreceipt_action_label($obj->action),
 			'title' => $title,
-			'meta' => mjl_fundreceipts_timeline_meta($obj->action_date, $obj->login, $obj->actor_role, $row),
+			'meta' => mjl_fundreceipts_timeline_meta($obj->action, $obj->action_date, $obj->login, $obj->actor_role, $row),
 			'comment' => $comment,
 			'changes' => is_array($changes) ? $changes : array(),
 		);
@@ -450,7 +450,7 @@ function mjl_fundreceipts_timeline_title($action, $fromStatus, $toStatus)
 	return mjl_fundreceipt_status_label($fromStatus).' vers '.mjl_fundreceipt_status_label($toStatus);
 }
 
-function mjl_fundreceipts_timeline_meta($actionDate, $login, $actorRole, $fallbackRow)
+function mjl_fundreceipts_timeline_meta($action, $actionDate, $login, $actorRole, $fallbackRow)
 {
 	$date = mjl_fundreceipts_format_datetime($actionDate);
 	if ($date === '') {
@@ -461,7 +461,7 @@ function mjl_fundreceipts_timeline_meta($actionDate, $login, $actorRole, $fallba
 		$actor = trim((string) $fallbackRow['creator_login']);
 	}
 	$meta = trim($date.' par '.$actor);
-	$roleLabel = mjl_fundreceipt_actor_role_label($actorRole);
+	$roleLabel = mjl_timeline_presentation_actor_role_label('mjlfinancement_fund_receipt', $action, $actorRole);
 	if ($roleLabel !== '') {
 		$meta .= ' ('.$roleLabel.')';
 	}
@@ -524,21 +524,17 @@ function mjl_fundreceipts_can_manage()
 
 function mjl_fundreceipt_status_label($status)
 {
-	$map = array((string) MjlFundReceipt::STATUS_DRAFT => 'Brouillon', (string) MjlFundReceipt::STATUS_RECEIVED => 'Reçu', (string) MjlFundReceipt::STATUS_NOT_RECEIVED => 'Non reçu', 'draft' => 'Brouillon', 'received' => 'Reçu', 'not_received' => 'Non reçu');
-	$key = (string) $status;
-	return isset($map[$key]) ? $map[$key] : $key;
+	return mjl_timeline_presentation_status_label('mjlfinancement_fund_receipt', $status);
 }
 
 function mjl_fundreceipt_action_label($action)
 {
-	$map = array('created' => 'Création', 'field_changed' => 'Modification', 'proof_uploaded' => 'Preuve ajoutée', 'unsafe_edit_rejected' => 'Modification refusée', 'received' => 'Réception', 'not_received' => 'Non-réception');
-	return isset($map[$action]) ? $map[$action] : (string) $action;
+	return mjl_timeline_presentation_action_label('mjlfinancement_fund_receipt', $action);
 }
 
 function mjl_fundreceipt_actor_role_label($role)
 {
-	if ((string) $role === '') return '';
-	return mjl_actor_role_label($role);
+	return mjl_timeline_presentation_actor_role_label('mjlfinancement_fund_receipt', '', $role);
 }
 
 function mjl_fundreceipts_status_badge($status)

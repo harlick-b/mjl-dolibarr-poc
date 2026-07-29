@@ -7,6 +7,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_access.l
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_expense_access.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
 
 mjl_workspace_require_partners_access($user);
 
@@ -366,7 +367,7 @@ function mjl_partners_workflow_timeline_rows($partnerId)
 	$sql .= ') ORDER BY w.action_date DESC, w.rowid DESC LIMIT 12';
 	$items = array();
 	foreach (mjl_partners_fetch_all($sql) as $row) {
-		$items[] = array('rowid' => (int) $row['rowid'], 'sort_date' => $row['sort_date'], 'title' => mjl_partners_action_label($row['action']), 'meta' => mjl_partners_date($row['sort_date']).' par '.($row['login'] ?: 'systeme').' ('.mjl_partners_actor_role_label($row['actor_role']).')', 'comment' => (string) $row['comment']);
+		$items[] = array('rowid' => (int) $row['rowid'], 'sort_date' => $row['sort_date'], 'title' => mjl_partners_action_label($row['action']), 'meta' => mjl_partners_date($row['sort_date']).' par '.($row['login'] ?: 'systeme').' ('.mjl_partners_actor_role_label($row['actor_role'], $row['object_type'], $row['action']).')', 'comment' => (string) $row['comment']);
 	}
 	return $items;
 }
@@ -390,7 +391,7 @@ function mjl_partners_project_note_timeline_rows($partnerId)
 function mjl_partners_exchange_timeline_rows($partnerId)
 {
 	global $db, $conf;
-	$sql = 'SELECT x.rowid, x.exchange_date AS sort_date, x.subject, x.message, x.actor_role, u.login';
+	$sql = 'SELECT x.rowid, x.exchange_date AS sort_date, x.subject, x.message, x.object_type, x.actor_role, u.login';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_exchange_log x';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = x.actor';
 	$sql .= ' WHERE x.entity = '.((int) $conf->entity).' AND (';
@@ -403,7 +404,7 @@ function mjl_partners_exchange_timeline_rows($partnerId)
 	$sql .= ') ORDER BY x.exchange_date DESC, x.rowid DESC LIMIT 12';
 	$items = array();
 	foreach (mjl_partners_fetch_all($sql) as $row) {
-		$items[] = array('rowid' => (int) $row['rowid'], 'sort_date' => $row['sort_date'], 'title' => $row['subject'] ?: 'Echange contextualise', 'meta' => mjl_partners_date($row['sort_date']).' par '.($row['login'] ?: 'systeme').' ('.mjl_partners_actor_role_label($row['actor_role']).')', 'comment' => (string) $row['message']);
+		$items[] = array('rowid' => (int) $row['rowid'], 'sort_date' => $row['sort_date'], 'title' => $row['subject'] ?: 'Echange contextualise', 'meta' => mjl_partners_date($row['sort_date']).' par '.($row['login'] ?: 'systeme').' ('.mjl_partners_actor_role_label($row['actor_role'], $row['object_type'], 'commentaire').')', 'comment' => (string) $row['message']);
 	}
 	return $items;
 }
@@ -457,13 +458,12 @@ function mjl_partners_expense_status($status)
 
 function mjl_partners_action_label($action)
 {
-	$map = array('created' => 'Creation', 'field_changed' => 'Modification', 'document_uploaded' => 'Document ajoute', 'submitted' => 'Soumission', 'prevalidated' => 'Prevalidation', 'validated' => 'Validation', 'final_validated' => 'Validation definitive', 'disbursed' => 'Decaissement', 'rejected' => 'Rejet', 'corrected' => 'Correction', 'closed' => 'Cloture', 'activated' => 'Activation');
-	return isset($map[$action]) ? $map[$action] : (string) $action;
+	return mjl_timeline_presentation_action_label('', $action);
 }
 
-function mjl_partners_actor_role_label($role)
+function mjl_partners_actor_role_label($role, $objectType = '', $action = '')
 {
-	return $role !== '' ? mjl_scope_role_label($role) : 'Role non renseigne';
+	return mjl_timeline_presentation_actor_role_label($objectType, $action, $role);
 }
 
 function mjl_partners_price($value)

@@ -51,6 +51,10 @@ a.tmenu[href^="/api/"] {
 	--mjl-color-border-strong: #5c6870;
 	--mjl-color-danger: #8a1c1c;
 	--mjl-color-danger-surface: #fdecec;
+	--mjl-color-status-info: #164f7a;
+	--mjl-color-status-info-surface: #eaf3f8;
+	--mjl-color-status-success: #17633a;
+	--mjl-color-status-success-surface: #e8f5ec;
 	--mjl-focus-ring: #164f7a;
 	--mjl-space-1: 4px;
 	--mjl-space-2: 8px;
@@ -403,6 +407,18 @@ a.tmenu[href^="/api/"] {
 	line-height: 1.2;
 	margin-top: 10px;
 	padding: 5px 9px;
+}
+
+.mjl-status-info {
+	background: var(--mjl-color-status-info-surface);
+	border-color: var(--mjl-color-status-info);
+	color: var(--mjl-color-status-info);
+}
+
+.mjl-status-success {
+	background: var(--mjl-color-status-success-surface);
+	border-color: var(--mjl-color-status-success);
+	color: var(--mjl-color-status-success);
 }
 
 .mjl-status-warning {

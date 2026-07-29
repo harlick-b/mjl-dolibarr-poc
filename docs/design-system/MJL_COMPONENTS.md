@@ -55,7 +55,10 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   supporting detail. Do not use it for validation-stage guidance, alert
   severity, permission, or system availability.
 - **Layout/behavior:** short text inside the existing status-pill pattern;
-  unknown UI values use the neutral `Statut non reconnu` fallback.
+  unknown UI values use the neutral `Statut non reconnu` fallback. Runtime
+  tones use the approved snapshot pairs: info `#164f7a` on `#eaf3f8` and
+  success `#17633a` on `#e8f5ec`, with the foreground color also used for the
+  solid border.
 - **Accessibility/French:** the label always carries the meaning without
   relying on tone. Final validation and disbursement use distinct French
   labels.
@@ -87,6 +90,9 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   and a focused linked summary. JavaScript installs its validation handler
   before adding `novalidate`; native validation remains without JavaScript.
   Recovery handles are random, one-use, ten-minute, context-bound, and capped.
+  Activity recovery is selected by exact action from one registry: actions
+  sharing the correction form do not share recovered values or errors.
+  Upload and unknown actions never create recovery state.
 - **Accessibility/French:** invalid controls use `aria-invalid` and
   `aria-describedby`; summaries link to every invalid field and use
   allowlisted French domain translations.
@@ -122,9 +128,23 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   fails.
 - **Accessibility/French:** ordered-list chronology includes event, actor
   role, date, comment/reason, transition, and allowlisted human-readable
-  changes.
+  changes. Action, role, object, channel, and status fields use a shared
+  presentation registry; empty and unknown stored values render neutral
+  French labels rather than database vocabulary.
 - **Visibility/E2E:** detail-route access controls the timeline; workflow,
   contextual-exchange, document, and pure partial-result tests cover it.
+
+### Route-owned activity enhancement
+
+- **Purpose/use:** `activities.js` enhances only the activity list/create/detail
+  route. It is not a workspace-global dependency.
+- **Layout/behavior:** `activities.php` emits it exactly once immediately
+  before the shared shell end; `mjl_components.js` remains emitted exactly
+  once by the authenticated shell.
+- **Accessibility/French:** all activity forms retain native HTML validation
+  when JavaScript is unavailable.
+- **Visibility/E2E:** a production-source scan and rendered-route assertions
+  enforce ownership, order, and absence on non-activity and forbidden shells.
 
 ### Consequence confirmation
 

@@ -114,7 +114,7 @@ test('DPAF creates, edits, activates, closes, and views convention history', asy
 
   await page.getByLabel('Motif de cloture').fill('Cloture test Phase 14');
   await page.getByRole('button', { name: 'Cloturer l enveloppe' }).click();
-  await expect(page.getByText('Cloturee').first()).toBeVisible();
+  await expect(page.getByText('Clôturée').first()).toBeVisible();
   await expect(page.getByText('Cloture test Phase 14')).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/reports.php?report=convention_budget');

@@ -93,6 +93,18 @@ rm -rf "$tmpdir"
   self-prevalidation.
 - Validateur definitif can final-validate and disburse without self-final
   validation or self-disbursement.
+- The self-contained Phase 2 decision seam creates isolated evidence-backed
+  expenses and budget lines, proves exactly one event/effect for
+  prevalidation, rejection, final validation, and disbursement, rejects fresh
+  stale replays, preserves projections after invalid CSRF, and covers all four
+  no-self decisions plus a two-session near-simultaneous final attempt.
+- Phase 2 status tones are asserted from computed solid RGB foreground,
+  background, and border values with alpha-aware contrast. Activity recovery
+  is exact-action bound, and unknown timeline/audit vocabulary renders neutral
+  French presentation labels.
+- The manual keyboard/reflow/contrast/real-browser-zoom evidence in
+  `docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md`
+  remains mandatory before the phase-scoped validated verdict.
 - Global Documents is read-only; uploads are contextual; downloads are guarded.
 - Exchanges are contextual or audit/supervision-only, not primary navigation.
 - CSV exports include UTF-8 BOM, semicolon separator, French headers, stable

@@ -5,6 +5,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_result.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
 
 function mjl_timeline_supported_object_types()
 {
@@ -26,8 +27,7 @@ function mjl_timeline_is_supported_object_type($objectType)
 
 function mjl_timeline_object_type_label($objectType)
 {
-	$types = mjl_timeline_supported_object_types();
-	return isset($types[(string) $objectType]) ? $types[(string) $objectType] : (string) $objectType;
+	return mjl_timeline_presentation_object_label($objectType);
 }
 
 function mjl_timeline_channel_labels()
@@ -44,8 +44,7 @@ function mjl_timeline_channel_labels()
 
 function mjl_timeline_channel_label($channel)
 {
-	$labels = mjl_timeline_channel_labels();
-	return isset($labels[(string) $channel]) ? $labels[(string) $channel] : (string) $channel;
+	return mjl_timeline_presentation_channel_label($channel);
 }
 
 function mjl_timeline_actor_role(User $targetUser)
@@ -59,7 +58,7 @@ function mjl_timeline_actor_role(User $targetUser)
 
 function mjl_timeline_actor_role_label($roleCode)
 {
-	return mjl_scope_role_label($roleCode);
+	return mjl_timeline_presentation_actor_role_label('', '', $roleCode);
 }
 
 function mjl_timeline_can_comment(User $targetUser)
@@ -160,7 +159,7 @@ function mjl_timeline_exchange_result($objectType, $objectId, $ascending = true)
 			'rowid' => (int) $obj->rowid,
 			'label' => mjl_timeline_channel_label($obj->channel),
 			'title' => trim((string) $obj->subject) !== '' ? (string) $obj->subject : 'Commentaire',
-			'meta' => mjl_timeline_format_datetime($obj->exchange_date).' par '.($obj->login ?: 'systeme').' ('.mjl_timeline_actor_role_label($obj->actor_role).')',
+			'meta' => mjl_timeline_format_datetime($obj->exchange_date).' par '.($obj->login ?: 'systeme').' ('.mjl_timeline_presentation_actor_role_label($objectType, 'commentaire', $obj->actor_role).')',
 			'comment' => (string) $obj->message,
 			'changes' => array(),
 			'sort_date' => (string) $obj->exchange_date,

@@ -176,7 +176,7 @@ test('correction, prevalidation, final validation, and rejection notify expected
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-CORRECTION')}`);
   await page.getByLabel('Motif de correction').fill('Motif correction Phase 10');
   await page.getByRole('button', { name: 'Retourner pour correction' }).click();
-  await expect(page.getByText('Correction demandee', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Correction demandée', { exact: true }).first()).toBeVisible();
 
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId('P10-VALIDATE')}`);
   await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 10');

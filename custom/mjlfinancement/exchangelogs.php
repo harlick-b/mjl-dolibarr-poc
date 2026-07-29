@@ -83,7 +83,8 @@ function mjl_exchangelogs_list($filters)
 	$sql .= ' ORDER BY x.exchange_date DESC, x.rowid DESC LIMIT 200';
 	$resql = $db->query($sql);
 	if (!$resql) {
-		print '<div class="error">'.$db->lasterror().'</div>';
+		print mjl_ui_system_state('unavailable', 'Échanges indisponibles', 'L’historique des échanges ne peut pas être chargé pour le moment.');
+		mjl_ui_log_error('database', array('route' => 'exchangelogs', 'action' => 'list', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id), $db->lasterror());
 		return;
 	}
 
@@ -97,7 +98,7 @@ function mjl_exchangelogs_list($filters)
 		print '<td>'.dol_escape_htmltag($obj->object_ref).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->exchange_date).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->login).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_timeline_actor_role_label($obj->actor_role)).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_timeline_presentation_actor_role_label($obj->object_type, 'commentaire', $obj->actor_role)).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_timeline_channel_label($obj->channel)).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->subject).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->message).'</td>';
@@ -121,7 +122,7 @@ function mjl_exchangelogs_distinct_options($column)
 	}
 	$options = array();
 	while ($obj = $db->fetch_object($resql)) {
-		$options[(string) $obj->value] = (string) $obj->value;
+		$options[(string) $obj->value] = mjl_timeline_channel_label($obj->value);
 	}
 	return $options;
 }

@@ -281,12 +281,12 @@ test('Return for correction preserves previous decision through correction and r
   await page.getByLabel('Motif de correction').fill('Motif correction Phase 7');
   await page.getByRole('button', { name: 'Retourner pour correction' }).click();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_activity WHERE rowid = ${correctionActivityId}`))).toBe(4);
-  await expect(page.getByText('Correction demandee', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Correction demandée', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Motif correction Phase 7')).toBeVisible();
 
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${correctionActivityId}`);
-  await expect(page.getByText('Correction demandee', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Correction demandée', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enregistrer la correction' })).toBeVisible();
   await page.locator('input[name="label"]').fill('Activite Phase 7 corrigee');
   await page.locator('#mjl-correction-comment').fill('Libelle corrige Phase 7');

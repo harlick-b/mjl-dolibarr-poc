@@ -3,6 +3,8 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
 mjl_workspace_require_advanced_traceability_access($user, 'workflowaction');
 
@@ -86,7 +88,8 @@ function mjl_workflowactions_list($filters)
 
 	$resql = $db->query($sql);
 	if (!$resql) {
-		print '<div class="error">'.$db->lasterror().'</div>';
+		print mjl_ui_system_state('unavailable', 'Historique indisponible', 'L’historique des actions ne peut pas être chargé pour le moment.');
+		mjl_ui_log_error('database', array('route' => 'workflowactions', 'action' => 'list', 'entity' => (int) $conf->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
 		return;
 	}
 
@@ -99,10 +102,10 @@ function mjl_workflowactions_list($filters)
 		print '<td>'.((int) $obj->object_id).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->object_ref).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_workflowactions_action_label($obj->action)).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->from_status)).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->to_status)).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->from_status, $obj->object_type)).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->to_status, $obj->object_type)).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->login).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_actor_role_label($obj->actor_role)).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_timeline_presentation_actor_role_label($obj->object_type, $obj->action, $obj->actor_role)).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->action_date).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->reason).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->comment).'</td>';
@@ -114,60 +117,17 @@ function mjl_workflowactions_list($filters)
 
 function mjl_workflowactions_object_type_label($objectType)
 {
-	$map = array(
-		'mjlfinancement_activity' => 'Activite',
-		'mjlfinancement_expense' => 'Depense',
-		'mjlfinancement_convention' => 'Programme',
-		'mjlfinancement_budget_line' => 'Ligne budgetaire',
-		'mjlfinancement_fund_receipt' => 'Reception de fonds',
-	);
-	return isset($map[(string) $objectType]) ? $map[(string) $objectType] : (string) $objectType;
+	return mjl_timeline_presentation_object_label($objectType);
 }
 
 function mjl_workflowactions_action_label($action)
 {
-	$map = array(
-		'created' => 'Creation',
-		'field_changed' => 'Modification',
-		'document_uploaded' => 'Document ajoute',
-		'proof_uploaded' => 'Preuve ajoutee',
-		'unsafe_edit_rejected' => 'Modification refusee',
-		'received' => 'Reception',
-		'not_received' => 'Non-reception',
-		'submitted' => 'Soumission',
-		'prevalidated' => 'Prevalidation',
-		'validated' => 'Validation definitive',
-		'final_validated' => 'Validation definitive',
-		'rejected' => 'Rejet',
-		'corrected' => 'Correction',
-		'correction_requested' => 'Correction demandee',
-		'deleted' => 'Suppression',
-		'activated' => 'Activation',
-		'closed' => 'Cloture',
-	);
-	return isset($map[(string) $action]) ? $map[(string) $action] : (string) $action;
+	return mjl_timeline_presentation_action_label('', $action);
 }
 
-function mjl_workflowactions_status_label($status)
+function mjl_workflowactions_status_label($status, $objectType = '')
 {
-	$map = array(
-		'draft' => 'Brouillon',
-		'active' => 'Active',
-		'closed' => 'Cloturee',
-		'deleted' => 'Supprimee',
-		'submitted' => 'Soumise',
-		'prevalidated' => 'Prevalidee',
-		'validated' => 'Validee definitivement',
-		'final_validated' => 'Validee definitivement',
-		'rejected' => 'Rejetee',
-		'corrected' => 'Corrigee',
-		'correction_requested' => 'Correction demandee',
-		'completed' => 'Terminee',
-		'cancelled' => 'Annulee',
-		'received' => 'Recu',
-		'not_received' => 'Non recu',
-	);
-	return isset($map[(string) $status]) ? $map[(string) $status] : (string) $status;
+	return mjl_timeline_presentation_status_label($objectType, $status);
 }
 
 function mjl_workflowactions_distinct_options($column)
@@ -188,7 +148,11 @@ function mjl_workflowactions_distinct_options($column)
 
 	$options = array();
 	while ($obj = $db->fetch_object($resql)) {
-		$options[(string) $obj->value] = (string) $obj->value;
+		$value = (string) $obj->value;
+		if ($column === 'object_type') $label = mjl_timeline_presentation_object_label($value);
+		elseif ($column === 'action') $label = mjl_timeline_presentation_action_label('', $value);
+		else $label = mjl_timeline_presentation_actor_role_label('', '', $value);
+		$options[$value] = $label;
 	}
 	return $options;
 }

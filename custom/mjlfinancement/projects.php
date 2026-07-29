@@ -649,21 +649,7 @@ function mjl_projects_activity_deadline_alert($dateEnd, $status)
 
 function mjl_projects_workflow_action_label($action)
 {
-	$map = array(
-		'created' => 'Creation',
-		'field_changed' => 'Modification',
-		'execution_updated' => 'Execution mise a jour',
-		'document_uploaded' => 'Document ajoute',
-		'note_added' => 'Commentaire ajoute',
-		'submitted' => 'Soumission',
-		'correction_requested' => 'Correction demandee',
-		'corrected' => 'Correction',
-		'prevalidated' => 'Prevalidation',
-		'validated' => 'Validation definitive',
-		'final_validated' => 'Validation definitive',
-		'rejected' => 'Rejet',
-	);
-	return isset($map[(string) $action]) ? $map[(string) $action] : (string) $action;
+	return mjl_timeline_presentation_action_label('mjlfinancement_project', $action);
 }
 
 function mjl_projects_price($value)

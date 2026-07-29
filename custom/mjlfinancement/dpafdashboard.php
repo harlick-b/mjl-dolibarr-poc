@@ -4,6 +4,7 @@ require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_dashboard.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
 
 mjl_workspace_require_supervision_access($user);
 
@@ -149,11 +150,11 @@ function mjl_dpaf_render_fund_row($row)
 function mjl_dpaf_render_audit_row($row)
 {
 	print '<tr class="oddeven">';
-	print '<td>'.dol_escape_htmltag($row['source']).'</td>';
+	print '<td>'.dol_escape_htmltag(mjl_timeline_presentation_object_label($row['object_type'] ?? '')).'</td>';
 	print '<td>'.dol_escape_htmltag($row['object_ref']).'</td>';
 	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_action_label($row['action'])).'</td>';
-	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['from_status'])).'</td>';
-	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['to_status'])).'</td>';
+	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['from_status'], $row['object_type'] ?? '')).'</td>';
+	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['to_status'], $row['object_type'] ?? '')).'</td>';
 	print '<td>'.dol_escape_htmltag($row['login']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['action_date']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['comment']).'</td>';
@@ -162,42 +163,10 @@ function mjl_dpaf_render_audit_row($row)
 
 function mjl_dpaf_audit_action_label($action)
 {
-	$map = array(
-		'created' => 'Création',
-		'field_changed' => 'Modification',
-		'document_uploaded' => 'Document ajouté',
-		'proof_uploaded' => 'Preuve ajoutée',
-		'unsafe_edit_rejected' => 'Modification refusée',
-		'received' => 'Réception',
-		'not_received' => 'Non-réception',
-		'submitted' => 'Soumission',
-		'prevalidated' => 'Prévalidation',
-		'validated' => 'Validation définitive',
-		'final_validated' => 'Validation définitive',
-		'rejected' => 'Rejet',
-		'corrected' => 'Correction',
-		'deleted' => 'Suppression',
-		'activated' => 'Activation',
-		'closed' => 'Clôture',
-	);
-	return isset($map[(string) $action]) ? $map[(string) $action] : (string) $action;
+	return mjl_timeline_presentation_action_label('', $action);
 }
 
-function mjl_dpaf_audit_status_label($status)
+function mjl_dpaf_audit_status_label($status, $objectType = '')
 {
-	$map = array(
-		'draft' => 'Brouillon',
-		'active' => 'Active',
-		'closed' => 'Clôturée',
-		'deleted' => 'Supprimée',
-		'submitted' => 'Soumise',
-		'prevalidated' => 'Prévalidée',
-		'validated' => 'Validée définitivement',
-		'final_validated' => 'Validée définitivement',
-		'rejected' => 'Rejetée',
-		'corrected' => 'Corrigée',
-		'received' => 'Reçu',
-		'not_received' => 'Non reçu',
-	);
-	return isset($map[(string) $status]) ? $map[(string) $status] : (string) $status;
+	return mjl_timeline_presentation_status_label($objectType, $status);
 }

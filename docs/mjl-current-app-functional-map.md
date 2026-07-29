@@ -28,6 +28,17 @@ activity table, consequence-aware expense decisions, and partial-result
 timeline/alert loaders. These helpers do not change stored workflow values,
 routes, permissions, schemas, or export mappings.
 
+Phase 2 remediation centralizes exact-action activity recovery and
+timeline/audit presentation in dependency-leaf registries. Unknown stored
+action, role, object, channel, and status values use neutral French labels on
+touched UI routes. Activity-specific JavaScript is owned by
+`activities.php`; only the shared component script remains shell-global.
+Automated Phase 2 decision fixtures independently prove exact-one expense
+prevalidation, final validation, rejection, and disbursement, fresh-token stale
+replays, invalid-CSRF immutability, four no-self cases, and a two-session
+near-simultaneous final-decision attempt. Human accessibility evidence remains
+a separate unsigned gate.
+
 Legacy POC vocabulary remains in compatibility areas such as bootstrap scripts,
 seed data, SQL backfills, route names, module descriptors, and some labels.
 Those references are current-state/code debt, not target behavior.

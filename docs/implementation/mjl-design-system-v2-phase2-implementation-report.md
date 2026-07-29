@@ -2,12 +2,64 @@
 
 ## Verdict
 
-`MJL_V2_PHASE2_IMPLEMENTED_AND_VALIDATED`
+`MJL_V2_PHASE2_REMEDIATION_IN_PROGRESS`
 
 Phase 2 — Operational components and reusable states was explicitly
-authorized on 29 July 2026. This verdict is an implementation and automated
-validation result, not a production-release approval. Phase 3, deployment,
-merge, tag, and production operations were not authorized.
+authorized on 29 July 2026. Final fixed-point review corrections and their
+automated reruns are in progress; this is not a phase-scoped validation or
+production-release approval. The
+required User/QA keyboard, reflow, contrast, and browser-zoom matrix remains
+unsigned. Phase 3, deployment, merge, tag, and production operations are not
+authorized.
+
+## Paused remediation state — 29 July 2026
+
+Work is intentionally paused at the user’s request. The working state is not
+validated and must not be promoted beyond
+`MJL_V2_PHASE2_REMEDIATION_IN_PROGRESS`.
+
+Completed before the pause:
+
+- status-tone CSS, route-owned activity JavaScript, exact-action activity
+  recovery, neutral timeline/audit presentation, stale prevalidation
+  classification, the self-contained expense seam, documentation, and the
+  unsigned manual accessibility harness/evidence sheet were implemented;
+- the focused Phase 2 suite passed 28 tests, the three required smoke scripts
+  passed, and the complete repository suite passed 165 tests;
+- the approved snapshot tree remained
+  `98d0053a934b83b4a21a6c67207e86b3c89fe7d0`;
+- final fixed-point review then found additional semantic and test-evidence
+  gaps. The 165-test pass predates the resulting review corrections and is not
+  a final current-tree gate.
+
+Corrections already applied after that full pass, but not yet rerun:
+
+- legacy expense `validated` / `legacy_validated` presentation now differs
+  from true `final_validated`;
+- closed-convention numeric presentation now uses status `2`;
+- fund-receipt timeline metadata now receives the action explicitly;
+- reserved fixture-user cleanup now requires its exact test source/note
+  marker;
+- activity recovery assertions now compare complete handle sets and the
+  complete registry/derived allowlist, including a form/action mismatch.
+
+Work still required:
+
+- finish exhaustive expected-matrix tests for every presentation action,
+  object, channel, numeric/status alias, role, and allowed/denied contextual
+  `DPAF` case;
+- extend the standalone expense seam to assert each validation actor ID/date
+  and every stage field, legacy field, modifier, rejection reason, and cleared
+  metadata;
+- add startup assertions for effective Dolibarr expense rights, active
+  partner scope, and project/convention/activity consistency;
+- run JavaScript/PHP syntax, `git diff --check`, focused Phase 2, affected
+  regressions, all three smokes, and the complete Playwright suite from the
+  corrected tree;
+- rerun both fixed-point Standards and Spec reviews, then update this report
+  with their actual results;
+- keep the verdict pending until the separate User/QA accessibility matrix is
+  completed and signed.
 
 ## Checkpoints
 
@@ -26,8 +78,13 @@ The approved v2 snapshot was not edited. Its tree hash remains
 
 - Added shared presentation helpers for business-status badges, persistent
   system states, safe error messages, and normalized redacted diagnostics.
+- Added the approved info/success runtime status tones with computed-style and
+  contrast assertions on real activity and expense states.
 - Added shared form fields, stable IDs, linked inline errors and summaries,
   exact domain-error translation, and opaque session-bound recovery handles.
+- Centralized activity recovery in one exact-action registry. Storage and
+  consumption derive from it; simultaneously rendered actions remain isolated,
+  and upload/unknown actions create no recovery handle.
 - Added an operational table/filter/pagination contract with normalized
   server-side filters, scoped counts, stable sorting, page boundaries, query
   retention, responsive cards, and distinct initial/filtered/error states.
@@ -37,12 +94,20 @@ The approved v2 snapshot was not edited. Its tree hash remains
 - Deepened activity and expense timelines into explicit creation, workflow or
   validation, document, and contextual-comment source envelopes with stable
   ordering and partial-result warnings.
+- Centralized normal timeline/audit presentation for action, actor role,
+  object, channel, and status values, including context-bound legacy `DPAF`
+  handling and neutral French unknown/empty fallbacks.
 - Added partial-result alert aggregation while retaining the
   `mjl_alerts_for_user()` compatibility wrapper for existing callers.
 - Adopted controlled status presentation on activities, expenses, dashboards,
   projects, and partners without exposing machine codes or raw user IDs.
 - Applied shared fields and recovery to activity creation, correction,
   execution, decisions, and contextual comments.
+- Moved `activities.js` out of the global shell and into the activity route,
+  before the once-global shared component script.
+- Added an isolated Phase 2 expense fixture seam covering exact-one decisions,
+  fresh-token stale replays, invalid CSRF, all four no-self checks, and
+  near-simultaneous separately authenticated final-validation attempts.
 - Added explicit next-action content to the activity operational table at
   desktop, 768px, and 390px layouts.
 - Replaced raw database/driver feedback on touched surfaces with safe French
@@ -72,24 +137,25 @@ The approved v2 snapshot was not edited. Its tree hash remains
 
 | Check | Exact command or seam | Result |
 | --- | --- | --- |
-| Phase 2 browser seam | `npm run test:e2e -- --reporter=line --timeout=120000 tests/e2e/phase2-v2-operational-components.spec.js` | 18 passed |
-| Expense workflow replay/idempotency | Same Playwright command with `phase05-expense-disbursement-workflow.spec.js` and `phase11-expense-workflow.spec.js` | 13 passed |
-| Activity workflow regression | Same Playwright command with `phase7-activity-workflow.spec.js` | 9 passed |
-| Activity execution regression | Same Playwright command with `phase6r-project-activity-execution.spec.js` | 5 passed |
-| Initial Phase 2 full gate | `npm run test:e2e -- --reporter=line --timeout=120000` | 148 passed |
-| First post-review full gate | Same full command | 151 passed |
-| Expanded-risk full gate | Same full command | 154 passed in 9.0 minutes |
-| Final full gate | Same full command | 155 passed in 8.0 minutes |
+| Remediated Phase 2 browser seam | `npm run test:e2e -- --reporter=line --timeout=120000 tests/e2e/phase2-v2-operational-components.spec.js` | 28 passed |
+| Strengthened recovery baseline | Same focused command with `--grep "recovery is isolated"` | 1 passed |
+| Affected activity/email/exchange regressions | Same Playwright command with `phase7-activity-workflow.spec.js`, `phase8r-contextual-exchanges.spec.js`, and `phase10-email-templates.spec.js` | 18 passed |
+| Final complete browser gate | `npm run test:e2e -- --reporter=line --timeout=120000` | 165 passed in 9.5 minutes |
 | Activity smoke | `docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_activity_workflow.php` | Passed |
 | Expense smoke | `docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php` | Passed |
 | Traceability/export smoke | `docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_traceability_exports.php` | Passed |
-| PHP syntax | `php -l` for every touched PHP/CSS-PHP file | Passed |
-| JavaScript syntax | `node --check` for shared JavaScript and touched E2E files | Passed |
+| PHP syntax | `php -l` for every touched PHP file | Passed |
+| JavaScript syntax | `node --check` for touched E2E/manual files and manual config | Passed |
+| Manual harness guard | `npx playwright test --config=tests/manual/playwright.config.js --reporter=line` without opt-in | 1 skipped as designed |
+| Approved snapshot identity | `git rev-parse HEAD:docs/design-system/approved/v2` | `98d0053a934b83b4a21a6c67207e86b3c89fe7d0` |
 | Patch integrity | `git diff --check` | Passed |
-| Fixed-point standards review | Phase 1 commit through corrected Phase 2 HEAD | No High, blocking, or Medium issue |
-| Fixed-point specification review | Phase 1 commit through corrected Phase 2 HEAD | No High, blocking, or Medium issue |
+| Fixed-point standards review | Phase 1 commit through remediated working tree | Pending final post-document review |
+| Fixed-point specification review | Phase 1 commit through remediated working tree | Pending final post-document review |
 
-The final browser seam covers linked multi-field errors and retained values;
+The remediated browser seam covers computed semantic tones and contrast;
+single-owner route JavaScript; exact-action recovery and unchanged forbidden
+session baselines; neutral unknown/legacy timeline and audit presentation;
+linked multi-field errors and retained values;
 two-tab, one-use, expired, cross-user, and cross-entity recovery; known and
 unknown failures; normalized/scoped filters and totals; sorting and pagination
 boundaries; inaccessible and malformed filters; real initial-empty and
@@ -98,11 +164,18 @@ confirmation and no-JavaScript fallback; stale state/token/premature direct
 POST rejection; repeated correction chronology; real production partial
 timeline/alert renderers; and absence of raw technical or legacy wording.
 
-Expense regressions replay prevalidation, final validation, rejection, and
-disbursement through public POSTs. Each replay is rejected with HTTP 403 and
-each decision remains exactly one validation/audit event.
+The standalone expense fixtures drive prevalidation, final validation,
+rejection, and disbursement through UI and public POST seams. Each fresh-token
+replay is rejected with HTTP 403; expense, budget, actor/date metadata, and
+audit projections are exact; invalid CSRF and four no-self cases are
+immutable; and two separately authenticated near-simultaneous final attempts
+produce one event and one state/budget effect.
 
-## Review findings and corrections
+## Historical review findings and corrections
+
+The review conclusions below describe the pre-remediation Phase 2 checkpoints.
+They are historical and will be superseded only after final post-remediation
+fixed-point corrections, reruns, and review complete.
 
 The first fixed-point review found incomplete shared-field adoption, stale
 expense checks occurring before action authorization, implicit document
@@ -124,8 +197,9 @@ Corrections:
 - added real two-tab/context recovery, repeated-cycle chronology, partial
   renderer, real empty-route, and duplicate expense-decision coverage.
 
-The final standards and specification re-reviews found no remaining High,
-blocking, or Medium issue. A low-risk performance observation remains:
+Those standards and specification re-reviews found no remaining High,
+blocking, or Medium issue at that earlier checkpoint. A low-risk performance
+observation remains:
 responsible-name lookup is per changed audit event on bounded detail
 timelines; batch loading is only warranted if measured timeline latency later
 justifies it.
@@ -162,17 +236,24 @@ Automated checks cover keyboard focus behavior, token contrast pairs, the
 390/768/1024/1366 review widths used by the plan, responsive table/card
 behavior, semantic labels, and JavaScript-disabled fallback.
 
-## Residual human validation and exclusions
+## Required manual validation and exclusions
 
-The following evidence remains intentionally pending Phase 4/release:
+The Phase 2 User/QA matrix is a current gate, not deferred Phase 4 work. Its
+fixture manifest, headed calibration harness, and unsigned evidence sheet are
+at `tests/manual/phase2-accessibility-fixture-manifest.md` and
+`docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md`.
+Until every 390/768/1024/1366 cell passes at calibrated real-browser 100% and
+200% zoom with signed keyboard, reflow, contrast, and dialog evidence, this
+report cannot use a phase-scoped validated verdict.
 
-- manual screen-reader validation;
+The following remain expressly outside Phase 2:
+
+- screen-reader validation;
 - broader physical-device and assistive-technology coverage;
-- formal human 200% zoom/reflow review;
-- formal human contrast and visual-regression sign-off.
+- a formal WCAG conformance claim.
 
-No WCAG conformance claim is made. Production email transport, public/base
-URL, final permission and secret configuration, production operations
+Production email transport, public/base URL, final permission and secret
+configuration, production operations
 evidence, client report canevas/rights, `FACT-001`, and the documented release
 blockers remain open.
 

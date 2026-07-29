@@ -399,7 +399,8 @@ function mjl_budgetlines_timeline_items($row)
 	$sql .= ' ORDER BY w.action_date ASC, w.rowid ASC';
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		setEventMessages(mjl_ui_safe_error_message('timeline'), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'budgetlines', 'action' => 'timeline', 'entity' => (int) $conf->entity, 'object_type' => 'mjlfinancement_budget_line', 'object_id' => (int) $row['rowid']), $db->lasterror());
 		return $items;
 	}
 	while ($obj = $db->fetch_object($resql)) {
@@ -407,7 +408,7 @@ function mjl_budgetlines_timeline_items($row)
 		$items[] = array(
 			'label' => mjl_budgetline_action_label($obj->action),
 			'title' => mjl_budgetline_status_label($obj->from_status).' vers '.mjl_budgetline_status_label($obj->to_status),
-			'meta' => mjl_budgetlines_format_datetime($obj->action_date).' par '.$obj->login.' ('.mjl_budgetline_actor_role_label($obj->actor_role).')',
+			'meta' => mjl_budgetlines_format_datetime($obj->action_date).' par '.$obj->login.' ('.mjl_timeline_presentation_actor_role_label('mjlfinancement_budget_line', $obj->action, $obj->actor_role).')',
 			'comment' => (string) $obj->comment,
 			'changes' => is_array($changes) ? $changes : array(),
 		);
@@ -499,26 +500,17 @@ function mjl_budgetlines_can_manage()
 
 function mjl_budgetline_status_label($status)
 {
-	$map = array(
-		(string) MjlBudgetLine::STATUS_DRAFT => 'Brouillon',
-		(string) MjlBudgetLine::STATUS_ACTIVE => 'Active',
-		'draft' => 'Brouillon',
-		'active' => 'Active',
-		'deleted' => 'Supprimee',
-	);
-	$key = (string) $status;
-	return isset($map[$key]) ? $map[$key] : $key;
+	return mjl_timeline_presentation_status_label('mjlfinancement_budget_line', $status);
 }
 
 function mjl_budgetline_action_label($action)
 {
-	$map = array('created' => 'Creation', 'field_changed' => 'Modification', 'unsafe_edit_rejected' => 'Modification refusee', 'activated' => 'Activation', 'deleted' => 'Suppression');
-	return isset($map[$action]) ? $map[$action] : (string) $action;
+	return mjl_timeline_presentation_action_label('mjlfinancement_budget_line', $action);
 }
 
 function mjl_budgetline_actor_role_label($role)
 {
-	return mjl_actor_role_label($role);
+	return mjl_timeline_presentation_actor_role_label('mjlfinancement_budget_line', '', $role);
 }
 
 function mjl_budgetlines_status_badge($status)

@@ -558,7 +558,7 @@ function mjl_dashboard_recent_audit($limit = 30, $filters = null)
 
 	$scopeSql = mjl_dashboard_audit_partner_filter_sql('w', $filters);
 	$projectSql = mjl_dashboard_audit_project_filter_sql('w', $filters);
-	$sql = 'SELECT CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN \'Activite\' WHEN w.object_type = \'mjlfinancement_expense\' THEN \'Depense\' WHEN w.object_type = \'mjlfinancement_convention\' THEN \'Enveloppe de financement\' WHEN w.object_type = \'mjlfinancement_budget_line\' THEN \'Ligne budgetaire\' WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN \'Réception de fonds\' WHEN w.object_type = \'mjlfinancement_project\' THEN \'Projet\' ELSE w.object_type END AS source,';
+	$sql = 'SELECT w.object_type, CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN \'Activite\' WHEN w.object_type = \'mjlfinancement_expense\' THEN \'Depense\' WHEN w.object_type = \'mjlfinancement_convention\' THEN \'Enveloppe de financement\' WHEN w.object_type = \'mjlfinancement_budget_line\' THEN \'Ligne budgetaire\' WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN \'Réception de fonds\' WHEN w.object_type = \'mjlfinancement_project\' THEN \'Projet\' ELSE w.object_type END AS source,';
 	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_expense\' THEN e.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref WHEN w.object_type = \'mjlfinancement_project\' THEN p.ref ELSE NULL END AS object_ref,';
 	$sql .= ' w.action, w.from_status, w.to_status, u.login, w.action_date, w.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
@@ -576,7 +576,7 @@ function mjl_dashboard_recent_audit($limit = 30, $filters = null)
 	$sql .= ' AND COALESCE(a.rowid, e.rowid, c.rowid, bl.rowid, fr.rowid, p.rowid) IS NOT NULL';
 	$sql .= $scopeSql.$projectSql.mjl_dashboard_date_filter_sql('w.action_date', $filters, true);
 	$sql .= ' UNION ALL ';
-	$sql .= 'SELECT \'Depense\' AS source, e.ref AS object_ref, v.action, v.from_status, v.to_status, u.login, v.action_date, v.comment';
+	$sql .= 'SELECT \'mjlfinancement_expense\' AS object_type, \'Depense\' AS source, e.ref AS object_ref, v.action, v.from_status, v.to_status, u.login, v.action_date, v.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = v.fk_expense AND e.entity = v.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention vc ON vc.rowid = e.fk_convention AND vc.entity = e.entity';
