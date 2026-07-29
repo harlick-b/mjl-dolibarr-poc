@@ -7,6 +7,8 @@ const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 const cleanupActivityRefs = new Set();
 const cleanupActivityPrefixes = new Set();
 
+test.describe.configure({ mode: 'serial' });
+
 async function login(page, username) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
@@ -26,6 +28,78 @@ function dockerSql(query) {
   execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', query], {
     cwd: projectRoot,
     stdio: 'pipe',
+  });
+}
+
+function mutateRecoverySession(handle, mutation) {
+  if (!/^[a-f0-9]{32}$/.test(handle)) {
+    throw new Error('Invalid recovery-session fixture identifier');
+  }
+  const allowedMutations = {
+    expire: '$_SESSION["mjl_form_recovery"][$handle]["expires_at"] = time() - 1;',
+    cross_user: '$_SESSION["mjl_form_recovery"][$handle]["context"]["user_id"] = 999999;',
+    cross_entity: '$_SESSION["mjl_form_recovery"][$handle]["context"]["entity"] = 999999;',
+  };
+  if (!allowedMutations[mutation]) throw new Error('Invalid recovery-session fixture mutation');
+  execFileSync('docker', [
+    'compose', 'exec', '-T', '-u', 'www-data', 'dolibarr', 'php', '-r',
+    `ini_set("session.save_path", "/tmp"); $handle = $argv[1]; $target = ""; $files = glob("/tmp/sess_*"); usort($files, function ($left, $right) { return filemtime($right) - filemtime($left); }); foreach ($files as $file) { if (strpos((string) @file_get_contents($file), $handle) !== false) { $target = basename($file); break; } } if ($target === "") exit(2); session_id(substr($target, 5)); session_start(); if (!isset($_SESSION["mjl_form_recovery"][$handle])) exit(3); ${allowedMutations[mutation]} session_write_close();`,
+    handle,
+  ], {
+    cwd: projectRoot,
+    stdio: 'pipe',
+  });
+}
+
+async function createInvalidRecovery(page, ref, label) {
+  await page.goto('/custom/mjlfinancement/activities.php');
+  const form = page.locator('form[data-mjl-form="activity-create"]');
+  const response = await page.request.post('/custom/mjlfinancement/activities.php', {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'create',
+      ref,
+      label,
+      fk_project: await form.locator('select[name="fk_project"] option:not([value=""])').first().getAttribute('value'),
+      fk_convention: await form.locator('select[name="fk_convention"] option:not([value=""])').first().getAttribute('value'),
+      date_start: '2026-08-02',
+      date_end: '2026-08-01',
+    },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  const location = response.headers().location;
+  expect(location).toMatch(/mjl_recovery=[a-f0-9]{32}/);
+  return location;
+}
+
+async function createActivityFixture(page, ref, label) {
+  await page.goto('/custom/mjlfinancement/activities.php');
+  const form = page.locator('form[data-mjl-form="activity-create"]');
+  const response = await page.request.post('/custom/mjlfinancement/activities.php', {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'create',
+      ref,
+      label,
+      fk_project: await form.locator('select[name="fk_project"] option', { hasText: 'PRJ-JE-2026' }).getAttribute('value'),
+      fk_convention: await form.locator('select[name="fk_convention"] option', { hasText: 'CONV-UNICEF-2026-001' }).getAttribute('value'),
+    },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  const match = (response.headers().location || '').match(/[?&]id=(\d+)/);
+  expect(match).not.toBeNull();
+  cleanupActivityRefs.add(ref);
+  return Number(match[1]);
+}
+
+async function postActivityDecision(page, activityId, action, comment, token = '') {
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+  const postToken = token || await page.locator('input[name="token"]').first().inputValue();
+  return page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    form: { token: postToken, action, id: String(activityId), comment },
+    maxRedirects: 0,
   });
 }
 
@@ -96,6 +170,29 @@ test('partial-result aggregation preserves successful items and stable ordering'
 
   expect(result.items.map((item) => item.title)).toEqual(['Première', 'Deuxième', 'Troisième']);
   expect(result.errors).toEqual([{ source: 'documents', category: 'unavailable' }]);
+});
+
+test('partial timeline and alert warnings render successful content without technical leakage', async ({ page }) => {
+  const result = phpJson(`
+    require 'custom/mjlfinancement/lib/mjl_ui.lib.php';
+    echo json_encode([
+      'timeline' => mjl_ui_system_state('partial-error', 'Historique partiellement disponible', mjl_ui_safe_error_message('timeline'))
+        .'<ol class="mjl-activity-timeline"><li><strong>Événement disponible</strong></li></ol>',
+      'alerts' => mjl_ui_system_state('partial-error', 'Alertes partiellement disponibles', mjl_ui_safe_error_message('alerts'))
+        .'<article><strong>Alerte disponible</strong></article>',
+      'initial' => mjl_ui_system_state('initial-empty', 'Aucune activité', 'Créez la première activité accessible.'),
+      'filtered' => mjl_ui_system_state('filtered-empty', 'Aucun résultat', 'Modifiez ou réinitialisez les filtres.'),
+    ]);
+  `);
+  await page.setContent(`<main>${result.timeline}${result.alerts}${result.initial}${result.filtered}</main>`);
+
+  await expect(page.locator('.mjl-system-state-partial-error').filter({ hasText: 'Historique partiellement disponible' })).toBeVisible();
+  await expect(page.getByText('Événement disponible')).toBeVisible();
+  await expect(page.locator('.mjl-system-state-partial-error').filter({ hasText: 'Alertes partiellement disponibles' })).toBeVisible();
+  await expect(page.getByText('Alerte disponible')).toBeVisible();
+  await expect(page.locator('.mjl-system-state-initial-empty')).toContainText('Créez la première activité accessible.');
+  await expect(page.locator('.mjl-system-state-filtered-empty')).toContainText('réinitialisez les filtres');
+  await expect(page.locator('body')).not.toContainText(/SQLSTATE|SELECT |Unknown column|driver/i);
 });
 
 test('exact activity execution failures translate only to their linked fields', () => {
@@ -359,6 +456,34 @@ test('activity server recovery retains safe values once and rejects invalid secu
   expect(outOfScope.headers().location || '').not.toContain('mjl_recovery');
 });
 
+test('two tabs keep recovery isolated and expired or cross-context handles reveal nothing', async ({ page, context }) => {
+  await login(page, 'agent.mjl');
+  const secondTab = await context.newPage();
+  const tabOneLocation = await createInvalidRecovery(page, 'P2-TAB-ONE', 'Premier onglet');
+  const tabTwoLocation = await createInvalidRecovery(secondTab, 'P2-TAB-TWO', 'Deuxième onglet');
+
+  await page.goto(tabOneLocation);
+  await secondTab.goto(tabTwoLocation);
+  await expect(page.locator('#mjl-field-ref')).toHaveValue('P2-TAB-ONE');
+  await expect(secondTab.locator('#mjl-field-ref')).toHaveValue('P2-TAB-TWO');
+  await page.goto(tabOneLocation);
+  await expect(page.locator('#mjl-field-ref')).toHaveValue('');
+
+  for (const [mutation, ref] of [
+    ['expire', 'P2-EXPIRED'],
+    ['cross_user', 'P2-CROSS-USER'],
+    ['cross_entity', 'P2-CROSS-ENTITY'],
+  ]) {
+    const location = await createInvalidRecovery(page, ref, 'Ne doit pas être révélée');
+    const handle = new URL(location, 'http://127.0.0.1').searchParams.get('mjl_recovery');
+    mutateRecoverySession(handle, mutation);
+    await page.goto(`${location}&recovery_proof=${Date.now()}`);
+    await expect(page.locator('#mjl-field-ref')).toHaveValue('');
+    await expect(page.locator('body')).not.toContainText('Ne doit pas être révélée');
+  }
+  await secondTab.close();
+});
+
 test('activity form keeps native validation without JavaScript', async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
@@ -553,4 +678,44 @@ test('stale, invalid-token, and premature expense decisions remain server-reject
     maxRedirects: 0,
   });
   expect(premature.status()).toBe(403);
+});
+
+test('repeated submission is rejected and repeated correction cycles stay strictly chronological', async ({ page }) => {
+  const ref = `P2-CYCLE-${Date.now()}`;
+  await login(page, 'agent.mjl');
+  const activityId = await createActivityFixture(page, ref, 'Cycle Phase 2');
+
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+  const submitToken = await page.locator('form input[name="action"][value="submit"]').locator('..').locator('input[name="token"]').inputValue();
+  const firstSubmit = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    form: { token: submitToken, action: 'submit', id: String(activityId), comment: 'Soumission initiale' },
+    maxRedirects: 0,
+  });
+  const duplicateSubmit = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    form: { token: submitToken, action: 'submit', id: String(activityId), comment: 'Soumission dupliquée' },
+    maxRedirects: 0,
+  });
+  expect(firstSubmit.status()).toBe(302);
+  expect(duplicateSubmit.status()).toBe(403);
+
+  for (let cycle = 1; cycle <= 2; cycle += 1) {
+    await login(page, 'superviseur.n1');
+    expect((await postActivityDecision(page, activityId, 'request_correction', `Retour ${cycle}`)).status()).toBe(302);
+    await login(page, 'agent.mjl');
+    expect((await postActivityDecision(page, activityId, 'correct', `Correction ${cycle}`)).status()).toBe(302);
+    expect((await postActivityDecision(page, activityId, 'submit', `Resoumission ${cycle}`)).status()).toBe(302);
+  }
+
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+  const comments = await page.locator('.mjl-activity-timeline .mjl-timeline-comment').allTextContents();
+  expect(comments).toEqual([
+    'Soumission initiale',
+    'Retour 1',
+    'Correction 1',
+    'Resoumission 1',
+    'Retour 2',
+    'Correction 2',
+    'Resoumission 2',
+  ]);
+  await expect(page.locator('body')).not.toContainText('Soumission dupliquée');
 });
