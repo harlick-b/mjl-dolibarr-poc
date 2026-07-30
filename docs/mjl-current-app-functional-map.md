@@ -39,6 +39,16 @@ replays, invalid-CSRF immutability, four no-self cases, and a two-session
 near-simultaneous final-decision attempt. Human accessibility evidence remains
 a separate unsigned gate.
 
+Phase 3A adds scoped 50-row pagination and deterministic sorting to the
+Partenaires / Programmes and project portfolios, adds the Partenaire /
+Programme filter to the activity list, and retains partner/project context in
+portfolio drill-downs for Admin as well as scoped users. Related portfolio
+sections use independently counted, deterministic 12-row previews. Project
+create/update/comment failures now use exact-action, one-use recovery with
+linked field errors and safe database feedback. A dependency-leaf journey
+presentation module has its first proven callers for activity summary and
+guarded document presentation.
+
 Legacy POC vocabulary remains in compatibility areas such as bootstrap scripts,
 seed data, SQL backfills, route names, module descriptors, and some labels.
 Those references are current-state/code debt, not target behavior.
@@ -61,9 +71,9 @@ Those references are current-state/code debt, not target behavior.
 | Surface | Route/file | Current purpose | Current-state notes |
 | --- | --- | --- | --- |
 | Dashboard | `index.php` | Role-aware workspace dashboard with Phase 10R scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | Compatibility fixture names still contain POC-era vocabulary. |
-| Partenaires / Programmes | `partners.php` | Partner/programme context and related data. | Uses native third parties as data source. |
-| Projects | `projects.php` | MJL project list/detail, related objects, legacy notes, and contextual comments. | Project create/edit needs current runtime verification before production claim. |
-| Activities | `activities.php` | Activity lifecycle, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Filters and sorting are allowlisted; malformed or inaccessible filters fail closed. |
+| Partenaires / Programmes | `partners.php` | Scoped, paginated partner/programme portfolio plus context and related previews. | Name/risk sorts are allowlisted; related previews are independently counted and limited to 12 rows. |
+| Projects | `projects.php` | Scoped, paginated MJL project list/detail, related previews, recoverable create/edit, legacy notes, and contextual comments. | Partner/status/sort filters fail closed; create/edit remains limited to Admin plateforme and Validateur definitif. |
+| Activities | `activities.php` | Activity lifecycle, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Partner/project/status/risk/sort filters are allowlisted; malformed or inaccessible filters fail closed. |
 | Expenses | `expenses.php` | Expense lifecycle, supporting evidence, prevalidation, final validation, disbursement, contextual comments, and consequence-aware decisions. | Final validation, rejection, and disbursement use a keyboard modal enhancement while retaining server markup and no-JavaScript submission. |
 | Documents | `documents.php` | Read-only accessible document library. | Uploads remain contextual. |
 | Conventions | `conventions.php` | Governed funding-envelope management and contextual comments. | User-facing terminology still needs alignment. |

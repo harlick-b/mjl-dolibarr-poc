@@ -8,6 +8,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_expense_access.li
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_table.lib.php';
 
 mjl_workspace_require_partners_access($user);
 
@@ -30,37 +31,55 @@ $db->close();
 
 function mjl_partners_render_list()
 {
-	$rows = mjl_partners_rows();
+	$result = mjl_partners_list_result();
+	$rows = $result['rows'];
+	$filters = $result['filters'];
 	mjl_dashboard_render_header(
 		'Partenaires / Programmes',
 		'Consulter les perimetres MJL representes par les tiers Dolibarr actifs.',
 		'Consultation',
-		count($rows).' partenaire(s)'
+		$result['total'] === null ? 'Total indisponible' : ((int) $result['total']).' partenaire(s)'
 	);
 
 	print '<section class="mjl-workspace-section">';
+	print '<form class="mjl-table-filters" method="GET" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/partners.php">';
+	print '<label for="mjl-partner-sort">Trier par<select id="mjl-partner-sort" name="sort">';
+	foreach (array('name' => 'Nom', 'risk' => 'Risque') as $value => $label) {
+		print '<option value="'.$value.'"'.($filters['sort'] === $value ? ' selected' : '').'>'.$label.'</option>';
+	}
+	print '</select></label><button class="button mjl-action mjl-action-primary" type="submit">Appliquer</button>';
+	print '<a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/partners.php">Réinitialiser</a></form>';
+	if (!$result['count_available'] && $result['rows_available']) {
+		print mjl_ui_system_state('partial-error', 'Total indisponible', 'Les partenaires accessibles restent affichés, mais le total ne peut pas être calculé.');
+	}
+	if (!$result['rows_available']) {
+		print mjl_ui_system_state('danger', 'Liste indisponible', mjl_ui_safe_error_message('database'));
+	}
 	if (empty($rows)) {
 		print '<div class="mjl-empty-state">Aucun partenaire ou programme accessible dans votre perimetre.</div>';
-		print '</section>';
-		return;
+	} else {
+		print '<div class="div-table-responsive"><table class="noborder centpercent">';
+		print '<tr class="liste_titre"><th>Partenaire / Programme</th><th>Portefeuille</th><th>Financement</th><th>Execution financiere</th><th>Validation</th><th>Alertes</th><th>Documents</th></tr>';
+		foreach ($rows as $row) {
+			$executionRate = mjl_partners_percent($row['financial_execution_rate']);
+			$validationRate = mjl_partners_percent($row['financial_validation_rate']);
+			$balanceTone = (float) $row['available_balance'] < 0 ? 'Alerte allocation' : 'Disponible';
+			print '<tr class="oddeven">';
+			print '<td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/partners.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['nom']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['email']).'</span></td>';
+			print '<td>'.((int) $row['projects_count']).' projet(s)<br><span class="opacitymedium">'.((int) $row['activities_in_progress']).' activite(s) en cours</span></td>';
+			print '<td>'.mjl_partners_price($row['funds_received']).'<br><span class="opacitymedium">Budget alloue '.mjl_partners_price($row['allocated_budget']).'</span></td>';
+			print '<td>'.mjl_partners_price($row['final_validated_amount']).'<br><span class="opacitymedium">'.$executionRate.' execute, '.$balanceTone.' '.mjl_partners_price($row['available_balance']).'</span></td>';
+			print '<td>'.$validationRate.'<br><span class="opacitymedium">'.((int) $row['expenses_to_prevalidate']).' prevalidation, '.((int) $row['expenses_to_final_validate']).' finale</span></td>';
+			print '<td>'.((int) $row['overdue_activities']).' retard<br><span class="opacitymedium">'.((int) $row['missing_justificatifs']).' piece(s) manquante(s)</span></td>';
+			print '<td>'.((int) $row['documents_count']).'</td>';
+			print '</tr>';
+		}
+		print '</table></div>';
 	}
-	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Partenaire / Programme</th><th>Portefeuille</th><th>Financement</th><th>Execution financiere</th><th>Validation</th><th>Alertes</th><th>Documents</th></tr>';
-	foreach ($rows as $row) {
-		$executionRate = mjl_partners_percent($row['financial_execution_rate']);
-		$validationRate = mjl_partners_percent($row['financial_validation_rate']);
-		$balanceTone = (float) $row['available_balance'] < 0 ? 'Alerte allocation' : 'Disponible';
-		print '<tr class="oddeven">';
-		print '<td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/partners.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['nom']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['email']).'</span></td>';
-		print '<td>'.((int) $row['projects_count']).' projet(s)<br><span class="opacitymedium">'.((int) $row['activities_in_progress']).' activite(s) en cours</span></td>';
-		print '<td>'.mjl_partners_price($row['funds_received']).'<br><span class="opacitymedium">Budget alloue '.mjl_partners_price($row['allocated_budget']).'</span></td>';
-		print '<td>'.mjl_partners_price($row['final_validated_amount']).'<br><span class="opacitymedium">'.$executionRate.' execute, '.$balanceTone.' '.mjl_partners_price($row['available_balance']).'</span></td>';
-		print '<td>'.$validationRate.'<br><span class="opacitymedium">'.((int) $row['expenses_to_prevalidate']).' prevalidation, '.((int) $row['expenses_to_final_validate']).' finale</span></td>';
-		print '<td>'.((int) $row['overdue_activities']).' retard<br><span class="opacitymedium">'.((int) $row['missing_justificatifs']).' piece(s) manquante(s)</span></td>';
-		print '<td>'.((int) $row['documents_count']).'</td>';
-		print '</tr>';
-	}
-	print '</table></div></section>';
+	$hasPrevious = !$filters['fail_closed'] && (int) $filters['page'] > 1;
+	$hasNext = !$filters['fail_closed'] && ($result['total'] === null ? $result['has_extra'] : ((int) $filters['page'] * 50 < (int) $result['total']));
+	print mjl_table_render_pagination(DOL_URL_ROOT.'/custom/mjlfinancement/partners.php', $filters, $result['total'], $hasPrevious, $hasNext, 'partenaires');
+	print '</section>';
 }
 
 function mjl_partners_render_detail($partnerId)
@@ -92,24 +111,29 @@ function mjl_partners_render_detail($partnerId)
 		array('label' => 'Activites en retard', 'value' => (string) $row['overdue_activities'], 'context' => 'Activites ouvertes apres echeance', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites', 'status' => 'Alerte', 'tone' => (int) $row['overdue_activities'] > 0 ? 'warning' : 'neutral'),
 		array('label' => 'Pieces manquantes', 'value' => (string) $row['missing_justificatifs'], 'context' => 'Depenses sans document ECM telechargeable', 'href' => '/custom/mjlfinancement/documents.php', 'action' => 'Voir les documents', 'status' => 'Justificatifs', 'tone' => (int) $row['missing_justificatifs'] > 0 ? 'warning' : 'neutral'),
 	);
+	foreach ($cards as &$card) $card['href'] = mjl_partners_context_url($card['href'], $partnerId);
+	unset($card);
 	mjl_dashboard_render_card_section('Synthese', 'Vue consolidee des objets accessibles pour ce partenaire ou programme.', $cards);
 	mjl_partners_render_identity($row);
-	mjl_partners_render_related('Projets lies', mjl_partners_project_rows($partnerId), 'projects.php');
-	mjl_partners_render_related('Enveloppes de financement', mjl_partners_convention_rows($partnerId), 'conventions.php');
-	mjl_partners_render_related('Lignes budgetaires', mjl_partners_budget_line_rows($partnerId), 'budgetlines.php');
-	mjl_partners_render_related('Activites liees', mjl_partners_activity_rows($partnerId), 'activities.php');
-	mjl_partners_render_related('Depenses liees', mjl_partners_expense_rows($partnerId), 'expenses.php');
-	mjl_partners_render_related('Fonds recus', mjl_partners_fund_receipt_rows($partnerId), 'fundreceipts.php');
+	mjl_partners_render_related('Projets lies', mjl_partners_project_rows($partnerId, 12), 'projects.php', $partnerId, (int) $row['projects_count']);
+	mjl_partners_render_related('Enveloppes de financement', mjl_partners_convention_rows($partnerId, 12), 'conventions.php', $partnerId, mjl_partners_readable_total('convention', $row['envelopes_count']));
+	mjl_partners_render_related('Lignes budgetaires', mjl_partners_budget_line_rows($partnerId, 12), 'budgetlines.php', $partnerId, mjl_partners_readable_total('budgetline', $row['budget_lines_count']));
+	mjl_partners_render_related('Activites liees', mjl_partners_activity_rows($partnerId, 12), 'activities.php', $partnerId, mjl_partners_readable_total('activity', $row['activities_count']));
+	mjl_partners_render_related('Depenses liees', mjl_partners_expense_rows($partnerId, 12), 'expenses.php', $partnerId, mjl_partners_readable_total('expense', $row['expenses_count']));
+	mjl_partners_render_related('Fonds recus', mjl_partners_fund_receipt_rows($partnerId, 12), 'fundreceipts.php', $partnerId, mjl_partners_readable_total('fundreceipt', $row['fund_receipts_count']));
 	mjl_partners_render_documents($partnerId);
 	mjl_partners_render_alerts($row);
 	mjl_partners_render_timeline($partnerId);
 	mjl_partners_render_assigned_users($partnerId);
 }
 
-function mjl_partners_render_related($title, $rows, $route)
+function mjl_partners_render_related($title, $rows, $route, $partnerId, $total)
 {
+	$drilldown = mjl_partners_context_url('/custom/mjlfinancement/'.$route, $partnerId);
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>'.dol_escape_htmltag($title).'</h2><p>Elements limites au perimetre actif.</p></div>';
+	print '<div class="mjl-section-heading"><h2>'.dol_escape_htmltag($title).' ('.((int) $total).')</h2><p>Aperçu limité à 12 éléments du périmètre actif.';
+	if (mjl_partners_can_open_related_route($route)) print ' <a class="mjl-table-link" href="'.dol_escape_htmltag(DOL_URL_ROOT.$drilldown).'">Voir la liste complète</a>';
+	print '</p></div>';
 	if (empty($rows)) {
 		print '<div class="mjl-empty-state">Aucun element accessible.</div></section>';
 		return;
@@ -120,6 +144,33 @@ function mjl_partners_render_related($title, $rows, $route)
 		print '<tr class="oddeven"><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$route.'?id='.((int) $item['rowid']).'">'.dol_escape_htmltag($item['ref']).'</a></td><td>'.dol_escape_htmltag($item['label']).'</td><td>'.dol_escape_htmltag($item['status_label']).'</td></tr>';
 	}
 	print '</table></div></section>';
+}
+
+function mjl_partners_context_url($path, $partnerId)
+{
+	$path = (string) $path;
+	$route = basename((string) parse_url($path, PHP_URL_PATH));
+	$key = in_array($route, array('projects.php', 'activities.php', 'expenses.php', 'documents.php'), true) ? 'partner' : 'partner_id';
+	return $path.(strpos($path, '?') === false ? '?' : '&').$key.'='.((int) $partnerId);
+}
+
+function mjl_partners_readable_total($right, $total)
+{
+	global $user;
+	return $user->hasRight('mjlfinancement', (string) $right, 'read') ? (int) $total : 0;
+}
+
+function mjl_partners_can_open_related_route($route)
+{
+	global $user;
+	$rights = array(
+		'conventions.php' => 'convention',
+		'budgetlines.php' => 'budgetline',
+		'activities.php' => 'activity',
+		'expenses.php' => 'expense',
+		'fundreceipts.php' => 'fundreceipt',
+	);
+	return !isset($rights[$route]) || $user->hasRight('mjlfinancement', $rights[$route], 'read');
 }
 
 function mjl_partners_render_identity($row)
@@ -213,12 +264,61 @@ function mjl_partners_render_assigned_users($partnerId)
 
 function mjl_partners_rows()
 {
+	return mjl_partners_list_result()['rows'];
+}
+
+function mjl_partners_list_result()
+{
+	global $db;
+	$raw = array();
+	foreach (array('sort', 'page') as $key) $raw[$key] = isset($_GET[$key]) && is_scalar($_GET[$key]) ? (string) $_GET[$key] : '';
+	$filters = mjl_table_normalize_generic($raw, array(
+		'sort' => array('type' => 'enum', 'allowed' => array('name', 'risk'), 'default' => 'name'),
+		'page' => array('type' => 'page', 'default' => 1),
+	), 50);
+	$fragments = mjl_partners_list_fragments($filters);
+	$total = null;
+	$countAvailable = true;
+	if (!$filters['fail_closed']) {
+		$resql = $db->query('SELECT COUNT(*) AS nb'.$fragments['from'].$fragments['where']);
+		if ($resql) {
+			$row = $db->fetch_object($resql);
+			$total = $row ? (int) $row->nb : 0;
+			$filters = mjl_table_normalize_generic($raw, array(
+				'sort' => array('type' => 'enum', 'allowed' => array('name', 'risk'), 'default' => 'name'),
+				'page' => array('type' => 'page', 'default' => 1),
+			), 50, $total);
+		} else {
+			$countAvailable = false;
+			mjl_ui_log_error('database', array('route' => 'partners', 'action' => 'list_count'), $db->lasterror());
+		}
+	}
+	$rows = array();
+	$rowsAvailable = true;
+	$hasExtra = false;
+	if (!$filters['fail_closed']) {
+		$order = $filters['sort'] === 'risk' ? ' ORDER BY overdue_activities DESC, missing_justificatifs DESC, s.nom ASC, s.rowid ASC' : ' ORDER BY s.nom ASC, s.rowid ASC';
+		$offset = ((int) $filters['page'] - 1) * 50;
+		$resql = $db->query(mjl_partners_base_sql().$fragments['where'].$order.' LIMIT 51 OFFSET '.max(0, $offset));
+		if (!$resql) {
+			$rowsAvailable = false;
+			mjl_ui_log_error('database', array('route' => 'partners', 'action' => 'list_rows'), $db->lasterror());
+		} else {
+			while ($row = $db->fetch_object($resql)) $rows[] = (array) $row;
+			$hasExtra = count($rows) > 50;
+			if ($hasExtra) array_pop($rows);
+		}
+	}
+	return array('filters' => $filters, 'rows' => $rows, 'total' => $total, 'count_available' => $countAvailable, 'rows_available' => $rowsAvailable, 'has_extra' => $hasExtra);
+}
+
+function mjl_partners_list_fragments($filters)
+{
 	global $db, $conf, $user;
-	$sql = mjl_partners_base_sql();
-	$sql .= ' WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1';
-	$sql .= mjl_scope_partner_sql_filter('s.rowid', $user);
-	$sql .= ' ORDER BY s.nom ASC';
-	return mjl_partners_fetch_all($sql);
+	$from = ' FROM '.$db->prefix().'societe s';
+	$where = ' WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $user);
+	if (!empty($filters['fail_closed'])) $where .= ' AND 1 = 0';
+	return array('from' => $from, 'where' => $where);
 }
 
 function mjl_partners_fetch($partnerId)
@@ -240,6 +340,8 @@ function mjl_partners_base_sql()
 	return 'SELECT s.rowid, s.nom, s.email, s.phone,'
 		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'projet p WHERE p.entity = s.entity AND p.fk_soc = s.rowid), 0) AS projects_count,'
 		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = s.entity AND c.fk_soc = s.rowid), 0) AS envelopes_count,'
+		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention cbc ON cbc.rowid = bl.fk_convention AND cbc.entity = bl.entity WHERE bl.entity = s.entity AND cbc.fk_soc = s.rowid), 0) AS budget_lines_count,'
+		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_fund_receipt frc WHERE frc.entity = s.entity AND frc.fk_soc = s.rowid), 0) AS fund_receipts_count,'
 		.' COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity WHERE c.entity = s.entity AND c.fk_soc = s.rowid), 0) AS allocated_budget,'
 		.' COALESCE((SELECT SUM(fr.amount) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = s.entity AND fr.fk_soc = s.rowid AND fr.status = 1), 0) AS funds_received,'
 		.' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity WHERE c.entity = s.entity AND c.fk_soc = s.rowid), 0) AS activities_count,'
@@ -273,57 +375,67 @@ function mjl_partners_base_sql()
 		.' FROM '.$db->prefix().'societe s';
 }
 
-function mjl_partners_project_rows($partnerId)
+function mjl_partners_project_rows($partnerId, $limit = 0)
 {
 	global $db, $conf;
-	$rows = mjl_partners_fetch_all('SELECT rowid, ref, title AS label, fk_statut AS status FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $partnerId).' ORDER BY ref ASC');
+	$sql = 'SELECT rowid, ref, title AS label, fk_statut AS status FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $partnerId).' ORDER BY ref ASC, rowid ASC';
+	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
+	$rows = mjl_partners_fetch_all($sql);
 	foreach ($rows as &$row) $row['status_label'] = ((int) $row['status'] === 1 ? 'Ouvert' : 'Brouillon / clos');
 	return $rows;
 }
 
-function mjl_partners_convention_rows($partnerId)
+function mjl_partners_convention_rows($partnerId, $limit = 0)
 {
 	global $db, $conf, $user;
 	if (!$user->hasRight('mjlfinancement', 'convention', 'read')) return array();
-	$rows = mjl_partners_fetch_all('SELECT rowid, ref, title AS label, status FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $partnerId).' ORDER BY ref ASC');
+	$sql = 'SELECT rowid, ref, title AS label, status FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $partnerId).' ORDER BY ref ASC, rowid ASC';
+	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
+	$rows = mjl_partners_fetch_all($sql);
 	foreach ($rows as &$row) $row['status_label'] = mjl_partners_status($row['status']);
 	return $rows;
 }
 
-function mjl_partners_activity_rows($partnerId)
+function mjl_partners_activity_rows($partnerId, $limit = 0)
 {
 	global $db, $conf, $user;
 	if (!$user->hasRight('mjlfinancement', 'activity', 'read')) return array();
-	$sql = 'SELECT a.rowid, a.ref, a.label, a.status, a.fk_user_creat FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity WHERE a.entity = '.((int) $conf->entity).' AND c.fk_soc = '.((int) $partnerId).' ORDER BY a.ref ASC';
+	$sql = 'SELECT a.rowid, a.ref, a.label, a.status, a.fk_user_creat FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity WHERE a.entity = '.((int) $conf->entity).' AND c.fk_soc = '.((int) $partnerId).' ORDER BY a.ref ASC, a.rowid ASC';
+	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
 	$rows = mjl_partners_fetch_all($sql);
 	foreach ($rows as &$row) $row['status_label'] = mjl_partners_activity_status($row['status']);
 	return $rows;
 }
 
-function mjl_partners_expense_rows($partnerId)
+function mjl_partners_expense_rows($partnerId, $limit = 0)
 {
 	global $db, $conf, $user;
 	if (!$user->hasRight('mjlfinancement', 'expense', 'read')) return array();
-	$sql = 'SELECT e.rowid, e.ref, e.description AS label, e.status, e.fk_user_creat FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity WHERE e.entity = '.((int) $conf->entity).' AND c.fk_soc = '.((int) $partnerId).' ORDER BY e.ref ASC';
+	$sql = 'SELECT e.rowid, e.ref, e.description AS label, e.status, e.fk_user_creat FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity WHERE e.entity = '.((int) $conf->entity).' AND c.fk_soc = '.((int) $partnerId).' ORDER BY e.ref ASC, e.rowid ASC';
+	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
 	$rows = mjl_partners_fetch_all($sql);
 	foreach ($rows as &$row) $row['status_label'] = mjl_partners_expense_status($row['status']);
 	return $rows;
 }
 
-function mjl_partners_budget_line_rows($partnerId)
+function mjl_partners_budget_line_rows($partnerId, $limit = 0)
 {
 	global $db, $conf, $user;
 	if (!$user->hasRight('mjlfinancement', 'budgetline', 'read')) return array();
-	$rows = mjl_partners_fetch_all('SELECT bl.rowid, bl.ref, bl.label, bl.status FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity WHERE bl.entity = '.((int) $conf->entity).' AND c.fk_soc = '.((int) $partnerId).' ORDER BY bl.ref ASC');
+	$sql = 'SELECT bl.rowid, bl.ref, bl.label, bl.status FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity WHERE bl.entity = '.((int) $conf->entity).' AND c.fk_soc = '.((int) $partnerId).' ORDER BY bl.ref ASC, bl.rowid ASC';
+	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
+	$rows = mjl_partners_fetch_all($sql);
 	foreach ($rows as &$row) $row['status_label'] = mjl_partners_status($row['status']);
 	return $rows;
 }
 
-function mjl_partners_fund_receipt_rows($partnerId)
+function mjl_partners_fund_receipt_rows($partnerId, $limit = 0)
 {
 	global $db, $conf, $user;
 	if (!$user->hasRight('mjlfinancement', 'fundreceipt', 'read')) return array();
-	$rows = mjl_partners_fetch_all('SELECT rowid, ref, comment AS label, status FROM '.$db->prefix().'mjlfinancement_fund_receipt WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $partnerId).' ORDER BY ref ASC');
+	$sql = 'SELECT rowid, ref, comment AS label, status FROM '.$db->prefix().'mjlfinancement_fund_receipt WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $partnerId).' ORDER BY ref ASC, rowid ASC';
+	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
+	$rows = mjl_partners_fetch_all($sql);
 	foreach ($rows as &$row) $row['status_label'] = mjl_partners_status($row['status']);
 	return $rows;
 }
