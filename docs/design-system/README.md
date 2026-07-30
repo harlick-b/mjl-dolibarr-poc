@@ -8,9 +8,13 @@
 - Documentation transfer: authorized through user-supplied decision
   `PD-DEC-030`.
 - Documentation transfer: completed manually by the user.
-- UI implementation: not authorized.
-- Application-code changes: not authorized.
-- Release readiness: blocked by the unresolved-scope integrity failure.
+- UI implementation: separately authorized and completed through Phase 3.
+- Application-code changes: separately authorized and completed through
+  Phase 3.
+- Phase 3 post-remediation evidence: current in
+  `docs/implementation/mjl-design-system-v2-phase3-implementation-report.md`.
+- Release readiness: blocked by unresolved-scope history, unsigned manual
+  accessibility evidence, and outstanding production/operator confirmations.
 
 This registration changes no application behavior. It does not establish
 runtime accessibility conformance or production readiness.
@@ -103,8 +107,8 @@ not silently bypass it.
 - v2 is the approved design reference for future work.
 - The package does not change current application behavior.
 - The framework-neutral implementation plan is documentation only.
-- Design tokens remain documentation until separately authorized and
-  integrated.
+- The approved token files remain immutable documentation. Application mappings
+  implemented through separately authorized phases remain code-owned.
 - Skills recommendations authorize no installation or command execution.
 - Routes and direct-request guards remain protected.
 - Permissions and active-entity scope remain protected.
@@ -126,8 +130,12 @@ approval through user-supplied decision `PD-DEC-029`.
 
 That manual review may show target documentation transfer as unauthorized
 because it records the governance state when v2 was approved. The later
-user-supplied decision `PD-DEC-030` authorizes documentation transfer and is
-recorded in [`TRANSFER-AUTHORIZATION.md`](TRANSFER-AUTHORIZATION.md).
+user-supplied decision `PD-DEC-030` authorized documentation transfer, which
+was completed manually. The former standalone transfer-authorization record is
+retained in Git history.
 
-This is a chronological governance sequence, not a contradiction. Neither
-decision authorizes UI implementation or application changes.
+This is a chronological governance sequence, not a contradiction.
+`PD-DEC-029` and `PD-DEC-030` did not authorize UI implementation or
+application changes; later phase-specific user authorizations permitted
+implementation through Phase 3. They do not authorize Phase 4, Phase 5,
+production deployment, or release.

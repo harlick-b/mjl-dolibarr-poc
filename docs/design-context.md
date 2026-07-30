@@ -712,7 +712,7 @@ the target repository.
 | Current visual baseline and unresolved brand decisions | `DESIGN.md` | High | Design evidence, subordinate to product authority. |
 | Current routes, capabilities, helpers, and implementation caveats | `docs/mjl-current-app-functional-map.md` | High | Current-state evidence only. |
 | Current-to-target gaps and runtime/client blockers | `docs/mjl-current-vs-target-gap-analysis.md` | High | Does not create target requirements. |
-| Target UI/navigation guidance and interaction detail | `docs/mjl-ui-navigation-design-target-specification.md` | Medium | Use only where consistent with higher authority; unresolved capability proposals stay provisional. |
+| Approved target UI/navigation and interaction guidance | `docs/design-system/README.md` and its immutable approved-v2 package | High | Use within higher product authority; unresolved capability proposals remain provisional. |
 | Design direction and principles | `docs/design-system/DESIGN.md` | High | Active design guidance. |
 | Component inventory and definition standard | `docs/design-system/MJL_COMPONENTS.md` | High | Generated components need behavior, states, accessibility, role visibility, and test expectations. |
 | French-first content and action wording | `docs/design-system/MJL_CONTENT_GUIDELINES.md` | High | Content guidance remains subordinate to final client wording. |

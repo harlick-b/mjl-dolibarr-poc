@@ -8,9 +8,11 @@ evidence only.
 ## Summary
 
 The active documentation now points at the authority file, durable context,
-current-state map, active design docs, and the kept navigation/UI evidence. The
-cleanup removed historical prompt, phase, demo, UAT, and cleanup-history docs
-as active guidance. No application business logic was changed.
+current-state map, approved design entry point, current design audits, and
+current Phase 3 post-remediation evidence. Superseded navigation/UI evidence,
+pre-implementation readiness baselines, executed plans, and obsolete phase
+reports were removed after their durable conclusions and open blockers were
+consolidated. No application business logic was changed by that cleanup.
 
 ## Current Gaps
 
@@ -53,7 +55,12 @@ as active guidance. No application business logic was changed.
 
 ## Deleted-Doc Content Consolidated Here
 
-Historical phase, client-validation, demo, UAT, role-matrix, report-model, KPI
-model, implementation-summary, cleanup-history, and prompt documents were
-merged into the active docs where durable. They must not be used as active
-implementation guidance after this cleanup.
+Historical client-validation, demo, UAT, role-matrix, report-model, KPI-model,
+implementation-summary, cleanup-history, navigation-audit, target-specification,
+readiness-baseline, executed-plan, and superseded phase-report documents were
+merged into active docs where durable. Open assumptions remain in
+`docs/design-system/README.md` and the table above. Current implementation
+evidence remains in `docs/mjl-current-app-functional-map.md`, current design
+audits, acceptance guidance, and
+`docs/implementation/mjl-design-system-v2-phase3-implementation-report.md`.
+Deleted documents must not be used as active implementation guidance.

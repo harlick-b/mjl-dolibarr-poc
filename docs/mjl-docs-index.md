@@ -10,8 +10,8 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`.
 4. `docs/mjl-current-app-functional-map.md` for current-state evidence only.
 5. Existing implementation code.
 
-Historical prompts, executed plans, phase reports, demo/UAT packs, cleanup
-records, and stale POC notes are not active implementation guidance.
+Historical prompts, executed plans, superseded phase reports, demo/UAT packs,
+cleanup records, and stale POC notes are not active implementation guidance.
 
 ## Core Product And Domain Docs
 
@@ -40,9 +40,7 @@ records, and stale POC notes are not active implementation guidance.
 | --- | --- |
 | `DESIGN.md` | Durable design memory. |
 | `docs/design-context.md` | Sole active target-project context copied into `proj-design` for design-system generation. |
-| `docs/design-system/README.md` | Active entry point for the approved MJL Financement v2 design documentation; UI implementation remains separately gated. |
-| `docs/mjl-ui-navigation-design-target-specification.md` | Kept UI/navigation target specification and repair plan. |
-| `docs/audits/mjl-navigation-design-full-audit.md` | Kept historical navigation/design audit evidence, including referenced screenshots. |
+| `docs/design-system/README.md` | Active entry point for the approved MJL Financement v2 design documentation and its implementation chronology. |
 | `docs/design-system/CODEX_UI_IMPLEMENTATION_GUIDE.md` | UI implementation guidance. |
 | `docs/design-system/DESIGN.md` | Design-system memory. |
 | `docs/design-system/MJL_ACCESSIBILITY_CHECKLIST.md` | Accessibility checklist. |
@@ -62,17 +60,18 @@ records, and stale POC notes are not active implementation guidance.
 | `docs/design-system/audit/current-screen-inventory.md` | Current UI screen inventory. |
 | `docs/design-system/audit/current-ui-audit.md` | Current UI audit. |
 
-## Approved v2 Implementation-Readiness Audit
+## Current Design Implementation Evidence
 
 | Document | Purpose |
 | --- | --- |
-| `docs/implementation/mjl-design-system-v2-gap-matrix.md` | Material approved-v2 versus committed-implementation gap matrix. |
-| `docs/implementation/mjl-design-system-v2-component-mapping.md` | Current-to-approved component and interface-pattern mapping. |
-| `docs/implementation/mjl-design-system-v2-assumption-resolution.md` | Evidence-based assessment of all eight approved assumptions. |
-| `docs/implementation/mjl-design-system-v2-implementation-readiness-audit.md` | Main audit with separate implementation and release readiness assessments. |
-| `docs/implementation/mjl-design-system-v2-phased-implementation-plan.md` | Six-phase, separately authorized implementation and journey-validation plan. |
-| `docs/implementation/mjl-design-system-v2-implementation-readiness-report.md` | Final execution record, verdict, evidence, commands, blockers, and next action. |
-| `docs/implementation/mjl-design-system-v2-phase1-implementation-report.md` | Authorized Phase 1 implementation scope, verification evidence, review corrections, exclusions, and rollback. |
+| `docs/implementation/mjl-design-system-v2-phase3-implementation-report.md` | Current consolidated Phase 1–3 implementation and post-remediation verification evidence; not product authority or release approval. |
+| `docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md` | Active unsigned cross-phase manual keyboard, reflow, zoom, and contrast gate. |
+
+## Cleanup Evidence
+
+| Document | Purpose |
+| --- | --- |
+| `docs/audits/mjl-repository-removal-candidates-audit.md` | Evidence and execution record for stale-document and repository-noise cleanup; not active implementation guidance. |
 
 ## Agent Support Docs
 
@@ -100,10 +99,11 @@ records, and stale POC notes are not active implementation guidance.
 
 ## Deleted Or Merged
 
-Deleted historical docs included prompt archives, cleanup-history docs, phase
-reports, demo/UAT/client-validation packs, the standalone role matrix,
-reports/exports model, dashboard KPI model, the standalone implementation
-summary, and superseded native-boundary audit artifacts. Durable content from
-those files was consolidated into `CONTEXT.md`,
-`docs/mjl-current-app-functional-map.md`, and
-`docs/mjl-current-vs-target-gap-analysis.md`.
+Deleted historical docs include prompt archives, superseded navigation/UI
+specifications and evidence, obsolete approved-v2 readiness baselines and
+plans, superseded phase reports, demo/UAT/client-validation packs, standalone
+role/report/KPI models, implementation summaries, and native-boundary audit
+artifacts. Durable content is consolidated into `CONTEXT.md`,
+`docs/design-system/README.md`, `docs/mjl-current-app-functional-map.md`,
+`docs/mjl-current-vs-target-gap-analysis.md`, and the current Phase 3 evidence
+report.
