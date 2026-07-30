@@ -46,6 +46,7 @@ function mjl_finance_feedback_domain_policy()
 			'create' => array(
 				'La référence de réception est obligatoire' => array('ref' => 'La référence est obligatoire.'),
 				'Une enveloppe active avec partenaire est obligatoire' => array('_form' => 'Une enveloppe active rattachée à un Partenaire / Programme est obligatoire.'),
+				'Une convention active est obligatoire' => array('_form' => 'Une enveloppe active rattachée à un Partenaire / Programme est obligatoire.'),
 				'Le montant de réception ne peut pas être négatif' => array('amount' => 'Le montant ne peut pas être négatif.'),
 			),
 			'update' => array(

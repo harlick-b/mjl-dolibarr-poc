@@ -11,12 +11,6 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.lib.php';
 
-// CLI verification may load the production renderer functions with an
-// in-memory database adapter; this constant is not selectable by HTTP input.
-if (defined('MJL_FINANCE_RENDERERS_ONLY') && MJL_FINANCE_RENDERERS_ONLY) {
-	return;
-}
-
 mjl_workspace_require_reference_data_access($user, 'fundreceipt');
 
 $action = GETPOST('action', 'aZ09');
@@ -61,7 +55,7 @@ function mjl_fundreceipts_handle_post($action)
 		$receipt->entity = (int) $conf->entity;
 		$receipt->ref = GETPOST('ref', 'alphanohtml');
 		$receipt->fk_convention = GETPOSTINT('fk_convention');
-		if (!mjl_fundreceipts_can_use_convention((int) $receipt->fk_convention)) {
+		if ((int) $receipt->fk_convention > 0 && !mjl_fundreceipts_can_use_convention((int) $receipt->fk_convention)) {
 			mjl_fundreceipts_forbidden('Enveloppe hors de votre périmètre');
 		}
 		$receipt->amount = GETPOST('amount', 'alpha');
@@ -97,7 +91,7 @@ function mjl_fundreceipts_handle_post($action)
 
 	if ($action === 'update') {
 		$failureAction = 'update';
-		if (!mjl_fundreceipts_can_use_convention(GETPOSTINT('fk_convention'))) {
+		if (GETPOSTINT('fk_convention') > 0 && !mjl_fundreceipts_can_use_convention(GETPOSTINT('fk_convention'))) {
 			mjl_fundreceipts_forbidden('Enveloppe hors de votre périmètre');
 		}
 		$result = $receipt->updateGovernedFields($user, array(

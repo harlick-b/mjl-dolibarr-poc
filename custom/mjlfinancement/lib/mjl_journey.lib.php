@@ -65,7 +65,7 @@ function mjl_journey_render_document_panel(array $model): string
 		$html .= '</div>';
 	}
 	if (in_array($state, array('missing', 'upload-failed'), true) && !empty($model['action']) && is_array($model['action'])) {
-		$actionUrl = mjl_journey_local_url($model['action']['url'] ?? '');
+		$actionUrl = mjl_journey_action_url($model['action']['url'] ?? '');
 		$actionLabel = mjl_journey_escape($model['action']['label'] ?? '');
 		if ($actionUrl !== '' && $actionLabel !== '') {
 			$html .= '<p><a class="mjl-action mjl-action-secondary" href="'.mjl_journey_escape($actionUrl).'">'.$actionLabel.'</a></p>';
@@ -79,8 +79,8 @@ function mjl_journey_document_state_label($state)
 	$labels = array(
 		'missing' => 'Pièce manquante',
 		'downloadable' => 'Pièce disponible',
-		'unavailable' => 'Pièce indisponible',
-		'upload-failed' => 'Échec de l’ajout',
+		'unavailable' => 'Pièce indisponible — réessayez ou contactez un administrateur',
+		'upload-failed' => 'Échec de l’ajout — vérifiez le fichier puis réessayez',
 		'forbidden' => 'Accès interdit',
 		'read-only' => 'Consultation uniquement',
 	);
@@ -99,6 +99,23 @@ function mjl_journey_guarded_document_url($url)
 	if ($url === '') return '';
 	$path = (string) parse_url($url, PHP_URL_PATH);
 	return $path === '/custom/mjlfinancement/documentdownload.php' ? $url : '';
+}
+
+function mjl_journey_action_url($url)
+{
+	$url = mjl_journey_local_url($url);
+	if ($url === '') return '';
+	$path = (string) parse_url($url, PHP_URL_PATH);
+	$allowed = array(
+		'/custom/mjlfinancement/activities.php',
+		'/custom/mjlfinancement/budgetlines.php',
+		'/custom/mjlfinancement/conventions.php',
+		'/custom/mjlfinancement/documents.php',
+		'/custom/mjlfinancement/expenses.php',
+		'/custom/mjlfinancement/fundreceipts.php',
+		'/custom/mjlfinancement/projects.php',
+	);
+	return in_array($path, $allowed, true) ? $url : '';
 }
 
 function mjl_journey_local_url($url)

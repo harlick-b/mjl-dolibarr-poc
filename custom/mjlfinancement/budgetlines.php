@@ -13,12 +13,6 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.lib.php';
 
-// CLI verification may load the production renderer functions with an
-// in-memory database adapter; this constant is not selectable by HTTP input.
-if (defined('MJL_FINANCE_RENDERERS_ONLY') && MJL_FINANCE_RENDERERS_ONLY) {
-	return;
-}
-
 mjl_workspace_require_reference_data_access($user, 'budgetline');
 
 $action = GETPOST('action', 'aZ09');
@@ -73,7 +67,8 @@ function mjl_budgetlines_handle_post($action)
 		$budgetLine->note_public = GETPOST('note_public', 'restricthtml');
 		$budgetLine->note_private = GETPOST('note_private', 'restricthtml');
 		$budgetLine->fk_user_creat = $user->id;
-		if (!mjl_budgetlines_can_use_links((int) $budgetLine->fk_project, (int) $budgetLine->fk_convention, (int) $budgetLine->fk_mjl_activity, (int) $budgetLine->fk_activity)) {
+		if ((int) $budgetLine->fk_project > 0 && (int) $budgetLine->fk_convention > 0
+			&& !mjl_budgetlines_can_use_links((int) $budgetLine->fk_project, (int) $budgetLine->fk_convention, (int) $budgetLine->fk_mjl_activity, (int) $budgetLine->fk_activity)) {
 			mjl_budgetlines_forbidden('Rattachement hors de votre perimetre');
 		}
 		$result = $budgetLine->create($user);
@@ -103,7 +98,8 @@ function mjl_budgetlines_handle_post($action)
 
 	if ($action === 'update') {
 		$failureAction = 'update';
-		if (!mjl_budgetlines_can_use_links(GETPOSTINT('fk_project'), GETPOSTINT('fk_convention'), GETPOSTINT('fk_mjl_activity'), GETPOSTINT('fk_activity'))) {
+		if (GETPOSTINT('fk_project') > 0 && GETPOSTINT('fk_convention') > 0
+			&& !mjl_budgetlines_can_use_links(GETPOSTINT('fk_project'), GETPOSTINT('fk_convention'), GETPOSTINT('fk_mjl_activity'), GETPOSTINT('fk_activity'))) {
 			mjl_budgetlines_forbidden('Rattachement hors de votre perimetre');
 		}
 		$result = $budgetLine->updateGovernedFields($user, array(

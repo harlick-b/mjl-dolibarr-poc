@@ -13,12 +13,6 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.lib.php';
 
-// CLI verification may load the production renderer functions with an
-// in-memory database adapter; this constant is not selectable by HTTP input.
-if (defined('MJL_FINANCE_RENDERERS_ONLY') && MJL_FINANCE_RENDERERS_ONLY) {
-	return;
-}
-
 mjl_workspace_require_reference_data_access($user, 'convention');
 
 $action = GETPOST('action', 'aZ09');
@@ -65,7 +59,7 @@ function mjl_conventions_handle_post($action)
 		$convention->title = GETPOST('title', 'restricthtml');
 		$convention->fk_soc = GETPOSTINT('fk_soc');
 		$convention->fk_project = GETPOSTINT('fk_project');
-		if (!mjl_conventions_can_use_partner_project((int) $convention->fk_soc, (int) $convention->fk_project)) {
+		if ((int) $convention->fk_soc > 0 && !mjl_conventions_can_use_partner_project((int) $convention->fk_soc, (int) $convention->fk_project)) {
 			mjl_conventions_forbidden('Partenaire ou projet hors de votre perimetre');
 		}
 		$convention->date_start = mjl_conventions_post_date('date_start');
@@ -102,7 +96,7 @@ function mjl_conventions_handle_post($action)
 
 	if ($action === 'update') {
 		$failureAction = 'update';
-		if (!mjl_conventions_can_use_partner_project(GETPOSTINT('fk_soc'), GETPOSTINT('fk_project'))) {
+		if (GETPOSTINT('fk_soc') > 0 && !mjl_conventions_can_use_partner_project(GETPOSTINT('fk_soc'), GETPOSTINT('fk_project'))) {
 			mjl_conventions_forbidden('Partenaire ou projet hors de votre perimetre');
 		}
 		$result = $convention->updateGovernedFields($user, array(

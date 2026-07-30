@@ -2,11 +2,14 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlconvention.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_governance.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 
 class MjlFundReceipt extends CommonObject
 {
+	use MjlFinanceGovernedUpdateComment;
+
 	public $module = 'mjlfinancement';
 	public $element = 'mjlfundreceipt';
 	public $TRIGGER_PREFIX = 'MJLFINANCEMENT_FUNDRECEIPT';
@@ -145,9 +148,7 @@ class MjlFundReceipt extends CommonObject
 			$this->error = 'Permission denied for fund receipt update';
 			return -1;
 		}
-		$comment = trim((string) $comment);
-		if ($comment === '') {
-			$this->error = 'Update comment is required';
+		if (!$this->normalizeRequiredUpdateComment($comment)) {
 			return -1;
 		}
 

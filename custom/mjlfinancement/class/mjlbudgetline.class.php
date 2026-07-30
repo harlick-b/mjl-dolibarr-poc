@@ -1,11 +1,14 @@
 <?php
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_governance.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 
 class MjlBudgetLine extends CommonObject
 {
+	use MjlFinanceGovernedUpdateComment;
+
 	public $module = 'mjlfinancement';
 	public $element = 'mjlbudgetline';
 	public $TRIGGER_PREFIX = 'MJLFINANCEMENT_BUDGETLINE';
@@ -155,9 +158,7 @@ class MjlBudgetLine extends CommonObject
 			$this->error = 'Permission denied for budget line update';
 			return -1;
 		}
-		$comment = trim((string) $comment);
-		if ($comment === '') {
-			$this->error = 'Update comment is required';
+		if (!$this->normalizeRequiredUpdateComment($comment)) {
 			return -1;
 		}
 

@@ -3,11 +3,14 @@
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexpense.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_governance.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 
 class MjlConvention extends CommonObject
 {
+	use MjlFinanceGovernedUpdateComment;
+
 	public $module = 'mjlfinancement';
 	public $element = 'mjlconvention';
 	public $TRIGGER_PREFIX = 'MJLFINANCEMENT_CONVENTION';
@@ -143,9 +146,7 @@ class MjlConvention extends CommonObject
 			$this->error = 'Permission denied for convention update';
 			return -1;
 		}
-		$comment = trim((string) $comment);
-		if ($comment === '') {
-			$this->error = 'Update comment is required';
+		if (!$this->normalizeRequiredUpdateComment($comment)) {
 			return -1;
 		}
 
