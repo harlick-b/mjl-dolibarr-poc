@@ -185,8 +185,12 @@ function mjl_form_error_summary($errors, $title = 'Corrigez les champs indiqués
 	$html = '<div class="mjl-form-error-summary" role="alert" tabindex="-1" data-mjl-error-summary>';
 	$html .= '<strong>'.mjl_form_escape($title).'</strong><ul>';
 	foreach ((array) $errors as $field => $message) {
-		$id = $idPrefix.preg_replace('/[^a-z0-9_-]/i', '', (string) $field);
-		$html .= '<li><a href="#'.mjl_form_escape($id).'">'.mjl_form_escape($message).'</a></li>';
+		if ((string) $field === '_form') {
+			$html .= '<li><span>'.mjl_form_escape($message).'</span></li>';
+		} else {
+			$id = $idPrefix.preg_replace('/[^a-z0-9_-]/i', '', (string) $field);
+			$html .= '<li><a href="#'.mjl_form_escape($id).'">'.mjl_form_escape($message).'</a></li>';
+		}
 	}
 	return $html.'</ul></div>';
 }

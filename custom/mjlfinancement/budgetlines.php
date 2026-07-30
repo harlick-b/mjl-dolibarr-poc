@@ -7,6 +7,10 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_metrics.l
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_table.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.lib.php';
 
 mjl_workspace_require_reference_data_access($user, 'budgetline');
 
@@ -22,6 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $budgetLineId = GETPOSTINT('id');
+$mjl_budgetline_recovery = mjl_form_recovery_consume_route(
+	GETPOST('mjl_recovery', 'alphanohtml'),
+	array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'budgetlines', 'object_id' => $budgetLineId),
+	mjl_finance_recovery_consume_allowlist('budgetlines')
+);
 
 llxHeader('', 'Lignes budgetaires MJL');
 mjl_navigation_shell_start($user, 'budgetlines');
@@ -62,8 +71,8 @@ function mjl_budgetlines_handle_post($action)
 		}
 		$result = $budgetLine->create($user);
 		if ($result <= 0) {
-			setEventMessages($budgetLine->error ?: 'Creation ligne budgetaire refusee', null, 'errors');
-			mjl_budgetlines_redirect(0);
+			setEventMessages(mjl_finance_record_failure('budgetlines', 'create', 0, $budgetLine->error), null, 'errors');
+			mjl_budgetlines_redirect(0, mjl_budgetlines_store_recovery('create', 0, $budgetLine->error));
 		}
 		setEventMessages('Ligne budgetaire creee en brouillon', null, 'mesgs');
 		mjl_budgetlines_redirect((int) $result);
@@ -81,7 +90,7 @@ function mjl_budgetlines_handle_post($action)
 	if ($action === 'add_exchange') {
 		list($result, $message) = mjl_timeline_create_comment($user, 'mjlfinancement_budget_line', $id, GETPOST('message', 'restricthtml'));
 		setEventMessages($message, null, $result > 0 ? 'mesgs' : 'errors');
-		mjl_budgetlines_redirect($id);
+		mjl_budgetlines_redirect($id, $result > 0 ? '' : mjl_budgetlines_store_recovery('add_exchange', $id, $message));
 	}
 
 	if ($action === 'update') {
@@ -108,23 +117,41 @@ function mjl_budgetlines_handle_post($action)
 	}
 
 	if ($result < 0) {
-		setEventMessages($budgetLine->error ?: 'Action ligne budgetaire refusee', null, 'errors');
+		setEventMessages(mjl_finance_record_failure('budgetlines', $action, $id, $budgetLine->error), null, 'errors');
+		$recoveryHandle = mjl_budgetlines_store_recovery($action, $id, $budgetLine->error);
 	} elseif ($result === 0) {
 		setEventMessages('Aucun changement applique', null, 'warnings');
 	} else {
 		setEventMessages('Action ligne budgetaire enregistree', null, 'mesgs');
 	}
-	mjl_budgetlines_redirect($id);
+	mjl_budgetlines_redirect($id, $recoveryHandle ?? '');
 }
 
 function mjl_budgetlines_render_list_page()
 {
-	$filters = array(
-		'project_id' => GETPOSTINT('project_id'),
-		'convention_id' => GETPOSTINT('convention_id'),
-		'activity_id' => GETPOSTINT('activity_id'),
-		'status' => GETPOST('status', 'alphanohtml'),
+	$options = array(
+		'partner' => mjl_budgetlines_options('partner'),
+		'project' => mjl_budgetlines_options('project'),
+		'convention' => mjl_budgetlines_options('convention_all'),
+		'activity' => mjl_budgetlines_options('activity'),
 	);
+	$filters = mjl_table_normalize_generic(array(
+		'partner_id' => GETPOST('partner_id', 'alphanohtml'),
+		'project_id' => GETPOST('project_id', 'alphanohtml'),
+		'convention_id' => GETPOST('convention_id', 'alphanohtml'),
+		'activity_id' => GETPOST('activity_id', 'alphanohtml'),
+		'status' => GETPOST('status', 'alphanohtml'),
+		'sort' => GETPOST('sort', 'alphanohtml'),
+		'page' => GETPOST('page', 'alphanohtml'),
+	), array(
+		'partner_id' => array('type' => 'id', 'allowed' => array_keys($options['partner']), 'default' => 0),
+		'project_id' => array('type' => 'id', 'allowed' => array_keys($options['project']), 'default' => 0),
+		'convention_id' => array('type' => 'id', 'allowed' => array_keys($options['convention']), 'default' => 0),
+		'activity_id' => array('type' => 'id', 'allowed' => array_keys($options['activity']), 'default' => 0),
+		'status' => array('type' => 'enum', 'allowed' => array('0', '1'), 'default' => ''),
+		'sort' => array('type' => 'enum', 'allowed' => array('recent', 'ref', 'remaining'), 'default' => 'recent'),
+		'page' => array('type' => 'page', 'default' => 1),
+	), 50);
 	mjl_dashboard_render_header(
 		'Gestion des lignes budgétaires',
 		'Cadrez les enveloppes actives utilisées par les dépenses, rapports et contrôles de solde.',
@@ -136,7 +163,7 @@ function mjl_budgetlines_render_list_page()
 	if (mjl_budgetlines_can_manage()) {
 		mjl_budgetlines_render_create_form();
 	}
-	mjl_budgetlines_render_filters($filters);
+	mjl_budgetlines_render_filters($filters, $options);
 	mjl_budgetlines_render_list($filters);
 }
 
@@ -170,42 +197,50 @@ function mjl_budgetlines_render_detail($id)
 
 function mjl_budgetlines_render_create_form()
 {
+	$values = mjl_finance_recovery_values($GLOBALS['mjl_budgetline_recovery'] ?? null, 'create');
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
 	print '<div class="mjl-section-heading"><h2>Nouvelle ligne budgetaire</h2><p>Creer un brouillon rattache a une enveloppe active avant activation.</p></div>';
 	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php">';
 	print '<input type="hidden" name="action" value="create"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
-	mjl_budgetlines_render_fields(array(), false);
+	mjl_budgetlines_render_fields($values, false, 'create');
 	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Creer la ligne"></div>';
 	print '</form></section>';
 }
 
 function mjl_budgetlines_render_edit_form($row, $hasExpenses)
 {
+	$recovery = $GLOBALS['mjl_budgetline_recovery'] ?? null;
+	$row = array_merge($row, mjl_finance_recovery_values($recovery, 'edit'));
+	$errors = is_array($recovery) && (string) ($recovery['context']['form'] ?? '') === 'edit' ? (array) ($recovery['errors'] ?? array()) : array();
 	print '<section class="mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Parametres budgetaires</h2><p>'.($hasExpenses ? 'Les champs structurants sont verrouilles car des depenses existent.' : 'Modifier les donnees avant rattachement a des depenses.').'</p></div>';
 	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php?id='.((int) $row['rowid']).'">';
 	print '<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
-	mjl_budgetlines_render_fields($row, $hasExpenses);
-	print '<label>Motif de modification<input required name="comment" value=""></label>';
+	mjl_budgetlines_render_fields($row, $hasExpenses, 'edit');
+	print mjl_form_field('comment', 'Motif de modification', '<input required name="comment" value="'.dol_escape_htmltag($row['comment'] ?? '').'">', true, '', $errors['comment'] ?? '', 'mjl-budgetline-edit-');
 	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer"></div>';
 	print '</form></section>';
 }
 
-function mjl_budgetlines_render_fields($row, $locked)
+function mjl_budgetlines_render_fields($row, $locked, $form)
 {
 	$disabled = $locked ? ' disabled' : '';
 	$hiddenLocked = array('ref', 'fk_project', 'fk_convention', 'fk_mjl_activity', 'fk_activity', 'initial_budget', 'category');
-	print '<label>Reference<input required name="ref" value="'.dol_escape_htmltag($row['ref'] ?? '').'"'.$disabled.'></label>';
-	print '<label>Libelle<input required name="label" value="'.dol_escape_htmltag($row['label'] ?? '').'"></label>';
-	print '<label>Projet'.mjl_budgetlines_select('fk_project', mjl_budgetlines_options('project'), (int) ($row['fk_project'] ?? 0), true, $locked).'</label>';
-	print '<label>Enveloppe active'.mjl_budgetlines_select('fk_convention', mjl_budgetlines_options('convention'), (int) ($row['fk_convention'] ?? 0), true, $locked).'</label>';
-	print '<label>Activite MJL'.mjl_budgetlines_select('fk_mjl_activity', mjl_budgetlines_options('activity'), (int) ($row['fk_mjl_activity'] ?? 0), false, $locked).'</label>';
-	print '<label>Tache projet'.mjl_budgetlines_select('fk_activity', mjl_budgetlines_options('task'), (int) ($row['fk_activity'] ?? 0), false, $locked).'</label>';
-	print '<label>Budget initial<input name="initial_budget" value="'.dol_escape_htmltag($row['initial_budget'] ?? '').'"'.$disabled.'></label>';
-	print '<label>Budget revise<input name="revised_budget" value="'.dol_escape_htmltag($row['revised_budget'] ?? '').'"></label>';
-	print '<label>Categorie<input name="category" value="'.dol_escape_htmltag($row['category'] ?? '').'"'.$disabled.'></label>';
-	print '<label>Note publique<textarea name="note_public">'.dol_escape_htmltag($row['note_public'] ?? '').'</textarea></label>';
-	print '<label>Note privee<textarea name="note_private">'.dol_escape_htmltag($row['note_private'] ?? '').'</textarea></label>';
+	$recovery = $GLOBALS['mjl_budgetline_recovery'] ?? null;
+	$errors = is_array($recovery) && (string) ($recovery['context']['form'] ?? '') === $form ? (array) ($recovery['errors'] ?? array()) : array();
+	$prefix = 'mjl-budgetline-'.$form.'-';
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($errors, 'Corrigez les champs indiqués', $prefix).'</div>';
+	print mjl_form_field('ref', 'Reference', '<input required name="ref" value="'.dol_escape_htmltag($row['ref'] ?? '').'"'.$disabled.'>', true, '', $errors['ref'] ?? '', $prefix);
+	print mjl_form_field('label', 'Libelle', '<input required name="label" value="'.dol_escape_htmltag($row['label'] ?? '').'">', true, '', $errors['label'] ?? '', $prefix);
+	print mjl_form_field('fk_project', 'Projet', mjl_budgetlines_select('fk_project', mjl_budgetlines_options('project'), (int) ($row['fk_project'] ?? 0), true, $locked), true, '', $errors['fk_project'] ?? '', $prefix);
+	print mjl_form_field('fk_convention', 'Enveloppe active', mjl_budgetlines_select('fk_convention', mjl_budgetlines_options('convention'), (int) ($row['fk_convention'] ?? 0), true, $locked), true, '', $errors['fk_convention'] ?? '', $prefix);
+	print mjl_form_field('fk_mjl_activity', 'Activite MJL', mjl_budgetlines_select('fk_mjl_activity', mjl_budgetlines_options('activity'), (int) ($row['fk_mjl_activity'] ?? 0), false, $locked), false, '', $errors['fk_mjl_activity'] ?? '', $prefix);
+	print mjl_form_field('fk_activity', 'Tache projet', mjl_budgetlines_select('fk_activity', mjl_budgetlines_options('task'), (int) ($row['fk_activity'] ?? 0), false, $locked), false, '', $errors['fk_activity'] ?? '', $prefix);
+	print mjl_form_field('initial_budget', 'Budget initial', '<input name="initial_budget" value="'.dol_escape_htmltag($row['initial_budget'] ?? '').'"'.$disabled.'>', false, '', $errors['initial_budget'] ?? '', $prefix);
+	print mjl_form_field('revised_budget', 'Budget revise', '<input name="revised_budget" value="'.dol_escape_htmltag($row['revised_budget'] ?? '').'">', false, '', $errors['revised_budget'] ?? '', $prefix);
+	print mjl_form_field('category', 'Categorie', '<input name="category" value="'.dol_escape_htmltag($row['category'] ?? '').'"'.$disabled.'>', false, '', $errors['category'] ?? '', $prefix);
+	print mjl_form_field('note_public', 'Note publique', '<textarea name="note_public">'.dol_escape_htmltag($row['note_public'] ?? '').'</textarea>', false, '', $errors['note_public'] ?? '', $prefix);
+	print mjl_form_field('note_private', 'Note privee', '<textarea name="note_private">'.dol_escape_htmltag($row['note_private'] ?? '').'</textarea>', false, '', $errors['note_private'] ?? '', $prefix);
 	print '<input type="hidden" name="committed_amount" value="'.dol_escape_htmltag((string) ($row['committed_amount'] ?? 0)).'">';
 	print '<input type="hidden" name="spent_amount" value="'.dol_escape_htmltag((string) ($row['spent_amount'] ?? 0)).'">';
 	print '<input type="hidden" name="remaining_amount" value="'.dol_escape_htmltag((string) ($row['remaining_amount'] ?? 0)).'">';
@@ -216,17 +251,19 @@ function mjl_budgetlines_render_fields($row, $locked)
 	}
 }
 
-function mjl_budgetlines_render_filters($filters)
+function mjl_budgetlines_render_filters($filters, $options)
 {
 	print '<section class="mjl-workspace-section">';
 	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Limiter la vue par projet, enveloppe, activite ou statut.</p></div>';
 	print '<form method="GET" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php">';
-	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>Projet</th><th>Enveloppe</th><th>Activite</th><th>Statut</th><th></th></tr>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>Partenaire / Programme</th><th>Projet</th><th>Enveloppe</th><th>Activite</th><th>Statut</th><th>Tri</th><th></th></tr>';
 	print '<tr class="oddeven">';
-	print '<td>'.mjl_budgetlines_select('project_id', mjl_budgetlines_options('project'), $filters['project_id'], false, false, 'Tous').'</td>';
-	print '<td>'.mjl_budgetlines_select('convention_id', mjl_budgetlines_options('convention_all'), $filters['convention_id'], false, false, 'Toutes').'</td>';
-	print '<td>'.mjl_budgetlines_select('activity_id', mjl_budgetlines_options('activity'), $filters['activity_id'], false, false, 'Toutes').'</td>';
+	print '<td>'.mjl_budgetlines_select('partner_id', $options['partner'], $filters['partner_id'], false, false, 'Tous').'</td>';
+	print '<td>'.mjl_budgetlines_select('project_id', $options['project'], $filters['project_id'], false, false, 'Tous').'</td>';
+	print '<td>'.mjl_budgetlines_select('convention_id', $options['convention'], $filters['convention_id'], false, false, 'Toutes').'</td>';
+	print '<td>'.mjl_budgetlines_select('activity_id', $options['activity'], $filters['activity_id'], false, false, 'Toutes').'</td>';
 	print '<td>'.mjl_budgetlines_status_select($filters['status']).'</td>';
+	print '<td><select name="sort"><option value="recent"'.($filters['sort'] === 'recent' ? ' selected' : '').'>Plus récentes</option><option value="ref"'.($filters['sort'] === 'ref' ? ' selected' : '').'>Référence</option><option value="remaining"'.($filters['sort'] === 'remaining' ? ' selected' : '').'>Solde décroissant</option></select></td>';
 	print '<td><input class="button" type="submit" value="Afficher"></td>';
 	print '</tr></table></div></form></section>';
 }
@@ -235,10 +272,18 @@ function mjl_budgetlines_render_list($filters)
 {
 	global $db, $conf;
 	$where = array('bl.entity = '.((int) $conf->entity));
+	if (!empty($filters['fail_closed'])) $where[] = '1 = 0';
+	if ($filters['partner_id'] > 0) $where[] = 'c.fk_soc = '.((int) $filters['partner_id']);
 	if ($filters['project_id'] > 0) $where[] = 'bl.fk_project = '.((int) $filters['project_id']);
 	if ($filters['convention_id'] > 0) $where[] = 'bl.fk_convention = '.((int) $filters['convention_id']);
 	if ($filters['activity_id'] > 0) $where[] = 'bl.fk_mjl_activity = '.((int) $filters['activity_id']);
 	if ($filters['status'] !== '') $where[] = 'bl.status = '.((int) $filters['status']);
+	$from = ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
+	$from .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project AND p.entity = bl.entity';
+	$from .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity';
+	$from .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = bl.fk_mjl_activity AND a.entity = bl.entity';
+	$whereSql = ' WHERE '.implode(' AND ', $where).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
+	$total = mjl_table_count_or_null($db, 'SELECT COUNT(*) AS nb'.$from.$whereSql);
 	$sql = 'SELECT bl.rowid, bl.ref, bl.label, bl.revised_budget, bl.status, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref,';
 	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_submitted_amount_sql('es').') FROM '.$db->prefix().'mjlfinancement_expense es WHERE es.entity = bl.entity AND es.fk_budget_line = bl.rowid), 0) AS submitted_amount,';
 	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_prevalidated_amount_sql('ep').') FROM '.$db->prefix().'mjlfinancement_expense ep WHERE ep.entity = bl.entity AND ep.fk_budget_line = bl.rowid), 0) AS prevalidated_amount,';
@@ -246,23 +291,26 @@ function mjl_budgetlines_render_list($filters)
 	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_disbursed_amount_sql('ed').') FROM '.$db->prefix().'mjlfinancement_expense ed WHERE ed.entity = bl.entity AND ed.fk_budget_line = bl.rowid), 0) AS disbursed_amount,';
 	$sql .= ' (COALESCE(bl.revised_budget, 0) - COALESCE((SELECT SUM('.mjl_finance_final_validated_amount_sql('er').') FROM '.$db->prefix().'mjlfinancement_expense er WHERE er.entity = bl.entity AND er.fk_budget_line = bl.rowid), 0)) AS remaining_amount,';
 	$sql .= ' (SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = bl.entity AND e.fk_budget_line = bl.rowid) AS expenses';
-	$sql .= ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
-	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project AND p.entity = bl.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = bl.fk_mjl_activity AND a.entity = bl.entity';
-	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
-	$sql .= ' ORDER BY bl.rowid DESC LIMIT 100';
+	$sql .= $from.$whereSql;
+	if ($filters['sort'] === 'ref') $sql .= ' ORDER BY bl.ref ASC, bl.rowid ASC';
+	elseif ($filters['sort'] === 'remaining') $sql .= ' ORDER BY remaining_amount DESC, bl.rowid DESC';
+	else $sql .= ' ORDER BY bl.rowid DESC';
+	$sql .= ' LIMIT '.(((int) $filters['page_size']) + 1).' OFFSET '.(((int) $filters['page'] - 1) * (int) $filters['page_size']);
 	$resql = $db->query($sql);
 	print '<section class="mjl-workspace-section"><div class="mjl-section-heading"><h2>Portefeuille budgetaire</h2><p>Les montants depenses et restants sont recalcules depuis les depenses validees.</p></div>';
 	if (!$resql) {
-		print '<div class="error">'.$db->lasterror().'</div></section>';
+		print '<div class="mjl-empty-state mjl-empty-state-warning">'.dol_escape_htmltag(mjl_ui_safe_error_message('database')).'</div></section>';
+		mjl_ui_log_error('database', array('route' => 'budgetlines', 'action' => 'list', 'entity' => (int) $conf->entity), $db->lasterror());
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
 	print '<tr class="liste_titre"><th>Ligne</th><th>Projet</th><th>Enveloppe</th><th>Activite</th><th class="right">Budget revise</th><th class="right">Soumis</th><th class="right">Prevalide</th><th class="right">Valide definitif</th><th class="right">Decaisse</th><th class="right">Restant</th><th>Statut</th><th>Liens</th></tr>';
+	$rows = array();
+	while ($obj = $db->fetch_object($resql)) $rows[] = $obj;
+	$hasNext = count($rows) > (int) $filters['page_size'];
+	if ($hasNext) array_pop($rows);
 	$count = 0;
-	while ($obj = $db->fetch_object($resql)) {
+	foreach ($rows as $obj) {
 		$count++;
 		print '<tr class="oddeven">';
 		print '<td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php?id='.((int) $obj->rowid).'">'.dol_escape_htmltag($obj->ref).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($obj->label).'</span></td>';
@@ -282,31 +330,35 @@ function mjl_budgetlines_render_list($filters)
 	if ($count === 0) {
 		print '<tr class="oddeven"><td colspan="12">Aucune ligne budgetaire dans votre perimetre.</td></tr>';
 	}
-	print '</table></div></section>';
+	print '</table></div>';
+	print mjl_table_render_pagination(DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php', $filters, $total, (int) $filters['page'] > 1, $hasNext, 'lignes budgétaires');
+	print '</section>';
 }
 
 function mjl_budgetlines_render_summary($row)
 {
 	$metrics = mjl_finance_metrics_for_budget_line((int) $row['rowid'], (int) $row['entity']);
-	print '<section class="mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Synthese budgetaire</h2><p>Execution et rattachements controles.</p></div>';
-	print '<dl class="mjl-activity-meta">';
-	print '<div><dt>Statut</dt><dd>'.mjl_budgetlines_status_badge($row['status']).'</dd></div>';
-	print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($row['project_ref']).' - '.dol_escape_htmltag($row['project_title']).'</dd></div>';
-	print '<div><dt>Enveloppe</dt><dd>'.dol_escape_htmltag($row['convention_ref']).' - '.dol_escape_htmltag($row['convention_title']).'</dd></div>';
-	print '<div><dt>Activite</dt><dd>'.dol_escape_htmltag($row['activity_ref']).' '.dol_escape_htmltag($row['activity_label']).'</dd></div>';
-	print '<div><dt>Tache projet</dt><dd>'.dol_escape_htmltag($row['task_label']).'</dd></div>';
-	print '<div><dt>Budget initial</dt><dd>'.price($row['initial_budget']).'</dd></div>';
-	print '<div><dt>Budget revise</dt><dd>'.price($row['revised_budget']).'</dd></div>';
-	print '<div><dt>Soumis</dt><dd>'.price($metrics['submitted_amount']).'</dd></div>';
-	print '<div><dt>Prevalide</dt><dd>'.price($metrics['prevalidated_amount']).'</dd></div>';
-	print '<div><dt>Valide definitif</dt><dd>'.price($metrics['final_validated_amount']).'</dd></div>';
-	print '<div><dt>Decaisse</dt><dd>'.price($metrics['disbursed_amount']).'</dd></div>';
-	print '<div><dt>Restant</dt><dd>'.price($metrics['remaining_amount']).'</dd></div>';
-	print '<div><dt>Taux validation</dt><dd>'.dol_escape_htmltag($metrics['validation_rate']).'%</dd></div>';
-	print '<div><dt>Taux execution</dt><dd>'.dol_escape_htmltag($metrics['execution_rate']).'%</dd></div>';
-	print '<div><dt>Depenses rattachees</dt><dd>'.((int) $row['expenses']).'</dd></div>';
-	print '</dl></section>';
+	print mjl_journey_render_summary(array(
+		'title' => 'Synthese budgetaire',
+		'description' => 'Execution et rattachements controles.',
+		'items' => array(
+			array('label' => 'Statut', 'value' => mjl_budgetline_status_label($row['status']), 'tone' => (int) $row['status'] === MjlBudgetLine::STATUS_ACTIVE ? 'success' : 'warning'),
+			array('label' => 'Projet', 'value' => trim($row['project_ref'].' - '.$row['project_title'], ' -')),
+			array('label' => 'Enveloppe', 'value' => trim($row['convention_ref'].' - '.$row['convention_title'], ' -')),
+			array('label' => 'Activite', 'value' => trim($row['activity_ref'].' '.$row['activity_label'])),
+			array('label' => 'Tache projet', 'value' => $row['task_label']),
+			array('label' => 'Budget initial', 'value' => price($row['initial_budget'])),
+			array('label' => 'Budget revise', 'value' => price($row['revised_budget'])),
+			array('label' => 'Soumis', 'value' => price($metrics['submitted_amount'])),
+			array('label' => 'Prevalide', 'value' => price($metrics['prevalidated_amount'])),
+			array('label' => 'Valide definitif', 'value' => price($metrics['final_validated_amount'])),
+			array('label' => 'Decaisse', 'value' => price($metrics['disbursed_amount'])),
+			array('label' => 'Restant', 'value' => price($metrics['remaining_amount'])),
+			array('label' => 'Taux validation', 'value' => $metrics['validation_rate'].'%'),
+			array('label' => 'Taux execution', 'value' => $metrics['execution_rate'].'%'),
+			array('label' => 'Depenses rattachees', 'value' => (int) $row['expenses']),
+		),
+	));
 }
 
 function mjl_budgetlines_render_actions($row, $canManage)
@@ -324,10 +376,16 @@ function mjl_budgetlines_render_actions($row, $canManage)
 
 function mjl_budgetlines_action_form($id, $action, $label, $commentLabel, $required)
 {
+	$recovery = $GLOBALS['mjl_budgetline_recovery'] ?? null;
+	$matchesRecovery = is_array($recovery) && (string) ($recovery['context']['action'] ?? '') === $action;
+	$values = $matchesRecovery ? (array) ($recovery['values'] ?? array()) : array();
+	$errors = $matchesRecovery ? (array) ($recovery['errors'] ?? array()) : array();
+	$prefix = 'mjl-budgetline-decision-'.$action.'-';
 	print '<form class="mjl-activity-action-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php?id='.((int) $id).'">';
 	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="'.dol_escape_htmltag($action).'"><input type="hidden" name="id" value="'.((int) $id).'">';
 	if ($commentLabel !== '') {
-		print '<label>'.dol_escape_htmltag($commentLabel).'<input'.($required ? ' required' : '').' name="comment"></label>';
+		print mjl_form_error_summary($errors, 'Corrigez la décision', $prefix);
+		print mjl_form_field('comment', $commentLabel, '<input'.($required ? ' required' : '').' name="comment" value="'.dol_escape_htmltag($values['comment'] ?? '').'">', $required, '', $errors['comment'] ?? '', $prefix);
 	}
 	print '<input class="button" type="submit" value="'.dol_escape_htmltag($label).'">';
 	print '</form>';
@@ -338,7 +396,7 @@ function mjl_budgetlines_render_timeline($row)
 	$items = mjl_budgetlines_timeline_items($row);
 	print '<section class="mjl-workspace-section mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Historique ligne budgetaire</h2><p>Creation, modifications, activation, tentatives refusees et commentaires.</p></div>';
-	mjl_timeline_render_comment_form('mjlfinancement_budget_line', (int) $row['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php?id='.((int) $row['rowid']));
+	mjl_timeline_render_comment_form('mjlfinancement_budget_line', (int) $row['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php?id='.((int) $row['rowid']), $GLOBALS['mjl_budgetline_recovery'] ?? array());
 	print '<ol class="mjl-activity-timeline">';
 	foreach ($items as $item) {
 		print '<li><span class="mjl-status-pill">'.dol_escape_htmltag($item['label']).'</span>';
@@ -375,7 +433,7 @@ function mjl_budgetlines_fetch_detail($id)
 	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		setEventMessages(mjl_finance_record_failure('budgetlines', 'fetch_detail', $id, $db->lasterror()), null, 'errors');
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
@@ -422,7 +480,9 @@ function mjl_budgetlines_timeline_items($row)
 function mjl_budgetlines_options($type)
 {
 	global $db, $conf;
-	if ($type === 'project') {
+	if ($type === 'partner') {
+		$sql = 'SELECT rowid, nom AS label FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $GLOBALS['user']).' ORDER BY s.nom, s.rowid';
+	} elseif ($type === 'project') {
 		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
 		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
@@ -554,12 +614,26 @@ function mjl_budgetlines_forbidden($message = '')
 	accessforbidden($message);
 }
 
-function mjl_budgetlines_redirect($id)
+function mjl_budgetlines_store_recovery($action, $id, $error)
+{
+	global $conf, $user;
+	$config = mjl_finance_recovery_config('budgetlines', $action);
+	if ($config === null) return '';
+	$values = array();
+	foreach ($config['fields'] as $field) $values[$field] = GETPOST($field, 'restricthtml');
+	$errors = mjl_form_translate_domain_error((string) $error);
+	if (empty($errors)) $errors = array('_form' => mjl_ui_safe_error_message('validation'));
+	$reason = '';
+	return mjl_form_recovery_store(array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'budgetlines', 'form' => $config['form'], 'action' => $action, 'object_id' => (int) $id), $values, $config['fields'], $reason, $errors);
+}
+
+function mjl_budgetlines_redirect($id, $recoveryHandle = '')
 {
 	$url = DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php';
-	if ((int) $id > 0) {
-		$url .= '?id='.((int) $id);
-	}
+	$query = array();
+	if ((int) $id > 0) $query['id'] = (int) $id;
+	if ($recoveryHandle !== '') $query['mjl_recovery'] = $recoveryHandle;
+	if (!empty($query)) $url .= '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 	header('Location: '.$url);
 	exit;
 }

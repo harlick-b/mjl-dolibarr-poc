@@ -69,7 +69,8 @@ mjl_dashboard_render_header(
 
 mjl_reports_render_selector($report);
 mjl_reports_render_filter_bar($def, $filters);
-mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename, $missingRequired, $inaccessibleFilters, $user);
+mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename, $missingRequired, $inaccessibleFilters, $user, count($rows));
+mjl_reports_render_audit_history($def, $user);
 mjl_reports_render_table($def, $rows, array_merge($missingRequired, $inaccessibleFilters));
 
 print '</div>';
@@ -595,7 +596,7 @@ function mjl_reports_render_filter_bar($def, $filters)
 	print '</section>';
 }
 
-function mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename, $missingRequired, $inaccessibleFilters, User $targetUser)
+function mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename, $missingRequired, $inaccessibleFilters, User $targetUser, $rowCount)
 {
 	$canExport = !empty($targetUser->admin) || $targetUser->hasRight('mjlfinancement', 'export', 'write');
 	print '<section class="mjl-workspace-section">';
@@ -611,6 +612,9 @@ function mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename,
 	print '<div><dt>Nom du fichier XLSX</dt><dd data-testid="mjl-report-xlsx-filename">'.dol_escape_htmltag($xlsxFilename).'</dd></div>';
 	print '</dl>';
 	print '<div class="mjl-report-active-filters"><strong>Filtres actifs</strong><span>'.dol_escape_htmltag(mjl_reports_filter_summary($def, $filters)).'</span></div>';
+	if (empty($missingRequired) && empty($inaccessibleFilters)) {
+		print '<div class="mjl-document-summary mjl-document-summary-read-only"><span>Prévisualisation prête — '.((int) $rowCount).' ligne(s). Les fichiers sont générés à la demande après contrôle du jeton et ne disposent d’aucun lien public permanent.</span></div>';
+	}
 	if (!empty($missingRequired)) {
 		print '<div class="mjl-empty-state">Sélection requise avant export: '.dol_escape_htmltag(implode(', ', $missingRequired)).'.</div>';
 	}
@@ -638,6 +642,40 @@ function mjl_reports_render_context($def, $filters, $csvFilename, $xlsxFilename,
 	}
 	print '</div>';
 	print '</section>';
+}
+
+function mjl_reports_render_audit_history($def, User $targetUser)
+{
+	global $db, $conf;
+
+	print '<section class="mjl-workspace-section">';
+	print '<div class="mjl-section-heading"><h2>Historique des générations</h2><p>Dernières générations auditées pour ce type de rapport.</p></div>';
+	if (empty($targetUser->admin)) {
+		print '<div class="mjl-empty-state">Le détail du journal générique d’export reste réservé à l’Administrateur plateforme.</div></section>';
+		return;
+	}
+	$ref = 'REPORT-'.strtoupper(preg_replace('/[^A-Za-z0-9]+/', '-', (string) $def['key']));
+	$sql = 'SELECT w.action_date, w.comment, u.login FROM '.$db->prefix().'mjlfinancement_workflow_action w';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_report r ON r.rowid = w.object_id AND r.entity = w.entity';
+	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
+	$sql .= ' WHERE w.entity = '.((int) $conf->entity)." AND w.object_type = 'mjlfinancement_report' AND w.action = 'export_generated'";
+	$sql .= " AND r.ref = '".$db->escape($ref)."' ORDER BY w.action_date DESC, w.rowid DESC LIMIT 10";
+	$resql = $db->query($sql);
+	if (!$resql) {
+		print '<div class="mjl-empty-state mjl-empty-state-warning">Historique momentanément indisponible. La prévisualisation et les exports restent utilisables.</div></section>';
+		return;
+	}
+	$rows = array();
+	while ($obj = $db->fetch_object($resql)) $rows[] = $obj;
+	if (empty($rows)) {
+		print '<div class="mjl-empty-state">Aucune génération auditée pour ce rapport.</div></section>';
+		return;
+	}
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>Date</th><th>Acteur</th><th>Trace</th></tr>';
+	foreach ($rows as $row) {
+		print '<tr class="oddeven"><td>'.dol_escape_htmltag(mjl_reports_format_date($row->action_date)).'</td><td>'.dol_escape_htmltag($row->login ?: 'Système').'</td><td>'.dol_escape_htmltag($row->comment).'</td></tr>';
+	}
+	print '</table></div></section>';
 }
 
 function mjl_reports_render_table($def, $rows, $missingRequired)
@@ -884,7 +922,8 @@ function mjl_reports_fetch_rows($sql)
 
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'reports', 'action' => 'fetch_rows', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 		return array();
 	}
 	$rows = array();

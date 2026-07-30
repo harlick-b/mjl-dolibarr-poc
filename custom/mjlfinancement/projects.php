@@ -332,7 +332,7 @@ function mjl_projects_context_url($path, $partnerId, $projectId)
 {
 	$route = basename((string) parse_url((string) $path, PHP_URL_PATH));
 	$query = array();
-	if (in_array($route, array('activities.php', 'expenses.php', 'documents.php'), true)) {
+	if (in_array($route, array('activities.php', 'expenses.php'), true)) {
 		$query['partner'] = (int) $partnerId;
 		$query['project'] = (int) $projectId;
 	} else {
@@ -792,7 +792,8 @@ function mjl_projects_fetch_all($sql)
 	global $db;
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'projects', 'action' => 'fetch_rows', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 		return array();
 	}
 	$rows = array();

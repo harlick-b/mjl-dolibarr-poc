@@ -10,17 +10,17 @@ function mjl_activity_recovery_registry()
 	return array(
 		'create' => array(
 			'form' => 'create',
-			'fields' => array('ref', 'label', 'fk_project', 'fk_convention', 'fk_task', 'fk_user_responsible', 'date_start', 'date_end', 'date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'),
+			'fields' => array('ref', 'label', 'date_start', 'date_end', 'date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'),
 		),
 		'update' => array(
 			'form' => 'correction',
-			'fields' => array('label', 'fk_user_responsible', 'date_start', 'date_end', 'comment'),
+			'fields' => array('label', 'date_start', 'date_end', 'comment'),
 		),
 		'correct' => array('form' => 'correction', 'fields' => array('comment')),
 		'request_correction' => array('form' => 'correction', 'fields' => array('comment')),
 		'update_execution' => array(
 			'form' => 'execution',
-			'fields' => array('fk_user_responsible', 'date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'),
+			'fields' => array('date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'),
 		),
 		'submit' => array('form' => 'decision', 'fields' => array('comment')),
 		'prevalidate' => array('form' => 'decision', 'fields' => array('comment')),

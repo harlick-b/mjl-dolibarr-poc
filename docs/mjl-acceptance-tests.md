@@ -32,6 +32,8 @@ docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_activity_workflow.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_traceability_exports.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_integrity_targets.php
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_dashboard_partial_failure.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_unresolved_scope.php
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/check_production_readiness.php
 ```
@@ -65,6 +67,7 @@ MJL 0.8.0 scope model smoke: OK
 MJL expense validation smoke test completed.
 MJL activity workflow smoke test completed.
 MJL traceability/export smoke test completed.
+MJL integrity target smoke: OK
 MJL unresolved scope audit: OK
 ```
 

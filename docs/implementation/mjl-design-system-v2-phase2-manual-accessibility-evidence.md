@@ -9,6 +9,14 @@ may use `MJL_V2_PHASE2_IMPLEMENTED_PENDING_MANUAL_VALIDATION` after automated
 gates pass. Only a completed and signed copy permits the phase-scoped validated
 verdict.
 
+## Sequencing override — 30 July 2026
+
+The user authorized Phase 3 implementation before this matrix was signed.
+Every evidence cell and signature below remains pending; the override is not a
+pass decision. Phase 4 must validate the final post-Phase-3 screens through the
+cross-phase manual matrix. Historical recordings of the Phase 2-only interface
+cannot establish the accessibility of the resulting UI.
+
 ## Environment and calibration
 
 | Field | Recorded value |

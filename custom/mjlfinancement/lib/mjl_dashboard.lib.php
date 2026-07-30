@@ -44,11 +44,21 @@ function mjl_dashboard_workspace_metrics()
 
 function mjl_dashboard_workspace_metrics_filtered($filters = null)
 {
+	$deadline = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_deadline_risk_count($filters); });
+	$missing = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_missing_expense_document_count($filters); });
+	$pending = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_pending_review_count($filters); });
+	$physical = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_physical_execution_percent($filters); });
 	return array(
-		'deadline_risks' => mjl_dashboard_deadline_risk_count($filters),
-		'missing_expense_documents' => mjl_dashboard_missing_expense_document_count($filters),
-		'pending_reviews' => mjl_dashboard_pending_review_count($filters),
-		'physical_execution_percent' => mjl_dashboard_physical_execution_percent($filters),
+		'deadline_risks' => $deadline['value'],
+		'missing_expense_documents' => $missing['value'],
+		'pending_reviews' => $pending['value'],
+		'physical_execution_percent' => $physical['value'],
+		'available' => array(
+			'deadline_risks' => $deadline['available'],
+			'missing_expense_documents' => $missing['available'],
+			'pending_reviews' => $pending['available'],
+			'physical_execution_percent' => $physical['available'],
+		),
 	);
 }
 
@@ -340,14 +350,23 @@ function mjl_dashboard_dpaf_kpis()
 
 function mjl_dashboard_supervision_kpis($filters = null)
 {
-	return array(
-		array('label' => 'Activites en cours', 'value' => mjl_dashboard_activity_count(array(MjlActivity::STATUS_ONGOING), $filters), 'context' => 'Activites ouvertes dans l entite active', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites'),
-		array('label' => 'Activites en validation', 'value' => mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED), $filters), 'context' => 'Dossiers en attente de prevalidation ou validation definitive', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner'),
-		array('label' => 'Execution physique', 'value' => mjl_dashboard_physical_execution_percent($filters).'%', 'context' => 'Moyenne des activites visibles avec avancement renseigne', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites'),
-		array('label' => 'Depenses en validation', 'value' => mjl_dashboard_expense_count(array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters), 'context' => 'Depenses a controler ou valider definitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les depenses'),
-		array('label' => 'Budget revise', 'value' => price(mjl_dashboard_budget_total($filters)), 'context' => 'Total des lignes budgetaires', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports'),
-		array('label' => 'Depenses validees', 'value' => price(mjl_dashboard_validated_expense_total($filters)), 'context' => 'Montant deja valide', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Voir les exports'),
+	$definitions = array(
+		array('label' => 'Activites en cours', 'load' => function () use ($filters) { return mjl_dashboard_activity_count(array(MjlActivity::STATUS_ONGOING), $filters); }, 'context' => 'Activites ouvertes dans l entite active', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites'),
+		array('label' => 'Activites en validation', 'load' => function () use ($filters) { return mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED), $filters); }, 'context' => 'Dossiers en attente de prevalidation ou validation definitive', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner'),
+		array('label' => 'Execution physique', 'load' => function () use ($filters) { return mjl_dashboard_physical_execution_percent($filters).'%'; }, 'context' => 'Moyenne des activites visibles avec avancement renseigne', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites'),
+		array('label' => 'Depenses en validation', 'load' => function () use ($filters) { return mjl_dashboard_expense_count(array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters); }, 'context' => 'Depenses a controler ou valider definitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les depenses'),
+		array('label' => 'Budget revise', 'load' => function () use ($filters) { return price(mjl_dashboard_budget_total($filters)); }, 'context' => 'Total des lignes budgetaires', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports'),
+		array('label' => 'Depenses validees', 'load' => function () use ($filters) { return price(mjl_dashboard_validated_expense_total($filters)); }, 'context' => 'Montant deja valide', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Voir les exports'),
 	);
+	$cards = array();
+	foreach ($definitions as $definition) {
+		$result = mjl_dashboard_capture($definition['load']);
+		unset($definition['load']);
+		$definition['value'] = $result['value'];
+		$definition['available'] = $result['available'];
+		$cards[] = $definition;
+	}
+	return $cards;
 }
 
 function mjl_dashboard_deadline_risks($limit = 20, $filters = null)
@@ -742,9 +761,9 @@ function mjl_dashboard_unresolved_scope_count()
 		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_budget_line b LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = b.fk_convention AND c.entity = b.entity WHERE c.rowid IS NULL OR c.fk_soc IS NULL OR c.fk_soc <= 0',
 		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_fund_receipt WHERE fk_soc IS NULL OR fk_soc <= 0',
 		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_workflow_action WHERE object_type IS NULL OR object_type = \'\' OR object_id IS NULL OR object_id <= 0',
-		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_workflow_action w LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = w.object_id AND w.object_type = \'mjlfinancement_expense\' AND e.entity = w.entity LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity LEFT JOIN '.$db->prefix().'projet p ON p.rowid = w.object_id AND w.object_type = \'mjlfinancement_project\' AND p.entity = w.entity WHERE w.object_type IS NOT NULL AND w.object_type <> \'\' AND w.object_id > 0 AND COALESCE(a.rowid, e.rowid, c.rowid, bl.rowid, fr.rowid, p.rowid) IS NULL',
+		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_workflow_action w WHERE w.object_type IS NOT NULL AND w.object_type <> \'\' AND w.object_id > 0 AND '.mjl_integrity_unresolved_target_sql('w'),
 		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_exchange_log WHERE object_type IS NULL OR object_type = \'\' OR object_id IS NULL OR object_id <= 0',
-		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_exchange_log x LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = x.object_id AND x.object_type = \'mjlfinancement_activity\' AND a.entity = x.entity LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = x.object_id AND x.object_type = \'mjlfinancement_expense\' AND e.entity = x.entity LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = x.object_id AND x.object_type = \'mjlfinancement_convention\' AND c.entity = x.entity LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = x.object_id AND x.object_type = \'mjlfinancement_budget_line\' AND bl.entity = x.entity LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = x.object_id AND x.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = x.entity LEFT JOIN '.$db->prefix().'projet p ON p.rowid = x.object_id AND x.object_type = \'mjlfinancement_project\' AND p.entity = x.entity WHERE x.object_type IS NOT NULL AND x.object_type <> \'\' AND x.object_id > 0 AND COALESCE(a.rowid, e.rowid, c.rowid, bl.rowid, fr.rowid, p.rowid) IS NULL',
+		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'mjlfinancement_exchange_log x WHERE x.object_type IS NOT NULL AND x.object_type <> \'\' AND x.object_id > 0 AND '.mjl_integrity_unresolved_target_sql('x'),
 		'SELECT COUNT(*) AS nb FROM '.$db->prefix().'ecm_files WHERE src_object_type LIKE \'mjlfinancement_%\' AND (src_object_id IS NULL OR src_object_id <= 0)',
 	);
 	$total = 0;
@@ -780,12 +799,26 @@ function mjl_dashboard_render_card_section($title, $description, $cards)
 	print '</div>';
 	print '<div class="mjl-card-grid">';
 	foreach ($cards as $card) {
-		$tone = empty($card['tone']) ? 'neutral' : $card['tone'];
+		$tone = in_array((string) ($card['tone'] ?? ''), array('neutral', 'info', 'success', 'warning', 'danger'), true) ? (string) $card['tone'] : 'neutral';
+		$available = !array_key_exists('available', $card) || !empty($card['available']);
+		$definition = (string) ($card['definition'] ?? ($card['context'] ?? ''));
+		$scope = (string) ($card['scope'] ?? 'Périmètre actif');
+		$period = (string) ($card['period'] ?? 'Données courantes');
+		$freshness = (string) ($card['freshness'] ?? 'Calculé à l’ouverture');
+		$destination = (string) ($card['destination'] ?? ($card['action'] ?? 'Ouvrir'));
 		print '<article class="mjl-dashboard-card mjl-dashboard-card-'.$tone.'">';
 		print '<div>';
 		print '<span class="mjl-card-label">'.dol_escape_htmltag($card['label']).'</span>';
-		print '<strong class="mjl-card-value">'.dol_escape_htmltag((string) $card['value']).'</strong>';
-		print '<p>'.dol_escape_htmltag($card['context']).'</p>';
+		print '<strong class="mjl-card-value">'.dol_escape_htmltag($available ? (string) $card['value'] : 'Indisponible').'</strong>';
+		print '<p>'.dol_escape_htmltag((string) ($card['context'] ?? '')).'</p>';
+		print '<dl class="mjl-card-metadata">';
+		print '<div><dt>Définition</dt><dd>'.dol_escape_htmltag($definition).'</dd></div>';
+		print '<div><dt>Périmètre</dt><dd>'.dol_escape_htmltag($scope).'</dd></div>';
+		print '<div><dt>Période</dt><dd>'.dol_escape_htmltag($period).'</dd></div>';
+		print '<div><dt>Actualisation</dt><dd>'.dol_escape_htmltag($freshness).'</dd></div>';
+		print '<div><dt>Destination</dt><dd>'.dol_escape_htmltag($destination).'</dd></div>';
+		print '</dl>';
+		if (!$available) print '<div class="mjl-empty-state mjl-empty-state-warning">Cette donnée est momentanément indisponible. Les autres indicateurs restent utilisables.</div>';
 		if (!empty($card['status'])) {
 			print '<span class="mjl-status-pill mjl-status-'.$tone.'">'.dol_escape_htmltag($card['status']).'</span>';
 		}
@@ -904,6 +937,18 @@ function mjl_dashboard_scalar($sql, $field = 'nb')
 	return $obj && isset($obj->{$field}) ? $obj->{$field} : 0;
 }
 
+function mjl_dashboard_capture($loader)
+{
+	$before = (int) ($GLOBALS['mjl_dashboard_error_count'] ?? 0);
+	$beforeAlerts = count((array) ($GLOBALS['mjl_alerts_load_errors'] ?? array()));
+	$value = call_user_func($loader);
+	return array(
+		'value' => $value,
+		'available' => (int) ($GLOBALS['mjl_dashboard_error_count'] ?? 0) === $before
+			&& count((array) ($GLOBALS['mjl_alerts_load_errors'] ?? array())) === $beforeAlerts,
+	);
+}
+
 function mjl_dashboard_fetch_row($sql)
 {
 	global $db;
@@ -937,6 +982,7 @@ function mjl_dashboard_fetch_rows($sql)
 
 function mjl_dashboard_error($message)
 {
+	$GLOBALS['mjl_dashboard_error_count'] = (int) ($GLOBALS['mjl_dashboard_error_count'] ?? 0) + 1;
 	$entity = isset($GLOBALS['conf']->entity) ? (int) $GLOBALS['conf']->entity : 0;
 	$userId = isset($GLOBALS['user']->id) ? (int) $GLOBALS['user']->id : 0;
 	mjl_ui_log_error('database', array('route' => 'dashboard', 'action' => 'load', 'entity' => $entity, 'user_id' => $userId), $message);

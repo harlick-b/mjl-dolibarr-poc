@@ -261,30 +261,47 @@ function mjl_workspace_can_apply_expense_validation(User $targetUser)
 function mjl_workspace_metrics(User $targetUser, $filters = null)
 {
 	$capabilities = mjl_workspace_capabilities($targetUser);
-	$metrics = array(
-		'own_activity_drafts' => mjl_workspace_own_activity_drafts($targetUser, $filters),
-		'own_expenses_submitted' => mjl_workspace_own_expense_count($targetUser, array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters),
-		'own_missing_expense_documents' => mjl_workspace_own_missing_expense_document_count($targetUser, $filters),
-		'activities_submitted' => 0,
-		'expenses_submitted' => 0,
-		'overdue_activities' => 0,
-		'reports_available' => 0,
-		'pending_invitations' => 0,
+	$loaders = array(
+		'own_activity_drafts' => function () use ($targetUser, $filters) { return mjl_workspace_own_activity_drafts($targetUser, $filters); },
+		'own_expenses_submitted' => function () use ($targetUser, $filters) { return mjl_workspace_own_expense_count($targetUser, array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters); },
+		'own_missing_expense_documents' => function () use ($targetUser, $filters) { return mjl_workspace_own_missing_expense_document_count($targetUser, $filters); },
 	);
 
 	if ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['supervision']) {
-		$metrics['activities_submitted'] = mjl_workspace_activity_count(mjl_scope_is_final_validator($targetUser) ? MjlActivity::finalReviewStatuses() : MjlActivity::verifierReviewStatuses(), $filters);
-		$metrics['expenses_submitted'] = mjl_workspace_expense_review_count($targetUser, $filters);
-		$metrics['overdue_activities'] = mjl_workspace_overdue_activity_count($filters);
+		$loaders['activities_submitted'] = function () use ($targetUser, $filters) { return mjl_workspace_activity_count(mjl_scope_is_final_validator($targetUser) ? MjlActivity::finalReviewStatuses() : MjlActivity::verifierReviewStatuses(), $filters); };
+		$loaders['expenses_submitted'] = function () use ($targetUser, $filters) { return mjl_workspace_expense_review_count($targetUser, $filters); };
+		$loaders['overdue_activities'] = function () use ($filters) { return mjl_workspace_overdue_activity_count($filters); };
 	}
 	if ($capabilities['admin'] || $capabilities['supervision']) {
-		$metrics['reports_available'] = mjl_workspace_count('mjlfinancement_report');
+		$loaders['reports_available'] = function () { return mjl_workspace_count('mjlfinancement_report'); };
 	}
 	if ($capabilities['admin']) {
-		$metrics['pending_invitations'] = mjl_workspace_pending_invitation_count();
+		$loaders['pending_invitations'] = function () { return mjl_workspace_pending_invitation_count(); };
 	}
 
+	$metrics = array(
+		'own_activity_drafts' => 0, 'own_expenses_submitted' => 0, 'own_missing_expense_documents' => 0,
+		'activities_submitted' => 0, 'expenses_submitted' => 0, 'overdue_activities' => 0,
+		'reports_available' => 0, 'pending_invitations' => 0, 'available' => array(),
+	);
+	foreach ($loaders as $key => $loader) {
+		$result = mjl_workspace_capture($loader);
+		$metrics[$key] = $result['value'];
+		$metrics['available'][$key] = $result['available'];
+	}
 	return $metrics;
+}
+
+function mjl_workspace_capture($loader)
+{
+	$beforeWorkspace = (int) ($GLOBALS['mjl_workspace_error_count'] ?? 0);
+	$beforeAlerts = count((array) ($GLOBALS['mjl_alerts_load_errors'] ?? array()));
+	$value = call_user_func($loader);
+	return array(
+		'value' => $value,
+		'available' => (int) ($GLOBALS['mjl_workspace_error_count'] ?? 0) === $beforeWorkspace
+			&& count((array) ($GLOBALS['mjl_alerts_load_errors'] ?? array())) === $beforeAlerts,
+	);
 }
 
 function mjl_workspace_own_activity_drafts(User $targetUser, $filters = null)
@@ -336,6 +353,7 @@ function mjl_workspace_own_missing_expense_document_count(User $targetUser, $fil
 	$sql .= mjl_workspace_dashboard_expense_status_filter_sql('e', $filters);
 	$resql = $db->query($sql);
 	if (!$resql) {
+		mjl_workspace_record_failure($db->lasterror());
 		return 0;
 	}
 	$count = 0;
@@ -434,14 +452,21 @@ function mjl_workspace_scalar($sql)
 
 	$resql = $db->query($sql);
 	if (!$resql) {
-		if (function_exists('setEventMessages')) {
-			setEventMessages($db->lasterror(), null, 'errors');
-		}
+		mjl_workspace_record_failure($db->lasterror());
 		return 0;
 	}
 
 	$obj = $db->fetch_object($resql);
 	return $obj && isset($obj->nb) ? (int) $obj->nb : 0;
+}
+
+function mjl_workspace_record_failure($message)
+{
+	$GLOBALS['mjl_workspace_error_count'] = (int) ($GLOBALS['mjl_workspace_error_count'] ?? 0) + 1;
+	$entity = isset($GLOBALS['conf']->entity) ? (int) $GLOBALS['conf']->entity : 0;
+	$userId = isset($GLOBALS['user']->id) ? (int) $GLOBALS['user']->id : 0;
+	mjl_ui_log_error('database', array('route' => 'workspace', 'action' => 'load_metric', 'entity' => $entity, 'user_id' => $userId), $message);
+	if (function_exists('setEventMessages')) setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 }
 
 function mjl_workspace_dashboard_partner_filter_sql($column, $filters = null)

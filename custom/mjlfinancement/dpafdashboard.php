@@ -29,14 +29,16 @@ mjl_dashboard_render_card_section(
 	mjl_dashboard_supervision_kpis($filters)
 );
 
-mjl_dashboard_render_alert_section(
+$deadlineRisks = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_deadline_risks(20, $filters); });
+if ($deadlineRisks['available']) mjl_dashboard_render_alert_section(
 	'Risques echeance',
 	'Activites ouvertes avec une echeance proche ou depassee. Chaque alerte indique l objet, le risque et l action attendue.',
-	mjl_dashboard_deadline_risks(20, $filters),
+	$deadlineRisks['value'],
 	'Aucun risque échéance détecté pour le moment.'
-);
+); else mjl_dpaf_render_unavailable('Risques échéance');
 
-mjl_dashboard_render_table_section(
+$pendingReviews = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_pending_reviews(30, $filters); });
+if ($pendingReviews['available']) mjl_dashboard_render_table_section(
 	'Revues en attente',
 	'Activites et depenses soumises qui attendent une decision.',
 	array(
@@ -47,12 +49,13 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Montant', 'class' => 'right'),
 		array('label' => 'Action'),
 	),
-	mjl_dashboard_pending_reviews(30, $filters),
+	$pendingReviews['value'],
 	'Aucune revue en attente.',
 	'mjl_dpaf_render_pending_review_row'
-);
+); else mjl_dpaf_render_unavailable('Revues en attente');
 
-mjl_dashboard_render_table_section(
+$budgetRows = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_budget_expense_rows($filters); });
+if ($budgetRows['available']) mjl_dashboard_render_table_section(
 	'Budgets et dépenses',
 	'Situation budgétaire par convention, conservée comme lecture de supervision.',
 	array(
@@ -62,12 +65,13 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Dépenses soumises', 'class' => 'right'),
 		array('label' => 'Disponible', 'class' => 'right'),
 	),
-	mjl_dashboard_budget_expense_rows($filters),
+	$budgetRows['value'],
 	'Aucune donnée budgétaire.',
 	'mjl_dpaf_render_budget_row'
-);
+); else mjl_dpaf_render_unavailable('Budgets et dépenses');
 
-mjl_dashboard_render_table_section(
+$recentFunds = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_recent_funds(10, $filters); });
+if ($recentFunds['available']) mjl_dashboard_render_table_section(
 	'Dernières réceptions de fonds',
 	'Fonds récemment enregistrés dans l’entité active.',
 	array(
@@ -78,12 +82,13 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Montant', 'class' => 'right'),
 		array('label' => 'Preuve'),
 	),
-	mjl_dashboard_recent_funds(10, $filters),
+	$recentFunds['value'],
 	'Aucune réception de fonds.',
 	'mjl_dpaf_render_fund_row'
-);
+); else mjl_dpaf_render_unavailable('Dernières réceptions de fonds');
 
-mjl_dashboard_render_table_section(
+$recentAudit = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_recent_audit(30, $filters); });
+if ($recentAudit['available']) mjl_dashboard_render_table_section(
 	'Dernières actions auditées',
 	'Trace récente des décisions sur activités et dépenses.',
 	array(
@@ -96,16 +101,23 @@ mjl_dashboard_render_table_section(
 		array('label' => 'Date'),
 		array('label' => 'Commentaire'),
 	),
-	mjl_dashboard_recent_audit(30, $filters),
+	$recentAudit['value'],
 	'Aucune action auditée.',
 	'mjl_dpaf_render_audit_row'
-);
+); else mjl_dpaf_render_unavailable('Dernières actions auditées');
 
 print '</div>';
 mjl_navigation_shell_end();
 
 llxFooter();
 $db->close();
+
+function mjl_dpaf_render_unavailable($title)
+{
+	print '<section class="mjl-workspace-section"><div class="mjl-section-heading"><h2>'.dol_escape_htmltag($title).'</h2></div>';
+	print mjl_ui_system_state('unavailable', 'Donnée momentanément indisponible', 'Les autres régions de supervision restent utilisables.');
+	print '</section>';
+}
 
 function mjl_dpaf_render_pending_review_row($row)
 {

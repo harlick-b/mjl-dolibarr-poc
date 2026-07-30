@@ -8,8 +8,8 @@
 function mjl_project_recovery_registry()
 {
 	return array(
-		'create' => array('form' => 'project', 'fields' => array('ref', 'title', 'fk_soc', 'date_start', 'date_end', 'fk_statut', 'description')),
-		'update' => array('form' => 'project', 'fields' => array('ref', 'title', 'fk_soc', 'date_start', 'date_end', 'fk_statut', 'description')),
+		'create' => array('form' => 'project', 'fields' => array('ref', 'title', 'date_start', 'date_end', 'description')),
+		'update' => array('form' => 'project', 'fields' => array('ref', 'title', 'date_start', 'date_end', 'description')),
 		'add_note' => array('form' => 'comment', 'fields' => array('message')),
 		'add_exchange' => array('form' => 'comment', 'fields' => array('message')),
 	);

@@ -46,3 +46,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   consistently. Test the unfiltered route as well as malformed values; a
   fail-closed parser can otherwise turn every default list request into an
   empty result without exposing a syntax or runtime error.
+- Polymorphic audit-target resolution needs one entity-matched registry shared
+  by every diagnostic caller. When a new audited object type is introduced,
+  update that registry and prove both a valid anchor and a missing target;
+  duplicated join lists silently misclassify otherwise valid audit rows.

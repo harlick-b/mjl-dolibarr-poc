@@ -20,8 +20,14 @@ function mjl_journey_render_summary(array $model): string
 		$label = mjl_journey_escape($item['label'] ?? '');
 		$value = mjl_journey_escape($item['value'] ?? '');
 		if ($label === '') continue;
-		$tone = mjl_journey_tone($item['tone'] ?? 'neutral');
-		$html .= '<div><dt>'.$label.'</dt><dd><span class="mjl-status-pill mjl-status-'.$tone.'">'.$value.'</span></dd></div>';
+		$html .= '<div><dt>'.$label.'</dt><dd>';
+		if (array_key_exists('tone', $item)) {
+			$tone = mjl_journey_tone($item['tone']);
+			$html .= '<span class="mjl-status-pill mjl-status-'.$tone.'">'.$value.'</span>';
+		} else {
+			$html .= '<span class="mjl-journey-value">'.$value.'</span>';
+		}
+		$html .= '</dd></div>';
 	}
 	return $html.'</dl></section>';
 }

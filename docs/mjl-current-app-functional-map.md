@@ -125,6 +125,25 @@ Those references are current-state/code debt, not target behavior.
   shared presentation-only document-state model. Downloads remain routed
   through `documentdownload.php`; the global document route and aggregate
   panels are read-only and never expose an upload control.
+- Envelopes, budget lines, and fund receipts expose scoped 50-row pagination
+  with retained partner/project/object/status/date filters, deterministic
+  unique-row tie-breaks, and count-failure degradation. Their detail routes
+  use shared journey summaries; envelope and fund-proof downloads use the
+  shared guarded document presentation.
+- Finance create/edit/decision/comment domain failures use route-specific,
+  bounded, one-use recovery registries. Uploads, deletes, security failures,
+  unknown actions, computed amounts, tokens, IDs, and files are excluded.
+- Dashboard cards provide a definition, active scope, period, freshness, and
+  destination while retaining a local unavailable state that does not replace
+  successful sibling cards.
+- Report pages show a human-readable active-filter summary, generation
+  readiness, guarded on-demand delivery context, and Admin-only recent export
+  audit history. Export permissions, POST actions, columns, ordering,
+  filenames, and CSV/XLSX bytes remain unchanged.
+- Workflow and exchange target resolution now shares one entity-matched
+  integrity registry across the unresolved-scope audit and Admin dashboard
+  diagnostic. `mjlfinancement_report` is a supported target; missing report
+  rows still remain unresolved.
 - The activity list uses shared normalized metadata for status, scoped
   project, deadline-risk, sort, and page values. Count and row queries reuse
   the same entity/scope/filter fragments and the row query fetches one extra
@@ -207,6 +226,7 @@ Key scripts currently present include:
 - `smoke_activity_workflow.php`
 - `smoke_expense_validation.php`
 - `smoke_traceability_exports.php`
+- `smoke_integrity_targets.php`
 
 ## Current Risks
 
@@ -216,3 +236,6 @@ Key scripts currently present include:
 - Production email/base URL/secrets and final permission matrix remain
   unconfirmed.
 - Official donor/client export templates remain unconfirmed.
+- The local development database contains historical workflow rows whose
+  referenced test fixtures were deleted. The unresolved-scope audit continues
+  to report these genuine missing targets; Phase 3 does not remediate them.

@@ -2,6 +2,39 @@
 
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
+/**
+ * Entity-matched workflow/exchange targets.
+ *
+ * This registry is the single authority used by unresolved-target audits and
+ * dashboard diagnostics. Every target table listed here owns both rowid and
+ * entity; unknown object types therefore remain unresolved by construction.
+ */
+function mjl_integrity_supported_target_registry()
+{
+	return array(
+		'mjlfinancement_activity' => 'mjlfinancement_activity',
+		'mjlfinancement_expense' => 'mjlfinancement_expense',
+		'mjlfinancement_convention' => 'mjlfinancement_convention',
+		'mjlfinancement_budget_line' => 'mjlfinancement_budget_line',
+		'mjlfinancement_fund_receipt' => 'mjlfinancement_fund_receipt',
+		'mjlfinancement_project' => 'projet',
+		'mjlfinancement_report' => 'mjlfinancement_report',
+	);
+}
+
+function mjl_integrity_unresolved_target_sql($alias)
+{
+	global $db;
+
+	$alias = preg_replace('/[^A-Za-z0-9_]/', '', (string) $alias);
+	if ($alias === '') return '1 = 1';
+	$resolved = array();
+	foreach (mjl_integrity_supported_target_registry() as $objectType => $table) {
+		$resolved[] = '('.$alias.".object_type = '".$db->escape($objectType)."' AND EXISTS (SELECT 1 FROM ".$db->prefix().$table.' mjl_target WHERE mjl_target.rowid = '.$alias.'.object_id AND mjl_target.entity = '.$alias.'.entity))';
+	}
+	return 'NOT ('.implode(' OR ', $resolved).')';
+}
+
 function mjl_integrity_set_error($message)
 {
 	global $mjl_integrity_error;

@@ -9,13 +9,13 @@
 function mjl_expense_recovery_registry()
 {
 	return array(
-		'create' => array('form' => 'create', 'fields' => array('ref', 'fk_project', 'fk_convention', 'fk_mjl_activity', 'fk_budget_line', 'amount', 'expense_date', 'description')),
+		'create' => array('form' => 'create', 'fields' => array('ref', 'amount', 'expense_date', 'description')),
 		'update' => array('form' => 'correction', 'fields' => array('amount', 'expense_date', 'description')),
 		'correct' => array('form' => 'correction', 'fields' => array('comment')),
 		'submit' => array('form' => 'decision', 'fields' => array('comment')),
 		'validate' => array('form' => 'decision', 'fields' => array()),
-		'prevalidate' => array('form' => 'decision', 'fields' => array('prevalidated_amount', 'comment')),
-		'final_validate' => array('form' => 'decision', 'fields' => array('final_validated_amount', 'comment')),
+		'prevalidate' => array('form' => 'decision', 'fields' => array('comment')),
+		'final_validate' => array('form' => 'decision', 'fields' => array('comment')),
 		'disburse' => array('form' => 'decision', 'fields' => array('beneficiary_name', 'disbursement_date')),
 		'reject' => array('form' => 'decision', 'fields' => array('comment')),
 		'add_exchange' => array('form' => 'comment', 'fields' => array('message')),

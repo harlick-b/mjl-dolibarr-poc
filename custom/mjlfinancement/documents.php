@@ -14,6 +14,7 @@ $langs->load('mjlfinancement@mjlfinancement');
 
 $filters = array(
 	'type' => GETPOST('type', 'alphanohtml'),
+	'partner_id' => GETPOSTINT('partner_id'),
 	'project_id' => GETPOSTINT('project_id'),
 	'date_from' => GETPOST('date_from', 'alphanohtml'),
 	'date_to' => GETPOST('date_to', 'alphanohtml'),
@@ -48,6 +49,7 @@ function mjl_documents_render_filters($filters)
 		print '<option value="'.dol_escape_htmltag($value).'"'.($filters['type'] === $value ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
 	}
 	print '</select></label>';
+	print '<label>Partenaire / Programme'.mjl_documents_partner_select((int) $filters['partner_id']).'</label>';
 	print '<label>Projet'.mjl_documents_project_select((int) $filters['project_id']).'</label>';
 	print '<label>Date debut<input type="date" name="date_from" value="'.dol_escape_htmltag($filters['date_from']).'"></label>';
 	print '<label>Date fin<input type="date" name="date_to" value="'.dol_escape_htmltag($filters['date_to']).'"></label>';
@@ -124,6 +126,7 @@ function mjl_documents_activity_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
 	$sql .= ' WHERE a.entity = '.((int) $conf->entity);
+	if ((int) $filters['partner_id'] > 0) $sql .= ' AND c.fk_soc = '.((int) $filters['partner_id']);
 	if ((int) $filters['project_id'] > 0) $sql .= ' AND a.fk_project = '.((int) $filters['project_id']);
 	$sql .= mjl_activities_scope_sql('a').' ORDER BY a.ref ASC';
 	$documents = array();
@@ -146,6 +149,7 @@ function mjl_documents_expense_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = e.fk_mjl_activity AND a.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
+	if ((int) $filters['partner_id'] > 0) $sql .= ' AND c.fk_soc = '.((int) $filters['partner_id']);
 	if ((int) $filters['project_id'] > 0) $sql .= ' AND e.fk_project = '.((int) $filters['project_id']);
 	$sql .= mjl_expenses_scope_sql('e').' ORDER BY e.ref ASC';
 	$documents = array();
@@ -166,6 +170,7 @@ function mjl_documents_convention_rows($filters)
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_convention c';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity);
+	if ((int) $filters['partner_id'] > 0) $sql .= ' AND c.fk_soc = '.((int) $filters['partner_id']);
 	if ((int) $filters['project_id'] > 0) $sql .= ' AND c.fk_project = '.((int) $filters['project_id']);
 	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY c.ref ASC';
@@ -188,6 +193,7 @@ function mjl_documents_fund_receipt_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = fr.fk_convention AND c.entity = fr.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = fr.fk_project AND p.entity = fr.entity';
 	$sql .= ' WHERE fr.entity = '.((int) $conf->entity);
+	if ((int) $filters['partner_id'] > 0) $sql .= ' AND fr.fk_soc = '.((int) $filters['partner_id']);
 	if ((int) $filters['project_id'] > 0) $sql .= ' AND fr.fk_project = '.((int) $filters['project_id']);
 	$sql .= mjl_scope_partner_sql_filter('fr.fk_soc', $user);
 	$sql .= ' ORDER BY fr.ref ASC';
@@ -249,6 +255,17 @@ function mjl_documents_project_select($selected)
 	return $out;
 }
 
+function mjl_documents_partner_select($selected)
+{
+	global $db, $conf, $user;
+	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $user).' ORDER BY s.nom ASC, s.rowid ASC';
+	$out = '<select name="partner_id"><option value="0">Tous</option>';
+	foreach (mjl_documents_fetch_all($sql) as $row) {
+		$out .= '<option value="'.((int) $row['rowid']).'"'.((int) $selected === (int) $row['rowid'] ? ' selected' : '').'>'.dol_escape_htmltag($row['nom']).'</option>';
+	}
+	return $out.'</select>';
+}
+
 function mjl_documents_project_scope_sql($alias)
 {
 	global $db, $user;
@@ -261,7 +278,8 @@ function mjl_documents_fetch_all($sql)
 	global $db;
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages($db->lasterror(), null, 'errors');
+		mjl_ui_log_error('database', array('route' => 'documents', 'action' => 'fetch_rows', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 		return array();
 	}
 	$rows = array();

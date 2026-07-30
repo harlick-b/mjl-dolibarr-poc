@@ -37,6 +37,14 @@ Completed after resumption:
 The verdict remains pending until the separate User/QA accessibility matrix is
 completed and signed.
 
+## Subsequent sequencing override — 30 July 2026
+
+The user subsequently authorized Phase 3 implementation before the unsigned
+Phase 2 manual matrix was completed. This changes sequencing only: it does not
+change any pending evidence below to passed. Phase 4 must validate the final
+post-Phase-3 screens through the cross-phase manual matrix because recordings
+of the Phase 2-only interface would no longer prove the resulting UI.
+
 ## Checkpoints
 
 | Checkpoint | Commit |
@@ -228,13 +236,15 @@ behavior, semantic labels, and JavaScript-disabled fallback.
 
 ## Required manual validation and exclusions
 
-The Phase 2 User/QA matrix is a current gate, not deferred Phase 4 work. Its
-fixture manifest, headed calibration harness, and unsigned evidence sheet are
-at `tests/manual/phase2-accessibility-fixture-manifest.md` and
+The unsigned Phase 2 User/QA matrix remains required evidence under the
+sequencing override above. Its fixture manifest, headed calibration harness,
+and unsigned evidence sheet are at
+`tests/manual/phase2-accessibility-fixture-manifest.md` and
 `docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md`.
-Until every 390/768/1024/1366 cell passes at calibrated real-browser 100% and
-200% zoom with signed keyboard, reflow, contrast, and dialog evidence, this
-report cannot use a phase-scoped validated verdict.
+Phase 4 must rerun the cross-phase matrix against the final post-Phase-3
+screens. Until every 390/768/1024/1366 cell passes at calibrated real-browser
+100% and 200% zoom with signed keyboard, reflow, contrast, and dialog evidence,
+neither report can use a phase-scoped validated verdict.
 
 The following remain expressly outside Phase 2:
 

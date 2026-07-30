@@ -182,6 +182,13 @@ function mjl_table_retained_query($normalized, $overrides = array())
 	return http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 }
 
+function mjl_table_count_or_null($database, $sql)
+{
+	$result = $database->query((string) $sql);
+	if (!$result || !($row = $database->fetch_object($result))) return null;
+	return isset($row->nb) ? (int) $row->nb : null;
+}
+
 function mjl_table_render_pagination($baseUrl, $normalized, $total, $hasPrevious, $hasNext, $resourceLabel)
 {
 	$page = max(1, (int) ($normalized['page'] ?? 1));

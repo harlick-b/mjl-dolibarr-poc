@@ -151,7 +151,7 @@ function mjl_partners_context_url($path, $partnerId)
 {
 	$path = (string) $path;
 	$route = basename((string) parse_url($path, PHP_URL_PATH));
-	$key = in_array($route, array('projects.php', 'activities.php', 'expenses.php', 'documents.php'), true) ? 'partner' : 'partner_id';
+	$key = in_array($route, array('projects.php', 'activities.php', 'expenses.php'), true) ? 'partner' : 'partner_id';
 	return $path.(strpos($path, '?') === false ? '?' : '&').$key.'='.((int) $partnerId);
 }
 

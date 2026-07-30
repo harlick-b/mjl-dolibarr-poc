@@ -548,17 +548,17 @@ test('activity recovery registry is exact and excludes upload or unknown actions
   expect(result.registry).toEqual({
     create: {
       form: 'create',
-      fields: ['ref', 'label', 'fk_project', 'fk_convention', 'fk_task', 'fk_user_responsible', 'date_start', 'date_end', 'date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'],
+      fields: ['ref', 'label', 'date_start', 'date_end', 'date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'],
     },
     update: {
       form: 'correction',
-      fields: ['label', 'fk_user_responsible', 'date_start', 'date_end', 'comment'],
+      fields: ['label', 'date_start', 'date_end', 'comment'],
     },
     correct: { form: 'correction', fields: ['comment'] },
     request_correction: { form: 'correction', fields: ['comment'] },
     update_execution: {
       form: 'execution',
-      fields: ['fk_user_responsible', 'date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'],
+      fields: ['date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'],
     },
     submit: { form: 'decision', fields: ['comment'] },
     prevalidate: { form: 'decision', fields: ['comment'] },

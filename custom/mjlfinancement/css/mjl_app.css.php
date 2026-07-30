@@ -364,6 +364,31 @@ a.tmenu[href^="/api/"] {
 	justify-content: space-between;
 }
 
+.mjl-card-metadata {
+	border-top: 1px solid #e5eaed;
+	display: grid;
+	gap: 5px;
+	margin: 12px 0 0;
+	padding-top: 10px;
+}
+
+.mjl-card-metadata div {
+	display: grid;
+	gap: 3px;
+	grid-template-columns: minmax(82px, 0.7fr) minmax(0, 1.3fr);
+}
+
+.mjl-card-metadata dt {
+	color: #52616b;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.mjl-card-metadata dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
 .mjl-dashboard-card-warning {
 	border-left: 4px solid #b56b00;
 }
