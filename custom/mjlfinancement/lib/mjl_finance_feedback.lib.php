@@ -55,8 +55,8 @@ function mjl_finance_feedback_domain_policy()
 				'Update comment is required' => array('change_comment' => 'Le motif de modification est obligatoire.'),
 			),
 			'received' => array(
-				'Le montant doit être supérieur à zéro avant de marquer les fonds comme reçus' => array('amount' => 'Le montant doit être supérieur à zéro.'),
-				'La date de réception est obligatoire avant de marquer les fonds comme reçus' => array('reception_date' => 'La date de réception est obligatoire.'),
+				'Le montant doit être supérieur à zéro avant de marquer les fonds comme reçus' => array('_form' => 'Le montant doit être supérieur à zéro.'),
+				'La date de réception est obligatoire avant de marquer les fonds comme reçus' => array('_form' => 'La date de réception est obligatoire.'),
 				'Une preuve documentaire téléchargeable est obligatoire avant de marquer les fonds comme reçus' => array('_form' => 'Une preuve documentaire téléchargeable est obligatoire.'),
 			),
 			'not_received' => array(

@@ -57,6 +57,10 @@ async function assertThreeRoutePages(page, baseUrl, resourceLabel) {
   }
 }
 
+async function formValues(form) {
+  return form.evaluate((node) => Object.fromEntries(new FormData(node).entries()));
+}
+
 function cleanupPhase3V2Fixtures() {
   execFile('docker', [
     'compose', 'exec', '-T', 'mariadb', 'mariadb',
@@ -69,6 +73,16 @@ function cleanupPhase3V2Fixtures() {
       DELETE FROM llx_ecm_files WHERE entity = 1 AND src_object_type = 'mjlfinancement_expense' AND src_object_id = @expense_id;
       DELETE FROM llx_mjlfinancement_expense WHERE rowid = @expense_id;
       DELETE FROM llx_mjlfinancement_fund_receipt WHERE ref LIKE 'P3V2-PAGE-%';
+      DELETE FROM llx_mjlfinancement_workflow_action
+        WHERE (object_type = 'mjlfinancement_convention'
+          AND object_id IN (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'P3V2-FEEDBACK-CONV'))
+        OR (object_type = 'mjlfinancement_budget_line'
+          AND object_id IN (SELECT rowid FROM llx_mjlfinancement_budget_line WHERE ref = 'P3V2-FEEDBACK-BL'))
+        OR (object_type = 'mjlfinancement_fund_receipt'
+          AND object_id IN (SELECT rowid FROM llx_mjlfinancement_fund_receipt WHERE ref LIKE 'P3V2-FEEDBACK-FR-%'));
+      DELETE FROM llx_mjlfinancement_fund_receipt WHERE ref LIKE 'P3V2-FEEDBACK-FR-%';
+      DELETE FROM llx_mjlfinancement_budget_line WHERE ref = 'P3V2-FEEDBACK-BL';
+      DELETE FROM llx_mjlfinancement_convention WHERE ref = 'P3V2-FEEDBACK-CONV';
       DELETE FROM llx_mjlfinancement_expense WHERE ref LIKE 'P3V2-PAGE-%';
       DELETE FROM llx_mjlfinancement_budget_line WHERE ref LIKE 'P3V2-PAGE-%';
       DELETE FROM llx_mjlfinancement_activity WHERE ref LIKE 'P3V2-PAGE-%';
@@ -77,6 +91,128 @@ function cleanupPhase3V2Fixtures() {
       DELETE FROM llx_societe WHERE nom LIKE 'P3V2-PAGE-PARTNER-%' AND import_key = 'P3V2PAGE';
     `,
   ], { cwd: projectRoot, stdio: 'pipe' });
+}
+
+function setupFinanceFeedbackFixtures() {
+  cleanupPhase3V2Fixtures();
+  execFile('docker', [
+    'compose', 'exec', '-T', 'mariadb', 'mariadb',
+    '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e',
+    `
+      SET @partner = (SELECT rowid FROM llx_societe WHERE entity = 1 AND nom = 'UNICEF' LIMIT 1);
+      SET @project = (SELECT rowid FROM llx_projet WHERE entity = 1 AND ref = 'PRJ-JE-2026' LIMIT 1);
+      SET @active_convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE entity = 1 AND ref = 'CONV-UNICEF-2026-001' LIMIT 1);
+      INSERT INTO llx_mjlfinancement_convention
+        (entity, ref, title, fk_soc, fk_project, total_amount, currency_code, date_creation, fk_user_creat, import_key, status)
+      VALUES
+        (1, 'P3V2-FEEDBACK-CONV', 'Feedback convention', @partner, @project, 1000, 'XOF', NOW(), 1, 'P3V2FEEDBACK', 0);
+      INSERT INTO llx_mjlfinancement_budget_line
+        (entity, ref, label, fk_convention, initial_budget, revised_budget, remaining_amount, fk_project, date_creation, fk_user_creat, import_key, status)
+      VALUES
+        (1, 'P3V2-FEEDBACK-BL', 'Feedback budget', @active_convention, 1000, 1000, 1000, @project, NOW(), 1, 'P3V2FEEDBACK', 0);
+      INSERT INTO llx_mjlfinancement_fund_receipt
+        (entity, ref, fk_soc, fk_project, fk_convention, amount, reception_date, comment, date_creation, fk_user_creat, import_key, status)
+      VALUES
+        (1, 'P3V2-FEEDBACK-FR-AMOUNT', @partner, @project, @active_convention, 0, '2026-07-30', 'Feedback amount', NOW(), 1, 'P3V2FEEDBACK', 0),
+        (1, 'P3V2-FEEDBACK-FR-DATE', @partner, @project, @active_convention, 100, NULL, 'Feedback date', NOW(), 1, 'P3V2FEEDBACK', 0),
+        (1, 'P3V2-FEEDBACK-FR-PROOF', @partner, @project, @active_convention, 100, '2026-07-30', 'Feedback proof', NOW(), 1, 'P3V2FEEDBACK', 0),
+        (1, 'P3V2-FEEDBACK-FR-REASON', @partner, @project, @active_convention, 100, '2026-07-30', 'Feedback reason', NOW(), 1, 'P3V2FEEDBACK', 0);
+    `,
+  ], { cwd: projectRoot, stdio: 'pipe' });
+}
+
+function fixtureId(table, ref) {
+  return Number(String(execFile('docker', [
+    'compose', 'exec', '-T', 'mariadb', 'mariadb',
+    '-N', '-B', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e',
+    `SELECT rowid FROM ${table} WHERE entity = 1 AND ref = '${ref}' LIMIT 1`,
+  ], { cwd: projectRoot, encoding: 'utf8' })).trim());
+}
+
+function financeProductionRendererFailures(route) {
+  const config = {
+    conventions: {
+      file: 'conventions.php',
+      alias: 'c',
+      list: 'mjl_conventions_render_list',
+      detail: 'mjl_conventions_fetch_detail',
+      timeline: 'mjl_conventions_timeline_items',
+      filters: "array('partner_id' => 0, 'project_id' => 0, 'status' => '', 'sort' => 'recent', 'page' => 1, 'page_size' => 50, 'fail_closed' => false)",
+    },
+    budgetlines: {
+      file: 'budgetlines.php',
+      alias: 'bl',
+      list: 'mjl_budgetlines_render_list',
+      detail: 'mjl_budgetlines_fetch_detail',
+      timeline: 'mjl_budgetlines_timeline_items',
+      filters: "array('partner_id' => 0, 'project_id' => 0, 'convention_id' => 0, 'activity_id' => 0, 'status' => '', 'sort' => 'recent', 'page' => 1, 'page_size' => 50, 'fail_closed' => false)",
+    },
+    fundreceipts: {
+      file: 'fundreceipts.php',
+      alias: 'fr',
+      list: 'mjl_fundreceipts_render_list',
+      detail: 'mjl_fundreceipts_fetch_detail',
+      timeline: 'mjl_fundreceipts_timeline_items',
+      filters: "array('partner_id' => 0, 'project_id' => 0, 'convention_id' => 0, 'status' => '', 'date_start' => '', 'date_end' => '', 'sort' => 'recent', 'page' => 1, 'page_size' => 50, 'fail_closed' => false)",
+    },
+  }[route];
+  const code = `
+    define('NOLOGIN', 1);
+    define('MJL_FINANCE_RENDERERS_ONLY', true);
+    chdir('/var/www/html/custom/mjlfinancement');
+    require '${config.file}';
+    class P3ProductionFailureAdapter {
+      private $inner;
+      private $mode;
+      private $alias;
+      public function __construct($inner, $mode, $alias) {
+        $this->inner = $inner;
+        $this->mode = $mode;
+        $this->alias = $alias;
+      }
+      public function query($sql) {
+        $fails = ($this->mode === 'list' && strpos($sql, ' LIMIT 51 OFFSET ') !== false)
+          || ($this->mode === 'fetch_detail' && strpos($sql, 'SELECT '.$this->alias.'.rowid') === 0)
+          || ($this->mode === 'timeline' && strpos($sql, 'mjlfinancement_workflow_action w') !== false);
+        return $fails ? false : $this->inner->query($sql);
+      }
+      public function __call($name, $arguments) {
+        return call_user_func_array(array($this->inner, $name), $arguments);
+      }
+      public function __get($name) {
+        return $this->inner->$name;
+      }
+    }
+    $realDb = $db;
+    $filters = ${config.filters};
+    $db = new P3ProductionFailureAdapter($realDb, 'list', '${config.alias}');
+    ob_start();
+    ${config.list}($filters);
+    $listHtml = ob_get_clean();
+    unset($_SESSION['dol_events']);
+    $db = new P3ProductionFailureAdapter($realDb, 'fetch_detail', '${config.alias}');
+    $detail = ${config.detail}(23);
+    $detailEvents = isset($_SESSION['dol_events']) ? $_SESSION['dol_events'] : array();
+    unset($_SESSION['dol_events']);
+    $db = new P3ProductionFailureAdapter($realDb, 'timeline', '${config.alias}');
+    $timeline = ${config.timeline}(array(
+      'rowid' => 23,
+      'date_creation' => '2026-07-30 12:00:00',
+      'creator_login' => 'fixture.agent'
+    ));
+    $timelineEvents = isset($_SESSION['dol_events']) ? $_SESSION['dol_events'] : array();
+    $db = $realDb;
+    echo json_encode(array(
+      'list_html' => $listHtml,
+      'detail' => $detail,
+      'detail_events' => $detailEvents,
+      'timeline' => $timeline,
+      'timeline_events' => $timelineEvents
+    ));
+  `;
+  return JSON.parse(String(execFile('docker', [
+    'compose', 'exec', '-T', 'dolibarr', 'php', '-r', code,
+  ], { cwd: projectRoot, encoding: 'utf8' })));
 }
 
 function setupPhase3PaginationFixtures() {
@@ -145,6 +281,19 @@ test('Phase 3A journey presentation escapes content and accepts only controlled 
           ['label' => 'interdit', 'url' => 'https://attacker.example/file'],
         ],
       ]),
+      'states' => array_map(function ($state) {
+        return mjl_journey_render_document_panel([
+          'state' => $state,
+          'documents' => [[
+            'label' => 'preuve.pdf',
+            'url' => '/custom/mjlfinancement/documentdownload.php?type=activity&id=7',
+          ]],
+          'action' => [
+            'label' => 'Ajouter',
+            'url' => '/custom/mjlfinancement/activities.php?id=7',
+          ],
+        ]);
+      }, ['missing', 'downloadable', 'unavailable', 'upload-failed', 'forbidden', 'read-only', 'invented']),
     ]);
   `);
 
@@ -155,6 +304,14 @@ test('Phase 3A journey presentation escapes content and accepts only controlled 
   expect(result.documents).toContain('mjl-document-summary-downloadable');
   expect(result.documents).toContain('/custom/mjlfinancement/documentdownload.php?type=activity&amp;id=7');
   expect(result.documents).not.toContain('attacker.example');
+  expect(result.states).toHaveLength(7);
+  for (const [index, state] of ['missing', 'downloadable', 'unavailable', 'upload-failed', 'forbidden', 'read-only', 'unavailable'].entries()) {
+    expect(result.states[index]).toContain(`mjl-document-summary-${state}`);
+  }
+  for (const index of [0, 3]) expect(result.states[index]).toContain('>Ajouter<');
+  for (const index of [1, 2, 4, 5, 6]) expect(result.states[index]).not.toContain('>Ajouter<');
+  for (const index of [1, 5]) expect(result.states[index]).toContain('documentdownload.php');
+  for (const index of [0, 2, 3, 4, 6]) expect(result.states[index]).not.toContain('documentdownload.php');
 });
 
 test('Phase 3A table contract retains additive filters and uses resource-aware labels', () => {
@@ -702,6 +859,26 @@ test('Phase 3 remediation finance source queries expose canonical feedback witho
   });
 });
 
+test('Phase 3 remediation production renderers preserve honest states for all nine finance source failures', () => {
+  for (const route of ['conventions', 'budgetlines', 'fundreceipts']) {
+    const result = financeProductionRendererFailures(route);
+    expect(result.list_html).toContain('Le service de donn&eacute;es est temporairement indisponible. Veuillez r&eacute;essayer.');
+    expect(result.list_html).toContain('mjl-empty-state-warning');
+    expect(result.list_html).not.toContain('<tr class="oddeven">');
+    expect(result.list_html).not.toContain('SQLSTATE');
+    expect(result.list_html).not.toContain('token=');
+
+    expect(result.detail).toEqual([]);
+    expect(result.detail_events.errors).toContain('Le service de données est temporairement indisponible. Veuillez réessayer.');
+    expect(JSON.stringify(result.detail_events)).not.toContain('SQLSTATE');
+
+    expect(result.timeline).toHaveLength(1);
+    expect(result.timeline[0]).toMatchObject({ meta: expect.stringContaining('fixture.agent') });
+    expect(result.timeline_events.errors).toContain('Une partie de l’historique ne peut pas être chargée pour le moment.');
+    expect(JSON.stringify(result.timeline_events)).not.toContain('SQLSTATE');
+  }
+});
+
 test('Phase 3 remediation finance feedback rejects tampering and filters recovery errors exactly', () => {
   const result = phpJson(`
     function mjl_ui_safe_error_message($category = 'unknown') {
@@ -716,12 +893,33 @@ test('Phase 3 remediation finance feedback rejects tampering and filters recover
     $extraKey['diagnostic'] = 'SQLSTATE raw sentinel';
     $foreignField = $valid;
     $foreignField['errors']['token'] = 'secret';
+    $receivedAmount = mjl_finance_feedback_domain(
+      'fundreceipts',
+      'received',
+      18,
+      'Le montant doit être supérieur à zéro avant de marquer les fonds comme reçus'
+    );
+    $receivedDate = mjl_finance_feedback_domain(
+      'fundreceipts',
+      'received',
+      18,
+      'La date de réception est obligatoire avant de marquer les fonds comme reçus'
+    );
+    $receivedProof = mjl_finance_feedback_domain(
+      'fundreceipts',
+      'received',
+      18,
+      'Une preuve documentaire téléchargeable est obligatoire avant de marquer les fonds comme reçus'
+    );
     echo json_encode([
       'valid' => mjl_finance_feedback_validate_domain('fundreceipts', 'not_received', $valid),
       'valid_errors' => mjl_finance_feedback_recovery_errors('fundreceipts', 'not_received', $valid, ['status_comment']),
       'changed' => mjl_finance_feedback_validate_domain('fundreceipts', 'not_received', $changedMessage),
       'extra' => mjl_finance_feedback_validate_domain('fundreceipts', 'not_received', $extraKey),
       'foreign' => mjl_finance_feedback_recovery_errors('fundreceipts', 'not_received', $foreignField, ['status_comment']),
+      'received_amount' => mjl_finance_feedback_recovery_errors('fundreceipts', 'received', $receivedAmount, ['status_comment']),
+      'received_date' => mjl_finance_feedback_recovery_errors('fundreceipts', 'received', $receivedDate, ['status_comment']),
+      'received_proof' => mjl_finance_feedback_recovery_errors('fundreceipts', 'received', $receivedProof, ['status_comment']),
       'unknown' => mjl_finance_feedback_recovery_errors(
         'conventions',
         'create',
@@ -741,6 +939,9 @@ test('Phase 3 remediation finance feedback rejects tampering and filters recover
     expect(feedback).toEqual({ category: 'unknown', public_message: 'unknown-safe', errors: {} });
   }
   expect(result.foreign).toEqual({ _form: 'unknown-safe' });
+  expect(result.received_amount).toEqual({ _form: 'Le montant doit être supérieur à zéro.' });
+  expect(result.received_date).toEqual({ _form: 'La date de réception est obligatoire.' });
+  expect(result.received_proof).toEqual({ _form: 'Une preuve documentaire téléchargeable est obligatoire.' });
   expect(result.unknown).toEqual({ _form: 'unknown-safe' });
 });
 
@@ -882,6 +1083,93 @@ test('Phase 3 remediation links only exact finance field errors and keeps compos
   await expect(form.locator('[data-mjl-form-errors]')).toContainText('La référence est obligatoire.');
   await expect(form.locator('a[href="#mjl-fundreceipt-create-ref"]')).toBeVisible();
   await expect(form.locator('textarea[name="comment"]')).toHaveValue('P3V2_E2E commentaire valide');
+});
+
+test('Phase 3 remediation renders every finance decision precondition in its recoverable production form', async ({ page }) => {
+  setupFinanceFeedbackFixtures();
+  try {
+    await login(page, 'admin.poc');
+
+    const conventionId = fixtureId('llx_mjlfinancement_convention', 'P3V2-FEEDBACK-CONV');
+    await page.goto(`/custom/mjlfinancement/conventions.php?id=${conventionId}`);
+    let form = page.locator('form.mjl-activity-form').filter({ has: page.locator('input[name="action"][value="update"]') });
+    let values = await formValues(form);
+    let response = await page.request.post(`/custom/mjlfinancement/conventions.php?id=${conventionId}`, {
+      form: { ...values, currency_code: 'XX', comment: 'Devise invalide contrôlée' },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(302);
+    await page.goto(response.headers().location);
+    form = page.locator('form.mjl-activity-form').filter({ has: page.locator('input[name="action"][value="update"]') });
+    await expect(form.locator('[data-mjl-form-errors]')).toContainText('La devise doit comporter exactement trois lettres.');
+    await expect(form.locator('a[href="#mjl-convention-edit-currency_code"]')).toBeVisible();
+    await expect(form.locator('input[name="title"]')).toHaveValue('Feedback convention');
+
+    values = await formValues(form);
+    response = await page.request.post(`/custom/mjlfinancement/conventions.php?id=${conventionId}`, {
+      form: { ...values, currency_code: 'XOF', title: 'Feedback convention modifiée', comment: '' },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(302);
+    await page.goto(response.headers().location);
+    form = page.locator('form.mjl-activity-form').filter({ has: page.locator('input[name="action"][value="update"]') });
+    await expect(form.locator('[data-mjl-form-errors]')).toContainText('Le motif de modification est obligatoire.');
+    await expect(form.locator('a[href="#mjl-convention-edit-comment"]')).toBeVisible();
+    await expect(form.locator('input[name="title"]')).toHaveValue('Feedback convention modifiée');
+
+    const budgetId = fixtureId('llx_mjlfinancement_budget_line', 'P3V2-FEEDBACK-BL');
+    await page.goto(`/custom/mjlfinancement/budgetlines.php?id=${budgetId}`);
+    form = page.locator('form.mjl-activity-form').filter({ has: page.locator('input[name="action"][value="update"]') });
+    values = await formValues(form);
+    response = await page.request.post(`/custom/mjlfinancement/budgetlines.php?id=${budgetId}`, {
+      form: { ...values, label: 'Feedback budget modifié', comment: '' },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(302);
+    await page.goto(response.headers().location);
+    form = page.locator('form.mjl-activity-form').filter({ has: page.locator('input[name="action"][value="update"]') });
+    await expect(form.locator('[data-mjl-form-errors]')).toContainText('Le motif de modification est obligatoire.');
+    await expect(form.locator('a[href="#mjl-budgetline-edit-comment"]')).toBeVisible();
+    await expect(form.locator('input[name="label"]')).toHaveValue('Feedback budget modifié');
+
+    const receivedCases = [
+      ['P3V2-FEEDBACK-FR-AMOUNT', 'Le montant doit être supérieur à zéro.'],
+      ['P3V2-FEEDBACK-FR-DATE', 'La date de réception est obligatoire.'],
+      ['P3V2-FEEDBACK-FR-PROOF', 'Une preuve documentaire téléchargeable est obligatoire.'],
+    ];
+    for (const [ref, message] of receivedCases) {
+      const receiptId = fixtureId('llx_mjlfinancement_fund_receipt', ref);
+      await page.goto(`/custom/mjlfinancement/fundreceipts.php?id=${receiptId}`);
+      form = page.locator('form.mjl-activity-action-form').filter({ has: page.locator('input[name="action"][value="received"]') });
+      values = await formValues(form);
+      response = await page.request.post(`/custom/mjlfinancement/fundreceipts.php?id=${receiptId}`, {
+        form: values,
+        maxRedirects: 0,
+      });
+      expect(response.status()).toBe(302);
+      await page.goto(response.headers().location);
+      form = page.locator('form.mjl-activity-action-form').filter({ has: page.locator('input[name="action"][value="received"]') });
+      await expect(form.locator('.mjl-form-error-summary')).toContainText(message);
+      await expect(form.locator('.mjl-form-error-summary a')).toHaveCount(0);
+      await expect(form.locator('input[name="status_comment"]')).toHaveValue('');
+    }
+
+    const reasonId = fixtureId('llx_mjlfinancement_fund_receipt', 'P3V2-FEEDBACK-FR-REASON');
+    await page.goto(`/custom/mjlfinancement/fundreceipts.php?id=${reasonId}`);
+    form = page.locator('form.mjl-activity-action-form').filter({ has: page.locator('input[name="action"][value="not_received"]') });
+    values = await formValues(form);
+    response = await page.request.post(`/custom/mjlfinancement/fundreceipts.php?id=${reasonId}`, {
+      form: { ...values, status_comment: '' },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(302);
+    await page.goto(response.headers().location);
+    form = page.locator('form.mjl-activity-action-form').filter({ has: page.locator('input[name="action"][value="not_received"]') });
+    await expect(form.locator('.mjl-form-error-summary')).toContainText('Le motif est obligatoire.');
+    await expect(form.locator('a[href="#mjl-fundreceipt-decision-not_received-status_comment"]')).toBeVisible();
+  } finally {
+    cleanupPhase3V2Fixtures();
+  }
 });
 
 test('Phase 3C finance lists retain partner filters, deterministic sorts, and resource pagination', async ({ page }) => {

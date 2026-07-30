@@ -46,12 +46,14 @@ function mjl_journey_render_document_panel(array $model): string
 	$html .= '</div>';
 	$html .= '<div class="mjl-document-summary mjl-document-summary-'.$state.'"><span>'.$stateLabel.'</span></div>';
 	$documents = array();
-	foreach ((array) ($model['documents'] ?? array()) as $document) {
-		if (!is_array($document)) continue;
-		$url = mjl_journey_guarded_document_url($document['url'] ?? '');
-		$label = mjl_journey_escape($document['label'] ?? 'Document');
-		if ($label === '') continue;
-		$documents[] = array('label' => $label, 'url' => mjl_journey_escape($url));
+	if (in_array($state, array('downloadable', 'unavailable', 'read-only'), true)) {
+		foreach ((array) ($model['documents'] ?? array()) as $document) {
+			if (!is_array($document)) continue;
+			$url = in_array($state, array('downloadable', 'read-only'), true) ? mjl_journey_guarded_document_url($document['url'] ?? '') : '';
+			$label = mjl_journey_escape($document['label'] ?? 'Document');
+			if ($label === '') continue;
+			$documents[] = array('label' => $label, 'url' => mjl_journey_escape($url));
+		}
 	}
 	if (!empty($documents)) {
 		$html .= '<div class="mjl-document-list">';
@@ -62,7 +64,7 @@ function mjl_journey_render_document_panel(array $model): string
 		}
 		$html .= '</div>';
 	}
-	if (!empty($model['action']) && is_array($model['action'])) {
+	if (in_array($state, array('missing', 'upload-failed'), true) && !empty($model['action']) && is_array($model['action'])) {
 		$actionUrl = mjl_journey_local_url($model['action']['url'] ?? '');
 		$actionLabel = mjl_journey_escape($model['action']['label'] ?? '');
 		if ($actionUrl !== '' && $actionLabel !== '') {

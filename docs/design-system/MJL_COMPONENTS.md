@@ -117,7 +117,8 @@ Each component must define purpose, when to use it, when not to use it, layout, 
 - **Layout/behavior:** identifier/status lead, `Ouvrir` ends the row, and the
   same entity/scope/filter fragments drive count and rows. Malformed or
   inaccessible filters fail closed. At 768px and below rows become labeled
-  cards retaining activity, status, next action, and open link.
+  cards retaining the resource identity, its relevant status or key fact, the
+  next action when one exists, and the open link.
 - **Accessibility/French:** desktop markup remains a semantic table; compact
   cells expose visible French `data-label` headings and pagination has a named,
   resource-specific navigation landmark. Count failure may hide the exact
@@ -168,14 +169,24 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   MJL downloads on project, activity, expense, convention, fund-receipt, and
   read-only aggregate document journeys. Do not expose raw ECM links, invent a
   preview, or add upload/removal controls outside contextual authorization.
-- **Layout/behavior:** show one of the controlled missing, unavailable, or
-  downloadable states, followed by verified document links and an optional
-  local action. External and non-MJL URLs are discarded.
-- **Accessibility/French:** state text—not color—communicates availability;
-  links have document-specific labels and the section has a visible heading.
-- **Visibility/E2E:** the caller retains object/entity/scope and upload guards;
-  guarded-route, cross-entity, orphan, path-tamper, and helper URL tests are
-  required for every adopted object family.
+- **Layout/behavior:** show exactly one controlled state: `missing` when no
+  evidence is registered, `unavailable` when metadata exists but no guarded
+  download resolves, `downloadable` when a guarded link is available,
+  `upload-failed` after a contextual upload cannot be completed, `forbidden`
+  when the caller may see the journey but not the document, or `read-only`
+  when evidence is visible without a local mutation action. Verified document
+  links follow the state; a local upload/retry action is permitted only when
+  the route has independently authorized it. External and non-MJL URLs are
+  discarded, and forbidden/read-only states never acquire upload or removal
+  controls from the component.
+- **Accessibility/French:** state text—not color—communicates all six
+  conditions; links have document-specific French labels, unavailable and
+  upload-failed states explain the next safe step, forbidden/read-only wording
+  does not imply a missing file, and the section has a visible heading.
+- **Visibility/E2E:** the caller retains object/entity/scope, document, and
+  upload guards. Pure rendering covers the six allowlisted states and rejects
+  unknown states/URLs; guarded-route, cross-entity, orphan, path-tamper, and
+  helper URL tests are required for every adopted object family.
 
 ### Enriched dashboard card
 

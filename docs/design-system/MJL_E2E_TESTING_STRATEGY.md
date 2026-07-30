@@ -67,6 +67,8 @@ only registered values and link only exact field errors. Composite failures
 remain form-level. Duplicate references, database failures, timeline failures,
 and unrecognized class failures show canonical non-technical messages. Tests
 must cover the closed feedback envelope, tamper rejection, all nine
-list/detail/timeline source pairs through an injected database adapter, opaque
-one-use recovery, and absence of raw SQL, paths, tokens, filenames, and class
-errors in browser/session feedback.
+list/detail/timeline source pairs through an injected database adapter and the
+production renderer functions, opaque one-use recovery, retained legacy
+timeline content, honest empty list/detail states, and absence of raw SQL,
+paths, tokens, filenames, and class errors in rendered or browser/session
+feedback.

@@ -143,6 +143,11 @@ class MjlConvention extends CommonObject
 			$this->error = 'Permission denied for convention update';
 			return -1;
 		}
+		$comment = trim((string) $comment);
+		if ($comment === '') {
+			$this->error = 'Update comment is required';
+			return -1;
+		}
 
 		$this->db->begin();
 		$current = $this->fetchCurrentForGovernance($id, true);

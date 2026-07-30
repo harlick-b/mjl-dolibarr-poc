@@ -11,6 +11,12 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.lib.php';
 
+// CLI verification may load the production renderer functions with an
+// in-memory database adapter; this constant is not selectable by HTTP input.
+if (defined('MJL_FINANCE_RENDERERS_ONLY') && MJL_FINANCE_RENDERERS_ONLY) {
+	return;
+}
+
 mjl_workspace_require_reference_data_access($user, 'fundreceipt');
 
 $action = GETPOST('action', 'aZ09');

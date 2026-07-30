@@ -68,6 +68,7 @@ MJL expense validation smoke test completed.
 MJL activity workflow smoke test completed.
 MJL traceability/export smoke test completed.
 MJL integrity target smoke: OK
+MJL dashboard partial failure smoke: OK
 MJL unresolved scope audit: OK
 ```
 
