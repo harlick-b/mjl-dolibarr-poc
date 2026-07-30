@@ -127,19 +127,8 @@ class MjlBudgetLine extends CommonObject
 
 	public function update(User $user, $notrigger = 0)
 	{
-		return $this->updateGovernedFields($user, array(
-			'ref' => $this->ref,
-			'label' => $this->label,
-			'fk_project' => $this->fk_project,
-			'fk_convention' => $this->fk_convention,
-			'fk_mjl_activity' => $this->fk_mjl_activity,
-			'fk_activity' => $this->fk_activity,
-			'initial_budget' => $this->initial_budget,
-			'revised_budget' => $this->revised_budget,
-			'category' => $this->category,
-			'note_public' => $this->note_public,
-			'note_private' => $this->note_private,
-		), 'Mise a jour ligne budgetaire', $notrigger);
+		$this->error = 'Update comment is required';
+		return -1;
 	}
 
 	public function delete(User $user, $notrigger = 0)

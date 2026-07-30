@@ -67,8 +67,7 @@ function mjl_budgetlines_handle_post($action)
 		$budgetLine->note_public = GETPOST('note_public', 'restricthtml');
 		$budgetLine->note_private = GETPOST('note_private', 'restricthtml');
 		$budgetLine->fk_user_creat = $user->id;
-		if ((int) $budgetLine->fk_project > 0 && (int) $budgetLine->fk_convention > 0
-			&& !mjl_budgetlines_can_use_links((int) $budgetLine->fk_project, (int) $budgetLine->fk_convention, (int) $budgetLine->fk_mjl_activity, (int) $budgetLine->fk_activity)) {
+		if (!mjl_budgetlines_can_use_supplied_links((int) $budgetLine->fk_project, (int) $budgetLine->fk_convention, (int) $budgetLine->fk_mjl_activity, (int) $budgetLine->fk_activity)) {
 			mjl_budgetlines_forbidden('Rattachement hors de votre perimetre');
 		}
 		$result = $budgetLine->create($user);
@@ -98,8 +97,7 @@ function mjl_budgetlines_handle_post($action)
 
 	if ($action === 'update') {
 		$failureAction = 'update';
-		if (GETPOSTINT('fk_project') > 0 && GETPOSTINT('fk_convention') > 0
-			&& !mjl_budgetlines_can_use_links(GETPOSTINT('fk_project'), GETPOSTINT('fk_convention'), GETPOSTINT('fk_mjl_activity'), GETPOSTINT('fk_activity'))) {
+		if (!mjl_budgetlines_can_use_supplied_links(GETPOSTINT('fk_project'), GETPOSTINT('fk_convention'), GETPOSTINT('fk_mjl_activity'), GETPOSTINT('fk_activity'))) {
 			mjl_budgetlines_forbidden('Rattachement hors de votre perimetre');
 		}
 		$result = $budgetLine->updateGovernedFields($user, array(
@@ -534,6 +532,23 @@ function mjl_budgetlines_can_use_links($fkProject, $fkConvention, $fkMjlActivity
 		$sql = 'SELECT t.rowid FROM '.$db->prefix().'projet_task t WHERE t.entity = '.((int) $conf->entity).' AND t.rowid = '.$fkTask.' AND t.fk_projet = '.$fkProject;
 		$resql = $db->query($sql);
 		if (!$resql || !$db->fetch_object($resql)) return false;
+	}
+	return true;
+}
+
+function mjl_budgetlines_can_use_supplied_links($fkProject, $fkConvention, $fkMjlActivity, $fkTask)
+{
+	$links = array(
+		'project' => (int) $fkProject,
+		'convention' => (int) $fkConvention,
+		'activity' => (int) $fkMjlActivity,
+		'task' => (int) $fkTask,
+	);
+	foreach ($links as $type => $id) {
+		if ($id > 0 && !array_key_exists($id, mjl_budgetlines_options($type))) return false;
+	}
+	if ($links['project'] > 0 && $links['convention'] > 0) {
+		return mjl_budgetlines_can_use_links($links['project'], $links['convention'], $links['activity'], $links['task']);
 	}
 	return true;
 }

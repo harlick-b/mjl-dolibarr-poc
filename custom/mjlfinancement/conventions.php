@@ -59,7 +59,7 @@ function mjl_conventions_handle_post($action)
 		$convention->title = GETPOST('title', 'restricthtml');
 		$convention->fk_soc = GETPOSTINT('fk_soc');
 		$convention->fk_project = GETPOSTINT('fk_project');
-		if ((int) $convention->fk_soc > 0 && !mjl_conventions_can_use_partner_project((int) $convention->fk_soc, (int) $convention->fk_project)) {
+		if (!mjl_conventions_can_use_supplied_links((int) $convention->fk_soc, (int) $convention->fk_project)) {
 			mjl_conventions_forbidden('Partenaire ou projet hors de votre perimetre');
 		}
 		$convention->date_start = mjl_conventions_post_date('date_start');
@@ -96,7 +96,7 @@ function mjl_conventions_handle_post($action)
 
 	if ($action === 'update') {
 		$failureAction = 'update';
-		if (GETPOSTINT('fk_soc') > 0 && !mjl_conventions_can_use_partner_project(GETPOSTINT('fk_soc'), GETPOSTINT('fk_project'))) {
+		if (!mjl_conventions_can_use_supplied_links(GETPOSTINT('fk_soc'), GETPOSTINT('fk_project'))) {
 			mjl_conventions_forbidden('Partenaire ou projet hors de votre perimetre');
 		}
 		$result = $convention->updateGovernedFields($user, array(
@@ -572,6 +572,16 @@ function mjl_conventions_can_use_partner_project($fkSoc, $fkProject)
 	$sql = 'SELECT rowid FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkProject.' AND fk_soc = '.$fkSoc;
 	$resql = $db->query($sql);
 	return $resql && (bool) $db->fetch_object($resql);
+}
+
+function mjl_conventions_can_use_supplied_links($fkSoc, $fkProject)
+{
+	$fkSoc = (int) $fkSoc;
+	$fkProject = (int) $fkProject;
+	if ($fkSoc > 0 && !array_key_exists($fkSoc, mjl_conventions_options('ptf'))) return false;
+	if ($fkProject > 0 && !array_key_exists($fkProject, mjl_conventions_options('project'))) return false;
+	if ($fkSoc > 0 && $fkProject > 0) return mjl_conventions_can_use_partner_project($fkSoc, $fkProject);
+	return true;
 }
 
 function mjl_conventions_select($name, $options, $selected, $required, $disabled)

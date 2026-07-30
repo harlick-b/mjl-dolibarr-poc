@@ -126,15 +126,8 @@ class MjlFundReceipt extends CommonObject
 
 	public function update(User $user, $notrigger = 0)
 	{
-		return $this->updateGovernedFields($user, array(
-			'ref' => $this->ref,
-			'fk_convention' => $this->fk_convention,
-			'amount' => $this->amount,
-			'reception_date' => $this->reception_date,
-			'comment' => $this->comment,
-			'note_public' => $this->note_public,
-			'note_private' => $this->note_private,
-		), 'Mise à jour réception de fonds', $notrigger);
+		$this->error = 'Update comment is required';
+		return -1;
 	}
 
 	public function updateGovernedFields(User $user, $fields, $comment = '', $notrigger = 0)
