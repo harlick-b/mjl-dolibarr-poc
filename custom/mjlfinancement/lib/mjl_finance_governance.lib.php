@@ -9,9 +9,24 @@ trait MjlFinanceGovernedUpdateComment
 	protected function normalizeRequiredUpdateComment(&$comment)
 	{
 		$comment = strip_tags((string) $comment);
-		$comment = html_entity_decode($comment, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-		$comment = html_entity_decode($comment, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-		$comment = preg_replace('/[\s\x{00A0}]+/u', ' ', $comment);
+		$stable = false;
+		for ($pass = 0; $pass < 10; $pass++) {
+			$decoded = html_entity_decode($comment, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+			if ($decoded === $comment) {
+				$stable = true;
+				break;
+			}
+			$comment = $decoded;
+		}
+		if (!$stable) {
+			$this->error = 'Update comment is required';
+			return false;
+		}
+		$comment = preg_replace('/[\s\p{Z}\p{Cf}]+/u', ' ', $comment);
+		if ($comment === null) {
+			$this->error = 'Update comment is required';
+			return false;
+		}
 		$comment = trim((string) $comment);
 		if ($comment !== '') {
 			return true;

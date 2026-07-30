@@ -69,7 +69,8 @@ function cleanupPhase3V2Fixtures() {
       DELETE FROM llx_mjlfinancement_fund_receipt
         WHERE entity = 1 AND import_key = 'P3V2PAGE' AND ref LIKE 'P3V2-PAGE-%';
       DELETE FROM llx_mjlfinancement_workflow_action
-        WHERE (object_type = 'mjlfinancement_convention'
+        WHERE entity = 1 AND import_key = 'P3V2FEEDBACK' AND (
+        (object_type = 'mjlfinancement_convention'
           AND object_id IN (SELECT rowid FROM llx_mjlfinancement_convention
             WHERE entity = 1 AND import_key = 'P3V2FEEDBACK' AND ref = 'P3V2-FEEDBACK-CONV'))
         OR (object_type = 'mjlfinancement_budget_line'
@@ -78,7 +79,7 @@ function cleanupPhase3V2Fixtures() {
         OR (object_type = 'mjlfinancement_fund_receipt'
           AND object_id IN (SELECT rowid FROM llx_mjlfinancement_fund_receipt
             WHERE entity = 1 AND import_key = 'P3V2FEEDBACK'
-              AND ref IN ('P3V2-FEEDBACK-FR-AMOUNT', 'P3V2-FEEDBACK-FR-DATE', 'P3V2-FEEDBACK-FR-PROOF', 'P3V2-FEEDBACK-FR-REASON')));
+              AND ref IN ('P3V2-FEEDBACK-FR-AMOUNT', 'P3V2-FEEDBACK-FR-DATE', 'P3V2-FEEDBACK-FR-PROOF', 'P3V2-FEEDBACK-FR-REASON'))));
       DELETE FROM llx_mjlfinancement_fund_receipt
         WHERE entity = 1 AND import_key = 'P3V2FEEDBACK'
           AND ref IN ('P3V2-FEEDBACK-FR-AMOUNT', 'P3V2-FEEDBACK-FR-DATE', 'P3V2-FEEDBACK-FR-PROOF', 'P3V2-FEEDBACK-FR-REASON');
@@ -672,7 +673,7 @@ test('Phase 3 remediation finance update reasons reject semantic blanks and stan
       'blank' => array_map(function ($value) use ($probe) {
         $probe->error = '';
         return $probe->check($value);
-      }, ['', '   ', "\\u{00A0}", '&nbsp;', '&amp;nbsp;', '<b></b>', '<br>']),
+      }, ['', '   ', "\\u{00A0}", "\\u{200B}", "\\u{2060}", '&nbsp;', '&amp;nbsp;', '&amp;amp;nbsp;', '&#x200B;', '<b></b>', '<br>']),
       'valid' => (new P3FinanceCommentProbe())->check('  Motif <strong>contrôlé</strong>  '),
     ]);
   `);
@@ -711,6 +712,11 @@ test('Phase 3 remediation fixture cleanup preserves colliding records outside it
         (entity, ref, fk_soc, fk_project, fk_convention, amount, reception_date, comment, date_creation, fk_user_creat, import_key, status)
       VALUES
         (1, 'P3V2-FEEDBACK-FR-AMOUNT', @partner, @project, @convention, 1, '2026-07-30', 'Sentinelle hors identité fixture', NOW(), 1, 'P3V2SENTINEL', 0);
+      SET @sentinel_id = LAST_INSERT_ID();
+      INSERT INTO llx_mjlfinancement_workflow_action
+        (entity, ref, object_type, object_id, action, from_status, to_status, actor, actor_role, action_date, reason, comment, changes_json, date_creation, fk_user_creat, import_key)
+      VALUES
+        (1, 'P3V2-SENTINEL-WF', 'mjlfinancement_fund_receipt', @sentinel_id, 'created', NULL, 'draft', 1, 'ADMIN_PLATEFORME', NOW(), '', 'Sentinelle audit', '{}', NOW(), 1, 'P3V2SENTINEL');
     `,
   ], { cwd: projectRoot, stdio: 'pipe' });
   try {
@@ -719,11 +725,17 @@ test('Phase 3 remediation fixture cleanup preserves colliding records outside it
       SELECT COUNT(*) FROM llx_mjlfinancement_fund_receipt
       WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-FEEDBACK-FR-AMOUNT'
     `)).toBe('1');
+    expect(databaseScalar(`
+      SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action
+      WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-SENTINEL-WF'
+    `)).toBe('1');
   } finally {
     execFile('docker', [
       'compose', 'exec', '-T', 'mariadb', 'mariadb',
       '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e',
       `
+        DELETE FROM llx_mjlfinancement_workflow_action
+        WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-SENTINEL-WF';
         DELETE FROM llx_mjlfinancement_fund_receipt
         WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-FEEDBACK-FR-AMOUNT';
       `,
