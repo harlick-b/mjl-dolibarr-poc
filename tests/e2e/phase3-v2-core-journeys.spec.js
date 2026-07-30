@@ -494,10 +494,188 @@ test('Phase 3C finance failures keep technical diagnostics out of browser messag
       cwd: projectRoot,
       encoding: 'utf8',
     }));
-    expect(source).toContain('mjl_finance_record_failure(');
+    expect(source).toContain('mjl_finance_feedback_domain(');
+    expect(source).toContain('mjl_finance_source_query(');
     expect(source).not.toMatch(/setEventMessages\(\$[A-Za-z]+->error/);
     expect(source).not.toMatch(/setEventMessages\(\$db->lasterror/);
+    expect(source).not.toMatch(/mjl_finance_feedback_domain\([^;]*,\s*\$action\s*,/);
   }
+});
+
+test('Phase 3 remediation finance feedback classifies only exact allowlisted domain failures', () => {
+  const result = phpJson(`
+    function mjl_ui_safe_error_message($category = 'unknown') {
+      $messages = [
+        'database' => 'database-safe',
+        'timeline' => 'timeline-safe',
+        'validation' => 'validation-safe',
+      ];
+      return $messages[$category] ?? 'unknown-safe';
+    }
+    function mjl_ui_log_error($category, $context = [], $driverMessage = '') {}
+    require 'custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
+    echo json_encode([
+      'field' => mjl_finance_feedback_domain('conventions', 'update', 7, 'Convention title is required'),
+      'composite' => mjl_finance_feedback_domain('conventions', 'create', 0, 'Convention reference and title are required'),
+      'database' => mjl_finance_feedback_domain('conventions', 'update', 7, 'SQLSTATE raw sentinel'),
+      'wrong_action' => mjl_finance_feedback_domain('conventions', 'activate', 7, 'Convention title is required'),
+      'case_changed' => mjl_finance_feedback_domain('conventions', 'update', 7, 'convention title is required'),
+    ]);
+  `);
+
+  expect(result.field).toEqual({
+    category: 'validation',
+    public_message: 'validation-safe',
+    errors: { title: 'L’intitulé est obligatoire.' },
+  });
+  expect(result.composite).toEqual({
+    category: 'validation',
+    public_message: 'validation-safe',
+    errors: { _form: 'La référence et l’intitulé sont obligatoires.' },
+  });
+  for (const feedback of [result.database, result.wrong_action, result.case_changed]) {
+    expect(feedback).toEqual({
+      category: 'unknown',
+      public_message: 'unknown-safe',
+      errors: {},
+    });
+  }
+});
+
+test('Phase 3 remediation finance source queries expose canonical feedback without raw diagnostics', () => {
+  const result = phpJson(`
+    $GLOBALS['finance_logs'] = [];
+    function mjl_ui_safe_error_message($category = 'unknown') {
+      $messages = ['database' => 'database-safe', 'timeline' => 'timeline-safe'];
+      return $messages[$category] ?? 'unknown-safe';
+    }
+    function mjl_ui_log_error($category, $context = [], $driverMessage = '') {
+      $GLOBALS['finance_logs'][] = [
+        'category' => $category,
+        'context' => $context,
+        'argument_count' => func_num_args(),
+        'driver' => $driverMessage,
+      ];
+    }
+    class P3FinanceFailureDb {
+      public $queries = [];
+      public function query($sql) {
+        $this->queries[] = $sql;
+        return false;
+      }
+      public function lasterror() {
+        return 'SQLSTATE raw sentinel /private/path token=secret';
+      }
+    }
+    require 'custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
+    $db = new P3FinanceFailureDb();
+    $cases = [];
+    foreach (['conventions', 'budgetlines', 'fundreceipts'] as $route) {
+      foreach (['list', 'fetch_detail', 'timeline'] as $source) {
+        $cases[] = mjl_finance_source_query($db, 'SELECT '.$route.' '.$source.' sentinel', $route, $source, 23);
+      }
+    }
+    $cases[] = mjl_finance_source_query($db, 'SELECT invalid sentinel', 'Conventions', 'LIST', 99);
+    $tampered = $cases[0]['feedback'];
+    $tampered['public_message'] = 'Injected raw sentinel';
+    echo json_encode([
+      'cases' => $cases,
+      'queries' => $db->queries,
+      'logs' => $GLOBALS['finance_logs'],
+      'validated_timeline' => mjl_finance_feedback_validate_source('fundreceipts', 'timeline', $cases[8]['feedback']),
+      'tampered' => mjl_finance_feedback_validate_source('conventions', 'list', $tampered),
+    ]);
+  `);
+
+  for (let index = 0; index < 9; index += 1) {
+    const category = index % 3 === 2 ? 'timeline' : 'database';
+    const publicMessage = category === 'timeline' ? 'timeline-safe' : 'database-safe';
+    expect(result.cases[index].feedback).toEqual({ category, public_message: publicMessage, errors: {} });
+  }
+  expect(result.cases[9].feedback).toEqual({ category: 'unknown', public_message: 'unknown-safe', errors: {} });
+  expect(result.validated_timeline).toEqual({ category: 'timeline', public_message: 'timeline-safe', errors: {} });
+  expect(result.tampered).toEqual({ category: 'unknown', public_message: 'unknown-safe', errors: {} });
+  expect(result.cases.every((entry) => entry.result === false)).toBe(true);
+  expect(result.queries).toEqual([
+    'SELECT conventions list sentinel',
+    'SELECT conventions fetch_detail sentinel',
+    'SELECT conventions timeline sentinel',
+    'SELECT budgetlines list sentinel',
+    'SELECT budgetlines fetch_detail sentinel',
+    'SELECT budgetlines timeline sentinel',
+    'SELECT fundreceipts list sentinel',
+    'SELECT fundreceipts fetch_detail sentinel',
+    'SELECT fundreceipts timeline sentinel',
+    'SELECT invalid sentinel',
+  ]);
+  expect(result.logs).toHaveLength(10);
+  for (const log of result.logs) {
+    expect(log.argument_count).toBe(2);
+    expect(log.driver).toBe('');
+    expect(JSON.stringify(log)).not.toContain('raw sentinel');
+    expect(JSON.stringify(log)).not.toContain('/private/path');
+    expect(JSON.stringify(log)).not.toContain('secret');
+  }
+  expect(result.logs[8]).toMatchObject({
+    category: 'database',
+    context: {
+      route: 'fundreceipts',
+      action: 'timeline',
+      object_type: 'mjlfinancement_fund_receipt',
+      object_id: 23,
+    },
+  });
+  expect(result.logs[9]).toMatchObject({
+    category: 'unknown',
+    context: {
+      route: 'finance',
+      action: 'unknown',
+      object_type: 'mjlfinancement_unknown',
+      object_id: 0,
+    },
+  });
+});
+
+test('Phase 3 remediation finance feedback rejects tampering and filters recovery errors exactly', () => {
+  const result = phpJson(`
+    function mjl_ui_safe_error_message($category = 'unknown') {
+      return $category === 'validation' ? 'validation-safe' : 'unknown-safe';
+    }
+    function mjl_ui_log_error($category, $context = [], $driverMessage = '') {}
+    require 'custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
+    $valid = mjl_finance_feedback_domain('fundreceipts', 'not_received', 17, 'Un motif est obligatoire pour marquer les fonds comme non reçus');
+    $changedMessage = $valid;
+    $changedMessage['errors']['status_comment'] = 'Injected';
+    $extraKey = $valid;
+    $extraKey['diagnostic'] = 'SQLSTATE raw sentinel';
+    $foreignField = $valid;
+    $foreignField['errors']['token'] = 'secret';
+    echo json_encode([
+      'valid' => mjl_finance_feedback_validate_domain('fundreceipts', 'not_received', $valid),
+      'valid_errors' => mjl_finance_feedback_recovery_errors('fundreceipts', 'not_received', $valid, ['status_comment']),
+      'changed' => mjl_finance_feedback_validate_domain('fundreceipts', 'not_received', $changedMessage),
+      'extra' => mjl_finance_feedback_validate_domain('fundreceipts', 'not_received', $extraKey),
+      'foreign' => mjl_finance_feedback_recovery_errors('fundreceipts', 'not_received', $foreignField, ['status_comment']),
+      'unknown' => mjl_finance_feedback_recovery_errors(
+        'conventions',
+        'create',
+        mjl_finance_feedback_domain('conventions', 'create', 0, 'Duplicate key raw sentinel'),
+        ['ref', 'title']
+      ),
+    ]);
+  `);
+
+  expect(result.valid).toEqual({
+    category: 'validation',
+    public_message: 'validation-safe',
+    errors: { status_comment: 'Le motif est obligatoire.' },
+  });
+  expect(result.valid_errors).toEqual({ status_comment: 'Le motif est obligatoire.' });
+  for (const feedback of [result.changed, result.extra]) {
+    expect(feedback).toEqual({ category: 'unknown', public_message: 'unknown-safe', errors: {} });
+  }
+  expect(result.foreign).toEqual({ _form: 'unknown-safe' });
+  expect(result.unknown).toEqual({ _form: 'unknown-safe' });
 });
 
 test('Phase 3C integrity registry resolves valid report anchors and preserves missing-target detection', () => {
@@ -558,10 +736,86 @@ test('Phase 3C finance recovery is opaque, one-use, and keeps only registered va
   expect(location).not.toContain('token=');
 
   await page.goto(location);
+  await expect(page.locator('body')).toContainText('L’action n’a pas pu être réalisée. Veuillez réessayer.');
+  await expect(form.locator('[data-mjl-form-errors]')).toContainText('L’action n’a pas pu être réalisée. Veuillez réessayer.');
+  await expect(form.locator('[data-mjl-form-errors] a')).toHaveCount(0);
   await expect(form.locator('input[name="ref"]')).toHaveValue('CONV-UNICEF-2026-001');
   await expect(form.locator('input[name="title"]')).toHaveValue('P3V2_E2E duplicate recovery');
   await page.reload();
   await expect(form.locator('input[name="ref"]')).toHaveValue('');
+});
+
+test('Phase 3 remediation links only exact finance field errors and keeps composite failures form-level', async ({ page }) => {
+  await login(page, 'admin.poc');
+
+  await page.goto('/custom/mjlfinancement/conventions.php');
+  let form = page.locator('form.mjl-activity-form').first();
+  let response = await page.request.post('/custom/mjlfinancement/conventions.php', {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'create',
+      ref: 'P3V2-E2E-CONV-INVALID',
+      title: '',
+      fk_soc: await form.locator('select[name="fk_soc"] option', { hasText: 'UNICEF' }).getAttribute('value'),
+      fk_project: await form.locator('select[name="fk_project"] option', { hasText: 'PRJ-JE-2026' }).getAttribute('value'),
+      total_amount: '1200',
+      currency_code: 'XOF',
+      note_public: 'P3V2_E2E valeur valide conservée',
+    },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  await page.goto(response.headers().location);
+  form = page.locator('form.mjl-activity-form').first();
+  await expect(form.locator('[data-mjl-form-errors]')).toContainText('La référence et l’intitulé sont obligatoires.');
+  await expect(form.locator('[data-mjl-form-errors] a')).toHaveCount(0);
+  await expect(form.locator('input[name="ref"]')).toHaveValue('P3V2-E2E-CONV-INVALID');
+  await expect(form.locator('textarea[name="note_public"]')).toHaveValue('P3V2_E2E valeur valide conservée');
+
+  await page.goto('/custom/mjlfinancement/budgetlines.php');
+  form = page.locator('form.mjl-activity-form').first();
+  response = await page.request.post('/custom/mjlfinancement/budgetlines.php', {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'create',
+      ref: 'P3V2-E2E-BL-INVALID',
+      label: '',
+      fk_project: await form.locator('select[name="fk_project"] option', { hasText: 'PRJ-JE-2026' }).getAttribute('value'),
+      fk_convention: await form.locator('select[name="fk_convention"] option', { hasText: 'CONV-UNICEF-2026-001' }).getAttribute('value'),
+      initial_budget: '900',
+      revised_budget: '900',
+      category: 'P3V2_E2E',
+      note_public: 'P3V2_E2E budget valide conservé',
+    },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  await page.goto(response.headers().location);
+  form = page.locator('form.mjl-activity-form').first();
+  await expect(form.locator('[data-mjl-form-errors]')).toContainText('La référence et le libellé sont obligatoires.');
+  await expect(form.locator('[data-mjl-form-errors] a')).toHaveCount(0);
+  await expect(form.locator('input[name="ref"]')).toHaveValue('P3V2-E2E-BL-INVALID');
+
+  await page.goto('/custom/mjlfinancement/fundreceipts.php');
+  form = page.locator('form.mjl-activity-form').first();
+  response = await page.request.post('/custom/mjlfinancement/fundreceipts.php', {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'create',
+      ref: '',
+      fk_convention: await form.locator('select[name="fk_convention"] option', { hasText: 'CONV-UNICEF-2026-001' }).getAttribute('value'),
+      amount: '700',
+      reception_date: '2026-07-30',
+      comment: 'P3V2_E2E commentaire valide',
+    },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  await page.goto(response.headers().location);
+  form = page.locator('form.mjl-activity-form').first();
+  await expect(form.locator('[data-mjl-form-errors]')).toContainText('La référence est obligatoire.');
+  await expect(form.locator('a[href="#mjl-fundreceipt-create-ref"]')).toBeVisible();
+  await expect(form.locator('textarea[name="comment"]')).toHaveValue('P3V2_E2E commentaire valide');
 });
 
 test('Phase 3C finance lists retain partner filters, deterministic sorts, and resource pagination', async ({ page }) => {

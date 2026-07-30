@@ -26,6 +26,13 @@ timelines/exchanges, and final client review for official outputs.
   supervision/audit-only.
 - CSV/XLSX exports are the current output formats; PDF/Word reports are out of
   scope for this phase.
+- Shared journey summaries, guarded document panels, exact finance recovery,
+  resource pagination, contextual timelines, and enriched dashboard-card
+  metadata now have catalog definitions. Their callers retain all server
+  authorization.
+- Touched finance routes distinguish allowlisted validation, database,
+  timeline, and unknown feedback without exposing raw diagnostics. Unrelated
+  legacy error-output debt remains tracked in the current-vs-target analysis.
 - Some labels and route names still use legacy DPAF/Convention wording; treat
   that as UI terminology debt.
 
@@ -33,16 +40,16 @@ timelines/exchanges, and final client review for official outputs.
 
 | Screen | Alignment | Main UI Debt | Safe Area |
 | --- | --- | --- | --- |
-| Workspace dashboard | Medium | Phase 10R aligned production role wording and scoped filters; final client KPI wording can still be reviewed. | `custom/mjlfinancement/index.php` |
+| Workspace dashboard | Medium | Enriched cards now expose definition, scope, period, freshness, destination, and local source failure; final client KPI wording can still be reviewed. | `custom/mjlfinancement/index.php` |
 | Supervision dashboard | Medium | Phase 10R aligned production role wording, scoped filters, and audit-row resolution; route filename remains compatibility debt. | `custom/mjlfinancement/dpafdashboard.php` |
 | Partenaires / Programmes | Partial | Needs current browser review for production scope clarity. | `custom/mjlfinancement/partners.php` |
 | Projects | Partial | Project creation/editing inside MJL needs current UX verification. | `custom/mjlfinancement/projects.php` |
 | Activities | Medium | Dense workflow detail; document preview deferred; wording review needed. | `custom/mjlfinancement/activities.php` |
 | Expenses | Medium | Dense forms/actions; final validation/disbursement clarity needs review. | `custom/mjlfinancement/expenses.php` |
 | Documents | Good | Read-only model is correct; filters and document ergonomics can improve. | `custom/mjlfinancement/documents.php` |
-| Conventions | Partial | Legacy label and DPAF/Admin wording need target review. | `custom/mjlfinancement/conventions.php` |
-| Budget lines | Partial | Advanced finance setup should stay guarded; wording needs review. | `custom/mjlfinancement/budgetlines.php` |
-| Fund receipts | Partial | Proof-document ergonomics and final wording need review. | `custom/mjlfinancement/fundreceipts.php` |
+| Conventions | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; legacy label and role wording still need target review. | `custom/mjlfinancement/conventions.php` |
+| Budget lines | Medium | Shared journey/recovery/pagination/timeline patterns and canonical feedback are present; advanced finance setup must stay guarded. | `custom/mjlfinancement/budgetlines.php` |
+| Fund receipts | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; final wording remains pending client review. | `custom/mjlfinancement/fundreceipts.php` |
 | Reports / exports | Good | Phase 11R aligns report inventory, target French wording, explicit Partenaire / Programme filters, POST-token exports, CSV/XLSX filename previews, and scoped audit visibility. Final donor canevas and permission matrix remain pending. | `custom/mjlfinancement/reports.php` |
 | Validation/audit history | Partial | Should be more contextual inside object detail pages. | `validations.php`, `workflowactions.php` |
 | Exchange logs | Partial | Standalone route should not be primary navigation. | `custom/mjlfinancement/exchangelogs.php` |

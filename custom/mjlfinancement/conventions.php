@@ -10,6 +10,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php'
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_table.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.lib.php';
 
 mjl_workspace_require_reference_data_access($user, 'convention');
@@ -70,8 +71,9 @@ function mjl_conventions_handle_post($action)
 		$convention->fk_user_creat = $user->id;
 		$result = $convention->create($user);
 		if ($result <= 0) {
-			setEventMessages(mjl_finance_record_failure('conventions', 'create', 0, $convention->error), null, 'errors');
-			mjl_conventions_redirect(0, mjl_conventions_store_recovery('create', 0, $convention->error));
+			$feedback = mjl_finance_feedback_domain('conventions', 'create', 0, $convention->error);
+			setEventMessages(mjl_finance_feedback_domain_message('conventions', 'create', $feedback), null, 'errors');
+			mjl_conventions_redirect(0, mjl_conventions_store_recovery('create', 0, $feedback));
 		}
 		setEventMessages('Enveloppe creee en brouillon', null, 'mesgs');
 		mjl_conventions_redirect((int) $result);
@@ -93,6 +95,7 @@ function mjl_conventions_handle_post($action)
 	}
 
 	if ($action === 'update') {
+		$failureAction = 'update';
 		if (!mjl_conventions_can_use_partner_project(GETPOSTINT('fk_soc'), GETPOSTINT('fk_project'))) {
 			mjl_conventions_forbidden('Partenaire ou projet hors de votre perimetre');
 		}
@@ -109,20 +112,25 @@ function mjl_conventions_handle_post($action)
 			'note_private' => GETPOST('note_private', 'restricthtml'),
 		), GETPOST('comment', 'restricthtml'));
 	} elseif ($action === 'activate') {
+		$failureAction = 'activate';
 		$result = $convention->activate($user, GETPOST('comment', 'restricthtml'));
 	} elseif ($action === 'close') {
+		$failureAction = 'close';
 		$result = $convention->close($user, GETPOST('comment', 'restricthtml'));
 	} elseif ($action === 'delete') {
+		$failureAction = 'delete';
 		$result = $convention->deleteIfUnlinkedDraft($user);
 	} elseif ($action === 'upload') {
+		$failureAction = 'upload';
 		$result = mjl_conventions_upload_document($convention);
 	} else {
 		mjl_conventions_redirect($id);
 	}
 
 	if ($result < 0) {
-		setEventMessages(mjl_finance_record_failure('conventions', $action, $id, $convention->error), null, 'errors');
-		$recoveryHandle = mjl_conventions_store_recovery($action, $id, $convention->error);
+		$feedback = mjl_finance_feedback_domain('conventions', $failureAction, $id, $convention->error);
+		setEventMessages(mjl_finance_feedback_domain_message('conventions', $failureAction, $feedback), null, 'errors');
+		$recoveryHandle = mjl_conventions_store_recovery($failureAction, $id, $feedback);
 	} elseif ($result === 0) {
 		setEventMessages('Aucun changement applique', null, 'warnings');
 	} else {
@@ -323,11 +331,11 @@ function mjl_conventions_render_list($filters)
 	elseif ($filters['sort'] === 'amount') $sql .= ' ORDER BY c.total_amount DESC, c.rowid DESC';
 	else $sql .= ' ORDER BY c.rowid DESC';
 	$sql .= ' LIMIT '.(((int) $filters['page_size']) + 1).' OFFSET '.(((int) $filters['page'] - 1) * (int) $filters['page_size']);
-	$resql = $db->query($sql);
+	$query = mjl_finance_source_query($db, $sql, 'conventions', 'list', 0);
+	$resql = $query['result'];
 	print '<section class="mjl-workspace-section"><div class="mjl-section-heading"><h2>Portefeuille des enveloppes</h2><p>Les enveloppes cloturees restent visibles pour les rapports et l historique.</p></div>';
 	if (!$resql) {
-		print '<div class="mjl-empty-state mjl-empty-state-warning">'.dol_escape_htmltag(mjl_ui_safe_error_message('database')).'</div></section>';
-		mjl_ui_log_error('database', array('route' => 'conventions', 'action' => 'list', 'entity' => (int) $conf->entity), $db->lasterror());
+		print '<div class="mjl-empty-state mjl-empty-state-warning">'.dol_escape_htmltag(mjl_finance_feedback_source_message('conventions', 'list', $query['feedback'])).'</div></section>';
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
@@ -472,9 +480,10 @@ function mjl_conventions_fetch_detail($id)
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = c.fk_user_creat';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.rowid = '.((int) $id);
 	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
-	$resql = $db->query($sql);
+	$query = mjl_finance_source_query($db, $sql, 'conventions', 'fetch_detail', $id);
+	$resql = $query['result'];
 	if (!$resql) {
-		setEventMessages(mjl_finance_record_failure('conventions', 'fetch_detail', $id, $db->lasterror()), null, 'errors');
+		setEventMessages(mjl_finance_feedback_source_message('conventions', 'fetch_detail', $query['feedback']), null, 'errors');
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
@@ -510,10 +519,10 @@ function mjl_conventions_timeline_items($row)
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
 	$sql .= ' WHERE w.entity = '.((int) $conf->entity).' AND w.object_type = \'mjlfinancement_convention\' AND w.object_id = '.((int) $row['rowid']);
 	$sql .= ' ORDER BY w.action_date ASC, w.rowid ASC';
-	$resql = $db->query($sql);
+	$query = mjl_finance_source_query($db, $sql, 'conventions', 'timeline', (int) $row['rowid']);
+	$resql = $query['result'];
 	if (!$resql) {
-		setEventMessages(mjl_ui_safe_error_message('timeline'), null, 'errors');
-		mjl_ui_log_error('database', array('route' => 'conventions', 'action' => 'timeline', 'entity' => (int) $conf->entity, 'object_type' => 'mjlfinancement_convention', 'object_id' => (int) $row['rowid']), $db->lasterror());
+		setEventMessages(mjl_finance_feedback_source_message('conventions', 'timeline', $query['feedback']), null, 'errors');
 		return $items;
 	}
 	while ($obj = $db->fetch_object($resql)) {
@@ -686,15 +695,14 @@ function mjl_conventions_forbidden($message = '')
 	accessforbidden($message);
 }
 
-function mjl_conventions_store_recovery($action, $id, $error)
+function mjl_conventions_store_recovery($action, $id, $feedback)
 {
 	global $conf, $user;
 	$config = mjl_finance_recovery_config('conventions', $action);
 	if ($config === null) return '';
 	$values = array();
 	foreach ($config['fields'] as $field) $values[$field] = GETPOST($field, 'restricthtml');
-	$errors = mjl_form_translate_domain_error((string) $error);
-	if (empty($errors)) $errors = array('_form' => mjl_ui_safe_error_message('validation'));
+	$errors = mjl_finance_feedback_recovery_errors('conventions', $action, $feedback, $config['fields']);
 	$reason = '';
 	return mjl_form_recovery_store(array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'conventions', 'form' => $config['form'], 'action' => $action, 'object_id' => (int) $id), $values, $config['fields'], $reason, $errors);
 }

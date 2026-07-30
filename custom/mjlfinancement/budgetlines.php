@@ -10,6 +10,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php'
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_table.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_feedback.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.lib.php';
 
 mjl_workspace_require_reference_data_access($user, 'budgetline');
@@ -71,8 +72,9 @@ function mjl_budgetlines_handle_post($action)
 		}
 		$result = $budgetLine->create($user);
 		if ($result <= 0) {
-			setEventMessages(mjl_finance_record_failure('budgetlines', 'create', 0, $budgetLine->error), null, 'errors');
-			mjl_budgetlines_redirect(0, mjl_budgetlines_store_recovery('create', 0, $budgetLine->error));
+			$feedback = mjl_finance_feedback_domain('budgetlines', 'create', 0, $budgetLine->error);
+			setEventMessages(mjl_finance_feedback_domain_message('budgetlines', 'create', $feedback), null, 'errors');
+			mjl_budgetlines_redirect(0, mjl_budgetlines_store_recovery('create', 0, $feedback));
 		}
 		setEventMessages('Ligne budgetaire creee en brouillon', null, 'mesgs');
 		mjl_budgetlines_redirect((int) $result);
@@ -94,6 +96,7 @@ function mjl_budgetlines_handle_post($action)
 	}
 
 	if ($action === 'update') {
+		$failureAction = 'update';
 		if (!mjl_budgetlines_can_use_links(GETPOSTINT('fk_project'), GETPOSTINT('fk_convention'), GETPOSTINT('fk_mjl_activity'), GETPOSTINT('fk_activity'))) {
 			mjl_budgetlines_forbidden('Rattachement hors de votre perimetre');
 		}
@@ -111,14 +114,16 @@ function mjl_budgetlines_handle_post($action)
 			'note_private' => GETPOST('note_private', 'restricthtml'),
 		), GETPOST('comment', 'restricthtml'));
 	} elseif ($action === 'activate') {
+		$failureAction = 'activate';
 		$result = $budgetLine->activate($user, GETPOST('comment', 'restricthtml'));
 	} else {
 		mjl_budgetlines_redirect($id);
 	}
 
 	if ($result < 0) {
-		setEventMessages(mjl_finance_record_failure('budgetlines', $action, $id, $budgetLine->error), null, 'errors');
-		$recoveryHandle = mjl_budgetlines_store_recovery($action, $id, $budgetLine->error);
+		$feedback = mjl_finance_feedback_domain('budgetlines', $failureAction, $id, $budgetLine->error);
+		setEventMessages(mjl_finance_feedback_domain_message('budgetlines', $failureAction, $feedback), null, 'errors');
+		$recoveryHandle = mjl_budgetlines_store_recovery($failureAction, $id, $feedback);
 	} elseif ($result === 0) {
 		setEventMessages('Aucun changement applique', null, 'warnings');
 	} else {
@@ -296,11 +301,11 @@ function mjl_budgetlines_render_list($filters)
 	elseif ($filters['sort'] === 'remaining') $sql .= ' ORDER BY remaining_amount DESC, bl.rowid DESC';
 	else $sql .= ' ORDER BY bl.rowid DESC';
 	$sql .= ' LIMIT '.(((int) $filters['page_size']) + 1).' OFFSET '.(((int) $filters['page'] - 1) * (int) $filters['page_size']);
-	$resql = $db->query($sql);
+	$query = mjl_finance_source_query($db, $sql, 'budgetlines', 'list', 0);
+	$resql = $query['result'];
 	print '<section class="mjl-workspace-section"><div class="mjl-section-heading"><h2>Portefeuille budgetaire</h2><p>Les montants depenses et restants sont recalcules depuis les depenses validees.</p></div>';
 	if (!$resql) {
-		print '<div class="mjl-empty-state mjl-empty-state-warning">'.dol_escape_htmltag(mjl_ui_safe_error_message('database')).'</div></section>';
-		mjl_ui_log_error('database', array('route' => 'budgetlines', 'action' => 'list', 'entity' => (int) $conf->entity), $db->lasterror());
+		print '<div class="mjl-empty-state mjl-empty-state-warning">'.dol_escape_htmltag(mjl_finance_feedback_source_message('budgetlines', 'list', $query['feedback'])).'</div></section>';
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
@@ -431,9 +436,10 @@ function mjl_budgetlines_fetch_detail($id)
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = bl.fk_user_creat';
 	$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.rowid = '.((int) $id);
 	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
-	$resql = $db->query($sql);
+	$query = mjl_finance_source_query($db, $sql, 'budgetlines', 'fetch_detail', $id);
+	$resql = $query['result'];
 	if (!$resql) {
-		setEventMessages(mjl_finance_record_failure('budgetlines', 'fetch_detail', $id, $db->lasterror()), null, 'errors');
+		setEventMessages(mjl_finance_feedback_source_message('budgetlines', 'fetch_detail', $query['feedback']), null, 'errors');
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
@@ -455,10 +461,10 @@ function mjl_budgetlines_timeline_items($row)
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
 	$sql .= ' WHERE w.entity = '.((int) $conf->entity).' AND w.object_type = \'mjlfinancement_budget_line\' AND w.object_id = '.((int) $row['rowid']);
 	$sql .= ' ORDER BY w.action_date ASC, w.rowid ASC';
-	$resql = $db->query($sql);
+	$query = mjl_finance_source_query($db, $sql, 'budgetlines', 'timeline', (int) $row['rowid']);
+	$resql = $query['result'];
 	if (!$resql) {
-		setEventMessages(mjl_ui_safe_error_message('timeline'), null, 'errors');
-		mjl_ui_log_error('database', array('route' => 'budgetlines', 'action' => 'timeline', 'entity' => (int) $conf->entity, 'object_type' => 'mjlfinancement_budget_line', 'object_id' => (int) $row['rowid']), $db->lasterror());
+		setEventMessages(mjl_finance_feedback_source_message('budgetlines', 'timeline', $query['feedback']), null, 'errors');
 		return $items;
 	}
 	while ($obj = $db->fetch_object($resql)) {
@@ -614,15 +620,14 @@ function mjl_budgetlines_forbidden($message = '')
 	accessforbidden($message);
 }
 
-function mjl_budgetlines_store_recovery($action, $id, $error)
+function mjl_budgetlines_store_recovery($action, $id, $feedback)
 {
 	global $conf, $user;
 	$config = mjl_finance_recovery_config('budgetlines', $action);
 	if ($config === null) return '';
 	$values = array();
 	foreach ($config['fields'] as $field) $values[$field] = GETPOST($field, 'restricthtml');
-	$errors = mjl_form_translate_domain_error((string) $error);
-	if (empty($errors)) $errors = array('_form' => mjl_ui_safe_error_message('validation'));
+	$errors = mjl_finance_feedback_recovery_errors('budgetlines', $action, $feedback, $config['fields']);
 	$reason = '';
 	return mjl_form_recovery_store(array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'budgetlines', 'form' => $config['form'], 'action' => $action, 'object_id' => (int) $id), $values, $config['fields'], $reason, $errors);
 }

@@ -109,6 +109,9 @@ rm -rf "$tmpdir"
   `docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md`
   remains mandatory before the phase-scoped validated verdict.
 - Global Documents is read-only; uploads are contextual; downloads are guarded.
+- Finance validation feedback links only exact allowlisted field errors;
+  composite errors remain form-level, duplicate/database/timeline/unknown
+  failures use canonical safe wording, and recovery stores no diagnostics.
 - Exchanges are contextual or audit/supervision-only, not primary navigation.
 - CSV exports include UTF-8 BOM, semicolon separator, French headers, stable
   filenames, and server-side filtering.

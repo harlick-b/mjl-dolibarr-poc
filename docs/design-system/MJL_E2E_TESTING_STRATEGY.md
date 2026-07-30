@@ -59,3 +59,14 @@ User applies filters, exports, export respects filters, file is Excel-readable, 
 AGENT_SAISIE sees operational workspace, AGENT_VERIFICATEUR sees prevalidation
 workspace, VALIDATEUR_DEFINITIF sees business supervision, ADMIN_PLATEFORME
 sees platform administration, and unauthorized pages are blocked.
+
+### Scenario 8 — Finance Feedback And Recovery
+
+Convention, budget-line, and fund-receipt required-field failures preserve
+only registered values and link only exact field errors. Composite failures
+remain form-level. Duplicate references, database failures, timeline failures,
+and unrecognized class failures show canonical non-technical messages. Tests
+must cover the closed feedback envelope, tamper rejection, all nine
+list/detail/timeline source pairs through an injected database adapter, opaque
+one-use recovery, and absence of raw SQL, paths, tokens, filenames, and class
+errors in browser/session feedback.

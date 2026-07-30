@@ -130,9 +130,18 @@ Those references are current-state/code debt, not target behavior.
   unique-row tie-breaks, and count-failure degradation. Their detail routes
   use shared journey summaries; envelope and fund-proof downloads use the
   shared guarded document presentation.
-- Finance create/edit/decision/comment domain failures use route-specific,
-  bounded, one-use recovery registries. Uploads, deletes, security failures,
-  unknown actions, computed amounts, tokens, IDs, and files are excluded.
+- Finance create/edit/decision/comment failures pass through a closed
+  validation/database/timeline/unknown feedback contract. Only exact
+  route/action/error translations become linked validation feedback;
+  duplicate, database, trigger, permission, stale, upload, delete, filesystem,
+  constraint, and unrecognized failures remain generic. Recovery revalidates
+  the envelope and uses route-specific, bounded, one-use registries. Uploads,
+  deletes, security failures, unknown actions, diagnostics, computed amounts,
+  tokens, IDs, and files are excluded.
+- Convention, budget-line, and fund-receipt list/detail/timeline queries use an
+  injected database seam. Production supplies the existing Dolibarr database
+  object; no request-, session-, configuration-, or environment-selectable
+  failure switch exists.
 - Dashboard cards provide a definition, active scope, period, freshness, and
   destination while retaining a local unavailable state that does not replace
   successful sibling cards.

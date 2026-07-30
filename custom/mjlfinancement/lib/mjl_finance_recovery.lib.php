@@ -56,22 +56,3 @@ function mjl_finance_recovery_values($recovery, $form)
 	if (!is_array($recovery) || (string) ($recovery['context']['form'] ?? '') !== (string) $form) return array();
 	return (array) ($recovery['values'] ?? array());
 }
-
-/**
- * Keep class/database diagnostics out of the browser while retaining a
- * normalized, redacted server-side trace.
- */
-function mjl_finance_record_failure($route, $action, $objectId, $error)
-{
-	global $conf, $user;
-
-	mjl_ui_log_error('validation', array(
-		'route' => (string) $route,
-		'action' => (string) $action,
-		'entity' => (int) $conf->entity,
-		'user_id' => (int) $user->id,
-		'object_type' => 'mjlfinancement_'.$route,
-		'object_id' => (int) $objectId,
-	), (string) $error);
-	return mjl_ui_safe_error_message('validation');
-}

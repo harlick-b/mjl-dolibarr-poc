@@ -81,47 +81,58 @@ Each component must define purpose, when to use it, when not to use it, layout, 
 
 ### Shared field, error summary, and recovery
 
-- **Purpose/use:** use for activity create, correction, execution, decision,
-  and contextual-comment forms that need stable labels, required/optional
-  wording, linked errors, and safe value recovery. Do not capture request
-  payloads wholesale, tokens, files, or upload metadata.
+- **Purpose/use:** use for activity, project, expense, convention, budget-line,
+  and fund-receipt create/edit, correction, execution, decision, and
+  contextual-comment forms that need stable labels, required/optional wording,
+  linked errors, and safe value recovery. Do not capture request payloads
+  wholesale, tokens, identifiers, files, upload metadata, or computed amounts.
 - **Layout/behavior:** each control has a stable form-specific ID, visible
   `(obligatoire)` or `(facultatif)` text, optional description, inline error,
   and a focused linked summary. JavaScript installs its validation handler
   before adding `novalidate`; native validation remains without JavaScript.
   Recovery handles are random, one-use, ten-minute, context-bound, and capped.
-  Activity recovery is selected by exact action from one registry: actions
-  sharing the correction form do not share recovered values or errors.
-  Upload and unknown actions never create recovery state.
+  Recovery is selected by exact route, form, action, object, user, and entity
+  from route-owned registries: actions sharing a visual form do not share
+  recovered values or errors. Finance feedback is reconstructed from closed
+  validation/database/timeline/unknown policy envelopes before recovery.
+  Upload, delete, security, stale, and unknown actions never create recovery
+  state. Registry membership and component visibility never authorize a POST;
+  the caller retains CSRF, role, entity, scope, object, and transition guards.
 - **Accessibility/French:** invalid controls use `aria-invalid` and
   `aria-describedby`; summaries link to every invalid field and use
-  allowlisted French domain translations.
+  exact allowlisted French domain translations. Composite failures stay
+  form-level so valid controls are not falsely marked invalid.
 - **Visibility/E2E:** the containing route/action guard controls access;
-  Phase 2 coverage verifies focus, links, native fallback, retained values,
-  expiry, isolation, one-use behavior, and caps.
+  Phase 2 and Phase 3 coverage verifies focus, links, native fallback, retained
+  values, envelope tamper rejection, expiry, isolation, one-use behavior, and
+  caps.
 
 ### Operational filter table and pagination
 
-- **Purpose/use:** use for the activity decision list with allowlisted status,
-  scoped project, deadline risk, sort, and fixed 50-row pages. Do not add
-  arbitrary search/sort SQL, page-size controls, bulk actions, or unscoped
+- **Purpose/use:** use for scoped activity, expense, partner/programme,
+  project, convention, budget-line, and fund-receipt portfolios with
+  allowlisted filters, deterministic sorting, and fixed 50-row pages. Do not
+  add arbitrary search/sort SQL, page-size controls, bulk actions, or unscoped
   totals.
 - **Layout/behavior:** identifier/status lead, `Ouvrir` ends the row, and the
   same entity/scope/filter fragments drive count and rows. Malformed or
   inaccessible filters fail closed. At 768px and below rows become labeled
   cards retaining activity, status, next action, and open link.
 - **Accessibility/French:** desktop markup remains a semantic table; compact
-  cells expose visible French `data-label` headings and pagination has a
-  named navigation landmark.
+  cells expose visible French `data-label` headings and pagination has a named,
+  resource-specific navigation landmark. Count failure may hide the exact
+  total but must preserve working row navigation.
 - **Visibility/E2E:** project options and query results follow server scope;
-  Phase 2 checks cover defaults, malformed inputs, columns, retained compact
-  content, and 390/768/1024 layouts.
+  Phase 2 and Phase 3 checks cover defaults, malformed inputs, columns,
+  retained filters, count degradation, compact content, and 390/768/1024
+  layouts.
 
 ### Validation timeline
 
 - **Purpose/use:** present explicit creation, workflow/validation, document,
-  and contextual-comment events. Do not infer unavailable expense history or
-  expose raw IDs, machine status codes, JSON, or unknown fields.
+  and contextual-comment events on activity, expense, convention, budget-line,
+  and fund-receipt details. Do not infer unavailable history or expose raw IDs,
+  machine status codes, JSON, SQL, or unknown fields.
 - **Layout/behavior:** normalized source envelopes merge by timestamp,
   source order, and row ID without collapsing repeated cycles. Successful
   sources remain visible with a persistent partial warning if another source
@@ -132,7 +143,55 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   presentation registry; empty and unknown stored values render neutral
   French labels rather than database vocabulary.
 - **Visibility/E2E:** detail-route access controls the timeline; workflow,
-  contextual-exchange, document, and pure partial-result tests cover it.
+  contextual-exchange, document, finance source-failure, and pure
+  partial-result tests cover it.
+
+### Journey summary
+
+- **Purpose/use:** place status, scope, next action, risk, evidence, and
+  history context at the start of an already-authorized object detail journey.
+  Do not use it as a second dashboard, an editable form, or a permission
+  decision.
+- **Layout/behavior:** a titled section contains short label/value pairs in
+  reading order. Optional tones are restricted to the shared neutral, info,
+  success, warning, and danger vocabulary; unknown tones become neutral.
+- **Accessibility/French:** headings participate in the page hierarchy and
+  every value remains meaningful without color. Labels use French business
+  vocabulary such as `Statut`, `Périmètre`, and `Prochaine action`.
+- **Visibility/E2E:** the caller owns server authorization and selects only
+  role-appropriate facts. Pure rendering tests cover escaping and controlled
+  tones; object journeys cover visible status/scope/next-action content.
+
+### Guarded document panel
+
+- **Purpose/use:** summarize supporting-evidence state and expose only guarded
+  MJL downloads on project, activity, expense, convention, fund-receipt, and
+  read-only aggregate document journeys. Do not expose raw ECM links, invent a
+  preview, or add upload/removal controls outside contextual authorization.
+- **Layout/behavior:** show one of the controlled missing, unavailable, or
+  downloadable states, followed by verified document links and an optional
+  local action. External and non-MJL URLs are discarded.
+- **Accessibility/French:** state text—not color—communicates availability;
+  links have document-specific labels and the section has a visible heading.
+- **Visibility/E2E:** the caller retains object/entity/scope and upload guards;
+  guarded-route, cross-entity, orphan, path-tamper, and helper URL tests are
+  required for every adopted object family.
+
+### Enriched dashboard card
+
+- **Purpose/use:** communicate one decision-useful metric with its definition,
+  active scope, period, freshness, and destination. Do not use a card for
+  decorative statistics, unexplained percentages, or permission enforcement.
+- **Layout/behavior:** label and value lead; definition, scope, period, and
+  freshness remain visible as compact metadata; a destination explains where
+  to act. A failed source replaces only its own card with a local unavailable
+  state while successful sibling cards remain.
+- **Accessibility/French:** unavailable text explains that the data cannot be
+  loaded and suggests retrying without implying that the value is zero.
+  Metadata and destination are readable without relying on icons or color.
+- **Visibility/E2E:** the dashboard caller owns role/entity/scope filtering.
+  Smoke and browser checks must prove metadata, destination, and sibling-card
+  survival during one-source failure.
 
 ### Route-owned activity enhancement
 

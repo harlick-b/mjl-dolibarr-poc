@@ -38,7 +38,18 @@ Use limited, useful KPIs such as:
 - Exports disponibles
 - Invitations en attente
 
-Each KPI should include value, label, short context, link to details, and status if relevant.
+Each KPI should include value, label, definition, active Partenaire /
+Programme or global scope, period, freshness, destination, and status if
+relevant.
+
+The route owns role, entity, and scope authorization. Card configuration and
+visibility are never substitutes for server-side query and direct-route
+guards.
+
+If one source fails, render a local unavailable state for that card or region.
+Do not convert the failure to zero, remove successful sibling cards, or expose
+SQL/driver details. The unavailable state should explain that the data cannot
+currently be loaded and that the user can retry.
 
 ## Charts
 

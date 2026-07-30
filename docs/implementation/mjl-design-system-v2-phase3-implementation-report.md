@@ -4,6 +4,15 @@
 
 `MJL_V2_PHASE3_IMPLEMENTED_PENDING_CROSS_PHASE_ACCESSIBILITY_VALIDATION`
 
+## Remediation evidence status
+
+The original Phase 3 verification and zero-Medium review statements below are
+historical evidence for commit `e81f8b1`. A later fixed-point review found a
+misleading finance failure classification and missing component-catalog
+definitions. Those statements are therefore superseded and pending fresh
+remediation evidence on the exact post-remediation commit; they must not be
+used as current proof until this report is refreshed after all gates pass.
+
 Phase 3 implements the three authorized journey slices from the recorded
 rollback base `ffeed1e58ef209c8b65e41274710b895cc1b208c`. The implementation
 and automated repository gates are complete. This verdict is not a
@@ -53,7 +62,7 @@ production data was changed.
 - The approved v2 snapshot was not modified. Its tree hash remains
   `98d0053a934b83b4a21a6c67207e86b3c89fe7d0`.
 
-## Verification
+## Historical verification — superseded pending remediation
 
 | Check | Result |
 | --- | --- |
