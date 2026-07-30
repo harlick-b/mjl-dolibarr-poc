@@ -45,23 +45,38 @@ expense list/detail and final-validation/rejection/disbursement dialogs,
 alerts and the test-only partial-result harness, dashboard, project detail,
 and partner detail.
 
-| Width | 100% recording | 200% recording | Defects / rerun |
-| --- | --- | --- | --- |
-| 390 | Pending | Pending | Pending |
-| 768 | Pending | Pending | Pending |
-| 1024 | Pending | Pending | Pending |
-| 1366 | Pending | Pending | Pending |
+Use `P — EVID@timestamp`, `F — EVID@timestamp`, or
+`B — blocker-reference` in every check cell for pass, fail, or blocked. A
+blank cell or a result without its criterion-specific evidence reference is
+incomplete. One generic recording reference is insufficient.
 
-Each recording must demonstrate and the reviewer must mark:
+| Cell | Calibrated inner width | OS video / evidence ID | Auth + forbidden shell | Activity list/create/detail/forms | Expense list/detail/3 dialogs | Alerts + partial harness | Dashboard | Project detail | Partner detail | Order/skip/focus | Error link/focus | Modal entry/trap/Escape/restore | Reflow/overflow/lost content | Non-color meaning | Contrast | Result | Defects / rerun evidence |
+| --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 390 @ 100% | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| 390 @ 200% | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| 768 @ 100% | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| 768 @ 200% | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| 1024 @ 100% | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| 1024 @ 200% | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| 1366 @ 100% | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| 1366 @ 200% | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
-- keyboard order, skip link, and visible focus;
-- error-summary link and invalid-control focus;
-- modal focus entry/trap, Escape close, and trigger-focus restoration;
-- no clipped controls, two-dimensional page scrolling, overlap, or lost
-  content at 100% and calibrated 200%;
-- status, warning, success, and error meaning remains present in text rather
-  than color alone;
-- visible text and component contrast has no observed regression.
+For each row, the criterion columns mean:
+
+- `Order/skip/focus`: keyboard order, skip link, and visible focus;
+- `Error link/focus`: error-summary link and invalid-control focus;
+- `Modal entry/trap/Escape/restore`: focus entry and containment, Escape close,
+  and trigger-focus restoration for all three expense dialogs;
+- `Reflow/overflow/lost content`: no clipped controls, unintended
+  two-dimensional page scrolling, overlap, or lost content;
+- `Non-color meaning`: status, warning, success, and error meaning remains
+  present in text rather than color alone;
+- `Contrast`: visible text and component contrast has no observed regression.
+
+The row result may be `PASS` only when every surface and criterion cell is
+`P` and its evidence is traceable. Use `FAIL` when any cell is `F`, and
+`BLOCKED_BY_TEST_ENVIRONMENT` when calibration or collection cannot be
+completed.
 
 ## Defects and reruns
 

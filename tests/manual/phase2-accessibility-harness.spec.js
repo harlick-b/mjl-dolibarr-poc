@@ -3,9 +3,9 @@ const os = require('os');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 
-test('headed User/QA calibration and partial-result harness', async ({ page, browser }) => {
-  test.skip(process.env.MJL_PHASE2_MANUAL !== '1', 'Set MJL_PHASE2_MANUAL=1 for the signed manual gate.');
+test.skip(process.env.MJL_PHASE2_MANUAL !== '1', 'Set MJL_PHASE2_MANUAL=1 for the signed manual gate.');
 
+test('headed User/QA calibration and partial-result harness', async ({ page, browser }) => {
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill('admin.poc');
   await page.getByLabel('Mot de passe').fill(password);

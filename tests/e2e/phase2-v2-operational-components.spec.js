@@ -248,9 +248,55 @@ function seedPhase2DecisionFixtures() {
   for (const [name, value] of Object.entries(prerequisites)) {
     if (!value) throw new Error(`Missing Phase 2 decision prerequisite: ${name}`);
   }
-  for (const [login, role] of [['superviseur.n1', 'AGENT_VERIFICATEUR'], ['dpaf.mjl', 'VALIDATEUR_DEFINITIF']]) {
-    const count = Number(dockerScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_user_role r INNER JOIN llx_user u ON u.rowid = r.fk_user WHERE u.login = '${login}' AND r.entity = 1 AND r.role_code = '${role}' AND r.is_active = 1`));
-    if (count !== 1) throw new Error(`Missing active Phase 2 role for ${login}`);
+  const linkedFixtureCount = Number(dockerScalar(`
+    SELECT COUNT(*)
+    FROM llx_mjlfinancement_activity a
+    INNER JOIN llx_mjlfinancement_convention c
+      ON c.rowid = a.fk_convention AND c.entity = a.entity
+    INNER JOIN llx_projet p
+      ON p.rowid = a.fk_project AND p.entity = a.entity
+    WHERE a.rowid = ${prerequisites.activity}
+      AND c.rowid = ${prerequisites.convention}
+      AND p.rowid = ${prerequisites.project}
+      AND c.fk_project = p.rowid
+      AND c.status = 1
+      AND a.entity = 1
+  `));
+  if (linkedFixtureCount !== 1) {
+    throw new Error('Inconsistent Phase 2 project/convention/activity prerequisites');
+  }
+  const capabilities = dockerPhpJson(`
+    define('NOLOGIN', 1);
+    require '/var/www/html/main.inc.php';
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+    $checks = array();
+    foreach (array('agent.mjl', 'superviseur.n1', 'dpaf.mjl') as $login) {
+      $candidate = new User($db);
+      if ($candidate->fetch(0, $login) <= 0) {
+        $checks[$login] = array('loaded' => false);
+        continue;
+      }
+      $candidate->getrights();
+      $checks[$login] = array(
+        'loaded' => true,
+        'role' => mjl_scope_active_role_code($candidate->id, 1),
+        'expense_write' => mjl_workspace_can_apply_expense_write($candidate),
+        'expense_validate' => mjl_workspace_can_apply_expense_validation($candidate),
+        'project_scope' => mjl_scope_can_access_object($candidate, 'mjlfinancement_project', ${prerequisites.project}, 1),
+        'convention_scope' => mjl_scope_can_access_object($candidate, 'mjlfinancement_convention', ${prerequisites.convention}, 1),
+        'activity_scope' => mjl_scope_can_access_object($candidate, 'mjlfinancement_activity', ${prerequisites.activity}, 1),
+      );
+    }
+    echo json_encode($checks);
+  `);
+  const expectedCapabilities = {
+    'agent.mjl': { loaded: true, role: 'AGENT_SAISIE', expense_write: true, expense_validate: false, project_scope: true, convention_scope: true, activity_scope: true },
+    'superviseur.n1': { loaded: true, role: 'AGENT_VERIFICATEUR', expense_write: false, expense_validate: true, project_scope: true, convention_scope: true, activity_scope: true },
+    'dpaf.mjl': { loaded: true, role: 'VALIDATEUR_DEFINITIF', expense_write: false, expense_validate: true, project_scope: true, convention_scope: true, activity_scope: true },
+  };
+  if (JSON.stringify(capabilities) !== JSON.stringify(expectedCapabilities)) {
+    throw new Error(`Invalid effective Phase 2 capabilities or scope: ${JSON.stringify(capabilities)}`);
   }
 
   dockerSql(`
@@ -353,6 +399,51 @@ function expenseProjection(expenseId) {
       COALESCE(beneficiary_name, ''), COALESCE(correction_reason, ''), fk_user_creat, COALESCE(fk_user_modif, ''))
     FROM llx_mjlfinancement_expense WHERE rowid = ${Number(expenseId)}
   `);
+}
+
+function expenseStageProjection(expenseId) {
+  return JSON.parse(dockerScalar(`
+    SELECT JSON_OBJECT(
+      'status', status,
+      'prevalidated_amount', IF(prevalidated_amount IS NULL, NULL, CAST(prevalidated_amount AS CHAR)),
+      'final_validated_amount', IF(final_validated_amount IS NULL, NULL, CAST(final_validated_amount AS CHAR)),
+      'disbursed_amount', IF(disbursed_amount IS NULL, NULL, CAST(disbursed_amount AS CHAR)),
+      'fk_user_prevalidated', fk_user_prevalidated,
+      'fk_user_final_valid', fk_user_final_valid,
+      'fk_user_valid', fk_user_valid,
+      'fk_user_disbursed', fk_user_disbursed,
+      'has_prevalidation_date', IF(prevalidation_date IS NULL, 0, 1),
+      'has_final_validation_date', IF(final_validation_date IS NULL, 0, 1),
+      'has_validation_date', IF(validation_date IS NULL, 0, 1),
+      'disbursement_date', IF(disbursement_date IS NULL, NULL, CAST(disbursement_date AS CHAR)),
+      'beneficiary_name', beneficiary_name,
+      'correction_reason', correction_reason,
+      'fk_user_creat', fk_user_creat,
+      'fk_user_modif', fk_user_modif
+    )
+    FROM llx_mjlfinancement_expense
+    WHERE rowid = ${Number(expenseId)}
+  `));
+}
+
+function validationEventProjection(expenseId, action) {
+  if (!/^[a-z_]+$/.test(action)) throw new Error('Invalid validation action fixture');
+  return JSON.parse(dockerScalar(`
+    SELECT JSON_OBJECT(
+      'action', action,
+      'from_status', from_status,
+      'to_status', to_status,
+      'fk_user_action', fk_user_action,
+      'actor_role', actor_role,
+      'has_action_date', IF(action_date IS NULL, 0, 1),
+      'comment', comment,
+      'fk_user_creat', fk_user_creat
+    )
+    FROM llx_mjlfinancement_validation
+    WHERE fk_expense = ${Number(expenseId)}
+      AND action = '${action}'
+    LIMIT 1
+  `));
 }
 
 function budgetProjection(expenseId) {
@@ -493,47 +584,258 @@ test('timeline presentation registry covers emitted and legacy values without ra
   const result = phpJson(`
     require 'custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
     $actions = array('created', 'field_changed', 'execution_updated', 'document_uploaded', 'document_downloaded', 'proof_uploaded', 'unsafe_edit_rejected', 'received', 'not_received', 'submitted', 'correction_requested', 'corrected', 'prevalidated', 'validated', 'legacy_validated', 'final_validated', 'disbursed', 'rejected', 'deleted', 'activated', 'closed', 'note_added', 'export_generated');
-    $labels = array();
-    foreach ($actions as $action) $labels[$action] = mjl_timeline_presentation_action_label('mjlfinancement_activity', $action);
+    $genericActions = array();
+    $expenseActions = array();
+    foreach ($actions as $action) {
+      $genericActions[$action] = mjl_timeline_presentation_action_label('mjlfinancement_activity', $action);
+      $expenseActions[$action] = mjl_timeline_presentation_action_label('mjlfinancement_expense', $action);
+    }
+    $supportedObjects = array('mjlfinancement_project', 'mjlfinancement_activity', 'mjlfinancement_expense', 'mjlfinancement_convention', 'mjlfinancement_budget_line', 'mjlfinancement_fund_receipt', 'mjlfinancement_report');
+    $objects = array();
+    foreach ($supportedObjects as $value) {
+      $objects[$value] = mjl_timeline_presentation_object_label($value);
+    }
+    $channels = array();
+    foreach (array('commentaire', 'email', 'telephone', 'reunion', 'courrier', 'autre') as $value) {
+      $channels[$value] = mjl_timeline_presentation_channel_label($value);
+    }
+    $roles = array();
+    foreach (array('AGENT', 'AGENT_SAISIE', 'SUPERVISEUR_N1', 'SUPERVISEUR_N2', 'AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF', 'ADMIN', 'ADMIN_PLATEFORME', 'N1', 'N2', 'LEGACY', 'LECTEUR') as $value) {
+      $roles[$value] = mjl_timeline_presentation_actor_role_label('', '', $value);
+    }
+    $dpaf = array();
+    foreach ($supportedObjects as $objectType) {
+      $dpaf[$objectType] = array();
+      foreach ($actions as $action) {
+        $dpaf[$objectType][$action] = mjl_timeline_presentation_actor_role_label($objectType, $action, 'DPAF');
+      }
+    }
+    $numericStatuses = array();
+    $statusInputs = array(
+      'activity' => array('mjlfinancement_activity', array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)),
+      'expense' => array('mjlfinancement_expense', array(0, 1, 2, 3, 4, 6, 7, 8)),
+      'convention' => array('mjlfinancement_convention', array(0, 1, 2)),
+      'budget_line' => array('mjlfinancement_budget_line', array(0, 1)),
+      'fund_receipt' => array('mjlfinancement_fund_receipt', array(0, 1, 8)),
+    );
+    foreach ($statusInputs as $key => $input) {
+      $numericStatuses[$key] = array();
+      foreach ($input[1] as $status) {
+        $numericStatuses[$key][(string) $status] = mjl_timeline_presentation_status_label($input[0], $status);
+      }
+    }
+    $aliases = array();
+    foreach (array(
+      'draft' => array('', 'draft'), 'active' => array('', 'active'), 'closed' => array('', 'closed'),
+      'deleted' => array('', 'deleted'), 'submitted' => array('', 'submitted'),
+      'prevalidated' => array('', 'prevalidated'), 'validated' => array('', 'validated'),
+      'legacy_validated' => array('', 'legacy_validated'),
+      'final_validated' => array('', 'final_validated'), 'rejected' => array('', 'rejected'),
+      'corrected' => array('', 'corrected'), 'correction_requested' => array('', 'correction_requested'),
+      'completed' => array('', 'completed'), 'cancelled' => array('', 'cancelled'),
+      'received' => array('', 'received'), 'not_received' => array('', 'not_received'),
+      'stored_draft' => array('', 'Brouillon'), 'stored_active' => array('', 'Active'),
+      'expense_validated' => array('mjlfinancement_expense', 'validated'),
+      'expense_legacy_validated' => array('mjlfinancement_expense', 'legacy_validated'),
+      'cloturee' => array('mjlfinancement_convention', 'Cloturee'),
+      'cloturee_accented' => array('mjlfinancement_convention', 'Clôturée'),
+      'project_created' => array('mjlfinancement_project', 'Projet cree'),
+      'project_created_accented' => array('mjlfinancement_project', 'Projet créé'),
+      'project_updated' => array('mjlfinancement_project', 'Projet mis a jour'),
+      'project_updated_accented' => array('mjlfinancement_project', 'Projet mis à jour'),
+      'project_note' => array('mjlfinancement_project', 'Note projet'),
+      'document_downloaded' => array('mjlfinancement_activity', 'Document telecharge'),
+      'document_downloaded_accented' => array('mjlfinancement_activity', 'Document téléchargé'),
+      'export_csv' => array('mjlfinancement_report', 'Export csv'),
+      'export_csv_upper' => array('mjlfinancement_report', 'Export CSV'),
+      'export_xlsx' => array('mjlfinancement_report', 'Export xlsx'),
+      'export_xlsx_upper' => array('mjlfinancement_report', 'Export XLSX'),
+      'activity_ongoing' => array('mjlfinancement_activity', 'ongoing'),
+      'activity_ongoing_stored' => array('mjlfinancement_activity', 'En cours'),
+      'activity_completed_stored' => array('mjlfinancement_activity', 'Terminée'),
+      'activity_submitted_stored' => array('mjlfinancement_activity', 'Soumise'),
+      'activity_correction_requested_stored' => array('mjlfinancement_activity', 'Correction demandée'),
+      'activity_corrected_stored' => array('mjlfinancement_activity', 'Corrigée'),
+      'activity_validated_stored' => array('mjlfinancement_activity', 'Validée définitivement'),
+      'activity_prevalidated_stored' => array('mjlfinancement_activity', 'Prévalidée'),
+      'activity_rejected_stored' => array('mjlfinancement_activity', 'Rejetée'),
+      'activity_cancelled_stored' => array('mjlfinancement_activity', 'Annulée'),
+      'expense_disbursed_stored' => array('mjlfinancement_expense', 'Décaissée')
+    ) as $key => $input) {
+      $aliases[$key] = mjl_timeline_presentation_status_label($input[0], $input[1]);
+    }
     echo json_encode([
-      'actions' => $labels,
+      'generic_actions' => $genericActions,
+      'expense_actions' => $expenseActions,
+      'objects' => $objects,
+      'channels' => $channels,
+      'roles' => $roles,
+      'dpaf' => $dpaf,
+      'numeric_statuses' => $numericStatuses,
+      'aliases' => $aliases,
       'empty_action' => mjl_timeline_presentation_action_label('', ''),
       'unknown_action' => mjl_timeline_presentation_action_label('', 'future_machine_action'),
       'empty_role' => mjl_timeline_presentation_actor_role_label('', '', ''),
       'unknown_role' => mjl_timeline_presentation_actor_role_label('', '', 'FUTURE_ROLE'),
-      'agent' => mjl_timeline_presentation_actor_role_label('', '', 'AGENT'),
-      'supervisor2' => mjl_timeline_presentation_actor_role_label('', '', 'SUPERVISEUR_N2'),
-      'dpaf_activity' => mjl_timeline_presentation_actor_role_label('mjlfinancement_activity', 'final_validated', 'DPAF'),
-      'dpaf_exchange' => mjl_timeline_presentation_actor_role_label('mjlfinancement_project', 'commentaire', 'DPAF'),
-      'reader' => mjl_timeline_presentation_actor_role_label('', '', 'LECTEUR'),
+      'empty_object' => mjl_timeline_presentation_object_label(''),
+      'unknown_object' => mjl_timeline_presentation_object_label('future_object'),
       'empty_channel' => mjl_timeline_presentation_channel_label(''),
       'unknown_channel' => mjl_timeline_presentation_channel_label('future_channel'),
-      'report_object' => mjl_timeline_presentation_object_label('mjlfinancement_report'),
-      'unknown_object' => mjl_timeline_presentation_object_label('future_object'),
-      'activity_alias' => mjl_timeline_presentation_status_label('mjlfinancement_activity', 'Validée définitivement'),
-      'convention_alias' => mjl_timeline_presentation_status_label('mjlfinancement_convention', 'Cloturee'),
-      'project_note_alias' => mjl_timeline_presentation_status_label('mjlfinancement_project', 'Note projet'),
+      'empty_status' => mjl_timeline_presentation_status_label('', ''),
       'unknown_status' => mjl_timeline_presentation_status_label('mjlfinancement_expense', 'future_status'),
     ]);
   `);
 
-  for (const label of Object.values(result.actions)) expect(label).not.toMatch(/_/);
+  expect(result.generic_actions).toEqual({
+    created: 'Création',
+    field_changed: 'Modification',
+    execution_updated: 'Exécution mise à jour',
+    document_uploaded: 'Document ajouté',
+    document_downloaded: 'Document téléchargé',
+    proof_uploaded: 'Preuve ajoutée',
+    unsafe_edit_rejected: 'Modification refusée',
+    received: 'Réception',
+    not_received: 'Non-réception',
+    submitted: 'Soumission',
+    correction_requested: 'Correction demandée',
+    corrected: 'Correction',
+    prevalidated: 'Prévalidation',
+    validated: 'Validation définitive',
+    legacy_validated: 'Validation définitive',
+    final_validated: 'Validation définitive',
+    disbursed: 'Décaissement',
+    rejected: 'Rejet',
+    deleted: 'Suppression',
+    activated: 'Activation',
+    closed: 'Clôture',
+    note_added: 'Commentaire ajouté',
+    export_generated: 'Export généré',
+  });
+  expect(result.expense_actions).toEqual({
+    ...result.generic_actions,
+    document_uploaded: 'Pièce justificative ajoutée',
+    validated: 'Validation enregistrée',
+    legacy_validated: 'Validation enregistrée',
+  });
+  expect(result.objects).toEqual({
+    mjlfinancement_project: 'Projet',
+    mjlfinancement_activity: 'Activité',
+    mjlfinancement_expense: 'Dépense',
+    mjlfinancement_convention: 'Enveloppe de financement',
+    mjlfinancement_budget_line: 'Ligne budgétaire',
+    mjlfinancement_fund_receipt: 'Fonds reçu',
+    mjlfinancement_report: 'Rapport / export',
+  });
+  expect(result.channels).toEqual({
+    commentaire: 'Commentaire',
+    email: 'Email',
+    telephone: 'Téléphone',
+    reunion: 'Réunion',
+    courrier: 'Courrier',
+    autre: 'Autre',
+  });
+  expect(result.roles).toEqual({
+    AGENT: 'Agent de saisie',
+    AGENT_SAISIE: 'Agent de saisie',
+    SUPERVISEUR_N1: 'Agent vérificateur',
+    SUPERVISEUR_N2: 'Agent vérificateur',
+    AGENT_VERIFICATEUR: 'Agent vérificateur',
+    VALIDATEUR_DEFINITIF: 'Validateur définitif',
+    ADMIN: 'Administrateur plateforme',
+    ADMIN_PLATEFORME: 'Administrateur plateforme',
+    N1: 'Rôle historique non résolu',
+    N2: 'Rôle historique non résolu',
+    LEGACY: 'Rôle historique non résolu',
+    LECTEUR: 'Rôle non reconnu',
+  });
+  const emittedActions = Object.keys(result.generic_actions);
+  const supportedObjects = Object.keys(result.objects);
+  const definitiveDpafPairs = new Set([
+    'mjlfinancement_activity|validated',
+    'mjlfinancement_activity|final_validated',
+    'mjlfinancement_activity|rejected',
+    'mjlfinancement_activity|correction_requested',
+    'mjlfinancement_expense|validated',
+    'mjlfinancement_expense|legacy_validated',
+    'mjlfinancement_expense|final_validated',
+    'mjlfinancement_expense|disbursed',
+    'mjlfinancement_expense|rejected',
+  ]);
+  expect(Object.keys(result.dpaf)).toEqual(supportedObjects);
+  for (const objectType of supportedObjects) {
+    expect(Object.keys(result.dpaf[objectType])).toEqual(emittedActions);
+    for (const action of emittedActions) {
+      const pair = `${objectType}|${action}`;
+      expect(result.dpaf[objectType][action], pair).toBe(
+        definitiveDpafPairs.has(pair) ? 'Validateur définitif' : 'Rôle historique non résolu',
+      );
+    }
+  }
+  expect(result.numeric_statuses).toEqual({
+    activity: ['Brouillon', 'En cours', 'Terminée', 'Soumise', 'Correction demandée', 'Corrigée', 'Validée définitivement', 'Prévalidée', 'Rejetée', 'Annulée'],
+    expense: {
+      0: 'Brouillon', 1: 'Soumise', 2: 'Validation enregistrée', 3: 'Corrigée',
+      4: 'Prévalidée', 6: 'Validée définitivement', 7: 'Décaissée', 8: 'Rejetée',
+    },
+    convention: ['Brouillon', 'Active', 'Clôturée'],
+    budget_line: ['Brouillon', 'Active'],
+    fund_receipt: { 0: 'Brouillon', 1: 'Reçu', 8: 'Non reçu' },
+  });
+  expect(result.aliases).toEqual({
+    draft: 'Brouillon',
+    active: 'Active',
+    closed: 'Clôturée',
+    deleted: 'Supprimée',
+    submitted: 'Soumise',
+    prevalidated: 'Prévalidée',
+    validated: 'Validée définitivement',
+    legacy_validated: 'Validée définitivement',
+    final_validated: 'Validée définitivement',
+    rejected: 'Rejetée',
+    corrected: 'Corrigée',
+    correction_requested: 'Correction demandée',
+    completed: 'Terminée',
+    cancelled: 'Annulée',
+    received: 'Reçu',
+    not_received: 'Non reçu',
+    stored_draft: 'Brouillon',
+    stored_active: 'Active',
+    expense_validated: 'Validation enregistrée',
+    expense_legacy_validated: 'Validation enregistrée',
+    cloturee: 'Clôturée',
+    cloturee_accented: 'Clôturée',
+    project_created: 'Projet créé',
+    project_created_accented: 'Projet créé',
+    project_updated: 'Projet mis à jour',
+    project_updated_accented: 'Projet mis à jour',
+    project_note: 'Note projet',
+    document_downloaded: 'Document téléchargé',
+    document_downloaded_accented: 'Document téléchargé',
+    export_csv: 'Export CSV',
+    export_csv_upper: 'Export CSV',
+    export_xlsx: 'Export XLSX',
+    export_xlsx_upper: 'Export XLSX',
+    activity_ongoing: 'En cours',
+    activity_ongoing_stored: 'En cours',
+    activity_completed_stored: 'Terminée',
+    activity_submitted_stored: 'Soumise',
+    activity_correction_requested_stored: 'Correction demandée',
+    activity_corrected_stored: 'Corrigée',
+    activity_validated_stored: 'Validée définitivement',
+    activity_prevalidated_stored: 'Prévalidée',
+    activity_rejected_stored: 'Rejetée',
+    activity_cancelled_stored: 'Annulée',
+    expense_disbursed_stored: 'Décaissée',
+  });
   expect(result.empty_action).toBe('Événement non renseigné');
   expect(result.unknown_action).toBe('Événement non reconnu');
   expect(result.empty_role).toBe('Rôle non renseigné');
   expect(result.unknown_role).toBe('Rôle non reconnu');
-  expect(result.agent).toBe('Agent de saisie');
-  expect(result.supervisor2).toBe('Agent vérificateur');
-  expect(result.dpaf_activity).toBe('Validateur définitif');
-  expect(result.dpaf_exchange).toBe('Rôle historique non résolu');
-  expect(result.reader).toBe('Rôle non reconnu');
+  expect(result.empty_object).toBe('Objet non renseigné');
+  expect(result.unknown_object).toBe('Objet non reconnu');
   expect(result.empty_channel).toBe('Canal non renseigné');
   expect(result.unknown_channel).toBe('Canal non reconnu');
-  expect(result.report_object).toBe('Rapport / export');
-  expect(result.unknown_object).toBe('Objet non reconnu');
-  expect(result.activity_alias).toBe('Validée définitivement');
-  expect(result.convention_alias).toBe('Clôturée');
-  expect(result.project_note_alias).toBe('Note projet');
+  expect(result.empty_status).toBe('Statut non renseigné');
   expect(result.unknown_status).toBe('Statut non reconnu');
 });
 
@@ -1103,7 +1405,7 @@ test('activity list exposes normalized filters, eight columns, and fail-closed e
   await expect(page.locator('body')).not.toContainText(/SELECT |SQLSTATE|Unknown column|syntax error/i);
 });
 
-test('activity table retains semantic desktop layout and labeled cards at 768px and 390px', async ({ page }) => {
+test('activity table retains semantic desktop layout at 1366px/1024px and labeled cards at 768px/390px', async ({ page }) => {
   await login(page, 'agent.mjl');
   await page.setViewportSize({ width: 1024, height: 800 });
   await page.goto('/custom/mjlfinancement/activities.php');
@@ -1129,7 +1431,13 @@ test('activity table retains semantic desktop layout and labeled cards at 768px 
   await expect(page.locator('form[data-mjl-form="contextual-comment"] #mjl-comment-message')).toBeVisible();
   await page.goto('/custom/mjlfinancement/activities.php');
   const table = page.getByRole('table', { name: 'Activités du périmètre' });
-  await expect(table.locator('thead')).toHaveCSS('position', 'static');
+
+  for (const width of [1366, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expect(table.locator('thead')).toHaveCSS('position', 'static');
+    await expect(table.getByRole('columnheader')).toHaveCount(8);
+    await expect(table.locator('tbody tr:not(.mjl-table-empty-row)').first().locator('td[data-label="Prochaine action"]')).toHaveCSS('display', 'table-cell');
+  }
 
   for (const width of [768, 390]) {
     await page.setViewportSize({ width, height: 800 });
@@ -1305,14 +1613,45 @@ test('repeated submission is rejected and repeated correction cycles stay strict
 
 test('Phase 2 expense decisions are exact-one with fresh-token stale replays', async ({ page }) => {
   const flowId = phase2DecisionIds['P2DEC-E2E-FLOW'];
+  const actorIds = {
+    agent: Number(dockerScalar("SELECT rowid FROM llx_user WHERE login = 'agent.mjl' AND entity = 1 LIMIT 1")),
+    verifier: Number(dockerScalar("SELECT rowid FROM llx_user WHERE login = 'superviseur.n1' AND entity = 1 LIMIT 1")),
+    final: Number(dockerScalar("SELECT rowid FROM llx_user WHERE login = 'dpaf.mjl' AND entity = 1 LIMIT 1")),
+  };
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
   await page.getByLabel('Montant prevalide').fill('1000');
   await page.getByLabel('Commentaire de prevalidation').fill('Prévalidation exacte Phase 2');
   await page.getByRole('button', { name: 'Prevalider la depense' }).click();
   await expect(page.getByText('Prévalidée').first()).toBeVisible();
-  expect(dockerScalar(`SELECT CONCAT_WS('|', action, from_status, to_status, actor_role, comment, IF(action_date IS NULL, 0, 1)) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'prevalidated'`))
-    .toBe('prevalidated|submitted|prevalidated|AGENT_VERIFICATEUR|Prévalidation exacte Phase 2|1');
+  expect(validationEventProjection(flowId, 'prevalidated')).toEqual({
+    action: 'prevalidated',
+    from_status: 'submitted',
+    to_status: 'prevalidated',
+    fk_user_action: actorIds.verifier,
+    actor_role: 'AGENT_VERIFICATEUR',
+    has_action_date: 1,
+    comment: 'Prévalidation exacte Phase 2',
+    fk_user_creat: actorIds.verifier,
+  });
+  expect(expenseStageProjection(flowId)).toEqual({
+    status: 4,
+    prevalidated_amount: '1000.00000000',
+    final_validated_amount: null,
+    disbursed_amount: null,
+    fk_user_prevalidated: actorIds.verifier,
+    fk_user_final_valid: null,
+    fk_user_valid: null,
+    fk_user_disbursed: null,
+    has_prevalidation_date: 1,
+    has_final_validation_date: 0,
+    has_validation_date: 0,
+    disbursement_date: null,
+    beneficiary_name: null,
+    correction_reason: null,
+    fk_user_creat: actorIds.agent,
+    fk_user_modif: actorIds.verifier,
+  });
   let replay = await postExpense(page, flowId, {
     action: 'prevalidate', expected_status: '1', prevalidated_amount: '1000', comment: 'Prévalidation exacte Phase 2',
   });
@@ -1326,8 +1665,34 @@ test('Phase 2 expense decisions are exact-one with fresh-token stale replays', a
   await page.getByLabel('Commentaire de validation definitive').fill('Validation définitive exacte Phase 2');
   await confirmExpenseDecision(page, 'Valider definitivement');
   await expect(page.getByText('Validée définitivement').first()).toBeVisible();
-  expect(dockerScalar(`SELECT CONCAT_WS('|', action, from_status, to_status, actor_role, comment, IF(action_date IS NULL, 0, 1)) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'final_validated'`))
-    .toBe('final_validated|prevalidated|final_validated|VALIDATEUR_DEFINITIF|Validation définitive exacte Phase 2|1');
+  expect(validationEventProjection(flowId, 'final_validated')).toEqual({
+    action: 'final_validated',
+    from_status: 'prevalidated',
+    to_status: 'final_validated',
+    fk_user_action: actorIds.final,
+    actor_role: 'VALIDATEUR_DEFINITIF',
+    has_action_date: 1,
+    comment: 'Validation définitive exacte Phase 2',
+    fk_user_creat: actorIds.final,
+  });
+  expect(expenseStageProjection(flowId)).toEqual({
+    status: 6,
+    prevalidated_amount: '1000.00000000',
+    final_validated_amount: '1000.00000000',
+    disbursed_amount: null,
+    fk_user_prevalidated: actorIds.verifier,
+    fk_user_final_valid: actorIds.final,
+    fk_user_valid: actorIds.final,
+    fk_user_disbursed: null,
+    has_prevalidation_date: 1,
+    has_final_validation_date: 1,
+    has_validation_date: 1,
+    disbursement_date: null,
+    beneficiary_name: null,
+    correction_reason: null,
+    fk_user_creat: actorIds.agent,
+    fk_user_modif: actorIds.final,
+  });
   expect(budgetProjection(flowId)).toBe('1000|0|9000');
   replay = await postExpense(page, flowId, {
     action: 'final_validate', expected_status: '4', final_validated_amount: '1000', comment: 'Validation définitive exacte Phase 2',
@@ -1352,11 +1717,35 @@ test('Phase 2 expense decisions are exact-one with fresh-token stale replays', a
     border: 'rgb(23, 99, 58)',
   });
   expect(renderedContrast(successStyle.color, successStyle.background)).toBeGreaterThanOrEqual(6.48);
-  expect(dockerScalar(`SELECT CONCAT_WS('|', action, from_status, to_status, actor_role, IF(action_date IS NULL, 0, 1)) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'disbursed'`))
-    .toBe('disbursed|final_validated|disbursed|VALIDATEUR_DEFINITIF|1');
+  expect(validationEventProjection(flowId, 'disbursed')).toEqual({
+    action: 'disbursed',
+    from_status: 'final_validated',
+    to_status: 'disbursed',
+    fk_user_action: actorIds.final,
+    actor_role: 'VALIDATEUR_DEFINITIF',
+    has_action_date: 1,
+    comment: null,
+    fk_user_creat: actorIds.final,
+  });
   expect(budgetProjection(flowId)).toBe('1000|1000|9000');
-  expect(dockerScalar(`SELECT CONCAT_WS('|', status, disbursed_amount, beneficiary_name, disbursement_date) FROM llx_mjlfinancement_expense WHERE rowid = ${flowId}`))
-    .toBe('7|1000.00000000|Bénéficiaire exact Phase 2|2026-07-29');
+  expect(expenseStageProjection(flowId)).toEqual({
+    status: 7,
+    prevalidated_amount: '1000.00000000',
+    final_validated_amount: '1000.00000000',
+    disbursed_amount: '1000.00000000',
+    fk_user_prevalidated: actorIds.verifier,
+    fk_user_final_valid: actorIds.final,
+    fk_user_valid: actorIds.final,
+    fk_user_disbursed: actorIds.final,
+    has_prevalidation_date: 1,
+    has_final_validation_date: 1,
+    has_validation_date: 1,
+    disbursement_date: '2026-07-29',
+    beneficiary_name: 'Bénéficiaire exact Phase 2',
+    correction_reason: null,
+    fk_user_creat: actorIds.agent,
+    fk_user_modif: actorIds.final,
+  });
   replay = await postExpense(page, flowId, {
     action: 'disburse', expected_status: '6', beneficiary_name: 'Bénéficiaire exact Phase 2', disbursement_date: '2026-07-29',
   });
@@ -1370,8 +1759,34 @@ test('Phase 2 expense decisions are exact-one with fresh-token stale replays', a
   await page.getByLabel('Motif de rejet').fill('Rejet exact Phase 2');
   await confirmExpenseDecision(page, 'Rejeter la depense');
   await expect(page.getByText('Rejetée').first()).toBeVisible();
-  expect(dockerScalar(`SELECT CONCAT_WS('|', action, from_status, to_status, actor_role, comment) FROM llx_mjlfinancement_validation WHERE fk_expense = ${rejectId} AND action = 'rejected'`))
-    .toBe('rejected|submitted|rejected|AGENT_VERIFICATEUR|Rejet exact Phase 2');
+  expect(validationEventProjection(rejectId, 'rejected')).toEqual({
+    action: 'rejected',
+    from_status: 'submitted',
+    to_status: 'rejected',
+    fk_user_action: actorIds.verifier,
+    actor_role: 'AGENT_VERIFICATEUR',
+    has_action_date: 1,
+    comment: 'Rejet exact Phase 2',
+    fk_user_creat: actorIds.verifier,
+  });
+  expect(expenseStageProjection(rejectId)).toEqual({
+    status: 8,
+    prevalidated_amount: null,
+    final_validated_amount: null,
+    disbursed_amount: null,
+    fk_user_prevalidated: null,
+    fk_user_final_valid: null,
+    fk_user_valid: null,
+    fk_user_disbursed: null,
+    has_prevalidation_date: 0,
+    has_final_validation_date: 0,
+    has_validation_date: 0,
+    disbursement_date: null,
+    beneficiary_name: null,
+    correction_reason: 'Rejet exact Phase 2',
+    fk_user_creat: actorIds.agent,
+    fk_user_modif: actorIds.verifier,
+  });
   expect(budgetProjection(rejectId)).toBe('0|0|10000');
   replay = await postExpense(page, rejectId, {
     action: 'reject', expected_status: '1', comment: 'Rejet exact Phase 2',
@@ -1383,6 +1798,9 @@ test('Phase 2 expense decisions are exact-one with fresh-token stale replays', a
 
 test('invalid CSRF and near-simultaneous clients cannot duplicate a final decision', async ({ browser, page }) => {
   const expenseId = phase2DecisionIds['P2DEC-E2E-RACE'];
+  const agentId = Number(dockerScalar("SELECT rowid FROM llx_user WHERE login = 'agent.mjl' AND entity = 1 LIMIT 1"));
+  const verifierId = Number(dockerScalar("SELECT rowid FROM llx_user WHERE login = 'superviseur.n1' AND entity = 1 LIMIT 1"));
+  const finalId = Number(dockerScalar("SELECT rowid FROM llx_user WHERE login = 'dpaf.mjl' AND entity = 1 LIMIT 1"));
   const beforeExpense = expenseProjection(expenseId);
   const beforeBudget = budgetProjection(expenseId);
   const beforeEvents = Number(dockerScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${expenseId}`));
@@ -1413,7 +1831,34 @@ test('invalid CSRF and near-simultaneous clients cannot duplicate a final decisi
   expect(statuses.every((status) => status === 302 || status === 403)).toBe(true);
   expect(statuses).toContain(302);
   expect(Number(dockerScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${expenseId} AND action = 'final_validated'`))).toBe(1);
-  expect(dockerScalar(`SELECT CONCAT_WS('|', status, final_validated_amount) FROM llx_mjlfinancement_expense WHERE rowid = ${expenseId}`)).toBe('6|1000.00000000');
+  expect(validationEventProjection(expenseId, 'final_validated')).toEqual({
+    action: 'final_validated',
+    from_status: 'prevalidated',
+    to_status: 'final_validated',
+    fk_user_action: finalId,
+    actor_role: 'VALIDATEUR_DEFINITIF',
+    has_action_date: 1,
+    comment: 'Concurrence Phase 2',
+    fk_user_creat: finalId,
+  });
+  expect(expenseStageProjection(expenseId)).toEqual({
+    status: 6,
+    prevalidated_amount: '1000.00000000',
+    final_validated_amount: '1000.00000000',
+    disbursed_amount: null,
+    fk_user_prevalidated: verifierId,
+    fk_user_final_valid: finalId,
+    fk_user_valid: finalId,
+    fk_user_disbursed: null,
+    has_prevalidation_date: 1,
+    has_final_validation_date: 1,
+    has_validation_date: 1,
+    disbursement_date: null,
+    beneficiary_name: null,
+    correction_reason: null,
+    fk_user_creat: agentId,
+    fk_user_modif: finalId,
+  });
   expect(budgetProjection(expenseId)).toBe('1000|0|9000');
   await firstContext.close();
   await secondContext.close();

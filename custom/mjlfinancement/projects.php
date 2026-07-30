@@ -86,8 +86,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 		$sql .= ' (entity, ref, title, description, fk_soc, fk_statut, dateo, datee, public, usage_task, datec, fk_user_creat)';
 		$sql .= ' VALUES ('.((int) $conf->entity).", '".$db->escape($ref)."', '".$db->escape($title)."', '".$db->escape($description)."', ".((int) $fkSoc).', '.$status.', '.$dateStart.', '.$dateEnd.', 0, 1, NOW(), '.((int) $user->id).')';
 		if (!$db->query($sql)) {
-			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
-			mjl_ui_log_error('database', array('route' => 'projects', 'action' => 'create', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id), $db->lasterror());
+			setEventMessages($db->lasterror(), null, 'errors');
 			mjl_projects_redirect(0);
 		}
 		$newProjectId = (int) $db->last_insert_id($db->prefix().'projet');
@@ -109,8 +108,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 	$sql .= ', fk_soc = '.((int) $fkSoc).', fk_statut = '.$status.', dateo = '.$dateStart.', datee = '.$dateEnd.', fk_user_modif = '.((int) $user->id);
 	$sql .= ' WHERE entity = '.((int) $conf->entity).' AND rowid = '.((int) $projectId);
 	if (!$db->query($sql)) {
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
-		mjl_ui_log_error('database', array('route' => 'projects', 'action' => 'update', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id, 'object_type' => 'project', 'object_id' => (int) $projectId), $db->lasterror());
+		setEventMessages($db->lasterror(), null, 'errors');
 	} else {
 		$changes = mjl_projects_changed_fields($current, array(
 			'ref' => $ref,
@@ -602,8 +600,7 @@ function mjl_projects_fetch_all($sql)
 	global $db;
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
-		mjl_ui_log_error('database', array('route' => 'projects', 'action' => 'load_summary', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
+		setEventMessages($db->lasterror(), null, 'errors');
 		return array();
 	}
 	$rows = array();
