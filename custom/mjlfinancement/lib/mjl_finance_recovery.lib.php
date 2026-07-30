@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/mjl_recovery_registry.lib.php';
+
 /**
  * Exact presentation-recovery contracts for finance reference routes.
  *
@@ -36,19 +38,12 @@ function mjl_finance_recovery_registry($route)
 
 function mjl_finance_recovery_config($route, $action)
 {
-	$registry = mjl_finance_recovery_registry($route);
-	return $registry[(string) $action] ?? null;
+	return mjl_recovery_registry_config(mjl_finance_recovery_registry($route), $action);
 }
 
 function mjl_finance_recovery_consume_allowlist($route)
 {
-	$forms = array();
-	foreach (mjl_finance_recovery_registry($route) as $action => $config) {
-		$form = (string) $config['form'];
-		if (!isset($forms[$form])) $forms[$form] = array();
-		$forms[$form][] = (string) $action;
-	}
-	return $forms;
+	return mjl_recovery_registry_consume_allowlist(mjl_finance_recovery_registry($route));
 }
 
 function mjl_finance_recovery_values($recovery, $form)

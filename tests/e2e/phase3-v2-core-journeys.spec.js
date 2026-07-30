@@ -487,6 +487,72 @@ test('Phase 3C finance recovery registries are exact and exclude uploads, delete
   }
 });
 
+test('Phase 3 remediation recovery registry leaf rejects every malformed registry as a whole', () => {
+  const result = phpJson(`
+    require 'custom/mjlfinancement/lib/mjl_recovery_registry.lib.php';
+    $valid = [
+      'create' => ['form' => 'create', 'fields' => ['ref', 'title']],
+      'add_exchange' => ['form' => 'comment', 'fields' => ['message']],
+    ];
+    $invalid = [
+      ['Bad Action' => ['form' => 'create', 'fields' => ['ref']]],
+      ['create' => 'not-an-array'],
+      ['create' => ['form' => 'create', 'fields' => ['ref'], 'extra' => true]],
+      ['create' => ['form' => '', 'fields' => ['ref']]],
+      ['create' => ['form' => ['create'], 'fields' => ['ref']]],
+      ['create' => ['form' => 'create', 'fields' => 'ref']],
+      ['create' => ['form' => 'create', 'fields' => [7]]],
+      ['create' => ['form' => 'create', 'fields' => [['ref']]]],
+      ['create' => ['form' => 'create', 'fields' => ['ref', 'ref']]],
+      ['create' => ['form' => 'create', 'fields' => ['token']]],
+      ['upload' => ['form' => 'create', 'fields' => ['ref']]],
+    ];
+    $invalidResults = [];
+    foreach ($invalid as $registry) {
+      $invalidResults[] = [
+        'config' => mjl_recovery_registry_config($registry, 'create'),
+        'consume' => mjl_recovery_registry_consume_allowlist($registry),
+      ];
+    }
+    echo json_encode([
+      'config' => mjl_recovery_registry_config($valid, 'create'),
+      'missing' => mjl_recovery_registry_config($valid, 'missing'),
+      'consume' => mjl_recovery_registry_consume_allowlist($valid),
+      'invalid' => $invalidResults,
+    ]);
+  `);
+
+  expect(result.config).toEqual({ form: 'create', fields: ['ref', 'title'] });
+  expect(result.missing).toBeNull();
+  expect(result.consume).toEqual({ create: ['create'], comment: ['add_exchange'] });
+  for (const invalid of result.invalid) {
+    expect(invalid.config).toBeNull();
+    expect(invalid.consume).toEqual([]);
+  }
+});
+
+test('Phase 3 remediation recovery wrappers load standalone through the shared leaf', () => {
+  const result = phpJson(`
+    require 'custom/mjlfinancement/lib/mjl_activity_recovery.lib.php';
+    require 'custom/mjlfinancement/lib/mjl_project_recovery.lib.php';
+    require 'custom/mjlfinancement/lib/mjl_expense_recovery.lib.php';
+    require 'custom/mjlfinancement/lib/mjl_finance_recovery.lib.php';
+    echo json_encode([
+      'leaf' => function_exists('mjl_recovery_registry_config'),
+      'activity' => mjl_activity_recovery_config('create'),
+      'project' => mjl_project_recovery_config('create'),
+      'expense' => mjl_expense_recovery_config('create'),
+      'finance' => mjl_finance_recovery_config('conventions', 'create'),
+    ]);
+  `);
+
+  expect(result.leaf).toBe(true);
+  for (const config of [result.activity, result.project, result.expense, result.finance]) {
+    expect(config.form).toBeTruthy();
+    expect(Array.isArray(config.fields)).toBe(true);
+  }
+});
+
 test('Phase 3C finance failures keep technical diagnostics out of browser messages', () => {
   const routes = ['conventions.php', 'budgetlines.php', 'fundreceipts.php'];
   for (const route of routes) {

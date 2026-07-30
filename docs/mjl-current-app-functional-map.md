@@ -142,6 +142,11 @@ Those references are current-state/code debt, not target behavior.
   injected database seam. Production supplies the existing Dolibarr database
   object; no request-, session-, configuration-, or environment-selectable
   failure switch exists.
+- Activity, project, expense, and finance recovery wrappers keep their
+  route-owned literal registries and public functions, while a pure shared
+  leaf now validates the complete registry before exact lookup or form/action
+  grouping. Any malformed action, form, config, field, duplicate, forbidden
+  name, or non-scalar value invalidates the complete supplied registry.
 - Dashboard cards provide a definition, active scope, period, freshness, and
   destination while retaining a local unavailable state that does not replace
   successful sibling cards.

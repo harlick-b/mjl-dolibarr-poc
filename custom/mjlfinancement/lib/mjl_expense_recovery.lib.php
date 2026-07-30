@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/mjl_recovery_registry.lib.php';
+
 /**
  * Presentation recovery contract for the expenses route.
  *
@@ -24,18 +26,10 @@ function mjl_expense_recovery_registry()
 
 function mjl_expense_recovery_config($action)
 {
-	$registry = mjl_expense_recovery_registry();
-	$action = (string) $action;
-	return $registry[$action] ?? null;
+	return mjl_recovery_registry_config(mjl_expense_recovery_registry(), $action);
 }
 
 function mjl_expense_recovery_consume_allowlist()
 {
-	$forms = array();
-	foreach (mjl_expense_recovery_registry() as $action => $config) {
-		$form = (string) $config['form'];
-		if (!isset($forms[$form])) $forms[$form] = array();
-		$forms[$form][] = (string) $action;
-	}
-	return $forms;
+	return mjl_recovery_registry_consume_allowlist(mjl_expense_recovery_registry());
 }
