@@ -269,7 +269,14 @@ function mjl_convention_document_fetch_download_row($fileId)
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
-	return $obj ? (array) $obj : array();
+	if (!$obj) {
+		return array();
+	}
+	$row = (array) $obj;
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $row['convention_rowid'], (int) $conf->entity)) {
+		return array();
+	}
+	return $row;
 }
 
 function mjl_convention_document_resolve_path($fileRow)
@@ -369,7 +376,14 @@ function mjl_fund_receipt_document_fetch_download_row($fileId)
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
-	return $obj ? (array) $obj : array();
+	if (!$obj) {
+		return array();
+	}
+	$row = (array) $obj;
+	if (!mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', (int) $row['receipt_rowid'], (int) $conf->entity)) {
+		return array();
+	}
+	return $row;
 }
 
 function mjl_fund_receipt_document_resolve_path($fileRow)

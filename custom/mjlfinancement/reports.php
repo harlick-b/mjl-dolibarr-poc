@@ -27,7 +27,7 @@ $rawFilters = mjl_reports_raw_filters();
 $filters = mjl_reports_normalize_filters($def, $rawFilters);
 $inaccessibleFilters = mjl_reports_inaccessible_filters($def, $filters);
 $missingRequired = mjl_reports_missing_required_filters($def, $filters);
-$rows = empty($missingRequired) && empty($inaccessibleFilters) ? mjl_reports_formatted_rows($report, $filters) : array();
+$rows = array();
 $csvFilename = mjl_reports_export_filename($def, $filters, 'csv');
 $xlsxFilename = mjl_reports_export_filename($def, $filters, 'xlsx');
 
@@ -47,14 +47,34 @@ if ($action === 'export_csv' || $action === 'export_xlsx') {
 	if (!empty($inaccessibleFilters)) {
 		accessforbidden('Filtre hors de votre perimetre: '.implode(', ', $inaccessibleFilters));
 	}
-	mjl_reports_audit_export($def, $filters, $action === 'export_xlsx' ? 'xlsx' : 'csv', count($rows));
-	if ($action === 'export_xlsx') {
-		mjl_xlsx_export_output($xlsxFilename, $def['headers'], $rows);
-	} else {
-		mjl_csv_export_output($csvFilename, $def['headers'], $rows);
+	$exportRows = mjl_reports_export_rows($report, $filters);
+	if (!empty($GLOBALS['mjl_reports_query_failed'])) {
+		mjl_reports_export_unavailable();
 	}
+	$format = $action === 'export_xlsx' ? 'xlsx' : 'csv';
+	$filename = $format === 'xlsx' ? $xlsxFilename : $csvFilename;
+	$file = mjl_reports_export_temp_path($format);
+	if ($file === '') {
+		mjl_ui_log_error('export', array('route' => 'reports', 'action' => 'prepare_file', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id));
+		mjl_reports_export_unavailable();
+	}
+	$generated = $format === 'xlsx'
+		? mjl_xlsx_export_generate_file($file, $def['headers'], $exportRows, isset($def['money_fields']) ? $def['money_fields'] : array())
+		: mjl_csv_export_generate_file($file, $def['headers'], $exportRows, isset($def['money_fields']) ? $def['money_fields'] : array());
+	if (!$generated || !is_readable($file) || filesize($file) <= 0) {
+		@unlink($file);
+		mjl_ui_log_error('export', array('route' => 'reports', 'action' => 'generate_file', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id));
+		mjl_reports_export_unavailable();
+	}
+	if (!mjl_reports_audit_export($def, $filters, $format, count($exportRows))) {
+		@unlink($file);
+		mjl_reports_export_unavailable();
+	}
+	mjl_reports_stream_export($file, $filename, $format);
 	exit;
 }
+
+$rows = empty($missingRequired) && empty($inaccessibleFilters) ? mjl_reports_formatted_rows($report, $filters) : array();
 
 llxHeader('', 'Centre d\'exports MJL');
 
@@ -489,16 +509,26 @@ function mjl_reports_rows($report, $filters)
 
 function mjl_reports_formatted_rows($report, $filters)
 {
+	return mjl_reports_transformed_rows($report, $filters, true);
+}
+
+function mjl_reports_export_rows($report, $filters)
+{
+	return mjl_reports_transformed_rows($report, $filters, false);
+}
+
+function mjl_reports_transformed_rows($report, $filters, $formatMoney)
+{
 	$def = mjl_reports_def($report);
 	$rows = mjl_reports_rows($report, $filters);
 	foreach ($rows as &$row) {
-		$row = mjl_reports_format_row($def, $row);
+		$row = mjl_reports_format_row($def, $row, $formatMoney);
 	}
 	unset($row);
 	return $rows;
 }
 
-function mjl_reports_format_row($def, $row)
+function mjl_reports_format_row($def, $row, $formatMoney = true)
 {
 	if ($def['key'] === 'expense_documents' && isset($row['status'])) {
 		$row['status'] = mjl_reports_expense_status_label($row['status']);
@@ -518,7 +548,7 @@ function mjl_reports_format_row($def, $row)
 		}
 	}
 	foreach (isset($def['money_fields']) ? $def['money_fields'] : array() as $field) {
-		if (isset($row[$field]) && $row[$field] !== '') {
+		if ($formatMoney && isset($row[$field]) && $row[$field] !== '') {
 			$row[$field] = price($row[$field]);
 		}
 	}
@@ -922,6 +952,7 @@ function mjl_reports_fetch_rows($sql)
 
 	$resql = $db->query($sql);
 	if (!$resql) {
+		$GLOBALS['mjl_reports_query_failed'] = true;
 		mjl_ui_log_error('database', array('route' => 'reports', 'action' => 'fetch_rows', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
 		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 		return array();
@@ -1603,9 +1634,56 @@ function mjl_reports_audit_export($def, $filters, $format, $rowCount)
 	);
 	$reportId = mjl_reports_get_or_create_report_row($def);
 	$id = $reportId > 0 ? mjl_workflow_audit_insert('mjlfinancement_report', $reportId, (int) $conf->entity, 'Export '.$format, $user, mjl_reports_actor_role(), 'export_generated', 'Export '.$def['label'].' en '.$format, $changes, 'WFA-EXP') : -1;
-	if ($id <= 0 && function_exists('dol_syslog')) {
-		dol_syslog('MJL export audit failed for report '.$def['key'], LOG_WARNING);
+	if ($id <= 0) {
+		mjl_ui_log_error('database', array('route' => 'reports', 'action' => 'audit_export', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id, 'object_type' => 'mjlfinancement_report', 'object_id' => (int) $reportId));
+		return false;
 	}
+	return true;
+}
+
+function mjl_reports_export_temp_path($extension)
+{
+	$extension = $extension === 'xlsx' ? 'xlsx' : 'csv';
+	$directory = sys_get_temp_dir();
+	if (!is_dir($directory) || !is_writable($directory)) {
+		return '';
+	}
+	$tmp = tempnam($directory, 'mjl_export_');
+	if ($tmp === false) {
+		return '';
+	}
+	$file = $tmp.'.'.$extension;
+	if (!@rename($tmp, $file)) {
+		@unlink($tmp);
+		return '';
+	}
+	return $file;
+}
+
+function mjl_reports_stream_export($file, $filename, $format)
+{
+	$mime = $format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv; charset=UTF-8';
+	header('Content-Type: '.$mime);
+	header('Content-Disposition: attachment; filename="'.$filename.'"');
+	header('Content-Length: '.filesize($file));
+	header('Cache-Control: private, no-store, no-cache, must-revalidate');
+	header('Pragma: no-cache');
+	header('Expires: 0');
+	readfile($file);
+	@unlink($file);
+}
+
+function mjl_reports_export_unavailable()
+{
+	if (function_exists('http_response_code')) {
+		http_response_code(503);
+	} else {
+		header('HTTP/1.1 503 Service Unavailable');
+	}
+	header('Content-Type: text/plain; charset=UTF-8');
+	header('Cache-Control: private, no-store, no-cache, must-revalidate');
+	print 'L’export ne peut pas être généré pour le moment.';
+	exit;
 }
 
 function mjl_reports_get_or_create_report_row($def)

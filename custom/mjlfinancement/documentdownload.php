@@ -8,6 +8,7 @@ if (!defined('NOREQUIREAJAX')) define('NOREQUIREAJAX', '1');
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
 
 $type = GETPOST('type', 'alphanohtml');
@@ -40,7 +41,14 @@ if ($fullpath === '') {
 }
 
 $downloadName = mjl_document_download_display_filename($type, $fileRow);
-mjl_document_download_audit($type, $fileRow, $downloadName);
+$downloadHandle = @fopen($fullpath, 'rb');
+if ($downloadHandle === false) {
+	mjl_document_download_forbidden();
+}
+if (!mjl_document_download_audit($type, $fileRow, $downloadName)) {
+	fclose($downloadHandle);
+	mjl_document_download_unavailable();
+}
 $mime = function_exists('dol_mimetype') ? dol_mimetype($downloadName, 'application/octet-stream') : 'application/octet-stream';
 if (function_exists('top_httphead')) {
 	top_httphead($mime);
@@ -56,11 +64,8 @@ header('Content-Length: '.filesize($fullpath));
 if (is_object($db)) {
 	$db->close();
 }
-if (function_exists('readfileLowMemory')) {
-	readfileLowMemory($fullpath);
-} else {
-	readfile($fullpath);
-}
+fpassthru($downloadHandle);
+fclose($downloadHandle);
 exit;
 
 function mjl_document_download_forbidden()
@@ -89,6 +94,19 @@ function mjl_document_download_display_filename($type, $fileRow)
 	return mjl_expense_document_display_filename($fileRow);
 }
 
+function mjl_document_download_unavailable()
+{
+	if (function_exists('http_response_code')) {
+		http_response_code(503);
+	} else {
+		header('HTTP/1.1 503 Service Unavailable');
+	}
+	header('Content-Type: text/plain; charset=UTF-8');
+	header('Cache-Control: private, no-store, no-cache, must-revalidate');
+	print 'Le document ne peut pas être téléchargé pour le moment.';
+	exit;
+}
+
 function mjl_document_download_audit($type, $fileRow, $downloadName)
 {
 	global $conf, $user;
@@ -100,16 +118,25 @@ function mjl_document_download_audit($type, $fileRow, $downloadName)
 		'expense' => array('object_type' => 'mjlfinancement_expense', 'id_key' => 'expense_rowid'),
 	);
 	if (empty($map[$type]) || empty($fileRow[$map[$type]['id_key']])) {
-		return;
+		return false;
 	}
 	$changes = array(
 		'file_id' => (int) ($fileRow['rowid'] ?? 0),
 		'filename' => (string) $downloadName,
 	);
 	$id = mjl_workflow_audit_insert($map[$type]['object_type'], (int) $fileRow[$map[$type]['id_key']], (int) $conf->entity, 'Document telecharge', $user, mjl_document_download_actor_role(), 'document_downloaded', 'Document telecharge: '.$downloadName, $changes, 'WFA-DLD');
-	if ($id <= 0 && function_exists('dol_syslog')) {
-		dol_syslog('MJL document download audit failed for file '.((int) ($fileRow['rowid'] ?? 0)), LOG_WARNING);
+	if ($id <= 0) {
+		mjl_ui_log_error('database', array(
+			'route' => 'documentdownload',
+			'action' => 'audit_download',
+			'entity' => (int) $conf->entity,
+			'user_id' => (int) $user->id,
+			'object_type' => $map[$type]['object_type'],
+			'object_id' => (int) $fileRow[$map[$type]['id_key']],
+		));
+		return false;
 	}
+	return true;
 }
 
 function mjl_document_download_actor_role()

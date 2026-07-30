@@ -66,6 +66,7 @@ cleanup records, and stale POC notes are not active implementation guidance.
 | --- | --- |
 | `docs/implementation/mjl-design-system-v2-phase3-implementation-report.md` | Current consolidated Phase 1–3 implementation and post-remediation verification evidence; not product authority or release approval. |
 | `docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md` | Active unsigned cross-phase manual keyboard, reflow, zoom, and contrast gate. |
+| `docs/implementation/mjl-phase-3d-prerequisite-security-report.md` | Phase 3D prerequisite scope, guarded-download, audit-persistence, and spreadsheet-hardening implementation evidence pending manual commit. |
 
 ## Cleanup Evidence
 

@@ -5,6 +5,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.ph
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_traceability_scope.lib.php';
 
 mjl_workspace_require_advanced_traceability_access($user, 'workflowaction');
 
@@ -54,7 +55,7 @@ function mjl_workflowactions_filter_form($filters)
 
 function mjl_workflowactions_list($filters)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	$where = array('w.entity = '.((int) $conf->entity));
 	if ($filters['object_type'] !== '') {
@@ -84,6 +85,7 @@ function mjl_workflowactions_list($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
 	$sql .= ' WHERE '.implode(' AND ', $where);
+	$sql .= mjl_traceability_scope_sql('w', $user, (int) $conf->entity);
 	$sql .= ' ORDER BY w.action_date DESC, w.rowid DESC LIMIT 200';
 
 	$resql = $db->query($sql);
@@ -132,15 +134,16 @@ function mjl_workflowactions_status_label($status, $objectType = '')
 
 function mjl_workflowactions_distinct_options($column)
 {
-	global $db, $conf;
+	global $db, $conf, $user;
 
 	if (!in_array($column, array('object_type', 'action', 'actor_role'), true)) {
 		return array();
 	}
 
-	$sql = 'SELECT DISTINCT '.$column.' AS value FROM '.$db->prefix().'mjlfinancement_workflow_action';
-	$sql .= ' WHERE entity = '.((int) $conf->entity).' AND '.$column.' IS NOT NULL AND '.$column." <> ''";
-	$sql .= ' ORDER BY '.$column;
+	$sql = 'SELECT DISTINCT w.'.$column.' AS value FROM '.$db->prefix().'mjlfinancement_workflow_action w';
+	$sql .= ' WHERE w.entity = '.((int) $conf->entity).' AND w.'.$column.' IS NOT NULL AND w.'.$column." <> ''";
+	$sql .= mjl_traceability_scope_sql('w', $user, (int) $conf->entity);
+	$sql .= ' ORDER BY w.'.$column;
 	$resql = $db->query($sql);
 	if (!$resql) {
 		return array();

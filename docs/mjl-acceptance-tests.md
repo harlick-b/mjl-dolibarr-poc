@@ -11,6 +11,12 @@ Run browser regression checks against the local Dolibarr instance:
 npm run test:e2e
 ```
 
+Targeted Phase 3D prerequisite security regression:
+
+```bash
+npx playwright test tests/e2e/phase3d-prerequisite-security.spec.js
+```
+
 The Playwright suite uses `MJL_BASE_URL` when set, otherwise
 `http://127.0.0.1:8080`.
 
@@ -110,9 +116,18 @@ rm -rf "$tmpdir"
   `docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md`
   remains mandatory before the phase-scoped validated verdict.
 - Global Documents is read-only; uploads are contextual; downloads are guarded.
+- A user assigned to exactly one Partenaire / Programme cannot receive
+  validation-history or workflow-audit rows/filter options from another scope;
+  orphaned, unresolved, and cross-entity rows fail closed.
+- Convention and fund-receipt downloads recheck parent scope. Denied downloads
+  create no audit event, and audit persistence failure delivers no file.
 - Finance validation feedback links only exact allowlisted field errors;
   composite errors remain form-level, duplicate/database/timeline/unknown
   failures use canonical safe wording, and recovery stores no diagnostics.
 - Exchanges are contextual or audit/supervision-only, not primary navigation.
 - CSV exports include UTF-8 BOM, semicolon separator, French headers, stable
   filenames, and server-side filtering.
+- Dangerous CSV text is neutralized without converting negative money to text;
+  XLSX money cells remain numeric and other exported fields are explicit text.
+- Export generation or audit persistence failure creates no
+  `export_generated` event and delivers no partial file.
