@@ -6,6 +6,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_access.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_expense_access.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
 
 mjl_workspace_require_documents_access($user);
 
@@ -58,6 +59,13 @@ function mjl_documents_render_filters($filters)
 function mjl_documents_render_library($filters)
 {
 	$documents = mjl_documents_rows($filters);
+	print mjl_journey_render_document_panel(array(
+		'title' => 'Mode de consultation',
+		'description' => 'Bibliothèque globale en lecture seule. Les ajouts restent contextuels depuis les objets métier.',
+		'state' => 'read-only',
+		'state_label' => 'Consultation uniquement',
+		'documents' => array(),
+	));
 	print '<section class="mjl-workspace-section">';
 	print '<div class="mjl-section-heading"><h2>Bibliotheque</h2><p>Les documents sont ajoutes depuis la fiche activite, depense, enveloppe, fonds recu ou projet concerne.</p></div>';
 	print '<div class="mjl-empty-state">Aucun bouton d upload global n est disponible. Ajoutez les documents depuis leur objet metier.</div>';

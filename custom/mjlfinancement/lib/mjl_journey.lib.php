@@ -33,6 +33,7 @@ function mjl_journey_render_document_panel(array $model): string
 	$title = mjl_journey_escape($model['title'] ?? 'Documents');
 	$description = mjl_journey_escape($model['description'] ?? '');
 	$stateLabel = mjl_journey_escape($model['state_label'] ?? mjl_journey_document_state_label($state));
+	$linkLabel = mjl_journey_escape($model['link_label'] ?? 'Telecharger le document');
 	$html = '<section class="mjl-workspace-section mjl-journey-documents">';
 	$html .= '<div class="mjl-section-heading"><h2>'.$title.'</h2>';
 	if ($description !== '') $html .= '<p>'.$description.'</p>';
@@ -42,13 +43,16 @@ function mjl_journey_render_document_panel(array $model): string
 	foreach ((array) ($model['documents'] ?? array()) as $document) {
 		if (!is_array($document)) continue;
 		$url = mjl_journey_guarded_document_url($document['url'] ?? '');
-		if ($url === '') continue;
-		$documents[] = array('label' => mjl_journey_escape($document['label'] ?? 'Document'), 'url' => mjl_journey_escape($url));
+		$label = mjl_journey_escape($document['label'] ?? 'Document');
+		if ($label === '') continue;
+		$documents[] = array('label' => $label, 'url' => mjl_journey_escape($url));
 	}
 	if (!empty($documents)) {
 		$html .= '<div class="mjl-document-list">';
 		foreach ($documents as $document) {
-			$html .= '<div class="mjl-document-row"><span>'.$document['label'].'</span><a class="mjl-table-link" href="'.$document['url'].'">Telecharger le document</a></div>';
+			$html .= '<div class="mjl-document-row"><span>'.$document['label'].'</span>';
+			if ($document['url'] !== '') $html .= '<a class="mjl-table-link" href="'.$document['url'].'">'.$linkLabel.'</a>';
+			$html .= '</div>';
 		}
 		$html .= '</div>';
 	}

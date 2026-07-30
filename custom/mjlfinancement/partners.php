@@ -9,6 +9,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php'
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_table.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
 
 mjl_workspace_require_partners_access($user);
 
@@ -188,18 +189,20 @@ function mjl_partners_render_identity($row)
 function mjl_partners_render_documents($partnerId)
 {
 	$documents = mjl_partners_document_rows($partnerId);
-	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Documents lies</h2><p>Telechargements controles par les routes MJL.</p></div>';
-	if (empty($documents)) {
-		print '<div class="mjl-empty-state">Aucun document accessible.</div></section>';
-		return;
-	}
-	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Document</th><th>Type</th><th>Objet lie</th><th>Action</th></tr>';
+	$modelDocuments = array();
 	foreach ($documents as $document) {
-		print '<tr class="oddeven"><td>'.dol_escape_htmltag($document['name']).'</td><td>'.dol_escape_htmltag($document['type_label']).'</td><td>'.dol_escape_htmltag($document['object_ref']).'</td><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/documentdownload.php?type='.urlencode($document['download_type']).'&id='.((int) $document['rowid']).'">Telecharger</a></td></tr>';
+		$modelDocuments[] = array(
+			'label' => $document['name'].' — '.$document['type_label'].' '.$document['object_ref'],
+			'url' => '/custom/mjlfinancement/documentdownload.php?type='.urlencode($document['download_type']).'&id='.((int) $document['rowid']),
+		);
 	}
-	print '</table></div></section>';
+	print mjl_journey_render_document_panel(array(
+		'title' => 'Documents lies',
+		'description' => 'Telechargements controles par les routes MJL.',
+		'state' => empty($modelDocuments) ? 'missing' : 'read-only',
+		'state_label' => empty($modelDocuments) ? 'Aucun document accessible' : 'Consultation uniquement',
+		'documents' => $modelDocuments,
+	));
 }
 
 function mjl_partners_render_alerts($row)

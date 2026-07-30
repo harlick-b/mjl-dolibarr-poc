@@ -114,6 +114,17 @@ Those references are current-state/code debt, not target behavior.
   failures can preserve allowlisted scalar values through a random,
   session/user/entity/route/form/action/object-bound one-use handle. Handles
   expire after ten minutes and are bounded by per-user count and storage caps.
+- Expense creation, correction, decision, and contextual-comment domain
+  failures use the same bounded one-use recovery mechanism with an
+  expense-specific exact action/field registry. Upload, security, stale,
+  unauthorized, and unknown failures do not create a recovery handle.
+- Expense lists expose scoped partner, project, status, sort, and 50-row page
+  controls. Count and row queries share the same entity/scope/filter fragments,
+  and inconsistent partner/project combinations fail closed.
+- Activity, expense, project, partner, and global-document journeys use a
+  shared presentation-only document-state model. Downloads remain routed
+  through `documentdownload.php`; the global document route and aggregate
+  panels are read-only and never expose an upload control.
 - The activity list uses shared normalized metadata for status, scoped
   project, deadline-risk, sort, and page values. Count and row queries reuse
   the same entity/scope/filter fragments and the row query fetches one extra

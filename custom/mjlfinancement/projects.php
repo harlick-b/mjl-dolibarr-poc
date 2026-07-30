@@ -12,6 +12,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_table.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_project_recovery.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
 
 mjl_workspace_require_projects_access($user);
 
@@ -344,19 +345,20 @@ function mjl_projects_context_url($path, $partnerId, $projectId)
 function mjl_projects_render_document_table($projectId)
 {
 	$documents = mjl_projects_document_rows($projectId);
-	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Documents lies</h2><p>Telechargements controles par les regles MJL.</p></div>';
-	if (empty($documents)) {
-		print '<div class="mjl-empty-state">Aucun document accessible.</div>';
-		print '</section>';
-		return;
-	}
-	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Document</th><th>Type</th><th>Objet lie</th><th>Action</th></tr>';
+	$modelDocuments = array();
 	foreach ($documents as $document) {
-		print '<tr class="oddeven"><td>'.dol_escape_htmltag($document['name']).'</td><td>'.dol_escape_htmltag($document['type_label']).'</td><td>'.dol_escape_htmltag($document['object_ref']).'</td><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/documentdownload.php?type='.urlencode($document['download_type']).'&id='.((int) $document['rowid']).'">Telecharger</a></td></tr>';
+		$modelDocuments[] = array(
+			'label' => $document['name'].' — '.$document['type_label'].' '.$document['object_ref'],
+			'url' => '/custom/mjlfinancement/documentdownload.php?type='.urlencode($document['download_type']).'&id='.((int) $document['rowid']),
+		);
 	}
-	print '</table></div></section>';
+	print mjl_journey_render_document_panel(array(
+		'title' => 'Documents lies',
+		'description' => 'Telechargements controles par les regles MJL.',
+		'state' => empty($modelDocuments) ? 'missing' : 'read-only',
+		'state_label' => empty($modelDocuments) ? 'Aucun document accessible' : 'Consultation uniquement',
+		'documents' => $modelDocuments,
+	));
 }
 
 function mjl_projects_render_alerts($projectId)
