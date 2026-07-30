@@ -698,48 +698,43 @@ test('Phase 3 remediation finance update reasons reject semantic blanks and stan
   }
 });
 
-test('Phase 3 remediation fixture cleanup preserves colliding records outside its entity/import identity', () => {
+test('Phase 3 remediation workflow cleanup deletes only matching audit identity for the same fixture target', () => {
+  setupFinanceFeedbackFixtures();
   execFile('docker', [
     'compose', 'exec', '-T', 'mariadb', 'mariadb',
     '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e',
     `
-      SET @partner = (SELECT rowid FROM llx_societe WHERE entity = 1 AND nom = 'UNICEF' LIMIT 1);
-      SET @project = (SELECT rowid FROM llx_projet WHERE entity = 1 AND ref = 'PRJ-JE-2026' LIMIT 1);
-      SET @convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE entity = 1 AND ref = 'CONV-UNICEF-2026-001' LIMIT 1);
-      DELETE FROM llx_mjlfinancement_fund_receipt
-        WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-FEEDBACK-FR-AMOUNT';
-      INSERT INTO llx_mjlfinancement_fund_receipt
-        (entity, ref, fk_soc, fk_project, fk_convention, amount, reception_date, comment, date_creation, fk_user_creat, import_key, status)
-      VALUES
-        (1, 'P3V2-FEEDBACK-FR-AMOUNT', @partner, @project, @convention, 1, '2026-07-30', 'Sentinelle hors identité fixture', NOW(), 1, 'P3V2SENTINEL', 0);
-      SET @sentinel_id = LAST_INSERT_ID();
+      SET @feedback_id = (SELECT rowid FROM llx_mjlfinancement_fund_receipt
+        WHERE entity = 1 AND import_key = 'P3V2FEEDBACK' AND ref = 'P3V2-FEEDBACK-FR-AMOUNT' LIMIT 1);
+      DELETE FROM llx_mjlfinancement_workflow_action
+        WHERE entity = 1 AND ref IN ('P3V2-SENTINEL-WF', 'P3V2-MATCHING-WF');
       INSERT INTO llx_mjlfinancement_workflow_action
         (entity, ref, object_type, object_id, action, from_status, to_status, actor, actor_role, action_date, reason, comment, changes_json, date_creation, fk_user_creat, import_key)
       VALUES
-        (1, 'P3V2-SENTINEL-WF', 'mjlfinancement_fund_receipt', @sentinel_id, 'created', NULL, 'draft', 1, 'ADMIN_PLATEFORME', NOW(), '', 'Sentinelle audit', '{}', NOW(), 1, 'P3V2SENTINEL');
+        (1, 'P3V2-SENTINEL-WF', 'mjlfinancement_fund_receipt', @feedback_id, 'created', NULL, 'draft', 1, 'ADMIN_PLATEFORME', NOW(), '', 'Sentinelle audit', '{}', NOW(), 1, 'P3V2SENTINEL'),
+        (1, 'P3V2-MATCHING-WF', 'mjlfinancement_fund_receipt', @feedback_id, 'created', NULL, 'draft', 1, 'ADMIN_PLATEFORME', NOW(), '', 'Audit fixture supprimable', '{}', NOW(), 1, 'P3V2FEEDBACK');
     `,
   ], { cwd: projectRoot, stdio: 'pipe' });
   try {
     cleanupPhase3V2Fixtures();
     expect(databaseScalar(`
-      SELECT COUNT(*) FROM llx_mjlfinancement_fund_receipt
-      WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-FEEDBACK-FR-AMOUNT'
-    `)).toBe('1');
-    expect(databaseScalar(`
       SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action
       WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-SENTINEL-WF'
     `)).toBe('1');
+    expect(databaseScalar(`
+      SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action
+      WHERE entity = 1 AND ref = 'P3V2-MATCHING-WF'
+    `)).toBe('0');
   } finally {
     execFile('docker', [
       'compose', 'exec', '-T', 'mariadb', 'mariadb',
       '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e',
       `
         DELETE FROM llx_mjlfinancement_workflow_action
-        WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-SENTINEL-WF';
-        DELETE FROM llx_mjlfinancement_fund_receipt
-        WHERE entity = 1 AND import_key = 'P3V2SENTINEL' AND ref = 'P3V2-FEEDBACK-FR-AMOUNT';
+        WHERE entity = 1 AND ref IN ('P3V2-SENTINEL-WF', 'P3V2-MATCHING-WF');
       `,
     ], { cwd: projectRoot, stdio: 'pipe' });
+    cleanupPhase3V2Fixtures();
   }
 });
 
