@@ -512,15 +512,23 @@ function mjl_expenses_list_fragments($filters)
 
 function mjl_expenses_render_list_filters($filters, $partnerOptions, $projectOptions)
 {
-	print '<form class="mjl-table-filters" method="GET" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php">';
-	print '<label>Partenaire / Programme<select name="partner"><option value="">Tous les partenaires</option>';
-	foreach ($partnerOptions as $id => $label) print '<option value="'.((int) $id).'"'.((int) $filters['partner'] === (int) $id ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
-	print '</select></label><label>Projet<select name="project"><option value="">Tous les projets</option>';
-	foreach ($projectOptions as $id => $label) print '<option value="'.((int) $id).'"'.((int) $filters['project'] === (int) $id ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
-	print '</select></label><label>Statut<select name="status"><option value="">Tous les statuts</option>';
-	foreach (array(0, 1, 2, 3, 4, 6, 7, 8) as $status) print '<option value="'.$status.'"'.((string) $filters['status'] === (string) $status ? ' selected' : '').'>'.dol_escape_htmltag(mjl_ui_expense_status($status)['label']).'</option>';
-	print '</select></label><label>Trier par<select name="sort"><option value="recent"'.($filters['sort'] === 'recent' ? ' selected' : '').'>Plus récentes</option><option value="amount"'.($filters['sort'] === 'amount' ? ' selected' : '').'>Montant décroissant</option></select></label>';
-	print '<button class="button mjl-action mjl-action-primary" type="submit">Appliquer</button><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php">Réinitialiser</a></form>';
+	$partners = array('' => 'Tous les partenaires');
+	foreach ($partnerOptions as $id => $label) $partners[(string) ((int) $id)] = $label;
+	$projects = array('' => 'Tous les projets');
+	foreach ($projectOptions as $id => $label) $projects[(string) ((int) $id)] = $label;
+	$statuses = array('' => 'Tous les statuts');
+	foreach (array(0, 1, 2, 3, 4, 6, 7, 8) as $status) $statuses[(string) $status] = mjl_ui_expense_status($status)['label'];
+	print mjl_table_render_filter_bar(
+		DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php',
+		'expenses',
+		'dépenses',
+		array(
+			array('name' => 'partner', 'label' => 'Partenaire / Programme', 'value' => (string) $filters['partner'], 'default' => '', 'options' => $partners),
+			array('name' => 'project', 'label' => 'Projet', 'value' => (string) $filters['project'], 'default' => '', 'options' => $projects),
+			array('name' => 'status', 'label' => 'Statut', 'value' => (string) $filters['status'], 'default' => '', 'options' => $statuses),
+			array('name' => 'sort', 'label' => 'Trier par', 'value' => (string) $filters['sort'], 'default' => 'recent', 'options' => array('recent' => 'Plus récentes', 'amount' => 'Montant décroissant')),
+		)
+	);
 }
 
 function mjl_expenses_project_matches_partner($projectId, $partnerId)

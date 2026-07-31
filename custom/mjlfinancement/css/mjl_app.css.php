@@ -872,6 +872,13 @@ a.tmenu[href^="/api/"] {
 	width: 100%;
 }
 
+.mjl-filter-summary {
+	color: var(--mjl-color-text-secondary);
+	font-size: 13px;
+	grid-column: 1 / -1;
+	margin: 0;
+}
+
 .mjl-scoped-count {
 	color: var(--mjl-color-text-secondary);
 	font-size: 13px;

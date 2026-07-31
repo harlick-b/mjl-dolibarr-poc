@@ -414,7 +414,7 @@ test('Phase 3A portfolio routes expose scoped filters, deterministic sorts, and 
 
 test('Phase 3A project create recovery preserves allowlisted fields once with linked errors', async ({ page }) => {
   await login(page, 'admin.poc');
-  await page.goto('/custom/mjlfinancement/projects.php');
+  await page.goto('/custom/mjlfinancement/projects.php?action=create');
   const form = page.locator('form[data-mjl-form="project-create"]');
   const response = await page.request.post('/custom/mjlfinancement/projects.php', {
     form: {
@@ -432,6 +432,7 @@ test('Phase 3A project create recovery preserves allowlisted fields once with li
   });
   expect(response.status()).toBe(302);
   const location = response.headers().location || '';
+  expect(location).toContain('action=create');
   expect(location).toMatch(/mjl_recovery=[a-f0-9]{32}/);
 
   await page.goto(location);

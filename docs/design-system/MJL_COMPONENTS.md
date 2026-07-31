@@ -167,17 +167,23 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   totals.
 - **Layout/behavior:** identifier/status lead, `Ouvrir` ends the row, and the
   same entity/scope/filter fragments drive count and rows. Malformed or
-  inaccessible filters fail closed. At 768px and below rows become labeled
-  cards retaining the resource identity, its relevant status or key fact, the
-  next action when one exists, and the open link.
+  inaccessible filters fail closed. Project, activity, and expense routes use
+  the shared select-filter renderer with stable labels, explicit active-filter
+  summaries, apply/reset actions, and retained normalized GET state. One
+  resource-labelled pagination renderer marks the current page
+  programmatically and omits integer-zero ID defaults from retained links. At
+  768px and below rows become labeled cards retaining the resource identity,
+  its relevant status or key fact, the next action when one exists, and the
+  open link.
 - **Accessibility/French:** desktop markup remains a semantic table; compact
   cells expose visible French `data-label` headings and pagination has a named,
   resource-specific navigation landmark. Count failure may hide the exact
   total but must preserve working row navigation.
 - **Visibility/E2E:** project options and query results follow server scope;
+  callers retain all query, entity, scope, column, sort, and action ownership.
   Phase 2 and Phase 3 checks cover defaults, malformed inputs, columns,
-  retained filters, count degradation, compact content, and 390/768/1024
-  layouts.
+  retained filters, count degradation, compact content, filter reflow, and
+  390/768/1024 layouts.
 
 ### Validation timeline
 

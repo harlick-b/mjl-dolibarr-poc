@@ -54,3 +54,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   root with mode `0755`, which blocks upload E2E despite correct application
   behavior. Correct ownership or mode only inside the verified disposable
   document bind; never normalize permissions on shared workspace storage.
+- A fresh Dolibarr Compose container can report `Up` while its installer is
+  still importing tables and has not created the Admin user. Before running
+  `bootstrap_poc.php`, verify installer completion through a read-only Admin
+  user readiness check inside the named disposable database; container state
+  alone is not a sufficient readiness signal.

@@ -43,9 +43,9 @@ timelines/exchanges, and final client review for official outputs.
 | Workspace dashboard | Medium | Enriched cards now expose definition, scope, period, freshness, destination, and local source failure; final client KPI wording can still be reviewed. | `custom/mjlfinancement/index.php` |
 | Supervision dashboard | Medium | Phase 10R aligned production role wording, scoped filters, and audit-row resolution; route filename remains compatibility debt. | `custom/mjlfinancement/dpafdashboard.php` |
 | Partenaires / Programmes | Partial | Needs current browser review for production scope clarity. | `custom/mjlfinancement/partners.php` |
-| Projects | Partial | Project creation/editing inside MJL needs current UX verification. | `custom/mjlfinancement/projects.php` |
-| Activities | Medium | Dense workflow detail; document preview deferred; wording review needed. | `custom/mjlfinancement/activities.php` |
-| Expenses | Medium | Dense forms/actions; final validation/disbursement clarity needs review. | `custom/mjlfinancement/expenses.php` |
+| Projects | Medium | Dedicated guarded create/edit states and shared scoped filters/pagination are browser-verified; responsive list cards remain in Workstream 3D.2. | `custom/mjlfinancement/projects.php` |
+| Activities | Medium | Shared scoped filters/pagination and responsive list cards are browser-verified; dense workflow detail, deferred document preview, and wording review remain. | `custom/mjlfinancement/activities.php` |
+| Expenses | Medium | Shared scoped filters/pagination are browser-verified; responsive list cards, dense forms/actions, and final validation/disbursement clarity remain. | `custom/mjlfinancement/expenses.php` |
 | Documents | Good | Read-only model is correct; filters and document ergonomics can improve. | `custom/mjlfinancement/documents.php` |
 | Conventions | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; legacy label and role wording still need target review. | `custom/mjlfinancement/conventions.php` |
 | Budget lines | Medium | Shared journey/recovery/pagination/timeline patterns and canonical feedback are present; advanced finance setup must stay guarded. | `custom/mjlfinancement/budgetlines.php` |

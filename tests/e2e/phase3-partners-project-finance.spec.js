@@ -201,6 +201,7 @@ test('admin sees all partners and final validator can create and edit projects w
 
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/projects.php');
+  await page.getByRole('link', { name: 'Créer un projet' }).click();
   await page.getByLabel('Reference').first().fill('P3-DPAF-PROJ');
   await page.getByLabel('Intitule').first().fill('Projet Phase 3 DPAF');
   await page.locator('select[name="fk_soc"]').first().selectOption(scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1"));
@@ -210,6 +211,7 @@ test('admin sees all partners and final validator can create and edit projects w
   const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'P3-DPAF-PROJ' AND entity = 1 LIMIT 1");
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
 
+  await page.getByRole('link', { name: 'Modifier le projet' }).click();
   await page.getByLabel('Intitule').fill('Projet Phase 3 DPAF modifie');
   await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
   await expect(page).toHaveURL(/projects\.php\?id=\d+/);
@@ -218,14 +220,15 @@ test('admin sees all partners and final validator can create and edit projects w
 
   await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
+  await page.getByRole('link', { name: 'Modifier le projet' }).click();
   await page.getByLabel('Reference').fill('P3-ADMIN-PROJ');
   await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
   expect(scalar(`SELECT ref FROM llx_projet WHERE rowid = ${projectId}`)).toBe('P3-ADMIN-PROJ');
 
   await login(page, 'mjl.phase3.unicef');
   await page.goto('/custom/mjlfinancement/projects.php');
-  await expect(page.getByRole('heading', { name: 'Projets' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Creer le projet' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Projets', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Créer un projet' })).toHaveCount(0);
   const before = Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'P3-FORBIDDEN' AND entity = 1"));
   const token = await sessionToken(page);
   const response = await page.request.post('/custom/mjlfinancement/projects.php', {
@@ -235,7 +238,7 @@ test('admin sees all partners and final validator can create and edit projects w
   expect(Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'P3-FORBIDDEN' AND entity = 1"))).toBe(before);
 
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await expect(page.getByRole('button', { name: 'Enregistrer le projet' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Modifier le projet' })).toHaveCount(0);
   const editToken = await sessionToken(page);
   const editResponse = await page.request.post(`/custom/mjlfinancement/projects.php?id=${projectId}`, {
     form: { token: editToken, action: 'update', id: projectId, ref: 'P3-FORBIDDEN-EDIT', title: 'Projet modification interdite', fk_soc: scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1") },

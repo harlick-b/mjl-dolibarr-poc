@@ -76,50 +76,6 @@ function mjl_table_normalize_request($raw, $allowedStatuses, $accessibleProjectI
 	return $result;
 }
 
-function mjl_table_query_string($normalized, $overrides = array())
-{
-	$values = array_merge(array(
-		'status' => '',
-		'partner' => 0,
-		'project' => 0,
-		'risk' => 'all',
-		'sort' => 'priority',
-		'page' => 1,
-	), (array) $normalized, (array) $overrides);
-	$query = array();
-	foreach (array('status', 'partner', 'project', 'risk', 'sort', 'page') as $key) {
-		$value = $values[$key];
-		if (($key === 'status' && $value === '') || (in_array($key, array('partner', 'project'), true) && (int) $value === 0) || ($key === 'risk' && $value === 'all') || ($key === 'sort' && $value === 'priority') || ($key === 'page' && (int) $value === 1)) {
-			continue;
-		}
-		$query[$key] = (string) $value;
-	}
-	return http_build_query($query, '', '&', PHP_QUERY_RFC3986);
-}
-
-function mjl_table_pagination($baseUrl, $normalized, $total, $hasPrevious, $hasNext)
-{
-	$page = max(1, (int) ($normalized['page'] ?? 1));
-	$html = '<nav class="mjl-pagination" aria-label="Pagination des activités">';
-	if ($hasPrevious) {
-		$query = mjl_table_query_string($normalized, array('page' => $page - 1));
-		$html .= '<a class="mjl-action mjl-action-secondary" rel="prev" href="'.mjl_table_escape($baseUrl.($query !== '' ? '?'.$query : '')).'">Page précédente</a>';
-	}
-	$html .= '<span>Page '.$page;
-	if ($total !== null) {
-		$pages = max(1, (int) ceil(max(0, (int) $total) / max(1, (int) $normalized['page_size'])));
-		$html .= ' sur '.$pages.' — '.((int) $total).' activité(s)';
-	} else {
-		$html .= ' — total indisponible';
-	}
-	$html .= '</span>';
-	if ($hasNext) {
-		$query = mjl_table_query_string($normalized, array('page' => $page + 1));
-		$html .= '<a class="mjl-action mjl-action-secondary" rel="next" href="'.mjl_table_escape($baseUrl.'?'.$query).'">Page suivante</a>';
-	}
-	return $html.'</nav>';
-}
-
 function mjl_table_escape($value)
 {
 	return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -175,6 +131,7 @@ function mjl_table_retained_query($normalized, $overrides = array())
 	$query = array();
 	foreach ($values as $key => $value) {
 		if (in_array($key, array('page_size', 'fail_closed'), true) || is_array($value) || is_object($value) || $value === '' || $value === null) continue;
+		if (is_int($value) && $value === 0) continue;
 		if ($key === 'page' && (int) $value === 1) continue;
 		if (is_bool($value)) $value = $value ? '1' : '0';
 		$query[preg_replace('/[^a-z0-9_]/i', '', (string) $key)] = (string) $value;
@@ -189,6 +146,42 @@ function mjl_table_count_or_null($database, $sql)
 	return isset($row->nb) ? (int) $row->nb : null;
 }
 
+function mjl_table_render_filter_bar($baseUrl, $resourceKey, $resourceLabel, $fields)
+{
+	$resourceKey = strtolower(preg_replace('/[^a-z0-9_-]/i', '', (string) $resourceKey));
+	if ($resourceKey === '') $resourceKey = 'results';
+	$resourceLabel = trim((string) $resourceLabel);
+	if ($resourceLabel === '') $resourceLabel = 'résultats';
+	$active = array();
+	$html = '<form class="mjl-table-filters" method="GET" action="'.mjl_table_escape($baseUrl).'" data-mjl-table-filters="'.mjl_table_escape($resourceKey).'" aria-label="Filtres des '.mjl_table_escape($resourceLabel).'">';
+	foreach ((array) $fields as $field) {
+		$name = strtolower(preg_replace('/[^a-z0-9_]/i', '', (string) ($field['name'] ?? '')));
+		if ($name === '') continue;
+		$label = trim((string) ($field['label'] ?? $name));
+		$options = (array) ($field['options'] ?? array());
+		$value = (string) ($field['value'] ?? '');
+		$default = (string) ($field['default'] ?? '');
+		$optionLabels = array();
+		foreach ($options as $optionValue => $optionLabel) {
+			if (!is_scalar($optionLabel)) continue;
+			$optionLabels[(string) $optionValue] = (string) $optionLabel;
+		}
+		if (!array_key_exists($value, $optionLabels)) $value = array_key_exists($default, $optionLabels) ? $default : (string) array_key_first($optionLabels);
+		$id = 'mjl-filter-'.$resourceKey.'-'.$name;
+		$html .= '<label for="'.mjl_table_escape($id).'">'.mjl_table_escape($label).'<select id="'.mjl_table_escape($id).'" name="'.mjl_table_escape($name).'">';
+		foreach ($optionLabels as $optionValue => $optionLabel) {
+			$optionValue = (string) $optionValue;
+			$html .= '<option value="'.mjl_table_escape($optionValue).'"'.($value === $optionValue ? ' selected' : '').'>'.mjl_table_escape($optionLabel).'</option>';
+		}
+		$html .= '</select></label>';
+		if ($value !== $default && isset($optionLabels[$value])) $active[] = $label.' : '.$optionLabels[$value];
+	}
+	$html .= '<button class="button mjl-action mjl-action-primary" type="submit">Appliquer</button>';
+	$html .= '<a class="mjl-action mjl-action-secondary" href="'.mjl_table_escape($baseUrl).'">Réinitialiser</a>';
+	$html .= '<p class="mjl-filter-summary" aria-live="polite">'.(!empty($active) ? '<strong>Filtres actifs :</strong> '.mjl_table_escape(implode(' · ', $active)) : 'Aucun filtre actif.').'</p>';
+	return $html.'</form>';
+}
+
 function mjl_table_render_pagination($baseUrl, $normalized, $total, $hasPrevious, $hasNext, $resourceLabel)
 {
 	$page = max(1, (int) ($normalized['page'] ?? 1));
@@ -199,7 +192,7 @@ function mjl_table_render_pagination($baseUrl, $normalized, $total, $hasPrevious
 		$query = mjl_table_retained_query($normalized, array('page' => $page - 1));
 		$html .= '<a class="mjl-action mjl-action-secondary" rel="prev" href="'.mjl_table_escape($baseUrl.($query !== '' ? '?'.$query : '')).'">Page précédente</a>';
 	}
-	$html .= '<span>Page '.$page;
+	$html .= '<span aria-current="page">Page '.$page;
 	if ($total !== null) {
 		$pages = max(1, (int) ceil(max(0, (int) $total) / max(1, (int) ($normalized['page_size'] ?? 50))));
 		$html .= ' sur '.$pages.' — '.((int) $total).' '.mjl_table_escape($resourceLabel);

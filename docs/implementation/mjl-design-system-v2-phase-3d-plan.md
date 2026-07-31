@@ -269,3 +269,94 @@ was an environment-readiness failure, not an application assertion failure.
 The next Phase 3D checkpoint is Workstream 3D.2 operational interactions,
 starting with guarded create/edit presentation states, including the project
 primary action, followed by shared pagination and filter presentation.
+
+## Workstream 3D.2 progress
+
+### Guarded project create and edit presentation states
+
+Implemented on 2026-07-31 as the first Workstream 3D.2 tracer bullet:
+
+- moved project creation from the list into the same guarded route with
+  `action=create` and a caller-authorized page-header primary action;
+- moved project editing from the default detail view into the same guarded
+  route with `action=edit` and a caller-authorized page-header primary action;
+- kept the existing POST action names, CSRF checks, permissions, entity and
+  object-scope checks, workflow audit writes, and canonical success redirects;
+- checked presentation-route permission and object access before consuming
+  recovery state or rendering scoped Partenaire / Programme options;
+- kept invalid create and update submissions on their dedicated presentation
+  states with allowlisted, one-use recovery handles;
+- added explicit no-JavaScript cancel paths back to the canonical list or
+  project detail;
+- removed substantive project forms from default list and detail states.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-operations-e`
+- URL: `http://127.0.0.1:18086`
+- Temporary root: `/tmp/mjl-phase3d-operations.cGh5cr`
+- Database and document binds: dedicated children of that temporary root
+
+Final focused results:
+
+- Guarded project presentation states and edit recovery: 3/3 passed
+- Existing project create recovery: 1/1 passed
+- Existing create/update permissions and audit regression: 1/1 passed
+- Existing partner-scope and project permission regression: 1/1 passed
+- Phase 1 shell foundation and Phase 3D navigation shell: 13/13 passed
+- PHP and JavaScript syntax checks: passed
+- `git diff --check`: passed
+- Final two-axis review: Standards passed after resolving the stale current UI
+  audit row and duplicate detail query; Spec passed with no findings
+
+The next Workstream 3D.2 slice is shared pagination and filter presentation.
+
+### Shared operational filter and pagination presentation
+
+Implemented on 2026-07-31 as the second Workstream 3D.2 tracer bullet:
+
+- introduced one escaped select-filter presentation helper with stable field
+  IDs, French resource labels, apply/reset actions, and explicit default or
+  active-filter summaries;
+- adopted it on the project, activity, and expense operational lists while
+  leaving query construction, allowlists, entity/scope filtering, columns,
+  sorting, and action availability route-owned;
+- consolidated the activity-only and generic pagination implementations into
+  one resource-labelled renderer with a programmatic current-page state;
+- consolidated retained filter-query handling and removed the unused duplicate
+  query builder;
+- corrected retained pagination links so integer-zero ID defaults are omitted
+  while valid string enum value `0` remains preserved;
+- verified the shared filter bar at 390, 768, and 1024 pixels without local
+  horizontal overflow.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-tables-f`
+- URL: `http://127.0.0.1:18087`
+- Temporary root: `/tmp/mjl-phase3d-tables.A7xdfC`
+- Database and document binds: dedicated children of that temporary root
+
+Final focused results:
+
+- Pure filter/pagination presentation contract: passed
+- Phase 3D operational presentation suite: 7/7 passed
+- Existing activity filter, responsive-table, and pagination boundaries: 3/3
+  passed
+- Existing project/activity/expense retained-filter and pagination journeys:
+  3/3 passed
+- Existing Phase 1 shell foundation: 7/7 passed
+- PHP and JavaScript syntax checks: passed
+- `git diff --check`: passed
+- Final two-axis review: Standards passed with no findings; Spec passed with
+  no findings
+
+The first browser attempt started while the fresh Dolibarr installer was still
+importing tables and failed before the application assertion because no Admin
+user existed yet. After a read-only Admin-user readiness check confirmed
+installer completion, the unchanged red test reached the intended missing
+filter-helper seam. This repeated readiness condition is now recorded in
+`tasks/lessons.md`.
+
+The next Workstream 3D.2 slice is responsive project and expense list cards
+plus consolidated list states.

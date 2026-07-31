@@ -20,11 +20,8 @@ $langs->load('mjlfinancement@mjlfinancement');
 
 $projectId = GETPOSTINT('id');
 $action = GETPOST('action', 'alphanohtml');
-$mjl_project_recovery = mjl_form_recovery_consume_route(
-	GETPOST('mjl_recovery', 'alphanohtml'),
-	array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'projects', 'object_id' => (int) $projectId),
-	mjl_project_recovery_consume_allowlist()
-);
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && in_array($action, array('create', 'edit'), true) ? $action : '';
+$mjl_project_recovery = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, array('create', 'update'), true)) {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		accessforbidden('Invalid security token');
@@ -41,12 +38,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, array('add_note',
 	mjl_projects_handle_exchange_post($projectId);
 }
 
+if ($presentationAction === 'create') {
+	if ($projectId !== 0 || !mjl_projects_can_manage_projects()) {
+		accessforbidden();
+	}
+	$mjl_project_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'projects', 'object_id' => 0),
+		array('project' => array('create'))
+	);
+} elseif ($presentationAction === 'edit') {
+	if ($projectId <= 0 || !mjl_projects_can_manage_projects()) {
+		accessforbidden();
+	}
+	$presentationProject = mjl_projects_fetch_project($projectId);
+	if (empty($presentationProject) || !mjl_projects_can_open($presentationProject)) {
+		accessforbidden();
+	}
+	$mjl_project_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'projects', 'object_id' => (int) $projectId),
+		array('project' => array('update'))
+	);
+} elseif ($projectId > 0) {
+	$presentationProject = mjl_projects_fetch_project($projectId);
+	if (empty($presentationProject) || !mjl_projects_can_open($presentationProject)) {
+		accessforbidden();
+	}
+	$mjl_project_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'projects', 'object_id' => (int) $projectId),
+		array('comment' => array('add_note', 'add_exchange'))
+	);
+}
+
 llxHeader('', 'Projets MJL');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
 
-if ($projectId > 0) {
-	mjl_projects_render_detail($projectId);
+if ($presentationAction === 'create') {
+	mjl_projects_render_create_state();
+} elseif ($presentationAction === 'edit') {
+	mjl_projects_render_edit_state($presentationProject);
+} elseif ($projectId > 0) {
+	mjl_projects_render_detail($presentationProject);
 } else {
 	mjl_projects_render_list();
 }
@@ -103,7 +138,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 	if (!empty($errors)) {
 		$handle = mjl_projects_store_recovery_config($action, (int) $projectId, $errors);
 		setEventMessages(mjl_ui_safe_error_message('validation'), null, 'errors');
-		mjl_projects_redirect($projectId, $handle);
+		mjl_projects_redirect($projectId, $handle, $action === 'create' ? 'create' : 'edit');
 	}
 
 	if ($action === 'create') {
@@ -116,7 +151,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 			mjl_ui_log_error('database', mjl_projects_error_context('create'), $db->lasterror());
 			$handle = mjl_projects_store_recovery_config('create', 0, array('_form' => mjl_ui_safe_error_message('database')));
 			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
-			mjl_projects_redirect(0, $handle);
+			mjl_projects_redirect(0, $handle, 'create');
 		}
 		$newProjectId = (int) $db->last_insert_id($db->prefix().'projet');
 		$audit = mjl_workflow_audit_insert('mjlfinancement_project', $newProjectId, (int) $conf->entity, 'Projet cree', $user, mjl_projects_actor_role(), 'created', 'Projet MJL cree', array(
@@ -129,7 +164,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 			mjl_ui_log_error('database', mjl_projects_error_context('create_audit'), $db->lasterror());
 			$handle = mjl_projects_store_recovery_config('create', 0, array('_form' => mjl_ui_safe_error_message('database')));
 			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
-			mjl_projects_redirect(0, $handle);
+			mjl_projects_redirect(0, $handle, 'create');
 		}
 		$db->commit();
 		setEventMessages('Projet MJL cree.', null, 'mesgs');
@@ -150,7 +185,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 		mjl_ui_log_error('database', mjl_projects_error_context('update'), $db->lasterror());
 		$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')));
 		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
-		mjl_projects_redirect((int) $projectId, $handle);
+		mjl_projects_redirect((int) $projectId, $handle, 'edit');
 	} else {
 		$changes = mjl_projects_changed_fields($current, array(
 			'ref' => $ref,
@@ -167,7 +202,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 			mjl_ui_log_error('database', mjl_projects_error_context('update_audit'), $db->lasterror());
 			$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')));
 			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
-			mjl_projects_redirect((int) $projectId, $handle);
+			mjl_projects_redirect((int) $projectId, $handle, 'edit');
 		}
 		$db->commit();
 		setEventMessages('Projet MJL mis a jour.', null, 'mesgs');
@@ -185,14 +220,17 @@ function mjl_projects_render_list()
 		'description' => 'Consulter les projets suivis dans l’espace MJL sans ouvrir l’interface native Dolibarr.',
 		'context' => array('label' => 'Portefeuille', 'value' => $result['total'] === null ? 'Total indisponible' : ((int) $result['total']).' projet(s)'),
 	);
+	if ($canManageProjects) {
+		$headerOptions['primary_action'] = array(
+			'label' => 'Créer un projet',
+			'href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?action=create',
+		);
+	}
 	print mjl_page_header_render(
 		'Projets',
 		$headerOptions
 	);
 
-	if ($canManageProjects) {
-		mjl_projects_render_project_form(array(), 'create');
-	}
 	print '<section class="mjl-workspace-section">';
 	mjl_projects_render_list_filters($filters, $result['partner_options']);
 	if (!$result['count_available'] && $result['rows_available']) print mjl_ui_system_state('partial-error', 'Total indisponible', 'Les projets accessibles restent affichés, mais le total ne peut pas être calculé.');
@@ -226,33 +264,70 @@ function mjl_projects_render_list()
 	print '</section>';
 }
 
-function mjl_projects_render_list_filters($filters, $partnerOptions)
+function mjl_projects_render_create_state()
 {
-	print '<form class="mjl-table-filters" method="GET" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php">';
-	print '<label for="mjl-project-partner">Partenaire / Programme<select id="mjl-project-partner" name="partner"><option value="">Tous les partenaires</option>';
-	foreach ($partnerOptions as $id => $label) print '<option value="'.((int) $id).'"'.((int) $filters['partner'] === (int) $id ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
-	print '</select></label><label for="mjl-project-status">Statut<select id="mjl-project-status" name="status"><option value="">Tous les statuts</option><option value="1"'.((string) $filters['status'] === '1' ? ' selected' : '').'>Ouvert</option><option value="0"'.((string) $filters['status'] === '0' ? ' selected' : '').'>Brouillon / clos</option></select></label>';
-	print '<label for="mjl-project-sort">Trier par<select id="mjl-project-sort" name="sort"><option value="ref"'.($filters['sort'] === 'ref' ? ' selected' : '').'>Référence</option><option value="recent"'.($filters['sort'] === 'recent' ? ' selected' : '').'>Plus récents</option></select></label>';
-	print '<button class="button mjl-action mjl-action-primary" type="submit">Appliquer</button><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php">Réinitialiser</a></form>';
+	print mjl_page_header_render(
+		'Créer un projet',
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Projets', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'),
+				array('label' => 'Créer'),
+			),
+			'description' => 'Renseignez le projet et son Partenaire / Programme avant de l’ajouter au portefeuille MJL.',
+		)
+	);
+	mjl_projects_render_project_form(array(), 'create');
 }
 
-function mjl_projects_render_detail($projectId)
+function mjl_projects_render_edit_state($project)
 {
-	$project = mjl_projects_fetch_project((int) $projectId);
-	if (empty($project) || !mjl_projects_can_open($project)) {
-		accessforbidden();
-	}
 	print mjl_page_header_render(
-		'Projet '.$project['ref'],
+		'Modifier le projet '.$project['ref'],
 		array(
+			'breadcrumb' => array(
+				array('label' => 'Projets', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'),
+				array('label' => $project['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $project['rowid'])),
+				array('label' => 'Modifier'),
+			),
+			'description' => 'Mettez à jour les paramètres du projet et son rattachement Partenaire / Programme.',
+		)
+	);
+	mjl_projects_render_project_form($project, 'update');
+}
+
+function mjl_projects_render_list_filters($filters, $partnerOptions)
+{
+	$partners = array('' => 'Tous les partenaires');
+	foreach ($partnerOptions as $id => $label) $partners[(string) ((int) $id)] = $label;
+	print mjl_table_render_filter_bar(
+		DOL_URL_ROOT.'/custom/mjlfinancement/projects.php',
+		'projects',
+		'projets',
+		array(
+			array('name' => 'partner', 'label' => 'Partenaire / Programme', 'value' => (string) $filters['partner'], 'default' => '', 'options' => $partners),
+			array('name' => 'status', 'label' => 'Statut', 'value' => (string) $filters['status'], 'default' => '', 'options' => array('' => 'Tous les statuts', '1' => 'Ouvert', '0' => 'Brouillon / clos')),
+			array('name' => 'sort', 'label' => 'Trier par', 'value' => (string) $filters['sort'], 'default' => 'ref', 'options' => array('ref' => 'Référence', 'recent' => 'Plus récents')),
+		)
+	);
+}
+
+function mjl_projects_render_detail($project)
+{
+	$headerOptions = array(
 			'breadcrumb' => array(
 				array('label' => 'Projets', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'),
 				array('label' => $project['ref']),
 			),
 			'description' => $project['title'],
 			'context' => array('label' => 'Statut', 'value' => mjl_projects_status_label($project['fk_statut'])),
-		)
-	);
+		);
+	if (mjl_projects_can_manage_projects()) {
+		$headerOptions['primary_action'] = array(
+			'label' => 'Modifier le projet',
+			'href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $project['rowid']).'&action=edit',
+		);
+	}
+	print mjl_page_header_render('Projet '.$project['ref'], $headerOptions);
 	mjl_projects_render_identity($project);
 
 	$cards = array(
@@ -269,9 +344,6 @@ function mjl_projects_render_detail($projectId)
 	unset($card);
 	mjl_dashboard_render_card_section('Resume', 'Vue consolidee du projet et de ses objets MJL rattaches.', $cards);
 
-	if (mjl_projects_can_manage_projects()) {
-		mjl_projects_render_project_form($project, 'update');
-	}
 	mjl_projects_render_related_table('Activites liees', mjl_projects_activity_rows((int) $project['rowid'], 12), 'activities.php', $project, (int) $project['activities_count']);
 	mjl_projects_render_related_table('Depenses liees', mjl_projects_expense_rows((int) $project['rowid'], 12), 'expenses.php', $project, (int) $project['expenses_count']);
 	mjl_projects_render_alerts((int) $project['rowid']);
@@ -318,7 +390,9 @@ function mjl_projects_render_project_form($row, $action)
 	$selectedStatus = (int) $value('fk_statut', $row['fk_statut'] ?? 1);
 	print mjl_form_field('fk_statut', 'Statut', '<select name="fk_statut"><option value="1"'.($selectedStatus === 1 ? ' selected' : '').'>Ouvert</option><option value="0"'.($selectedStatus !== 1 ? ' selected' : '').'>Brouillon / clos</option></select>', false, '', $errors['fk_statut'] ?? '', $fieldPrefix);
 	print mjl_form_field('description', 'Description', '<textarea name="description">'.dol_escape_htmltag($value('description', $row['description'] ?? '')).'</textarea>', false, '', $errors['description'] ?? '', $fieldPrefix);
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="'.($isUpdate ? 'Enregistrer le projet' : 'Creer le projet').'"></div>';
+	$cancelUrl = DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'.($isUpdate ? '?id='.((int) $row['rowid']) : '');
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="'.($isUpdate ? 'Enregistrer le projet' : 'Creer le projet').'">';
+	print '<a class="mjl-action mjl-action-secondary" href="'.dol_escape_htmltag($cancelUrl).'">Annuler</a></div>';
 	print '</form></section>';
 }
 
@@ -789,10 +863,11 @@ function mjl_projects_error_context($action)
 	return array('route' => 'projects', 'action' => $action, 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id);
 }
 
-function mjl_projects_redirect($id, $recoveryHandle = '')
+function mjl_projects_redirect($id, $recoveryHandle = '', $presentationAction = '')
 {
 	$query = array();
 	if ((int) $id > 0) $query['id'] = (int) $id;
+	if (in_array((string) $presentationAction, array('create', 'edit'), true)) $query['action'] = (string) $presentationAction;
 	if ((string) $recoveryHandle !== '') $query['mjl_recovery'] = (string) $recoveryHandle;
 	$url = DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'.(!empty($query) ? '?'.http_build_query($query) : '');
 	header('Location: '.$url);

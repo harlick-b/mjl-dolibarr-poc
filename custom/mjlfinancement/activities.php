@@ -435,7 +435,7 @@ function mjl_activities_list()
 	print '</tbody></table></div>';
 	$hasPrevious = !$filters['fail_closed'] && (int) $filters['page'] > 1;
 	$hasNext = !$filters['fail_closed'] && ($total === null ? $hasExtraRow : ((int) $filters['page'] * (int) $filters['page_size'] < (int) $total));
-	print mjl_table_pagination(DOL_URL_ROOT.'/custom/mjlfinancement/activities.php', $filters, $total, $hasPrevious, $hasNext);
+	print mjl_table_render_pagination(DOL_URL_ROOT.'/custom/mjlfinancement/activities.php', $filters, $total, $hasPrevious, $hasNext, 'activités');
 	print '</section>';
 }
 
@@ -468,36 +468,32 @@ function mjl_activities_list_order_sql($sort)
 
 function mjl_activities_render_list_filters($filters, $partnerOptions, $projectOptions)
 {
-	print '<form class="mjl-table-filters" method="GET" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php" data-mjl-table-filters="activities">';
-	print '<label for="mjl-filter-partner">Partenaire / Programme<select id="mjl-filter-partner" name="partner"><option value="">Tous les partenaires</option>';
+	$partners = array('' => 'Tous les partenaires');
 	foreach ($partnerOptions as $id => $option) {
 		$label = is_array($option) ? $option['label'] : $option;
-		print '<option value="'.((int) $id).'"'.((int) $filters['partner'] === (int) $id ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
+		$partners[(string) ((int) $id)] = $label;
 	}
-	print '</select></label>';
-	print '<label for="mjl-filter-status">Statut<select id="mjl-filter-status" name="status"><option value="">Tous les statuts</option>';
+	$statuses = array('' => 'Tous les statuts');
 	foreach (range(0, 9) as $status) {
-		$selected = (string) $filters['status'] === (string) $status ? ' selected' : '';
-		print '<option value="'.$status.'"'.$selected.'>'.dol_escape_htmltag(mjl_ui_activity_status($status)['label']).'</option>';
+		$statuses[(string) $status] = mjl_ui_activity_status($status)['label'];
 	}
-	print '</select></label>';
-	print '<label for="mjl-filter-project">Projet<select id="mjl-filter-project" name="project"><option value="">Tous les projets</option>';
+	$projects = array('' => 'Tous les projets');
 	foreach ($projectOptions as $id => $option) {
 		$label = is_array($option) ? $option['label'] : $option;
-		print '<option value="'.((int) $id).'"'.((int) $filters['project'] === (int) $id ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
+		$projects[(string) ((int) $id)] = $label;
 	}
-	print '</select></label>';
-	$riskOptions = array('all' => 'Tous les risques', 'overdue' => 'En retard', 'soon' => 'Échéance proche', 'none' => 'Sans risque d’échéance');
-	print '<label for="mjl-filter-risk">Risque échéance<select id="mjl-filter-risk" name="risk">';
-	foreach ($riskOptions as $value => $label) print '<option value="'.$value.'"'.($filters['risk'] === $value ? ' selected' : '').'>'.$label.'</option>';
-	print '</select></label>';
-	$sortOptions = array('priority' => 'Priorité', 'recent' => 'Plus récentes', 'deadline' => 'Échéance');
-	print '<label for="mjl-filter-sort">Trier par<select id="mjl-filter-sort" name="sort">';
-	foreach ($sortOptions as $value => $label) print '<option value="'.$value.'"'.($filters['sort'] === $value ? ' selected' : '').'>'.$label.'</option>';
-	print '</select></label>';
-	print '<button class="button mjl-action mjl-action-primary" type="submit">Appliquer</button>';
-	print '<a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php">Réinitialiser</a>';
-	print '</form>';
+	print mjl_table_render_filter_bar(
+		DOL_URL_ROOT.'/custom/mjlfinancement/activities.php',
+		'activities',
+		'activités',
+		array(
+			array('name' => 'partner', 'label' => 'Partenaire / Programme', 'value' => (string) $filters['partner'], 'default' => '', 'options' => $partners),
+			array('name' => 'status', 'label' => 'Statut', 'value' => (string) $filters['status'], 'default' => '', 'options' => $statuses),
+			array('name' => 'project', 'label' => 'Projet', 'value' => (string) $filters['project'], 'default' => '', 'options' => $projects),
+			array('name' => 'risk', 'label' => 'Risque échéance', 'value' => (string) $filters['risk'], 'default' => 'all', 'options' => array('all' => 'Tous les risques', 'overdue' => 'En retard', 'soon' => 'Échéance proche', 'none' => 'Sans risque d’échéance')),
+			array('name' => 'sort', 'label' => 'Trier par', 'value' => (string) $filters['sort'], 'default' => 'priority', 'options' => array('priority' => 'Priorité', 'recent' => 'Plus récentes', 'deadline' => 'Échéance')),
+		)
+	);
 }
 
 function mjl_activities_error_context($action)
