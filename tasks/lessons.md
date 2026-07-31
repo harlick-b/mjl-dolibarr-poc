@@ -50,3 +50,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   by every diagnostic caller. When a new audited object type is introduced,
   update that registry and prove both a valid anchor and a missing target;
   duplicated join lists silently misclassify otherwise valid audit rows.
+- Fresh Docker bind initialization can leave document subdirectories owned by
+  root with mode `0755`, which blocks upload E2E despite correct application
+  behavior. Correct ownership or mode only inside the verified disposable
+  document bind; never normalize permissions on shared workspace storage.

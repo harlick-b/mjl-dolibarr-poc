@@ -2,7 +2,7 @@
 
 ## Status
 
-`READY_FOR_REVIEW_AND_MANUAL_COMMIT`
+`CORRECTED_AND_VALIDATED`
 
 This report covers only the security and export-hardening prerequisite defined
 by the revised Phase 3D implementation prompt. Phase 3D UX/UI convergence has
@@ -11,11 +11,15 @@ not started.
 ## Baseline
 
 - Branch: `main`
-- Baseline commit: `fbab8294cecd93659b1f7a4f761e973106c31b2b`
-- Earlier prompt commit: `fbab8294cecd93659b1f7a4f761e973106c31b2b`
-- Revised supplied prompt SHA-256: `699ae4a1504b8dd67c8f3ace5073cba74bfc5d73826842c05c9b92cacb192979`
-- Prompt gate: the supplied revision differs from the prompt tracked at the
-  baseline and still requires its own manual checkpoint before Phase 3D
+- Original prerequisite commit:
+  `37226de0ee80e09e8e33089a1f3a5033049e3396`
+- Revised Phase 3D prompt commit:
+  `c6b67d8a10ab6b921a50eb111ba06fcc8d1e35a8`
+- Corrective application baseline (commit A):
+  `ed5e16f175c6144b500d4c71a395a5c13d2cb836`
+- Phase 3D rollback/evidence boundary: the commit containing this report,
+  `docs(mjl): record Phase 3D rollback baseline`; its exact SHA is recorded in
+  the implementation handoff after commit creation.
 - Phase 3A checkpoint: `0399646`
 - Phase 3B checkpoint: `06fe50c`
 - Phase 3C checkpoint: `e81f8b1`
@@ -26,17 +30,21 @@ not started.
 
 | Risk | Initial severity | Correction | Verification |
 | --- | --- | --- | --- |
-| Validation-history cross-scope disclosure and raw database error | High | Entity-matched validation, expense, and convention joins; partner/programme predicate for non-admins; safe persistent error and redacted logging | Single-partner and forced-query-failure browser checks |
-| Workflow-audit row and filter metadata disclosure | High | Shared fail-closed traceability predicate for projects, activities, expenses, conventions, budget lines, and fund receipts | Single-partner rows, every supported target type, unresolved targets, and distinct filter options |
+| Validation-history cross-scope disclosure and raw database error | High | Entity-matched left joins; Admin unresolved diagnostics; negative cross-entity expense/convention guards; resolved assigned-partner requirement for non-admins; safe persistent error and redacted logging | Admin orphan/missing-parent visibility, non-admin fail-closed, cross-entity target/parent denial, and forced-query-failure browser checks |
+| Workflow-audit row and filter metadata disclosure | High | Shared predicate lets Admin diagnose missing/unknown active-entity targets while rejecting known cross-entity targets/required parents; non-admins still require resolved same-entity assigned scope and cannot see report audits | Admin/non-admin rows and identical filter metadata, including expense and fund-receipt missing/cross-entity convention parents |
+| Prerequisite E2E shared-workspace mutation | High | Fail-fast Compose/URL/bind/port guard runs before all mutations; cleanup is disabled until isolation verification succeeds; custom fixture queries are entity-scoped | Five guard checks, deliberate default-invocation failure before bootstrap, and two disposable Compose runs |
 | Convention and fund-receipt document IDOR | High | Parent-object scope is rechecked before the ECM row is returned | Direct cross-partner download checks and unchanged audit count |
 | Download and export audit persistence was fail-open | High | File generation/opening occurs before audit; delivery begins only after the required audit insert succeeds | Forced audit-insert failures return `503` with no attachment or file body |
 | Spreadsheet formula injection and untyped XLSX cells | High | Dangerous CSV text is apostrophe-prefixed; declared money stays raw numeric; XLSX uses `Numeric` only for `money_fields` and `Text` elsewhere | CSV content plus XLSX worksheet/shared-string XML checks |
 
-Admin access remains active-entity-wide for resolved eligible targets.
-Unresolved, orphaned, and cross-entity audit targets fail closed for every
-role; unsupported report targets remain Admin-only when resolved. Existing route,
-permission, token, status, filename, field-order, BOM, delimiter, MIME, and
-audit event contracts remain unchanged.
+Admin sees active-entity unresolved validation and audit diagnostics for
+remediation, including missing supported targets, missing required convention
+parents, and unknown audit object types. Non-admins fail closed unless the
+target and required convention parent resolve in the active entity and the
+Partenaire / Programme is assigned. Known targets or required parents in
+another entity remain hidden from every role. Generic report audit rows remain
+Admin-only. Existing route, permission, token, status, filename, field-order,
+BOM, delimiter, MIME, and audit event contracts remain unchanged.
 
 ## Files changed
 
@@ -49,6 +57,8 @@ audit event contracts remain unchanged.
 - `custom/mjlfinancement/lib/mjl_csv_export.lib.php`
 - `custom/mjlfinancement/lib/mjl_xlsx_export.lib.php`
 - `tests/e2e/phase3d-prerequisite-security.spec.js`
+- `tests/helpers/phase3d-prerequisite-isolation.js`
+- `tests/isolation/phase3d-prerequisite-isolation.test.js`
 - `docs/mjl-current-app-functional-map.md`
 - `docs/mjl-current-vs-target-gap-analysis.md`
 - `docs/mjl-acceptance-tests.md`
@@ -57,13 +67,19 @@ audit event contracts remain unchanged.
 
 ## Test isolation
 
-All mutating bootstrap, seed, smoke, and browser checks ran in a disposable
-Compose project:
+All mutating bootstrap, seed, smoke, and browser checks ran in disposable
+Compose projects. The corrective implementation run used:
 
-- Compose project: `mjl_phase3d_prereq`
+- Compose project: `mjl-phase3d-prereq-red`
 - URL: `http://127.0.0.1:18081`
-- Database directory: `/tmp/mjl-phase3d-prereq.22dF5f/mariadb`
-- Document directory: `/tmp/mjl-phase3d-prereq.22dF5f/documents`
+- Temporary root: `/tmp/mjl-phase3d-blockers.khmgvy`
+
+The independent exact-commit-A proof used:
+
+- Compose project: `mjl-phase3d-prereq-commit-a`
+- URL: `http://127.0.0.1:18082`
+- Temporary root: `/tmp/mjl-phase3d-commit-a.JOdNQ2`
+- Proved source SHA: `ed5e16f175c6144b500d4c71a395a5c13d2cb836`
 
 The shared repository database and document directories were not used for
 test mutations. The first combined existing-suite run exposed a disposable
@@ -75,23 +91,32 @@ suite passed.
 
 | Command | Result |
 | --- | --- |
-| PHP `-l` on every changed PHP file during its implementation slice | Passed |
+| PHP `-l` on both changed PHP files | Passed |
+| `node --check` on the changed prerequisite spec/helper/guard test | Passed |
+| `node tests/isolation/phase3d-prerequisite-isolation.test.js` | 5/5 passed |
+| Bare prerequisite invocation without isolation variables | Failed before bootstrap as required |
 | `git diff --check` | Passed |
-| `npx playwright test tests/e2e/phase3d-prerequisite-security.spec.js` | 7/7 passed |
-| Prerequisite plus existing Phase 9 and Phase 11R export suites | 16/16 passed |
+| Prerequisite spec in the corrective disposable environment | 9/9 passed |
+| Requested Phase 5, Phase 9, Phase 11R, Phase 16, and Phase 18 suites | All 43 distinct tests passed; Phase 16 required only the documented disposable directory mode correction |
 | `smoke_scope_model.php` | `MJL 0.8.0 scope model smoke: OK` |
 | `smoke_traceability_exports.php` | Completed successfully |
-| Selected access/report/document suites (`phase5`, `phase9`, `phase11r`, `phase16`, `phase18`, prerequisite spec) | All 49 distinct tests passed after correcting the disposable directory permission |
+| `smoke_integrity_targets.php` | `MJL integrity target smoke: OK` |
+| `audit_unresolved_scope.php` | `MJL unresolved scope audit: OK` |
+| Focused standards review | No documented-standard violation; low-risk duplication refactor remains intentionally deferred |
+| Focused spec/security review | Fund-receipt convention-parent gap found, corrected, and re-reviewed closed |
+| Approved v2 snapshot diff | Unchanged |
+| Fresh environment at exact commit A | Prerequisite 9/9 plus all four smoke/audit checks passed |
 
 The complete E2E suite was not run at this prerequisite checkpoint because the
-revised prompt calls for targeted prerequisite validation before manual review
-and commit. Full relevant E2E remains required at the later Phase 3D
-integration gate.
+correction plan calls for the prerequisite and specified affected suites.
+Full relevant E2E remains required at the later Phase 3D integration gate.
 
 ## Remaining boundary
 
-- The prerequisite diff is intentionally uncommitted for user review.
-- It must be committed as a separate security/export baseline.
-- Phase 3D must not begin until that commit exists and the working tree is
-  suitable for a new rollback baseline.
-- Phase 4 and Phase 5 were not started.
+- Commit A is the corrective application baseline and must remain outside any
+  later Phase 3D presentation rollback.
+- The commit containing this report is the Phase 3D rollback and baseline
+  evidence boundary.
+- Phase 3D UX/UI convergence did not begin during this correction.
+- The complete E2E suite remains a later Phase 3D integration gate; the
+  prerequisite and every explicitly requested affected suite passed here.

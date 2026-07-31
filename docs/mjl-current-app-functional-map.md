@@ -82,8 +82,8 @@ Those references are current-state/code debt, not target behavior.
 | Alerts | `alerts.php` | Computed activity/expense/finance alerts with partial-load reporting. | Alerts are computed, not stored; successful sources remain visible if another source fails. |
 | Supervision dashboard | `dpafdashboard.php` | Portfolio supervision dashboard with shared scoped filters, role-specific queues, finance rows, fund rows, and resolvable audit history. | Route filename remains a DPAF-era compatibility name; UI labels use production wording. |
 | Reports/exports | `reports.php` | CSV/XLSX report center with typed temporary-file generation before fail-closed audit persistence and delivery. | Final donor/client canevas and role matrix remain pending. |
-| Validations | `validations.php` | Entity- and partner/programme-scoped expense validation history with safe query-failure presentation. | Read-only. |
-| Workflow audit | `workflowactions.php` | Advanced workflow/audit history. | Advanced/audit surface. |
+| Validations | `validations.php` | Entity-scoped expense validation history with safe query-failure presentation. | Non-admins require a resolved assigned Partenaire / Programme; Admin can diagnose unresolved active-entity rows; cross-entity targets and parents remain hidden. |
+| Workflow audit | `workflowactions.php` | Advanced workflow/audit history. | Rows and filter metadata share one predicate: non-admins require resolved assigned scope, Admin can diagnose unresolved/unknown targets, and every role rejects cross-entity targets or required parents. |
 | Exchange logs | `exchangelogs.php` | Advanced exchange-log search/audit surface. | Hidden from primary navigation; normal creation is contextual on object detail pages. |
 | Admin access | `admin/access.php` | Invitation and access administration. | Admin-only. |
 | Roadmap | `roadmap.php` | Internal roadmap/readiness page. | Hidden unless configured. |

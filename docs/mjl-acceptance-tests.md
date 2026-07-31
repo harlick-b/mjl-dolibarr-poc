@@ -14,11 +14,42 @@ npm run test:e2e
 Targeted Phase 3D prerequisite security regression:
 
 ```bash
+node tests/isolation/phase3d-prerequisite-isolation.test.js
+
+COMPOSE_PROJECT_NAME=mjl-phase3d-prereq-<unique> \
+COMPOSE_FILE="$PWD/docker-compose.yml:<temporary-directory>/docker-compose.override.yml" \
+MJL_BASE_URL=http://127.0.0.1:<free-port> \
+MJL_E2E_TEMP_DIR=<temporary-directory> \
 npx playwright test tests/e2e/phase3d-prerequisite-security.spec.js
 ```
 
-The Playwright suite uses `MJL_BASE_URL` when set, otherwise
-`http://127.0.0.1:8080`.
+The general Playwright configuration uses `MJL_BASE_URL` when set and otherwise
+defaults to `http://127.0.0.1:8080`. The Phase 3D prerequisite spec deliberately
+rejects that default before bootstrap, seed, cleanup, trigger, table-rename, or
+permission mutation.
+
+For that spec, create a dedicated directory with `mktemp -d` outside the
+repository, create its `mariadb/` and `documents/` children, and provide a
+Compose override that:
+
+- replaces the MariaDB bind for `/var/lib/mysql` with the temporary `mariadb/`;
+- replaces the Dolibarr bind for `/var/www/documents` with the temporary
+  `documents/`;
+- replaces the published port with the same free port used by
+  `MJL_BASE_URL`;
+- sets `DOLI_URL_ROOT` to exactly the `MJL_BASE_URL` origin; and
+- retains the repository `custom/` and Apache native-guard read-only mounts.
+
+The project name must begin with `mjl-phase3d-prereq-`.
+`MJL_E2E_TEMP_DIR` must identify the dedicated temporary root, and
+`COMPOSE_FILE` must include both the repository Compose file and the override
+so every child `docker compose` command targets the same disposable project.
+The guard parses `docker compose config --format json` and rejects missing or
+mismatched variables, non-temporary database/document binds, repository
+`data/` binds, port mismatches, and URL-root mismatches.
+
+After the run, use `docker compose down -v` with the exact project name and
+Compose files, then remove only the verified temporary directory.
 
 ## Schema And Smoke Checks
 
@@ -118,7 +149,9 @@ rm -rf "$tmpdir"
 - Global Documents is read-only; uploads are contextual; downloads are guarded.
 - A user assigned to exactly one Partenaire / Programme cannot receive
   validation-history or workflow-audit rows/filter options from another scope;
-  orphaned, unresolved, and cross-entity rows fail closed.
+  orphaned and unresolved rows fail closed for non-admins, remain visible to
+  Admin for remediation, and cross-entity targets or required parents remain
+  hidden from every role.
 - Convention and fund-receipt downloads recheck parent scope. Denied downloads
   create no audit event, and audit persistence failure delivers no file.
 - Finance validation feedback links only exact allowlisted field errors;
