@@ -11,7 +11,7 @@ coverage.
 
 | Screen | Route/path | Current purpose | Access notes | Current-state caveat |
 | --- | --- | --- | --- | --- |
-| Workspace dashboard | `/custom/mjlfinancement/index.php` | Role-aware enriched cards with definition/scope/period/freshness/destination metadata, local source-unavailable states, scoped filters, quick links, alerts context, and Admin-only unresolved-data diagnostics. | Any user who can enter the MJL workspace; server queries retain role/entity/scope guards. | Fixture and compatibility identifiers still contain POC-era vocabulary. |
+| Workspace dashboard | `/custom/mjlfinancement/index.php` | Role-aware enriched cards with definition/scope/period/freshness/destination metadata, local source-unavailable states, scoped filters, alerts context, and Admin-only unresolved-data diagnostics. | Any user who can enter the MJL workspace; server queries retain role/entity/scope guards. | Fixture and compatibility identifiers still contain POC-era vocabulary. |
 | Partenaires / Programmes | `/custom/mjlfinancement/partners.php` | Partner/programme list/detail and related data. | Scoped by MJL helpers. | Needs current browser verification. |
 | Projects | `/custom/mjlfinancement/projects.php` | Project list/detail, related MJL objects, notes. | Scoped by MJL project helpers. | Project create/edit UX needs verification. |
 | Activities | `/custom/mjlfinancement/activities.php` | Activity lifecycle, execution fields, documents, timeline. | Read/write/validation helpers. | Dense workflow UI remains. |

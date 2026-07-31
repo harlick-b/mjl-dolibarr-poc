@@ -49,6 +49,57 @@ Each component must define purpose, when to use it, when not to use it, layout, 
 
 ## Implemented Operational Components
 
+### MJL workspace shell and navigation drawer
+
+- **Purpose/use:** provide one persistent, role-projected route map around
+  authenticated MJL pages. Do not use it on invitation acceptance or other
+  intentionally shell-free routes, and do not treat a hidden link as access
+  control.
+- **Layout/behavior:** desktop uses a 256px edge-attached, full-height sticky
+  rail with non-clickable category headings. At 980px and below, the visible
+  in-flow fallback becomes a labelled overlay drawer only after JavaScript is
+  ready. The enhanced drawer supports trigger, close button, backdrop,
+  Escape, focus containment and restoration, scroll locking, background
+  isolation, desktop reset, and reduced motion. While open, it preserves the
+  sidebar/backdrop ancestry and makes every other branch inert, including
+  branches added later; it restores only inert state owned by the drawer and
+  preserves pre-existing inert state exactly.
+- **Accessibility/French:** skip-link and landmark order are preserved. Focus
+  never remains inside a drawer when it becomes hidden. Trigger state uses
+  `aria-controls` and `aria-expanded`; the rail uses the French accessible
+  name `Menu module MJL`.
+- **Visibility/E2E:** the closed policy projection calls existing access
+  helpers and removes inaccessible leaves and empty categories without
+  replacing route guards. Pure registry and browser coverage verify exact
+  paths, contextual audit state, role projection, no-JavaScript fallback,
+  resize focus, external-focus rejection, dynamic background isolation,
+  reduced-motion behavior, touch interaction, overflow, and the 390, 768,
+  980, 1024, and 1366px widths. Half-width automation is supplemental reflow
+  evidence only; real 100%/200% browser zoom requires the dedicated headed
+  Phase 3D manual gate.
+
+### Page header
+
+- **Purpose/use:** identify the single dominant purpose of an authenticated
+  MJL page and optionally expose useful orientation, status/scope context, and
+  already-authorized actions. Do not repeat the workspace title, add a
+  decorative kicker, repeat the title in prose, or make authorization
+  decisions.
+- **Layout/behavior:** exactly one `h1` leads a whitespace-based header without
+  an enclosing card. Optional breadcrumbs precede it; useful description and
+  semantic context follow it. One primary action precedes ordered secondary
+  actions, and actions wrap without reordering on smaller screens.
+- **Accessibility/French:** the header is labelled by its `h1`; breadcrumb
+  navigation uses `Fil d’Ariane` and marks the final item as the current page.
+  Action labels and context use concise French business wording, remain
+  keyboard reachable, and retain visible focus.
+- **Visibility/E2E:** each route decides which context and actions are already
+  authorized before calling the pure renderer. Isolation coverage verifies
+  escaping, ordering, optional regions, and exactly one `h1`; browser coverage
+  verifies the shared contract across representative routes. The first
+  rendered authorized-action journey is deferred to the guarded project
+  create state in Workstream 3D.2.
+
 ### Business status badge
 
 - **Purpose/use:** show an existing activity or expense business state before

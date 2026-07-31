@@ -78,11 +78,14 @@ implementation.
 
 ## Layout rules
 
-- The MJL workspace uses a two-column shell: sticky sidebar plus main content.
-- Sidebar width is constrained with a `minmax(180px, 230px)` track.
+- The MJL workspace uses a two-column shell: a 256px edge-attached sticky
+  sidebar plus main content, with a responsive drawer enhancement below
+  981px and an in-flow fallback without JavaScript.
 - Card grids use `repeat(auto-fit, minmax(220px, 1fr))`.
-- Page headers are white bordered panels with clear title/copy and optional
-  user context.
+- Page headers use whitespace-led typography rather than enclosing cards, with
+  exactly one `h1`, optional semantic breadcrumbs, useful description,
+  status/scope context, and caller-authorized actions that wrap without
+  reordering.
 - Auth pages center a single panel on a muted full-height background.
 - On narrow screens, the module shell collapses to a single column and sidebar
   navigation becomes a responsive grid.
@@ -92,7 +95,8 @@ implementation.
 Confirmed recurring components and patterns:
 
 - MJL workspace shell and grouped sidebar.
-- Page header with kicker, title, descriptive copy, and user context.
+- Page header with one title, optional useful description, semantic
+  breadcrumbs, status/scope context, and caller-authorized actions.
 - Dashboard/KPI cards with labels, values, status pills, and action links.
 - Alert cards with severity tone, affected object, metadata, and destination.
 - Status pills with semantic tone classes.
