@@ -5,14 +5,15 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 mjl_workspace_require_validation_history_access($user);
 llxHeader('', 'Historique des validations');
-mjl_navigation_shell_start($user, 'validations');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Historique des validations',
-	'Consultez les décisions enregistrées sur les dépenses accessibles à votre rôle.',
-	'Accès',
-	'Lecture avancée',
-	'Supervision / Audit'
+	array(
+		'breadcrumb' => array(array('label' => 'Supervision / Audit')),
+		'description' => 'Consultez les décisions enregistrées sur les dépenses accessibles à votre rôle.',
+		'context' => array('label' => 'Accès', 'value' => 'Lecture avancée'),
+	)
 );
 global $db, $conf;
 $sql = 'SELECT v.ref, e.ref AS expense_ref, v.action, v.from_status, v.to_status, u.login, v.actor_role, v.action_date, v.comment';

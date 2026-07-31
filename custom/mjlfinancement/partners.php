@@ -16,7 +16,7 @@ mjl_workspace_require_partners_access($user);
 $partnerId = GETPOSTINT('id');
 
 llxHeader('', 'Partenaires / Programmes MJL');
-mjl_navigation_shell_start($user, 'partners');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
 
 if ($partnerId > 0) {
@@ -35,11 +35,12 @@ function mjl_partners_render_list()
 	$result = mjl_partners_list_result();
 	$rows = $result['rows'];
 	$filters = $result['filters'];
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		'Partenaires / Programmes',
-		'Consulter les perimetres MJL representes par les tiers Dolibarr actifs.',
-		'Consultation',
-		$result['total'] === null ? 'Total indisponible' : ((int) $result['total']).' partenaire(s)'
+		array(
+			'description' => 'Consulter les périmètres MJL représentés par les tiers Dolibarr actifs.',
+			'context' => array('label' => 'Consultation', 'value' => $result['total'] === null ? 'Total indisponible' : ((int) $result['total']).' partenaire(s)'),
+		)
 	);
 
 	print '<section class="mjl-workspace-section">';
@@ -90,13 +91,17 @@ function mjl_partners_render_detail($partnerId)
 		accessforbidden();
 	}
 
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		'Partenaire / Programme '.$row['nom'],
-		trim((string) $row['email']) !== '' ? $row['email'] : 'Consultation du perimetre et des objets MJL rattaches.',
-		'Perimetre',
-		mjl_scope_is_platform_admin($GLOBALS['user']) ? 'Admin' : 'Assigne'
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Partenaires / Programmes', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/partners.php'),
+				array('label' => $row['nom']),
+			),
+			'description' => trim((string) $row['email']) !== '' ? $row['email'] : 'Consultation du périmètre et des objets MJL rattachés.',
+			'context' => array('label' => 'Périmètre', 'value' => mjl_scope_is_platform_admin($GLOBALS['user']) ? 'Admin' : 'Assigné'),
+		)
 	);
-	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/partners.php">Retour aux partenaires</a></p>';
 
 	$cards = array(
 		array('label' => 'Financement total recu', 'value' => mjl_partners_price($row['funds_received']), 'context' => 'Receptions marquees recues uniquement', 'href' => '/custom/mjlfinancement/fundreceipts.php', 'action' => 'Voir les fonds', 'status' => 'Tresorerie', 'tone' => 'neutral'),

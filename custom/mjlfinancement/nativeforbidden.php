@@ -27,16 +27,15 @@ $canEnterMjl = !empty($user) && !empty($user->id) && mjl_workspace_user_can_ente
 llxHeader('', 'Accès refusé');
 
 if ($canEnterMjl) {
-	mjl_navigation_shell_start($user, 'dashboard');
+	mjl_navigation_shell_start($user);
 }
 
 print '<div class="mjl-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Accès non autorisé',
-	'Cette adresse ne fait pas partie de l’espace MJL autorisé. Utilisez le tableau de bord pour continuer votre travail.',
-	'',
-	'',
-	'Accès refusé'
+	array(
+		'description' => 'Cette adresse ne fait pas partie de l’espace MJL autorisé. Utilisez le tableau de bord pour continuer votre travail.',
+	)
 );
 print '<section class="mjl-workspace-section">';
 print '<div class="mjl-empty-state mjl-empty-state-warning">';

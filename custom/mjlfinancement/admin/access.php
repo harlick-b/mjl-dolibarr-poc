@@ -76,14 +76,15 @@ $partners = mjl_access_partner_options();
 $users = mjl_access_users();
 
 llxHeader('', 'Gestion des accès MJL');
-mjl_navigation_shell_start($user, 'admin_access');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Gestion des accès MJL',
-	'Invitez les utilisateurs et gérez leur rôle ainsi que leurs Partenaires / Programmes autorisés.',
-	'Accès',
-	'Administration',
-	'Administration'
+	array(
+		'breadcrumb' => array(array('label' => 'Administration')),
+		'description' => 'Invitez les utilisateurs et gérez leur rôle ainsi que leurs Partenaires / Programmes autorisés.',
+		'context' => array('label' => 'Accès', 'value' => 'Administration'),
+	)
 );
 
 if ($message !== '') {

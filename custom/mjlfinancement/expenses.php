@@ -49,7 +49,7 @@ $mjl_expense_recovery = mjl_form_recovery_consume_route(
 );
 
 llxHeader('', 'Depenses MJL');
-mjl_navigation_shell_start($user, 'expenses');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-expense-workspace">';
 
 if ($expenseId > 0) {
@@ -339,12 +339,12 @@ function mjl_expenses_upload_document(MjlExpense $expense)
 
 function mjl_expenses_render_list_page()
 {
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		'Dépenses et pièces justificatives',
-		'Consultez les dépenses de votre périmètre, ouvrez le détail et traitez les pièces ou décisions attendues.',
-		'Périmètre',
-		mjl_expenses_scope_label(),
-		'Dépenses'
+		array(
+			'description' => 'Consultez les dépenses de votre périmètre, ouvrez le détail et traitez les pièces ou décisions attendues.',
+			'context' => array('label' => 'Périmètre', 'value' => mjl_expenses_scope_label()),
+		)
 	);
 
 	if (mjl_workspace_can_apply_expense_write($GLOBALS['user'])) {
@@ -360,13 +360,16 @@ function mjl_expenses_render_detail($id)
 		mjl_expenses_forbidden();
 	}
 
-	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php">Retour aux depenses</a></p>';
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		$row['ref'],
-		mjl_expenses_next_action_label($row),
-		'Statut',
-		mjl_expenses_status_label($row['status']),
-		'Dépense'
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Dépenses', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php'),
+				array('label' => $row['ref']),
+			),
+			'description' => mjl_expenses_next_action_label($row),
+			'context' => array('label' => 'Statut', 'value' => mjl_expenses_status_label($row['status'])),
+		)
 	);
 
 	print '<div class="mjl-activity-detail-grid">';
@@ -925,16 +928,16 @@ function mjl_expenses_next_action_label($row)
 	$docPresent = ($evidenceState === 'downloadable') || ($evidenceState === '' && (!array_key_exists('document_present', $row) || (int) $row['document_present'] > 0));
 	$docUnavailable = $evidenceState === 'unavailable';
 	if ($docUnavailable && in_array($status, array(MjlExpense::STATUS_DRAFT, MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_CORRECTED), true)) {
-		return 'Remplacer la piece indisponible avant validation.';
+		return 'Remplacer la pièce indisponible avant validation.';
 	}
-	if ($status === MjlExpense::STATUS_DRAFT) return $docPresent ? 'Completer puis soumettre la depense.' : 'Ajouter la piece justificative puis soumettre la depense.';
-	if ($status === MjlExpense::STATUS_SUBMITTED) return $docPresent ? 'Prevalidation attendue.' : 'Validation bloquee tant que la piece justificative manque.';
-	if ($status === MjlExpense::STATUS_CORRECTED) return 'Depense corrigee a resoumettre.';
-	if ($status === MjlExpense::STATUS_PREVALIDATED) return 'Validation definitive attendue.';
-	if ($status === MjlExpense::STATUS_VALIDATED || $status === MjlExpense::STATUS_FINAL_VALIDATED) return 'Decaissement a enregistrer lorsque les fonds sont effectivement payes.';
-	if ($status === MjlExpense::STATUS_DISBURSED) return 'Depense decaissee, aucune decision en attente.';
+	if ($status === MjlExpense::STATUS_DRAFT) return $docPresent ? 'Compléter puis soumettre la dépense.' : 'Ajouter la pièce justificative puis soumettre la dépense.';
+	if ($status === MjlExpense::STATUS_SUBMITTED) return $docPresent ? 'Prévalidation attendue.' : 'Validation bloquée tant que la pièce justificative manque.';
+	if ($status === MjlExpense::STATUS_CORRECTED) return 'Dépense corrigée à resoumettre.';
+	if ($status === MjlExpense::STATUS_PREVALIDATED) return 'Validation définitive attendue.';
+	if ($status === MjlExpense::STATUS_VALIDATED || $status === MjlExpense::STATUS_FINAL_VALIDATED) return 'Décaissement à enregistrer lorsque les fonds sont effectivement payés.';
+	if ($status === MjlExpense::STATUS_DISBURSED) return 'Dépense décaissée, aucune décision en attente.';
 	if ($status === MjlExpense::STATUS_REJECTED) return 'Correction attendue avant resoumission.';
-	return 'Suivre l avancement de la depense.';
+	return 'Suivre l’avancement de la dépense.';
 }
 
 function mjl_expenses_evidence_label($state)

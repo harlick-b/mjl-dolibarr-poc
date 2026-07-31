@@ -34,7 +34,7 @@ $mjl_budgetline_recovery = mjl_form_recovery_consume_route(
 );
 
 llxHeader('', 'Lignes budgetaires MJL');
-mjl_navigation_shell_start($user, 'budgetlines');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-budgetline-workspace">';
 
 if ($budgetLineId > 0) {
@@ -157,12 +157,12 @@ function mjl_budgetlines_render_list_page()
 		'sort' => array('type' => 'enum', 'allowed' => array('recent', 'ref', 'remaining'), 'default' => 'recent'),
 		'page' => array('type' => 'page', 'default' => 1),
 	), 50);
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		'Gestion des lignes budgétaires',
-		'Cadrez les enveloppes actives utilisées par les dépenses, rapports et contrôles de solde.',
-		'Périmètre',
-		mjl_budgetlines_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation',
-		'Lignes budgétaires MJL'
+		array(
+			'description' => 'Cadrez les enveloppes actives utilisées par les dépenses, rapports et contrôles de solde.',
+			'context' => array('label' => 'Périmètre', 'value' => mjl_budgetlines_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation'),
+		)
 	);
 
 	if (mjl_budgetlines_can_manage()) {
@@ -181,13 +181,16 @@ function mjl_budgetlines_render_detail($id)
 	$canManage = mjl_budgetlines_can_manage();
 	$hasExpenses = (int) $row['expenses'] > 0;
 
-	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php">Retour aux budgets</a></p>';
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		$row['ref'].' - '.$row['label'],
-		mjl_budgetlines_next_action_label($row, $hasExpenses),
-		'Statut',
-		mjl_budgetline_status_label($row['status']),
-		'Ligne budgétaire'
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Lignes budgétaires', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php'),
+				array('label' => $row['ref']),
+			),
+			'description' => mjl_budgetlines_next_action_label($row, $hasExpenses),
+			'context' => array('label' => 'Statut', 'value' => mjl_budgetline_status_label($row['status'])),
+		)
 	);
 
 	print '<div class="mjl-activity-detail-grid">';
@@ -604,9 +607,9 @@ function mjl_budgetlines_status_badge($status)
 
 function mjl_budgetlines_next_action_label($row, $hasExpenses)
 {
-	if ((int) $row['status'] === MjlBudgetLine::STATUS_DRAFT) return 'Verifier les rattachements puis activer la ligne budgetaire.';
-	if ($hasExpenses) return 'Ligne active: les champs structurants sont verrouilles et les montants sont recalcules.';
-	return 'Ligne active disponible pour les depenses autorisees.';
+	if ((int) $row['status'] === MjlBudgetLine::STATUS_DRAFT) return 'Vérifier les rattachements puis activer la ligne budgétaire.';
+	if ($hasExpenses) return 'Ligne active : les champs structurants sont verrouillés et les montants sont recalculés.';
+	return 'Ligne active disponible pour les dépenses autorisées.';
 }
 
 function mjl_budgetlines_change_text($change)

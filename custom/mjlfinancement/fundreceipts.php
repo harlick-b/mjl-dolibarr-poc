@@ -32,7 +32,7 @@ $mjl_fundreceipt_recovery = mjl_form_recovery_consume_route(
 );
 
 llxHeader('', 'Réceptions de fonds MJL');
-mjl_navigation_shell_start($user, 'fundreceipts');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-fundreceipt-workspace">';
 
 if ($receiptId > 0) {
@@ -159,12 +159,12 @@ function mjl_fundreceipts_render_list_page()
 	}
 	if ($filters['date_start'] !== '' && $filters['date_end'] !== '' && $filters['date_start'] > $filters['date_end']) $filters['fail_closed'] = true;
 	if ($filters['fail_closed']) $filters['page'] = 1;
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		'Gestion des réceptions de fonds',
-		'Enregistrer les tranches reçues, contrôler la preuve documentaire et garder une trace auditable des décisions.',
-		'Périmètre',
-		mjl_fundreceipts_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation',
-		'Fonds reçus'
+		array(
+			'description' => 'Enregistrer les tranches reçues, contrôler la preuve documentaire et garder une trace auditable des décisions.',
+			'context' => array('label' => 'Périmètre', 'value' => mjl_fundreceipts_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation'),
+		)
 	);
 
 	if (mjl_fundreceipts_can_manage()) {
@@ -182,13 +182,16 @@ function mjl_fundreceipts_render_detail($id)
 	}
 	$canManage = mjl_fundreceipts_can_manage();
 
-	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">Retour aux fonds reçus</a></p>';
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		$row['ref'],
-		mjl_fundreceipts_next_action_label($row),
-		'Statut',
-		mjl_fundreceipt_status_label($row['status']),
-		'Réception de fonds'
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Fonds reçus', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php'),
+				array('label' => $row['ref']),
+			),
+			'description' => mjl_fundreceipts_next_action_label($row),
+			'context' => array('label' => 'Statut', 'value' => mjl_fundreceipt_status_label($row['status'])),
+		)
 	);
 
 	print '<div class="mjl-activity-detail-grid">';

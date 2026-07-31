@@ -26,13 +26,14 @@ $alertCount = $alertMetric['value'];
 
 llxHeader('', 'Tableau de bord MJL');
 
-mjl_navigation_shell_start($user, 'dashboard');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Tableau de bord MJL',
-	'Suivre les activites, les validations, les alertes et les acces sans exposer la complexite Dolibarr.',
-	'Utilisateur',
-	$user->getFullName($langs) ?: $user->login
+	array(
+		'description' => 'Suivre les activités, les validations, les alertes et les accès sans exposer la complexité Dolibarr.',
+		'context' => array('label' => 'Utilisateur', 'value' => $user->getFullName($langs) ?: $user->login),
+	)
 );
 mjl_dashboard_render_filters($filters, '/custom/mjlfinancement/index.php');
 
@@ -117,8 +118,6 @@ if (!$capabilities['admin'] && $capabilities['supervision']) {
 		);
 	}
 }
-
-mjl_navigation_render_quick_section($user);
 
 print '</div>';
 mjl_navigation_shell_end();

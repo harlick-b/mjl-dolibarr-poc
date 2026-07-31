@@ -773,23 +773,6 @@ function mjl_dashboard_unresolved_scope_count()
 	return $total;
 }
 
-function mjl_dashboard_render_header($title, $copy, $contextLabel = '', $contextValue = '', $kicker = 'MJL Financement')
-{
-	print '<header class="mjl-workspace-header">';
-	print '<div>';
-	print '<p class="mjl-kicker">'.dol_escape_htmltag($kicker).'</p>';
-	print '<h1 id="mjl-page-title">'.dol_escape_htmltag($title).'</h1>';
-	print '<p class="mjl-header-copy">'.dol_escape_htmltag($copy).'</p>';
-	print '</div>';
-	if ($contextLabel !== '' || $contextValue !== '') {
-		print '<div class="mjl-user-context">';
-		print '<span>'.dol_escape_htmltag($contextLabel).'</span>';
-		print '<strong>'.dol_escape_htmltag($contextValue).'</strong>';
-		print '</div>';
-	}
-	print '</header>';
-}
-
 function mjl_dashboard_render_card_section($title, $description, $cards)
 {
 	print '<section class="mjl-workspace-section">';

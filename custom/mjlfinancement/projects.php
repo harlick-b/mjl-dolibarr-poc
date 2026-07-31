@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, array('add_note',
 }
 
 llxHeader('', 'Projets MJL');
-mjl_navigation_shell_start($user, 'projects');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
 
 if ($projectId > 0) {
@@ -180,14 +180,17 @@ function mjl_projects_render_list()
 	$result = mjl_projects_list_result();
 	$rows = $result['rows'];
 	$filters = $result['filters'];
-	mjl_dashboard_render_header(
+	$canManageProjects = mjl_projects_can_manage_projects();
+	$headerOptions = array(
+		'description' => 'Consulter les projets suivis dans l’espace MJL sans ouvrir l’interface native Dolibarr.',
+		'context' => array('label' => 'Portefeuille', 'value' => $result['total'] === null ? 'Total indisponible' : ((int) $result['total']).' projet(s)'),
+	);
+	print mjl_page_header_render(
 		'Projets',
-		'Consulter les projets suivis dans l espace MJL sans ouvrir l interface native Dolibarr.',
-		'Portefeuille',
-		$result['total'] === null ? 'Total indisponible' : ((int) $result['total']).' projet(s)'
+		$headerOptions
 	);
 
-	if (mjl_projects_can_manage_projects()) {
+	if ($canManageProjects) {
 		mjl_projects_render_project_form(array(), 'create');
 	}
 	print '<section class="mjl-workspace-section">';
@@ -239,8 +242,17 @@ function mjl_projects_render_detail($projectId)
 	if (empty($project) || !mjl_projects_can_open($project)) {
 		accessforbidden();
 	}
-	mjl_dashboard_render_header('Projet '.$project['ref'], $project['title'], 'Statut', mjl_projects_status_label($project['fk_statut']));
-	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php">Retour aux projets</a></p>';
+	print mjl_page_header_render(
+		'Projet '.$project['ref'],
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Projets', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'),
+				array('label' => $project['ref']),
+			),
+			'description' => $project['title'],
+			'context' => array('label' => 'Statut', 'value' => mjl_projects_status_label($project['fk_statut'])),
+		)
+	);
 	mjl_projects_render_identity($project);
 
 	$cards = array(

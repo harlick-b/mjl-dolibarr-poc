@@ -3,254 +3,114 @@
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_dashboard.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_alerts.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation_registry.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
 
-function mjl_navigation_items(User $targetUser)
+function mjl_navigation_policy_allows(User $targetUser, $policy)
 {
-	$items = array();
-	foreach (mjl_navigation_sections($targetUser) as $section) {
-		if (!empty($section['href'])) {
-			$items[] = array(
-				'key' => $section['key'],
-				'label' => $section['label'],
-				'href' => $section['href'],
-				'description' => $section['description'],
-				'primary' => true,
-				'section' => $section['key'],
-			);
-		}
-		foreach ($section['children'] as $child) {
-			$child['primary'] = false;
-			$child['section'] = $section['key'];
-			$items[] = $child;
-		}
+	switch ((string) $policy) {
+		case 'workspace_enter':
+			return mjl_workspace_user_can_enter($targetUser);
+		case 'alerts_read':
+			return mjl_alerts_user_can_read($targetUser);
+		case 'supervision':
+			return mjl_workspace_can_access_supervision($targetUser);
+		case 'projects_read':
+			return mjl_workspace_can_access_projects($targetUser);
+		case 'activities_read':
+			return mjl_workspace_can_access_activity($targetUser);
+		case 'expenses_read':
+			return mjl_workspace_can_access_expense($targetUser);
+		case 'documents_read':
+			return mjl_workspace_can_access_documents($targetUser);
+		case 'conventions_read':
+			return mjl_workspace_can_access_reference_data($targetUser, 'convention');
+		case 'budget_lines_read':
+			return mjl_workspace_can_access_reference_data($targetUser, 'budgetline');
+		case 'fund_receipts_read':
+			return mjl_workspace_can_access_reference_data($targetUser, 'fundreceipt');
+		case 'validation_history_read':
+			return mjl_workspace_can_access_validation_history($targetUser);
+		case 'workflow_audit_read':
+			return mjl_workspace_can_access_advanced_traceability($targetUser, 'workflowaction');
+		case 'admin':
+			return mjl_workspace_is_admin($targetUser);
+		case 'roadmap_read':
+			return mjl_workspace_can_access_roadmap($targetUser);
 	}
-
-	return $items;
+	return false;
 }
 
 function mjl_navigation_sections(User $targetUser)
 {
-	$capabilities = mjl_workspace_capabilities($targetUser);
-	$sections = array();
-
-	if (mjl_workspace_user_can_enter($targetUser)) {
-		$sections[] = array(
-			'key' => 'dashboard',
-			'label' => 'Tableau de bord',
-			'href' => '/custom/mjlfinancement/index.php',
-			'description' => 'Vue de travail MJL',
-			'children' => array(),
-		);
-	}
-	if ($capabilities['partners_read']) {
-		$sections[] = array(
-			'key' => 'partners',
-			'label' => 'Partenaires / Programmes',
-			'href' => '/custom/mjlfinancement/partners.php',
-			'description' => 'Périmètres et données rattachées',
-			'children' => array(
-				array('key' => 'partners_list', 'label' => 'Liste des partenaires', 'href' => '/custom/mjlfinancement/partners.php', 'description' => 'Consultation des périmètres'),
-			),
-		);
-	}
-	if ($capabilities['projects_read']) {
-		$sections[] = array(
-			'key' => 'projects',
-			'label' => 'Projets',
-			'href' => '/custom/mjlfinancement/projects.php',
-			'description' => 'Portefeuille et notes projet',
-			'children' => array(
-				array('key' => 'projects_list', 'label' => 'Liste des projets', 'href' => '/custom/mjlfinancement/projects.php', 'description' => 'Vue MJL des projets'),
-			),
-		);
-	}
-	if ($capabilities['activity_read']) {
-		$children = array(
-			array('key' => 'activities_list', 'label' => 'Liste des activités', 'href' => '/custom/mjlfinancement/activities.php', 'description' => 'Activités et décisions'),
-		);
-		if (mjl_alerts_user_can_read($targetUser)) {
-			$children[] = array('key' => 'activity_alerts', 'label' => 'Alertes activités', 'href' => '/custom/mjlfinancement/alerts.php?scope=activities', 'description' => 'Risques sur activités');
-		}
-		$sections[] = array(
-			'key' => 'activities',
-			'label' => 'Activités',
-			'href' => '/custom/mjlfinancement/activities.php',
-			'description' => 'Suivi des activités et décisions',
-			'children' => $children,
-		);
-	}
-	if ($capabilities['expense_read']) {
-		$children = array(
-			array('key' => 'expenses_list', 'label' => 'Liste des dépenses', 'href' => '/custom/mjlfinancement/expenses.php', 'description' => 'Dépenses et justificatifs'),
-		);
-		if (mjl_alerts_user_can_read($targetUser)) {
-			$children[] = array('key' => 'expense_alerts', 'label' => 'Alertes dépenses', 'href' => '/custom/mjlfinancement/alerts.php?scope=expenses', 'description' => 'Risques sur dépenses');
-		}
-		$sections[] = array(
-			'key' => 'expenses',
-			'label' => 'Dépenses',
-			'href' => '/custom/mjlfinancement/expenses.php',
-			'description' => 'Dépenses et pièces justificatives',
-			'children' => $children,
-		);
-	}
-	if ($capabilities['documents_read']) {
-		$sections[] = array(
-			'key' => 'documents',
-			'label' => 'Documents',
-			'href' => '/custom/mjlfinancement/documents.php',
-			'description' => 'Bibliothèque documentaire',
-			'children' => array(
-				array('key' => 'documents_library', 'label' => 'Bibliothèque', 'href' => '/custom/mjlfinancement/documents.php', 'description' => 'Consultation et téléchargement'),
-			),
-		);
-	}
-	$financeChildren = array();
-	if (mjl_workspace_can_access_reference_data($targetUser, 'convention')) {
-		$financeChildren[] = array('key' => 'conventions', 'label' => 'Enveloppes de financement', 'href' => '/custom/mjlfinancement/conventions.php', 'description' => 'Financements');
-	}
-	if (mjl_workspace_can_access_reference_data($targetUser, 'budgetline')) {
-		$financeChildren[] = array('key' => 'budgetlines', 'label' => 'Budgets', 'href' => '/custom/mjlfinancement/budgetlines.php', 'description' => 'Lignes budgétaires');
-	}
-	if (mjl_workspace_can_access_reference_data($targetUser, 'fundreceipt')) {
-		$financeChildren[] = array('key' => 'fundreceipts', 'label' => 'Fonds reçus', 'href' => '/custom/mjlfinancement/fundreceipts.php', 'description' => 'Réceptions de fonds');
-	}
-	if (!empty($financeChildren)) {
-		$sections[] = array(
-			'key' => 'finance',
-			'label' => 'Financement',
-			'href' => $financeChildren[0]['href'],
-			'description' => 'Enveloppes, budgets et fonds',
-			'children' => $financeChildren,
-		);
-	}
-	$supervisionChildren = array();
-	if ($capabilities['supervision']) {
-		$supervisionChildren[] = array('key' => 'dpaf', 'label' => 'Supervision finance', 'href' => '/custom/mjlfinancement/dpafdashboard.php', 'description' => 'Supervision globale');
-	}
-	if (mjl_workspace_can_access_validation_history($targetUser)) {
-		$supervisionChildren[] = array('key' => 'validations', 'label' => 'Historique des validations', 'href' => '/custom/mjlfinancement/validations.php', 'description' => 'Décisions sur dépenses');
-	}
-	if (mjl_alerts_user_can_read($targetUser)) {
-		$supervisionChildren[] = array('key' => 'alerts', 'label' => 'Alertes globales', 'href' => '/custom/mjlfinancement/alerts.php', 'description' => 'Risques et actions attendues');
-	}
-	if ($capabilities['supervision']) {
-		$supervisionChildren[] = array('key' => 'reports', 'label' => 'Rapports / Exports', 'href' => '/custom/mjlfinancement/reports.php', 'description' => 'Sorties officielles');
-	}
-	if ($capabilities['workflowaction_read'] && ($capabilities['supervision'] || (!$capabilities['operational'] && !$capabilities['reviewer']))) {
-		$supervisionChildren[] = array('key' => 'workflowactions', 'label' => 'Historique / Audit', 'href' => '/custom/mjlfinancement/workflowactions.php', 'description' => 'Audit avancé');
-	}
-	if (!empty($supervisionChildren)) {
-		$sections[] = array(
-			'key' => 'supervision',
-			'label' => 'Supervision',
-			'href' => $supervisionChildren[0]['href'],
-			'description' => 'Contrôle et historique',
-			'children' => $supervisionChildren,
-		);
-	}
-	$adminChildren = array();
-	if ($capabilities['admin']) {
-		$adminChildren[] = array('key' => 'admin_access', 'label' => 'Accès utilisateurs', 'href' => '/custom/mjlfinancement/admin/access.php', 'description' => 'Rôles et périmètres');
-		if ($capabilities['roadmap_read']) {
-			$adminChildren[] = array('key' => 'roadmap', 'label' => 'Préparation production', 'href' => '/custom/mjlfinancement/roadmap.php', 'description' => 'Pilotage interne');
+	$allowedPolicies = array();
+	foreach (mjl_navigation_registry() as $category) {
+		foreach ($category['items'] as $item) {
+			$policy = $item['access_policy'];
+			if (!array_key_exists($policy, $allowedPolicies)) {
+				$allowedPolicies[$policy] = mjl_navigation_policy_allows($targetUser, $policy);
+			}
 		}
 	}
-	if (!empty($adminChildren)) {
-		$sections[] = array(
-			'key' => 'administration',
-			'label' => 'Administration',
-			'href' => $adminChildren[0]['href'],
-			'description' => 'Accès et configuration',
-			'children' => $adminChildren,
-		);
-	}
-
-	return $sections;
+	return mjl_navigation_project_registry($allowedPolicies);
 }
 
-function mjl_navigation_quick_items(User $targetUser)
+function mjl_navigation_items(User $targetUser)
 {
 	$items = array();
-	foreach (mjl_navigation_sections($targetUser) as $section) {
-		if ($section['key'] === 'dashboard' || $section['key'] === 'administration') {
-			continue;
+	foreach (mjl_navigation_sections($targetUser) as $category) {
+		foreach ($category['items'] as $item) {
+			$items[] = $item;
 		}
-		$items[] = array($section['label'], $section['href'], $section['description']);
 	}
 	return $items;
 }
 
-function mjl_navigation_render_quick_section(User $targetUser)
+function mjl_navigation_request_uri()
 {
-	mjl_dashboard_render_link_section(
-		'Accès rapides',
-		'Les liens affichés respectent votre rôle et vos droits actifs.',
-		mjl_navigation_quick_items($targetUser)
-	);
+	if (!empty($_SERVER['REQUEST_URI'])) {
+		return (string) $_SERVER['REQUEST_URI'];
+	}
+	return isset($_SERVER['PHP_SELF']) ? (string) $_SERVER['PHP_SELF'] : '';
 }
 
-function mjl_navigation_shell_start(User $targetUser, $activeKey = '')
+function mjl_navigation_current_state()
 {
-	$contextSectionKey = mjl_navigation_context_section_key($activeKey);
+	return mjl_navigation_active_state(mjl_navigation_request_uri(), defined('DOL_URL_ROOT') ? DOL_URL_ROOT : '');
+}
+
+function mjl_navigation_shell_start(User $targetUser)
+{
+	$activeState = mjl_navigation_current_state();
 	print '<div class="mjl-module-shell">';
 	print '<a class="mjl-skip-link" href="#mjl-main-content">Aller au contenu principal</a>';
-	print '<aside class="mjl-module-sidebar" aria-label="Menu module MJL">';
+	print '<button class="mjl-navigation-trigger" type="button" aria-controls="mjl-primary-navigation" aria-expanded="false">Ouvrir le menu principal</button>';
+	print '<button class="mjl-navigation-backdrop" type="button" data-mjl-navigation-backdrop aria-label="Fermer le menu principal"></button>';
+	print '<aside class="mjl-module-sidebar" id="mjl-primary-navigation" aria-label="Menu module MJL">';
+	print '<button class="mjl-navigation-close" type="button" data-mjl-navigation-close>Fermer le menu</button>';
 	print '<div class="mjl-sidebar-title"><span>MJL Financement</span><strong>Espace de travail</strong></div>';
 	print '<nav class="mjl-sidebar-nav">';
-	foreach (mjl_navigation_sections($targetUser) as $section) {
-		$isActive = mjl_navigation_section_is_active($section, $activeKey) || ($contextSectionKey !== '' && $contextSectionKey === $section['key']);
-		$classes = 'mjl-sidebar-link mjl-sidebar-section-link';
-		if ($isActive) {
-			$classes .= ' mjl-sidebar-link-active';
-		}
-		$currentAttribute = '';
-		if ($activeKey !== '' && $activeKey === $section['key']) {
-			$currentAttribute = ' aria-current="page"';
-		} elseif ($contextSectionKey !== '' && $contextSectionKey === $section['key']) {
-			$currentAttribute = ' aria-current="location"';
-		}
-		print '<a class="'.$classes.'" href="'.mjl_dashboard_url($section['href']).'"'.$currentAttribute.'>';
-		print '<span>'.dol_escape_htmltag($section['label']).'</span>';
-		print '<small>'.dol_escape_htmltag($section['description']).'</small>';
-		print '</a>';
-		if ($isActive && !empty($section['children'])) {
-			print '<div class="mjl-sidebar-children">';
-			foreach ($section['children'] as $child) {
-				$childClasses = 'mjl-sidebar-child-link';
-				if ($activeKey !== '' && $activeKey === $child['key']) {
-					$childClasses .= ' mjl-sidebar-child-link-active';
-				}
-				$currentAttribute = ($activeKey !== '' && $activeKey === $child['key']) ? ' aria-current="page"' : '';
-				print '<a class="'.$childClasses.'" href="'.mjl_dashboard_url($child['href']).'"'.$currentAttribute.'>'.dol_escape_htmltag($child['label']).'</a>';
+	foreach (mjl_navigation_sections($targetUser) as $category) {
+		print '<section class="mjl-sidebar-section" aria-labelledby="mjl-nav-category-'.dol_escape_htmltag($category['id']).'">';
+		print '<h2 class="mjl-sidebar-category" id="mjl-nav-category-'.dol_escape_htmltag($category['id']).'">'.dol_escape_htmltag($category['label']).'</h2>';
+		print '<div class="mjl-sidebar-items">';
+		foreach ($category['items'] as $item) {
+			$classes = 'mjl-sidebar-link';
+			$currentAttribute = '';
+			if ($activeState['id'] !== '' && $activeState['id'] === $item['id']) {
+				$classes .= ' mjl-sidebar-link-active';
+				$currentAttribute = ' aria-current="'.dol_escape_htmltag($activeState['current']).'"';
 			}
-			print '</div>';
+			print '<a class="'.$classes.'" href="'.mjl_dashboard_url($item['path']).'"'.$currentAttribute.'>';
+			print '<span>'.dol_escape_htmltag($item['label']).'</span>';
+			print '</a>';
 		}
+		print '</div>';
+		print '</section>';
 	}
 	print '</nav>';
 	print '</aside>';
 	print '<main class="mjl-module-main" id="mjl-main-content" tabindex="-1">';
-}
-
-function mjl_navigation_context_section_key($activeKey)
-{
-	$contextSections = array(
-		'exchanges' => 'supervision',
-	);
-	return isset($contextSections[$activeKey]) ? $contextSections[$activeKey] : '';
-}
-
-function mjl_navigation_section_is_active($section, $activeKey)
-{
-	if ($activeKey !== '' && $activeKey === $section['key']) {
-		return true;
-	}
-	foreach ($section['children'] as $child) {
-		if ($activeKey !== '' && $activeKey === $child['key']) {
-			return true;
-		}
-	}
-	return false;
 }
 
 function mjl_navigation_shell_end()

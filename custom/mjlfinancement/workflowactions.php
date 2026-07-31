@@ -20,14 +20,15 @@ $filters = array(
 );
 
 llxHeader('', 'Historique des actions');
-mjl_navigation_shell_start($user, 'workflowactions');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Historique des actions',
-	'Recherchez les événements de workflow accessibles à votre rôle et à votre périmètre.',
-	'Accès',
-	'Lecture avancée',
-	'Supervision / Audit'
+	array(
+		'breadcrumb' => array(array('label' => 'Supervision / Audit')),
+		'description' => 'Recherchez les événements de workflow accessibles à votre rôle et à votre périmètre.',
+		'context' => array('label' => 'Accès', 'value' => 'Lecture avancée'),
+	)
 );
 
 mjl_workflowactions_filter_form($filters);

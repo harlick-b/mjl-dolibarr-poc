@@ -15,13 +15,14 @@ $alertResult = mjl_alerts_result_for_user($user, 100, $scope);
 
 llxHeader('', 'Alertes MJL');
 
-mjl_navigation_shell_start($user, 'alerts');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-alert-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Alertes MJL',
-	'Identifier les risques de delai, les decisions attendues et les pieces manquantes dans votre perimetre.',
-	'Perimetre',
-	mjl_alerts_context_label($user)
+	array(
+		'description' => 'Identifier les risques de délai, les décisions attendues et les pièces manquantes dans votre périmètre.',
+		'context' => array('label' => 'Périmètre', 'value' => mjl_alerts_context_label($user)),
+	)
 );
 
 print '<section class="mjl-workspace-section">';

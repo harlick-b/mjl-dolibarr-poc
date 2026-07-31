@@ -45,7 +45,7 @@ $mjl_activity_recovery = mjl_form_recovery_consume_route(
 );
 
 llxHeader('', 'Activites MJL');
-mjl_navigation_shell_start($user, 'activities');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-activity-workspace">';
 
 if ($activityId > 0) {
@@ -267,12 +267,12 @@ function mjl_activities_upload_document(MjlActivity $activity)
 
 function mjl_activities_render_list_page()
 {
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		'Suivi des activités et décisions',
-		'Consultez les activités de votre périmètre, ouvrez le détail et traitez les actions attendues.',
-		'Périmètre',
-		mjl_activities_scope_label(),
-		'Activités'
+		array(
+			'description' => 'Consultez les activités de votre périmètre, ouvrez le détail et traitez les actions attendues.',
+			'context' => array('label' => 'Périmètre', 'value' => mjl_activities_scope_label()),
+		)
 	);
 
 	if (mjl_workspace_can_apply_activity_write($GLOBALS['user'])) {
@@ -288,13 +288,16 @@ function mjl_activities_render_detail($id)
 		accessforbidden();
 	}
 
-	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php">Retour aux activites</a></p>';
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		$row['ref'].' - '.$row['label'],
-		mjl_activities_next_action_label($row),
-		'Statut',
-		mjl_activity_status_label($row['status']),
-		'Activité'
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
+				array('label' => $row['ref']),
+			),
+			'description' => mjl_activities_next_action_label($row),
+			'context' => array('label' => 'Statut', 'value' => mjl_activity_status_label($row['status'])),
+		)
 	);
 
 	print '<div class="mjl-activity-detail-grid">';
@@ -842,7 +845,7 @@ function mjl_activities_scope_label()
 {
 	global $user;
 	if (mjl_workspace_can_access_supervision($user)) return 'Portefeuille MJL';
-	if (mjl_activities_is_level1_operational()) return 'Mes activites';
+	if (mjl_activities_is_level1_operational()) return 'Mes activités';
 	if ($user->hasRight('mjlfinancement', 'activity', 'validate')) return 'File de validation';
 	return 'Consultation';
 }
@@ -985,16 +988,16 @@ function mjl_activities_timeline_responsible_label($userId)
 function mjl_activities_next_action_label($row)
 {
 	$status = (int) $row['status'];
-	if ($status === MjlActivity::STATUS_DRAFT) return 'Finaliser le brouillon puis soumettre l activite.';
-	if ($status === MjlActivity::STATUS_SUBMITTED) return 'Prevalidation attendue par un agent verificateur.';
-	if ($status === MjlActivity::STATUS_PREVALIDATED) return 'Validation definitive attendue.';
-	if ($status === MjlActivity::STATUS_CORRECTION_REQUESTED) return 'Correction attendue par le createur.';
-	if ($status === MjlActivity::STATUS_CORRECTED) return 'Activite corrigee a resoumettre.';
-	if ($status === MjlActivity::STATUS_VALIDATED) return 'Activite validee definitivement, aucune decision en attente.';
-	if ($status === MjlActivity::STATUS_REJECTED) return 'Activite rejetee, consulter l historique.';
-	if ($status === MjlActivity::STATUS_COMPLETED) return 'Activite terminee.';
-	if ($status === MjlActivity::STATUS_CANCELLED) return 'Activite annulee.';
-	return 'Suivre l avancement de l activite.';
+	if ($status === MjlActivity::STATUS_DRAFT) return 'Finaliser le brouillon puis soumettre l’activité.';
+	if ($status === MjlActivity::STATUS_SUBMITTED) return 'Prévalidation attendue par un agent vérificateur.';
+	if ($status === MjlActivity::STATUS_PREVALIDATED) return 'Validation définitive attendue.';
+	if ($status === MjlActivity::STATUS_CORRECTION_REQUESTED) return 'Correction attendue par le créateur.';
+	if ($status === MjlActivity::STATUS_CORRECTED) return 'Activité corrigée à resoumettre.';
+	if ($status === MjlActivity::STATUS_VALIDATED) return 'Activité validée définitivement, aucune décision en attente.';
+	if ($status === MjlActivity::STATUS_REJECTED) return 'Activité rejetée, consulter l’historique.';
+	if ($status === MjlActivity::STATUS_COMPLETED) return 'Activité terminée.';
+	if ($status === MjlActivity::STATUS_CANCELLED) return 'Activité annulée.';
+	return 'Suivre l’avancement de l’activité.';
 }
 
 function mjl_activity_status_label($status)

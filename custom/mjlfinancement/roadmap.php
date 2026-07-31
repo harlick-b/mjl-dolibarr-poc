@@ -8,13 +8,15 @@ mjl_workspace_require_roadmap_access($user);
 $langs->load('mjlfinancement@mjlfinancement');
 
 llxHeader('', 'Préparation production');
-mjl_navigation_shell_start($user, 'roadmap');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-roadmap-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Préparation production',
-	'Suivez les confirmations et preuves encore requises avant une mise en production.',
-	'Accès',
-	'Administration'
+	array(
+		'breadcrumb' => array(array('label' => 'Administration')),
+		'description' => 'Suivez les confirmations et preuves encore requises avant une mise en production.',
+		'context' => array('label' => 'Accès', 'value' => 'Administration'),
+	)
 );
 
 print '<section class="mjl-workspace-section">';

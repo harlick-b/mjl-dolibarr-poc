@@ -77,7 +77,7 @@ function mjl_expenses_scope_label()
 {
 	global $user;
 	if (mjl_workspace_can_access_supervision($user)) return 'Portefeuille MJL';
-	if (mjl_expenses_is_level1_operational()) return 'Mes depenses';
+	if (mjl_expenses_is_level1_operational()) return 'Mes dépenses';
 	if (mjl_workspace_can_apply_expense_validation($user)) return 'File de validation';
 	return 'Consultation';
 }

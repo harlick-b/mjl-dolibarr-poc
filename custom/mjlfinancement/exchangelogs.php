@@ -22,14 +22,15 @@ $filters = array(
 );
 
 llxHeader('', 'Historique / Audit MJL');
-mjl_navigation_shell_start($user, 'exchanges');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Recherche dans l’historique des échanges',
-	'Consultez les échanges contextualisés accessibles à votre rôle et à votre périmètre.',
-	'Accès',
-	'Lecture avancée',
-	'Supervision / Audit'
+	array(
+		'breadcrumb' => array(array('label' => 'Supervision / Audit')),
+		'description' => 'Consultez les échanges contextualisés accessibles à votre rôle et à votre périmètre.',
+		'context' => array('label' => 'Accès', 'value' => 'Lecture avancée'),
+	)
 );
 
 mjl_exchangelogs_filter_form($filters);

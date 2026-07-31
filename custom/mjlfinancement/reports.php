@@ -78,13 +78,14 @@ $rows = empty($missingRequired) && empty($inaccessibleFilters) ? mjl_reports_for
 
 llxHeader('', 'Centre d\'exports MJL');
 
-mjl_navigation_shell_start($user, 'reports');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-reports-workspace">';
-mjl_dashboard_render_header(
-	'Centre d\'exports MJL',
-	'Générer des sorties officielles lisibles, filtrées et compatibles Excel sans exposer les détails techniques Dolibarr.',
-	'Périmètre',
-	!empty($user->admin) ? 'Administrateur plateforme' : 'Validateur définitif'
+print mjl_page_header_render(
+	'Centre d’exports MJL',
+	array(
+		'description' => 'Générer des sorties officielles lisibles, filtrées et compatibles Excel sans exposer les détails techniques Dolibarr.',
+		'context' => array('label' => 'Périmètre', 'value' => !empty($user->admin) ? 'Administrateur plateforme' : 'Validateur définitif'),
+	)
 );
 
 mjl_reports_render_selector($report);

@@ -1,6 +1,159 @@
 (function () {
 	'use strict';
 
+	function initNavigationDrawer(shell) {
+		var trigger = shell.querySelector('.mjl-navigation-trigger');
+		var sidebar = shell.querySelector('#mjl-primary-navigation');
+		var backdrop = shell.querySelector('[data-mjl-navigation-backdrop]');
+		var closeButton = shell.querySelector('[data-mjl-navigation-close]');
+		var main = shell.querySelector('#mjl-main-content');
+		if (!trigger || !sidebar || !backdrop || !closeButton || !main) return;
+
+		var media = window.matchMedia('(max-width: 980px)');
+		var isOpen = false;
+		var lastFocusWasInSidebar = false;
+		var ownedInert = [];
+		var backgroundObserver = null;
+		shell.classList.add('mjl-navigation-enhanced');
+		document.addEventListener('focusin', function (event) {
+			if (isOpen && !sidebar.contains(event.target)) {
+				focusDrawer();
+				return;
+			}
+			lastFocusWasInSidebar = sidebar.contains(event.target);
+		});
+
+		function focusableElements() {
+			return Array.prototype.filter.call(
+				sidebar.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+				function (element) {
+					return element.offsetParent !== null;
+				}
+			);
+		}
+
+		function focusDrawer() {
+			var firstLink = sidebar.querySelector('a[href]');
+			if (firstLink) firstLink.focus();
+			else closeButton.focus();
+		}
+
+		function ownInert(element) {
+			if (element.hasAttribute('inert')) return;
+			ownedInert.push({
+				element: element,
+				hadMarker: element.hasAttribute('data-mjl-navigation-inert'),
+				markerValue: element.getAttribute('data-mjl-navigation-inert'),
+			});
+			element.setAttribute('inert', '');
+			element.setAttribute('data-mjl-navigation-inert', '');
+		}
+
+		function isolateOutsideBranches(root) {
+			Array.prototype.forEach.call(root.children || [], function (child) {
+				if (child === sidebar || child === backdrop) return;
+				if (child.contains(sidebar) || child.contains(backdrop)) {
+					isolateOutsideBranches(child);
+					return;
+				}
+				ownInert(child);
+			});
+		}
+
+		function isolateBackground() {
+			isolateOutsideBranches(document.body);
+			backgroundObserver = new MutationObserver(function () {
+				isolateOutsideBranches(document.body);
+			});
+			backgroundObserver.observe(document.body, { childList: true, subtree: true });
+		}
+
+		function restoreBackground() {
+			if (backgroundObserver) {
+				backgroundObserver.disconnect();
+				backgroundObserver = null;
+			}
+			ownedInert.forEach(function (record) {
+				record.element.removeAttribute('inert');
+				if (record.hadMarker) record.element.setAttribute('data-mjl-navigation-inert', record.markerValue || '');
+				else record.element.removeAttribute('data-mjl-navigation-inert');
+			});
+			ownedInert = [];
+		}
+
+		function closeDrawer(restoreFocus) {
+			isOpen = false;
+			shell.classList.remove('mjl-navigation-is-open');
+			document.body.classList.remove('mjl-navigation-open');
+			trigger.setAttribute('aria-expanded', 'false');
+			restoreBackground();
+			if (media.matches) sidebar.setAttribute('aria-hidden', 'true');
+			else sidebar.removeAttribute('aria-hidden');
+			if (restoreFocus && document.contains(trigger)) trigger.focus();
+		}
+
+		function openDrawer() {
+			if (!media.matches || isOpen) return;
+			isOpen = true;
+			shell.classList.add('mjl-navigation-is-open');
+			document.body.classList.add('mjl-navigation-open');
+			trigger.setAttribute('aria-expanded', 'true');
+			sidebar.setAttribute('aria-hidden', 'false');
+			isolateBackground();
+			window.requestAnimationFrame(function () {
+				if (!isOpen) return;
+				focusDrawer();
+			});
+		}
+
+		function syncViewport() {
+			if (!media.matches) {
+				closeDrawer(false);
+				sidebar.removeAttribute('aria-hidden');
+				return;
+			}
+			if (!isOpen) {
+				if (lastFocusWasInSidebar) trigger.focus();
+				sidebar.setAttribute('aria-hidden', 'true');
+			}
+		}
+
+		trigger.addEventListener('click', openDrawer);
+		closeButton.addEventListener('click', function () {
+			closeDrawer(true);
+		});
+		backdrop.addEventListener('click', function () {
+			closeDrawer(true);
+		});
+		sidebar.addEventListener('click', function (event) {
+			var link = event.target.closest ? event.target.closest('a[href]') : null;
+			if (isOpen && link && sidebar.contains(link)) closeDrawer(true);
+		});
+		sidebar.addEventListener('keydown', function (event) {
+			if (event.key !== 'Tab' || !isOpen) return;
+			var focusable = focusableElements();
+			if (!focusable.length) return;
+			var first = focusable[0];
+			var last = focusable[focusable.length - 1];
+			if (event.shiftKey && document.activeElement === first) {
+				event.preventDefault();
+				last.focus();
+			} else if (!event.shiftKey && document.activeElement === last) {
+				event.preventDefault();
+				first.focus();
+			}
+		});
+		document.addEventListener('keydown', function (event) {
+			if (event.key === 'Escape' && isOpen) closeDrawer(true);
+		});
+		if (media.addEventListener) media.addEventListener('change', syncViewport);
+		else media.addListener(syncViewport);
+		window.addEventListener('pagehide', function () {
+			if (isOpen) closeDrawer(false);
+		});
+		syncViewport();
+	}
+
 	function fieldMessage(field) {
 		if (field.validity.valueMissing) {
 			return field.getAttribute('data-mjl-required-message') || 'Ce champ est obligatoire.';
@@ -151,6 +304,7 @@
 	}
 
 	document.addEventListener('DOMContentLoaded', function () {
+		Array.prototype.forEach.call(document.querySelectorAll('.mjl-module-shell'), initNavigationDrawer);
 		Array.prototype.forEach.call(document.querySelectorAll('form[data-mjl-validate]'), initValidatedForm);
 		var decisionForms = document.querySelectorAll('form[data-mjl-confirm]');
 		if (decisionForms.length) {

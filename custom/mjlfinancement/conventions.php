@@ -34,7 +34,7 @@ $mjl_convention_recovery = mjl_form_recovery_consume_route(
 );
 
 llxHeader('', 'Enveloppes de financement MJL');
-mjl_navigation_shell_start($user, 'conventions');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-convention-workspace">';
 
 if ($conventionId > 0) {
@@ -160,12 +160,12 @@ function mjl_conventions_render_list_page()
 		$filters['fail_closed'] = true;
 		$filters['page'] = 1;
 	}
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		'Gestion des enveloppes de financement',
-		'Pilotez les enveloppes avant les lignes budgétaires, dépenses et rapports.',
-		'Périmètre',
-		mjl_conventions_can_manage() ? 'Administration / validation définitive' : 'Consultation',
-		'Enveloppes de financement'
+		array(
+			'description' => 'Pilotez les enveloppes avant les lignes budgétaires, dépenses et rapports.',
+			'context' => array('label' => 'Périmètre', 'value' => mjl_conventions_can_manage() ? 'Administration / validation définitive' : 'Consultation'),
+		)
 	);
 
 	if (mjl_conventions_can_manage()) {
@@ -185,13 +185,16 @@ function mjl_conventions_render_detail($id)
 	$hasLinks = array_sum($linked) > 0;
 	$canManage = mjl_conventions_can_manage();
 
-	print '<p><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">Retour aux enveloppes</a></p>';
-	mjl_dashboard_render_header(
+	print mjl_page_header_render(
 		$row['ref'].' - '.$row['title'],
-		mjl_conventions_next_action_label($row, $hasLinks),
-		'Statut',
-		mjl_convention_status_label($row['status']),
-		'Enveloppe de financement'
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Enveloppes de financement', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php'),
+				array('label' => $row['ref']),
+			),
+			'description' => mjl_conventions_next_action_label($row, $hasLinks),
+			'context' => array('label' => 'Statut', 'value' => mjl_convention_status_label($row['status'])),
+		)
 	);
 
 	print '<div class="mjl-activity-detail-grid">';
@@ -633,10 +636,10 @@ function mjl_conventions_status_badge($status)
 
 function mjl_conventions_next_action_label($row, $hasLinks)
 {
-	if ((int) $row['status'] === MjlConvention::STATUS_DRAFT) return 'Verifier les donnees puis activer l enveloppe.';
-	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE && $hasLinks) return 'Enveloppe active: les champs structurants sont verrouilles.';
-	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE) return 'Enveloppe active disponible pour les operations.';
-	return 'Enveloppe cloturee: consultation, rapports et historique restent disponibles.';
+	if ((int) $row['status'] === MjlConvention::STATUS_DRAFT) return 'Vérifier les données puis activer l’enveloppe.';
+	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE && $hasLinks) return 'Enveloppe active : les champs structurants sont verrouillés.';
+	if ((int) $row['status'] === MjlConvention::STATUS_ACTIVE) return 'Enveloppe active disponible pour les opérations.';
+	return 'Enveloppe clôturée : consultation, rapports et historique restent disponibles.';
 }
 
 function mjl_conventions_timeline_title($action, $fromStatus, $toStatus)

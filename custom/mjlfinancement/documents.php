@@ -21,13 +21,14 @@ $filters = array(
 );
 
 llxHeader('', 'Documents MJL');
-mjl_navigation_shell_start($user, 'documents');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-mjl_dashboard_render_header(
+print mjl_page_header_render(
 	'Documents',
-	'Consulter les documents accessibles sans ouvrir l ECM natif Dolibarr.',
-	'Bibliotheque',
-	'Lecture seule'
+	array(
+		'description' => 'Consulter les documents accessibles sans ouvrir l’ECM natif Dolibarr.',
+		'context' => array('label' => 'Bibliothèque', 'value' => 'Lecture seule'),
+	)
 );
 
 mjl_documents_render_filters($filters);

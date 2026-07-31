@@ -13,13 +13,14 @@ $filters = mjl_dashboard_filters_from_request($user);
 
 llxHeader('', 'Tableau de supervision finance');
 
-mjl_navigation_shell_start($user, 'dpaf');
+mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-mjl_dashboard_render_header(
-	'Tableau de supervision finance',
-	'Suivre les risques, les revues en attente, les budgets, les fonds et les dernieres decisions auditees.',
-	'Acces',
-	!empty($user->admin) ? 'Administrateur plateforme' : 'Validateur définitif'
+print mjl_page_header_render(
+	'Tableau de supervision financière',
+	array(
+		'description' => 'Suivre les risques, les revues en attente, les budgets, les fonds et les dernières décisions auditées.',
+		'context' => array('label' => 'Accès', 'value' => !empty($user->admin) ? 'Administrateur plateforme' : 'Validateur définitif'),
+	)
 );
 mjl_dashboard_render_filters($filters, '/custom/mjlfinancement/dpafdashboard.php');
 
