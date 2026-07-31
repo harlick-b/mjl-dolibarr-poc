@@ -17,13 +17,16 @@ mjl_dashboard_render_header(
 global $db, $conf;
 $sql = 'SELECT v.ref, e.ref AS expense_ref, v.action, v.from_status, v.to_status, u.login, v.actor_role, v.action_date, v.comment';
 $sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';
-$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = v.fk_expense AND e.entity = v.entity';
-$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
+$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = v.fk_expense AND e.entity = v.entity';
+$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 $sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = v.fk_user_action';
 $sql .= ' WHERE v.entity = '.((int) $conf->entity);
-$sql .= ' AND e.entity = '.((int) $conf->entity);
-$sql .= ' AND c.entity = '.((int) $conf->entity);
-$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
+$sql .= ' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense cross_e WHERE cross_e.rowid = v.fk_expense AND cross_e.entity <> v.entity)';
+$sql .= ' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_convention cross_c WHERE e.rowid IS NOT NULL AND cross_c.rowid = e.fk_convention AND cross_c.entity <> v.entity)';
+if (!mjl_scope_is_platform_admin($user, (int) $conf->entity)) {
+	$sql .= ' AND e.rowid IS NOT NULL AND c.rowid IS NOT NULL';
+	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
+}
 $sql .= ' ORDER BY v.action_date DESC, v.rowid DESC LIMIT 200';
 $resql = $db->query($sql);
 if (!$resql) {

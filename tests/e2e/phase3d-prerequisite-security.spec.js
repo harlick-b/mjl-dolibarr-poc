@@ -2,9 +2,11 @@ const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const zlib = require('zlib');
+const { verifyDisposableComposeEnvironment } = require('../helpers/phase3d-prerequisite-isolation');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 const fixtureLogin = 'mjl.phase3d.scoped';
+let isolationVerified = false;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -67,30 +69,32 @@ function xlsxEntry(buffer, entryName) {
 function cleanupFixtures() {
   sql(`
     DROP TRIGGER IF EXISTS p3d_fail_workflow_audit;
-    SET @fixture_user = (SELECT rowid FROM llx_user WHERE login = '${fixtureLogin}' LIMIT 1);
+    SET @fixture_user = (SELECT rowid FROM llx_user WHERE login = '${fixtureLogin}' AND entity = 1 LIMIT 1);
     SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'P3D-SEC-PROJECT' AND entity = 1 LIMIT 1);
     SET @convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'P3D-SEC-CONVENTION' AND entity = 1 LIMIT 1);
     SET @receipt = (SELECT rowid FROM llx_mjlfinancement_fund_receipt WHERE ref = 'P3D-SEC-RECEIPT-B' AND entity = 1 LIMIT 1);
-    DELETE FROM llx_ecm_files WHERE ref LIKE 'P3D-SEC-%';
-    DELETE FROM llx_mjlfinancement_validation WHERE ref LIKE 'P3D-SEC-%';
-    DELETE FROM llx_mjlfinancement_workflow_action WHERE ref LIKE 'P3D-SEC-%' OR actor = @fixture_user;
-    DELETE FROM llx_mjlfinancement_expense WHERE ref LIKE 'P3D-SEC-%';
-    DELETE FROM llx_mjlfinancement_budget_line WHERE ref LIKE 'P3D-SEC-%';
-    DELETE FROM llx_mjlfinancement_fund_receipt WHERE ref LIKE 'P3D-SEC-%';
-    DELETE FROM llx_mjlfinancement_convention WHERE ref LIKE 'P3D-SEC-%';
+    DELETE FROM llx_ecm_files WHERE ref LIKE 'P3D-SEC-%' AND entity = 1;
+    DELETE FROM llx_mjlfinancement_validation WHERE ref LIKE 'P3D-SEC-%' AND entity = 1;
+    DELETE FROM llx_mjlfinancement_workflow_action WHERE (ref LIKE 'P3D-SEC-%' OR actor = @fixture_user) AND entity = 1;
+    DELETE FROM llx_mjlfinancement_expense WHERE ref LIKE 'P3D-SEC-%' AND entity = 1;
+    DELETE FROM llx_mjlfinancement_expense WHERE ref = 'P3D-SEC-EXPENSE-CROSS' AND entity = 2;
+    DELETE FROM llx_mjlfinancement_budget_line WHERE ref LIKE 'P3D-SEC-%' AND entity = 1;
+    DELETE FROM llx_mjlfinancement_fund_receipt WHERE ref LIKE 'P3D-SEC-%' AND entity = 1;
+    DELETE FROM llx_mjlfinancement_convention WHERE ref LIKE 'P3D-SEC-%' AND entity = 1;
+    DELETE FROM llx_mjlfinancement_convention WHERE ref = 'P3D-SEC-CONVENTION-CROSS' AND entity = 2;
     DELETE FROM llx_projet WHERE ref = 'P3D-SEC-PROJECT' AND entity = 1;
-    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE fk_user = @fixture_user;
-    DELETE FROM llx_mjlfinancement_user_role WHERE fk_user = @fixture_user;
-    DELETE FROM llx_usergroup_user WHERE fk_user = @fixture_user;
-    DELETE FROM llx_user WHERE rowid = @fixture_user;
+    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE fk_user = @fixture_user AND entity = 1;
+    DELETE FROM llx_mjlfinancement_user_role WHERE fk_user = @fixture_user AND entity = 1;
+    DELETE FROM llx_usergroup_user WHERE fk_user = @fixture_user AND entity = 1;
+    DELETE FROM llx_user WHERE rowid = @fixture_user AND entity = 1;
   `);
   dockerExec("dolibarr sh -lc 'rm -f /var/www/documents/ecm/mjlfinancement_convention/P3D-SEC-CONVENTION-B.txt /var/www/documents/ecm/mjlfinancement_convention/P3D-SEC-CONVENTION-A.txt /var/www/documents/ecm/mjlfinancement_fund_receipt/P3D-SEC-RECEIPT-B.txt'");
 }
 
 function seedFixtures() {
   sql(`
-    SET @admin = (SELECT rowid FROM llx_user WHERE login = 'admin.poc' LIMIT 1);
-    SET @source_user = (SELECT rowid FROM llx_user WHERE login = 'dpaf.mjl' LIMIT 1);
+    SET @admin = (SELECT rowid FROM llx_user WHERE login = 'admin.poc' AND entity IN (0, 1) LIMIT 1);
+    SET @source_user = (SELECT rowid FROM llx_user WHERE login = 'dpaf.mjl' AND entity = 1 LIMIT 1);
     SET @partner_a = (SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1);
     SET @partner_b = (SELECT rowid FROM llx_societe WHERE nom = 'Programme Redevabilite' AND entity = 1 LIMIT 1);
     SET @project_a = (SELECT rowid FROM llx_projet WHERE entity = 1 AND fk_soc = @partner_a ORDER BY rowid LIMIT 1);
@@ -106,7 +110,7 @@ function seedFixtures() {
 
     INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec)
     SELECT 1, '${fixtureLogin}', 'Phase3D', 'Scoped', 'phase3d-scoped@mjl-poc.local', pass_crypted, 1, 0, NOW()
-    FROM llx_user WHERE rowid = @source_user;
+    FROM llx_user WHERE rowid = @source_user AND entity = 1;
     SET @fixture_user = LAST_INSERT_ID();
     INSERT INTO llx_usergroup_user (entity, fk_user, fk_usergroup)
     SELECT entity, @fixture_user, fk_usergroup FROM llx_usergroup_user WHERE fk_user = @source_user AND entity = 1;
@@ -117,21 +121,43 @@ function seedFixtures() {
       (entity, fk_user, fk_soc, is_active, date_start, source, note, date_creation, fk_user_creat, import_key)
     VALUES (1, @fixture_user, @partner_a, 1, NOW(), 'test', 'Single partner fixture', NOW(), @admin, 'P3DSECSCOPE');
 
+    INSERT INTO llx_mjlfinancement_convention
+      (entity, ref, title, fk_soc, fk_project, date_start, date_end, total_amount, currency_code, date_creation, fk_user_creat, import_key, status)
+    VALUES (2, 'P3D-SEC-CONVENTION-CROSS', 'Cross-entity scope fixture', @partner_b, @project_b, '2026-01-01', '2026-12-31', 1, 'XOF', NOW(), @admin, 'P3DSECCONVX', 1);
+    SET @convention_cross = LAST_INSERT_ID();
+
+    SET FOREIGN_KEY_CHECKS = 0;
     INSERT INTO llx_mjlfinancement_expense
       (entity, ref, fk_project, fk_convention, fk_budget_line, amount, date_creation, fk_user_creat, status, import_key)
     VALUES
       (1, 'P3D-SEC-EXPENSE-A', @project_a, @convention_a, @budget_a, 1000, NOW(), @admin, 1, 'P3DSECEXPA'),
       (1, 'P3D-SEC-EXPENSE-B', @project_b, @convention_b, @budget_b, 2000, NOW(), @admin, 1, 'P3DSECEXPB'),
+      (1, 'P3D-SEC-EXPENSE-NO-CONVENTION', @project_a, 99999998, @budget_a, 2500, NOW(), @admin, 1, 'P3DSECEXPNC'),
+      (1, 'P3D-SEC-EXPENSE-PARENT-CROSS', @project_a, @convention_cross, @budget_a, 2750, NOW(), @admin, 1, 'P3DSECEXPPC'),
       (2, 'P3D-SEC-EXPENSE-CROSS', @project_a, @convention_a, @budget_a, 3000, NOW(), @admin, 1, 'P3DSECEXPC');
+    SET FOREIGN_KEY_CHECKS = 1;
     SET @expense_a = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P3D-SEC-EXPENSE-A' AND entity = 1);
     SET @expense_b = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P3D-SEC-EXPENSE-B' AND entity = 1);
+    SET @expense_no_convention = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P3D-SEC-EXPENSE-NO-CONVENTION' AND entity = 1);
+    SET @expense_parent_cross = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P3D-SEC-EXPENSE-PARENT-CROSS' AND entity = 1);
     SET @expense_cross = (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P3D-SEC-EXPENSE-CROSS' AND entity = 2);
+    SET FOREIGN_KEY_CHECKS = 0;
+    INSERT INTO llx_mjlfinancement_fund_receipt
+      (entity, ref, fk_soc, fk_project, fk_convention, amount, reception_date, status, date_creation, fk_user_creat, import_key)
+    VALUES
+      (1, 'P3D-SEC-RECEIPT-NO-CONVENTION', @partner_a, @project_a, 99999998, 2600, '2026-06-02', 1, NOW(), @admin, 'P3DSECRECNC'),
+      (1, 'P3D-SEC-RECEIPT-PARENT-CROSS', @partner_a, @project_a, @convention_cross, 2700, '2026-06-03', 1, NOW(), @admin, 'P3DSECRECPC');
+    SET FOREIGN_KEY_CHECKS = 1;
+    SET @receipt_no_convention = (SELECT rowid FROM llx_mjlfinancement_fund_receipt WHERE ref = 'P3D-SEC-RECEIPT-NO-CONVENTION' AND entity = 1);
+    SET @receipt_parent_cross = (SELECT rowid FROM llx_mjlfinancement_fund_receipt WHERE ref = 'P3D-SEC-RECEIPT-PARENT-CROSS' AND entity = 1);
     INSERT INTO llx_mjlfinancement_validation
       (entity, ref, fk_expense, action, from_status, to_status, fk_user_action, actor_role, action_date, comment, date_creation, fk_user_creat)
     VALUES
       (1, 'P3D-SEC-VALIDATION-A', @expense_a, 'prevalidated', 'submitted', 'prevalidated', @admin, 'AGENT_VERIFICATEUR', NOW(), 'VISIBLE-PARTNER-A', NOW(), @admin),
       (1, 'P3D-SEC-VALIDATION-B', @expense_b, 'prevalidated', 'submitted', 'prevalidated', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-PARTNER-B', NOW(), @admin),
-      (1, 'P3D-SEC-VALIDATION-CROSS', @expense_cross, 'prevalidated', 'submitted', 'prevalidated', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-CROSS-ENTITY', NOW(), @admin);
+      (1, 'P3D-SEC-VALIDATION-CROSS', @expense_cross, 'prevalidated', 'submitted', 'prevalidated', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-CROSS-ENTITY', NOW(), @admin),
+      (1, 'P3D-SEC-VALIDATION-NO-CONVENTION', @expense_no_convention, 'prevalidated', 'submitted', 'prevalidated', @admin, 'AGENT_VERIFICATEUR', NOW(), 'ADMIN-CONVENTION-MISSING', NOW(), @admin),
+      (1, 'P3D-SEC-VALIDATION-PARENT-CROSS', @expense_parent_cross, 'prevalidated', 'submitted', 'prevalidated', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-CROSS-ENTITY-PARENT', NOW(), @admin);
     SET FOREIGN_KEY_CHECKS = 0;
     INSERT INTO llx_mjlfinancement_validation
       (entity, ref, fk_expense, action, from_status, to_status, fk_user_action, actor_role, action_date, comment, date_creation, fk_user_creat)
@@ -154,8 +180,13 @@ function seedFixtures() {
       (1, 'P3D-SEC-WFA-B-CONVENTION', 'mjlfinancement_convention', @convention_b, 'p3d_partner_b_convention_secret', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-WFA-B-CONVENTION', '{}', NOW(), @admin),
       (1, 'P3D-SEC-WFA-B-BUDGET', 'mjlfinancement_budget_line', @budget_b, 'p3d_partner_b_budget_secret', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-WFA-B-BUDGET', '{}', NOW(), @admin),
       (1, 'P3D-SEC-WFA-CROSS', 'mjlfinancement_expense', @expense_cross, 'p3d_cross_entity_secret', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-WFA-CROSS-ENTITY', '{}', NOW(), @admin),
-      (1, 'P3D-SEC-WFA-REPORT', 'mjlfinancement_report', @report, 'p3d_report_secret', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-WFA-REPORT', '{}', NOW(), @admin),
-      (1, 'P3D-SEC-WFA-UNRESOLVED', 'mjlfinancement_expense', 99999999, 'p3d_unresolved_secret', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-WFA-UNRESOLVED', '{}', NOW(), @admin);
+      (1, 'P3D-SEC-WFA-REPORT', 'mjlfinancement_report', @report, 'p3d_report_admin', @admin, 'AGENT_VERIFICATEUR', NOW(), 'ADMIN-WFA-REPORT', '{}', NOW(), @admin),
+      (1, 'P3D-SEC-WFA-UNRESOLVED', 'mjlfinancement_expense', 99999999, 'p3d_unresolved_admin', @admin, 'AGENT_VERIFICATEUR', NOW(), 'ADMIN-WFA-UNRESOLVED', '{}', NOW(), @admin),
+      (1, 'P3D-SEC-WFA-NO-CONVENTION', 'mjlfinancement_expense', @expense_no_convention, 'p3d_missing_parent_admin', @admin, 'AGENT_VERIFICATEUR', NOW(), 'ADMIN-WFA-MISSING-PARENT', '{}', NOW(), @admin),
+      (1, 'P3D-SEC-WFA-PARENT-CROSS', 'mjlfinancement_expense', @expense_parent_cross, 'p3d_cross_parent_secret', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-WFA-CROSS-PARENT', '{}', NOW(), @admin),
+      (1, 'P3D-SEC-WFA-RECEIPT-NO-CONVENTION', 'mjlfinancement_fund_receipt', @receipt_no_convention, 'p3d_receipt_missing_parent_admin', @admin, 'AGENT_VERIFICATEUR', NOW(), 'ADMIN-WFA-RECEIPT-MISSING-PARENT', '{}', NOW(), @admin),
+      (1, 'P3D-SEC-WFA-RECEIPT-PARENT-CROSS', 'mjlfinancement_fund_receipt', @receipt_parent_cross, 'p3d_receipt_cross_parent_secret', @admin, 'AGENT_VERIFICATEUR', NOW(), 'SECRET-WFA-RECEIPT-CROSS-PARENT', '{}', NOW(), @admin),
+      (1, 'P3D-SEC-WFA-UNKNOWN', 'mjlfinancement_unknown', 99999997, 'p3d_unknown_admin', @admin, 'AGENT_VERIFICATEUR', NOW(), 'ADMIN-WFA-UNKNOWN', '{}', NOW(), @admin);
 
     INSERT INTO llx_projet (entity, fk_soc, datec, ref, title, fk_user_creat, public, fk_statut, import_key)
     VALUES (1, @partner_a, NOW(), 'P3D-SEC-PROJECT', '=2+3', @admin, 0, 1, 'P3DSECPROJ');
@@ -187,6 +218,8 @@ function seedFixtures() {
 }
 
 test.beforeAll(() => {
+  verifyDisposableComposeEnvironment();
+  isolationVerified = true;
   dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php');
   dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php');
   cleanupFixtures();
@@ -194,31 +227,58 @@ test.beforeAll(() => {
 });
 
 test.afterAll(() => {
+  if (!isolationVerified) return;
   dockerExec('dolibarr chmod 1777 /tmp');
   cleanupFixtures();
 });
 
-test('validation history and workflow audit apply one-partner scope to rows and filter metadata', async ({ page }) => {
+test('non-admin validation and audit routes show only resolved assigned-partner records', async ({ page }) => {
   await login(page, fixtureLogin);
   await page.goto('/custom/mjlfinancement/validations.php');
   await expect(page.locator('body')).toContainText('VISIBLE-PARTNER-A');
-  await expect(page.locator('body')).not.toContainText(/SECRET-PARTNER-B|SECRET-ORPHAN|SECRET-CROSS-ENTITY/);
+  await expect(page.locator('body')).not.toContainText(/SECRET-PARTNER-B|SECRET-ORPHAN|SECRET-CROSS-ENTITY|ADMIN-CONVENTION-MISSING/);
 
   await page.goto('/custom/mjlfinancement/workflowactions.php');
   await expect(page.locator('body')).toContainText('VISIBLE-WFA-A');
   await expect(page.locator('body')).toContainText(/VISIBLE-WFA-A-PROJECT|VISIBLE-WFA-A-ACTIVITY|VISIBLE-WFA-A-CONVENTION|VISIBLE-WFA-A-BUDGET|VISIBLE-WFA-A-RECEIPT/);
-  await expect(page.locator('body')).not.toContainText(/SECRET-WFA-B|SECRET-WFA-CROSS-ENTITY|SECRET-WFA-REPORT|SECRET-WFA-UNRESOLVED|p3d_partner_b_secret|p3d_cross_entity_secret|p3d_report_secret|p3d_unresolved_secret/);
+  await expect(page.locator('body')).not.toContainText(/SECRET-WFA-B|SECRET-WFA-CROSS|SECRET-WFA-RECEIPT-CROSS|ADMIN-WFA|p3d_partner_b_secret|p3d_cross_entity_secret|p3d_report_admin|p3d_unresolved_admin|p3d_missing_parent_admin|p3d_receipt_missing_parent_admin|p3d_unknown_admin/);
+});
 
+test('Admin sees active-entity unresolved diagnostics but no cross-entity targets or parents', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/validations.php');
   await expect(page.locator('body')).toContainText('VISIBLE-PARTNER-A');
   await expect(page.locator('body')).toContainText('SECRET-PARTNER-B');
-  await expect(page.locator('body')).not.toContainText('SECRET-ORPHAN');
+  await expect(page.locator('body')).toContainText('SECRET-ORPHAN');
+  await expect(page.locator('body')).toContainText('ADMIN-CONVENTION-MISSING');
+  await expect(page.locator('body')).not.toContainText(/SECRET-CROSS-ENTITY|SECRET-CROSS-ENTITY-PARENT/);
+
   await page.goto('/custom/mjlfinancement/workflowactions.php');
   await expect(page.locator('body')).toContainText('VISIBLE-WFA-A');
   await expect(page.locator('body')).toContainText('SECRET-WFA-B');
-  await expect(page.locator('body')).toContainText('SECRET-WFA-REPORT');
-  await expect(page.locator('body')).not.toContainText(/SECRET-WFA-CROSS-ENTITY|SECRET-WFA-UNRESOLVED/);
+  await expect(page.locator('body')).toContainText(/ADMIN-WFA-REPORT|ADMIN-WFA-UNRESOLVED|ADMIN-WFA-MISSING-PARENT|ADMIN-WFA-RECEIPT-MISSING-PARENT|ADMIN-WFA-UNKNOWN/);
+  await expect(page.locator('body')).not.toContainText(/SECRET-WFA-CROSS-ENTITY|SECRET-WFA-CROSS-PARENT|SECRET-WFA-RECEIPT-CROSS-PARENT/);
+});
+
+test('workflow audit filter options use the same visibility predicate as result rows', async ({ page }) => {
+  await login(page, fixtureLogin);
+  await page.goto('/custom/mjlfinancement/workflowactions.php');
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_partner_a_action"]')).toHaveCount(1);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_partner_b_secret"]')).toHaveCount(0);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_unresolved_admin"]')).toHaveCount(0);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_receipt_missing_parent_admin"]')).toHaveCount(0);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_receipt_cross_parent_secret"]')).toHaveCount(0);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_unknown_admin"]')).toHaveCount(0);
+
+  await login(page, 'admin.poc');
+  await page.goto('/custom/mjlfinancement/workflowactions.php');
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_unresolved_admin"]')).toHaveCount(1);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_missing_parent_admin"]')).toHaveCount(1);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_receipt_missing_parent_admin"]')).toHaveCount(1);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_unknown_admin"]')).toHaveCount(1);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_cross_entity_secret"]')).toHaveCount(0);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_cross_parent_secret"]')).toHaveCount(0);
+  await expect(page.locator('select[name="workflow_action"] option[value="p3d_receipt_cross_parent_secret"]')).toHaveCount(0);
 });
 
 test('validation-history query failures render a safe persistent state', async ({ page }) => {
@@ -235,19 +295,19 @@ test('validation-history query failures render a safe persistent state', async (
 
 test('convention and fund-receipt downloads deny cross-scope IDs without audit rows', async ({ page }) => {
   await login(page, fixtureLogin);
-  const conventionFile = scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P3D-SEC-CONVENTION-B'");
-  const receiptFile = scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P3D-SEC-RECEIPT-B'");
-  const before = Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE ref LIKE 'WFA-DLD-%' AND action = 'document_downloaded'"));
+  const conventionFile = scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P3D-SEC-CONVENTION-B' AND entity = 1");
+  const receiptFile = scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P3D-SEC-RECEIPT-B' AND entity = 1");
+  const before = Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE ref LIKE 'WFA-DLD-%' AND action = 'document_downloaded' AND entity = 1"));
 
   expect((await page.request.get(`/custom/mjlfinancement/documentdownload.php?type=convention&id=${conventionFile}`)).status()).toBe(403);
   expect((await page.request.get(`/custom/mjlfinancement/documentdownload.php?type=fundreceipt&id=${receiptFile}`)).status()).toBe(403);
-  const after = Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE ref LIKE 'WFA-DLD-%' AND action = 'document_downloaded'"));
+  const after = Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE ref LIKE 'WFA-DLD-%' AND action = 'document_downloaded' AND entity = 1"));
   expect(after).toBe(before);
 });
 
 test('download delivery fails closed when its audit event cannot be persisted', async ({ page }) => {
   await login(page, fixtureLogin);
-  const fileId = scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P3D-SEC-CONVENTION-A'");
+  const fileId = scalar("SELECT rowid FROM llx_ecm_files WHERE ref = 'P3D-SEC-CONVENTION-A' AND entity = 1");
   sql("CREATE TRIGGER p3d_fail_workflow_audit BEFORE INSERT ON llx_mjlfinancement_workflow_action FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced audit failure'");
   try {
     const response = await page.request.get(`/custom/mjlfinancement/documentdownload.php?type=convention&id=${fileId}`);
@@ -265,7 +325,7 @@ test('CSV neutralizes dangerous text while negative money stays numeric and XLSX
   const dangerousValues = ['=2+3', '+2+3', '-not-money', '@SUM(A1)', '\tcommand', '\rcommand', '\ncommand'];
   for (const value of dangerousValues) {
     const hexValue = Buffer.from(value, 'utf8').toString('hex');
-    sql(`UPDATE llx_projet SET title = CONVERT(0x${hexValue} USING utf8mb4) WHERE rowid = ${projectId}`);
+    sql(`UPDATE llx_projet SET title = CONVERT(0x${hexValue} USING utf8mb4) WHERE rowid = ${projectId} AND entity = 1`);
     await page.goto(`/custom/mjlfinancement/reports.php?report=financial_execution_project&project_id=${projectId}`);
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Exporter le CSV' }).click();
@@ -276,7 +336,7 @@ test('CSV neutralizes dangerous text while negative money stays numeric and XLSX
   }
 
   sql(`UPDATE llx_mjlfinancement_budget_line SET revised_budget = 1234567890.125 WHERE ref = 'P3D-SEC-BUDGET' AND entity = 1`);
-  sql(`UPDATE llx_projet SET title = '=2+3' WHERE rowid = ${projectId}`);
+  sql(`UPDATE llx_projet SET title = '=2+3' WHERE rowid = ${projectId} AND entity = 1`);
   await page.goto(`/custom/mjlfinancement/reports.php?report=financial_execution_project&project_id=${projectId}`);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exporter le fichier XLSX' }).click();
@@ -324,7 +384,7 @@ test('export generation and audit failures create no audit event and deliver no 
   await login(page, fixtureLogin);
   await page.goto(`/custom/mjlfinancement/reports.php?report=financial_execution_project&project_id=${projectId}`);
   const token = await page.locator('form[action*="reports.php"] input[name="token"]').first().inputValue();
-  const before = Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE action = 'export_generated'"));
+  const before = Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE action = 'export_generated' AND entity = 1"));
 
   dockerExec('dolibarr chmod 0555 /tmp');
   try {
@@ -336,7 +396,7 @@ test('export generation and audit failures create no audit event and deliver no 
   } finally {
     dockerExec('dolibarr chmod 1777 /tmp');
   }
-  expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE action = 'export_generated'"))).toBe(before);
+  expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE action = 'export_generated' AND entity = 1"))).toBe(before);
 
   sql("CREATE TRIGGER p3d_fail_workflow_audit BEFORE INSERT ON llx_mjlfinancement_workflow_action FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced audit failure'");
   try {
@@ -348,5 +408,5 @@ test('export generation and audit failures create no audit event and deliver no 
   } finally {
     sql('DROP TRIGGER IF EXISTS p3d_fail_workflow_audit');
   }
-  expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE action = 'export_generated'"))).toBe(before);
+  expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE action = 'export_generated' AND entity = 1"))).toBe(before);
 });
