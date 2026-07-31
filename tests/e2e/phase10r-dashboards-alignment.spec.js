@@ -147,7 +147,7 @@ test('production role dashboards use role-specific sections and no legacy dashbo
   await expect(page.locator('body')).not.toContainText('Administration plateforme');
   await expect(page.locator('body')).not.toContainText(/DPAF|Level 1|Level 2|Level 3|N1|N2|Créer un compte|Register|Inscription publique/);
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
-  await expect(page.locator('.mjl-user-context')).toContainText('Validateur définitif');
+  await expect(page.locator('.mjl-page-header-context')).toContainText('Validateur définitif');
   await expect(page.locator('body')).not.toContainText(/DPAF|Level 1|Level 2|Level 3|N1|N2|Créer un compte|Register|Inscription publique/);
 
   await login(page, 'admin.poc');
@@ -197,14 +197,14 @@ test('final validator and platform admin stay distinct on filtered supervision',
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/dpafdashboard.php?fk_soc=${unicef}&status_bucket=to_disburse`);
-  await expect(page.locator('.mjl-user-context')).toContainText('Validateur définitif');
+  await expect(page.locator('.mjl-page-header-context')).toContainText('Validateur définitif');
   await expect(page.locator('body')).toContainText('P10R-EXP-DISB');
   await expect(page.locator('body')).not.toContainText('Données à qualifier');
   await expect(page.locator('body')).not.toContainText('Administrateur plateforme');
 
   await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/index.php?fk_soc=${unicef}`);
-  await expect(page.locator('.mjl-user-context')).toContainText('Utilisateur');
+  await expect(page.locator('.mjl-page-header-context')).toContainText('Utilisateur');
   await expect(page.locator('body')).toContainText('Administration plateforme');
   await expect(page.locator('body')).toContainText('Données à qualifier');
   await expect(page.locator('body')).not.toContainText('Validateur définitif');

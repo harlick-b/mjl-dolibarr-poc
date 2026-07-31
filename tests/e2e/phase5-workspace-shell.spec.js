@@ -67,7 +67,7 @@ async function expectNativeMenuLabelsHidden(page) {
     'Comptabilite',
   ];
   for (const label of labels) {
-    await expect(page.getByRole('link', { name: new RegExp(`^${label}$`, 'i') })).toHaveCount(0);
+    await expect(page.locator('a.tmenu').filter({ hasText: new RegExp(`^${label}$`, 'i') })).toHaveCount(0);
   }
   await expect(page.locator('body')).not.toContainText(/Rechercher|Mon tableau de bord|Configuration|Outils d'administration|Utilisateurs & Groupes|Espace RH|Module Builder/);
 }
@@ -149,7 +149,7 @@ test('Level 1 user sees operational workspace and cannot access supervision page
   ]);
 
   await page.goto('/custom/mjlfinancement/projects.php');
-  await expect(page.getByRole('heading', { name: 'Projets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Projets', exact: true })).toBeVisible();
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/documents.php');
@@ -164,7 +164,7 @@ test('Level 2 reviewer sees validation workspace and cannot access supervision p
   await expectSidebar(page);
   await expect(page.getByRole('heading', { name: 'File de validation' })).toBeVisible();
   await expect(page.getByText('Activites en revue').first()).toBeVisible();
-  await expect(page.getByRole('link', { name: /Supervision/ }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Historique des validations' })).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Supervision finance');
   await expect(page.locator('body')).not.toContainText('Administration');
   await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
@@ -193,8 +193,8 @@ test('Finance validator sees supervision workspace and can access finance report
   await expectSidebar(page);
   await expect(page.getByRole('heading', { name: 'Supervision finance' })).toBeVisible();
   await expect(page.getByText('Rapports disponibles')).toBeVisible();
-  await expect(page.getByRole('link', { name: /Supervision/ }).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: /Financement/ }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Supervision financière' })).toBeVisible();
+  await expect(page.getByLabel('Menu module MJL').getByRole('heading', { name: 'Financement' })).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Administration');
   await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
   await expect(page.locator('body')).not.toContainText('Échanges');
@@ -208,11 +208,11 @@ test('Finance validator sees supervision workspace and can access finance report
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/conventions.php');
-  await expect(page.getByText('Enveloppes de financement').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gestion des enveloppes de financement' })).toBeVisible();
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/budgetlines.php');
-  await expect(page.getByText('Lignes budgétaires MJL').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gestion des lignes budgétaires' })).toBeVisible();
   await expectSidebar(page);
 
   await page.goto('/custom/mjlfinancement/fundreceipts.php');
@@ -235,15 +235,15 @@ test('Admin sees administration access and can access invitations plus supervisi
   await login(page, 'admin.poc');
   await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
   await expectSidebar(page);
-  await expect(page.getByRole('heading', { name: 'Administration' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Administration', exact: true })).toBeVisible();
   await expect(page.getByText('Invitations en attente')).toBeVisible();
-  await expect(page.getByLabel('Menu module MJL').getByRole('link', { name: /Administration/ })).toBeVisible();
+  await expect(page.getByLabel('Menu module MJL').getByRole('heading', { name: 'Administration' })).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/Preparation production|Préparation production/);
 
   await page.goto('/custom/mjlfinancement/admin/access.php');
   await expect(page.getByText('Gestion des accès MJL').first()).toBeVisible();
   await expectSidebar(page);
-  await expect(page.getByRole('link', { name: /Accès utilisateurs/ }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Utilisateurs et accès' }).first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
   await expect(page.getByText('Tableau de supervision finance').first()).toBeVisible();
@@ -252,10 +252,10 @@ test('Admin sees administration access and can access invitations plus supervisi
   await expect(page.getByRole('heading', { name: "Centre d'exports MJL" })).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/conventions.php');
-  await expect(page.getByText('Enveloppes de financement').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gestion des enveloppes de financement' })).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/budgetlines.php');
-  await expect(page.getByText('Lignes budgétaires MJL').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gestion des lignes budgétaires' })).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/fundreceipts.php');
   await expect(page.getByRole('heading', { name: 'Gestion des réceptions de fonds' })).toBeVisible();

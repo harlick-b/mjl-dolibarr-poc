@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { assertNoHorizontalOverflow } = require('../helpers/responsive-shell');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 
@@ -35,8 +36,8 @@ test('workspace exposes skip access and the exact current navigation location', 
   await expect(page.getByRole('link', { name: /Tableau de bord/ })).toHaveAttribute('aria-current', 'page');
 
   await page.goto('/custom/mjlfinancement/reports.php');
-  await expect(page.getByRole('link', { name: 'Rapports / Exports' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('link', { name: /Supervision/ }).first()).not.toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('link', { name: 'Rapports' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByLabel('Menu module MJL').getByRole('heading', { name: 'Contrôle et rapports' })).toBeVisible();
 });
 
 test('role dashboards retain one exact current location and unresolved access fails closed', async ({ page }) => {
@@ -49,7 +50,7 @@ test('role dashboards retain one exact current location and unresolved access fa
 
   await login(page, 'lecteur.audit');
   await expect(page.getByLabel('Menu module MJL')).toHaveCount(0);
-  await expect(page.locator('body')).toContainText(/Accès refusé|Non autorisé|Forbidden/);
+  await expect(page.locator('body')).toContainText(/Accès refusé|Non autorisé|Access denied|Forbidden/);
 });
 
 test('workspace keeps focus visible and navigation usable across review widths', async ({ page }) => {
@@ -57,7 +58,9 @@ test('workspace keeps focus visible and navigation usable across review widths',
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/reports.php');
 
-  const currentLink = page.getByRole('link', { name: 'Rapports / Exports' });
+  const trigger = page.getByRole('button', { name: 'Ouvrir le menu principal' });
+  await trigger.click();
+  const currentLink = page.getByRole('link', { name: 'Rapports' });
   await currentLink.focus();
   await expect(currentLink).toBeFocused();
 
@@ -78,18 +81,21 @@ test('workspace keeps focus visible and navigation usable across review widths',
   const navigationTargets = await page.getByLabel('Menu module MJL').locator('a').evaluateAll((links) => links.map((link) => link.getBoundingClientRect().height));
   expect(Math.min(...navigationTargets)).toBeGreaterThanOrEqual(44);
 
-  for (const width of [390, 768, 1024, 1366]) {
-    await page.setViewportSize({ width, height: 844 });
-    const overflow = await page.locator('.mjl-module-shell').evaluate((shell) => ({
-      clientWidth: shell.clientWidth,
-      scrollWidth: shell.scrollWidth,
-    }));
-    expect(overflow.scrollWidth, `${width}px review width`).toBeLessThanOrEqual(overflow.clientWidth);
-    if (width <= 768) {
-      const targetHeights = await page.getByLabel('Menu module MJL').locator('a').evaluateAll((links) => links.map((link) => link.getBoundingClientRect().height));
-      expect(Math.min(...targetHeights), `${width}px touch targets`).toBeGreaterThanOrEqual(44);
-    }
-  }
+  await assertNoHorizontalOverflow(page, {
+    scope: '.mjl-module-shell',
+    afterResize: async (width) => {
+      if (width <= 980) {
+        if (await trigger.getAttribute('aria-expanded') === 'false') await trigger.click();
+        await expect(page.getByLabel('Menu module MJL')).toBeVisible();
+      } else {
+        await expect(trigger).toBeHidden();
+      }
+      if (width <= 768) {
+        const targetHeights = await page.getByLabel('Menu module MJL').locator('a').evaluateAll((links) => links.map((link) => link.getBoundingClientRect().height));
+        expect(Math.min(...targetHeights), `${width}px touch targets`).toBeGreaterThanOrEqual(44);
+      }
+    },
+  });
 });
 
 test('semantic action and focus tokens resolve to approved contrast pairs', async ({ page }) => {
@@ -117,15 +123,15 @@ test('semantic action and focus tokens resolve to approved contrast pairs', asyn
 test('shared page headers and touched shell labels use consistent French semantics', async ({ page }) => {
   await login(page, 'admin.poc');
 
-  const dashboardHeader = page.locator('header.mjl-workspace-header');
+  const dashboardHeader = page.locator('header.mjl-page-header');
   await expect(dashboardHeader).toBeVisible();
   await expect(dashboardHeader.locator('#mjl-page-title')).toHaveText('Tableau de bord MJL');
 
   await page.goto('/custom/mjlfinancement/admin/access.php');
-  await expect(page.getByLabel('Menu module MJL').getByRole('link', { name: 'Accès utilisateurs' })).toBeVisible();
+  await expect(page.getByLabel('Menu module MJL').getByRole('link', { name: 'Utilisateurs et accès' })).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/activities.php');
-  const activityHeader = page.locator('header.mjl-workspace-header');
+  const activityHeader = page.locator('header.mjl-page-header');
   await expect(activityHeader).toBeVisible();
   await expect(activityHeader.locator('#mjl-page-title')).toHaveText('Suivi des activités et décisions');
   await expect(activityHeader).toContainText('Périmètre');
@@ -147,13 +153,14 @@ test('primary sections share the page-header contract and contextual audit locat
   ];
   for (const route of representativeRoutes) {
     await page.goto(route);
-    const header = page.locator('header.mjl-workspace-header');
+    const header = page.locator('header.mjl-page-header');
     await expect(header, route).toHaveCount(1);
     await expect(header.locator('h1'), route).toBeVisible();
+    await expect(header.locator('.mjl-kicker'), route).toHaveCount(0);
   }
 
   await page.goto('/custom/mjlfinancement/exchangelogs.php');
-  await expect(page.getByRole('link', { name: /Supervision/ }).first()).toHaveAttribute('aria-current', 'location');
+  await expect(page.getByRole('link', { name: 'Historique / Audit' })).toHaveAttribute('aria-current', 'location');
   await expect(page.getByLabel('Menu module MJL').getByRole('link', { name: /Échanges/ })).toHaveCount(0);
 });
 
@@ -185,5 +192,6 @@ test('forbidden shell presents one clear and keyboard-visible safe return action
 
   await returnAction.click();
   await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
+  await page.getByRole('button', { name: 'Ouvrir le menu principal' }).click();
   await expect(page.getByLabel('Menu module MJL')).toBeVisible();
 });
