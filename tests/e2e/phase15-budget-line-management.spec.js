@@ -287,7 +287,7 @@ test('Inactive budget lines cannot be used by expense create, submit, or validat
   const submittedExpenseId = scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'P15-INACTIVE-SUBMITTED' AND entity = 1 LIMIT 1");
 
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/expenses.php');
+  await page.goto('/custom/mjlfinancement/expenses.php?action=create');
   await expect(page.locator('select[name="fk_budget_line"] option', { hasText: 'P15-INACTIVE-BL' })).toHaveCount(0);
   await expect(page.locator('select[name="fk_budget_line"] option', { hasText: 'P15-ACTIVE-BL' })).toHaveCount(1);
 

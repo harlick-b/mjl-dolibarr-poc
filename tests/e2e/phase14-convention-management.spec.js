@@ -224,7 +224,7 @@ test('Only active conventions can be selected or posted for new activities and e
   const budgetLineId = scalar("SELECT rowid FROM llx_mjlfinancement_budget_line WHERE entity = 1 LIMIT 1");
 
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   await expect(page.locator('select[name="fk_convention"] option', { hasText: 'CONV-TEST-2026-001' })).toHaveCount(0);
   let token = await page.locator('form:has(input[name="action"][value="create"]) input[name="token"]').getAttribute('value');
   let response = await page.request.post('/custom/mjlfinancement/activities.php', {
@@ -244,7 +244,7 @@ test('Only active conventions can be selected or posted for new activities and e
   expect(response.status()).toBe(302);
   expect(Number(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_activity WHERE ref = 'P14-DRAFT-CONV-ACT' AND entity = 1"))).toBe(0);
 
-  await page.goto('/custom/mjlfinancement/expenses.php');
+  await page.goto('/custom/mjlfinancement/expenses.php?action=create');
   await expect(page.locator('select[name="fk_convention"] option', { hasText: 'CONV-TEST-2026-001' })).toHaveCount(0);
   token = await page.locator('form:has(input[name="action"][value="create"]) input[name="token"]').getAttribute('value');
   response = await page.request.post('/custom/mjlfinancement/expenses.php', {

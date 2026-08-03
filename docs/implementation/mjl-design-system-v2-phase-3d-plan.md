@@ -557,6 +557,57 @@ Final gates after review remediation:
 No query logic, permission model, workflow transition, schema, export, expense
 creation form, or Dolibarr core file changed.
 
+### Guarded expense creation and editing states
+
+Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:
+
+- moved expense creation from the operational list into `action=create` and
+  rejected-expense editing from default detail into `id=<id>&action=edit`;
+- exposed the authorized create action in the list header and the authorized
+  edit action in the expense header;
+- checked write permission before create options and checked active entity,
+  scope, ownership, current rejected status, and action availability before
+  edit recovery or fields;
+- retained POST action names, token checks, linked-object integrity, domain
+  methods, workflow behavior, and canonical success destinations;
+- returned validation failures to their exact guarded state with focused,
+  one-use recovery, required-field/native validation, first-valid-submit
+  locking, dirty-state warnings, and explicit cancel destinations;
+- added the same positive-amount validation to rejected-expense correction that
+  already governs expense creation and workflow amounts.
+
+The create tracer was captured red while the list still embedded the form.
+The edit tracer removed the correction form from default detail, and a second
+red tracer proved that invalid edit amounts previously returned as successful
+detail updates instead of recoverable validation failures.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-implementation`
+- URL: `http://127.0.0.1:18101`
+- Temporary root: `/tmp/mjl-phase3d-implementation-UIcPqT`
+- Database and document binds: dedicated children of that temporary root
+
+Focused results:
+
+- complete Phase 3D operational and Phase 11 expense workflow suites: 49/49
+  passed;
+- Phase 3 expense recovery, Phase 14 active-convention selection, and Phase 15
+  active-budget-line selection tracers: 3/3 passed;
+- expense-validation server smoke, changed PHP/JavaScript syntax, and
+  `git diff --check`: passed.
+
+Design-system and security review found no blocking issue: both states reuse
+the page header, breadcrumb, summary, field, recovery, substantive-form,
+cancel, and responsive patterns; wrong-role direct GETs expose no options or
+fields, stale edit status denies before recovery consumption, link integrity
+remains server-enforced, and every POST retains the existing token guard.
+Manual 200% zoom and the full repository suite remain deferred to the final
+Phase 3D.2 gate.
+
+No query semantics, permission model, workflow transition, schema, export,
+document route, or Dolibarr core file changed.
+
 ### Guarded activity execution state
 
 Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:

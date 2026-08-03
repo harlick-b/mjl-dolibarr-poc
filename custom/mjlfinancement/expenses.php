@@ -23,7 +23,7 @@ if (!mjl_workspace_can_access_expense($user)) {
 $langs->load('mjlfinancement@mjlfinancement');
 $action = GETPOST('action', 'alpha');
 $expenseId = GETPOSTINT('id');
-$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && ($action === 'upload' || in_array($action, mjl_expenses_guarded_review_actions(), true)) ? $action : '';
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && (in_array($action, array('create', 'edit', 'upload'), true) || in_array($action, mjl_expenses_guarded_review_actions(), true)) ? $action : '';
 $presentationExpense = array();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -44,7 +44,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $mjl_expenses_page_token = function_exists('newToken') ? newToken() : '';
 $mjl_expense_document_state = GETPOST('mjl_document_state', 'alphanohtml');
-if ($presentationAction === 'upload') {
+if ($presentationAction === 'create') {
+	if ($expenseId !== 0 || !mjl_workspace_can_apply_expense_write($user)) {
+		mjl_expenses_forbidden();
+	}
+	$mjl_expense_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'expenses', 'object_id' => 0),
+		array('create' => array('create'))
+	);
+} elseif ($presentationAction === 'edit') {
+	$presentationExpense = mjl_expenses_fetch_detail($expenseId);
+	if (empty($presentationExpense) || !mjl_expenses_can_open($presentationExpense) || !mjl_expenses_can_apply_action($presentationExpense, 'update')) {
+		mjl_expenses_forbidden();
+	}
+	$mjl_expense_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'expenses', 'object_id' => $expenseId),
+		array('correction' => array('update'))
+	);
+} elseif ($presentationAction === 'upload') {
 	$presentationExpense = mjl_expenses_fetch_detail($expenseId);
 	if (empty($presentationExpense) || !mjl_expenses_can_open($presentationExpense) || !mjl_expenses_can_apply_action($presentationExpense, 'upload')) {
 		mjl_expenses_forbidden();
@@ -73,7 +92,11 @@ llxHeader('', 'Depenses MJL');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-expense-workspace">';
 
-if ($presentationAction === 'upload') {
+if ($presentationAction === 'create') {
+	mjl_expenses_render_create_state();
+} elseif ($presentationAction === 'edit') {
+	mjl_expenses_render_edit_state($presentationExpense);
+} elseif ($presentationAction === 'upload') {
 	mjl_expenses_render_upload_state($presentationExpense);
 } elseif ($presentationAction !== '') {
 	mjl_expenses_render_action_state($presentationExpense, $presentationAction);
@@ -108,7 +131,7 @@ function mjl_expenses_handle_post($action)
 		if (!empty($createErrors)) {
 			$handle = mjl_expenses_store_recovery_config('create', 0, $createErrors);
 			setEventMessages(mjl_ui_safe_error_message('validation'), null, 'errors');
-			mjl_expenses_redirect(0, $handle);
+			mjl_expenses_redirect(0, $handle, '', 'create');
 		}
 		$expense = new MjlExpense($db);
 		$expense->entity = (int) $conf->entity;
@@ -130,7 +153,7 @@ function mjl_expenses_handle_post($action)
 			$handle = mjl_expenses_store_recovery_config('create', 0, $errors);
 			setEventMessages(!empty($errors) ? reset($errors) : mjl_ui_safe_error_message('unknown'), null, 'errors');
 			mjl_ui_log_error('domain', array('route' => 'expenses', 'action' => 'create', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id, 'object_type' => 'expense'), $expense->error);
-			mjl_expenses_redirect(0, $handle);
+			mjl_expenses_redirect(0, $handle, '', 'create');
 		}
 		setEventMessages('Depense creee en brouillon', null, 'mesgs');
 		mjl_expenses_redirect((int) $result);
@@ -181,7 +204,8 @@ function mjl_expenses_handle_post($action)
 		mjl_ui_log_error('domain', array('route' => 'expenses', 'action' => $action, 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id, 'object_type' => 'expense', 'object_id' => $id), $expense->error);
 		if ($action === 'upload') mjl_expenses_redirect($id, '', 'upload-failed', 'upload');
 		$handle = mjl_expenses_store_recovery_config($action, $id, $errors);
-		mjl_expenses_redirect($id, $handle, '', in_array($action, mjl_expenses_guarded_review_actions(), true) ? $action : '');
+		$recoveryState = $action === 'update' ? 'edit' : (in_array($action, mjl_expenses_guarded_review_actions(), true) ? $action : '');
+		mjl_expenses_redirect($id, $handle, '', $recoveryState);
 	}
 	elseif ($result === 0) setEventMessages('Aucun changement applique', null, 'warnings');
 	else setEventMessages('Action enregistree', null, 'mesgs');
@@ -250,7 +274,12 @@ function mjl_expenses_update_rejected(MjlExpense $expense)
 
 	$amount = GETPOST('amount', 'alpha');
 	if ($amount !== '') {
-		$expense->amount = price2num($amount);
+		$normalizedAmount = price2num($amount);
+		if ((float) $normalizedAmount <= 0) {
+			$expense->error = 'Expense amount must be greater than zero';
+			return -1;
+		}
+		$expense->amount = $normalizedAmount;
 	}
 	$date = GETPOST('expense_date', 'alphanohtml');
 	if ($date !== '') {
@@ -365,18 +394,48 @@ function mjl_expenses_upload_document(MjlExpense $expense)
 
 function mjl_expenses_render_list_page()
 {
+	$headerOptions = array(
+		'description' => 'Consultez les dépenses de votre périmètre, ouvrez le détail et traitez les pièces ou décisions attendues.',
+		'context' => array('label' => 'Périmètre', 'value' => mjl_expenses_scope_label()),
+	);
+	if (mjl_workspace_can_apply_expense_write($GLOBALS['user'])) {
+		$headerOptions['primary_action'] = array('label' => 'Créer une dépense', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?action=create');
+	}
+	print mjl_page_header_render('Dépenses et pièces justificatives', $headerOptions);
+	mjl_expenses_list();
+}
+
+function mjl_expenses_render_create_state()
+{
 	print mjl_page_header_render(
-		'Dépenses et pièces justificatives',
+		'Créer une dépense',
 		array(
-			'description' => 'Consultez les dépenses de votre périmètre, ouvrez le détail et traitez les pièces ou décisions attendues.',
-			'context' => array('label' => 'Périmètre', 'value' => mjl_expenses_scope_label()),
+			'breadcrumb' => array(
+				array('label' => 'Dépenses', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php'),
+				array('label' => 'Créer'),
+			),
+			'description' => 'Créez un brouillon rattaché aux éléments financiers accessibles dans votre périmètre.',
 		)
 	);
+	mjl_expenses_create_form();
+}
 
-	if (mjl_workspace_can_apply_expense_write($GLOBALS['user'])) {
-		mjl_expenses_create_form();
-	}
-	mjl_expenses_list();
+function mjl_expenses_render_edit_state($row)
+{
+	print mjl_page_header_render(
+		'Modifier la dépense '.$row['ref'],
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Dépenses', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php'),
+				array('label' => $row['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid'])),
+				array('label' => 'Modifier'),
+			),
+			'description' => 'Corrigez les informations modifiables avant de reprendre le circuit de validation.',
+			'context' => array('label' => 'Statut actuel', 'value' => mjl_expenses_status_label($row['status'])),
+		)
+	);
+	mjl_expenses_render_summary_card($row);
+	mjl_expenses_render_update_form($row);
 }
 
 function mjl_expenses_render_detail($id)
@@ -386,17 +445,18 @@ function mjl_expenses_render_detail($id)
 		mjl_expenses_forbidden();
 	}
 
-	print mjl_page_header_render(
-		$row['ref'],
-		array(
+	$headerOptions = array(
 			'breadcrumb' => array(
 				array('label' => 'Dépenses', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php'),
 				array('label' => $row['ref']),
 			),
 			'description' => mjl_expenses_next_action_label($row),
 			'context' => array('label' => 'Statut', 'value' => mjl_expenses_status_label($row['status'])),
-		)
-	);
+		);
+	if (mjl_expenses_can_apply_action($row, 'update')) {
+		$headerOptions['primary_action'] = array('label' => 'Modifier la dépense', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']).'&action=edit');
+	}
+	print mjl_page_header_render($row['ref'], $headerOptions);
 
 	print '<div class="mjl-activity-detail-grid">';
 	mjl_expenses_render_summary_card($row);
@@ -464,6 +524,7 @@ function mjl_expenses_render_upload_state($row)
 function mjl_expenses_create_form()
 {
 	$recovery = mjl_expenses_recovery_for_action('create');
+	$isRecovered = !empty($recovery['recovered']);
 	$values = $recovery['values'];
 	$errors = $recovery['errors'];
 	$projectOptions = mjl_expenses_options('project');
@@ -472,20 +533,20 @@ function mjl_expenses_create_form()
 	$budgetLineOptions = mjl_expenses_options('budget_line');
 
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
-	print '<div class="mjl-section-heading"><h2>Nouvelle depense</h2><p>Creer un brouillon rattache a un projet, une convention et une ligne budgetaire.</p></div>';
-	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'" data-mjl-form="expense-create">';
+	print '<div class="mjl-section-heading"><h2>Nouvelle dépense</h2><p>Créez un brouillon rattaché à un projet, une convention et une ligne budgétaire.</p></div>';
+	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'" data-mjl-validate data-mjl-form="expense-create" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print '<input type="hidden" name="action" value="create">';
 	print mjl_expenses_token_input();
-	print '<div data-mjl-form-errors>'.mjl_form_error_summary($errors, 'Corrigez les champs indiqués', 'mjl-expense-create-').'</div>';
-	print mjl_form_field('ref', 'Reference', '<input required name="ref" value="'.dol_escape_htmltag($values['ref'] ?? '').'">', true, '', $errors['ref'] ?? '', 'mjl-expense-create-');
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($errors, 'Corrigez les champs indiqués', 'mjl-expense-create-', $isRecovered).'</div>';
+	print mjl_form_field('ref', 'Référence', '<input required name="ref" value="'.dol_escape_htmltag($values['ref'] ?? '').'">', true, '', $errors['ref'] ?? '', 'mjl-expense-create-');
 	print mjl_form_field('fk_project', 'Projet', mjl_expenses_select('fk_project', $projectOptions, 1, 'Choisir', (int) ($values['fk_project'] ?? 0)), true, '', $errors['fk_project'] ?? '', 'mjl-expense-create-');
 	print mjl_form_field('fk_convention', 'Enveloppe de financement', mjl_expenses_select('fk_convention', $conventionOptions, 1, 'Choisir', (int) ($values['fk_convention'] ?? 0)), true, '', $errors['fk_convention'] ?? '', 'mjl-expense-create-');
-	print mjl_form_field('fk_mjl_activity', 'Activite', mjl_expenses_select('fk_mjl_activity', $activityOptions, 0, 'Aucune', (int) ($values['fk_mjl_activity'] ?? 0)), false, '', $errors['fk_mjl_activity'] ?? '', 'mjl-expense-create-');
-	print mjl_form_field('fk_budget_line', 'Ligne budgetaire', mjl_expenses_select('fk_budget_line', $budgetLineOptions, 1, 'Choisir', (int) ($values['fk_budget_line'] ?? 0)), true, '', $errors['fk_budget_line'] ?? '', 'mjl-expense-create-');
+	print mjl_form_field('fk_mjl_activity', 'Activité', mjl_expenses_select('fk_mjl_activity', $activityOptions, 0, 'Aucune', (int) ($values['fk_mjl_activity'] ?? 0)), false, '', $errors['fk_mjl_activity'] ?? '', 'mjl-expense-create-');
+	print mjl_form_field('fk_budget_line', 'Ligne budgétaire', mjl_expenses_select('fk_budget_line', $budgetLineOptions, 1, 'Choisir', (int) ($values['fk_budget_line'] ?? 0)), true, '', $errors['fk_budget_line'] ?? '', 'mjl-expense-create-');
 	print mjl_form_field('amount', 'Montant', '<input required name="amount" value="'.dol_escape_htmltag($values['amount'] ?? '').'">', true, '', $errors['amount'] ?? '', 'mjl-expense-create-');
 	print mjl_form_field('expense_date', 'Date', '<input type="date" name="expense_date" value="'.dol_escape_htmltag($values['expense_date'] ?? '').'">', false, '', $errors['expense_date'] ?? '', 'mjl-expense-create-');
 	print mjl_form_field('description', 'Description', '<input name="description" value="'.dol_escape_htmltag($values['description'] ?? '').'">', false, '', $errors['description'] ?? '', 'mjl-expense-create-');
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Creer la depense"></div>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Créer la dépense"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php">Annuler</a></div>';
 	print '</form></section>';
 }
 
@@ -672,19 +733,6 @@ function mjl_expenses_render_decision_panel($row)
 		print '</section>';
 		return;
 	}
-	if (!empty($actions['update'])) {
-		$updateRecovery = mjl_expenses_recovery_for_action('update');
-		$updateValues = $updateRecovery['values'];
-		$updateErrors = $updateRecovery['errors'];
-		print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
-		print mjl_expenses_token_input().'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print '<div data-mjl-form-errors>'.mjl_form_error_summary($updateErrors, 'Corrigez les champs indiqués', 'mjl-expense-update-').'</div>';
-		print mjl_form_field('amount', 'Montant', '<input required name="amount" value="'.dol_escape_htmltag($updateValues['amount'] ?? $row['amount']).'">', true, '', $updateErrors['amount'] ?? '', 'mjl-expense-update-');
-		print mjl_form_field('expense_date', 'Date', '<input type="date" name="expense_date" value="'.dol_escape_htmltag($updateValues['expense_date'] ?? substr((string) $row['expense_date'], 0, 10)).'">', false, '', $updateErrors['expense_date'] ?? '', 'mjl-expense-update-');
-		print mjl_form_field('description', 'Description', '<input name="description" value="'.dol_escape_htmltag($updateValues['description'] ?? $row['description']).'">', false, '', $updateErrors['description'] ?? '', 'mjl-expense-update-');
-		print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer la correction"></div>';
-		print '</form>';
-	}
 	foreach ($actions as $action => $meta) {
 		if ($action === 'update') continue;
 		if (in_array($action, mjl_expenses_guarded_review_actions(), true)) {
@@ -694,6 +742,25 @@ function mjl_expenses_render_decision_panel($row)
 		mjl_expenses_render_decision_form($row, $action, $meta);
 	}
 	print '</section>';
+}
+
+function mjl_expenses_render_update_form($row)
+{
+	$recovery = mjl_expenses_recovery_for_action('update');
+	$values = $recovery['values'];
+	$errors = $recovery['errors'];
+	$isRecovered = !empty($recovery['recovered']);
+	$prefix = 'mjl-expense-update-';
+	print '<section class="mjl-workspace-section mjl-activity-card">';
+	print '<div class="mjl-section-heading"><h2>Informations de la dépense</h2><p>Les corrections restent soumises aux contrôles de périmètre, de propriété et d’état.</p></div>';
+	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="expense-update" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
+	print mjl_expenses_token_input().'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($errors, 'Corrigez les champs indiqués', $prefix, $isRecovered).'</div>';
+	print mjl_form_field('amount', 'Montant', '<input required name="amount" value="'.dol_escape_htmltag($values['amount'] ?? $row['amount']).'">', true, '', $errors['amount'] ?? '', $prefix);
+	print mjl_form_field('expense_date', 'Date', '<input type="date" name="expense_date" value="'.dol_escape_htmltag($values['expense_date'] ?? substr((string) $row['expense_date'], 0, 10)).'">', false, '', $errors['expense_date'] ?? '', $prefix);
+	print mjl_form_field('description', 'Description', '<input name="description" value="'.dol_escape_htmltag($values['description'] ?? $row['description']).'">', false, '', $errors['description'] ?? '', $prefix);
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer la correction"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
+	print '</form></section>';
 }
 
 function mjl_expenses_render_decision_form($row, $action, $meta, $withCancel = false)

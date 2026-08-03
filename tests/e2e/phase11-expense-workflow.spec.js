@@ -311,6 +311,7 @@ test('Reject, correct, and resubmit preserves decision comments', async ({ page 
 
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${correctionId}`);
+  await page.getByRole('link', { name: 'Modifier la dépense' }).click();
   await page.getByLabel('Montant').fill('1250');
   await page.getByRole('button', { name: 'Enregistrer la correction' }).click();
   await page.getByLabel('Motif de correction').fill('Correction Phase 11');
@@ -343,7 +344,7 @@ test('Self reviewer decisions are absent from UI and blocked server-side', async
 
 test('Tampered create POST with mismatched project and convention is rejected server-side', async ({ page }) => {
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/expenses.php');
+  await page.goto('/custom/mjlfinancement/expenses.php?action=create');
   const token = await page.locator('form:has(input[name="action"][value="create"]) input[name="token"]').getAttribute('value');
   const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
   const mismatchedConventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-RED-2026-001' AND entity = 1 LIMIT 1");

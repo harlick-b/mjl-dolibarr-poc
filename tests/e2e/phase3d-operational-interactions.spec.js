@@ -302,6 +302,113 @@ test('activity execution guards fields and recovery before consumption', async (
   expect(scalar(`SELECT physical_execution_percent FROM llx_mjlfinancement_activity WHERE entity = 1 AND rowid = ${activityId}`)).toBe('0');
 });
 
+test('expense creation uses an authorized dedicated presentation state', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/expenses.php');
+
+  const listHeader = page.locator('header.mjl-page-header');
+  const createAction = listHeader.getByRole('link', { name: 'Créer une dépense' });
+  await expect(createAction).toHaveAttribute('href', '/custom/mjlfinancement/expenses.php?action=create');
+  await expect(page.locator('form[data-mjl-form="expense-create"]')).toHaveCount(0);
+  await createAction.click();
+
+  await expect(page).toHaveURL(/expenses\.php\?action=create$/);
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Créer une dépense');
+  const form = page.locator('form[data-mjl-form="expense-create"]');
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  await expect(form).toHaveAttribute('data-mjl-validate', '');
+  await expect(form.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', '/custom/mjlfinancement/expenses.php');
+  for (const width of [390, 768, 1024, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertNoHorizontalOverflow(page, { label: `expense create state at ${width}px` });
+  }
+});
+
+test('expense editing uses an authorized dedicated presentation state', async ({ page }) => {
+  restoreExpenseDecisionSample();
+  const expenseId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
+  executeSql(`UPDATE llx_mjlfinancement_expense SET status = 8 WHERE entity = 1 AND rowid = ${expenseId}`);
+
+  await login(page, 'agent.mjl');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}`);
+  await expect(page.locator('form input[name="action"][value="update"]')).toHaveCount(0);
+  const editAction = page.getByRole('link', { name: 'Modifier la dépense' });
+  await expect(editAction).toHaveAttribute('href', `/custom/mjlfinancement/expenses.php?id=${expenseId}&action=edit`);
+  await editAction.click();
+
+  await expect(page).toHaveURL(new RegExp(`expenses\\.php\\?id=${expenseId}&action=edit$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Modifier la dépense EXP-JE-002');
+  const form = page.locator('form[data-mjl-form="expense-update"]');
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  await expect(form).toHaveAttribute('data-mjl-validate', '');
+  await expect(form.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', `/custom/mjlfinancement/expenses.php?id=${expenseId}`);
+});
+
+test('expense create and edit recovery stay guarded and one-use', async ({ page }) => {
+  restoreExpenseDecisionSample();
+  const expenseId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
+  executeSql(`UPDATE llx_mjlfinancement_expense SET status = 8 WHERE entity = 1 AND rowid = ${expenseId}`);
+
+  await login(page, 'superviseur.n1');
+  let denied = await page.goto('/custom/mjlfinancement/expenses.php?action=create');
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="expense-create"]')).toHaveCount(0);
+  await expect(page.locator('select[name="fk_project"]')).toHaveCount(0);
+  denied = await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}&action=edit`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="expense-update"]')).toHaveCount(0);
+
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/expenses.php?action=create');
+  let form = page.locator('form[data-mjl-form="expense-create"]');
+  let response = await page.request.post('/custom/mjlfinancement/expenses.php', {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'create',
+      ref: 'P3D-EXPENSE-RECOVERY',
+      fk_project: await form.locator('select[name="fk_project"] option', { hasText: 'PRJ-JE-2026' }).getAttribute('value'),
+      fk_convention: await form.locator('select[name="fk_convention"] option', { hasText: 'CONV-UNICEF-2026-001' }).getAttribute('value'),
+      fk_budget_line: await form.locator('select[name="fk_budget_line"] option', { hasText: 'BL-JE-001' }).getAttribute('value'),
+      amount: '0',
+      description: 'Valeur conservée',
+    },
+    maxRedirects: 0,
+  });
+  let recoveryLocation = response.headers().location || '';
+  expect(recoveryLocation).toMatch(/expenses\.php\?action=create&mjl_recovery=[a-f0-9]{32}$/);
+  await page.goto(recoveryLocation);
+  await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('[data-mjl-error-summary]')).toBeFocused();
+  await expect(form.locator('input[name="description"]')).toHaveValue('Valeur conservée');
+  await page.goto(recoveryLocation);
+  await expect(form).not.toHaveAttribute('data-mjl-recovered', 'true');
+
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}&action=edit`);
+  form = page.locator('form[data-mjl-form="expense-update"]');
+  response = await page.request.post(`/custom/mjlfinancement/expenses.php?id=${expenseId}`, {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'update',
+      id: String(expenseId),
+      amount: '0',
+      expense_date: '2026-08-03',
+      description: 'Correction à reprendre',
+    },
+    maxRedirects: 0,
+  });
+  recoveryLocation = response.headers().location || '';
+  expect(recoveryLocation).toMatch(new RegExp(`expenses\\.php\\?id=${expenseId}&action=edit&mjl_recovery=[a-f0-9]{32}$`));
+
+  executeSql(`UPDATE llx_mjlfinancement_expense SET status = 1 WHERE entity = 1 AND rowid = ${expenseId}`);
+  denied = await page.goto(recoveryLocation);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="expense-update"]')).toHaveCount(0);
+  executeSql(`UPDATE llx_mjlfinancement_expense SET status = 8 WHERE entity = 1 AND rowid = ${expenseId}`);
+  await page.goto(recoveryLocation);
+  await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('input[name="description"]')).toHaveValue('Correction à reprendre');
+});
+
 test('activity supporting-document upload uses an authorized dedicated presentation state', async ({ page }) => {
   const activityId = seedActivityActionFixture();
   executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);

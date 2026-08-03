@@ -535,7 +535,7 @@ test('Phase 3B expense and global document surfaces use guarded shared presentat
 
 test('Phase 3B expense create recovery is exact, one-use, and keeps linked safe values', async ({ page }) => {
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/expenses.php');
+  await page.goto('/custom/mjlfinancement/expenses.php?action=create');
   const form = page.locator('form[data-mjl-form="expense-create"]');
   const response = await page.request.post('/custom/mjlfinancement/expenses.php', {
     form: {
