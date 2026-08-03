@@ -229,11 +229,11 @@ function mjl_table_render_action_menu($recordLabel, $actions)
 	$recordLabel = trim((string) $recordLabel);
 	if ($recordLabel === '') $recordLabel = 'cet enregistrement';
 	$html = '<details class="mjl-table-action-menu" data-mjl-action-menu>';
-	$html .= '<summary aria-label="Actions pour '.mjl_table_escape($recordLabel).'" aria-expanded="false">Actions</summary>';
-	$html .= '<div class="mjl-table-action-menu-panel" role="menu">';
+	$html .= '<summary aria-label="Actions pour '.mjl_table_escape($recordLabel).'">Actions</summary>';
+	$html .= '<div class="mjl-table-action-menu-panel">';
 	foreach ($items as $item) {
 		$class = 'mjl-table-action-menu-item'.($item['tone'] !== '' ? ' mjl-table-action-menu-item-'.$item['tone'] : '');
-		$html .= '<a class="'.$class.'" role="menuitem" href="'.mjl_table_escape($item['href']).'">'.mjl_table_escape($item['label']).'</a>';
+		$html .= '<a class="'.$class.'" href="'.mjl_table_escape($item['href']).'">'.mjl_table_escape($item['label']).'</a>';
 	}
 	return $html.'</div></details>';
 }

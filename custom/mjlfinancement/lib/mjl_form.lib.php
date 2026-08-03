@@ -84,6 +84,7 @@ function mjl_form_recovery_consume($handle, $expectedContext)
 	}
 	unset($store[$handle]);
 	mjl_form_recovery_set_store($store);
+	$entry['recovered'] = true;
 	return $entry;
 }
 
@@ -111,6 +112,7 @@ function mjl_form_recovery_consume_route($handle, $baseContext, $allowedForms)
 	}
 	unset($store[$handle]);
 	mjl_form_recovery_set_store($store);
+	$entry['recovered'] = true;
 	return $entry;
 }
 

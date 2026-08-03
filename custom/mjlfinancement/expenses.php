@@ -84,7 +84,7 @@ if ($presentationAction === 'create') {
 	$mjl_expense_recovery = mjl_form_recovery_consume_route(
 		GETPOST('mjl_recovery', 'alphanohtml'),
 		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'expenses', 'object_id' => $expenseId),
-		mjl_expense_recovery_consume_allowlist()
+		array('correction' => array('correct'), 'decision' => array('submit'), 'comment' => array('add_exchange'))
 	);
 }
 

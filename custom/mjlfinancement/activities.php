@@ -91,7 +91,7 @@ if ($presentationAction === 'create') {
 	$mjl_activity_recovery = mjl_form_recovery_consume_route(
 		GETPOST('mjl_recovery', 'alphanohtml'),
 		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'activities', 'object_id' => $activityId),
-		mjl_activity_recovery_consume_allowlist()
+		array('correction' => array('correct'), 'decision' => array('submit'), 'comment' => array('add_exchange'))
 	);
 }
 

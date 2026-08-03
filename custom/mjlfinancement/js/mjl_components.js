@@ -432,6 +432,10 @@
 		Array.prototype.forEach.call(menus, function (menu) {
 			var trigger = menu.querySelector('summary');
 			if (!trigger) return;
+			trigger.setAttribute('aria-haspopup', 'menu');
+			var panel = menu.querySelector('.mjl-table-action-menu-panel');
+			if (panel) panel.setAttribute('role', 'menu');
+			Array.prototype.forEach.call(menu.querySelectorAll('.mjl-table-action-menu-item'), function (item) { item.setAttribute('role', 'menuitem'); });
 			trigger.setAttribute('aria-expanded', menu.open ? 'true' : 'false');
 			menu.addEventListener('toggle', function () {
 				trigger.setAttribute('aria-expanded', menu.open ? 'true' : 'false');
