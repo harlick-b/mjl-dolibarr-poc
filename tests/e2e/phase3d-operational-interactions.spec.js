@@ -468,6 +468,71 @@ test('convention management uses guarded route-owned presentation states', async
   await expect(page.locator('form[data-mjl-form="convention-upload"]')).toHaveAttribute('data-mjl-substantive', '');
 });
 
+test('finance recovery is exact and one-use while upload/delete failures remain nonrecoverable', async ({ page }) => {
+  await login(page, 'admin.poc');
+  const links = {
+    fk_soc: scalar("SELECT rowid FROM llx_societe WHERE entity = 1 AND nom = 'UNICEF' LIMIT 1"),
+    fk_project: scalar("SELECT rowid FROM llx_projet WHERE entity = 1 AND ref = 'PRJ-JE-2026' LIMIT 1"),
+    fk_convention: scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE entity = 1 AND ref = 'CONV-UNICEF-2026-001' LIMIT 1"),
+    fk_mjl_activity: scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE entity = 1 AND ref = 'ACT-JE-001' LIMIT 1"),
+    fk_activity: scalar("SELECT rowid FROM llx_projet_task WHERE entity = 1 ORDER BY rowid LIMIT 1"),
+  };
+
+  async function assertCreateRecovery(route, formName, duplicateRef, relationFields) {
+    await page.goto(`/custom/mjlfinancement/${route}.php?action=create`);
+    const form = page.locator(`form[data-mjl-form="${formName}"]`);
+    const data = await form.evaluate((node) => Object.fromEntries(new FormData(node).entries()));
+    Object.assign(data, relationFields, {
+      ref: duplicateRef,
+      title: data.title === undefined ? undefined : 'Doublon récupérable',
+      label: data.label === undefined ? undefined : 'Doublon récupérable',
+    });
+    Object.keys(data).forEach((key) => data[key] === undefined && delete data[key]);
+    const response = await page.request.post(`/custom/mjlfinancement/${route}.php`, { form: data, maxRedirects: 0 });
+    expect(response.status()).toBe(302);
+    const location = response.headers().location || '';
+    expect(location).toMatch(new RegExp(`${route}\\.php\\?action=create&mjl_recovery=[a-f0-9]{32}$`));
+    await page.goto(location);
+    await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+    await expect(form.locator('input[name="ref"]')).toHaveValue(duplicateRef);
+    await page.goto(location);
+    await expect(form).not.toHaveAttribute('data-mjl-recovered', 'true');
+  }
+
+  await assertCreateRecovery('conventions', 'convention-create', 'CONV-UNICEF-2026-001', {
+    fk_soc: links.fk_soc,
+    fk_project: links.fk_project,
+  });
+  await assertCreateRecovery('budgetlines', 'budgetline-create', 'BL-JE-001', {
+    fk_project: links.fk_project,
+    fk_convention: links.fk_convention,
+    fk_mjl_activity: links.fk_mjl_activity,
+    fk_activity: links.fk_activity,
+  });
+  await assertCreateRecovery('fundreceipts', 'fundreceipt-create', 'FR-UNICEF-001', {
+    fk_soc: links.fk_soc,
+    fk_project: links.fk_project,
+    fk_convention: links.fk_convention,
+  });
+
+  const draftId = seedConventionStateFixture();
+  await page.goto(`/custom/mjlfinancement/conventions.php?id=${draftId}&action=upload`);
+  let token = await page.locator('form[data-mjl-form="convention-upload"] input[name="token"]').getAttribute('value');
+  let response = await page.request.post(`/custom/mjlfinancement/conventions.php?id=${draftId}`, {
+    form: { token, action: 'upload', id: String(draftId) }, maxRedirects: 0,
+  });
+  expect(response.headers().location || '').toMatch(new RegExp(`id=${draftId}&action=upload&mjl_document_state=upload-failed$`));
+  expect(response.headers().location || '').not.toContain('mjl_recovery');
+
+  await page.goto('/custom/mjlfinancement/conventions.php?action=create');
+  token = await page.locator('form[data-mjl-form="convention-create"] input[name="token"]').getAttribute('value');
+  response = await page.request.post(`/custom/mjlfinancement/conventions.php?id=${links.fk_convention}`, {
+    form: { token, action: 'delete', id: links.fk_convention }, maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  expect(response.headers().location || '').not.toContain('mjl_recovery');
+});
+
 test('conditional record action menus support keyboard, containment, and native fallback', async ({ page, browser }) => {
   await login(page, 'admin.poc');
   await page.setViewportSize({ width: 390, height: 720 });
@@ -486,11 +551,28 @@ test('conditional record action menus support keyboard, containment, and native 
   expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(390);
   expect(panelBox.y).toBeGreaterThanOrEqual(0);
   expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(720);
+  await page.keyboard.press('Home');
+  await expect(first.locator('[role="menuitem"]').first()).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(first.locator('[role="menuitem"]').last()).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await trigger.press('ArrowUp');
+  await expect(first.locator('[role="menuitem"]').last()).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(first).not.toHaveAttribute('open', '');
+  await trigger.click();
+  await page.locator('header.mjl-page-header h1').click();
+  await expect(first).not.toHaveAttribute('open', '');
+
+  for (const width of [390, 768, 980, 1024, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertNoHorizontalOverflow(page, { label: `record action menu at ${width}px` });
+  }
 
   if (await menus.count() > 1) {
+    await page.setViewportSize({ width: 390, height: 720 });
     await menus.nth(0).locator('summary').click();
     await menus.nth(1).locator('summary').click();
     await expect(menus.nth(0)).not.toHaveAttribute('open', '');
@@ -505,6 +587,8 @@ test('conditional record action menus support keyboard, containment, and native 
   await login(noJsPage, 'admin.poc');
   await noJsPage.goto('/custom/mjlfinancement/projects.php');
   const noJsMenu = noJsPage.locator('[data-mjl-action-menu]').first();
+  await expect(noJsMenu.locator('summary')).not.toHaveAttribute('aria-expanded', /.+/);
+  await expect(noJsMenu.locator('.mjl-table-action-menu-panel')).not.toHaveAttribute('role', /.+/);
   await noJsMenu.locator('summary').click();
   await expect(noJsMenu).toHaveAttribute('open', '');
   await expect(noJsMenu.locator('a[href*="action=edit"]')).toBeVisible();
@@ -1285,7 +1369,8 @@ test('project list remains a semantic table at 1366px/1024px and labeled cards a
     await expect(table.locator('thead')).toHaveCSS('position', 'static');
     await expect(table.getByRole('columnheader').first()).toHaveText('Projet');
     await expect(table.getByRole('columnheader').nth(1)).toHaveText('Statut');
-    await expect(table.getByRole('columnheader').last()).toHaveText('Ouvrir');
+    await expect(table.getByRole('columnheader').nth(-2)).toHaveText('Ouvrir');
+    await expect(table.getByRole('columnheader').last()).toHaveText('Actions');
     await expect(firstRow.locator('td[data-label="Ouvrir"]')).toHaveCSS('display', 'table-cell');
   }
 
