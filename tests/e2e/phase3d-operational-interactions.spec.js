@@ -468,6 +468,59 @@ test('convention management uses guarded route-owned presentation states', async
   await expect(page.locator('form[data-mjl-form="convention-upload"]')).toHaveAttribute('data-mjl-substantive', '');
 });
 
+test('conditional record action menus support keyboard, containment, and native fallback', async ({ page, browser }) => {
+  await login(page, 'admin.poc');
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.goto('/custom/mjlfinancement/projects.php');
+  const menus = page.locator('[data-mjl-action-menu]');
+  await expect(menus.first()).toBeVisible();
+  const first = menus.first();
+  const trigger = first.locator('summary');
+  await expect(trigger).toHaveAttribute('aria-label', /Actions pour/);
+  await trigger.focus();
+  await trigger.press('ArrowDown');
+  await expect(first).toHaveAttribute('open', '');
+  await expect(first.locator('[role="menuitem"]').first()).toBeFocused();
+  const panelBox = await first.locator('[role="menu"]').boundingBox();
+  expect(panelBox.x).toBeGreaterThanOrEqual(0);
+  expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(390);
+  expect(panelBox.y).toBeGreaterThanOrEqual(0);
+  expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(720);
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+  if (await menus.count() > 1) {
+    await menus.nth(0).locator('summary').click();
+    await menus.nth(1).locator('summary').click();
+    await expect(menus.nth(0)).not.toHaveAttribute('open', '');
+  }
+
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/projects.php');
+  await expect(page.locator('[data-mjl-action-menu]')).toHaveCount(0);
+
+  const noJsContext = await browser.newContext({ baseURL: process.env.MJL_BASE_URL, javaScriptEnabled: false });
+  const noJsPage = await noJsContext.newPage();
+  await login(noJsPage, 'admin.poc');
+  await noJsPage.goto('/custom/mjlfinancement/projects.php');
+  const noJsMenu = noJsPage.locator('[data-mjl-action-menu]').first();
+  await noJsMenu.locator('summary').click();
+  await expect(noJsMenu).toHaveAttribute('open', '');
+  await expect(noJsMenu.locator('a[href*="action=edit"]')).toBeVisible();
+  await noJsContext.close();
+});
+
+test('record action menu renderer escapes descriptors and suppresses empty menus', async () => {
+  const code = `require '/var/www/html/custom/mjlfinancement/lib/mjl_table.lib.php'; echo mjl_table_render_action_menu('<script>alert(1)</script>', array(array('label' => '<b>Modifier</b>', 'href' => '/route.php?x="bad"'))); echo "\nEMPTY=".mjl_table_render_action_menu('Sans action', array());`;
+  const html = dockerCompose(['exec', '-T', 'dolibarr', 'php', '-r', code]);
+  expect(html).toContain('Actions pour &lt;script&gt;alert(1)&lt;/script&gt;');
+  expect(html).toContain('&lt;b&gt;Modifier&lt;/b&gt;');
+  expect(html).toContain('x=&quot;bad&quot;');
+  expect(html).not.toContain('<script>');
+  expect(html).toMatch(/EMPTY=\s*$/);
+});
+
 test('activity supporting-document upload uses an authorized dedicated presentation state', async ({ page }) => {
   const activityId = seedActivityActionFixture();
   executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);

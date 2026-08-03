@@ -206,3 +206,34 @@ function mjl_table_render_pagination($baseUrl, $normalized, $total, $hasPrevious
 	}
 	return $html.'</nav>';
 }
+
+/**
+ * Render already-authorized secondary record links as an accessible menu.
+ *
+ * Authorization and action availability belong to the calling route. This
+ * helper only validates descriptor shape, escapes presentation values, and
+ * suppresses an empty trigger.
+ */
+function mjl_table_render_action_menu($recordLabel, $actions)
+{
+	$items = array();
+	foreach ((array) $actions as $action) {
+		if (!is_array($action) || !is_scalar($action['label'] ?? null) || !is_scalar($action['href'] ?? null)) continue;
+		$label = trim((string) $action['label']);
+		$href = trim((string) $action['href']);
+		if ($label === '' || $href === '') continue;
+		$tone = (string) ($action['tone'] ?? '');
+		$items[] = array('label' => $label, 'href' => $href, 'tone' => in_array($tone, array('danger'), true) ? $tone : '');
+	}
+	if (empty($items)) return '';
+	$recordLabel = trim((string) $recordLabel);
+	if ($recordLabel === '') $recordLabel = 'cet enregistrement';
+	$html = '<details class="mjl-table-action-menu" data-mjl-action-menu>';
+	$html .= '<summary aria-label="Actions pour '.mjl_table_escape($recordLabel).'" aria-expanded="false">Actions</summary>';
+	$html .= '<div class="mjl-table-action-menu-panel" role="menu">';
+	foreach ($items as $item) {
+		$class = 'mjl-table-action-menu-item'.($item['tone'] !== '' ? ' mjl-table-action-menu-item-'.$item['tone'] : '');
+		$html .= '<a class="'.$class.'" role="menuitem" href="'.mjl_table_escape($item['href']).'">'.mjl_table_escape($item['label']).'</a>';
+	}
+	return $html.'</div></details>';
+}

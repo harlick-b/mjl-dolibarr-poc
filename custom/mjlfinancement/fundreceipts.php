@@ -340,7 +340,7 @@ function mjl_fundreceipts_render_list($filters)
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Réception</th><th>Partenaire / Programme</th><th>Projet</th><th>Enveloppe</th><th>Date</th><th class="right">Montant</th><th>Preuve</th><th>Statut</th></tr>';
+	print '<tr class="liste_titre"><th>Réception</th><th>Partenaire / Programme</th><th>Projet</th><th>Enveloppe</th><th>Date</th><th class="right">Montant</th><th>Preuve</th><th>Statut</th><th>Actions</th></tr>';
 	$rows = array();
 	while ($obj = $db->fetch_object($resql)) $rows[] = $obj;
 	$hasNext = count($rows) > (int) $filters['page_size'];
@@ -358,10 +358,16 @@ function mjl_fundreceipts_render_list($filters)
 		print '<td class="right">'.price($obj->amount).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_fundreceipts_evidence_label($state)).'</td>';
 		print '<td>'.mjl_fundreceipts_status_badge($obj->status).'</td>';
+		$actions = array();
+		if (mjl_fundreceipts_can_manage() && (int) $obj->status === MjlFundReceipt::STATUS_DRAFT) {
+			$actions[] = array('label' => 'Modifier la réception', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $obj->rowid).'&action=edit');
+			$actions[] = array('label' => 'Ajouter une preuve', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $obj->rowid).'&action=upload');
+		}
+		print '<td>'.mjl_table_render_action_menu($obj->ref, $actions).'</td>';
 		print '</tr>';
 	}
 	if ($count === 0) {
-		print '<tr class="oddeven"><td colspan="8">Aucune réception de fonds dans votre périmètre.</td></tr>';
+		print '<tr class="oddeven"><td colspan="9">Aucune réception de fonds dans votre périmètre.</td></tr>';
 	}
 	print '</table></div>';
 	print mjl_table_render_pagination(DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php', $filters, $total, (int) $filters['page'] > 1, $hasNext, 'réceptions de fonds');

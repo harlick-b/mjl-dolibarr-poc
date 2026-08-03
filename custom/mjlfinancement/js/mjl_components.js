@@ -388,9 +388,92 @@
 		});
 	}
 
+	function initTableActionMenus(menus) {
+		if (!menus.length) return;
+
+		function items(menu) {
+			return Array.prototype.filter.call(menu.querySelectorAll('[role="menuitem"]'), function (item) {
+				return item.offsetParent !== null;
+			});
+		}
+
+		function close(menu, restoreFocus) {
+			var trigger = menu.querySelector('summary');
+			menu.open = false;
+			menu.classList.remove('mjl-table-action-menu-align-end', 'mjl-table-action-menu-open-up');
+			if (trigger) trigger.setAttribute('aria-expanded', 'false');
+			if (restoreFocus && trigger) trigger.focus();
+		}
+
+		function contain(menu) {
+			var panel = menu.querySelector('.mjl-table-action-menu-panel');
+			if (!panel) return;
+			menu.classList.remove('mjl-table-action-menu-align-end', 'mjl-table-action-menu-open-up');
+			var rect = panel.getBoundingClientRect();
+			if (rect.right > window.innerWidth - 8) menu.classList.add('mjl-table-action-menu-align-end');
+			if (rect.bottom > window.innerHeight - 8 && rect.height < window.innerHeight - 16) menu.classList.add('mjl-table-action-menu-open-up');
+		}
+
+		function open(menu, focusIndex) {
+			Array.prototype.forEach.call(menus, function (other) {
+				if (other !== menu && other.open) close(other, false);
+			});
+			menu.open = true;
+			var trigger = menu.querySelector('summary');
+			if (trigger) trigger.setAttribute('aria-expanded', 'true');
+			window.requestAnimationFrame(function () {
+				if (!menu.open) return;
+				contain(menu);
+				var links = items(menu);
+				if (focusIndex !== null && links.length) links[focusIndex < 0 ? links.length - 1 : Math.min(focusIndex, links.length - 1)].focus();
+			});
+		}
+
+		Array.prototype.forEach.call(menus, function (menu) {
+			var trigger = menu.querySelector('summary');
+			if (!trigger) return;
+			trigger.setAttribute('aria-expanded', menu.open ? 'true' : 'false');
+			menu.addEventListener('toggle', function () {
+				trigger.setAttribute('aria-expanded', menu.open ? 'true' : 'false');
+				if (menu.open) open(menu, null);
+			});
+			menu.addEventListener('keydown', function (event) {
+				var links = items(menu);
+				var index = links.indexOf(document.activeElement);
+				if (document.activeElement === trigger && ['ArrowDown', 'ArrowUp', 'Home', 'End'].indexOf(event.key) !== -1) {
+					event.preventDefault();
+					open(menu, event.key === 'ArrowUp' || event.key === 'End' ? -1 : 0);
+					return;
+				}
+				if (index !== -1 && ['ArrowDown', 'ArrowUp', 'Home', 'End'].indexOf(event.key) !== -1) {
+					event.preventDefault();
+					if (event.key === 'Home') index = 0;
+					else if (event.key === 'End') index = links.length - 1;
+					else index = (index + (event.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length;
+					links[index].focus();
+				} else if (event.key === 'Escape' && menu.open) {
+					event.preventDefault();
+					close(menu, true);
+				} else if (event.key === 'Tab' && menu.open) {
+					close(menu, false);
+				}
+			});
+		});
+
+		document.addEventListener('click', function (event) {
+			Array.prototype.forEach.call(menus, function (menu) {
+				if (menu.open && !menu.contains(event.target)) close(menu, false);
+			});
+		});
+		window.addEventListener('resize', function () {
+			Array.prototype.forEach.call(menus, function (menu) { if (menu.open) contain(menu); });
+		});
+	}
+
 	document.addEventListener('DOMContentLoaded', function () {
 		Array.prototype.forEach.call(document.querySelectorAll('.mjl-module-shell'), initNavigationDrawer);
 		Array.prototype.forEach.call(document.querySelectorAll('form[data-mjl-validate]'), initValidatedForm);
 		initSubstantiveForms(document.querySelectorAll('form[data-mjl-substantive]'));
+		initTableActionMenus(document.querySelectorAll('[data-mjl-action-menu]'));
 	});
 })();

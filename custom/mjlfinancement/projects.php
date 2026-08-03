@@ -278,7 +278,7 @@ function mjl_projects_render_list()
 			: mjl_ui_system_state('initial-empty', 'Aucun projet', 'Aucun projet dans votre périmètre pour le moment.');
 	} else {
 		print '<div class="div-table-responsive-no-min mjl-dashboard-table mjl-operational-table"><table class="noborder centpercent" aria-label="Projets du périmètre">';
-		print '<thead><tr class="liste_titre"><th>Projet</th><th>Statut</th><th>Partenaire / Programme</th><th>Enveloppe liée</th><th>Budget total</th><th>Budget consommé</th><th>Budget restant</th><th>Fonds reçus</th><th>Activités</th><th>Dépenses</th><th>Documents</th><th>Échéance</th><th>Ouvrir</th></tr></thead><tbody>';
+		print '<thead><tr class="liste_titre"><th>Projet</th><th>Statut</th><th>Partenaire / Programme</th><th>Enveloppe liée</th><th>Budget total</th><th>Budget consommé</th><th>Budget restant</th><th>Fonds reçus</th><th>Activités</th><th>Dépenses</th><th>Documents</th><th>Échéance</th><th>Ouvrir</th><th>Actions</th></tr></thead><tbody>';
 		foreach ($rows as $row) {
 			$href = DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $row['rowid']);
 			print '<tr class="oddeven">';
@@ -295,6 +295,8 @@ function mjl_projects_render_list()
 			print '<td data-label="Documents">'.((int) $row['documents_count']).'</td>';
 			print '<td data-label="Échéance">'.dol_escape_htmltag(mjl_projects_date($row['datee'])).'</td>';
 			print '<td data-label="Ouvrir"><a class="mjl-table-link" href="'.dol_escape_htmltag($href).'">Ouvrir</a></td>';
+			$actions = $canManageProjects ? array(array('label' => 'Modifier le projet', 'href' => $href.'&action=edit')) : array();
+			print '<td data-label="Actions">'.mjl_table_render_action_menu($row['ref'], $actions).'</td>';
 			print '</tr>';
 		}
 		print '</tbody></table></div>';

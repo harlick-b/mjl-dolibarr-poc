@@ -337,7 +337,7 @@ function mjl_budgetlines_render_list($filters)
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Ligne</th><th>Projet</th><th>Enveloppe</th><th>Activite</th><th class="right">Budget revise</th><th class="right">Soumis</th><th class="right">Prevalide</th><th class="right">Valide definitif</th><th class="right">Decaisse</th><th class="right">Restant</th><th>Statut</th><th>Liens</th></tr>';
+	print '<tr class="liste_titre"><th>Ligne</th><th>Projet</th><th>Enveloppe</th><th>Activite</th><th class="right">Budget revise</th><th class="right">Soumis</th><th class="right">Prevalide</th><th class="right">Valide definitif</th><th class="right">Decaisse</th><th class="right">Restant</th><th>Statut</th><th>Liens</th><th>Actions</th></tr>';
 	$rows = array();
 	while ($obj = $db->fetch_object($resql)) $rows[] = $obj;
 	$hasNext = count($rows) > (int) $filters['page_size'];
@@ -358,10 +358,12 @@ function mjl_budgetlines_render_list($filters)
 		print '<td class="right">'.price($obj->remaining_amount).'</td>';
 		print '<td>'.mjl_budgetlines_status_badge($obj->status).'</td>';
 		print '<td>'.((int) $obj->expenses).' depense(s)</td>';
+		$actions = mjl_budgetlines_can_manage() ? array(array('label' => 'Modifier la ligne', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php?id='.((int) $obj->rowid).'&action=edit')) : array();
+		print '<td>'.mjl_table_render_action_menu($obj->ref, $actions).'</td>';
 		print '</tr>';
 	}
 	if ($count === 0) {
-		print '<tr class="oddeven"><td colspan="12">Aucune ligne budgetaire dans votre perimetre.</td></tr>';
+		print '<tr class="oddeven"><td colspan="13">Aucune ligne budgetaire dans votre perimetre.</td></tr>';
 	}
 	print '</table></div>';
 	print mjl_table_render_pagination(DOL_URL_ROOT.'/custom/mjlfinancement/budgetlines.php', $filters, $total, (int) $filters['page'] > 1, $hasNext, 'lignes budgétaires');

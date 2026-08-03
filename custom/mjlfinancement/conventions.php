@@ -417,7 +417,7 @@ function mjl_conventions_render_list($filters)
 		return;
 	}
 	print '<div class="div-table-responsive-no-min mjl-dashboard-table"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Enveloppe</th><th>Partenaire / Programme</th><th>Projet</th><th class="right">Montant</th><th>Statut</th><th>Liens</th></tr>';
+	print '<tr class="liste_titre"><th>Enveloppe</th><th>Partenaire / Programme</th><th>Projet</th><th class="right">Montant</th><th>Statut</th><th>Liens</th><th>Actions</th></tr>';
 	$rows = array();
 	while ($obj = $db->fetch_object($resql)) $rows[] = $obj;
 	$hasNext = count($rows) > (int) $filters['page_size'];
@@ -432,10 +432,16 @@ function mjl_conventions_render_list($filters)
 		print '<td class="right">'.price($obj->total_amount).' '.dol_escape_htmltag($obj->currency_code).'</td>';
 		print '<td>'.mjl_conventions_status_badge($obj->status).'</td>';
 		print '<td>'.((int) $obj->budget_lines).' ligne(s), '.((int) $obj->expenses).' depense(s)</td>';
+		$actions = array();
+		if (mjl_conventions_can_manage()) {
+			$actions[] = array('label' => 'Modifier l’enveloppe', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $obj->rowid).'&action=edit');
+			if ((int) $obj->status !== MjlConvention::STATUS_CLOSED) $actions[] = array('label' => 'Ajouter un document', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $obj->rowid).'&action=upload');
+		}
+		print '<td>'.mjl_table_render_action_menu($obj->ref, $actions).'</td>';
 		print '</tr>';
 	}
 	if ($count === 0) {
-		print '<tr class="oddeven"><td colspan="6">Aucune enveloppe dans votre perimetre.</td></tr>';
+		print '<tr class="oddeven"><td colspan="7">Aucune enveloppe dans votre perimetre.</td></tr>';
 	}
 	print '</table></div>';
 	print mjl_table_render_pagination(DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php', $filters, $total, (int) $filters['page'] > 1, $hasNext, 'enveloppes');
