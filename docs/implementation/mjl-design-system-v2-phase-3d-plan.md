@@ -903,3 +903,35 @@ Final gates after review remediation:
 
 No query logic, permission model, workflow transition, schema, export, expense
 creation form, or Dolibarr core file changed.
+
+## Phase 3D.2 completion evidence
+
+Phase 3D.2 is implemented through seven tracer commits plus the final guarded-
+recovery/native-menu remediation. Dedicated operational GET states now own the
+activity execution, expense create/edit, convention, budget-line, fund-receipt,
+and contextual upload interactions. Conditional menus contain authorized GET
+links only; all mutations remain token-protected POST actions.
+
+Verification in disposable Compose project
+`mjl-phase3d-prereq-implementation` at `http://127.0.0.1:18101` recorded:
+
+- operational interaction suite: 42/42 passed;
+- affected shell, navigation, and table regression suites: 41/41 passed;
+- focused finance recovery/upload/delete and complete menu keyboard,
+  no-JavaScript, and 390/768/980/1024/1366-width remediation suite: 3/3 passed;
+- relevant schema audits and scope, activity, expense, traceability, and
+  integrity smokes passed during the slices; the later consolidated integrity
+  verifier still reports orphan workflow rows left by disposable E2E fixture
+  deletion;
+- consolidated `npm run test:e2e`: 64 passed, 3 documented stale exact-copy
+  baseline failures, and 16 serial skips; none of the failures exercised a
+  touched route;
+- PHP and JavaScript syntax checks plus scoped `git diff --check`: passed.
+
+The consolidated `npm run test:verify` wrapper could not start because its new
+runner invokes disabled PHP `passthru()`; its underlying checks were run
+directly where applicable. The unsigned manual accessibility matrix and real
+200% browser-zoom evidence remain Phase 3D release blockers, and no WCAG
+conformance claim is made. A concurrent repository-wide test consolidation is
+preserved in the working tree, so the scoped Phase 3D.2 commits are clean while
+the global worktree is intentionally not claimed clean.

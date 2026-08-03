@@ -62,3 +62,13 @@ timelines/exchanges, and final client review for official outputs.
 - Preserve contextual uploads and guarded downloads.
 - Preserve CSV/XLSX-only scope unless authority changes.
 - Use `docs/mjl-authoritative-decisions.md` for terminology and role decisions.
+
+## Phase 3D.2 gate evidence
+
+Guarded operational states and conditional record menus are browser-verified.
+The operational matrix passed 42/42, and the shell/table regression matrix
+passed 41/41. Native no-JavaScript menu fallback, keyboard focus restoration,
+escaping, empty suppression, and 390-pixel viewport containment are covered.
+
+The unsigned manual accessibility matrix and real 200% browser-zoom evidence
+remain release blockers. This checkpoint does not claim WCAG conformance.

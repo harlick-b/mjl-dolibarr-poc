@@ -294,3 +294,27 @@ Key scripts currently present include:
 - The local development database contains historical workflow rows whose
   referenced test fixtures were deleted. The unresolved-scope audit continues
   to report these genuine missing targets; Phase 3 does not remediate them.
+
+## Phase 3D.2 Operational Interaction State
+
+- Activity execution, expense create/edit, and contextual activity/expense
+  uploads are dedicated authorized GET states.
+- Convention management uses guarded create, edit, activate, close,
+  delete-confirmation, and upload states. Budget lines use create, edit, and
+  activate states. Fund receipts use create, edit, received, not-received, and
+  upload states.
+- Authorization, active entity, scope, status, ownership/linked-object rules,
+  and action availability are checked before options, recovery, or fields.
+  POST names, CSRF checks, domain transitions, audits, and success destinations
+  remain unchanged.
+- Recovery is exact route/object/form/action and one-use. Uploads, convention
+  deletion, security failures, request IDs, tokens, files, and computed amounts
+  are not recovered.
+- Project, convention, budget-line, and fund-receipt lists expose conditional
+  presentation-only menus for authorized secondary GET links. Mutations remain
+  POST-only and central workflow actions remain visible on detail.
+- Disposable verification used project `mjl-phase3d-prereq-implementation`,
+  URL `http://127.0.0.1:18101`, and root
+  `/tmp/mjl-phase3d-implementation-UIcPqT`. Operational interactions passed
+  42/42. The consolidated repository runner reported 64 passed, 3 documented
+  stale exact-copy failures, and 16 serial skips; no touched-route case failed.

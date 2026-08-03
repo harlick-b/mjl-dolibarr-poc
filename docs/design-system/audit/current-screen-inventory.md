@@ -31,3 +31,15 @@ coverage.
 | Document download | `/custom/mjlfinancement/documentdownload.php` | Guarded ECM download route. | Object-specific guards. | Helper route, not navigation. |
 | Roadmap | `/custom/mjlfinancement/roadmap.php` | Internal roadmap/readiness page. | Admin plus feature flag. | Not a production user feature. |
 | Login/password pages | Dolibarr auth templates/hooks | Auth and password flows with MJL styling. | Native auth plus MJL hooks. | No public registration should appear. |
+
+## Phase 3D.2 interaction update
+
+- Projects retain visible `Ouvrir` links and add conditional authorized
+  secondary row menus.
+- Conventions now use guarded create, edit, activate, close,
+  delete-confirmation, and upload states.
+- Budget lines now use guarded create, edit, and activate states.
+- Fund receipts now use guarded create, edit, received, not-received, and
+  upload states.
+- Finance guards run before fields, options, or exact recovery. Uploads and
+  convention deletion remain nonrecoverable; mutations remain POST-only.

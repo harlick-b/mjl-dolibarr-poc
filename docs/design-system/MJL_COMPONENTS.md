@@ -316,3 +316,22 @@ Each component must define purpose, when to use it, when not to use it, layout, 
 ## Reuse Rule
 
 Reuse existing MJL patterns before creating new ones. Do not introduce a heavy UI framework without approval.
+
+### Conditional record action menu
+
+- **Purpose/use:** group secondary, already-authorized record GET links on
+  project, convention, budget-line, and fund-receipt rows while keeping
+  `Ouvrir` and central workflow actions visible. The caller owns permission,
+  scope, entity, status, and action availability; the renderer never authorizes
+  or mutates.
+- **Layout/behavior:** `mjl_table_render_action_menu($recordLabel, $actions)`
+  accepts `label`, `href`, and an optional controlled `tone`. Empty descriptors
+  render no trigger. Native `details` remains usable without JavaScript;
+  enhancement adds one-open behavior, outside-click/Tab closure, viewport
+  alignment, and Arrow/Home/End/Escape navigation.
+- **Accessibility/French:** the trigger is named for the record, expansion is
+  synchronized, links use menu semantics, focus is visible, and Escape restores
+  the trigger. Labels remain French and meaningful without icons.
+- **Visibility/E2E:** menus contain secondary guarded-state links only. Browser
+  coverage proves escaping, empty suppression, keyboard/focus behavior,
+  no-JavaScript fallback, and 390-pixel containment.
