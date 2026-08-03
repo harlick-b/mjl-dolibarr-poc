@@ -66,7 +66,7 @@ timelines/exchanges, and final client review for official outputs.
 ## Phase 3D.2 gate evidence
 
 Guarded operational states and conditional record menus are browser-verified.
-The operational matrix passed 42/42, and the shell/table regression matrix
+The durable operational matrix passed 43/43, and the shell/table regression matrix
 passed 41/41. Native no-JavaScript menu fallback, keyboard focus restoration,
 escaping, empty suppression, and 390-pixel viewport containment are covered.
 

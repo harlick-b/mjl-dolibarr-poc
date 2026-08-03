@@ -316,5 +316,5 @@ Key scripts currently present include:
 - Disposable verification used project `mjl-phase3d-prereq-implementation`,
   URL `http://127.0.0.1:18101`, and root
   `/tmp/mjl-phase3d-implementation-UIcPqT`. Operational interactions passed
-  42/42. The consolidated repository runner reported 64 passed, 3 documented
+  43/43. The consolidated repository runner reported 64 passed, 3 documented
   stale exact-copy failures, and 16 serial skips; no touched-route case failed.

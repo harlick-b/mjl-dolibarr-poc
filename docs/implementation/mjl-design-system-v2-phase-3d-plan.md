@@ -915,10 +915,11 @@ links only; all mutations remain token-protected POST actions.
 Verification in disposable Compose project
 `mjl-phase3d-prereq-implementation` at `http://127.0.0.1:18101` recorded:
 
-- operational interaction suite: 42/42 passed;
+- durable operational interaction suite: 43/43 passed;
 - affected shell, navigation, and table regression suites: 41/41 passed;
 - focused finance recovery/upload/delete and complete menu keyboard,
-  no-JavaScript, and 390/768/980/1024/1366-width remediation suite: 3/3 passed;
+  no-JavaScript, and 390/768/980/1024/1366-width remediation suite: 3/3 passed,
+  with the assertions promoted into the durable operational suite;
 - relevant schema audits and scope, activity, expense, traceability, and
   integrity smokes passed during the slices; the later consolidated integrity
   verifier still reports orphan workflow rows left by disposable E2E fixture
