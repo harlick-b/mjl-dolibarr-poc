@@ -202,6 +202,7 @@ test('DPAF uploads and downloads convention documents; normal users are denied d
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/conventions.php?id=${conventionId}`);
+  await page.getByRole('link', { name: 'Ajouter un document' }).click();
   await page.setInputFiles('input[name="supporting_document"]', tmpFile);
   await page.getByRole('button', { name: 'Ajouter le document' }).click();
   await expect(page.getByText('Disponible').first()).toBeVisible();

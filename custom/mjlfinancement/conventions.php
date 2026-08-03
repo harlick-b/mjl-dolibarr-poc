@@ -1,5 +1,6 @@
 <?php
 
+define('NOCSRFCHECK', 1);
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlconvention.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
@@ -16,6 +17,10 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.
 mjl_workspace_require_reference_data_access($user, 'convention');
 
 $action = GETPOST('action', 'aZ09');
+$conventionId = GETPOSTINT('id');
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && in_array($action, array('create', 'edit', 'activate', 'close', 'delete', 'upload'), true) ? $action : '';
+$presentationConvention = array();
+$presentationLinked = array();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		mjl_conventions_forbidden('Jeton de securite invalide');
@@ -26,18 +31,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	mjl_conventions_handle_post($action);
 }
 
-$conventionId = GETPOSTINT('id');
-$mjl_convention_recovery = mjl_form_recovery_consume_route(
-	GETPOST('mjl_recovery', 'alphanohtml'),
-	array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'conventions', 'object_id' => $conventionId),
-	mjl_finance_recovery_consume_allowlist('conventions')
-);
+$mjl_convention_document_state = GETPOST('mjl_document_state', 'alphanohtml');
+if ($presentationAction === 'create') {
+	if ($conventionId !== 0 || !mjl_conventions_can_manage()) mjl_conventions_forbidden();
+	$mjl_convention_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'conventions', 'object_id' => 0),
+		array('create' => array('create'))
+	);
+} elseif ($presentationAction !== '') {
+	$presentationConvention = mjl_conventions_fetch_detail($conventionId);
+	if (empty($presentationConvention)) mjl_conventions_forbidden('Enveloppe introuvable ou hors de votre perimetre');
+	$presentationLinked = mjl_conventions_link_counts($conventionId);
+	$hasLinks = array_sum($presentationLinked) > 0;
+	if (!mjl_conventions_can_present_action($presentationConvention, $presentationAction, $hasLinks)) mjl_conventions_forbidden();
+	if (in_array($presentationAction, array('delete', 'upload'), true)) {
+		$mjl_convention_recovery = array();
+	} else {
+		$postAction = $presentationAction === 'edit' ? 'update' : $presentationAction;
+		$config = mjl_finance_recovery_config('conventions', $postAction);
+		$mjl_convention_recovery = mjl_form_recovery_consume_route(
+			GETPOST('mjl_recovery', 'alphanohtml'),
+			array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'conventions', 'object_id' => $conventionId),
+			array((string) $config['form'] => array($postAction))
+		);
+	}
+} else {
+	$mjl_convention_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'conventions', 'object_id' => $conventionId),
+		array('comment' => array('add_exchange'))
+	);
+}
 
 llxHeader('', 'Enveloppes de financement MJL');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-convention-workspace">';
 
-if ($conventionId > 0) {
+if ($presentationAction === 'create') {
+	mjl_conventions_render_create_state();
+} elseif ($presentationAction !== '') {
+	mjl_conventions_render_presentation_state($presentationConvention, $presentationLinked, $presentationAction);
+} elseif ($conventionId > 0) {
 	mjl_conventions_render_detail($conventionId);
 } else {
 	mjl_conventions_render_list_page();
@@ -73,7 +108,7 @@ function mjl_conventions_handle_post($action)
 		if ($result <= 0) {
 			$feedback = mjl_finance_feedback_domain('conventions', 'create', 0, $convention->error);
 			setEventMessages(mjl_finance_feedback_domain_message('conventions', 'create', $feedback), null, 'errors');
-			mjl_conventions_redirect(0, mjl_conventions_store_recovery('create', 0, $feedback));
+			mjl_conventions_redirect(0, mjl_conventions_store_recovery('create', 0, $feedback), 'create');
 		}
 		setEventMessages('Enveloppe creee en brouillon', null, 'mesgs');
 		mjl_conventions_redirect((int) $result);
@@ -130,13 +165,17 @@ function mjl_conventions_handle_post($action)
 	if ($result < 0) {
 		$feedback = mjl_finance_feedback_domain('conventions', $failureAction, $id, $convention->error);
 		setEventMessages(mjl_finance_feedback_domain_message('conventions', $failureAction, $feedback), null, 'errors');
+		if ($failureAction === 'upload') mjl_conventions_redirect($id, '', 'upload', 'upload-failed');
+		if ($failureAction === 'delete') mjl_conventions_redirect($id);
 		$recoveryHandle = mjl_conventions_store_recovery($failureAction, $id, $feedback);
+		$recoveryState = $failureAction === 'update' ? 'edit' : $failureAction;
+		mjl_conventions_redirect($id, $recoveryHandle, $recoveryState);
 	} elseif ($result === 0) {
 		setEventMessages('Aucun changement applique', null, 'warnings');
 	} else {
 		setEventMessages('Action enveloppe enregistree', null, 'mesgs');
 	}
-	mjl_conventions_redirect($action === 'delete' && $result > 0 ? 0 : $id, $recoveryHandle ?? '');
+	mjl_conventions_redirect($action === 'delete' && $result > 0 ? 0 : $id);
 }
 
 function mjl_conventions_render_list_page()
@@ -160,17 +199,12 @@ function mjl_conventions_render_list_page()
 		$filters['fail_closed'] = true;
 		$filters['page'] = 1;
 	}
-	print mjl_page_header_render(
-		'Gestion des enveloppes de financement',
-		array(
+	$headerOptions = array(
 			'description' => 'Pilotez les enveloppes avant les lignes budgétaires, dépenses et rapports.',
 			'context' => array('label' => 'Périmètre', 'value' => mjl_conventions_can_manage() ? 'Administration / validation définitive' : 'Consultation'),
-		)
-	);
-
-	if (mjl_conventions_can_manage()) {
-		mjl_conventions_render_create_form();
-	}
+		);
+	if (mjl_conventions_can_manage()) $headerOptions['primary_action'] = array('label' => 'Créer une enveloppe', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?action=create');
+	print mjl_page_header_render('Gestion des enveloppes de financement', $headerOptions);
 	mjl_conventions_render_list_filters($filters, $partnerOptions, $projectOptions);
 	mjl_conventions_render_list($filters);
 }
@@ -185,27 +219,66 @@ function mjl_conventions_render_detail($id)
 	$hasLinks = array_sum($linked) > 0;
 	$canManage = mjl_conventions_can_manage();
 
-	print mjl_page_header_render(
-		$row['ref'].' - '.$row['title'],
-		array(
+	$headerOptions = array(
 			'breadcrumb' => array(
 				array('label' => 'Enveloppes de financement', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php'),
 				array('label' => $row['ref']),
 			),
 			'description' => mjl_conventions_next_action_label($row, $hasLinks),
 			'context' => array('label' => 'Statut', 'value' => mjl_convention_status_label($row['status'])),
-		)
-	);
+		);
+	if ($canManage) $headerOptions['primary_action'] = array('label' => 'Modifier l’enveloppe', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'&action=edit');
+	print mjl_page_header_render($row['ref'].' - '.$row['title'], $headerOptions);
 
-	print '<div class="mjl-activity-detail-grid">';
 	mjl_conventions_render_summary($row, $linked);
-	if ($canManage) {
-		mjl_conventions_render_edit_form($row, $hasLinks);
-	}
-	print '</div>';
 	mjl_conventions_render_actions($row, $hasLinks, $canManage);
 	mjl_conventions_render_document_panel($row, $canManage);
 	mjl_conventions_render_timeline($row);
+}
+
+function mjl_conventions_render_create_state()
+{
+	print mjl_page_header_render('Créer une enveloppe', array(
+		'breadcrumb' => array(
+			array('label' => 'Enveloppes de financement', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php'),
+			array('label' => 'Créer'),
+		),
+		'description' => 'Créez un brouillon avant son activation et son utilisation par les opérations.',
+	));
+	mjl_conventions_render_create_form();
+}
+
+function mjl_conventions_render_presentation_state($row, $linked, $action)
+{
+	$hasLinks = array_sum($linked) > 0;
+	$titles = array(
+		'edit' => 'Modifier l’enveloppe '.$row['ref'],
+		'activate' => 'Activer l’enveloppe '.$row['ref'],
+		'close' => 'Clôturer l’enveloppe '.$row['ref'],
+		'delete' => 'Supprimer l’enveloppe '.$row['ref'],
+		'upload' => 'Ajouter un document à l’enveloppe '.$row['ref'],
+	);
+	$title = $titles[$action];
+	print mjl_page_header_render($title, array(
+		'breadcrumb' => array(
+			array('label' => 'Enveloppes de financement', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php'),
+			array('label' => $row['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid'])),
+			array('label' => $title),
+		),
+		'description' => $action === 'delete' ? 'Confirmez uniquement si ce brouillon doit être supprimé définitivement.' : 'Vérifiez le contexte et les conséquences avant de poursuivre.',
+		'context' => array('label' => 'Statut actuel', 'value' => mjl_convention_status_label($row['status'])),
+	));
+	mjl_conventions_render_summary($row, $linked);
+	if ($action === 'edit') {
+		mjl_conventions_render_edit_form($row, $hasLinks);
+	} elseif ($action === 'upload') {
+		mjl_conventions_render_document_panel($row, false);
+		mjl_conventions_render_upload_form($row);
+	} elseif ($action === 'delete') {
+		mjl_conventions_render_delete_state($row);
+	} else {
+		mjl_conventions_render_decision_state($row, $action);
+	}
 }
 
 function mjl_conventions_upload_document(MjlConvention $convention)
@@ -251,12 +324,13 @@ function mjl_conventions_render_create_form()
 	$ptfs = mjl_conventions_options('ptf');
 	$projects = mjl_conventions_options('project');
 	$values = mjl_finance_recovery_values($GLOBALS['mjl_convention_recovery'] ?? null, 'create');
+	$isRecovered = !empty($GLOBALS['mjl_convention_recovery']['recovered']);
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
 	print '<div class="mjl-section-heading"><h2>Nouvelle enveloppe</h2><p>Creer un brouillon avant activation et utilisation par les operations.</p></div>';
-	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">';
+	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php" data-mjl-validate data-mjl-form="convention-create" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print '<input type="hidden" name="action" value="create"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_conventions_render_fields($values, $ptfs, $projects, false, 'create');
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Creer l enveloppe"></div>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Créer l’enveloppe"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php">Annuler</a></div>';
 	print '</form></section>';
 }
 
@@ -265,15 +339,16 @@ function mjl_conventions_render_edit_form($row, $hasLinks)
 	$recovery = $GLOBALS['mjl_convention_recovery'] ?? null;
 	$row = array_merge($row, mjl_finance_recovery_values($recovery, 'edit'));
 	$errors = is_array($recovery) && (string) ($recovery['context']['form'] ?? '') === 'edit' ? (array) ($recovery['errors'] ?? array()) : array();
+	$isRecovered = !empty($recovery['recovered']);
 	$ptfs = mjl_conventions_options('ptf');
 	$projects = mjl_conventions_options('project');
 	print '<section class="mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Parametres enveloppe</h2><p>'.($hasLinks ? 'Les champs financiers structurants sont verrouilles car des objets sont lies.' : 'Modifier les donnees avant rattachement operationnel.').'</p></div>';
-	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'">';
+	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="convention-edit" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print '<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_conventions_render_fields($row, $ptfs, $projects, $hasLinks, 'edit');
 	print mjl_form_field('comment', 'Motif de modification', '<input required name="comment" value="'.dol_escape_htmltag($row['comment'] ?? '').'">', true, '', $errors['comment'] ?? '', 'mjl-convention-edit-');
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer"></div>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
 	print '</form></section>';
 }
 
@@ -392,22 +467,24 @@ function mjl_conventions_render_actions($row, $hasLinks, $canManage)
 	if (!$canManage) return;
 	print '<section class="mjl-workspace-section mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Cycle de vie</h2><p>Activation, cloture ou suppression selon les regles de gouvernance.</p></div>';
+	$base = DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'&amp;action=';
 	if ((int) $row['status'] === MjlConvention::STATUS_DRAFT) {
-		mjl_conventions_action_form($row['rowid'], 'activate', 'Activer l enveloppe', 'Commentaire d activation', false);
+		print '<a class="mjl-action mjl-action-secondary" href="'.$base.'activate">Activer l’enveloppe</a>';
 		if (!$hasLinks) {
-			mjl_conventions_action_form($row['rowid'], 'delete', 'Supprimer le brouillon', '', false);
+			print '<a class="mjl-action mjl-action-secondary" href="'.$base.'delete">Supprimer l’enveloppe</a>';
 		}
 	} elseif ((int) $row['status'] === MjlConvention::STATUS_ACTIVE) {
-		mjl_conventions_action_form($row['rowid'], 'close', 'Cloturer l enveloppe', 'Motif de cloture', true);
+		print '<a class="mjl-action mjl-action-secondary" href="'.$base.'close">Clôturer l’enveloppe</a>';
 	} else {
 		print '<div class="mjl-empty-state">Enveloppe cloturee: aucune nouvelle operation ne peut y etre rattachee.</div>';
 	}
 	print '</section>';
 }
 
-function mjl_conventions_render_document_panel($row, $canManage)
+function mjl_conventions_render_document_panel($row, $withUploadAction = true)
 {
 	$state = mjl_convention_evidence_state((int) $row['rowid'], (int) $row['entity']);
+	if (($GLOBALS['mjl_convention_document_state'] ?? '') === 'upload-failed' && mjl_conventions_can_upload_document($row)) $state = 'upload-failed';
 	$documents = mjl_convention_document_download_rows((int) $row['rowid']);
 	$modelDocuments = array();
 	foreach ($documents as $document) $modelDocuments[] = array('label' => mjl_convention_document_display_filename($document), 'url' => '/custom/mjlfinancement/documentdownload.php?type=convention&id='.((int) $document['rowid']));
@@ -418,31 +495,60 @@ function mjl_conventions_render_document_panel($row, $canManage)
 		'state_label' => mjl_conventions_evidence_label($state),
 		'documents' => $modelDocuments,
 	));
-	if ($canManage && mjl_conventions_can_upload_document($row)) {
-		print '<section class="mjl-workspace-section mjl-activity-card"><div class="mjl-section-heading"><h2>Ajouter un document</h2><p>Ajout contextuel à cette enveloppe.</p></div>';
-		print '<form class="mjl-activity-form" method="POST" enctype="multipart/form-data" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'">';
-		print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print '<label>Document enveloppe<input required type="file" name="supporting_document"></label>';
-		print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter le document"></div>';
-		print '</form>';
-		print '</section>';
+	if ($withUploadAction && mjl_conventions_can_upload_document($row)) {
+		print '<p><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'&amp;action=upload">Ajouter un document</a></p>';
 	}
 }
 
-function mjl_conventions_action_form($id, $action, $label, $commentLabel, $required)
+function mjl_conventions_render_upload_form($row)
+{
+	print '<section class="mjl-workspace-section mjl-activity-card"><div class="mjl-section-heading"><h2>Document à ajouter</h2><p>Le fichier sera conservé derrière la route de téléchargement MJL gardée.</p></div>';
+	print '<form class="mjl-activity-form" method="POST" enctype="multipart/form-data" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'" data-mjl-form="convention-upload" data-mjl-substantive>';
+	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<label>Document enveloppe<input required type="file" name="supporting_document"></label>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter le document"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
+	print '</form></section>';
+}
+
+function mjl_conventions_render_decision_state($row, $action)
+{
+	$meta = array(
+		'activate' => array('label' => 'Activer l’enveloppe', 'comment' => 'Commentaire d’activation', 'required' => false),
+		'close' => array('label' => 'Clôturer l’enveloppe', 'comment' => 'Motif de clôture', 'required' => true),
+	);
+	if (!isset($meta[$action])) mjl_conventions_forbidden();
+	print '<section class="mjl-workspace-section mjl-activity-card mjl-activity-decision"><div class="mjl-section-heading"><h2>'.dol_escape_htmltag($meta[$action]['label']).'</h2><p>Cette décision sera inscrite dans l’historique de gouvernance.</p></div>';
+	mjl_conventions_action_form($row['rowid'], $action, $meta[$action]['label'], $meta[$action]['comment'], $meta[$action]['required'], true);
+	print '</section>';
+}
+
+function mjl_conventions_render_delete_state($row)
+{
+	print '<section class="mjl-workspace-section mjl-activity-card mjl-activity-decision"><div class="mjl-section-heading"><h2>Confirmer la suppression</h2><p>Cette suppression est irréversible. Elle n’est autorisée que pour un brouillon sans objet lié.</p></div>';
+	print '<form class="mjl-activity-action-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'" data-mjl-form="convention-delete" data-mjl-substantive>';
+	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<div class="mjl-decision-consequence"><strong>Conséquence de cette décision</strong><p>Le brouillon sera supprimé définitivement; cette action est irréversible.</p></div>';
+	print '<div class="mjl-activity-form-actions"><button class="button" type="submit">Supprimer l’enveloppe</button><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
+	print '</form></section>';
+}
+
+function mjl_conventions_action_form($id, $action, $label, $commentLabel, $required, $withCancel = false)
 {
 	$recovery = $GLOBALS['mjl_convention_recovery'] ?? null;
 	$matchesRecovery = is_array($recovery) && (string) ($recovery['context']['action'] ?? '') === $action;
 	$values = $matchesRecovery ? (array) ($recovery['values'] ?? array()) : array();
 	$errors = $matchesRecovery ? (array) ($recovery['errors'] ?? array()) : array();
+	$isRecovered = !empty($recovery['recovered']) && $matchesRecovery;
 	$prefix = 'mjl-convention-decision-'.$action.'-';
-	print '<form class="mjl-activity-action-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $id).'">';
+	print '<form class="mjl-activity-action-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $id).'" data-mjl-validate data-mjl-form="convention-'.dol_escape_htmltag($action).'"'.($withCancel ? ' data-mjl-substantive' : '').($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="'.dol_escape_htmltag($action).'"><input type="hidden" name="id" value="'.((int) $id).'">';
 	if ($commentLabel !== '') {
 		print mjl_form_error_summary($errors, 'Corrigez la décision', $prefix);
 		print mjl_form_field('comment', $commentLabel, '<input'.($required ? ' required' : '').' name="comment" value="'.dol_escape_htmltag($values['comment'] ?? '').'">', $required, '', $errors['comment'] ?? '', $prefix);
 	}
-	print '<input class="button" type="submit" value="'.dol_escape_htmltag($label).'">';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="'.dol_escape_htmltag($label).'">';
+	if ($withCancel) print '<a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php?id='.((int) $id).'">Annuler</a>';
+	print '</div>';
 	print '</form>';
 }
 
@@ -612,6 +718,16 @@ function mjl_conventions_can_upload_document($row)
 	return mjl_conventions_can_manage() && (int) ($data['status'] ?? 0) !== MjlConvention::STATUS_CLOSED;
 }
 
+function mjl_conventions_can_present_action($row, $action, $hasLinks)
+{
+	if ($action === 'edit') return mjl_conventions_can_manage();
+	if ($action === 'activate') return mjl_conventions_can_manage() && (int) $row['status'] === MjlConvention::STATUS_DRAFT;
+	if ($action === 'close') return mjl_conventions_can_manage() && (int) $row['status'] === MjlConvention::STATUS_ACTIVE;
+	if ($action === 'delete') return mjl_conventions_can_manage() && (int) $row['status'] === MjlConvention::STATUS_DRAFT && !$hasLinks;
+	if ($action === 'upload') return mjl_conventions_can_upload_document($row);
+	return false;
+}
+
 function mjl_convention_status_label($status)
 {
 	return mjl_timeline_presentation_status_label('mjlfinancement_convention', $status);
@@ -655,6 +771,7 @@ function mjl_conventions_timeline_title($action, $fromStatus, $toStatus)
 
 function mjl_conventions_evidence_label($state)
 {
+	if ($state === 'upload-failed') return 'Échec de l’ajout';
 	if ($state === 'downloadable') return 'Disponible';
 	if ($state === 'unavailable') return 'Référence indisponible';
 	return 'Manquante';
@@ -720,12 +837,14 @@ function mjl_conventions_store_recovery($action, $id, $feedback)
 	return mjl_form_recovery_store(array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'conventions', 'form' => $config['form'], 'action' => $action, 'object_id' => (int) $id), $values, $config['fields'], $reason, $errors);
 }
 
-function mjl_conventions_redirect($id, $recoveryHandle = '')
+function mjl_conventions_redirect($id, $recoveryHandle = '', $presentationAction = '', $documentState = '')
 {
 	$url = DOL_URL_ROOT.'/custom/mjlfinancement/conventions.php';
 	$query = array();
 	if ((int) $id > 0) $query['id'] = (int) $id;
+	if ((string) $presentationAction !== '') $query['action'] = (string) $presentationAction;
 	if ($recoveryHandle !== '') $query['mjl_recovery'] = $recoveryHandle;
+	if (in_array((string) $documentState, array('upload-failed'), true)) $query['mjl_document_state'] = (string) $documentState;
 	if (!empty($query)) $url .= '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 	header('Location: '.$url);
 	exit;

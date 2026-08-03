@@ -104,6 +104,28 @@ function seedActivityActionFixture() {
   return Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'P3D-ACTION-STATE' AND entity = 1 LIMIT 1"));
 }
 
+function cleanupConventionStateFixture() {
+  executeSql(`
+    SET @convention_state_id = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'P3D-CONVENTION-STATE' AND entity = 1 LIMIT 1);
+    DELETE FROM llx_mjlfinancement_workflow_action WHERE entity = 1 AND object_type = 'mjlfinancement_convention' AND object_id = @convention_state_id;
+    DELETE FROM llx_mjlfinancement_convention WHERE entity = 1 AND rowid = @convention_state_id;
+  `);
+}
+
+function seedConventionStateFixture() {
+  cleanupConventionStateFixture();
+  executeSql(`
+    SET @partner = (SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1);
+    SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1);
+    SET @admin = (SELECT rowid FROM llx_user WHERE login = 'admin.poc' LIMIT 1);
+    INSERT INTO llx_mjlfinancement_convention
+      (entity, ref, title, fk_soc, fk_project, date_start, date_end, total_amount, currency_code, date_creation, fk_user_creat, import_key, status)
+    VALUES
+      (1, 'P3D-CONVENTION-STATE', 'Convention gardée Phase 3D', @partner, @project, '2026-08-01', '2026-12-31', 1000000, 'XOF', NOW(), @admin, 'P3DCONVSTATE', 0);
+  `);
+  return Number(scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'P3D-CONVENTION-STATE' AND entity = 1 LIMIT 1"));
+}
+
 function restoreExpenseDecisionSample() {
   executeSql(`
     SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1);
@@ -140,6 +162,7 @@ test.afterEach(() => {
   cleanupActivityActionFixture();
   cleanupScopedActivityReviewer();
   restoreExpenseDecisionSample();
+  cleanupConventionStateFixture();
 });
 
 test('project creation uses an authorized dedicated presentation state', async ({ page }) => {
@@ -407,6 +430,42 @@ test('expense create and edit recovery stay guarded and one-use', async ({ page 
   await page.goto(recoveryLocation);
   await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
   await expect(form.locator('input[name="description"]')).toHaveValue('Correction à reprendre');
+});
+
+test('convention management uses guarded route-owned presentation states', async ({ page }) => {
+  const conventionId = seedConventionStateFixture();
+  await login(page, 'admin.poc');
+  await page.goto('/custom/mjlfinancement/conventions.php');
+
+  await expect(page.locator('form input[name="action"][value="create"]')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Créer une enveloppe' })).toHaveAttribute('href', '/custom/mjlfinancement/conventions.php?action=create');
+  await page.getByRole('link', { name: 'Créer une enveloppe' }).click();
+  await expect(page.locator('form[data-mjl-form="convention-create"]')).toHaveAttribute('data-mjl-substantive', '');
+  await expect(page.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', '/custom/mjlfinancement/conventions.php');
+
+  await page.goto(`/custom/mjlfinancement/conventions.php?id=${conventionId}`);
+  for (const action of ['update', 'activate', 'delete', 'upload']) {
+    await expect(page.locator(`form input[name="action"][value="${action}"]`)).toHaveCount(0);
+  }
+  const links = [
+    ['Modifier l’enveloppe', 'edit'],
+    ['Activer l’enveloppe', 'activate'],
+    ['Supprimer l’enveloppe', 'delete'],
+    ['Ajouter un document', 'upload'],
+  ];
+  for (const [label, action] of links) {
+    await expect(page.getByRole('link', { name: label })).toHaveAttribute('href', `/custom/mjlfinancement/conventions.php?id=${conventionId}&action=${action}`);
+  }
+
+  await page.getByRole('link', { name: 'Modifier l’enveloppe' }).click();
+  await expect(page.locator('form[data-mjl-form="convention-edit"]')).toHaveAttribute('data-mjl-substantive', '');
+  await page.goto(`/custom/mjlfinancement/conventions.php?id=${conventionId}&action=activate`);
+  await expect(page.locator('form[data-mjl-form="convention-activate"]')).toHaveAttribute('data-mjl-substantive', '');
+  await page.goto(`/custom/mjlfinancement/conventions.php?id=${conventionId}&action=delete`);
+  await expect(page.locator('form[data-mjl-form="convention-delete"]')).toHaveAttribute('data-mjl-substantive', '');
+  await expect(page.locator('form[data-mjl-form="convention-delete"]')).toContainText('irréversible');
+  await page.goto(`/custom/mjlfinancement/conventions.php?id=${conventionId}&action=upload`);
+  await expect(page.locator('form[data-mjl-form="convention-upload"]')).toHaveAttribute('data-mjl-substantive', '');
 });
 
 test('activity supporting-document upload uses an authorized dedicated presentation state', async ({ page }) => {

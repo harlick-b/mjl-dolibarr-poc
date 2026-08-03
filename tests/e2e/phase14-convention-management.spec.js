@@ -86,34 +86,38 @@ test('DPAF creates, edits, activates, closes, and views convention history', asy
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/conventions.php');
   await expect(page.getByRole('heading', { name: 'Gestion des enveloppes de financement' })).toBeVisible();
+  await page.getByRole('link', { name: 'Créer une enveloppe' }).click();
 
   await page.getByLabel('Reference').fill('P14-UI-CONV');
   await page.getByLabel('Intitule').fill('Convention Phase 14 UI');
   await page.locator('select[name="fk_soc"]').selectOption(ptfId);
   await page.locator('select[name="fk_project"]').selectOption(projectId);
   await page.getByLabel('Debut').fill('2026-07-01');
-  await page.getByLabel('Fin').fill('2026-12-31');
+  await page.locator('input[name="date_end"]').fill('2026-12-31');
   await page.getByLabel('Montant total').fill('1234567');
   await page.getByLabel('Devise').fill('XOF');
-  await page.getByRole('button', { name: 'Creer l enveloppe' }).click();
+  await page.getByRole('button', { name: 'Créer l’enveloppe' }).click();
 
   await expect(page).toHaveURL(/conventions\.php\?id=\d+/);
   await expect(page.getByRole('heading', { name: /P14-UI-CONV/ })).toBeVisible();
   await expect(page.getByText('Brouillon').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Historique enveloppe' })).toBeVisible();
 
+  await page.getByRole('link', { name: 'Modifier l’enveloppe' }).click();
   await page.getByLabel('Intitule').fill('Convention Phase 14 modifiee');
   await page.getByLabel('Motif de modification').fill('Correction libelle Phase 14');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByRole('heading', { name: /Convention Phase 14 modifiee/ })).toBeVisible();
   await expect(page.getByText('Correction libelle Phase 14')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Activer l enveloppe' }).click();
+  await page.getByRole('link', { name: 'Activer l’enveloppe' }).click();
+  await page.getByRole('button', { name: 'Activer l’enveloppe' }).click();
   await expect(page.getByText('Active').first()).toBeVisible();
   await expect(page.getByText('Activation', { exact: true })).toBeVisible();
 
-  await page.getByLabel('Motif de cloture').fill('Cloture test Phase 14');
-  await page.getByRole('button', { name: 'Cloturer l enveloppe' }).click();
+  await page.getByRole('link', { name: 'Clôturer l’enveloppe' }).click();
+  await page.getByLabel('Motif de clôture').fill('Cloture test Phase 14');
+  await page.getByRole('button', { name: 'Clôturer l’enveloppe' }).click();
   await expect(page.getByText('Clôturée').first()).toBeVisible();
   await expect(page.getByText('Cloture test Phase 14')).toBeVisible();
 
@@ -125,7 +129,7 @@ test('Admin can open convention management, while non-DPAF direct access and POS
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/conventions.php');
   await expect(page.getByRole('heading', { name: 'Gestion des enveloppes de financement' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Creer l enveloppe' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Créer une enveloppe' })).toBeVisible();
 
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/conventions.php');
@@ -195,15 +199,17 @@ test('Unlinked draft deletion works but linked deletion is blocked', async ({ pa
 
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/conventions.php');
+  await page.getByRole('link', { name: 'Créer une enveloppe' }).click();
   await page.getByLabel('Reference').fill('P14-DELETE-DRAFT');
   await page.getByLabel('Intitule').fill('Convention Phase 14 suppression');
   await page.locator('select[name="fk_soc"]').selectOption(ptfId);
   await page.locator('select[name="fk_project"]').selectOption(projectId);
   await page.getByLabel('Montant total').fill('500000');
   await page.getByLabel('Devise').fill('XOF');
-  await page.getByRole('button', { name: 'Creer l enveloppe' }).click();
+  await page.getByRole('button', { name: 'Créer l’enveloppe' }).click();
   const draftId = new URL(page.url()).searchParams.get('id');
-  await page.getByRole('button', { name: 'Supprimer le brouillon' }).click();
+  await page.getByRole('link', { name: 'Supprimer l’enveloppe' }).click();
+  await page.getByRole('button', { name: 'Supprimer l’enveloppe' }).click();
   await expect(page).toHaveURL(/conventions\.php$/);
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_convention WHERE rowid = ${draftId}`))).toBe(0);
 
