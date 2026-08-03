@@ -115,7 +115,7 @@ async function recoverySessionHandles(page) {
 }
 
 async function createInvalidRecovery(page, ref, label) {
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   const form = page.locator('form[data-mjl-form="activity-create"]');
   const response = await page.request.post('/custom/mjlfinancement/activities.php', {
     form: {
@@ -137,7 +137,7 @@ async function createInvalidRecovery(page, ref, label) {
 }
 
 async function createActivityFixture(page, ref, label) {
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   const form = page.locator('form[data-mjl-form="activity-create"]');
   const response = await page.request.post('/custom/mjlfinancement/activities.php', {
     form: {
@@ -541,11 +541,11 @@ test('activity recovery registry is exact and excludes upload or unknown actions
   expect(result.registry).toEqual({
     create: {
       form: 'create',
-      fields: ['ref', 'label', 'date_start', 'date_end', 'date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'],
+      fields: ['ref', 'label', 'project_scope', 'convention_scope', 'task_scope', 'responsible_scope', 'date_start', 'date_end', 'date_actual_start', 'date_actual_end', 'physical_execution_percent', 'execution_status', 'execution_comment'],
     },
     update: {
       form: 'correction',
-      fields: ['label', 'date_start', 'date_end', 'comment'],
+      fields: ['label', 'responsible_scope', 'date_start', 'date_end', 'comment'],
     },
     correct: { form: 'correction', fields: ['comment'] },
     request_correction: { form: 'correction', fields: ['comment'] },
@@ -1188,7 +1188,7 @@ test('table request normalization fails closed and clamps safe pages', () => {
 
 test('activity form progressively enhances linked French validation errors', async ({ page }) => {
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
 
   const form = page.locator('form[data-mjl-validate][data-mjl-form="activity-create"]');
   await expect(form).toHaveAttribute('novalidate', '');
@@ -1208,7 +1208,7 @@ test('activity form progressively enhances linked French validation errors', asy
 
 test('activity server recovery retains safe values once and rejects invalid security context', async ({ page }) => {
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
 
   const form = page.locator('form[data-mjl-form="activity-create"]');
   const token = await form.locator('input[name="token"]').inputValue();
@@ -1301,12 +1301,12 @@ test('activity form keeps native validation without JavaScript', async ({ browse
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   const form = page.locator('form[data-mjl-form="activity-create"]');
   await expect(form).not.toHaveAttribute('novalidate', '');
   await expect(form.locator('#mjl-field-ref')).toHaveAttribute('required', '');
   await form.getByRole('button', { name: 'Créer l’activité' }).click();
-  await expect(page).toHaveURL(/activities\.php$/);
+  await expect(page).toHaveURL(/activities\.php\?action=create$/);
   await expect(form.locator('#mjl-field-ref')).toBeFocused();
   await context.close();
 });
@@ -1358,9 +1358,7 @@ test('activity recovery is isolated by exact action and absent for upload failur
   });
   await expect(recoveredCorrect.locator('[data-mjl-form-errors]')).toContainText('Corrigez les champs indiqués');
   await expect(recoveredCorrect.locator('textarea[name="comment"]')).toHaveAttribute('aria-invalid', 'true');
-  const updateForm = page.locator('form[data-mjl-form="activity-correction"]');
-  await expect(updateForm.locator('[data-mjl-form-errors]')).toBeEmpty();
-  await expect(updateForm.locator('textarea[name="comment"]')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('form[data-mjl-form="activity-update"]')).toHaveCount(0);
   expect(await recoverySessionHandles(page)).toEqual(baselineHandles);
 
   const uploadResponse = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
@@ -1401,7 +1399,7 @@ test('activity list exposes normalized filters, eight columns, and fail-closed e
 test('activity table retains semantic desktop layout at 1366px/1024px and labeled cards at 768px/390px', async ({ page }) => {
   await login(page, 'agent.mjl');
   await page.setViewportSize({ width: 1024, height: 800 });
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   const createForm = page.locator('form[data-mjl-form="activity-create"]');
   const ref = `P2-CARD-${Date.now()}`;
   cleanupActivityRefs.add(ref);
@@ -1419,7 +1417,8 @@ test('activity table retains semantic desktop layout at 1366px/1024px and labele
   expect(createResponse.status()).toBe(302);
   expect(createResponse.headers().location).toMatch(/activities\.php\?id=\d+$/);
   await page.goto(createResponse.headers().location);
-  await expect(page.locator('form[data-mjl-form="activity-correction"] #mjl-correction-label')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Modifier l’activité' })).toBeVisible();
+  await expect(page.locator('form[data-mjl-form="activity-update"]')).toHaveCount(0);
   await expect(page.locator('form[data-mjl-form="activity-execution"] #mjl-execution-physical_execution_percent')).toBeVisible();
   await expect(page.locator('form[data-mjl-form="contextual-comment"] #mjl-comment-message')).toBeVisible();
   await page.goto('/custom/mjlfinancement/activities.php');

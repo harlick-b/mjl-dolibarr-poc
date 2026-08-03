@@ -63,3 +63,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   not hard-coded row IDs. Auto-increment order on a clean database can map the
   same ID to a no-self or different-workflow fixture and make a UI assertion
   fail before the behavior under test is reached.
+- Recovery fields that represent validated option selections must be alias-only:
+  derive them server-side after authorization, never fall back to same-named
+  request fields, and revalidate them against current scoped options before
+  rendering. Cover both valid retention and request-injected aliases.

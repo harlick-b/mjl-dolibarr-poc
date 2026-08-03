@@ -146,6 +146,7 @@ test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page
   await page.goto('/custom/mjlfinancement/activities.php');
   await expect(page.getByRole('heading', { name: 'Suivi des activités et décisions' })).toBeVisible();
   await expect(page.getByText('Mes activités')).toBeVisible();
+  await page.getByRole('link', { name: 'Créer une activité' }).click();
 
   await page.getByLabel('Reference').fill('P7-UI-CREATE');
   await page.getByLabel('Libelle').fill('Activite Phase 7 creee par UI');
@@ -174,7 +175,7 @@ test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page
 
 test('Create form filters conventions and tasks by selected project', async ({ page }) => {
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   const justiceProjectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
   const redProjectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-RED-2026' AND entity = 1 LIMIT 1");
 
@@ -193,7 +194,7 @@ test('Create form filters conventions and tasks by selected project', async ({ p
 
 test('Tampered create POST with mismatched project and convention is rejected server-side', async ({ page }) => {
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   const token = await page.locator('form:has(input[name="action"][value="create"]) input[name="token"]').getAttribute('value');
   const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
   const mismatchedConventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-RED-2026-001' AND entity = 1 LIMIT 1");
@@ -219,7 +220,7 @@ test('Tampered create POST with mismatched project and convention is rejected se
 
 test('Invalid physical execution percentage is rejected server-side', async ({ page }) => {
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   const token = await page.locator('form:has(input[name="action"][value="create"]) input[name="token"]').getAttribute('value');
   const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
   const conventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1");
@@ -293,9 +294,10 @@ test('Return for correction preserves previous decision through correction and r
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${correctionActivityId}`);
   await expect(page.getByText('Correction demandée', { exact: true }).first()).toBeVisible();
+  await page.getByRole('link', { name: 'Modifier l’activité' }).click();
   await expect(page.getByRole('button', { name: 'Enregistrer la correction' })).toBeVisible();
-  await page.locator('input[name="label"]').fill('Activite Phase 7 corrigee');
-  await page.locator('#mjl-correction-comment').fill('Libelle corrige Phase 7');
+  await page.getByLabel('Libellé').fill('Activite Phase 7 corrigee');
+  await page.getByLabel('Motif de modification').fill('Libelle corrige Phase 7');
   await page.getByRole('button', { name: 'Enregistrer la correction' }).click();
   await expect(page.getByText('Libelle corrige Phase 7')).toBeVisible();
 

@@ -23,7 +23,7 @@ if (!mjl_workspace_can_access_activity($user)) {
 $langs->load('mjlfinancement@mjlfinancement');
 $action = GETPOST('action', 'alpha');
 $activityId = GETPOSTINT('id');
-$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && in_array($action, mjl_activities_guarded_review_actions(), true) ? $action : '';
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && (in_array($action, array('create', 'edit'), true) || in_array($action, mjl_activities_guarded_review_actions(), true)) ? $action : '';
 $presentationActivity = array();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -40,7 +40,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $mjl_activities_page_token = function_exists('newToken') ? newToken() : '';
-if ($presentationAction !== '') {
+if ($presentationAction === 'create') {
+	if ($activityId !== 0 || !mjl_workspace_can_apply_activity_write($user)) {
+		mjl_activities_forbidden();
+	}
+	$mjl_activity_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'activities', 'object_id' => 0),
+		array('create' => array('create'))
+	);
+} elseif ($presentationAction === 'edit') {
+	$presentationActivity = mjl_activities_fetch_detail($activityId);
+	if (empty($presentationActivity) || !mjl_activities_can_open($presentationActivity) || !mjl_activities_can_apply_action($presentationActivity, 'update')) {
+		mjl_activities_forbidden();
+	}
+	$mjl_activity_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'activities', 'object_id' => $activityId),
+		array('correction' => array('update'))
+	);
+} elseif ($presentationAction !== '') {
 	$presentationActivity = mjl_activities_fetch_detail($activityId);
 	if (empty($presentationActivity) || !mjl_activities_can_open($presentationActivity) || !mjl_activities_can_apply_action($presentationActivity, $presentationAction)) {
 		mjl_activities_forbidden();
@@ -62,7 +81,11 @@ llxHeader('', 'Activites MJL');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-activity-workspace">';
 
-if ($presentationAction !== '') {
+if ($presentationAction === 'create') {
+	mjl_activities_render_create_state();
+} elseif ($presentationAction === 'edit') {
+	mjl_activities_render_edit_state($presentationActivity);
+} elseif ($presentationAction !== '') {
 	mjl_activities_render_action_state($presentationActivity, $presentationAction);
 } elseif ($activityId > 0) {
 	mjl_activities_render_detail($activityId);
@@ -83,6 +106,8 @@ function mjl_activities_handle_post($action)
 	if ($action === 'create') {
 		$fkProject = GETPOSTINT('fk_project');
 		$fkConvention = GETPOSTINT('fk_convention');
+		$fkTask = GETPOSTINT('fk_task');
+		$fkResponsible = GETPOSTINT('fk_user_responsible');
 		if ($fkProject > 0 && !mjl_scope_can_access_object($user, 'mjlfinancement_project', $fkProject)) {
 			mjl_activities_forbidden('Projet hors de votre perimetre');
 		}
@@ -100,9 +125,10 @@ function mjl_activities_handle_post($action)
 		$percent = GETPOST('physical_execution_percent', 'alphanohtml');
 		if ($percent !== '' && (!is_numeric($percent) || (float) $percent < 0 || (float) $percent > 100)) $errors['physical_execution_percent'] = 'Le taux d’exécution doit être compris entre 0 et 100.';
 		if (!empty($errors)) {
-			$handle = mjl_activities_store_recovery_config('create', 0, $errors);
+			$recoveryAliases = mjl_activities_validated_create_recovery_aliases($fkProject, $fkConvention, $fkTask, $fkResponsible);
+			$handle = mjl_activities_store_recovery_config('create', 0, $errors, $recoveryAliases);
 			setEventMessages(mjl_ui_safe_error_message('validation'), null, 'errors');
-			mjl_activities_redirect(0, $handle);
+			mjl_activities_redirect(0, $handle, 'create');
 		}
 		$activity = new MjlActivity($db);
 		$activity->entity = (int) $conf->entity;
@@ -110,10 +136,10 @@ function mjl_activities_handle_post($action)
 		$activity->label = GETPOST('label', 'restricthtml');
 		$activity->fk_project = $fkProject;
 		$activity->fk_convention = $fkConvention;
-		$activity->fk_task = GETPOSTINT('fk_task');
+		$activity->fk_task = $fkTask;
 		$activity->date_start = mjl_activities_post_date('date_start');
 		$activity->date_end = mjl_activities_post_date('date_end');
-		$activity->fk_user_responsible = GETPOSTINT('fk_user_responsible');
+		$activity->fk_user_responsible = $fkResponsible;
 		$activity->date_actual_start = mjl_activities_post_date('date_actual_start');
 		$activity->date_actual_end = mjl_activities_post_date('date_actual_end');
 		$activity->physical_execution_percent = GETPOST('physical_execution_percent', 'alphanohtml');
@@ -124,10 +150,11 @@ function mjl_activities_handle_post($action)
 		$result = $activity->create($user);
 		if ($result <= 0) {
 			$errors = mjl_form_translate_domain_error($activity->error);
-			$handle = mjl_activities_store_recovery_config('create', 0, $errors);
+			$recoveryAliases = mjl_activities_validated_create_recovery_aliases($fkProject, $fkConvention, $fkTask, $fkResponsible);
+			$handle = mjl_activities_store_recovery_config('create', 0, $errors, $recoveryAliases);
 			setEventMessages(empty($errors) ? mjl_ui_safe_error_message('unknown') : mjl_ui_safe_error_message('validation'), null, 'errors');
 			mjl_ui_log_error('domain', mjl_activities_error_context('create'), $activity->error);
-			mjl_activities_redirect(0, $handle);
+			mjl_activities_redirect(0, $handle, 'create');
 		}
 		setEventMessages('Activite creee en brouillon', null, 'mesgs');
 		mjl_activities_redirect((int) $result);
@@ -168,10 +195,14 @@ function mjl_activities_handle_post($action)
 
 	if ($result < 0) {
 		$errors = mjl_form_translate_domain_error($activity->error);
-		$handle = mjl_activities_store_recovery_config($action, $id, $errors);
+		$recoveryAliases = $action === 'update'
+			? mjl_activity_recovery_validated_update_aliases(GETPOSTINT('fk_user_responsible'), mjl_activities_options('responsible'))
+			: array();
+		$handle = mjl_activities_store_recovery_config($action, $id, $errors, $recoveryAliases);
 		setEventMessages(empty($errors) ? mjl_ui_safe_error_message('unknown') : mjl_ui_safe_error_message('validation'), null, 'errors');
 		mjl_ui_log_error('domain', mjl_activities_error_context($action) + array('object_type' => 'activity', 'object_id' => $id), $activity->error);
-		mjl_activities_redirect($id, $handle, in_array($action, mjl_activities_guarded_review_actions(), true) ? $action : '');
+		$recoveryState = $action === 'update' ? 'edit' : (in_array($action, mjl_activities_guarded_review_actions(), true) ? $action : '');
+		mjl_activities_redirect($id, $handle, $recoveryState);
 	}
 	elseif ($result === 0) setEventMessages('Aucun changement applique', null, 'warnings');
 	else setEventMessages('Action enregistree', null, 'mesgs');
@@ -283,18 +314,53 @@ function mjl_activities_upload_document(MjlActivity $activity)
 
 function mjl_activities_render_list_page()
 {
+	$headerOptions = array(
+		'description' => 'Consultez les activités de votre périmètre, ouvrez le détail et traitez les actions attendues.',
+		'context' => array('label' => 'Périmètre', 'value' => mjl_activities_scope_label()),
+	);
+	if (mjl_workspace_can_apply_activity_write($GLOBALS['user'])) {
+		$headerOptions['primary_action'] = array(
+			'label' => 'Créer une activité',
+			'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?action=create',
+		);
+	}
 	print mjl_page_header_render(
 		'Suivi des activités et décisions',
+		$headerOptions
+	);
+	mjl_activities_list();
+}
+
+function mjl_activities_render_create_state()
+{
+	print mjl_page_header_render(
+		'Créer une activité',
 		array(
-			'description' => 'Consultez les activités de votre périmètre, ouvrez le détail et traitez les actions attendues.',
-			'context' => array('label' => 'Périmètre', 'value' => mjl_activities_scope_label()),
+			'breadcrumb' => array(
+				array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
+				array('label' => 'Créer'),
+			),
+			'description' => 'Créez un brouillon rattaché à un projet et une enveloppe de financement de votre périmètre.',
 		)
 	);
+	mjl_activities_create_form();
+}
 
-	if (mjl_workspace_can_apply_activity_write($GLOBALS['user'])) {
-		mjl_activities_create_form();
-	}
-	mjl_activities_list();
+function mjl_activities_render_edit_state($row)
+{
+	print mjl_page_header_render(
+		'Modifier l’activité '.$row['ref'],
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
+				array('label' => $row['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid'])),
+				array('label' => 'Modifier'),
+			),
+			'description' => 'Mettez à jour les informations modifiables de cette activité avant sa soumission.',
+			'context' => array('label' => 'Statut actuel', 'value' => mjl_activity_status_label($row['status'])),
+		)
+	);
+	mjl_activities_render_update_form($row);
 }
 
 function mjl_activities_render_detail($id)
@@ -304,17 +370,21 @@ function mjl_activities_render_detail($id)
 		accessforbidden();
 	}
 
-	print mjl_page_header_render(
-		$row['ref'].' - '.$row['label'],
-		array(
+	$headerOptions = array(
 			'breadcrumb' => array(
 				array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
 				array('label' => $row['ref']),
 			),
 			'description' => mjl_activities_next_action_label($row),
 			'context' => array('label' => 'Statut', 'value' => mjl_activity_status_label($row['status'])),
-		)
-	);
+		);
+	if (mjl_activities_can_apply_action($row, 'update')) {
+		$headerOptions['primary_action'] = array(
+			'label' => 'Modifier l’activité',
+			'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'&action=edit',
+		);
+	}
+	print mjl_page_header_render($row['ref'].' - '.$row['label'], $headerOptions);
 
 	print '<div class="mjl-activity-detail-grid">';
 	mjl_activities_render_summary_card($row);
@@ -361,12 +431,13 @@ function mjl_activities_render_action_state($row, $action)
 function mjl_activities_create_form()
 {
 	$recovery = mjl_activities_recovery_for_action('create');
-	$values = $recovery['values'];
+	$isRecovered = !empty($recovery['recovered']);
 	$errors = $recovery['errors'];
 	$projectOptions = mjl_activities_options('project');
 	$conventionOptions = mjl_activities_options('convention');
 	$taskOptions = mjl_activities_options('task');
 	$responsibleOptions = mjl_activities_options('responsible');
+	$values = mjl_activity_recovery_restore_create_values($recovery['values'], $projectOptions, $conventionOptions, $taskOptions, $responsibleOptions);
 	$optionErrors = isset($GLOBALS['mjl_activities_option_errors']) ? $GLOBALS['mjl_activities_option_errors'] : array();
 	$optionsUnavailable = !empty($optionErrors['project']) || !empty($optionErrors['convention']);
 	$optionsEmpty = !$optionsUnavailable && (empty($projectOptions) || empty($conventionOptions));
@@ -378,10 +449,10 @@ function mjl_activities_create_form()
 	} elseif ($optionsEmpty) {
 		print mjl_ui_system_state('initial-empty', 'Aucun rattachement accessible', 'Aucun projet ou aucune enveloppe active n’est disponible dans votre périmètre.');
 	}
-	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'" data-mjl-validate data-mjl-form="activity-create">';
+	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'" data-mjl-validate data-mjl-form="activity-create" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print '<input type="hidden" name="action" value="create">';
 	print mjl_activities_token_input();
-	print '<div data-mjl-form-errors>'.mjl_form_error_summary($errors).'</div>';
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($errors, 'Corrigez les champs indiqués', 'mjl-field-', $isRecovered).'</div>';
 	print mjl_form_field('ref', 'Référence', '<input required name="ref" aria-label="Reference" value="'.dol_escape_htmltag($values['ref'] ?? '').'" data-mjl-required-message="La référence est obligatoire.">', true, '', $errors['ref'] ?? '');
 	print mjl_form_field('label', 'Libellé', '<input required name="label" aria-label="Libelle" value="'.dol_escape_htmltag($values['label'] ?? '').'" data-mjl-required-message="Le libellé est obligatoire.">', true, '', $errors['label'] ?? '');
 	print mjl_form_field('fk_project', 'Projet', mjl_activities_select('fk_project', $projectOptions, 1, 'Choisir', (int) ($values['fk_project'] ?? 0)), true, '', $errors['fk_project'] ?? '');
@@ -395,7 +466,7 @@ function mjl_activities_create_form()
 	print mjl_form_field('physical_execution_percent', 'Exécution physique (%)', '<input type="number" min="0" max="100" name="physical_execution_percent" aria-label="Execution physique (%)" value="'.dol_escape_htmltag($values['physical_execution_percent'] ?? '').'">', false, '', $errors['physical_execution_percent'] ?? '');
 	print mjl_form_field('execution_status', 'Statut d’exécution', mjl_activities_execution_status_select('execution_status', $values['execution_status'] ?? ''));
 	print mjl_form_field('execution_comment', 'Commentaire d’exécution', '<textarea name="execution_comment">'.dol_escape_htmltag($values['execution_comment'] ?? '').'</textarea>');
-	print '<div class="mjl-activity-form-actions"><button class="button mjl-action mjl-action-primary" type="submit"'.($optionsUnavailable || $optionsEmpty ? ' disabled' : '').'>Créer l’activité</button></div>';
+	print '<div class="mjl-activity-form-actions"><button class="button mjl-action mjl-action-primary" type="submit"'.($optionsUnavailable || $optionsEmpty ? ' disabled' : '').'>Créer l’activité</button><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php">Annuler</a></div>';
 	print '</form>';
 	print '</section>';
 }
@@ -574,7 +645,6 @@ function mjl_activities_render_summary_card($row)
 
 function mjl_activities_render_decision_panel($row)
 {
-	$correctionRecovery = mjl_activities_recovery_for_action('update');
 	print '<section class="mjl-activity-card mjl-activity-decision">';
 	print '<div class="mjl-section-heading"><h2>Decision et correction</h2><p>Actions disponibles selon votre role et l etat actuel.</p></div>';
 	$actions = mjl_activities_available_actions($row);
@@ -582,20 +652,6 @@ function mjl_activities_render_decision_panel($row)
 		print '<div class="mjl-empty-state">Aucune action directe n est attendue de votre role pour cette activite.</div>';
 		print '</section>';
 		return;
-	}
-	if (!empty($actions['update'])) {
-		$responsibleOptions = mjl_activities_options('responsible');
-		$prefix = 'mjl-correction-';
-		print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-correction">';
-		print mjl_activities_token_input().'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print '<div data-mjl-form-errors>'.mjl_form_error_summary($correctionRecovery['errors'], 'Corrigez les champs indiqués', $prefix).'</div>';
-		print mjl_form_field('label', 'Libellé', '<input required name="label" value="'.dol_escape_htmltag($correctionRecovery['values']['label'] ?? $row['label']).'">', true, '', $correctionRecovery['errors']['label'] ?? '', $prefix);
-		print mjl_form_field('fk_user_responsible', 'Responsable', mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Créateur par défaut', (int) ($correctionRecovery['values']['fk_user_responsible'] ?? $row['fk_user_responsible'])), false, '', $correctionRecovery['errors']['fk_user_responsible'] ?? '', $prefix);
-		print mjl_form_field('date_start', 'Début', '<input type="date" name="date_start" value="'.dol_escape_htmltag($correctionRecovery['values']['date_start'] ?? substr((string) $row['date_start'], 0, 10)).'">', false, '', $correctionRecovery['errors']['date_start'] ?? '', $prefix);
-		print mjl_form_field('date_end', 'Fin', '<input type="date" name="date_end" value="'.dol_escape_htmltag($correctionRecovery['values']['date_end'] ?? substr((string) $row['date_end'], 0, 10)).'">', false, '', $correctionRecovery['errors']['date_end'] ?? '', $prefix);
-		print mjl_form_field('comment', 'Motif de modification', '<textarea required name="comment">'.dol_escape_htmltag($correctionRecovery['values']['comment'] ?? '').'</textarea>', true, '', $correctionRecovery['errors']['comment'] ?? '', $prefix);
-		print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer la correction"></div>';
-		print '</form>';
 	}
 	foreach ($actions as $action => $meta) {
 		if ($action === 'update') continue;
@@ -606,6 +662,27 @@ function mjl_activities_render_decision_panel($row)
 		mjl_activities_render_decision_form($row, $action, $meta);
 	}
 	print '</section>';
+}
+
+function mjl_activities_render_update_form($row)
+{
+	$recovery = mjl_activities_recovery_for_action('update');
+	$responsibleOptions = mjl_activities_options('responsible');
+	$values = mjl_activity_recovery_restore_update_values($recovery['values'], $responsibleOptions);
+	$prefix = 'mjl-activity-update-';
+	$isRecovered = !empty($recovery['recovered']);
+	print '<section class="mjl-workspace-section mjl-activity-card">';
+	print '<div class="mjl-section-heading"><h2>Informations de l’activité</h2><p>Les modifications restent soumises aux contrôles de périmètre et d’état.</p></div>';
+	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-update" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
+	print mjl_activities_token_input().'<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($recovery['errors'], 'Corrigez les champs indiqués', $prefix, $isRecovered).'</div>';
+	print mjl_form_field('label', 'Libellé', '<input required name="label" value="'.dol_escape_htmltag($values['label'] ?? $row['label']).'">', true, '', $recovery['errors']['label'] ?? '', $prefix);
+	print mjl_form_field('fk_user_responsible', 'Responsable', mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Créateur par défaut', (int) ($values['fk_user_responsible'] ?? $row['fk_user_responsible'])), false, '', $recovery['errors']['fk_user_responsible'] ?? '', $prefix);
+	print mjl_form_field('date_start', 'Début', '<input type="date" name="date_start" value="'.dol_escape_htmltag($values['date_start'] ?? substr((string) $row['date_start'], 0, 10)).'">', false, '', $recovery['errors']['date_start'] ?? '', $prefix);
+	print mjl_form_field('date_end', 'Fin', '<input type="date" name="date_end" value="'.dol_escape_htmltag($values['date_end'] ?? substr((string) $row['date_end'], 0, 10)).'">', false, '', $recovery['errors']['date_end'] ?? '', $prefix);
+	print mjl_form_field('comment', 'Motif de modification', '<textarea required name="comment">'.dol_escape_htmltag($values['comment'] ?? '').'</textarea>', true, '', $recovery['errors']['comment'] ?? '', $prefix);
+	print '<div class="mjl-activity-form-actions"><button class="button" type="submit">Enregistrer la correction</button><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
+	print '</form></section>';
 }
 
 function mjl_activities_render_decision_form($row, $action, $meta, $withCancel = false)
@@ -1164,19 +1241,37 @@ function mjl_activities_recovery_for_action($action)
 	);
 }
 
-function mjl_activities_store_recovery_config($action, $objectId, $errors)
+function mjl_activities_store_recovery_config($action, $objectId, $errors, $safeAliases = array())
 {
 	$config = mjl_activity_recovery_config($action);
 	if ($config === null) return '';
-	return mjl_activities_store_recovery($config['form'], $action, $objectId, $config['fields'], $errors);
+	return mjl_activities_store_recovery($config['form'], $action, $objectId, $config['fields'], $errors, $safeAliases);
 }
 
-function mjl_activities_store_recovery($form, $action, $objectId, $allowedFields, $errors)
+function mjl_activities_validated_create_recovery_aliases($project, $convention, $task, $responsible)
+{
+	return mjl_activity_recovery_validated_create_aliases(
+		(int) $project,
+		(int) $convention,
+		(int) $task,
+		(int) $responsible,
+		mjl_activities_options('project'),
+		mjl_activities_options('convention'),
+		mjl_activities_options('task'),
+		mjl_activities_options('responsible')
+	);
+}
+
+function mjl_activities_store_recovery($form, $action, $objectId, $allowedFields, $errors, $safeAliases = array())
 {
 	global $user, $conf;
 	$values = array();
 	foreach ((array) $allowedFields as $field) {
-		$values[$field] = GETPOST($field, in_array($field, array('label', 'execution_comment', 'comment', 'message'), true) ? 'restricthtml' : 'alphanohtml');
+		if (array_key_exists($field, (array) $safeAliases) && is_scalar($safeAliases[$field])) {
+			$values[$field] = (string) $safeAliases[$field];
+		} elseif (!in_array($field, mjl_activity_recovery_alias_fields(), true)) {
+			$values[$field] = GETPOST($field, in_array($field, array('label', 'execution_comment', 'comment', 'message'), true) ? 'restricthtml' : 'alphanohtml');
+		}
 	}
 	$reason = '';
 	$handle = mjl_form_recovery_store(array(

@@ -168,6 +168,208 @@ test('project creation uses an authorized dedicated presentation state', async (
   await expect(page.locator('select[name="fk_soc"]')).toHaveCount(0);
 });
 
+test('activity creation uses an authorized dedicated presentation state', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/activities.php');
+
+  const listHeader = page.locator('header.mjl-page-header');
+  const createAction = listHeader.getByRole('link', { name: 'Créer une activité' });
+  await expect(createAction).toBeVisible();
+  await expect(createAction).toHaveAttribute('href', '/custom/mjlfinancement/activities.php?action=create');
+  await expect(page.locator('form[data-mjl-form="activity-create"]')).toHaveCount(0);
+
+  await createAction.click();
+  await expect(page).toHaveURL(/activities\.php\?action=create$/);
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Créer une activité');
+  const form = page.locator('form[data-mjl-form="activity-create"]');
+  await expect(form).toBeVisible();
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  await expect(form).toHaveAttribute('data-mjl-validate', '');
+  await expect(form.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', '/custom/mjlfinancement/activities.php');
+  for (const width of [390, 768, 1024, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertNoHorizontalOverflow(page, { label: `activity create state at ${width}px` });
+  }
+  await form.locator('input[name="ref"]').fill('Brouillon navigation');
+  await form.getByRole('link', { name: 'Annuler' }).click();
+  await expect(page.getByRole('dialog', { name: 'Modifications non enregistrées' })).toBeVisible();
+});
+
+test('activity editing uses an authorized dedicated presentation state', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+
+  await login(page, 'agent.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+
+  const detailHeader = page.locator('header.mjl-page-header');
+  const editAction = detailHeader.getByRole('link', { name: 'Modifier l’activité' });
+  await expect(editAction).toBeVisible();
+  await expect(editAction).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}&action=edit`);
+  await expect(page.locator('form[data-mjl-form="activity-correction"]')).toHaveCount(0);
+
+  await editAction.click();
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${activityId}&action=edit$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Modifier l’activité P3D-ACTION-STATE');
+  await expect(page.locator('header.mjl-page-header')).toContainText('Brouillon');
+  const form = page.locator('form[data-mjl-form="activity-update"]');
+  await expect(form).toBeVisible();
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  await expect(form).toHaveAttribute('data-mjl-validate', '');
+  await expect(form.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}`);
+  for (const width of [390, 768, 1024, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertNoHorizontalOverflow(page, { label: `activity edit state at ${width}px` });
+  }
+});
+
+test('activity create and edit presentation guards deny the wrong role before rendering options', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+  await login(page, 'superviseur.n1');
+
+  let denied = await page.goto('/custom/mjlfinancement/activities.php?action=create');
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('form[data-mjl-form="activity-create"]')).toHaveCount(0);
+  await expect(page.locator('select[name="fk_project"]')).toHaveCount(0);
+
+  denied = await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=edit`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('form[data-mjl-form="activity-update"]')).toHaveCount(0);
+  await expect(page.locator('select[name="fk_user_responsible"]')).toHaveCount(0);
+});
+
+test('activity creation recovery returns to the guarded state and is consumed once', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
+  let form = page.locator('form[data-mjl-form="activity-create"]');
+  const conventionOption = form.locator('select[name="fk_convention"] option:not([value=""])').first();
+  const convention = await conventionOption.getAttribute('value');
+  const project = await conventionOption.getAttribute('data-project-id');
+  const task = await form.locator(`select[name="fk_task"] option[data-project-id="${project}"]`).first().getAttribute('value');
+  const responsible = await form.locator('select[name="fk_user_responsible"] option:not([value=""])').first().getAttribute('value');
+  expect(project).toMatch(/^[1-9][0-9]*$/);
+  expect(task).toMatch(/^[1-9][0-9]*$/);
+  expect(responsible).toMatch(/^[1-9][0-9]*$/);
+  const response = await page.request.post('/custom/mjlfinancement/activities.php', {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'create',
+      ref: 'P3D-ACTIVITY-RECOVERY',
+      label: '',
+      fk_project: project,
+      fk_convention: convention,
+      fk_task: task,
+      fk_user_responsible: responsible,
+      physical_execution_percent: '25',
+    },
+    maxRedirects: 0,
+  });
+
+  expect(response.status()).toBe(302);
+  const location = response.headers().location || '';
+  expect(location).toMatch(/activities\.php\?action=create&mjl_recovery=[a-f0-9]{32}$/);
+  await page.goto(location);
+  form = page.locator('form[data-mjl-form="activity-create"]');
+  await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('[data-mjl-error-summary]')).toBeFocused();
+  await expect(form.locator('input[name="ref"]')).toHaveValue('P3D-ACTIVITY-RECOVERY');
+  await expect(form.locator('select[name="fk_project"]')).toHaveValue(project);
+  await expect(form.locator('select[name="fk_convention"]')).toHaveValue(convention);
+  await expect(form.locator('select[name="fk_task"]')).toHaveValue(task);
+  await expect(form.locator('select[name="fk_user_responsible"]')).toHaveValue(responsible);
+  await expect(form.locator('input[name="physical_execution_percent"]')).toHaveValue('25');
+
+  await page.reload();
+  await expect(form).not.toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('input[name="ref"]')).toHaveValue('');
+  await expect(form.locator('select[name="fk_project"]')).toHaveValue('');
+  await expect(form.locator('select[name="fk_task"]')).toHaveValue('');
+  await expect(form.locator('select[name="fk_user_responsible"]')).toHaveValue('');
+});
+
+test('activity creation recovery rejects request-controlled selection aliases', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
+  let form = page.locator('form[data-mjl-form="activity-create"]');
+  const injectedProject = await form.locator('select[name="fk_project"] option:not([value=""])').first().getAttribute('value');
+  const injectedConvention = await form.locator('select[name="fk_convention"] option:not([value=""])').first().getAttribute('value');
+  const injectedTask = await form.locator('select[name="fk_task"] option:not([value=""])').first().getAttribute('value');
+  const injectedResponsible = await form.locator('select[name="fk_user_responsible"] option:not([value=""])').first().getAttribute('value');
+  const response = await page.request.post('/custom/mjlfinancement/activities.php', {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'create',
+      ref: 'P3D-ACTIVITY-ALIAS-INJECTION',
+      label: '',
+      fk_project: '',
+      fk_convention: '',
+      project_scope: injectedProject,
+      convention_scope: injectedConvention,
+      task_scope: injectedTask,
+      responsible_scope: injectedResponsible,
+    },
+    maxRedirects: 0,
+  });
+
+  expect(response.status()).toBe(302);
+  await page.goto(response.headers().location);
+  form = page.locator('form[data-mjl-form="activity-create"]');
+  await expect(form.locator('input[name="ref"]')).toHaveValue('P3D-ACTIVITY-ALIAS-INJECTION');
+  await expect(form.locator('select[name="fk_project"]')).toHaveValue('');
+  await expect(form.locator('select[name="fk_convention"]')).toHaveValue('');
+  await expect(form.locator('select[name="fk_task"]')).toHaveValue('');
+  await expect(form.locator('select[name="fk_user_responsible"]')).toHaveValue('');
+});
+
+test('activity edit recovery returns to the guarded state and is consumed once', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+  await login(page, 'agent.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=edit`);
+  let form = page.locator('form[data-mjl-form="activity-update"]');
+  const responsible = await form.locator('select[name="fk_user_responsible"] option:not([value=""])').first().getAttribute('value');
+  expect(responsible).toMatch(/^[1-9][0-9]*$/);
+  const response = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'update',
+      id: String(activityId),
+      label: 'Libellé récupération Phase 3D',
+      fk_user_responsible: responsible,
+      date_start: '2026-08-10',
+      date_end: '2026-08-01',
+      comment: '',
+    },
+    maxRedirects: 0,
+  });
+
+  expect(response.status()).toBe(302);
+  const location = response.headers().location || '';
+  expect(location).toMatch(new RegExp(`activities\\.php\\?id=${activityId}&action=edit&mjl_recovery=[a-f0-9]{32}$`));
+
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 3 WHERE entity = 1 AND rowid = ${activityId}`);
+  const denied = await page.goto(location);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="activity-update"]')).toHaveCount(0);
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+  await page.goto(location);
+  form = page.locator('form[data-mjl-form="activity-update"]');
+  await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('[data-mjl-error-summary]')).toBeFocused();
+  await expect(form.locator('input[name="label"]')).toHaveValue('Libellé récupération Phase 3D');
+  await expect(form.locator('select[name="fk_user_responsible"]')).toHaveValue(responsible);
+  await expect(form.locator('textarea[name="comment"]')).toHaveAttribute('aria-invalid', 'true');
+
+  await page.reload();
+  await expect(form).not.toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('input[name="label"]')).toHaveValue('Décision gardée Phase 3D');
+  await expect(form.locator('select[name="fk_user_responsible"]')).toHaveValue('');
+  await expect(form.locator('textarea[name="comment"]')).toHaveValue('');
+});
+
 test('project editing uses an authorized dedicated presentation state', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/projects.php');

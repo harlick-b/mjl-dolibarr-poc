@@ -73,7 +73,7 @@ Those references are current-state/code debt, not target behavior.
 | Dashboard | `index.php` | Role-aware workspace dashboard with Phase 10R scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | Compatibility fixture names still contain POC-era vocabulary. |
 | Partenaires / Programmes | `partners.php` | Scoped, paginated partner/programme portfolio plus context and related previews. | Name/risk sorts are allowlisted; related previews are independently counted and limited to 12 rows. |
 | Projects | `projects.php` | Scoped, paginated MJL project list/detail with semantic desktop table, responsive labeled cards, shared list states, explicit open actions, related previews, recoverable create/edit, legacy notes, and contextual comments. | Partner/status/sort filters fail closed to zero results; create/edit remains limited to Admin plateforme and Validateur definitif. |
-| Activities | `activities.php` | Activity lifecycle, guarded verifier/final-validator review states, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Partner/project/status/risk/sort filters are allowlisted and fail closed; direct review-state routes recheck object access, role, actor separation, and current status before consuming exact-action recovery or rendering fields. |
+| Activities | `activities.php` | Activity lifecycle, dedicated create/edit states, guarded verifier/final-validator review states, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Partner/project/status/risk/sort filters are allowlisted and fail closed; direct create/edit and review routes recheck action availability and object access before loading options, consuming exact recovery, or rendering fields. |
 | Expenses | `expenses.php` | Expense lifecycle with a scoped semantic desktop table, responsive labeled list cards, shared list states, explicit open actions, supporting evidence, guarded prevalidation/final-validation/rejection/disbursement states, contextual comments, and consequence-aware decisions. | Filters fail closed to zero results; direct decision-state routes recheck object access, role, actor separation, and current status before consuming exact-action recovery or rendering fields. |
 | Documents | `documents.php` | Read-only accessible document library. | Uploads remain contextual. |
 | Conventions | `conventions.php` | Governed funding-envelope management and contextual comments. | User-facing terminology still needs alignment. |
@@ -114,6 +114,13 @@ Those references are current-state/code debt, not target behavior.
   failures can preserve allowlisted scalar values through a random,
   session/user/entity/route/form/action/object-bound one-use handle. Handles
   expire after ten minutes and are bounded by per-user count and storage caps.
+- Activity creation and editing leave the operational list/default detail for
+  allowlisted same-route `action=create` and `action=edit` states. Creation
+  recovery stores server-validated project, convention, task, and responsible-
+  user aliases rather than raw request identifiers and restores them only while
+  they remain in the current scoped option sets and retain the required project
+  relationship; failed edits return to their guarded state after current
+  ownership/status authorization and consume recovery once.
 - Activity prevalidation, final validation, legacy validation, correction
   return, and rejection leave the default detail for an allowlisted same-route
   action state. Failed decision recovery returns to that guarded state; the

@@ -557,6 +557,92 @@ Final gates after review remediation:
 No query logic, permission model, workflow transition, schema, export, expense
 creation form, or Dolibarr core file changed.
 
+### Guarded activity creation and editing states
+
+Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:
+
+- moved the activity creation form out of the operational list into the
+  allowlisted same-route `action=create` state and exposed one authorized
+  primary action from the list header;
+- moved the editable-activity correction form out of the default detail into
+  `id=<id>&action=edit`, with the existing ownership, status, entity, and
+  Partenaire / Programme checks applied before rendering any field;
+- retained the existing POST `create` and `update` actions, Dolibarr token,
+  domain methods, workflow audit behavior, project/convention integrity, and
+  canonical success destinations;
+- returned creation and update failures to their exact guarded state with
+  focused one-use recovery, explicit cancel destinations, and native
+  no-JavaScript validation;
+- preserved project, convention, task, and responsible-user selections through
+  server-validated local recovery aliases, then restored them only if they
+  remain in the current entity/scope-filtered option sets and retain the
+  required project relationship; generic recovery continues to reject raw
+  `fk_*` and request-supplied alias identifiers;
+- marked only the dedicated forms substantive so the existing unsaved-change
+  and duplicate-submit enhancement applies without affecting filters,
+  comments, or navigation;
+- migrated the affected Phase 7 and Phase 2 activity journeys away from the
+  removed inline forms.
+
+The creation tracer was captured red against the missing list-header action.
+The creation-recovery tracer was red while failures returned to the list and
+then exposed the generic registry’s intentional raw-identifier rejection; the
+green implementation adopted scoped aliases instead. The edit-recovery tracer
+was red while failures returned to canonical detail. An initial edit fixture
+used the non-editable `En cours` state and was corrected to `Brouillon` without
+relaxing the domain guard. Two-axis review then identified that request fields
+could fall through into missing aliases and that valid task/responsible choices
+were not retained. Dedicated tracers reproduced both failures; the remediated
+alias-only storage and double scoped revalidation passed those tracers.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-activity-forms`
+- URL: `http://127.0.0.1:18089`
+- Temporary root: `/tmp/mjl-phase3d-activity-forms-5mQN1f`
+- Database and document binds: dedicated children of that temporary root
+
+Final focused results:
+
+- complete Phase 3D operational suite, including dedicated create/edit
+  states, wrong-role denial before option rendering, stale-state
+  guard-before-recovery behavior, one-use recovery, dirty navigation, and
+  overflow at 390, 768, 1024, and 1366 pixels: 31/31 passed;
+- complete Phase 7 activity workflow suite: 9/9 passed;
+- focused Phase 2 linked validation, exact recovery, two-tab/context
+  isolation, no-JavaScript validation, action isolation, and responsive-table
+  regressions: 6/6 passed;
+- exact activity recovery-registry and standalone-wrapper checks: 2/2 passed;
+- isolated scope-model and activity-workflow server smokes: passed;
+- changed PHP and JavaScript syntax checks and `git diff --check`: passed.
+
+The complete repository Playwright suite and manual 200% zoom/assistive-
+technology matrix were not rerun. The targeted suites cover the changed
+route, form options, recovery, workflow handoff, scope/status guards,
+responsive layout, shared filters/lists, and no-JavaScript behavior.
+
+Final gates:
+
+- design-system gate: passed; the slice reuses the established page-header,
+  primary-action, form-field, error-summary, exact-recovery, substantive-form,
+  cancel, and responsive-shell patterns with French-first content;
+- security baseline: passed; direct GET evidence covers wrong-role create and
+  edit denial before option rendering, while stale edit status is denied before
+  recovery consumption and the existing CSRF, entity/scope, ownership, POST,
+  and project/convention integrity guards remain authoritative; request-
+  supplied recovery aliases are rejected and every server-created selection
+  alias is revalidated against current scoped options before display;
+- full-feature validation: passed for the authorized activity create/edit
+  slice; implementation, recovery, progressive/native validation, responsive
+  behavior, current-state docs, server smokes, and affected regressions are
+  covered, with the complete-suite/manual-matrix limitations stated above;
+- final two-axis code review: Standards and Spec both passed after the
+  alias-integrity and task/responsible recovery findings were reproduced and
+  remediated; no blocking or follow-up findings remain.
+
+No query shape, permission model, workflow transition, schema, export,
+document behavior, expense form, or Dolibarr core file changed.
+
 ### Guarded expense review and disbursement states
 
 Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:
