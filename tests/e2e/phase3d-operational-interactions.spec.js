@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const { verifyDisposableComposeEnvironment } = require('../helpers/phase3d-prerequisite-isolation');
+const { assertNoHorizontalOverflow } = require('../helpers/responsive-shell');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 
@@ -23,6 +24,103 @@ function executeSql(sql) {
   dockerCompose(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', sql]);
 }
 
+function cleanupEmptyListUser() {
+  executeSql(`
+    SET @empty_list_user = (SELECT rowid FROM llx_user WHERE login = 'mjl.phase3d.empty' AND entity = 1 LIMIT 1);
+    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE entity = 1 AND fk_user = @empty_list_user;
+    DELETE FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = @empty_list_user;
+    DELETE FROM llx_usergroup_user WHERE entity = 1 AND fk_user = @empty_list_user;
+    DELETE FROM llx_user WHERE entity = 1 AND rowid = @empty_list_user;
+  `);
+}
+
+function seedEmptyListUser() {
+  cleanupEmptyListUser();
+  executeSql(`
+    SET @agent_group = (SELECT rowid FROM llx_usergroup WHERE nom = 'MJL POC - Agent' AND entity = 1 LIMIT 1);
+    SET @admin = (SELECT rowid FROM llx_user WHERE login = 'admin.poc' AND entity = 1 LIMIT 1);
+    INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec)
+    SELECT 1, 'mjl.phase3d.empty', 'Vide', 'Phase3D', 'mjl.phase3d.empty@mjl-poc.local', pass_crypted, 1, 0, NOW()
+    FROM llx_user WHERE login = 'agent.mjl' AND entity = 1 LIMIT 1;
+    SET @empty_list_user = LAST_INSERT_ID();
+    INSERT INTO llx_usergroup_user (entity, fk_user, fk_usergroup)
+    VALUES (1, @empty_list_user, @agent_group);
+    INSERT INTO llx_mjlfinancement_user_role
+      (entity, fk_user, role_code, is_active, date_start, source, note, date_creation, fk_user_creat)
+    VALUES (1, @empty_list_user, 'AGENT_SAISIE', 1, CURDATE(), 'phase3d_e2e', 'Listes initialement vides', NOW(), @admin);
+  `);
+}
+
+function cleanupActivityActionFixture() {
+  executeSql(`
+    SET @activity_action_id = (SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'P3D-ACTION-STATE' AND entity = 1 LIMIT 1);
+    DELETE FROM llx_mjlfinancement_workflow_action WHERE entity = 1 AND object_type = 'mjlfinancement_activity' AND object_id = @activity_action_id;
+    DELETE FROM llx_mjlfinancement_activity WHERE entity = 1 AND rowid = @activity_action_id;
+  `);
+}
+
+function cleanupScopedActivityReviewer() {
+  executeSql(`
+    SET @scoped_reviewer = (SELECT rowid FROM llx_user WHERE login = 'mjl.phase3d.reviewer' AND entity = 1 LIMIT 1);
+    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE entity = 1 AND fk_user = @scoped_reviewer;
+    DELETE FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = @scoped_reviewer;
+    DELETE FROM llx_usergroup_user WHERE entity = 1 AND fk_user = @scoped_reviewer;
+    DELETE FROM llx_user WHERE entity = 1 AND rowid = @scoped_reviewer;
+  `);
+}
+
+function seedScopedActivityReviewer() {
+  cleanupScopedActivityReviewer();
+  executeSql(`
+    SET @admin = (SELECT rowid FROM llx_user WHERE login = 'admin.poc' AND entity = 1 LIMIT 1);
+    SET @source_reviewer = (SELECT rowid FROM llx_user WHERE login = 'superviseur.n1' AND entity = 1 LIMIT 1);
+    SET @unicef = (SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1);
+    INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec)
+    SELECT 1, 'mjl.phase3d.reviewer', 'Périmètre', 'Phase3D', 'mjl.phase3d.reviewer@mjl-poc.local', pass_crypted, 1, 0, NOW()
+    FROM llx_user WHERE rowid = @source_reviewer AND entity = 1;
+    SET @scoped_reviewer = LAST_INSERT_ID();
+    INSERT INTO llx_usergroup_user (entity, fk_user, fk_usergroup)
+    SELECT entity, @scoped_reviewer, fk_usergroup FROM llx_usergroup_user WHERE entity = 1 AND fk_user = @source_reviewer;
+    INSERT INTO llx_mjlfinancement_user_role
+      (entity, fk_user, role_code, is_active, date_start, source, note, date_creation, fk_user_creat)
+    VALUES (1, @scoped_reviewer, 'AGENT_VERIFICATEUR', 1, CURDATE(), 'phase3d_e2e', 'Relecteur mono-périmètre', NOW(), @admin);
+    INSERT INTO llx_mjlfinancement_user_soc_scope
+      (entity, fk_user, fk_soc, is_active, date_start, source, note, date_creation, fk_user_creat)
+    VALUES (1, @scoped_reviewer, @unicef, 1, CURDATE(), 'phase3d_e2e', 'UNICEF uniquement', NOW(), @admin);
+  `);
+}
+
+function seedActivityActionFixture() {
+  cleanupActivityActionFixture();
+  executeSql(`
+    SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1);
+    SET @convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1);
+    SET @agent = (SELECT rowid FROM llx_user WHERE login = 'agent.mjl' AND entity = 1 LIMIT 1);
+    INSERT INTO llx_mjlfinancement_activity
+      (entity, ref, label, fk_project, fk_convention, date_creation, fk_user_creat, import_key, status)
+    VALUES
+      (1, 'P3D-ACTION-STATE', 'Décision gardée Phase 3D', @project, @convention, NOW(), @agent, 'P3DACTION', 3);
+  `);
+  return Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'P3D-ACTION-STATE' AND entity = 1 LIMIT 1"));
+}
+
+function restoreExpenseDecisionSample() {
+  executeSql(`
+    SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1);
+    SET @convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1);
+    SET @activity = (SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'ACT-JE-002' AND entity = 1 LIMIT 1);
+    SET @budget_line = (SELECT rowid FROM llx_mjlfinancement_budget_line WHERE ref = 'BL-JE-002' AND entity = 1 LIMIT 1);
+    SET @agent = (SELECT rowid FROM llx_user WHERE login = 'agent.mjl' AND entity = 1 LIMIT 1);
+    UPDATE llx_mjlfinancement_expense
+    SET status = 1, prevalidated_amount = NULL, final_validated_amount = NULL, disbursed_amount = NULL,
+      fk_user_prevalidated = NULL, fk_user_final_valid = NULL, fk_user_valid = NULL, fk_user_disbursed = NULL,
+      prevalidation_date = NULL, final_validation_date = NULL, validation_date = NULL,
+      disbursement_date = NULL, beneficiary_name = NULL, fk_project = @project, fk_convention = @convention,
+      fk_mjl_activity = @activity, fk_budget_line = @budget_line, fk_user_creat = @agent
+    WHERE entity = 1 AND ref = 'EXP-JE-002';
+  `);
+}
+
 async function login(page, username) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
@@ -35,6 +133,13 @@ test.beforeAll(() => {
   verifyDisposableComposeEnvironment();
   dockerCompose(['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php']);
   dockerCompose(['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php']);
+});
+
+test.afterEach(() => {
+  cleanupEmptyListUser();
+  cleanupActivityActionFixture();
+  cleanupScopedActivityReviewer();
+  restoreExpenseDecisionSample();
 });
 
 test('project creation uses an authorized dedicated presentation state', async ({ page }) => {
@@ -566,6 +671,37 @@ test('project filters use the shared presentation and retain applied state', asy
   await expect(page.locator('nav[aria-label="Pagination des projets"] [aria-current="page"]')).toHaveText(/Page 1/);
 });
 
+test('project list remains a semantic table at 1366px/1024px and labeled cards at 768px/390px', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/projects.php');
+
+  const table = page.getByRole('table', { name: 'Projets du périmètre' });
+  const firstRow = table.locator('tbody tr').first();
+
+  for (const width of [1366, 1024]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(table.locator('thead')).toHaveCSS('position', 'static');
+    await expect(table.getByRole('columnheader').first()).toHaveText('Projet');
+    await expect(table.getByRole('columnheader').nth(1)).toHaveText('Statut');
+    await expect(table.getByRole('columnheader').last()).toHaveText('Ouvrir');
+    await expect(firstRow.locator('td[data-label="Ouvrir"]')).toHaveCSS('display', 'table-cell');
+  }
+
+  for (const width of [768, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(firstRow).toBeVisible();
+    await expect(firstRow.locator('td[data-label="Projet"]')).toHaveCSS('display', 'grid');
+    await expect(firstRow.locator('td[data-label="Statut"]')).toBeVisible();
+    await expect(firstRow.locator('td[data-label="Partenaire / Programme"]')).toBeVisible();
+    await expect(firstRow.locator('td[data-label="Ouvrir"] a')).toHaveText('Ouvrir');
+  }
+
+  await assertNoHorizontalOverflow(page, {
+    label: 'project list',
+    afterResize: async () => expect(table).toBeVisible(),
+  });
+});
+
 test('activity filters and pagination use the same shared presentation', async ({ page }) => {
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/activities.php');
@@ -611,6 +747,379 @@ test('expense filters and pagination use the same shared presentation', async ({
   await expect(filters.getByRole('link', { name: 'Réinitialiser' })).toHaveAttribute('href', '/custom/mjlfinancement/expenses.php');
 
   await expect(page.locator('nav[aria-label="Pagination des dépenses"] [aria-current="page"]')).toHaveText(/Page 1/);
+});
+
+test('expense list remains a semantic table at 1366px/1024px and labeled cards at 768px/390px', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/expenses.php');
+
+  const table = page.getByRole('table', { name: 'Dépenses du périmètre' });
+  const firstRow = table.locator('tbody tr').first();
+
+  for (const width of [1366, 1024]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(table.locator('thead')).toHaveCSS('position', 'static');
+    await expect(table.getByRole('columnheader').first()).toHaveText('Dépense');
+    await expect(table.getByRole('columnheader').nth(1)).toHaveText('Statut');
+    await expect(table.getByRole('columnheader').last()).toHaveText('Ouvrir');
+    await expect(firstRow.locator('td[data-label="Ouvrir"]')).toHaveCSS('display', 'table-cell');
+  }
+
+  for (const width of [768, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(firstRow).toBeVisible();
+    await expect(firstRow.locator('td[data-label="Dépense"]')).toHaveCSS('display', 'grid');
+    await expect(firstRow.locator('td[data-label="Statut"]')).toBeVisible();
+    await expect(firstRow.locator('td[data-label="Action attendue"]')).toBeVisible();
+    await expect(firstRow.locator('td[data-label="Ouvrir"] a')).toHaveText('Ouvrir');
+  }
+
+  await assertNoHorizontalOverflow(page, {
+    label: 'expense list',
+    afterResize: async () => expect(table).toBeVisible(),
+  });
+});
+
+test('project and expense lists distinguish initial, filtered, and unavailable shared states', async ({ page }) => {
+  seedEmptyListUser();
+  await login(page, 'mjl.phase3d.empty');
+
+  for (const [route, emptyMessage] of [
+    ['/custom/mjlfinancement/projects.php', 'Aucun projet dans votre périmètre pour le moment.'],
+    ['/custom/mjlfinancement/expenses.php', 'Aucune dépense dans votre périmètre pour le moment.'],
+  ]) {
+    await page.goto(route);
+    await expect(page.locator('.mjl-system-state-initial-empty')).toContainText(emptyMessage);
+    await expect(page.locator('[data-mjl-scoped-count]')).toHaveText('0');
+  }
+
+  await login(page, 'agent.mjl');
+  for (const route of ['/custom/mjlfinancement/projects.php', '/custom/mjlfinancement/expenses.php']) {
+    await page.goto(`${route}?partner=999999999`);
+    const state = page.locator('.mjl-system-state-filtered-empty');
+    await expect(state).toContainText('Aucun résultat');
+    await expect(state.getByRole('link', { name: 'Réinitialiser' })).toHaveAttribute('href', route);
+    await expect(page.locator('[data-mjl-scoped-count]')).toHaveText('0');
+  }
+
+  executeSql('RENAME TABLE llx_mjlfinancement_budget_line TO llx_mjlfinancement_budget_line_p3d_list_failure');
+  try {
+    for (const route of ['/custom/mjlfinancement/projects.php', '/custom/mjlfinancement/expenses.php']) {
+      await page.goto(route);
+      const state = page.locator('.mjl-system-state-unavailable');
+      await expect(state).toContainText('Liste indisponible');
+      await expect(state).toContainText('Le service de données est temporairement indisponible.');
+      await expect(page.locator('body')).not.toContainText(/SQLSTATE|SELECT |Unknown table|doesn.t exist/i);
+    }
+  } finally {
+    executeSql('RENAME TABLE llx_mjlfinancement_budget_line_p3d_list_failure TO llx_mjlfinancement_budget_line');
+  }
+});
+
+test('activity correction review uses an authorized same-route action state', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  await login(page, 'superviseur.n1');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+
+  const correctionForm = page.locator('form[data-mjl-form="activity-decision"]', {
+    has: page.locator('input[name="action"][value="request_correction"]'),
+  });
+  await expect(correctionForm).toHaveCount(0);
+
+  const actionLink = page.getByRole('link', { name: 'Retourner pour correction' });
+  await expect(actionLink).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}&action=request_correction`);
+  await actionLink.click();
+
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${activityId}&action=request_correction$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Retourner l’activité pour correction');
+  await expect(correctionForm).toBeVisible();
+  await expect(correctionForm.locator('textarea[name="comment"]')).toHaveAttribute('required', '');
+  await expect(page.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}`);
+  await assertNoHorizontalOverflow(page, { label: 'activity correction action state' });
+
+  await login(page, 'agent.mjl');
+  const denied = await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=request_correction`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('textarea[name="comment"]')).toHaveCount(0);
+});
+
+test('activity correction review recovery returns to the guarded substantive state', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  await login(page, 'superviseur.n1');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=request_correction`);
+
+  const form = page.locator('form[data-mjl-form="activity-decision"]');
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  const response = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'request_correction',
+      id: String(activityId),
+      comment: '',
+    },
+    maxRedirects: 0,
+  });
+
+  expect(response.status()).toBe(302);
+  const location = response.headers().location || '';
+  expect(location).toMatch(new RegExp(`activities\\.php\\?id=${activityId}&action=request_correction&mjl_recovery=[a-f0-9]{32}$`));
+  await page.goto(location);
+
+  await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+  const summary = form.locator('[data-mjl-error-summary]');
+  await expect(summary).toContainText('Corrigez les champs indiqués');
+  await expect(summary).toBeFocused();
+  await expect(form.locator('textarea[name="comment"]')).toHaveAttribute('aria-invalid', 'true');
+
+  await page.getByRole('link', { name: 'Annuler' }).click();
+  await expect(page.getByRole('dialog', { name: 'Modifications non enregistrées' })).toBeVisible();
+});
+
+test('activity verifier decisions leave the default detail and enter guarded action states', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  await login(page, 'superviseur.n1');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+
+  for (const [action, label] of [
+    ['prevalidate', 'Prévalider l’activité'],
+    ['validate', 'Valider l’activité'],
+    ['reject', 'Rejeter l’activité'],
+  ]) {
+    await expect(page.locator(`form[data-mjl-form="activity-decision"] input[name="action"][value="${action}"]`)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: label, exact: true })).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}&action=${action}`);
+  }
+
+  await page.getByRole('link', { name: 'Prévalider l’activité' }).click();
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${activityId}&action=prevalidate$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Prévalider l’activité');
+  const form = page.locator('form[data-mjl-form="activity-decision"]');
+  await expect(form.locator('input[name="action"]')).toHaveValue('prevalidate');
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+});
+
+test('activity final-validator decisions use guarded action states and reject the verifier role', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 7 WHERE entity = 1 AND rowid = ${activityId}`);
+
+  await login(page, 'dpaf.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+
+  for (const [action, label] of [
+    ['final_validate', 'Valider définitivement l’activité'],
+    ['validate', 'Valider l’activité'],
+    ['reject', 'Rejeter l’activité'],
+  ]) {
+    await expect(page.locator(`form[data-mjl-form="activity-decision"] input[name="action"][value="${action}"]`)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: label, exact: true })).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}&action=${action}`);
+  }
+
+  await page.getByRole('link', { name: 'Valider définitivement l’activité' }).click();
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${activityId}&action=final_validate$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Valider définitivement l’activité');
+  await expect(page.locator('form[data-mjl-form="activity-decision"] input[name="action"]')).toHaveValue('final_validate');
+
+  await login(page, 'superviseur.n1');
+  const denied = await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=final_validate`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('form[data-mjl-form="activity-decision"]')).toHaveCount(0);
+});
+
+test('activity guarded review states fail closed for self-review and cross-scope access', async ({ page }) => {
+  let activityId = seedActivityActionFixture();
+  executeSql(`
+    SET @verifier = (SELECT rowid FROM llx_user WHERE login = 'superviseur.n1' AND entity = 1 LIMIT 1);
+    UPDATE llx_mjlfinancement_activity SET fk_user_creat = @verifier WHERE entity = 1 AND rowid = ${activityId};
+  `);
+
+  await login(page, 'superviseur.n1');
+  let denied = await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=prevalidate`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('form[data-mjl-form="activity-decision"]')).toHaveCount(0);
+
+  activityId = seedActivityActionFixture();
+  seedScopedActivityReviewer();
+  executeSql(`
+    SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'PRJ-RED-2026' AND entity = 1 LIMIT 1);
+    SET @convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-RED-2026-001' AND entity = 1 LIMIT 1);
+    UPDATE llx_mjlfinancement_activity SET fk_project = @project, fk_convention = @convention WHERE entity = 1 AND rowid = ${activityId};
+  `);
+
+  await login(page, 'mjl.phase3d.reviewer');
+  denied = await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=prevalidate`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('form[data-mjl-form="activity-decision"]')).toHaveCount(0);
+});
+
+test('stale activity review denies before recovery consumption and recovery remains one-use', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  await login(page, 'superviseur.n1');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=request_correction`);
+  const form = page.locator('form[data-mjl-form="activity-decision"]');
+  const response = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'request_correction',
+      id: String(activityId),
+      comment: '',
+    },
+    maxRedirects: 0,
+  });
+  const recoveryLocation = response.headers().location || '';
+  expect(response.status()).toBe(302);
+  expect(recoveryLocation).toMatch(/action=request_correction&mjl_recovery=[a-f0-9]{32}$/);
+
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 6 WHERE entity = 1 AND rowid = ${activityId}`);
+  const denied = await page.goto(recoveryLocation);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="activity-decision"]')).toHaveCount(0);
+
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 3 WHERE entity = 1 AND rowid = ${activityId}`);
+  await page.goto(recoveryLocation);
+  await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('textarea[name="comment"]')).toHaveAttribute('aria-invalid', 'true');
+
+  await page.goto(recoveryLocation);
+  await expect(form).not.toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('textarea[name="comment"]')).not.toHaveAttribute('aria-invalid', 'true');
+});
+
+test('expense verifier decisions leave the default detail for a guarded action state', async ({ page }) => {
+  const expenseId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
+  await login(page, 'superviseur.n1');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}`);
+
+  for (const [action, label] of [
+    ['prevalidate', 'Prévalider la dépense'],
+    ['reject', 'Rejeter la dépense'],
+  ]) {
+    await expect(page.locator(`form input[name="action"][value="${action}"]`)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: label, exact: true })).toHaveAttribute('href', `/custom/mjlfinancement/expenses.php?id=${expenseId}&action=${action}`);
+  }
+
+  await page.getByRole('link', { name: 'Prévalider la dépense' }).click();
+  await expect(page).toHaveURL(new RegExp(`expenses\\.php\\?id=${expenseId}&action=prevalidate$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Prévalider la dépense');
+  const form = page.locator('form[data-mjl-form="expense-decision"]');
+  await expect(form.locator('input[name="action"]')).toHaveValue('prevalidate');
+  await expect(form.locator('input[name="expected_status"]')).toHaveValue('1');
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  await expect(form).not.toHaveAttribute('data-mjl-confirm');
+  await expect(page.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', `/custom/mjlfinancement/expenses.php?id=${expenseId}`);
+  await assertNoHorizontalOverflow(page, { label: 'expense verifier action state' });
+  await form.locator('input[name="prevalidated_amount"]').fill('400000');
+  await page.getByRole('link', { name: 'Annuler' }).click();
+  await expect(page.getByRole('dialog', { name: 'Modifications non enregistrées' })).toBeVisible();
+});
+
+test('expense final validation and disbursement use guarded no-modal action states', async ({ page }) => {
+  const expenseId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
+  executeSql(`UPDATE llx_mjlfinancement_expense SET status = 4, prevalidated_amount = amount WHERE entity = 1 AND rowid = ${expenseId}`);
+
+  await login(page, 'dpaf.mjl');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}`);
+  await expect(page.locator('form input[name="action"][value="final_validate"]')).toHaveCount(0);
+  const finalLink = page.getByRole('link', { name: 'Valider définitivement la dépense' });
+  await expect(finalLink).toHaveAttribute('href', `/custom/mjlfinancement/expenses.php?id=${expenseId}&action=final_validate`);
+  await finalLink.click();
+
+  let form = page.locator('form[data-mjl-form="expense-decision"]');
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Valider définitivement la dépense');
+  await expect(form.locator('input[name="final_validated_amount"]')).toHaveValue('420000.00000000');
+  await expect(form.locator('[data-mjl-consequence]')).toContainText('ne signifie pas que les fonds ont été décaissés');
+  await expect(form).not.toHaveAttribute('data-mjl-confirm');
+
+  executeSql(`UPDATE llx_mjlfinancement_expense SET status = 6, final_validated_amount = amount WHERE entity = 1 AND rowid = ${expenseId}`);
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}`);
+  await expect(page.locator('form input[name="action"][value="disburse"]')).toHaveCount(0);
+  const disburseLink = page.getByRole('link', { name: 'Enregistrer le décaissement' });
+  await expect(disburseLink).toHaveAttribute('href', `/custom/mjlfinancement/expenses.php?id=${expenseId}&action=disburse`);
+  await disburseLink.click();
+
+  form = page.locator('form[data-mjl-form="expense-decision"]');
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Enregistrer le décaissement');
+  await expect(form.locator('input[name="beneficiary_name"]')).toHaveAttribute('required', '');
+  await expect(form.locator('input[name="disbursement_date"]')).toHaveAttribute('required', '');
+  await expect(form.locator('[data-mjl-consequence]')).toContainText('confirme que les fonds ont effectivement été versés');
+  await expect(form).not.toHaveAttribute('data-mjl-confirm');
+
+  executeSql(`UPDATE llx_mjlfinancement_expense SET status = 1, prevalidated_amount = NULL, final_validated_amount = NULL WHERE entity = 1 AND rowid = ${expenseId}`);
+});
+
+test('expense review recovery is guarded before consumption and remains one-use', async ({ page }) => {
+  const expenseId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
+  await login(page, 'superviseur.n1');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}&action=reject`);
+  const form = page.locator('form[data-mjl-form="expense-decision"]');
+  const response = await page.request.post(`/custom/mjlfinancement/expenses.php?id=${expenseId}`, {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'reject',
+      id: String(expenseId),
+      expected_status: '1',
+      comment: '',
+    },
+    maxRedirects: 0,
+  });
+  const recoveryLocation = response.headers().location || '';
+  expect(response.status()).toBe(302);
+  expect(recoveryLocation).toMatch(new RegExp(`expenses\\.php\\?id=${expenseId}&action=reject&mjl_recovery=[a-f0-9]{32}$`));
+
+  executeSql(`UPDATE llx_mjlfinancement_expense SET status = 4, prevalidated_amount = amount WHERE entity = 1 AND rowid = ${expenseId}`);
+  const denied = await page.goto(recoveryLocation);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="expense-decision"]')).toHaveCount(0);
+
+  restoreExpenseDecisionSample();
+  await page.goto(recoveryLocation);
+  await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('[data-mjl-error-summary]')).toBeFocused();
+  await expect(form.locator('textarea[name="comment"]')).toHaveAttribute('aria-invalid', 'true');
+
+  await page.goto(recoveryLocation);
+  await expect(form).not.toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('textarea[name="comment"]')).not.toHaveAttribute('aria-invalid', 'true');
+
+  await login(page, 'agent.mjl');
+  const wrongRole = await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}&action=reject`);
+  expect([200, 403]).toContain(wrongRole.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('form[data-mjl-form="expense-decision"]')).toHaveCount(0);
+});
+
+test('expense guarded action states fail closed for self-review and cross-scope access', async ({ page }) => {
+  const expenseId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
+  executeSql(`
+    SET @verifier = (SELECT rowid FROM llx_user WHERE login = 'superviseur.n1' AND entity = 1 LIMIT 1);
+    UPDATE llx_mjlfinancement_expense SET fk_user_creat = @verifier WHERE entity = 1 AND rowid = ${expenseId};
+  `);
+
+  await login(page, 'superviseur.n1');
+  let denied = await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}&action=prevalidate`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('form[data-mjl-form="expense-decision"]')).toHaveCount(0);
+
+  restoreExpenseDecisionSample();
+  seedScopedActivityReviewer();
+  executeSql(`
+    SET @project = (SELECT rowid FROM llx_projet WHERE ref = 'PRJ-RED-2026' AND entity = 1 LIMIT 1);
+    SET @convention = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-RED-2026-001' AND entity = 1 LIMIT 1);
+    SET @activity = (SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'ACT-RED-002' AND entity = 1 LIMIT 1);
+    SET @budget_line = (SELECT rowid FROM llx_mjlfinancement_budget_line WHERE ref = 'BL-RED-002' AND entity = 1 LIMIT 1);
+    UPDATE llx_mjlfinancement_expense
+    SET fk_project = @project, fk_convention = @convention, fk_mjl_activity = @activity, fk_budget_line = @budget_line
+    WHERE entity = 1 AND rowid = ${expenseId};
+  `);
+
+  await login(page, 'mjl.phase3d.reviewer');
+  denied = await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}&action=prevalidate`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('body')).toContainText(/Access denied|Accès refusé/);
+  await expect(page.locator('form[data-mjl-form="expense-decision"]')).toHaveCount(0);
 });
 
 test('shared operational filters reflow without local overflow at review widths', async ({ page }) => {

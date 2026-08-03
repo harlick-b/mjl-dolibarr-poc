@@ -32,11 +32,8 @@ async function login(page, username, userPassword = password) {
 	await page.getByRole('button', { name: 'Connexion' }).click();
 }
 
-async function confirmDecision(page, buttonName) {
+async function submitDecision(page, buttonName) {
 	await page.getByRole('button', { name: buttonName }).click();
-	const dialog = page.getByRole('dialog', { name: 'Confirmer la décision' });
-	await expect(dialog).toBeVisible();
-	await dialog.getByRole('button', { name: 'Confirmer', exact: true }).click();
 }
 
 async function expensePostToken(page, expenseId) {
@@ -131,9 +128,10 @@ test('expense moves through prevalidation, final validation, and disbursement wi
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
   await expect(page.getByRole('heading', { name: 'P5D-FLOW' })).toBeVisible();
   await expect(page.getByText('Soumise').first()).toBeVisible();
-  await page.getByLabel('Montant prevalide').fill('1000');
-  await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 5');
-  await page.getByRole('button', { name: 'Prevalider la depense' }).click();
+  await page.getByRole('link', { name: 'Prévalider la dépense' }).click();
+  await page.getByLabel('Montant prévalidé').fill('1000');
+  await page.getByLabel('Commentaire de prévalidation').fill('Prevalidation Phase 5');
+  await page.getByRole('button', { name: 'Prévalider la dépense' }).click();
   await expect(page.getByText('Prévalidée').first()).toBeVisible();
   await expect(page.getByText('Prevalidation Phase 5')).toBeVisible();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'prevalidated'`))).toBe(1);
@@ -143,9 +141,10 @@ test('expense moves through prevalidation, final validation, and disbursement wi
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
-  await page.getByLabel('Montant valide definitivement').fill('1000');
-  await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 5');
-  await confirmDecision(page, 'Valider definitivement');
+  await page.getByRole('link', { name: 'Valider définitivement la dépense' }).click();
+  await page.getByLabel('Montant validé définitivement').fill('1000');
+  await page.getByLabel('Commentaire de validation définitive').fill('Validation definitive Phase 5');
+  await submitDecision(page, 'Valider définitivement la dépense');
   await expect(page.getByText('Validée définitivement').first()).toBeVisible();
   await expect(page.getByText('Validation definitive Phase 5')).toBeVisible();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'final_validated'`))).toBe(1);
@@ -156,9 +155,10 @@ test('expense moves through prevalidation, final validation, and disbursement wi
   expect(Number(scalar("SELECT ROUND(spent_amount) FROM llx_mjlfinancement_budget_line WHERE ref = 'P5D-BL' AND entity = 1"))).toBe(0);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
+  await page.getByRole('link', { name: 'Enregistrer le décaissement' }).click();
   await page.getByLabel('Beneficiaire').fill('Cabinet Phase 5');
   await page.getByLabel('Date decaissement').fill('2026-07-08');
-  await confirmDecision(page, 'Enregistrer le decaissement');
+  await submitDecision(page, 'Enregistrer le décaissement');
   await expect(page.getByText('Décaissée').first()).toBeVisible();
   await expect(page.getByText('Cabinet Phase 5')).toBeVisible();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${flowId}`))).toBe(7);
@@ -172,21 +172,23 @@ test('expense moves through prevalidation, final validation, and disbursement wi
 test('missing document and overspend block final approval paths', async ({ page }) => {
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${missingDocId}`);
-  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Prévalider la dépense' })).toHaveCount(0);
   let response = await postExpenseAction(page, missingDocId, { action: 'prevalidate', prevalidated_amount: '900', comment: 'Tentative sans piece' });
   expect(response.status()).toBe(403);
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${missingDocId}`))).toBe(1);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${overBudgetId}`);
-  await page.getByLabel('Montant prevalide').fill('12000');
-  await page.getByRole('button', { name: 'Prevalider la depense' }).click();
+  await page.getByRole('link', { name: 'Prévalider la dépense' }).click();
+  await page.getByLabel('Montant prévalidé').fill('12000');
+  await page.getByRole('button', { name: 'Prévalider la dépense' }).click();
   await expect(page.getByText('Prévalidée').first()).toBeVisible();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${overBudgetId}`))).toBe(4);
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${overBudgetId}`);
-  await page.getByLabel('Montant valide definitivement').fill('12000');
-  await confirmDecision(page, 'Valider definitivement');
+  await page.getByRole('link', { name: 'Valider définitivement la dépense' }).click();
+  await page.getByLabel('Montant validé définitivement').fill('12000');
+  await submitDecision(page, 'Valider définitivement la dépense');
   await expect(page.getByText(/exceeds|depasse|dépasse|budget/i).first()).toBeVisible();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_expense WHERE rowid = ${overBudgetId}`))).toBe(4);
 });
@@ -197,18 +199,18 @@ test('wrong role and self-action direct POST attempts are rejected', async ({ pa
   expect(response.status()).toBe(403);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${selfPrevalidateId}`);
-  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Prévalider la dépense' })).toHaveCount(0);
   response = await postExpenseAction(page, selfPrevalidateId, { action: 'prevalidate', prevalidated_amount: '800', comment: 'Auto prevalidation' });
   expect(response.status()).toBe(403);
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${selfFinalId}`);
-  await expect(page.getByRole('button', { name: 'Valider definitivement' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Valider définitivement la dépense' })).toHaveCount(0);
   response = await postExpenseAction(page, selfFinalId, { action: 'final_validate', final_validated_amount: '700', comment: 'Auto validation definitive' });
   expect(response.status()).toBe(403);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${selfDisburseId}`);
-  await expect(page.getByRole('button', { name: 'Enregistrer le decaissement' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Enregistrer le décaissement' })).toHaveCount(0);
   response = await postExpenseAction(page, selfDisburseId, { action: 'disburse', beneficiary_name: 'Auto beneficiaire', disbursement_date: '2026-07-08' });
   expect(response.status()).toBe(403);
 });

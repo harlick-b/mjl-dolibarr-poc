@@ -268,29 +268,36 @@ function mjl_projects_render_list()
 	print '<section class="mjl-workspace-section">';
 	mjl_projects_render_list_filters($filters, $result['partner_options']);
 	if (!$result['count_available'] && $result['rows_available']) print mjl_ui_system_state('partial-error', 'Total indisponible', 'Les projets accessibles restent affichés, mais le total ne peut pas être calculé.');
-	if (!$result['rows_available']) print mjl_ui_system_state('danger', 'Liste indisponible', mjl_ui_safe_error_message('database'));
-	if (empty($rows)) {
-		print '<div class="mjl-empty-state">Aucun projet accessible dans votre perimetre.</div>';
+	print '<p class="mjl-scoped-count">Résultats dans votre périmètre : <strong data-mjl-scoped-count>'.($result['total'] === null ? 'Indisponible' : (int) $result['total']).'</strong></p>';
+	if (!$result['rows_available']) {
+		print mjl_ui_system_state('unavailable', 'Liste indisponible', mjl_ui_safe_error_message('database'), array('href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php', 'action' => 'Réessayer'));
+	} elseif (empty($rows)) {
+		$filtered = $filters['fail_closed'] || $filters['partner'] > 0 || $filters['status'] !== '';
+		print $filtered
+			? mjl_ui_system_state('filtered-empty', 'Aucun résultat', 'Aucun projet ne correspond aux filtres appliqués.', array('href' => DOL_URL_ROOT.'/custom/mjlfinancement/projects.php', 'action' => 'Réinitialiser'))
+			: mjl_ui_system_state('initial-empty', 'Aucun projet', 'Aucun projet dans votre périmètre pour le moment.');
 	} else {
-		print '<div class="div-table-responsive"><table class="noborder centpercent">';
-		print '<tr class="liste_titre"><th>Projet</th><th>Partenaire / Programme</th><th>Enveloppe liee</th><th>Budget total</th><th>Budget consomme</th><th>Budget restant</th><th>Fonds recus</th><th>Activites</th><th>Depenses</th><th>Documents</th><th>Echeance</th><th>Statut</th></tr>';
+		print '<div class="div-table-responsive-no-min mjl-dashboard-table mjl-operational-table"><table class="noborder centpercent" aria-label="Projets du périmètre">';
+		print '<thead><tr class="liste_titre"><th>Projet</th><th>Statut</th><th>Partenaire / Programme</th><th>Enveloppe liée</th><th>Budget total</th><th>Budget consommé</th><th>Budget restant</th><th>Fonds reçus</th><th>Activités</th><th>Dépenses</th><th>Documents</th><th>Échéance</th><th>Ouvrir</th></tr></thead><tbody>';
 		foreach ($rows as $row) {
+			$href = DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $row['rowid']);
 			print '<tr class="oddeven">';
-			print '<td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['ref']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['title']).'</span></td>';
-			print '<td>'.dol_escape_htmltag($row['partner_name'] ?: 'Non renseigné').'</td>';
-			print '<td>'.dol_escape_htmltag($row['convention_refs'] ?: 'Non renseignee').'</td>';
-			print '<td>'.mjl_projects_price($row['budget_total']).'</td>';
-			print '<td>'.mjl_projects_price($row['budget_spent']).'</td>';
-			print '<td>'.mjl_projects_price($row['budget_remaining']).'</td>';
-			print '<td>'.mjl_projects_price($row['funds_received']).'</td>';
-			print '<td>'.((int) $row['activities_count']).'</td>';
-			print '<td>'.((int) $row['expenses_count']).'</td>';
-			print '<td>'.((int) $row['documents_count']).'</td>';
-			print '<td>'.dol_escape_htmltag(mjl_projects_date($row['datee'])).'</td>';
-			print '<td>'.dol_escape_htmltag(mjl_projects_status_label($row['fk_statut'])).'</td>';
+			print '<td data-label="Projet"><a class="mjl-table-link" href="'.dol_escape_htmltag($href).'">'.dol_escape_htmltag($row['ref']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['title']).'</span></td>';
+			print '<td data-label="Statut">'.dol_escape_htmltag(mjl_projects_status_label($row['fk_statut'])).'</td>';
+			print '<td data-label="Partenaire / Programme">'.dol_escape_htmltag($row['partner_name'] ?: 'Non renseigné').'</td>';
+			print '<td data-label="Enveloppe liée">'.dol_escape_htmltag($row['convention_refs'] ?: 'Non renseignée').'</td>';
+			print '<td data-label="Budget total">'.mjl_projects_price($row['budget_total']).'</td>';
+			print '<td data-label="Budget consommé">'.mjl_projects_price($row['budget_spent']).'</td>';
+			print '<td data-label="Budget restant">'.mjl_projects_price($row['budget_remaining']).'</td>';
+			print '<td data-label="Fonds reçus">'.mjl_projects_price($row['funds_received']).'</td>';
+			print '<td data-label="Activités">'.((int) $row['activities_count']).'</td>';
+			print '<td data-label="Dépenses">'.((int) $row['expenses_count']).'</td>';
+			print '<td data-label="Documents">'.((int) $row['documents_count']).'</td>';
+			print '<td data-label="Échéance">'.dol_escape_htmltag(mjl_projects_date($row['datee'])).'</td>';
+			print '<td data-label="Ouvrir"><a class="mjl-table-link" href="'.dol_escape_htmltag($href).'">Ouvrir</a></td>';
 			print '</tr>';
 		}
-		print '</table></div>';
+		print '</tbody></table></div>';
 	}
 	$hasPrevious = !$filters['fail_closed'] && (int) $filters['page'] > 1;
 	$hasNext = !$filters['fail_closed'] && ($result['total'] === null ? $result['has_extra'] : ((int) $filters['page'] * 50 < (int) $result['total']));
@@ -568,7 +575,7 @@ function mjl_projects_list_result()
 	);
 	$filters = mjl_table_normalize_generic($raw, $schema, 50);
 	$fragments = mjl_projects_list_fragments($filters);
-	$total = null;
+	$total = $filters['fail_closed'] ? 0 : null;
 	$countAvailable = true;
 	if (!$filters['fail_closed']) {
 		$resql = $db->query('SELECT COUNT(*) AS nb'.$fragments['from'].$fragments['where']);

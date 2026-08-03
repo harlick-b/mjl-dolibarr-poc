@@ -22,6 +22,9 @@ if (!mjl_workspace_can_access_activity($user)) {
 
 $langs->load('mjlfinancement@mjlfinancement');
 $action = GETPOST('action', 'alpha');
+$activityId = GETPOSTINT('id');
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && in_array($action, mjl_activities_guarded_review_actions(), true) ? $action : '';
+$presentationActivity = array();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
@@ -37,18 +40,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $mjl_activities_page_token = function_exists('newToken') ? newToken() : '';
-$activityId = GETPOSTINT('id');
-$mjl_activity_recovery = mjl_form_recovery_consume_route(
-	GETPOST('mjl_recovery', 'alphanohtml'),
-	array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'activities', 'object_id' => $activityId),
-	mjl_activity_recovery_consume_allowlist()
-);
+if ($presentationAction !== '') {
+	$presentationActivity = mjl_activities_fetch_detail($activityId);
+	if (empty($presentationActivity) || !mjl_activities_can_open($presentationActivity) || !mjl_activities_can_apply_action($presentationActivity, $presentationAction)) {
+		mjl_activities_forbidden();
+	}
+	$mjl_activity_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'activities', 'object_id' => $activityId),
+		array((string) mjl_activity_recovery_config($presentationAction)['form'] => array($presentationAction))
+	);
+} else {
+	$mjl_activity_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'activities', 'object_id' => $activityId),
+		mjl_activity_recovery_consume_allowlist()
+	);
+}
 
 llxHeader('', 'Activites MJL');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-activity-workspace">';
 
-if ($activityId > 0) {
+if ($presentationAction !== '') {
+	mjl_activities_render_action_state($presentationActivity, $presentationAction);
+} elseif ($activityId > 0) {
 	mjl_activities_render_detail($activityId);
 } else {
 	mjl_activities_render_list_page();
@@ -155,7 +171,7 @@ function mjl_activities_handle_post($action)
 		$handle = mjl_activities_store_recovery_config($action, $id, $errors);
 		setEventMessages(empty($errors) ? mjl_ui_safe_error_message('unknown') : mjl_ui_safe_error_message('validation'), null, 'errors');
 		mjl_ui_log_error('domain', mjl_activities_error_context($action) + array('object_type' => 'activity', 'object_id' => $id), $activity->error);
-		mjl_activities_redirect($id, $handle);
+		mjl_activities_redirect($id, $handle, in_array($action, mjl_activities_guarded_review_actions(), true) ? $action : '');
 	}
 	elseif ($result === 0) setEventMessages('Aucun changement applique', null, 'warnings');
 	else setEventMessages('Action enregistree', null, 'mesgs');
@@ -308,6 +324,38 @@ function mjl_activities_render_detail($id)
 	mjl_activities_render_activity_document_panel($row);
 	mjl_activities_render_document_checklist((int) $row['rowid']);
 	mjl_activities_render_timeline($row);
+}
+
+function mjl_activities_render_action_state($row, $action)
+{
+	$actions = mjl_activities_available_actions($row);
+	if (!isset($actions[$action]) || !in_array($action, mjl_activities_guarded_review_actions(), true)) {
+		mjl_activities_forbidden();
+	}
+	$titles = array(
+		'prevalidate' => 'Prévalider l’activité',
+		'final_validate' => 'Valider définitivement l’activité',
+		'validate' => 'Valider l’activité',
+		'request_correction' => 'Retourner l’activité pour correction',
+		'reject' => 'Rejeter l’activité',
+	);
+	$title = $titles[$action];
+	print mjl_page_header_render(
+		$title,
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
+				array('label' => $row['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid'])),
+				array('label' => $title),
+			),
+			'description' => $action === 'request_correction' ? 'Indiquez le motif attendu avant de retourner cette activité à l’agent de saisie.' : 'Vérifiez le contexte et renseignez le commentaire de décision avant de continuer.',
+			'context' => array('label' => 'Statut actuel', 'value' => mjl_activity_status_label($row['status'])),
+		)
+	);
+	print '<section class="mjl-workspace-section mjl-activity-card mjl-activity-decision">';
+	print '<div class="mjl-section-heading"><h2>'.dol_escape_htmltag($actions[$action]['label']).'</h2><p>Cette décision conserve les contrôles de rôle, de périmètre et d’état de l’activité.</p></div>';
+	mjl_activities_render_decision_form($row, $action, $actions[$action], true);
+	print '</section>';
 }
 
 function mjl_activities_create_form()
@@ -551,16 +599,27 @@ function mjl_activities_render_decision_panel($row)
 	}
 	foreach ($actions as $action => $meta) {
 		if ($action === 'update') continue;
-		$actionRecovery = mjl_activities_recovery_for_action($action);
-		$prefix = 'mjl-decision-'.preg_replace('/[^a-z0-9_-]/i', '', (string) $action).'-';
-		print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-decision">';
-		print mjl_activities_token_input().'<input type="hidden" name="action" value="'.dol_escape_htmltag($action).'"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print '<div data-mjl-form-errors>'.mjl_form_error_summary($actionRecovery['errors'], 'Corrigez les champs indiqués', $prefix).'</div>';
-		print mjl_form_field('comment', $meta['comment'], '<textarea'.(!empty($meta['required']) ? ' required' : '').' name="comment">'.dol_escape_htmltag($actionRecovery['values']['comment'] ?? '').'</textarea>', !empty($meta['required']), '', $actionRecovery['errors']['comment'] ?? '', $prefix);
-		print '<input class="button" type="submit" value="'.dol_escape_htmltag($meta['label']).'">';
-		print '</form>';
+		if (in_array($action, mjl_activities_guarded_review_actions(), true)) {
+			print '<a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'&amp;action='.dol_escape_htmltag($action).'">'.dol_escape_htmltag($meta['label']).'</a>';
+			continue;
+		}
+		mjl_activities_render_decision_form($row, $action, $meta);
 	}
 	print '</section>';
+}
+
+function mjl_activities_render_decision_form($row, $action, $meta, $withCancel = false)
+{
+	$actionRecovery = mjl_activities_recovery_for_action($action);
+	$isRecovered = !empty($actionRecovery['recovered']);
+	$prefix = 'mjl-decision-'.preg_replace('/[^a-z0-9_-]/i', '', (string) $action).'-';
+	print '<form class="mjl-activity-action-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-decision"'.($withCancel ? ' data-mjl-substantive' : '').($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
+	print mjl_activities_token_input().'<input type="hidden" name="action" value="'.dol_escape_htmltag($action).'"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($actionRecovery['errors'], 'Corrigez les champs indiqués', $prefix, $isRecovered).'</div>';
+	print mjl_form_field('comment', $meta['comment'], '<textarea'.(!empty($meta['required']) ? ' required' : '').' name="comment">'.dol_escape_htmltag($actionRecovery['values']['comment'] ?? '').'</textarea>', !empty($meta['required']), '', $actionRecovery['errors']['comment'] ?? '', $prefix);
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="'.dol_escape_htmltag($meta['label']).'">';
+	if ($withCancel) print '<a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'">Annuler</a>';
+	print '</div></form>';
 }
 
 function mjl_activities_render_execution_panel($row)
@@ -829,12 +888,17 @@ function mjl_activities_available_actions($row)
 	if (mjl_activities_can_apply_action($row, 'update')) $actions['update'] = array('label' => 'Modifier');
 	if (mjl_activities_can_apply_action($row, 'submit')) $actions['submit'] = array('label' => 'Soumettre l activite', 'comment' => 'Commentaire de soumission', 'required' => false);
 	if (mjl_activities_can_apply_action($row, 'correct')) $actions['correct'] = array('label' => 'Marquer corrigee', 'comment' => 'Commentaire de correction', 'required' => true);
-	if (mjl_activities_can_apply_action($row, 'prevalidate')) $actions['prevalidate'] = array('label' => 'Prevalider l activite', 'comment' => 'Commentaire de prevalidation', 'required' => false);
-	if (mjl_activities_can_apply_action($row, 'final_validate')) $actions['final_validate'] = array('label' => 'Validation definitive', 'comment' => 'Commentaire de validation definitive', 'required' => false);
-	if (mjl_activities_can_apply_action($row, 'validate')) $actions['validate'] = array('label' => 'Valider l activite', 'comment' => 'Commentaire de validation', 'required' => false);
+	if (mjl_activities_can_apply_action($row, 'prevalidate')) $actions['prevalidate'] = array('label' => 'Prévalider l’activité', 'comment' => 'Commentaire de prévalidation', 'required' => false);
+	if (mjl_activities_can_apply_action($row, 'final_validate')) $actions['final_validate'] = array('label' => 'Valider définitivement l’activité', 'comment' => 'Commentaire de validation définitive', 'required' => false);
+	if (mjl_activities_can_apply_action($row, 'validate')) $actions['validate'] = array('label' => 'Valider l’activité', 'comment' => 'Commentaire de validation', 'required' => false);
 	if (mjl_activities_can_apply_action($row, 'request_correction')) $actions['request_correction'] = array('label' => 'Retourner pour correction', 'comment' => 'Motif de correction', 'required' => true);
-	if (mjl_activities_can_apply_action($row, 'reject')) $actions['reject'] = array('label' => 'Rejeter l activite', 'comment' => 'Motif de rejet', 'required' => true);
+	if (mjl_activities_can_apply_action($row, 'reject')) $actions['reject'] = array('label' => 'Rejeter l’activité', 'comment' => 'Motif de rejet', 'required' => true);
 	return $actions;
+}
+
+function mjl_activities_guarded_review_actions()
+{
+	return array('prevalidate', 'final_validate', 'validate', 'request_correction', 'reject');
 }
 
 function mjl_activities_scope_label()
@@ -1090,12 +1154,13 @@ function mjl_activities_recovery_for_action($action)
 	if ($config === null || !is_array($mjl_activity_recovery)
 		|| (string) ($mjl_activity_recovery['context']['form'] ?? '') !== (string) $config['form']
 		|| (string) ($mjl_activity_recovery['context']['action'] ?? '') !== (string) $action) {
-		return array('values' => array(), 'errors' => array(), 'action' => '');
+		return array('values' => array(), 'errors' => array(), 'action' => '', 'recovered' => false);
 	}
 	return array(
 		'values' => (array) ($mjl_activity_recovery['values'] ?? array()),
 		'errors' => (array) ($mjl_activity_recovery['errors'] ?? array()),
 		'action' => (string) ($mjl_activity_recovery['context']['action'] ?? ''),
+		'recovered' => true,
 	);
 }
 
@@ -1128,11 +1193,12 @@ function mjl_activities_store_recovery($form, $action, $objectId, $allowedFields
 	return $handle;
 }
 
-function mjl_activities_redirect($id, $recoveryHandle = '')
+function mjl_activities_redirect($id, $recoveryHandle = '', $presentationAction = '')
 {
 	$url = DOL_URL_ROOT.'/custom/mjlfinancement/activities.php';
 	$query = array();
 	if ((int) $id > 0) $query['id'] = (int) $id;
+	if ((string) $presentationAction !== '') $query['action'] = (string) $presentationAction;
 	if ((string) $recoveryHandle !== '') $query['mjl_recovery'] = (string) $recoveryHandle;
 	if (!empty($query)) $url .= '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 	header('Location: '.$url);

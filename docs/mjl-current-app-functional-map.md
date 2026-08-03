@@ -72,9 +72,9 @@ Those references are current-state/code debt, not target behavior.
 | --- | --- | --- | --- |
 | Dashboard | `index.php` | Role-aware workspace dashboard with Phase 10R scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | Compatibility fixture names still contain POC-era vocabulary. |
 | Partenaires / Programmes | `partners.php` | Scoped, paginated partner/programme portfolio plus context and related previews. | Name/risk sorts are allowlisted; related previews are independently counted and limited to 12 rows. |
-| Projects | `projects.php` | Scoped, paginated MJL project list/detail, related previews, recoverable create/edit, legacy notes, and contextual comments. | Partner/status/sort filters fail closed; create/edit remains limited to Admin plateforme and Validateur definitif. |
-| Activities | `activities.php` | Activity lifecycle, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Partner/project/status/risk/sort filters are allowlisted; malformed or inaccessible filters fail closed. |
-| Expenses | `expenses.php` | Expense lifecycle, supporting evidence, prevalidation, final validation, disbursement, contextual comments, and consequence-aware decisions. | Final validation, rejection, and disbursement use a keyboard modal enhancement while retaining server markup and no-JavaScript submission. |
+| Projects | `projects.php` | Scoped, paginated MJL project list/detail with semantic desktop table, responsive labeled cards, shared list states, explicit open actions, related previews, recoverable create/edit, legacy notes, and contextual comments. | Partner/status/sort filters fail closed to zero results; create/edit remains limited to Admin plateforme and Validateur definitif. |
+| Activities | `activities.php` | Activity lifecycle, guarded verifier/final-validator review states, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Partner/project/status/risk/sort filters are allowlisted and fail closed; direct review-state routes recheck object access, role, actor separation, and current status before consuming exact-action recovery or rendering fields. |
+| Expenses | `expenses.php` | Expense lifecycle with a scoped semantic desktop table, responsive labeled list cards, shared list states, explicit open actions, supporting evidence, guarded prevalidation/final-validation/rejection/disbursement states, contextual comments, and consequence-aware decisions. | Filters fail closed to zero results; direct decision-state routes recheck object access, role, actor separation, and current status before consuming exact-action recovery or rendering fields. |
 | Documents | `documents.php` | Read-only accessible document library. | Uploads remain contextual. |
 | Conventions | `conventions.php` | Governed funding-envelope management and contextual comments. | User-facing terminology still needs alignment. |
 | Budget lines | `budgetlines.php` | Governed budget-line management and contextual comments. | Uses DPAF/Admin wording in places. |
@@ -114,10 +114,20 @@ Those references are current-state/code debt, not target behavior.
   failures can preserve allowlisted scalar values through a random,
   session/user/entity/route/form/action/object-bound one-use handle. Handles
   expire after ten minutes and are bounded by per-user count and storage caps.
+- Activity prevalidation, final validation, legacy validation, correction
+  return, and rejection leave the default detail for an allowlisted same-route
+  action state. Failed decision recovery returns to that guarded state; the
+  original POST action names, CSRF checks, scope/role/status guards, actor
+  separation, and workflow methods remain unchanged.
 - Expense creation, correction, decision, and contextual-comment domain
   failures use the same bounded one-use recovery mechanism with an
   expense-specific exact action/field registry. Upload, security, stale,
   unauthorized, and unknown failures do not create a recovery handle.
+- Expense prevalidation, final validation, rejection, and disbursement leave
+  the default detail for an allowlisted same-route action state. Failed
+  decision recovery returns to that guarded state; the original POST action
+  names, CSRF checks, scope/role/status guards, actor separation, workflow
+  methods, and no-JavaScript submission remain unchanged.
 - Expense lists expose scoped partner, project, status, sort, and 50-row page
   controls. Count and row queries share the same entity/scope/filter fragments,
   and inconsistent partner/project combinations fail closed.

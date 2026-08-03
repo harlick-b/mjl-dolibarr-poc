@@ -41,11 +41,8 @@ async function login(page, username, userPassword = password) {
 	await page.getByRole('button', { name: 'Connexion' }).click();
 }
 
-async function confirmDecision(page, buttonName) {
+async function submitDecision(page, buttonName) {
 	await page.getByRole('button', { name: buttonName }).click();
-	const dialog = page.getByRole('dialog', { name: 'Confirmer la décision' });
-	await expect(dialog).toBeVisible();
-	await dialog.getByRole('button', { name: 'Confirmer', exact: true }).click();
 }
 
 async function expectAccessDenied(page) {
@@ -227,17 +224,19 @@ test('Level 2 prevalidates submitted expense, DPAF final-validates it, and ECM-o
   await expect(page.getByText('BL-JE-002').first()).toBeVisible();
   await expect(page.getByText('agent.mjl').first()).toBeVisible();
   await expect(page.getByText('Non validee').first()).toBeVisible();
-  await page.getByLabel('Montant prevalide').fill('1100');
-  await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 11');
-  await page.getByRole('button', { name: 'Prevalider la depense' }).click();
+  await page.getByRole('link', { name: 'Prévalider la dépense' }).click();
+  await page.getByLabel('Montant prévalidé').fill('1100');
+  await page.getByLabel('Commentaire de prévalidation').fill('Prevalidation Phase 11');
+  await page.getByRole('button', { name: 'Prévalider la dépense' }).click();
   await expect(page.getByText('Prévalidée').first()).toBeVisible();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'prevalidated' AND actor_role = 'AGENT_VERIFICATEUR'`))).toBe(1);
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedDocId}`);
-  await page.getByLabel('Montant valide definitivement').fill('1100');
-  await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 11');
-  await confirmDecision(page, 'Valider definitivement');
+  await page.getByRole('link', { name: 'Valider définitivement la dépense' }).click();
+  await page.getByLabel('Montant validé définitivement').fill('1100');
+  await page.getByLabel('Commentaire de validation définitive').fill('Validation definitive Phase 11');
+  await submitDecision(page, 'Valider définitivement la dépense');
   await expect(page.getByText('Validée définitivement').first()).toBeVisible();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${submittedDocId} AND action = 'final_validated' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
 
@@ -266,8 +265,8 @@ test('Direct document downloads reject unauthorized or unsafe ECM rows', async (
 test('Missing document blocks validation UI and direct POST', async ({ page }) => {
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedMissingId}`);
-  await expect(page.getByText('Validation bloquee tant que la piece justificative manque.').first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
+  await expect(page.getByText('Validation bloquée tant que la pièce justificative manque.').first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Prévalider la dépense' })).toHaveCount(0);
 
   const response = await postExpenseAction(page, submittedMissingId, 'prevalidate', '', { prevalidated_amount: '1200' });
   expect(response.status()).toBe(403);
@@ -281,7 +280,7 @@ test('Unavailable referenced document blocks validation and stays visible in ale
   await expect(page.getByText('Piece referencee indisponible').first()).toBeVisible();
   await expect(page.getByText('P11-UNAVAILABLE.pdf').first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Télécharger la pièce' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Prévalider la dépense' })).toHaveCount(0);
 
   const response = await postExpenseAction(page, unavailableId, 'prevalidate', '', { prevalidated_amount: '1750' });
   expect(response.status()).toBe(403);
@@ -297,8 +296,9 @@ test('Unavailable referenced document blocks validation and stays visible in ale
 test('Reject, correct, and resubmit preserves decision comments', async ({ page }) => {
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${correctionId}`);
+  await page.getByRole('link', { name: 'Rejeter la dépense' }).click();
   await page.getByLabel('Motif de rejet').fill('Motif rejet Phase 11');
-  await confirmDecision(page, 'Rejeter la depense');
+  await submitDecision(page, 'Rejeter la dépense');
   await expect(page.getByText('Rejetée').first()).toBeVisible();
   await expect(page.getByText('Motif rejet Phase 11')).toBeVisible();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${correctionId} AND action = 'rejected'`))).toBe(1);
@@ -324,8 +324,8 @@ test('Reject, correct, and resubmit preserves decision comments', async ({ page 
 test('Self reviewer decisions are absent from UI and blocked server-side', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${selfSubmittedId}`);
-  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Rejeter la depense' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Prévalider la dépense' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Rejeter la dépense' })).toHaveCount(0);
 
   for (const attempt of [
     { action: 'prevalidate', comment: 'Tentative auto-validation Phase 11', extraForm: { prevalidated_amount: '1400' } },
@@ -369,7 +369,7 @@ test('DPAF, Admin, and unresolved legacy reader visibility stays role-aware', as
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedMissingId}`);
   await expect(page.getByRole('heading', { name: 'P11-SUBMITTED-MISS' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Valider definitivement' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Valider définitivement la dépense' })).toHaveCount(0);
 
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/expenses.php');

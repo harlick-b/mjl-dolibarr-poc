@@ -145,7 +145,7 @@ test('Level 1 creates, opens, submits, and sees timeline updates', async ({ page
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/activities.php');
   await expect(page.getByRole('heading', { name: 'Suivi des activités et décisions' })).toBeVisible();
-  await expect(page.getByText('Mes activites')).toBeVisible();
+  await expect(page.getByText('Mes activités')).toBeVisible();
 
   await page.getByLabel('Reference').fill('P7-UI-CREATE');
   await page.getByLabel('Libelle').fill('Activite Phase 7 creee par UI');
@@ -261,16 +261,20 @@ test('Level 2 prevalidates submitted activity, then final validator validates it
   await expect(page.getByText('P7-EXP-DOC')).toBeVisible();
   await expect(page.getByText('P7-EXP-MISS')).toBeVisible();
 
-  await page.getByLabel('Commentaire de prevalidation').fill('Prevalidation Phase 7');
-  await page.getByRole('button', { name: 'Prevalider l activite' }).click();
+  await page.getByRole('link', { name: 'Prévalider l’activité' }).click();
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${submittedActivityId}&action=prevalidate$`));
+  await page.getByLabel('Commentaire de prévalidation').fill('Prevalidation Phase 7');
+  await page.getByRole('button', { name: 'Prévalider l’activité' }).click();
   await expect(page.getByText('Prévalidée').first()).toBeVisible();
   await expect(page.getByText('Prevalidation Phase 7')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Validation definitive' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Valider définitivement l’activité', exact: true })).toHaveCount(0);
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
-  await page.getByLabel('Commentaire de validation definitive').fill('Validation definitive Phase 7');
-  await page.getByRole('button', { name: 'Validation definitive' }).click();
+  await page.getByRole('link', { name: 'Valider définitivement l’activité' }).click();
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${submittedActivityId}&action=final_validate$`));
+  await page.getByLabel('Commentaire de validation définitive').fill('Validation definitive Phase 7');
+  await page.getByRole('button', { name: 'Valider définitivement l’activité' }).click();
   await expect(page.getByText('Validée définitivement').first()).toBeVisible();
   await expect(page.getByText('Validation definitive Phase 7')).toBeVisible();
 });
@@ -278,6 +282,8 @@ test('Level 2 prevalidates submitted activity, then final validator validates it
 test('Return for correction preserves previous decision through correction and resubmission', async ({ page }) => {
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${correctionActivityId}`);
+  await page.getByRole('link', { name: 'Retourner pour correction' }).click();
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${correctionActivityId}&action=request_correction$`));
   await page.getByLabel('Motif de correction').fill('Motif correction Phase 7');
   await page.getByRole('button', { name: 'Retourner pour correction' }).click();
   expect(Number(scalar(`SELECT status FROM llx_mjlfinancement_activity WHERE rowid = ${correctionActivityId}`))).toBe(4);
@@ -307,11 +313,15 @@ test('Return for correction preserves previous decision through correction and r
 test('Self reviewer decisions are absent from UI and blocked server-side', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${adminSubmittedActivityId}`);
-  await expect(page.getByRole('button', { name: 'Prevalider l activite' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Validation definitive' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Valider l activite' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Retourner pour correction' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Rejeter l activite' })).toHaveCount(0);
+  for (const label of [
+    'Prévalider l’activité',
+    'Valider définitivement l’activité',
+    'Valider l’activité',
+    'Retourner pour correction',
+    'Rejeter l’activité',
+  ]) {
+    await expect(page.getByRole('link', { name: label, exact: true })).toHaveCount(0);
+  }
 
   for (const attempt of [
     { action: 'prevalidate', comment: 'Tentative auto-prevalidation Phase 7' },
@@ -331,7 +341,7 @@ test('DPAF, Admin, and unresolved legacy reader visibility stays role-aware', as
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
   await expect(page.getByRole('heading', { name: /P7-SUBMITTED/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Valider l activite' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Valider l’activité', exact: true })).toHaveCount(0);
 
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/activities.php');

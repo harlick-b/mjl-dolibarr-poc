@@ -384,13 +384,6 @@ async function postExpense(page, expenseId, payload) {
   });
 }
 
-async function confirmExpenseDecision(page, buttonName) {
-  await page.getByRole('button', { name: buttonName }).click();
-  const dialog = page.getByRole('dialog', { name: 'Confirmer la décision' });
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Confirmer', exact: true }).click();
-}
-
 function expenseProjection(expenseId) {
   return dockerScalar(`
     SELECT CONCAT_WS('|', status, COALESCE(prevalidated_amount, ''), COALESCE(final_validated_amount, ''), COALESCE(disbursed_amount, ''),
@@ -1489,56 +1482,47 @@ test('activity pagination retains normalized sort and filter queries at boundari
   await expect(page.getByText('Aucune activité ne correspond aux filtres appliqués.')).toBeVisible();
 });
 
-test('expense consequences are present without JavaScript and enhanced to a keyboard modal', async ({ browser, page }) => {
+test('expense consequences remain visible in dedicated action states with and without JavaScript', async ({ browser, page }) => {
+  const disburseId = Number(dockerScalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-001' AND entity = 1 LIMIT 1"));
+  const submittedId = Number(dockerScalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
   await login(page, 'dpaf.mjl');
-  await page.goto('/custom/mjlfinancement/expenses.php?id=13');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${disburseId}`);
+  await page.getByRole('link', { name: 'Enregistrer le décaissement' }).click();
 
-  const form = page.locator('form[data-mjl-confirm="disburse"]');
+  const form = page.locator('form[data-mjl-form="expense-decision"]');
   await expect(form.locator('[data-mjl-consequence]')).toContainText('Le décaissement confirme que les fonds ont effectivement été versés.');
   await form.getByLabel('Beneficiaire').fill('Bénéficiaire Phase 2');
   await form.getByLabel('Date decaissement').fill('2026-07-29');
-  const trigger = form.getByRole('button', { name: 'Enregistrer le decaissement' });
-  await trigger.click();
-
-  const dialog = page.getByRole('dialog', { name: 'Confirmer la décision' });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText('Bénéficiaire Phase 2');
-  await expect(dialog).toContainText('29/07/2026');
-  await expect(dialog.getByRole('button', { name: 'Annuler' })).toBeFocused();
-  await dialog.getByRole('button', { name: 'Annuler' }).press('Shift+Tab');
-  const confirmButton = dialog.getByRole('button', { name: 'Confirmer', exact: true });
-  await expect(confirmButton).toBeFocused();
-  await confirmButton.press('Tab');
-  await expect(dialog.getByRole('button', { name: 'Annuler' })).toBeFocused();
-  await dialog.press('Escape');
-  await expect(dialog).toBeHidden();
-  await expect(trigger).toBeFocused();
+  await expect(form).not.toHaveAttribute('data-mjl-confirm');
+  await expect(page.getByRole('dialog', { name: 'Confirmer la décision' })).toHaveCount(0);
 
   const noJsContext = await browser.newContext({ javaScriptEnabled: false });
   const noJsPage = await noJsContext.newPage();
   await login(noJsPage, 'dpaf.mjl');
-  await noJsPage.goto('/custom/mjlfinancement/expenses.php?id=13');
-  const noJsForm = noJsPage.locator('form[action*="expenses.php"][data-mjl-confirm="disburse"]');
+  await noJsPage.goto(`/custom/mjlfinancement/expenses.php?id=${disburseId}&action=disburse`);
+  const noJsForm = noJsPage.locator('form[data-mjl-form="expense-decision"]');
   await expect(noJsForm.locator('[data-mjl-consequence]')).toBeVisible();
-  await expect(noJsForm.getByRole('button', { name: 'Enregistrer le decaissement' })).toBeEnabled();
+  await expect(noJsForm.getByRole('button', { name: 'Enregistrer le décaissement' })).toBeEnabled();
   await noJsContext.close();
 
   await login(page, 'superviseur.n1');
-  await page.goto('/custom/mjlfinancement/expenses.php?id=14');
-  await expect(page.locator('form input[name="action"][value="prevalidate"]')).toHaveCount(1);
-  await expect(page.locator('form[data-mjl-confirm="prevalidate"]')).toHaveCount(0);
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedId}`);
+  await expect(page.locator('form input[name="action"][value="prevalidate"]')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Prévalider la dépense' })).toBeVisible();
 });
 
 test('stale, invalid-token, and premature expense decisions remain server-rejected', async ({ page }) => {
+  const finalId = Number(dockerScalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-001' AND entity = 1 LIMIT 1"));
+  const submittedId = Number(dockerScalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
   await login(page, 'dpaf.mjl');
-  await page.goto('/custom/mjlfinancement/expenses.php?id=13');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${finalId}`);
   const token = await page.locator('meta[name="anti-csrf-newtoken"]').getAttribute('content');
 
-  const stale = await page.request.post('/custom/mjlfinancement/expenses.php?id=13', {
+  const stale = await page.request.post(`/custom/mjlfinancement/expenses.php?id=${finalId}`, {
     form: {
       token,
       action: 'final_validate',
-      id: '13',
+      id: String(finalId),
       expected_status: '4',
       final_validated_amount: '100',
     },
@@ -1547,22 +1531,22 @@ test('stale, invalid-token, and premature expense decisions remain server-reject
   expect(stale.status()).toBe(403);
   expect(await stale.text()).toContain('a déjà été traitée');
 
-  const invalidToken = await page.request.post('/custom/mjlfinancement/expenses.php?id=13', {
+  const invalidToken = await page.request.post(`/custom/mjlfinancement/expenses.php?id=${finalId}`, {
     form: {
       token: 'invalid',
       action: 'final_validate',
-      id: '13',
+      id: String(finalId),
       expected_status: '4',
     },
     maxRedirects: 0,
   });
   expect(invalidToken.status()).toBe(403);
 
-  const premature = await page.request.post('/custom/mjlfinancement/expenses.php?id=14', {
+  const premature = await page.request.post(`/custom/mjlfinancement/expenses.php?id=${submittedId}`, {
     form: {
       token,
       action: 'final_validate',
-      id: '14',
+      id: String(submittedId),
       expected_status: '4',
       final_validated_amount: '100',
     },
@@ -1620,9 +1604,10 @@ test('Phase 2 expense decisions are exact-one with fresh-token stale replays', a
   };
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
-  await page.getByLabel('Montant prevalide').fill('1000');
-  await page.getByLabel('Commentaire de prevalidation').fill('Prévalidation exacte Phase 2');
-  await page.getByRole('button', { name: 'Prevalider la depense' }).click();
+  await page.getByRole('link', { name: 'Prévalider la dépense' }).click();
+  await page.getByLabel('Montant prévalidé').fill('1000');
+  await page.getByLabel('Commentaire de prévalidation').fill('Prévalidation exacte Phase 2');
+  await page.getByRole('button', { name: 'Prévalider la dépense' }).click();
   await expect(page.getByText('Prévalidée').first()).toBeVisible();
   expect(validationEventProjection(flowId, 'prevalidated')).toEqual({
     action: 'prevalidated',
@@ -1661,9 +1646,10 @@ test('Phase 2 expense decisions are exact-one with fresh-token stale replays', a
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
-  await page.getByLabel('Montant valide definitivement').fill('1000');
-  await page.getByLabel('Commentaire de validation definitive').fill('Validation définitive exacte Phase 2');
-  await confirmExpenseDecision(page, 'Valider definitivement');
+  await page.getByRole('link', { name: 'Valider définitivement la dépense' }).click();
+  await page.getByLabel('Montant validé définitivement').fill('1000');
+  await page.getByLabel('Commentaire de validation définitive').fill('Validation définitive exacte Phase 2');
+  await page.getByRole('button', { name: 'Valider définitivement la dépense' }).click();
   await expect(page.getByText('Validée définitivement').first()).toBeVisible();
   expect(validationEventProjection(flowId, 'final_validated')).toEqual({
     action: 'final_validated',
@@ -1702,9 +1688,10 @@ test('Phase 2 expense decisions are exact-one with fresh-token stale replays', a
   expect(Number(dockerScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${flowId} AND action = 'final_validated'`))).toBe(1);
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
+  await page.getByRole('link', { name: 'Enregistrer le décaissement' }).click();
   await page.getByLabel('Beneficiaire').fill('Bénéficiaire exact Phase 2');
   await page.getByLabel('Date decaissement').fill('2026-07-29');
-  await confirmExpenseDecision(page, 'Enregistrer le decaissement');
+  await page.getByRole('button', { name: 'Enregistrer le décaissement' }).click();
   await expect(page.getByText('Décaissée').first()).toBeVisible();
   const successBadge = page.locator('.mjl-status-pill.mjl-status-success').filter({ hasText: 'Décaissée' }).first();
   const successStyle = await successBadge.evaluate((element) => {
@@ -1756,8 +1743,9 @@ test('Phase 2 expense decisions are exact-one with fresh-token stale replays', a
   const rejectId = phase2DecisionIds['P2DEC-E2E-REJECT'];
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${rejectId}`);
+  await page.getByRole('link', { name: 'Rejeter la dépense' }).click();
   await page.getByLabel('Motif de rejet').fill('Rejet exact Phase 2');
-  await confirmExpenseDecision(page, 'Rejeter la depense');
+  await page.getByRole('button', { name: 'Rejeter la dépense' }).click();
   await expect(page.getByText('Rejetée').first()).toBeVisible();
   expect(validationEventProjection(rejectId, 'rejected')).toEqual({
     action: 'rejected',
@@ -1868,8 +1856,8 @@ test('Phase 2 seam proves all four no-self decisions through UI and direct POST'
   const selfReviewId = phase2DecisionIds['P2DEC-E2E-SELF-REVIEW'];
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${selfReviewId}`);
-  await expect(page.getByRole('button', { name: 'Prevalider la depense' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Rejeter la depense' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Prévalider la dépense' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Rejeter la dépense' })).toHaveCount(0);
   for (const payload of [
     { action: 'prevalidate', expected_status: '1', prevalidated_amount: '700', comment: 'Auto prévalidation Phase 2' },
     { action: 'reject', expected_status: '1', comment: 'Auto rejet Phase 2' },
@@ -1888,17 +1876,17 @@ test('Phase 2 seam proves all four no-self decisions through UI and direct POST'
   for (const scenario of [
     {
       id: phase2DecisionIds['P2DEC-E2E-SELF-FINAL'],
-      button: 'Valider definitivement',
+      link: 'Valider définitivement la dépense',
       payload: { action: 'final_validate', expected_status: '4', final_validated_amount: '600', comment: 'Auto validation Phase 2' },
     },
     {
       id: phase2DecisionIds['P2DEC-E2E-SELF-DISB'],
-      button: 'Enregistrer le decaissement',
+      link: 'Enregistrer le décaissement',
       payload: { action: 'disburse', expected_status: '6', beneficiary_name: 'Auto bénéficiaire Phase 2', disbursement_date: '2026-07-29' },
     },
   ]) {
     await page.goto(`/custom/mjlfinancement/expenses.php?id=${scenario.id}`);
-    await expect(page.getByRole('button', { name: scenario.button })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: scenario.link })).toHaveCount(0);
     const beforeExpense = expenseProjection(scenario.id);
     const beforeBudget = budgetProjection(scenario.id);
     const beforeEvents = Number(dockerScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_validation WHERE fk_expense = ${scenario.id}`));

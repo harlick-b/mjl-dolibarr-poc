@@ -358,8 +358,65 @@ installer completion, the unchanged red test reached the intended missing
 filter-helper seam. This repeated readiness condition is now recorded in
 `tasks/lessons.md`.
 
-The next Workstream 3D.2 slice is responsive project and expense list cards
-plus consolidated list states.
+### Responsive project and expense operational lists
+
+Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:
+
+- converted project and expense result markup to semantic tables on desktop
+  and the existing labeled-card pattern at 768px and below;
+- placed resource identity and status first, retained the established reference
+  links, and added a terminal explicit `Ouvrir` link to every result row;
+- reused the shared `initial-empty`, `filtered-empty`, `partial-error`, and
+  `unavailable` persistent states, with safe retry/reset actions;
+- exposed scoped result counts consistently and corrected malformed or
+  inaccessible filters to display the already fail-closed result as zero;
+- left query fragments, active-entity and Partenaire / Programme scope guards,
+  permissions, workflows, schemas, exports, pagination behavior, and the
+  expense creation form unchanged.
+
+The project and expense browser tracers were captured red before their PHP
+presentation changes: each failed because its list had no semantic `thead` at
+the requested public browser seam. Both unchanged tracers then passed green.
+The first wider operational run found that existing project journeys depended
+on the reference link; the link was restored while retaining the new explicit
+`Ouvrir` action, and the complete operational spec then passed.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-lists`
+- URL: `http://127.0.0.1:18086`
+- Temporary root: `/tmp/mjl-phase3d-lists-Shpc2R`
+- Database and document binds: dedicated children of that temporary root
+
+Final focused results:
+
+- Phase 3D operational interactions, including project/expense filters,
+  pagination presentation, scope guards, shared states, responsive lists, and
+  browser overflow: 15/15 passed;
+- existing activity filter, semantic-table/responsive-card, fail-closed, and
+  pagination-boundary regressions: 3/3 passed;
+- existing count-degradation seam proving successful rows and previous/next
+  pagination survive an unavailable total: 1/1 passed;
+- scope-model smoke: passed;
+- changed PHP and JavaScript syntax checks: passed;
+- `git diff --check`: passed;
+- design-system gate: passed with the existing operational-table/card pattern
+  and no unresolved decision blocking the slice;
+- security baseline gate: passed; server authorization, active-entity/scope
+  SQL fragments, guarded detail routes, POST behavior, and safe diagnostics
+  remain intact;
+- full-feature gate: passed for the authorized slice; current-state design and
+  functional-map evidence was updated, with no schema/workflow/export smoke
+  required beyond the scope-model check;
+- final two-axis code review: Standards passed with no documented-standard
+  violations and one optional low-risk duplicated-test-shape judgement call;
+  Spec passed with no findings. The separate project and expense tracers were
+  retained for route-specific diagnostics.
+
+The complete Playwright suite was not rerun for this focused UI slice. The
+affected operational and activity-list suites were selected because they cover
+the changed routes, shared filters/pagination, scope behavior, and responsive
+contract; the repository already records unrelated legacy full-suite failures.
 
 ### Hardened project-form remediation
 
@@ -418,3 +475,165 @@ JavaScript controller runs.
 
 No WCAG conformance, signed manual accessibility matrix, complete Phase 3D,
 or production-readiness claim is made by this remediation.
+
+### Guarded activity review decision states
+
+Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:
+
+- moved activity prevalidation, final validation, legacy validation,
+  correction return, and rejection forms out of the default detail into
+  allowlisted `id=<id>&action=<action>` states on `activities.php`;
+- rechecked object visibility, active entity, Partenaire / Programme scope,
+  role, actor separation, and current workflow status before consuming
+  recovery or rendering any decision field;
+- retained the existing POST action names, Dolibarr token check, workflow
+  methods, transition guards, audit behavior, and recovery registry;
+- returned decision failures to the same guarded state, focused recovered
+  error summaries, marked only the dedicated decision form substantive, and
+  provided an explicit `Annuler` link to canonical detail;
+- updated affected Phase 7, Phase 8, and Phase 10 browser journeys from the
+  removed inline controls to the dedicated action links and French labels.
+
+The first correction-state tracer was captured red against the inline default
+detail, and the recovery tracer was captured red before decision failures
+returned to their guarded state. The verifier tracer was also red before the
+complete allowlisted review set was migrated. Existing Phase 7 journeys then
+failed at their former inline-control selectors and passed after navigating the
+new states.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-actions`
+- URL: `http://127.0.0.1:18087`
+- Temporary root: `/tmp/mjl-phase3d-actions-lNAd4s`
+- Database and document binds: dedicated children of that temporary root
+
+Final focused results:
+
+- Phase 3D operational interactions, including verifier/final-validator
+  states, wrong-role, no-self, cross-scope and stale-state denial, recovery
+  ordering/one-use behavior, filters, responsive lists, and overflow:
+  21/21 passed;
+- complete Phase 7 activity workflow suite: 9/9 passed; the verifier and
+  self-review journeys also passed 2/2 after their final link-absence
+  assertions were strengthened;
+- exact-action activity recovery plus list filter, semantic table/card, and
+  pagination regressions: 4/4 passed;
+- Phase 8 alert removal after activity prevalidation: 1/1 passed;
+- scope-model and activity-workflow server smokes: passed;
+- guarded activity action state has no document overflow at 390, 768, 980,
+  1024, or 1366 pixels;
+- changed PHP and JavaScript syntax checks and `git diff --check`: passed.
+
+The migrated Phase 10 decision-notification journey completed all four UI
+transitions, then failed at its existing test-outbox assertion because the
+isolated run produced no outbox entry. The complete Phase 10 spec stopped
+earlier on its existing unaccented invitation-success copy expectation, so
+this slice does not claim that suite green. The complete repository Playwright
+suite and manual 200% zoom/assistive-technology matrix were not rerun; targeted
+browser suites cover the changed route, protected actions, recovery, activity
+lists, filters, and responsive contract.
+
+Final gates after review remediation:
+
+- design-system gate: passed; the implementation reuses the page-header,
+  decision-form, event-feedback, exact recovery, and substantive-form patterns,
+  preserves French-first content and guarded routes, and has no unresolved
+  design decision blocking this incremental slice;
+- security baseline: passed; direct GET and POST evidence covers wrong role,
+  no-self, single-partner cross-scope, stale status, active-entity/object
+  access, CSRF, recovery ordering, and one-use consumption without exposing
+  unauthorized fields;
+- full-feature validation: passed for the authorized activity-review slice;
+  implementation, protected workflow behavior, responsive UI, recovery,
+  current-state docs, syntax, smokes, and affected regressions are covered,
+  with the Phase 10 outbox and complete-suite/manual-matrix limitations stated
+  above;
+- final two-axis code review: Standards passed with no documented-standard
+  violation and one optional low-risk repeated review-metadata judgement call;
+  Spec passed with no findings after the direct guard/recovery tracers were
+  added.
+
+No query logic, permission model, workflow transition, schema, export, expense
+creation form, or Dolibarr core file changed.
+
+### Guarded expense review and disbursement states
+
+Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:
+
+- moved expense prevalidation, final validation, rejection, and disbursement
+  forms out of the default detail into allowlisted
+  `id=<id>&action=<action>` states on `expenses.php`;
+- rechecked object visibility, active entity, Partenaire / Programme scope,
+  role, actor separation, and current workflow status before consuming exact
+  recovery or rendering any decision field;
+- retained the existing POST actions, CSRF checks, workflow methods,
+  transition guards, audit behavior, and consequence copy;
+- returned recoverable decision failures to the same guarded state with a
+  focused error summary, retained submitted values, an explicit `Annuler`
+  link, and native no-JavaScript submission;
+- removed the expense decision confirmation modal after consequences became
+  persistently visible in the dedicated states; the shared unsaved-change
+  dialog remains in use;
+- updated affected Phase 0.5, Phase 2, and Phase 11 browser journeys to follow
+  the guarded links and French-first labels.
+
+The verifier tracer was captured red while the default detail still contained
+the prevalidation form. The final-validation/disbursement tracer was captured
+red before the complete decision set moved, and the rejection recovery tracer
+proved exact-action, one-use return behavior. All passed green after the
+incremental implementation.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-expense-actions`
+- URL: `http://127.0.0.1:18088`
+- Temporary root: `/tmp/mjl-phase3d-expense-actions-cxnTKG`
+- Database and document binds: dedicated children of that temporary root
+
+Final focused results:
+
+- Phase 3D operational interactions, including all four guarded expense
+  states, wrong-role, no-self, cross-scope and stale-state denial, recovery
+  ordering/one-use behavior, filters, pagination, activity regressions, and
+  browser overflow at 390, 768, 1024, and 1366 pixels: 25/25 passed;
+- complete Phase 0.5 expense disbursement workflow suite: 3/3 passed;
+- complete Phase 11 expense workflow/document/scope suite: 10/10 passed;
+- focused Phase 2 consequence visibility with and without JavaScript,
+  stale/invalid/premature decisions, exact-one effects, and all four no-self
+  decisions: 4/4 passed;
+- scope-model and expense-validation server smokes: passed;
+- changed PHP and JavaScript syntax checks and `git diff --check`: passed.
+
+The isolated Phase 11 run initially exposed a disposable-environment
+prerequisite: its freshly created document bind was not writable by container
+user `www-data` (`33:33`). Ownership was corrected only within the verified
+temporary bind, after which the full suite passed. The complete repository
+Playwright suite and manual 200% zoom/assistive-technology matrix were not
+rerun; targeted browser suites cover the changed route, workflow decisions,
+recovery, documents, scope guards, responsive lists, and overflow.
+
+Final gates after review remediation:
+
+- design-system gate: passed; the guarded expense states reuse the existing
+  page-header, decision-form, exact-recovery, error-summary, consequence, and
+  substantive-form patterns, retain native no-JavaScript submission, and
+  remove the obsolete expense confirmation modal only after the decisions
+  have persistent dedicated context;
+- security baseline: passed; direct GET and POST evidence covers wrong role,
+  no-self, single-partner cross-scope, stale status, active-entity/object
+  access, CSRF, guard-before-recovery ordering, and one-use consumption
+  without exposing unauthorized decision fields;
+- full-feature validation: passed for the authorized guarded-expense slice;
+  implementation, workflow protection, responsive UI, recovery, current-state
+  docs, syntax, server smokes, and affected browser regressions are covered,
+  with the complete-suite and manual-accessibility limitations stated above;
+- final two-axis code review: Standards passed with no blocking finding after
+  the obsolete `confirmDecision` helper name and form indentation were
+  remediated; one optional low-risk route-metadata duplication judgement call
+  remains. Spec initially identified this missing gate-evidence paragraph;
+  after it was added, no implementation, scope-creep, or correctness finding
+  remained.
+
+No query logic, permission model, workflow transition, schema, export, expense
+creation form, or Dolibarr core file changed.
