@@ -119,6 +119,9 @@ test('DPAF creates, edits, activates, filters, and views budget-line history', a
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/budgetlines.php');
   await expect(page.getByRole('heading', { name: 'Gestion des lignes budgétaires' })).toBeVisible();
+  await expect(page.locator('form input[name="action"][value="create"]')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Créer une ligne budgétaire' }).click();
+  await expect(page.locator('form[data-mjl-form="budgetline-create"]')).toHaveAttribute('data-mjl-substantive', '');
 
   await page.getByLabel('Reference').fill('P15-UI-BL');
   await page.getByLabel('Libelle').fill('Budget Phase 15 UI');
@@ -128,19 +131,24 @@ test('DPAF creates, edits, activates, filters, and views budget-line history', a
   await page.getByLabel('Budget initial').fill('600000');
   await page.getByLabel('Budget revise').fill('650000');
   await page.getByLabel('Categorie').fill('phase15');
-  await page.getByRole('button', { name: 'Creer la ligne' }).click();
+  await page.getByRole('button', { name: 'Créer la ligne' }).click();
 
   await expect(page).toHaveURL(/budgetlines\.php\?id=\d+/);
   await expect(page.getByRole('heading', { name: /P15-UI-BL/ })).toBeVisible();
   await expect(page.getByText('Brouillon').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Historique ligne budgetaire' })).toBeVisible();
 
+  await expect(page.locator('form input[name="action"][value="update"]')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Modifier la ligne' }).click();
+  await expect(page.locator('form[data-mjl-form="budgetline-edit"]')).toHaveAttribute('data-mjl-substantive', '');
   await page.getByLabel('Libelle').fill('Budget Phase 15 modifie');
   await page.getByLabel('Motif de modification').fill('Correction libelle Phase 15');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByRole('heading', { name: /Budget Phase 15 modifie/ })).toBeVisible();
   await expect(page.getByText('Correction libelle Phase 15')).toBeVisible();
 
+  await page.getByRole('link', { name: 'Activer la ligne' }).click();
+  await expect(page.locator('form[data-mjl-form="budgetline-activate"]')).toHaveAttribute('data-mjl-substantive', '');
   await page.getByRole('button', { name: 'Activer la ligne' }).click();
   await expect(page.getByText('Active').first()).toBeVisible();
   await expect(page.getByText('Activation', { exact: true })).toBeVisible();
@@ -155,7 +163,7 @@ test('Admin can open management, while Agent direct URL and POST are blocked', a
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/budgetlines.php');
   await expect(page.getByRole('heading', { name: 'Gestion des lignes budgétaires' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Creer la ligne' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Créer une ligne budgétaire' })).toBeVisible();
 
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/budgetlines.php');
@@ -186,7 +194,7 @@ test('Draft convention is unavailable and rejected for budget-line creation', as
   const draftConventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-TEST-2026-001' AND entity = 1 LIMIT 1");
 
   await login(page, 'dpaf.mjl');
-  await page.goto('/custom/mjlfinancement/budgetlines.php');
+  await page.goto('/custom/mjlfinancement/budgetlines.php?action=create');
   await expect(page.locator('select[name="fk_convention"] option', { hasText: 'CONV-TEST-2026-001' })).toHaveCount(0);
   const token = await page.locator('form:has(input[name="action"][value="create"]) input[name="token"]').getAttribute('value');
   const response = await page.request.post('/custom/mjlfinancement/budgetlines.php', {
