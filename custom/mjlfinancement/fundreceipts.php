@@ -1,4 +1,5 @@
 <?php
+define('NOCSRFCHECK', 1);
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlfundreceipt.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_document.lib.php';
@@ -14,6 +15,9 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_recovery.
 mjl_workspace_require_reference_data_access($user, 'fundreceipt');
 
 $action = GETPOST('action', 'aZ09');
+$receiptId = GETPOSTINT('id');
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && in_array($action, array('create', 'edit', 'received', 'not_received', 'upload'), true) ? $action : '';
+$presentationReceipt = array();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		mjl_fundreceipts_forbidden('Jeton de sécurité invalide');
@@ -24,18 +28,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	mjl_fundreceipts_handle_post($action);
 }
 
-$receiptId = GETPOSTINT('id');
-$mjl_fundreceipt_recovery = mjl_form_recovery_consume_route(
-	GETPOST('mjl_recovery', 'alphanohtml'),
-	array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'fundreceipts', 'object_id' => $receiptId),
-	mjl_finance_recovery_consume_allowlist('fundreceipts')
-);
+$mjl_fundreceipt_document_state = GETPOST('mjl_document_state', 'alphanohtml');
+if ($presentationAction === 'create') {
+	if ($receiptId !== 0 || !mjl_fundreceipts_can_manage()) mjl_fundreceipts_forbidden();
+	$mjl_fundreceipt_recovery = mjl_form_recovery_consume_route(GETPOST('mjl_recovery', 'alphanohtml'), array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'fundreceipts', 'object_id' => 0), array('create' => array('create')));
+} elseif ($presentationAction !== '') {
+	$presentationReceipt = mjl_fundreceipts_fetch_detail($receiptId);
+	if (empty($presentationReceipt) || !mjl_fundreceipts_can_present_action($presentationReceipt, $presentationAction)) mjl_fundreceipts_forbidden();
+	if ($presentationAction === 'upload') {
+		$mjl_fundreceipt_recovery = array();
+	} else {
+		$postAction = $presentationAction === 'edit' ? 'update' : $presentationAction;
+		$config = mjl_finance_recovery_config('fundreceipts', $postAction);
+		$mjl_fundreceipt_recovery = mjl_form_recovery_consume_route(GETPOST('mjl_recovery', 'alphanohtml'), array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'fundreceipts', 'object_id' => $receiptId), array((string) $config['form'] => array($postAction)));
+	}
+} else {
+	$mjl_fundreceipt_recovery = mjl_form_recovery_consume_route(GETPOST('mjl_recovery', 'alphanohtml'), array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'fundreceipts', 'object_id' => $receiptId), array('comment' => array('add_exchange')));
+}
 
 llxHeader('', 'Réceptions de fonds MJL');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-fundreceipt-workspace">';
 
-if ($receiptId > 0) {
+if ($presentationAction === 'create') {
+	mjl_fundreceipts_render_create_state();
+} elseif ($presentationAction !== '') {
+	mjl_fundreceipts_render_presentation_state($presentationReceipt, $presentationAction);
+} elseif ($receiptId > 0) {
 	mjl_fundreceipts_render_detail($receiptId);
 } else {
 	mjl_fundreceipts_render_list_page();
@@ -68,7 +87,7 @@ function mjl_fundreceipts_handle_post($action)
 		if ($result <= 0) {
 			$feedback = mjl_finance_feedback_domain('fundreceipts', 'create', 0, $receipt->error);
 			setEventMessages(mjl_finance_feedback_domain_message('fundreceipts', 'create', $feedback), null, 'errors');
-			mjl_fundreceipts_redirect(0, mjl_fundreceipts_store_recovery('create', 0, $feedback));
+			mjl_fundreceipts_redirect(0, mjl_fundreceipts_store_recovery('create', 0, $feedback), 'create');
 		}
 		setEventMessages('Réception de fonds créée en brouillon', null, 'mesgs');
 		mjl_fundreceipts_redirect((int) $result);
@@ -119,13 +138,15 @@ function mjl_fundreceipts_handle_post($action)
 	if ($result < 0) {
 		$feedback = mjl_finance_feedback_domain('fundreceipts', $failureAction, $id, $receipt->error);
 		setEventMessages(mjl_finance_feedback_domain_message('fundreceipts', $failureAction, $feedback), null, 'errors');
-		$recoveryHandle = $failureAction === 'upload' ? '' : mjl_fundreceipts_store_recovery($failureAction, $id, $feedback);
+		if ($failureAction === 'upload') mjl_fundreceipts_redirect($id, '', 'upload', 'upload-failed');
+		$recoveryHandle = mjl_fundreceipts_store_recovery($failureAction, $id, $feedback);
+		mjl_fundreceipts_redirect($id, $recoveryHandle, $failureAction === 'update' ? 'edit' : $failureAction);
 	} elseif ($result === 0) {
 		setEventMessages('Aucun changement appliqué', null, 'warnings');
 	} else {
 		setEventMessages('Action sur la réception de fonds enregistrée', null, 'mesgs');
 	}
-	mjl_fundreceipts_redirect($id, $recoveryHandle ?? '');
+	mjl_fundreceipts_redirect($id);
 }
 
 function mjl_fundreceipts_render_list_page()
@@ -159,17 +180,12 @@ function mjl_fundreceipts_render_list_page()
 	}
 	if ($filters['date_start'] !== '' && $filters['date_end'] !== '' && $filters['date_start'] > $filters['date_end']) $filters['fail_closed'] = true;
 	if ($filters['fail_closed']) $filters['page'] = 1;
-	print mjl_page_header_render(
-		'Gestion des réceptions de fonds',
-		array(
+	$headerOptions = array(
 			'description' => 'Enregistrer les tranches reçues, contrôler la preuve documentaire et garder une trace auditable des décisions.',
 			'context' => array('label' => 'Périmètre', 'value' => mjl_fundreceipts_can_manage() ? 'Validateur définitif / Administrateur plateforme' : 'Consultation'),
-		)
-	);
-
-	if (mjl_fundreceipts_can_manage()) {
-		mjl_fundreceipts_render_create_form();
-	}
+		);
+	if (mjl_fundreceipts_can_manage()) $headerOptions['primary_action'] = array('label' => 'Créer une réception', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?action=create');
+	print mjl_page_header_render('Gestion des réceptions de fonds', $headerOptions);
 	mjl_fundreceipts_render_filters($filters, $options);
 	mjl_fundreceipts_render_list($filters);
 }
@@ -182,38 +198,57 @@ function mjl_fundreceipts_render_detail($id)
 	}
 	$canManage = mjl_fundreceipts_can_manage();
 
-	print mjl_page_header_render(
-		$row['ref'],
-		array(
+	$headerOptions = array(
 			'breadcrumb' => array(
 				array('label' => 'Fonds reçus', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php'),
 				array('label' => $row['ref']),
 			),
 			'description' => mjl_fundreceipts_next_action_label($row),
 			'context' => array('label' => 'Statut', 'value' => mjl_fundreceipt_status_label($row['status'])),
-		)
-	);
+		);
+	if ($canManage && (int) $row['status'] === MjlFundReceipt::STATUS_DRAFT) $headerOptions['primary_action'] = array('label' => 'Modifier la réception', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'&action=edit');
+	print mjl_page_header_render($row['ref'], $headerOptions);
 
-	print '<div class="mjl-activity-detail-grid">';
 	mjl_fundreceipts_render_summary($row);
-	if ($canManage) {
-		mjl_fundreceipts_render_edit_form($row);
-	}
-	print '</div>';
 	mjl_fundreceipts_render_document_panel($row, $canManage);
 	mjl_fundreceipts_render_actions($row, $canManage);
 	mjl_fundreceipts_render_timeline($row);
 }
 
+function mjl_fundreceipts_render_create_state()
+{
+	print mjl_page_header_render('Créer une réception de fonds', array('breadcrumb' => array(array('label' => 'Fonds reçus', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php'), array('label' => 'Créer')), 'description' => 'Créez un brouillon rattaché à une enveloppe active accessible dans votre périmètre.'));
+	mjl_fundreceipts_render_create_form();
+}
+
+function mjl_fundreceipts_render_presentation_state($row, $action)
+{
+	$titles = array('edit' => 'Modifier la réception '.$row['ref'], 'received' => 'Marquer '.$row['ref'].' comme reçue', 'not_received' => 'Marquer '.$row['ref'].' non reçue', 'upload' => 'Ajouter une preuve à '.$row['ref']);
+	$title = $titles[$action];
+	print mjl_page_header_render($title, array('breadcrumb' => array(array('label' => 'Fonds reçus', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php'), array('label' => $row['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid'])), array('label' => $title)), 'description' => 'Vérifiez le montant, la preuve et les conséquences avant de poursuivre.', 'context' => array('label' => 'Statut actuel', 'value' => mjl_fundreceipt_status_label($row['status']))));
+	mjl_fundreceipts_render_summary($row);
+	if ($action === 'edit') mjl_fundreceipts_render_edit_form($row);
+	elseif ($action === 'upload') {
+		mjl_fundreceipts_render_document_panel($row, false);
+		mjl_fundreceipts_render_upload_form($row);
+	} else {
+		$meta = $action === 'received' ? array('Marquer comme reçu', 'Commentaire de réception', false) : array('Marquer non reçu', 'Motif obligatoire', true);
+		print '<section class="mjl-workspace-section mjl-activity-card mjl-activity-decision"><div class="mjl-section-heading"><h2>'.dol_escape_htmltag($meta[0]).'</h2><p>Cette décision finale sera conservée dans l’historique auditable.</p></div>';
+		mjl_fundreceipts_action_form($row['rowid'], $action, $meta[0], $meta[1], $meta[2], true);
+		print '</section>';
+	}
+}
+
 function mjl_fundreceipts_render_create_form()
 {
 	$values = mjl_finance_recovery_values($GLOBALS['mjl_fundreceipt_recovery'] ?? null, 'create');
+	$isRecovered = !empty($GLOBALS['mjl_fundreceipt_recovery']['recovered']);
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
 	print '<div class="mjl-section-heading"><h2>Nouvelle réception de fonds</h2><p>Créer un brouillon rattaché à une enveloppe active. Le partenaire / programme et le projet éventuel sont dérivés de l enveloppe.</p></div>';
-	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">';
+	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php" data-mjl-validate data-mjl-form="fundreceipt-create" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print '<input type="hidden" name="action" value="create"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_fundreceipts_render_fields($values, false, 'create');
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Créer la réception"></div>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Créer la réception"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php">Annuler</a></div>';
 	print '</form></section>';
 }
 
@@ -222,6 +257,7 @@ function mjl_fundreceipts_render_edit_form($row)
 	$recovery = $GLOBALS['mjl_fundreceipt_recovery'] ?? null;
 	$row = array_merge($row, mjl_finance_recovery_values($recovery, 'edit'));
 	$errors = is_array($recovery) && (string) ($recovery['context']['form'] ?? '') === 'edit' ? (array) ($recovery['errors'] ?? array()) : array();
+	$isRecovered = !empty($recovery['recovered']);
 	$finalized = (int) $row['status'] !== MjlFundReceipt::STATUS_DRAFT;
 	print '<section class="mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Paramètres de réception</h2><p>'.($finalized ? 'La réception est finalisée : les champs financiers sont verrouillés.' : 'Modifier le brouillon avant marquage comme reçu ou non reçu.').'</p></div>';
@@ -229,11 +265,11 @@ function mjl_fundreceipts_render_edit_form($row)
 		print '<div class="mjl-empty-state">Aucune modification possible après décision finale.</div></section>';
 		return;
 	}
-	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'">';
+	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="fundreceipt-edit" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print '<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.((int) $row['rowid']).'"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	mjl_fundreceipts_render_fields($row, false, 'edit');
 	print mjl_form_field('change_comment', 'Motif de modification', '<input required name="change_comment" value="'.dol_escape_htmltag($row['change_comment'] ?? '').'">', true, '', $errors['change_comment'] ?? '', 'mjl-fundreceipt-edit-');
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer"></div>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Enregistrer"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
 	print '</form></section>';
 }
 
@@ -351,9 +387,10 @@ function mjl_fundreceipts_render_summary($row)
 	));
 }
 
-function mjl_fundreceipts_render_document_panel($row, $canManage)
+function mjl_fundreceipts_render_document_panel($row, $withUploadAction = true)
 {
 	$state = mjl_fund_receipt_evidence_state((int) $row['rowid'], (int) $row['entity'], $row['supporting_document']);
+	if (($GLOBALS['mjl_fundreceipt_document_state'] ?? '') === 'upload-failed' && mjl_fundreceipts_can_present_action($row, 'upload')) $state = 'upload-failed';
 	$documents = mjl_fund_receipt_document_download_rows((int) $row['rowid']);
 	$publicDocumentLabel = mjl_fund_receipt_public_document_label((int) $row['rowid'], (int) $row['entity'], $row['supporting_document']);
 	$modelDocuments = array();
@@ -367,15 +404,19 @@ function mjl_fundreceipts_render_document_panel($row, $canManage)
 		'documents' => $modelDocuments,
 		'link_label' => 'Télécharger la preuve',
 	));
-	if ($canManage && (int) $row['status'] === MjlFundReceipt::STATUS_DRAFT) {
-		print '<section class="mjl-workspace-section mjl-activity-card"><div class="mjl-section-heading"><h2>Ajouter une preuve</h2><p>Ajout contextuel à cette réception.</p></div>';
-		print '<form class="mjl-activity-form" method="POST" enctype="multipart/form-data" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'">';
-		print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print '<label>Preuve de réception<input required type="file" name="supporting_document"></label>';
-		print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter la preuve"></div>';
-		print '</form>';
-		print '</section>';
+	if ($withUploadAction && mjl_fundreceipts_can_present_action($row, 'upload')) {
+		print '<p><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'&amp;action=upload">Ajouter une preuve</a></p>';
 	}
+}
+
+function mjl_fundreceipts_render_upload_form($row)
+{
+	print '<section class="mjl-workspace-section mjl-activity-card"><div class="mjl-section-heading"><h2>Preuve à ajouter</h2><p>Le fichier restera accessible uniquement par la route de téléchargement MJL gardée.</p></div>';
+	print '<form class="mjl-activity-form" method="POST" enctype="multipart/form-data" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'" data-mjl-form="fundreceipt-upload" data-mjl-substantive>';
+	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<label>Preuve de réception<input required type="file" name="supporting_document"></label>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter la preuve"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
+	print '</form></section>';
 }
 
 function mjl_fundreceipts_render_actions($row, $canManage)
@@ -384,26 +425,30 @@ function mjl_fundreceipts_render_actions($row, $canManage)
 	print '<section class="mjl-workspace-section mjl-activity-card">';
 	print '<div class="mjl-section-heading"><h2>Cycle de vie</h2><p>Décision finale après vérification du montant, de la date et de la preuve.</p></div>';
 	if ((int) $row['status'] === MjlFundReceipt::STATUS_DRAFT) {
-		mjl_fundreceipts_action_form($row['rowid'], 'received', 'Marquer comme reçu', 'Commentaire de réception', false);
-		mjl_fundreceipts_action_form($row['rowid'], 'not_received', 'Marquer non reçu', 'Motif obligatoire', true);
+		$base = DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $row['rowid']).'&amp;action=';
+		print '<a class="mjl-action mjl-action-secondary" href="'.$base.'received">Marquer comme reçu</a>';
+		print '<a class="mjl-action mjl-action-secondary" href="'.$base.'not_received">Marquer non reçu</a>';
 	} else {
 		print '<div class="mjl-empty-state">Décision finale enregistrée. Les montants ne sont plus modifiables.</div>';
 	}
 	print '</section>';
 }
 
-function mjl_fundreceipts_action_form($id, $action, $label, $commentLabel, $required)
+function mjl_fundreceipts_action_form($id, $action, $label, $commentLabel, $required, $withCancel = false)
 {
 	$recovery = $GLOBALS['mjl_fundreceipt_recovery'] ?? null;
 	$matchesRecovery = is_array($recovery) && (string) ($recovery['context']['action'] ?? '') === $action;
 	$values = $matchesRecovery ? (array) ($recovery['values'] ?? array()) : array();
 	$errors = $matchesRecovery ? (array) ($recovery['errors'] ?? array()) : array();
+	$isRecovered = !empty($recovery['recovered']) && $matchesRecovery;
 	$prefix = 'mjl-fundreceipt-decision-'.$action.'-';
-	print '<form class="mjl-activity-action-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $id).'">';
+	print '<form class="mjl-activity-action-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $id).'" data-mjl-validate data-mjl-form="fundreceipt-'.dol_escape_htmltag($action).'"'.($withCancel ? ' data-mjl-substantive' : '').($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="'.dol_escape_htmltag($action).'"><input type="hidden" name="id" value="'.((int) $id).'">';
 	print mjl_form_error_summary($errors, 'Corrigez la décision', $prefix);
 	print mjl_form_field('status_comment', $commentLabel, '<input'.($required ? ' required' : '').' name="status_comment" value="'.dol_escape_htmltag($values['status_comment'] ?? '').'">', $required, '', $errors['status_comment'] ?? '', $prefix);
-	print '<input class="button" type="submit" value="'.dol_escape_htmltag($label).'">';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="'.dol_escape_htmltag($label).'">';
+	if ($withCancel) print '<a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php?id='.((int) $id).'">Annuler</a>';
+	print '</div>';
 	print '</form>';
 }
 
@@ -594,6 +639,13 @@ function mjl_fundreceipts_can_manage()
 	return mjl_workspace_can_access_supervision($user) && $user->hasRight('mjlfinancement', 'fundreceipt', 'write');
 }
 
+function mjl_fundreceipts_can_present_action($row, $action)
+{
+	if (!mjl_fundreceipts_can_manage()) return false;
+	if (!in_array($action, array('edit', 'received', 'not_received', 'upload'), true)) return false;
+	return (int) $row['status'] === MjlFundReceipt::STATUS_DRAFT;
+}
+
 function mjl_fundreceipt_status_label($status)
 {
 	return mjl_timeline_presentation_status_label('mjlfinancement_fund_receipt', $status);
@@ -624,7 +676,7 @@ function mjl_fundreceipts_next_action_label($row)
 
 function mjl_fundreceipts_evidence_label($state)
 {
-	$map = array('downloadable' => 'Disponible', 'unavailable' => 'Référence indisponible', 'missing' => 'Manquante');
+	$map = array('downloadable' => 'Disponible', 'unavailable' => 'Référence indisponible', 'missing' => 'Manquante', 'upload-failed' => 'Échec de l’ajout');
 	return isset($map[$state]) ? $map[$state] : (string) $state;
 }
 
@@ -683,12 +735,14 @@ function mjl_fundreceipts_store_recovery($action, $id, $feedback)
 	return mjl_form_recovery_store(array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'fundreceipts', 'form' => $config['form'], 'action' => $action, 'object_id' => (int) $id), $values, $config['fields'], $reason, $errors);
 }
 
-function mjl_fundreceipts_redirect($id, $recoveryHandle = '')
+function mjl_fundreceipts_redirect($id, $recoveryHandle = '', $presentationAction = '', $documentState = '')
 {
 	$url = DOL_URL_ROOT.'/custom/mjlfinancement/fundreceipts.php';
 	$query = array();
 	if ((int) $id > 0) $query['id'] = (int) $id;
+	if ((string) $presentationAction !== '') $query['action'] = (string) $presentationAction;
 	if ($recoveryHandle !== '') $query['mjl_recovery'] = $recoveryHandle;
+	if (in_array((string) $documentState, array('upload-failed'), true)) $query['mjl_document_state'] = (string) $documentState;
 	if (!empty($query)) $url .= '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 	header('Location: '.$url);
 	exit;

@@ -128,6 +128,9 @@ test('DPAF creates, edits, uploads proof, marks received, and sees report/dashbo
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/fundreceipts.php');
   await expect(page.getByRole('heading', { name: 'Gestion des réceptions de fonds' })).toBeVisible();
+  await expect(page.locator('form input[name="action"][value="create"]')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Créer une réception' }).click();
+  await expect(page.locator('form[data-mjl-form="fundreceipt-create"]')).toHaveAttribute('data-mjl-substantive', '');
 
   await page.getByLabel('Référence').fill('P16-UI-FR');
   await page.locator('select[name="fk_convention"]').selectOption(conventionId);
@@ -142,6 +145,9 @@ test('DPAF creates, edits, uploads proof, marks received, and sees report/dashbo
   let timeline = page.getByRole('heading', { name: 'Historique réception de fonds' }).locator('xpath=ancestor::section[1]');
   await expect(timeline.getByText('Réception de fonds créée')).toHaveCount(1);
   await expect(timeline).not.toContainText(/vers Brouillon/);
+  await expect(page.locator('form input[name="action"][value="update"]')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Modifier la réception' }).click();
+  await expect(page.locator('form[data-mjl-form="fundreceipt-edit"]')).toHaveAttribute('data-mjl-substantive', '');
   await page.getByLabel('Montant').fill('234567');
   await page.getByLabel('Motif de modification').fill('Correction montant Phase 16');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
@@ -150,6 +156,8 @@ test('DPAF creates, edits, uploads proof, marks received, and sees report/dashbo
   await expect(timeline.locator('strong').filter({ hasText: 'Modification' })).toBeVisible();
   await expect(timeline).not.toContainText('Brouillon vers Brouillon');
 
+  await page.getByRole('link', { name: 'Ajouter une preuve' }).click();
+  await expect(page.locator('form[data-mjl-form="fundreceipt-upload"]')).toHaveAttribute('data-mjl-substantive', '');
   await page.setInputFiles('input[name="supporting_document"]', tmpFile);
   await page.getByRole('button', { name: 'Ajouter la preuve' }).click();
   await expect(page.getByText('Disponible').first()).toBeVisible();
@@ -157,6 +165,8 @@ test('DPAF creates, edits, uploads proof, marks received, and sees report/dashbo
   await expect(timeline.locator('strong').filter({ hasText: 'Preuve ajoutée' })).toBeVisible();
   await expect(timeline).not.toContainText('Brouillon vers Brouillon');
 
+  await page.getByRole('link', { name: 'Marquer comme reçu' }).click();
+  await expect(page.locator('form[data-mjl-form="fundreceipt-received"]')).toHaveAttribute('data-mjl-substantive', '');
   await page.getByRole('button', { name: 'Marquer comme reçu' }).click();
   await expect(page.getByText('Reçu').first()).toBeVisible();
   await expect(page.getByText('Réception', { exact: true })).toBeVisible();
@@ -199,7 +209,7 @@ test('Global programme envelope can create a fund receipt without project', asyn
   const globalConventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'P16-GLOBAL-CONV' AND entity = 1 LIMIT 1");
 
   await login(page, 'dpaf.mjl');
-  await page.goto('/custom/mjlfinancement/fundreceipts.php');
+  await page.goto('/custom/mjlfinancement/fundreceipts.php?action=create');
   await expect(page.locator('select[name="fk_convention"] option', { hasText: 'P16-GLOBAL-CONV' })).toHaveCount(1);
 
   await page.getByLabel('Référence').fill('P16-GLOBAL-FR');
@@ -231,7 +241,7 @@ test('Received transition is blocked without proof and draft conventions are rej
   const draftConventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-TEST-2026-001' AND entity = 1 LIMIT 1");
 
   await login(page, 'dpaf.mjl');
-  await page.goto('/custom/mjlfinancement/fundreceipts.php');
+  await page.goto('/custom/mjlfinancement/fundreceipts.php?action=create');
   await expect(page.locator('select[name="fk_convention"] option', { hasText: 'CONV-TEST-2026-001' })).toHaveCount(0);
 
   await page.getByLabel('Référence').fill('P16-NO-PROOF');
@@ -240,11 +250,12 @@ test('Received transition is blocked without proof and draft conventions are rej
   await page.getByLabel('Date de réception').fill('2026-07-02');
   await page.getByRole('button', { name: 'Créer la réception' }).click();
   await expect(page).toHaveURL(/fundreceipts\.php\?id=\d+/);
+  await page.getByRole('link', { name: 'Marquer comme reçu' }).click();
   await page.getByRole('button', { name: 'Marquer comme reçu' }).click();
   await expect(page.locator('body')).toContainText(/preuve/i);
   expect(scalar("SELECT status FROM llx_mjlfinancement_fund_receipt WHERE ref = 'P16-NO-PROOF' AND entity = 1")).toBe('0');
 
-  await page.goto('/custom/mjlfinancement/fundreceipts.php');
+  await page.goto('/custom/mjlfinancement/fundreceipts.php?action=create');
   const token = await page.locator('form:has(input[name="action"][value="create"]) input[name="token"]').getAttribute('value');
   const response = await page.request.post('/custom/mjlfinancement/fundreceipts.php', {
     form: {
@@ -265,7 +276,7 @@ test('Not-received receipts are finalized, zeroed, and excluded from totals', as
   const conventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1");
 
   await login(page, 'dpaf.mjl');
-  await page.goto('/custom/mjlfinancement/fundreceipts.php');
+  await page.goto('/custom/mjlfinancement/fundreceipts.php?action=create');
   await page.getByLabel('Référence').fill('P16-NOT-RECEIVED');
   await page.locator('select[name="fk_convention"]').selectOption(conventionId);
   await page.getByLabel('Montant').fill('987654');
@@ -273,6 +284,7 @@ test('Not-received receipts are finalized, zeroed, and excluded from totals', as
   await page.getByRole('button', { name: 'Créer la réception' }).click();
 
   await expect(page).toHaveURL(/fundreceipts\.php\?id=\d+/);
+  await page.getByRole('link', { name: 'Marquer non reçu' }).click();
   await page.getByLabel('Motif obligatoire').fill('Fonds non verses Phase 16');
   await page.getByRole('button', { name: 'Marquer non reçu' }).click();
   await expect(page.getByText('Non reçu').first()).toBeVisible();
