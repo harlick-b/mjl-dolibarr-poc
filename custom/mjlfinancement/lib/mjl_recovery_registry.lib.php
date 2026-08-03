@@ -83,6 +83,7 @@ function mjl_recovery_registry_forbidden_field($field)
 		'rowid',
 		'entity',
 		'token',
+		'mjl_submission',
 		'mjl_recovery',
 		'recovery_handle',
 		'file',

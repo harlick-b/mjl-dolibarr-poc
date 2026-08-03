@@ -419,6 +419,7 @@ test('Phase 3A project create recovery preserves allowlisted fields once with li
   const response = await page.request.post('/custom/mjlfinancement/projects.php', {
     form: {
       token: await form.locator('input[name="token"]').inputValue(),
+      mjl_submission: await form.locator('input[name="mjl_submission"]').inputValue(),
       action: 'create',
       ref: 'P3V2-E2E-PROJECT-RECOVERY',
       title: '',

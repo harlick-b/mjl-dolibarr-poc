@@ -137,6 +137,11 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   contextual-comment forms that need stable labels, required/optional wording,
   linked errors, and safe value recovery. Do not capture request payloads
   wholesale, tokens, identifiers, files, upload metadata, or computed amounts.
+  The project route has one narrow selection exception: after validating the
+  active entity/scope and the exact `0|1` status enum, it may derive
+  session-internal `partner_scope` and `project_status` aliases. Raw `fk_*`
+  values and caller-supplied aliases remain forbidden; aliases map back to form
+  values only after a fresh scope/enum check when recovery is consumed.
 - **Layout/behavior:** each control has a stable form-specific ID, visible
   `(obligatoire)` or `(facultatif)` text, optional description, inline error,
   and a focused linked summary. JavaScript installs its validation handler
@@ -149,10 +154,27 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   Upload, delete, security, stale, and unknown actions never create recovery
   state. Registry membership and component visibility never authorize a POST;
   the caller retains CSRF, role, entity, scope, object, and transition guards.
+  Substantive project forms additionally receive a random 128-bit, two-hour,
+  one-use submission token bound to user, entity, route, form, action, and
+  object. Issue and consume operations return a closed internal result reason;
+  browser feedback deliberately remains one neutral French message. Tokens are
+  capped per user and never recoverable. Update effects run
+  after an entity-bound row lock; unchanged submissions create neither an
+  update nor an audit event, and the native entity/reference uniqueness guard
+  remains the create-side duplicate-effect backstop.
 - **Accessibility/French:** invalid controls use `aria-invalid` and
   `aria-describedby`; summaries link to every invalid field and use
   exact allowlisted French domain translations. Composite failures stay
   form-level so valid controls are not falsely marked invalid.
+  Substantive forms compare editable controls with their initial values,
+  excluding hidden fields; recovered forms start dirty. Dirty same-origin
+  navigation opens the keyboard-contained `Modifications non enregistrées`
+  dialog, while modifier/new-tab, download, hash, and error-summary links keep
+  their native behavior. A `beforeunload` warning is attached only while dirty
+  and is a browser-lifecycle best effort. The first valid submit marks the form
+  busy and disables submit controls; later submit events are rejected. With
+  JavaScript disabled, native validation and server feedback remain available,
+  and recovered project summaries use HTML autofocus.
 - **Visibility/E2E:** the containing route/action guard controls access;
   Phase 2 and Phase 3 coverage verifies focus, links, native fallback, retained
   values, envelope tamper rejection, expiry, isolation, one-use behavior, and

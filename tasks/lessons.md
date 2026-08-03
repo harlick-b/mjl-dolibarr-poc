@@ -59,3 +59,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   `bootstrap_poc.php`, verify installer completion through a read-only Admin
   user readiness check inside the named disposable database; container state
   alone is not a sufficient readiness signal.
+- E2E journeys must resolve seeded business objects by stable entity/ref keys,
+  not hard-coded row IDs. Auto-increment order on a clean database can map the
+  same ID to a no-self or different-workflow fixture and make a UI assertion
+  fail before the behavior under test is reached.

@@ -176,13 +176,13 @@ function mjl_form_recovery_set_store($store)
 	$_SESSION['mjl_form_recovery'] = (array) $store;
 }
 
-function mjl_form_error_summary($errors, $title = 'Corrigez les champs indiqués', $idPrefix = 'mjl-field-')
+function mjl_form_error_summary($errors, $title = 'Corrigez les champs indiqués', $idPrefix = 'mjl-field-', $autofocus = false)
 {
 	if (empty($errors)) {
 		return '';
 	}
 	$idPrefix = mjl_form_id_prefix($idPrefix);
-	$html = '<div class="mjl-form-error-summary" role="alert" tabindex="-1" data-mjl-error-summary>';
+	$html = '<div class="mjl-form-error-summary" role="alert" tabindex="-1" data-mjl-error-summary'.($autofocus ? ' autofocus' : '').'>';
 	$html .= '<strong>'.mjl_form_escape($title).'</strong><ul>';
 	foreach ((array) $errors as $field => $message) {
 		if ((string) $field === '_form') {

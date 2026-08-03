@@ -11,6 +11,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php'
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_table.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form_submission.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_project_recovery.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
 
@@ -29,7 +30,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, array('create', '
 	if (!mjl_projects_can_manage_projects()) {
 		accessforbidden();
 	}
-	mjl_projects_handle_project_post($action, $projectId);
+	$authorizedProject = array();
+	if ($action === 'update') {
+		$authorizedProject = mjl_projects_fetch_project((int) $projectId);
+		if (empty($authorizedProject) || !mjl_projects_can_open($authorizedProject)) accessforbidden();
+	}
+	mjl_projects_handle_project_post($action, $projectId, $authorizedProject);
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, array('add_note', 'add_exchange'), true)) {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
@@ -115,28 +121,40 @@ function mjl_projects_handle_exchange_post($projectId)
 	mjl_projects_redirect($projectId);
 }
 
-function mjl_projects_handle_project_post($action, $projectId)
+function mjl_projects_handle_project_post($action, $projectId, $authorizedProject = array())
 {
 	global $db, $conf, $user;
 
 	$fkSoc = GETPOSTINT('fk_soc');
-	if (!mjl_projects_can_use_partner($fkSoc)) {
+	$partnerIsValid = $fkSoc > 0 && mjl_projects_can_use_partner($fkSoc);
+	if ($fkSoc > 0 && !$partnerIsValid) {
 		accessforbidden('Partenaire hors de votre perimetre');
 	}
 	$ref = trim(GETPOST('ref', 'alphanohtml'));
 	$title = trim(GETPOST('title', 'restricthtml'));
-	$status = GETPOSTINT('fk_statut') === 1 ? 1 : 0;
+	$statusValue = trim((string) GETPOST('fk_statut', 'alphanohtml'));
+	$status = ($statusValue === '0' || $statusValue === '1') ? (int) $statusValue : null;
 	$dateStart = mjl_projects_post_date_sql('date_start');
 	$dateEnd = mjl_projects_post_date_sql('date_end');
 	$description = GETPOST('description', 'restricthtml');
 	$errors = array();
+	if (!$partnerIsValid) $errors['fk_soc'] = 'Le Partenaire / Programme est obligatoire.';
 	if ($ref === '') $errors['ref'] = 'La référence est obligatoire.';
 	if ($title === '') $errors['title'] = 'L’intitulé est obligatoire.';
+	if ($status === null) $errors['fk_statut'] = 'Le statut sélectionné n’est pas reconnu.';
 	$startValue = trim((string) GETPOST('date_start', 'alphanohtml'));
 	$endValue = trim((string) GETPOST('date_end', 'alphanohtml'));
 	if ($startValue !== '' && $endValue !== '' && $endValue < $startValue) $errors['date_end'] = 'La date de fin doit être postérieure ou égale à la date de début.';
+	$recoveryValues = mjl_project_recovery_prepare_values($_POST, $partnerIsValid ? (int) $fkSoc : null, $status);
+	$submissionContext = mjl_projects_submission_context($action, (int) $projectId);
+	if (!mjl_form_submission_consume(GETPOST('mjl_submission', 'alphanohtml'), $submissionContext)) {
+		$message = 'Ce formulaire n’est plus valide. Vérifiez les données avant de réessayer.';
+		$handle = mjl_projects_store_recovery_config($action, (int) $projectId, array('_form' => $message), $recoveryValues);
+		setEventMessages($message, null, 'errors');
+		mjl_projects_redirect($projectId, $handle, $action === 'create' ? 'create' : 'edit');
+	}
 	if (!empty($errors)) {
-		$handle = mjl_projects_store_recovery_config($action, (int) $projectId, $errors);
+		$handle = mjl_projects_store_recovery_config($action, (int) $projectId, $errors, $recoveryValues);
 		setEventMessages(mjl_ui_safe_error_message('validation'), null, 'errors');
 		mjl_projects_redirect($projectId, $handle, $action === 'create' ? 'create' : 'edit');
 	}
@@ -149,7 +167,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 		if (!$db->query($sql)) {
 			$db->rollback();
 			mjl_ui_log_error('database', mjl_projects_error_context('create'), $db->lasterror());
-			$handle = mjl_projects_store_recovery_config('create', 0, array('_form' => mjl_ui_safe_error_message('database')));
+			$handle = mjl_projects_store_recovery_config('create', 0, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
 			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 			mjl_projects_redirect(0, $handle, 'create');
 		}
@@ -162,7 +180,7 @@ function mjl_projects_handle_project_post($action, $projectId)
 		if ($audit < 0) {
 			$db->rollback();
 			mjl_ui_log_error('database', mjl_projects_error_context('create_audit'), $db->lasterror());
-			$handle = mjl_projects_store_recovery_config('create', 0, array('_form' => mjl_ui_safe_error_message('database')));
+			$handle = mjl_projects_store_recovery_config('create', 0, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
 			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 			mjl_projects_redirect(0, $handle, 'create');
 		}
@@ -171,36 +189,52 @@ function mjl_projects_handle_project_post($action, $projectId)
 		mjl_projects_redirect($newProjectId);
 	}
 
+	if (empty($authorizedProject)) accessforbidden();
+	$db->begin();
+	$lockSql = 'SELECT rowid FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND rowid = '.((int) $projectId).' FOR UPDATE';
+	$lockResult = $db->query($lockSql);
+	if (!$lockResult || !$db->fetch_object($lockResult)) {
+		$db->rollback();
+		mjl_ui_log_error('database', mjl_projects_error_context('update_lock'), $db->lasterror());
+		$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
+		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_projects_redirect((int) $projectId, $handle, 'edit');
+	}
 	$current = mjl_projects_fetch_project((int) $projectId);
 	if (empty($current) || !mjl_projects_can_open($current)) {
+		$db->rollback();
 		accessforbidden();
+	}
+	$changes = mjl_projects_changed_fields($current, array(
+		'ref' => $ref,
+		'title' => $title,
+		'description' => $description,
+		'fk_soc' => $fkSoc,
+		'fk_statut' => $status,
+		'dateo' => trim($dateStart, "'"),
+		'datee' => trim($dateEnd, "'"),
+	));
+	if (empty($changes)) {
+		$db->commit();
+		setEventMessages('Aucune modification à enregistrer.', null, 'mesgs');
+		mjl_projects_redirect((int) $projectId);
 	}
 	$sql = 'UPDATE '.$db->prefix().'projet SET';
 	$sql .= " ref = '".$db->escape($ref)."', title = '".$db->escape($title)."', description = '".$db->escape($description)."'";
 	$sql .= ', fk_soc = '.((int) $fkSoc).', fk_statut = '.$status.', dateo = '.$dateStart.', datee = '.$dateEnd.', fk_user_modif = '.((int) $user->id);
 	$sql .= ' WHERE entity = '.((int) $conf->entity).' AND rowid = '.((int) $projectId);
-	$db->begin();
 	if (!$db->query($sql)) {
 		$db->rollback();
 		mjl_ui_log_error('database', mjl_projects_error_context('update'), $db->lasterror());
-		$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')));
+		$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
 		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 		mjl_projects_redirect((int) $projectId, $handle, 'edit');
 	} else {
-		$changes = mjl_projects_changed_fields($current, array(
-			'ref' => $ref,
-			'title' => $title,
-			'description' => $description,
-			'fk_soc' => $fkSoc,
-			'fk_statut' => $status,
-			'dateo' => trim($dateStart, "'"),
-			'datee' => trim($dateEnd, "'"),
-		));
 		$audit = mjl_workflow_audit_insert('mjlfinancement_project', (int) $projectId, (int) $conf->entity, 'Projet mis a jour', $user, mjl_projects_actor_role(), 'field_changed', 'Projet MJL mis a jour', $changes, 'WFA-PRJ');
 		if ($audit < 0) {
 			$db->rollback();
 			mjl_ui_log_error('database', mjl_projects_error_context('update_audit'), $db->lasterror());
-			$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')));
+			$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
 			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
 			mjl_projects_redirect((int) $projectId, $handle, 'edit');
 		}
@@ -290,6 +324,7 @@ function mjl_projects_render_edit_state($project)
 				array('label' => 'Modifier'),
 			),
 			'description' => 'Mettez à jour les paramètres du projet et son rattachement Partenaire / Programme.',
+			'context' => array('label' => 'Statut actuel', 'value' => mjl_projects_status_label($project['fk_statut'])),
 		)
 	);
 	mjl_projects_render_project_form($project, 'update');
@@ -372,18 +407,20 @@ function mjl_projects_render_project_form($row, $action)
 	$recovery = mjl_projects_recovery_for_action($action);
 	$values = $recovery['values'];
 	$errors = $recovery['errors'];
+	$isRecovered = !empty($recovery['recovered']);
 	$fieldPrefix = $isUpdate ? 'mjl-project-update-' : 'mjl-project-create-';
 	$value = function ($key, $fallback = '') use ($values) {
 		return array_key_exists($key, $values) ? $values[$key] : $fallback;
 	};
 	print '<section class="mjl-workspace-section mjl-activity-panel">';
-	print '<div class="mjl-section-heading"><h2>'.($isUpdate ? 'Parametres projet' : 'Nouveau projet').'</h2><p>Le partenaire / programme est obligatoire et limite au perimetre actif.</p></div>';
-	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'.($isUpdate ? '?id='.((int) $row['rowid']) : '').'" data-mjl-form="project-'.($isUpdate ? 'update' : 'create').'">';
-	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="action" value="'.dol_escape_htmltag($action).'">';
+	print '<div class="mjl-section-heading"><h2>'.($isUpdate ? 'Paramètres projet' : 'Nouveau projet').'</h2><p>Le partenaire / programme est obligatoire et limité au périmètre actif.</p></div>';
+	$formId = 'project-'.($isUpdate ? 'update' : 'create');
+	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'.($isUpdate ? '?id='.((int) $row['rowid']) : '').'" data-mjl-form="'.$formId.'" data-mjl-validate data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
+	print '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="mjl_submission" value="'.dol_escape_htmltag(mjl_form_submission_issue(mjl_projects_submission_context($action, (int) ($row['rowid'] ?? 0)))).'"><input type="hidden" name="action" value="'.dol_escape_htmltag($action).'">';
 	if ($isUpdate) print '<input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-	print '<div data-mjl-form-errors>'.mjl_form_error_summary($errors, 'Corrigez les champs indiqués', $fieldPrefix).'</div>';
-	print mjl_form_field('ref', 'Reference', '<input required name="ref" value="'.dol_escape_htmltag($value('ref', $row['ref'] ?? '')).'">', true, '', $errors['ref'] ?? '', $fieldPrefix);
-	print mjl_form_field('title', 'Intitule', '<input required name="title" value="'.dol_escape_htmltag($value('title', $row['title'] ?? '')).'">', true, '', $errors['title'] ?? '', $fieldPrefix);
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($errors, 'Corrigez les champs indiqués', $fieldPrefix, $isRecovered).'</div>';
+	print mjl_form_field('ref', 'Référence', '<input required name="ref" value="'.dol_escape_htmltag($value('ref', $row['ref'] ?? '')).'">', true, '', $errors['ref'] ?? '', $fieldPrefix);
+	print mjl_form_field('title', 'Intitulé', '<input required name="title" value="'.dol_escape_htmltag($value('title', $row['title'] ?? '')).'">', true, '', $errors['title'] ?? '', $fieldPrefix);
 	print mjl_form_field('fk_soc', 'Partenaire / Programme', mjl_projects_partner_select((int) $value('fk_soc', $row['fk_soc'] ?? 0)), true, '', $errors['fk_soc'] ?? '', $fieldPrefix);
 	print mjl_form_field('date_start', 'Début', '<input type="date" name="date_start" value="'.dol_escape_htmltag($value('date_start', mjl_projects_date_value($row['dateo'] ?? ''))).'">', false, '', $errors['date_start'] ?? '', $fieldPrefix);
 	print mjl_form_field('date_end', 'Fin', '<input type="date" name="date_end" value="'.dol_escape_htmltag($value('date_end', mjl_projects_date_value($row['datee'] ?? ''))).'">', false, '', $errors['date_end'] ?? '', $fieldPrefix);
@@ -391,7 +428,7 @@ function mjl_projects_render_project_form($row, $action)
 	print mjl_form_field('fk_statut', 'Statut', '<select name="fk_statut"><option value="1"'.($selectedStatus === 1 ? ' selected' : '').'>Ouvert</option><option value="0"'.($selectedStatus !== 1 ? ' selected' : '').'>Brouillon / clos</option></select>', false, '', $errors['fk_statut'] ?? '', $fieldPrefix);
 	print mjl_form_field('description', 'Description', '<textarea name="description">'.dol_escape_htmltag($value('description', $row['description'] ?? '')).'</textarea>', false, '', $errors['description'] ?? '', $fieldPrefix);
 	$cancelUrl = DOL_URL_ROOT.'/custom/mjlfinancement/projects.php'.($isUpdate ? '?id='.((int) $row['rowid']) : '');
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="'.($isUpdate ? 'Enregistrer le projet' : 'Creer le projet').'">';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="'.($isUpdate ? 'Enregistrer le projet' : 'Créer le projet').'">';
 	print '<a class="mjl-action mjl-action-secondary" href="'.dol_escape_htmltag($cancelUrl).'">Annuler</a></div>';
 	print '</form></section>';
 }
@@ -836,12 +873,19 @@ function mjl_projects_recovery_for_action($action)
 	if ($config === null || !is_array($mjl_project_recovery)
 		|| (string) ($mjl_project_recovery['context']['form'] ?? '') !== (string) $config['form']
 		|| (string) ($mjl_project_recovery['context']['action'] ?? '') !== (string) $action) {
-		return array('values' => array(), 'errors' => array());
+		return array('values' => array(), 'errors' => array(), 'recovered' => false);
 	}
-	return array('values' => (array) ($mjl_project_recovery['values'] ?? array()), 'errors' => (array) ($mjl_project_recovery['errors'] ?? array()));
+	$storedValues = (array) ($mjl_project_recovery['values'] ?? array());
+	$partner = isset($storedValues['partner_scope']) ? (string) $storedValues['partner_scope'] : '';
+	$partnerIsAccessible = preg_match('/^[1-9][0-9]*$/', $partner) === 1 && mjl_projects_can_use_partner((int) $partner);
+	return array(
+		'values' => mjl_project_recovery_restore_values($storedValues, $partnerIsAccessible),
+		'errors' => (array) ($mjl_project_recovery['errors'] ?? array()),
+		'recovered' => true,
+	);
 }
 
-function mjl_projects_store_recovery_config($action, $objectId, $errors)
+function mjl_projects_store_recovery_config($action, $objectId, $errors, $values = null)
 {
 	global $conf, $user;
 	$config = mjl_project_recovery_config($action);
@@ -854,7 +898,20 @@ function mjl_projects_store_recovery_config($action, $objectId, $errors)
 		'form' => (string) $config['form'],
 		'action' => (string) $action,
 		'object_id' => (int) $objectId,
-	), $_POST, $config['fields'], $reason, (array) $errors);
+	), $values === null ? $_POST : (array) $values, $config['fields'], $reason, (array) $errors);
+}
+
+function mjl_projects_submission_context($action, $objectId)
+{
+	global $conf, $user;
+	return array(
+		'user_id' => (int) $user->id,
+		'entity' => (int) $conf->entity,
+		'route' => 'projects',
+		'form' => 'project',
+		'action' => (string) $action,
+		'object_id' => (int) $objectId,
+	);
 }
 
 function mjl_projects_error_context($action)
@@ -940,6 +997,10 @@ function mjl_projects_changed_fields($before, $after)
 	foreach ($after as $field => $value) {
 		$old = isset($before[$field]) ? (string) $before[$field] : '';
 		$new = $value === 'NULL' ? '' : (string) $value;
+		if ($field === 'dateo' || $field === 'datee') {
+			$old = mjl_projects_date_value($old);
+			$new = mjl_projects_date_value($new);
+		}
 		if ($old !== $new) {
 			$changes[$field] = array('before' => $old, 'after' => $new);
 		}

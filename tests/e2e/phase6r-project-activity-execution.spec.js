@@ -92,23 +92,23 @@ test('P6R project create/edit is allowed for admin and final validator but denie
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/projects.php');
   await page.getByRole('link', { name: 'Créer un projet' }).click();
-  await page.getByLabel('Reference').first().fill('P6R-DPAF-PROJ');
-  await page.getByLabel('Intitule').first().fill('Projet Phase 6R DPAF');
+  await page.getByLabel('Référence').first().fill('P6R-DPAF-PROJ');
+  await page.getByLabel('Intitulé').first().fill('Projet Phase 6R DPAF');
   await page.locator('select[name="fk_soc"]').first().selectOption(unicef);
-  await page.getByRole('button', { name: 'Creer le projet' }).click();
+  await page.getByRole('button', { name: 'Créer le projet' }).click();
   await expect(page).toHaveURL(/projects\.php\?id=\d+/);
   const projectId = Number(new URL(page.url()).searchParams.get('id'));
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
 
   await page.getByRole('link', { name: 'Modifier le projet' }).click();
-  await page.getByLabel('Intitule').fill('Projet Phase 6R DPAF modifie');
+  await page.getByLabel('Intitulé').fill('Projet Phase 6R DPAF modifie');
   await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
   expect(scalar(`SELECT title FROM llx_projet WHERE rowid = ${projectId}`)).toBe('Projet Phase 6R DPAF modifie');
 
   await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
   await page.getByRole('link', { name: 'Modifier le projet' }).click();
-  await page.getByLabel('Reference').fill('P6R-ADMIN-PROJ');
+  await page.getByLabel('Référence').fill('P6R-ADMIN-PROJ');
   await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
   expect(scalar(`SELECT ref FROM llx_projet WHERE rowid = ${projectId}`)).toBe('P6R-ADMIN-PROJ');
 

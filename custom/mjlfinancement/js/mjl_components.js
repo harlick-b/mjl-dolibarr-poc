@@ -237,6 +237,157 @@
 		form.setAttribute('novalidate', '');
 	}
 
+	function substantiveFormSnapshot(form) {
+		var values = [];
+		Array.prototype.forEach.call(form.querySelectorAll('input, select, textarea'), function (field) {
+			if (field.disabled || field.type === 'hidden' || field.type === 'submit' || field.type === 'button' || field.type === 'reset') return;
+			var value = field.value;
+			if (field.type === 'checkbox' || field.type === 'radio') value = field.checked ? '1:' + field.value : '0:' + field.value;
+			if (field.multiple) {
+				value = Array.prototype.filter.call(field.options, function (option) { return option.selected; }).map(function (option) { return option.value; }).join('\u001f');
+			}
+			values.push((field.name || field.id || '') + '\u001e' + value);
+		});
+		return values.join('\u001d');
+	}
+
+	function createUnsavedDialog() {
+		var dialog = document.createElement('dialog');
+		dialog.className = 'mjl-confirmation-dialog';
+		dialog.setAttribute('aria-labelledby', 'mjl-unsaved-title');
+		dialog.innerHTML = '<div class="mjl-confirmation-panel"><h2 id="mjl-unsaved-title">Modifications non enregistrées</h2><p>Vous avez des modifications non enregistrées. Voulez-vous quitter cette page ?</p><div class="mjl-confirmation-actions"><button type="button" class="mjl-action mjl-action-secondary" data-mjl-unsaved-stay>Continuer la saisie</button><button type="button" class="mjl-action mjl-action-danger" data-mjl-unsaved-leave>Quitter sans enregistrer</button></div></div>';
+		document.body.appendChild(dialog);
+		return dialog;
+	}
+
+	function trapDialogTab(dialog, event) {
+		if (event.key !== 'Tab') return;
+		var focusable = dialog.querySelectorAll('button:not([disabled])');
+		if (!focusable.length) return;
+		var first = focusable[0];
+		var last = focusable[focusable.length - 1];
+		if (event.shiftKey && document.activeElement === first) {
+			event.preventDefault();
+			last.focus();
+		} else if (!event.shiftKey && document.activeElement === last) {
+			event.preventDefault();
+			first.focus();
+		}
+	}
+
+	function initSubstantiveForms(forms) {
+		if (!forms.length) return;
+		var dialog = createUnsavedDialog();
+		var activeController = null;
+
+		dialog.addEventListener('keydown', function (event) {
+			trapDialogTab(dialog, event);
+		});
+		dialog.addEventListener('cancel', function (event) {
+			event.preventDefault();
+			dialog.close();
+		});
+		dialog.addEventListener('close', function () {
+			if (activeController && activeController.restoreTarget && document.contains(activeController.restoreTarget)) {
+				activeController.restoreTarget.focus();
+			}
+			if (activeController) activeController.restoreTarget = null;
+		});
+		dialog.querySelector('[data-mjl-unsaved-stay]').addEventListener('click', function () {
+			dialog.close();
+		});
+		dialog.querySelector('[data-mjl-unsaved-leave]').addEventListener('click', function () {
+			if (!activeController || !activeController.pendingHref) return;
+			var href = activeController.pendingHref;
+			activeController.acceptLeave();
+			dialog.close();
+			window.location.assign(href);
+		});
+
+		Array.prototype.forEach.call(forms, function (form) {
+			var initialSnapshot = substantiveFormSnapshot(form);
+			var recoveredDirty = form.getAttribute('data-mjl-recovered') === 'true';
+			var dirty = false;
+			var submitting = false;
+			var beforeUnloadAttached = false;
+			var controller = {
+				pendingHref: '',
+				restoreTarget: null,
+				acceptLeave: function () {
+					recoveredDirty = false;
+					dirty = false;
+					controller.pendingHref = '';
+					detachBeforeUnload();
+				},
+			};
+
+			function beforeUnload(event) {
+				event.preventDefault();
+				event.returnValue = '';
+				return '';
+			}
+
+			function attachBeforeUnload() {
+				if (beforeUnloadAttached) return;
+				window.addEventListener('beforeunload', beforeUnload);
+				beforeUnloadAttached = true;
+			}
+
+			function detachBeforeUnload() {
+				if (!beforeUnloadAttached) return;
+				window.removeEventListener('beforeunload', beforeUnload);
+				beforeUnloadAttached = false;
+			}
+
+			function syncDirtyState() {
+				dirty = recoveredDirty || substantiveFormSnapshot(form) !== initialSnapshot;
+				if (dirty) attachBeforeUnload();
+				else detachBeforeUnload();
+			}
+
+			function eligibleNavigation(event, link) {
+				if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+				if (link.hasAttribute('download') || (link.target && link.target !== '_self')) return false;
+				var rawHref = link.getAttribute('href') || '';
+				if (rawHref === '' || rawHref.charAt(0) === '#') return false;
+				var target;
+				try { target = new URL(link.href, window.location.href); } catch (error) { return false; }
+				if (target.origin !== window.location.origin) return false;
+				if (target.pathname === window.location.pathname && target.search === window.location.search && target.hash) return false;
+				return true;
+			}
+
+			form.addEventListener('input', syncDirtyState);
+			form.addEventListener('change', syncDirtyState);
+			form.addEventListener('submit', function (event) {
+				if (event.defaultPrevented) return;
+				if (submitting) {
+					event.preventDefault();
+					event.stopImmediatePropagation();
+					return;
+				}
+				submitting = true;
+				controller.acceptLeave();
+				form.setAttribute('aria-busy', 'true');
+				Array.prototype.forEach.call(form.querySelectorAll('button[type="submit"], input[type="submit"]'), function (button) {
+					button.disabled = true;
+					button.setAttribute('aria-busy', 'true');
+				});
+			});
+			document.addEventListener('click', function (event) {
+				var link = event.target.closest ? event.target.closest('a[href]') : null;
+				if (!dirty || submitting || !eligibleNavigation(event, link)) return;
+				event.preventDefault();
+				controller.pendingHref = link.href;
+				controller.restoreTarget = link;
+				activeController = controller;
+				dialog.showModal();
+				dialog.querySelector('[data-mjl-unsaved-stay]').focus();
+			}, true);
+			syncDirtyState();
+		});
+	}
+
 	function formatDecisionValue(field) {
 		if (!field || !field.value) return 'Non renseigné';
 		if (field.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(field.value)) {
@@ -306,6 +457,7 @@
 	document.addEventListener('DOMContentLoaded', function () {
 		Array.prototype.forEach.call(document.querySelectorAll('.mjl-module-shell'), initNavigationDrawer);
 		Array.prototype.forEach.call(document.querySelectorAll('form[data-mjl-validate]'), initValidatedForm);
+		initSubstantiveForms(document.querySelectorAll('form[data-mjl-substantive]'));
 		var decisionForms = document.querySelectorAll('form[data-mjl-confirm]');
 		if (decisionForms.length) {
 			var dialog = createDecisionDialog();
@@ -316,18 +468,7 @@
 				if (dialog._mjlConfirm) dialog._mjlConfirm();
 			});
 			dialog.addEventListener('keydown', function (event) {
-				if (event.key !== 'Tab') return;
-				var focusable = dialog.querySelectorAll('button:not([disabled])');
-				if (!focusable.length) return;
-				var first = focusable[0];
-				var last = focusable[focusable.length - 1];
-				if (event.shiftKey && document.activeElement === first) {
-					event.preventDefault();
-					last.focus();
-				} else if (!event.shiftKey && document.activeElement === last) {
-					event.preventDefault();
-					first.focus();
-				}
+				trapDialogTab(dialog, event);
 			});
 			Array.prototype.forEach.call(decisionForms, function (form) {
 				initDecisionForm(form, dialog);

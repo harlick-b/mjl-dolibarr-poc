@@ -360,3 +360,61 @@ filter-helper seam. This repeated readiness condition is now recorded in
 
 The next Workstream 3D.2 slice is responsive project and expense list cards
 plus consolidated list states.
+
+### Hardened project-form remediation
+
+Implemented on 2026-08-03 as a focused remediation of the guarded project
+create/edit states:
+
+- added persisted `Statut actuel` context to the edit page header and corrected
+  the migrated French project-form copy;
+- retained partner and status selections through one-use recovery by deriving
+  project-local aliases only after active entity/scope and exact enum
+  validation, then revalidating them when recovery is consumed;
+- added context-bound, 128-bit, one-use project submission tokens with a
+  two-hour lifetime, explicit closed issue/consume reasons, and a per-user
+  pending-token cap;
+- locked the exact entity/project row before updates, computed changes before
+  writing, and made unchanged updates audit-free no-ops; native
+  entity/reference uniqueness remains the create-side duplicate backstop;
+- connected project forms to linked validation, dirty-state tracking, the
+  accessible unsaved-change dialog, best-effort browser lifecycle warnings,
+  and first-valid-submit locking;
+- retained native no-JavaScript validation and added focused recovered error
+  summaries for the no-script path.
+
+Disposable verification used `mjl-phase3d-prereq-formhymn2u` at
+`http://127.0.0.1:18083`, with database and document binds under
+`/tmp/mjl-phase3d-form-HymN2U`. A second clean diagnostic stack used
+`mjl-phase3d-prereq-crosscut` at `http://127.0.0.1:18084`.
+Final review-remediation verification used `mjl-phase3d-prereq-final` at
+`http://127.0.0.1:18085`, with binds under
+`/tmp/mjl-phase3d-final-csn7Us`.
+
+Verified results:
+
+- Phase 3D project-form isolation contract: passed;
+- all PHP isolation seams: 4/4 passed;
+- disposable-environment guard: 5/5 passed;
+- Phase 3D operational interactions, including injected-alias, invalid-enum,
+  stale-scope, missing/cross-context/replayed token, concurrent create/update,
+  audit-free no-op update, no-JavaScript focus, navigation exclusions,
+  dynamic lifecycle warning, and stalled-real-POST locking: 12/12 passed;
+- final affected legacy project recovery, role/permission, workflow-audit, and
+  navigation regressions: 9/9 passed;
+- scope-model smoke: passed;
+- changed PHP and JavaScript syntax checks: passed;
+- `git diff --check`: passed.
+
+The complete Playwright command was also executed on the disposable stack. It
+reported 137 passed, 12 failed, and 74 not run. All ten remediation tests
+passed within that run. The failures were outside this slice and included
+legacy copy/selector expectations, permission or workflow fixture state, and
+hard-coded fixture IDs; therefore this entry does not claim a globally green
+suite. In particular, the shared expense-dialog diagnostic was rerun on a
+fresh stack and reached the existing self-disbursement fixture at hard-coded
+expense ID `13`, for which the server correctly exposes no action before the
+JavaScript controller runs.
+
+No WCAG conformance, signed manual accessibility matrix, complete Phase 3D,
+or production-readiness claim is made by this remediation.

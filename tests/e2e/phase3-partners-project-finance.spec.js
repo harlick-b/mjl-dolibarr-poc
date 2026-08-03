@@ -202,17 +202,17 @@ test('admin sees all partners and final validator can create and edit projects w
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/projects.php');
   await page.getByRole('link', { name: 'Créer un projet' }).click();
-  await page.getByLabel('Reference').first().fill('P3-DPAF-PROJ');
-  await page.getByLabel('Intitule').first().fill('Projet Phase 3 DPAF');
+  await page.getByLabel('Référence').first().fill('P3-DPAF-PROJ');
+  await page.getByLabel('Intitulé').first().fill('Projet Phase 3 DPAF');
   await page.locator('select[name="fk_soc"]').first().selectOption(scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1"));
-  await page.getByRole('button', { name: 'Creer le projet' }).click();
+  await page.getByRole('button', { name: 'Créer le projet' }).click();
   await expect(page).toHaveURL(/projects\.php\?id=\d+/);
   expect(Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'P3-DPAF-PROJ' AND entity = 1 AND fk_soc IS NOT NULL"))).toBe(1);
   const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'P3-DPAF-PROJ' AND entity = 1 LIMIT 1");
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
 
   await page.getByRole('link', { name: 'Modifier le projet' }).click();
-  await page.getByLabel('Intitule').fill('Projet Phase 3 DPAF modifie');
+  await page.getByLabel('Intitulé').fill('Projet Phase 3 DPAF modifie');
   await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
   await expect(page).toHaveURL(/projects\.php\?id=\d+/);
   expect(scalar(`SELECT title FROM llx_projet WHERE rowid = ${projectId}`)).toBe('Projet Phase 3 DPAF modifie');
@@ -221,7 +221,7 @@ test('admin sees all partners and final validator can create and edit projects w
   await login(page, 'admin.poc');
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
   await page.getByRole('link', { name: 'Modifier le projet' }).click();
-  await page.getByLabel('Reference').fill('P3-ADMIN-PROJ');
+  await page.getByLabel('Référence').fill('P3-ADMIN-PROJ');
   await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
   expect(scalar(`SELECT ref FROM llx_projet WHERE rowid = ${projectId}`)).toBe('P3-ADMIN-PROJ');
 
