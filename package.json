@@ -1,6 +1,11 @@
 {
   "scripts": {
-    "test:e2e": "playwright test"
+    "test": "node tests/runner/run-suite.js all",
+    "test:unit": "node tests/runner/run-suite.js unit",
+    "test:verify": "node tests/runner/run-suite.js verify",
+    "test:e2e": "node tests/runner/run-suite.js e2e",
+    "test:characterization": "node tests/runner/run-suite.js characterization",
+    "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility"
   },
   "devDependencies": {
     "@playwright/test": "^1.46.0"

@@ -29,6 +29,7 @@ cleanup records, and stale POC notes are not active implementation guidance.
 | Document | Purpose |
 | --- | --- |
 | `docs/mjl-acceptance-tests.md` | E2E, smoke, schema, and clean-install verification guidance. |
+| `docs/mjl-test-coverage-registry.md` | Maintained case audit, authority classification, capability destinations, and verification evidence. |
 | `docs/mjl-deployment-checklist.md` | Deployment, backup, restore, diagnostics, and production operations checklist. |
 | `docs/mjl-production-readiness-plan.md` | Production readiness gates and unresolved deployment confirmations. |
 | `mjl_dolibarr_poc_sample_data/README_SAMPLE_DATA.md` | Local fixture package notes for development/test data only. |
@@ -59,21 +60,6 @@ cleanup records, and stale POC notes are not active implementation guidance.
 | `docs/design-system/MJL_UI_RULES.md` | UI rules. |
 | `docs/design-system/audit/current-screen-inventory.md` | Current UI screen inventory. |
 | `docs/design-system/audit/current-ui-audit.md` | Current UI audit. |
-
-## Current Design Implementation Evidence
-
-| Document | Purpose |
-| --- | --- |
-| `docs/implementation/mjl-design-system-v2-phase3-implementation-report.md` | Current consolidated Phase 1–3 implementation and post-remediation verification evidence; not product authority or release approval. |
-| `docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md` | Active unsigned cross-phase manual keyboard, reflow, zoom, and contrast gate. |
-| `docs/implementation/mjl-phase-3d-prerequisite-security-report.md` | Corrected and validated Phase 3D prerequisite authorization, isolation, guarded-download, audit-persistence, and spreadsheet-hardening evidence. |
-| `docs/implementation/mjl-design-system-v2-phase-3d-plan.md` | Authorized Phase 3D rollback baseline, protected boundary, TDD seams, workstream sequence, verification strategy, and release limitations. |
-
-## Cleanup Evidence
-
-| Document | Purpose |
-| --- | --- |
-| `docs/audits/mjl-repository-removal-candidates-audit.md` | Evidence and execution record for stale-document and repository-noise cleanup; not active implementation guidance. |
 
 ## Agent Support Docs
 
@@ -107,5 +93,5 @@ plans, superseded phase reports, demo/UAT/client-validation packs, standalone
 role/report/KPI models, implementation summaries, and native-boundary audit
 artifacts. Durable content is consolidated into `CONTEXT.md`,
 `docs/design-system/README.md`, `docs/mjl-current-app-functional-map.md`,
-`docs/mjl-current-vs-target-gap-analysis.md`, and the current Phase 3 evidence
-report.
+`docs/mjl-current-vs-target-gap-analysis.md`, and the maintained test coverage
+registry.

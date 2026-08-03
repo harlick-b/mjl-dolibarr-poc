@@ -22,9 +22,17 @@ Define E2E tests as the main validation method for the MJL Clarity System.
 
 End-to-end tests are the primary validation method. Micro/unit tests are allowed only when useful for business rules or security-critical logic, but they must not replace full feature E2E tests.
 
-## Artifact Cleanup
+## Disposable Execution
 
-After E2E or browser-assisted test work is complete, remove disposable generated artifacts, including `.playwright-mcp/`, Playwright reports, test results, screenshots, videos, traces, and downloaded export files unless they are explicitly needed for a reviewed compliance report.
+Run browser coverage through the repository runner. It provisions one isolated
+tenant with named volumes, bootstraps and seeds it once, verifies the resolved
+Compose configuration before startup, and removes project-scoped containers,
+networks, and volumes after the run. A failed run may be retained only through
+the explicit `MJL_TEST_RETAIN=1` diagnostic option.
+
+Run artifacts live below a run-specific `test-results/runs/` directory. They
+are diagnostics, not source evidence, and must not be committed unless a
+reviewed compliance record explicitly requires them.
 
 ## Required Scenarios
 

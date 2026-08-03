@@ -1,0 +1,37 @@
+services:
+  mariadb:
+    restart: "no"
+    volumes: !override
+      - type: volume
+        source: mjl_test_db
+        target: /var/lib/mysql
+
+  dolibarr:
+    restart: "no"
+    environment:
+      DOLI_URL_ROOT: ${MJL_BASE_URL}
+    ports: !override
+      - target: 80
+        published: ${MJL_TEST_PORT}
+        host_ip: 127.0.0.1
+        protocol: tcp
+    volumes: !override
+      - type: volume
+        source: mjl_test_docs
+        target: /var/www/documents
+      - type: bind
+        source: ${MJL_REPOSITORY_ROOT}/custom
+        target: /var/www/html/custom
+        read_only: true
+      - type: bind
+        source: ${MJL_REPOSITORY_ROOT}/custom/mjlfinancement/deployment/apache-native-guard.conf
+        target: /etc/apache2/conf-enabled/mjl-native-guard.conf
+        read_only: true
+      - type: bind
+        source: ${MJL_REPOSITORY_ROOT}/tests
+        target: /opt/mjl-tests
+        read_only: true
+
+volumes:
+  mjl_test_db:
+  mjl_test_docs:

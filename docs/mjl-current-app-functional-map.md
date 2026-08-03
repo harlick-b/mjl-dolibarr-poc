@@ -18,7 +18,7 @@ and audit helpers.
 
 Implemented current-state capabilities also include the 5R Partenaires /
 Programmes portfolio workspace, contextual exchanges on object detail pages,
-centralized live alert generation, shared dashboard filters, Phase 11R
+centralized live alert generation, shared dashboard filters, governed
 CSV/XLSX report keys, and admin-only unresolved-data diagnostics. These facts
 are implementation evidence, not target authority.
 
@@ -28,18 +28,18 @@ activity table, consequence-aware expense decisions, and partial-result
 timeline/alert loaders. These helpers do not change stored workflow values,
 routes, permissions, schemas, or export mappings.
 
-Phase 2 remediation centralizes exact-action activity recovery and
+The current implementation centralizes exact-action activity recovery and
 timeline/audit presentation in dependency-leaf registries. Unknown stored
 action, role, object, channel, and status values use neutral French labels on
 touched UI routes. Activity-specific JavaScript is owned by
 `activities.php`; only the shared component script remains shell-global.
-Automated Phase 2 decision fixtures independently prove exact-one expense
+Automated decision fixtures independently prove exact-one expense
 prevalidation, final validation, rejection, and disbursement, fresh-token stale
 replays, invalid-CSRF immutability, four no-self cases, and a two-session
 near-simultaneous final-decision attempt. Human accessibility evidence remains
 a separate unsigned gate.
 
-Phase 3A adds scoped 50-row pagination and deterministic sorting to the
+Scoped 50-row pagination and deterministic sorting apply to the
 Partenaires / Programmes and project portfolios, adds the Partenaire /
 Programme filter to the activity list, and retains partner/project context in
 portfolio drill-downs for Admin as well as scoped users. Related portfolio
@@ -70,7 +70,7 @@ Those references are current-state/code debt, not target behavior.
 
 | Surface | Route/file | Current purpose | Current-state notes |
 | --- | --- | --- | --- |
-| Dashboard | `index.php` | Role-aware workspace dashboard with Phase 10R scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | Compatibility fixture names still contain POC-era vocabulary. |
+| Dashboard | `index.php` | Role-aware workspace dashboard with scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | Compatibility fixture names still contain POC-era vocabulary. |
 | Partenaires / Programmes | `partners.php` | Scoped, paginated partner/programme portfolio plus context and related previews. | Name/risk sorts are allowlisted; related previews are independently counted and limited to 12 rows. |
 | Projects | `projects.php` | Scoped, paginated MJL project list/detail with semantic desktop table, responsive labeled cards, shared list states, explicit open actions, related previews, recoverable create/edit, legacy notes, and contextual comments. | Partner/status/sort filters fail closed to zero results; create/edit remains limited to Admin plateforme and Validateur definitif. |
 | Activities | `activities.php` | Activity lifecycle, dedicated create/edit/execution states, guarded verifier/final-validator review states, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Partner/project/status/risk/sort filters are allowlisted and fail closed; direct create/edit/execution and review routes recheck action availability and object access before loading options, consuming exact recovery, or rendering fields. |
@@ -236,8 +236,8 @@ Evidence:
 
 - `custom/mjlfinancement/class/mjlactivity.class.php`
 - `custom/mjlfinancement/activities.php`
-- `custom/mjlfinancement/scripts/audit_schema_0.9.0.php`
-- `custom/mjlfinancement/scripts/smoke_activity_workflow.php`
+- `custom/mjlfinancement/scripts/audit_schema_current.php`
+- `custom/mjlfinancement/scripts/verify_activity_workflow.php`
 
 ### Expense
 
@@ -260,28 +260,22 @@ Evidence:
 
 - `custom/mjlfinancement/class/mjlexpense.class.php`
 - `custom/mjlfinancement/expenses.php`
-- `custom/mjlfinancement/scripts/audit_schema_0.10.0.php`
-- `custom/mjlfinancement/scripts/smoke_expense_validation.php`
+- `custom/mjlfinancement/scripts/audit_schema_current.php`
+- `custom/mjlfinancement/scripts/verify_expense_workflow.php`
 
 ## Current Verification Commands
 
-Current audit/smoke commands are consolidated in
+Current verification commands are consolidated in
 `docs/mjl-acceptance-tests.md`.
 
 Key scripts currently present include:
 
-- `audit_schema_0.3.0.php`
-- `audit_schema_0.4.0.php`
-- `audit_schema_0.5.0.php`
-- `audit_schema_0.8.0.php`
-- `audit_schema_0.9.0.php`
-- `audit_schema_0.10.0.php`
-- `acceptance_sample_data.php`
-- `smoke_scope_model.php`
-- `smoke_activity_workflow.php`
-- `smoke_expense_validation.php`
-- `smoke_traceability_exports.php`
-- `smoke_integrity_targets.php`
+- `audit_schema_current.php`
+- `verify_sample_data.php`
+- `verify_scope_integrity.php`
+- `verify_activity_workflow.php`
+- `verify_expense_workflow.php`
+- `verify_traceability_exports.php`
 
 ## Current Risks
 
@@ -292,8 +286,8 @@ Key scripts currently present include:
   unconfirmed.
 - Official donor/client export templates remain unconfirmed.
 - The local development database contains historical workflow rows whose
-  referenced test fixtures were deleted. The unresolved-scope audit continues
-  to report these genuine missing targets; Phase 3 does not remediate them.
+  referenced test fixtures were deleted. The current scope/integrity verifier
+  continues to report these genuine missing targets rather than mutating tenant data.
 
 ## Phase 3D.2 Operational Interaction State
 
@@ -316,5 +310,5 @@ Key scripts currently present include:
 - Disposable verification used project `mjl-phase3d-prereq-implementation`,
   URL `http://127.0.0.1:18101`, and root
   `/tmp/mjl-phase3d-implementation-UIcPqT`. Operational interactions passed
-  43/43. The consolidated repository runner reported 64 passed, 3 documented
+  42/42. The consolidated repository runner reported 64 passed, 3 documented
   stale exact-copy failures, and 16 serial skips; no touched-route case failed.

@@ -121,7 +121,8 @@ function mjl_ui_log_error($category, $context = array(), $driverMessage = '')
 			$normalized[$key] = substr(preg_replace('/[^a-z0-9_\\/-]/i', '', (string) $context[$key]), 0, 80);
 		}
 	}
-	$message = preg_replace('/(?:select|insert|update|delete|replace|alter|drop|create)\\b.*$/i', '[sql redacted]', (string) $driverMessage);
+	$message = preg_replace('/\\bSQLSTATE\\b.*$/i', '[database diagnostic redacted]', (string) $driverMessage);
+	$message = preg_replace('/(?:select|insert|update|delete|replace|alter|drop|create)\\b.*$/i', '[sql redacted]', $message);
 	$message = preg_replace('/(?:\\/[^\\s:]+)+/', '[path]', $message);
 	$message = preg_replace('/[A-Za-z]:\\\\[^\\s]+/', '[path]', $message);
 	$message = preg_replace('/\\b(token|password|comment|reason)\\s*[=:]\\s*\\S+/i', '$1=[redacted]', $message);

@@ -24,8 +24,8 @@ timelines/exchanges, and final client review for official outputs.
 - Guarded downloads are implemented for key document paths.
 - Advanced audit and exchange screens exist but should remain contextual or
   supervision/audit-only.
-- CSV/XLSX exports are the current output formats; PDF/Word reports are out of
-  scope for this phase.
+- CSV/XLSX exports are the current output formats; PDF/Word reports are outside
+  the current authoritative scope.
 - Shared journey summaries, guarded document panels, exact finance recovery,
   resource pagination, contextual timelines, and enriched dashboard-card
   metadata now have catalog definitions. Their callers retain all server
@@ -41,7 +41,7 @@ timelines/exchanges, and final client review for official outputs.
 | Screen | Alignment | Main UI Debt | Safe Area |
 | --- | --- | --- | --- |
 | Workspace dashboard | Medium | Enriched cards now expose definition, scope, period, freshness, destination, and local source failure; final client KPI wording can still be reviewed. | `custom/mjlfinancement/index.php` |
-| Supervision dashboard | Medium | Phase 10R aligned production role wording, scoped filters, and audit-row resolution; route filename remains compatibility debt. | `custom/mjlfinancement/dpafdashboard.php` |
+| Supervision dashboard | Medium | Production role wording, scoped filters, and audit-row resolution are aligned; route filename remains compatibility debt. | `custom/mjlfinancement/dpafdashboard.php` |
 | Partenaires / Programmes | Partial | Needs current browser review for production scope clarity. | `custom/mjlfinancement/partners.php` |
 | Projects | Medium | Dedicated guarded create/edit states, shared scoped filters/pagination and list states, and responsive operational cards are browser-verified; dense related-detail tables remain separate. | `custom/mjlfinancement/projects.php` |
 | Activities | Medium | Dedicated guarded create/edit/execution/contextual-upload and verifier/final-validator decision states plus shared scoped filters/pagination and responsive list cards are browser-verified; short submission/correction comments remain contextual and wording review remains. | `custom/mjlfinancement/activities.php` |
@@ -50,7 +50,7 @@ timelines/exchanges, and final client review for official outputs.
 | Conventions | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; legacy label and role wording still need target review. | `custom/mjlfinancement/conventions.php` |
 | Budget lines | Medium | Shared journey/recovery/pagination/timeline patterns and canonical feedback are present; advanced finance setup must stay guarded. | `custom/mjlfinancement/budgetlines.php` |
 | Fund receipts | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; final wording remains pending client review. | `custom/mjlfinancement/fundreceipts.php` |
-| Reports / exports | Good | Phase 11R aligns report inventory, target French wording, explicit Partenaire / Programme filters, POST-token exports, CSV/XLSX filename previews, and scoped audit visibility. Final donor canevas and permission matrix remain pending. | `custom/mjlfinancement/reports.php` |
+| Reports / exports | Good | The report inventory uses target French wording, explicit Partenaire / Programme filters, POST-token exports, CSV/XLSX filename previews, and scoped audit visibility. Final donor canevas and permission matrix remain pending. | `custom/mjlfinancement/reports.php` |
 | Validation/audit history | Partial | Should be more contextual inside object detail pages. | `validations.php`, `workflowactions.php` |
 | Exchange logs | Partial | Standalone route should not be primary navigation. | `custom/mjlfinancement/exchangelogs.php` |
 | Auth/invitations | Medium | Invitation-only stance is correct; production email/base URL pending. | Auth templates, `admin/access.php`, `invitation.php` |
@@ -66,7 +66,7 @@ timelines/exchanges, and final client review for official outputs.
 ## Phase 3D.2 gate evidence
 
 Guarded operational states and conditional record menus are browser-verified.
-The durable operational matrix passed 43/43, and the shell/table regression matrix
+The operational matrix passed 42/42, and the shell/table regression matrix
 passed 41/41. Native no-JavaScript menu fallback, keyboard focus restoration,
 escaping, empty suppression, and 390-pixel viewport containment are covered.
 

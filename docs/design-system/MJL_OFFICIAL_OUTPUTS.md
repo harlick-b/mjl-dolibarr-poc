@@ -72,7 +72,7 @@ mjl_alertes_2026-06-26.csv
 mjl_audit_activite_A-2026-014.csv
 ```
 
-Phase 11R report filenames include the report slug plus active date,
+Report filenames include the report slug plus active date,
 Partenaire / Programme, project, and status filters when present. Labels in the
 report center should use target French wording such as `Partenaire /
 Programme`, `Validation définitive`, `Décaissement`, `Historique des décisions`,

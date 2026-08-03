@@ -8,11 +8,8 @@
 - Documentation transfer: authorized through user-supplied decision
   `PD-DEC-030`.
 - Documentation transfer: completed manually by the user.
-- UI implementation: separately authorized and completed through Phase 3.
-- Application-code changes: separately authorized and completed through
-  Phase 3.
-- Phase 3 post-remediation evidence: current in
-  `docs/implementation/mjl-design-system-v2-phase3-implementation-report.md`.
+- UI/application implementation: current-state evidence lives in the screen
+  inventory, UI audit, functional map, and capability-based coverage registry.
 - Release readiness: blocked by unresolved-scope history, unsigned manual
   accessibility evidence, and outstanding production/operator confirmations.
 
@@ -135,7 +132,7 @@ was completed manually. The former standalone transfer-authorization record is
 retained in Git history.
 
 This is a chronological governance sequence, not a contradiction.
-`PD-DEC-029` and `PD-DEC-030` did not authorize UI implementation or
-application changes; later phase-specific user authorizations permitted
-implementation through Phase 3. They do not authorize Phase 4, Phase 5,
-production deployment, or release.
+`PD-DEC-029` and `PD-DEC-030` did not authorize UI implementation,
+application changes, production deployment, or release. Current implementation
+authority comes from direct user instructions and active repository authority,
+not historical phase sequencing.

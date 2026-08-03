@@ -75,8 +75,8 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   resize focus, external-focus rejection, dynamic background isolation,
   reduced-motion behavior, touch interaction, overflow, and the 390, 768,
   980, 1024, and 1366px widths. Half-width automation is supplemental reflow
-  evidence only; real 100%/200% browser zoom requires the dedicated headed
-  Phase 3D manual gate.
+  evidence only; real 100%/200% browser zoom requires the dedicated interactive
+  accessibility gate.
 
 ### Page header
 
@@ -97,8 +97,7 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   authorized before calling the pure renderer. Isolation coverage verifies
   escaping, ordering, optional regions, and exactly one `h1`; browser coverage
   verifies the shared contract across representative routes. The first
-  rendered authorized-action journey is deferred to the guarded project
-  create state in Workstream 3D.2.
+  guarded project create journey verifies rendered authorized actions.
 
 ### Business status badge
 
@@ -128,7 +127,7 @@ Each component must define purpose, when to use it, when not to use it, layout, 
 - **Accessibility/French:** text states the condition and recovery without
   exposing SQL, driver details, paths, or internal identifiers.
 - **Visibility/E2E:** role-neutral inside an already authorized surface;
-  Phase 2 helper/page checks cover safe output and partial states.
+  helper contracts and browser journeys cover safe output and partial states.
 
 ### Shared field, error summary, and recovery
 
@@ -176,7 +175,7 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   JavaScript disabled, native validation and server feedback remain available,
   and recovered project summaries use HTML autofocus.
 - **Visibility/E2E:** the containing route/action guard controls access;
-  Phase 2 and Phase 3 coverage verifies focus, links, native fallback, retained
+  capability coverage verifies focus, links, native fallback, retained
   values, envelope tamper rejection, expiry, isolation, one-use behavior, and
   caps.
 
@@ -203,7 +202,7 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   total but must preserve working row navigation.
 - **Visibility/E2E:** project options and query results follow server scope;
   callers retain all query, entity, scope, column, sort, and action ownership.
-  Phase 2 and Phase 3 checks cover defaults, malformed inputs, columns,
+  capability checks cover defaults, malformed inputs, columns,
   retained filters, count degradation, compact content, filter reflow, and
   390/768/1024 layouts.
 

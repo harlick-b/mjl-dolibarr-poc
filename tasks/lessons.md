@@ -50,10 +50,11 @@ debugging discoveries. Do not add one-off observations or generic advice.
   by every diagnostic caller. When a new audited object type is introduced,
   update that registry and prove both a valid anchor and a missing target;
   duplicated join lists silently misclassify otherwise valid audit rows.
-- Fresh Docker bind initialization can leave document subdirectories owned by
-  root with mode `0755`, which blocks upload E2E despite correct application
-  behavior. Correct ownership or mode only inside the verified disposable
-  document bind; never normalize permissions on shared workspace storage.
+- Fresh Docker initialization and root-run fixture setup can leave disposable
+  document or ECM subdirectories owned by root with mode `0755`, which blocks
+  upload and test-outbox E2E despite correct application behavior. Normalize
+  web-user ownership only inside verified disposable named volumes or binds,
+  including after case-local root setup; never change shared workspace storage.
 - A fresh Dolibarr Compose container can report `Up` while its installer is
   still importing tables and has not created the Admin user. Before running
   `bootstrap_poc.php`, verify installer completion through a read-only Admin

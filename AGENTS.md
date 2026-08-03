@@ -66,30 +66,23 @@ developer command is confirmed beyond Docker Compose start/bootstrap.
 
 ## Test/Lint/Build Commands
 
-Confirmed E2E command from `package.json`:
+Confirmed public verification commands from `package.json`:
 
 ```bash
+npm test
+npm run test:unit
+npm run test:verify
 npm run test:e2e
+npm run test:characterization
+npm run test:manual-accessibility
 ```
 
 Active verification guidance is in `docs/mjl-acceptance-tests.md`.
 
-Confirmed schema/smoke scripts include:
-
-```bash
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.3.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.4.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.5.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.8.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.9.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.10.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/acceptance_sample_data.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_scope_model.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_activity_workflow.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_traceability_exports.php
-```
+Use `npm run test:verify` for the complete current schema and behavioral
+verification layer. Its runner supplies allowlisted internal module names to
+the composite schema and scope entrypoints; do not revive versioned audit or
+smoke commands.
 
 Lint command: Needs confirmation. Build command: Needs confirmation.
 
@@ -138,8 +131,8 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 - Match verification to the changed surface.
 - Use E2E tests as the primary validation for app UI, auth, dashboards,
   exports, official outputs, and workflow changes.
-- For schema, workflow, document, or export changes, run the relevant audit and
-  smoke scripts listed in `docs/mjl-acceptance-tests.md`.
+- For schema, workflow, document, or export changes, run the relevant current-purpose
+  verification command listed in `docs/mjl-acceptance-tests.md`.
 - For PHP edits, run appropriate syntax checks if available and report the
   exact command used.
 - For documentation-only instruction changes, a diff/status check is enough.

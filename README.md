@@ -59,8 +59,13 @@ MJL_POC_DEFAULT_PASSWORD='change-me' docker compose up -d
 Use `docs/mjl-acceptance-tests.md` for the active verification matrix and
 `docs/mjl-deployment-checklist.md` for deployment and clean-install checks.
 
-Primary UI regression command:
+Primary complete regression command:
 
 ```bash
-npm run test:e2e
+npm test
 ```
+
+Focused commands are `npm run test:unit`, `npm run test:verify`, `npm run
+test:e2e`, `npm run test:characterization`, and `npm run
+test:manual-accessibility`. Container-backed commands always create and remove
+an isolated named-volume tenant; they never target the shared port 8080 data.

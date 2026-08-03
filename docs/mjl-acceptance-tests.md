@@ -1,166 +1,77 @@
 # MJL Acceptance Tests
 
-Target decisions come from `docs/mjl-authoritative-decisions.md`. Match
-verification to the changed surface and report skipped checks.
+Target decisions come from `docs/mjl-authoritative-decisions.md`. The maintained case audit and destination map are in `docs/mjl-test-coverage-registry.md`.
 
-## Primary E2E Check
-
-Run browser regression checks against the local Dolibarr instance:
+## Public commands
 
 ```bash
+npm test
+npm run test:unit
+npm run test:verify
 npm run test:e2e
+npm run test:characterization
+npm run test:manual-accessibility
 ```
 
-Targeted Phase 3D prerequisite security regression:
+- `npm test` provisions one disposable tenant, runs unit contracts, current container verification, and blocking Chromium capability suites, then removes the tenant.
+- `npm run test:unit` runs fast Node and PHP contracts without Docker.
+- `npm run test:verify` runs the current schema, sample-data, scope/integrity, activity, expense, traceability/export, and dashboard-resilience checks in one disposable tenant.
+- `npm run test:e2e` runs the eleven blocking capability suites in one disposable tenant.
+- `npm run test:characterization` runs current finance security/data-integrity behavior that still lacks product authority. It is intentionally excluded from `npm test`, but exits nonzero on drift.
+- `npm run test:manual-accessibility` opens the real application in headed Chromium for keyboard, focus, reflow, and actual 100%/200% browser-zoom review.
 
-```bash
-node tests/isolation/phase3d-prerequisite-isolation.test.js
+## Disposable tenant contract
 
-COMPOSE_PROJECT_NAME=mjl-phase3d-prereq-<unique> \
-COMPOSE_FILE="$PWD/docker-compose.yml:<temporary-directory>/docker-compose.override.yml" \
-MJL_BASE_URL=http://127.0.0.1:<free-port> \
-MJL_E2E_TEMP_DIR=<temporary-directory> \
-npx playwright test tests/e2e/phase3d-prerequisite-security.spec.js
-```
+The runner generates a unique Compose project and free non-8080 loopback port. MariaDB and documents use project-scoped named volumes. Repository `custom/`, container test contracts, and the Apache native guard are mounted read-only. Both services use `restart: no`.
 
-The general Playwright configuration uses `MJL_BASE_URL` when set and otherwise
-defaults to `http://127.0.0.1:8080`. The Phase 3D prerequisite spec deliberately
-rejects that default before bootstrap, seed, cleanup, trigger, table-rename, or
-permission mutation.
+Before startup, the resolved Compose configuration rejects:
 
-For that spec, create a dedicated directory with `mktemp -d` outside the
-repository, create its `mariadb/` and `documents/` children, and provide a
-Compose override that:
+- port 8080 or a mismatched base URL;
+- non-unique or mismatched project names;
+- repository data binds, writable application mounts, or unexpected bind sources;
+- external/shared volumes or networks;
+- fixed container names or persistent restart policies;
+- extra services, unapproved host binds, privileged mode, host namespaces,
+  host networking, devices, or non-Dolibarr published ports.
 
-- replaces the MariaDB bind for `/var/lib/mysql` with the temporary `mariadb/`;
-- replaces the Dolibarr bind for `/var/www/documents` with the temporary
-  `documents/`;
-- replaces the published port with the same free port used by
-  `MJL_BASE_URL`;
-- sets `DOLI_URL_ROOT` to exactly the `MJL_BASE_URL` origin; and
-- retains the repository `custom/` and Apache native-guard read-only mounts.
+Bootstrap and sample seeding run once per complete tenant. Normal completion, failure, and interruption run `docker compose down -v --remove-orphans` and verify no labeled containers, networks, or volumes remain.
 
-The project name must begin with `mjl-phase3d-prereq-`.
-`MJL_E2E_TEMP_DIR` must identify the dedicated temporary root, and
-`COMPOSE_FILE` must include both the repository Compose file and the override
-so every child `docker compose` command targets the same disposable project.
-The guard parses `docker compose config --format json` and rejects missing or
-mismatched variables, non-temporary database/document binds, repository
-`data/` binds, port mismatches, and URL-root mismatches.
+Set `MJL_TEST_RETAIN=1` to retain a failed tenant. The runner prints its exact project, URL, storage names, and cleanup command. Playwright output and sanitized Compose diagnostics remain under `test-results/runs/<project>/` independently of tenant teardown.
 
-After the run, use `docker compose down -v` with the exact project name and
-Compose files, then remove only the verified temporary directory.
+## Current container verification
 
-## Schema And Smoke Checks
-
-Run relevant checks after schema, workflow, document, export, or sample-data
-changes:
-
-```bash
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.3.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.4.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.5.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.8.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.9.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_0.10.0.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/acceptance_sample_data.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_scope_model.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_activity_workflow.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_expense_validation.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_traceability_exports.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_integrity_targets.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/smoke_dashboard_partial_failure.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_unresolved_scope.php
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/check_production_readiness.php
-```
-
-## Clean Install Verification
-
-Use this flow to validate module activation and sample fixtures from an empty
-Dolibarr database without touching the repository's persistent `data/` folder:
-
-```bash
-tmpdir="$(mktemp -d)"
-rsync -a --exclude .git --exclude data ./ "$tmpdir/"
-cd "$tmpdir"
-docker compose -p mjl-clean-install up -d
-```
-
-Then run the schema and smoke checks with `docker compose -p
-mjl-clean-install exec -T dolibarr ...`.
-
-Expected audit/smoke results:
+The current-purpose entrypoints are:
 
 ```text
-MJL 0.3.0 schema audit: OK
-MJL 0.4.0 workflow foundation audit: OK
-MJL 0.5.0 activity status audit: OK
-MJL 0.8.0 role/scope schema audit: OK
-MJL 0.9.0 activity workflow schema audit: OK
-MJL 0.10.0 expense disbursement schema audit: OK
-MJL sample data acceptance checks completed.
-MJL 0.8.0 scope model smoke: OK
-MJL expense validation smoke test completed.
-MJL activity workflow smoke test completed.
-MJL traceability/export smoke test completed.
-MJL integrity target smoke: OK
-MJL dashboard partial failure smoke: OK
-MJL unresolved scope audit: OK
+custom/mjlfinancement/scripts/audit_schema_current.php
+custom/mjlfinancement/scripts/verify_sample_data.php
+custom/mjlfinancement/scripts/verify_scope_integrity.php
+custom/mjlfinancement/scripts/verify_activity_workflow.php
+custom/mjlfinancement/scripts/verify_expense_workflow.php
+custom/mjlfinancement/scripts/verify_traceability_exports.php
 ```
 
-`check_production_readiness.php` also reports deployment items that cannot be
-proven from source as `UNKNOWN`, including production email transport, public
-base URL, secrets, backup/restore, and monitoring/log retention.
+`npm run test:verify` is the supported complete invocation. The schema and
+scope entrypoints accept only runner-supplied allowlisted module names so each
+legacy check executes in a separate PHP process without exposing historical
+versioned commands.
 
-Clean up:
+`check_production_readiness.php` remains an operational diagnostic, not a test gate. It may report deployment-dependent `UNKNOWN` values for production email, public URL, secrets, backup/restore, monitoring, and retention.
 
-```bash
-docker compose -p mjl-clean-install down -v
-cd -
-rm -rf "$tmpdir"
-```
+## Blocking capability coverage
 
-## Acceptance Scenarios
+- `access-shell.spec.js`: guarded native boundary, role-projected shell, current location, focus, responsive drawer, reduced motion, and auth helpers.
+- `auth-invitations.spec.js`: invitation lifecycle, neutral reset response, replay/revocation, unsafe targets, and CSRF.
+- `partners-projects.spec.js`: assigned scope, project create/edit permissions, cross-scope denial, and semantic row actions.
+- `activities.spec.js`: creation, scoped references, execution, correction, staged decisions, audit, and no-self behavior.
+- `expenses.spec.js`: documents, submit/correct/reject, prevalidation, final validation, disbursement, exact-one replay, concurrency, and no-self behavior.
+- `finance.spec.js`: authority-backed active-entity and assigned-scope finance references.
+- `documents-audit.spec.js`: contextual uploads/comments, guarded downloads, path/entity/scope denial, read-only aggregates, and audit visibility.
+- `scope-security.spec.js`: representative scope/isolation, safe partial failures, audit-before-download, and export safety.
+- `dashboards-alerts.spec.js`: scoped filters, queues, actionable alerts, safe destinations, and role separation.
+- `reports-exports.spec.js`: access, filters/tampering, CSV/XLSX formats, stable filenames, safe cells, and export auditing.
+- `email-notifications.spec.js`: functional invitation/reset/workflow links and recipients without freezing unapproved production wording.
 
-- Admin can invite users; no public registration is exposed.
-- Admin can assign one production role and one or many Partenaires /
-  Programmes.
-- Non-admin users see only assigned Partenaires / Programmes.
-- Unresolved object scope fails closed for non-admin users.
-- Agent de saisie can create, submit, correct, and attach documents only within
-  assigned scope.
-- Agent verificateur can prevalidate or request correction without
-  self-prevalidation.
-- Validateur definitif can final-validate and disburse without self-final
-  validation or self-disbursement.
-- The self-contained Phase 2 decision seam creates isolated evidence-backed
-  expenses and budget lines, proves exactly one event/effect for
-  prevalidation, rejection, final validation, and disbursement, rejects fresh
-  stale replays, preserves projections after invalid CSRF, and covers all four
-  no-self decisions plus a two-session near-simultaneous final attempt.
-- Phase 2 status tones are asserted from computed solid RGB foreground,
-  background, and border values with alpha-aware contrast. Activity recovery
-  is exact-action bound, and unknown timeline/audit vocabulary renders neutral
-  French presentation labels.
-- The manual keyboard/reflow/contrast/real-browser-zoom evidence in
-  `docs/implementation/mjl-design-system-v2-phase2-manual-accessibility-evidence.md`
-  remains mandatory before the phase-scoped validated verdict.
-- Global Documents is read-only; uploads are contextual; downloads are guarded.
-- A user assigned to exactly one Partenaire / Programme cannot receive
-  validation-history or workflow-audit rows/filter options from another scope;
-  orphaned and unresolved rows fail closed for non-admins, remain visible to
-  Admin for remediation, and cross-entity targets or required parents remain
-  hidden from every role.
-- Convention and fund-receipt downloads recheck parent scope. Denied downloads
-  create no audit event, and audit persistence failure delivers no file.
-- Finance validation feedback links only exact allowlisted field errors;
-  composite errors remain form-level, duplicate/database/timeline/unknown
-  failures use canonical safe wording, and recovery stores no diagnostics.
-- Exchanges are contextual or audit/supervision-only, not primary navigation.
-- CSV exports include UTF-8 BOM, semicolon separator, French headers, stable
-  filenames, and server-side filtering.
-- Dangerous CSV text is neutralized without converting negative money to text;
-  XLSX money cells remain numeric and other exported fields are explicit text.
-- Export generation or audit persistence failure creates no
-  `export_generated` event and delivers no partial file.
+## Manual evidence
+
+The headed accessibility command is intentionally interactive. Record completion or blockers for keyboard order, visible focus, real 100% and 200% zoom, horizontal overflow, form/error usability, navigation, and non-color state meaning. Automated viewport emulation is not accepted as proof of real browser zoom.
