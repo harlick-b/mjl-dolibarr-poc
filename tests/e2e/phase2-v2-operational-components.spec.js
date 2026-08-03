@@ -1419,7 +1419,10 @@ test('activity table retains semantic desktop layout at 1366px/1024px and labele
   await page.goto(createResponse.headers().location);
   await expect(page.getByRole('link', { name: 'Modifier l’activité' })).toBeVisible();
   await expect(page.locator('form[data-mjl-form="activity-update"]')).toHaveCount(0);
+  await expect(page.locator('form[data-mjl-form="activity-execution"]')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Mettre à jour l’exécution' }).click();
   await expect(page.locator('form[data-mjl-form="activity-execution"] #mjl-execution-physical_execution_percent')).toBeVisible();
+  await page.getByRole('link', { name: 'Annuler' }).click();
   await expect(page.locator('form[data-mjl-form="contextual-comment"] #mjl-comment-message')).toBeVisible();
   await page.goto('/custom/mjlfinancement/activities.php');
   const table = page.getByRole('table', { name: 'Activités du périmètre' });

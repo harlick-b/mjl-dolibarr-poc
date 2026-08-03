@@ -223,6 +223,85 @@ test('activity editing uses an authorized dedicated presentation state', async (
   }
 });
 
+test('activity execution uses an authorized dedicated presentation state', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+
+  await login(page, 'agent.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+
+  await expect(page.locator('form[data-mjl-form="activity-execution"]')).toHaveCount(0);
+  const executionAction = page.getByRole('link', { name: 'Mettre à jour l’exécution' });
+  await expect(executionAction).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}&action=update_execution`);
+  await executionAction.click();
+
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${activityId}&action=update_execution$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Mettre à jour l’exécution de l’activité P3D-ACTION-STATE');
+  await expect(page.locator('header.mjl-page-header')).toContainText('Brouillon');
+  const form = page.locator('form[data-mjl-form="activity-execution"]');
+  await expect(form).toBeVisible();
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  await expect(form).toHaveAttribute('data-mjl-validate', '');
+  await expect(form.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}`);
+  for (const width of [390, 768, 1024, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertNoHorizontalOverflow(page, { label: `activity execution state at ${width}px` });
+  }
+});
+
+test('activity execution guards fields and recovery before consumption', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0, physical_execution_percent = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+
+  await login(page, 'superviseur.n1');
+  let denied = await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=update_execution`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="activity-execution"]')).toHaveCount(0);
+  await expect(page.locator('select[name="fk_user_responsible"]')).toHaveCount(0);
+
+  await login(page, 'agent.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=update_execution`);
+  const form = page.locator('form[data-mjl-form="activity-execution"]');
+  const response = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    headers: { Referer: `${process.env.MJL_BASE_URL}/custom/mjlfinancement/activities.php?id=${activityId}&action=update_execution` },
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'update_execution',
+      id: String(activityId),
+      physical_execution_percent: '150',
+      execution_status: 'in_progress',
+      execution_comment: 'Valeur à corriger',
+    },
+    maxRedirects: 0,
+  });
+  const recoveryLocation = response.headers().location || '';
+  expect(response.status()).toBe(302);
+  expect(recoveryLocation).toMatch(new RegExp(`activities\\.php\\?id=${activityId}&action=update_execution&mjl_recovery=[a-f0-9]{32}$`));
+
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 3 WHERE entity = 1 AND rowid = ${activityId}`);
+  denied = await page.goto(recoveryLocation);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="activity-execution"]')).toHaveCount(0);
+
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+  await page.goto(recoveryLocation);
+  await expect(form).toHaveAttribute('data-mjl-recovered', 'true');
+  await expect(form.locator('[data-mjl-error-summary]')).toBeFocused();
+  await expect(form.locator('input[name="physical_execution_percent"]')).toHaveValue('150');
+  await expect(form.locator('input[name="physical_execution_percent"]')).toHaveAttribute('aria-invalid', 'true');
+
+  await page.goto(recoveryLocation);
+  await expect(form).not.toHaveAttribute('data-mjl-recovered', 'true');
+
+  const invalidCsrf = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    headers: { Referer: `${process.env.MJL_BASE_URL}/custom/mjlfinancement/activities.php?id=${activityId}&action=update_execution` },
+    form: { token: 'invalid', action: 'update_execution', id: String(activityId), physical_execution_percent: '42' },
+    maxRedirects: 0,
+  });
+  expect([200, 403]).toContain(invalidCsrf.status());
+  expect(scalar(`SELECT physical_execution_percent FROM llx_mjlfinancement_activity WHERE entity = 1 AND rowid = ${activityId}`)).toBe('0');
+});
+
 test('activity supporting-document upload uses an authorized dedicated presentation state', async ({ page }) => {
   const activityId = seedActivityActionFixture();
   executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);

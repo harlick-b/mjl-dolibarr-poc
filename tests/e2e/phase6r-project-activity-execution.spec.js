@@ -125,7 +125,7 @@ test('P6R project create/edit is allowed for admin and final validator but denie
 
 test('P6R activity options are scoped and mismatched project/convention POST is rejected', async ({ page }) => {
   await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
   await expect(page.locator('select[name="fk_project"]')).toContainText('PRJ-JE-2026');
   await expect(page.locator('select[name="fk_convention"]')).toContainText('CONV-UNICEF-2026-001');
   await page.locator('select[name="fk_project"]').selectOption(scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1"));
@@ -149,11 +149,13 @@ test('P6R update_execution updates only execution fields and writes production a
 
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+  await page.getByRole('link', { name: 'Mettre à jour l’exécution' }).click();
   await page.getByLabel('Execution physique (%)').fill('80');
   await page.locator('select[name="execution_status"]').selectOption('in_progress');
   await page.getByLabel('Commentaire execution').fill('Avancement Phase 6R');
-  await page.getByRole('button', { name: 'Mettre a jour l execution' }).click();
+  await page.getByRole('button', { name: 'Mettre à jour l’exécution' }).click();
 
+  await page.getByRole('link', { name: 'Mettre à jour l’exécution' }).click();
   await expect(page.getByLabel('Execution physique (%)')).toHaveValue('80');
   await expect(page.locator('select[name="execution_status"]')).toHaveValue('in_progress');
   expect(scalar(`SELECT status FROM llx_mjlfinancement_activity WHERE rowid = ${activityId}`)).toBe(beforeStatus);

@@ -557,6 +557,56 @@ Final gates after review remediation:
 No query logic, permission model, workflow transition, schema, export, expense
 creation form, or Dolibarr core file changed.
 
+### Guarded activity execution state
+
+Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:
+
+- moved the multi-field physical-execution form out of default activity detail
+  into the allowlisted same-route `id=<id>&action=update_execution` state;
+- authorized object visibility, active entity, Partenaire / Programme scope,
+  ownership/responsibility, current status, and action availability before
+  consuming exact recovery or loading responsible-user options;
+- retained the existing POST action, Dolibarr token comparison, execution
+  domain method, workflow audit, status isolation, and canonical success
+  destination;
+- returned recoverable failures to the exact execution state with focused,
+  one-use recovery, native validation, first-valid-submit locking, dirty-state
+  warning, and an explicit `Annuler` destination;
+- kept the short submission and correction comment controls contextual and
+  non-substantive.
+
+The browser tracer was captured red while default detail still contained the
+execution form. The first implementation pass exposed Dolibarr's global
+sensitive-GET treatment for action names beginning with `update`; the route now
+uses Dolibarr's documented bootstrap opt-out while preserving its mandatory
+`currentToken()` comparison on every POST. The complete operational suite then
+proved existing token-authenticated POST clients and upload behavior unchanged.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-implementation`
+- URL: `http://127.0.0.1:18101`
+- Temporary root: `/tmp/mjl-phase3d-implementation-UIcPqT`
+- Database and document binds: dedicated children of that temporary root
+
+Focused results:
+
+- Phase 3D operational interactions plus the complete Phase 6R activity
+  execution suite: 41/41 passed;
+- affected Phase 2 responsive activity journey: 1/1 passed;
+- activity-workflow server smoke, changed PHP/JavaScript syntax, and
+  `git diff --check`: passed.
+
+Design-system and security review found no blocking issue: the state reuses the
+page header, breadcrumb, journey summary, form fields, recovery summary,
+substantive-form, cancel, and responsive-shell patterns; unauthorized and stale
+GETs expose no fields, invalid-CSRF POSTs create no effects, and guard-before-
+consume plus one-use recovery are browser-proven. Manual 200% zoom and the full
+repository suite remain deferred to the final Phase 3D.2 gate.
+
+No query semantics, permission model, workflow transition, schema, export,
+document route, or Dolibarr core file changed.
+
 ### Guarded contextual supporting-document upload states
 
 Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:

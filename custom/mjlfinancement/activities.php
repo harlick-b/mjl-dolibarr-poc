@@ -1,5 +1,6 @@
 <?php
 
+define('NOCSRFCHECK', 1); // This route enforces currentToken() on every POST and owns guarded GET action states.
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlconvention.class.php';
@@ -23,7 +24,7 @@ if (!mjl_workspace_can_access_activity($user)) {
 $langs->load('mjlfinancement@mjlfinancement');
 $action = GETPOST('action', 'alpha');
 $activityId = GETPOSTINT('id');
-$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && (in_array($action, array('create', 'edit', 'upload'), true) || in_array($action, mjl_activities_guarded_review_actions(), true)) ? $action : '';
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && (in_array($action, array('create', 'edit', 'update_execution', 'upload'), true) || in_array($action, mjl_activities_guarded_review_actions(), true)) ? $action : '';
 $presentationActivity = array();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -66,6 +67,16 @@ if ($presentationAction === 'create') {
 		mjl_activities_forbidden();
 	}
 	$mjl_activity_recovery = array();
+} elseif ($presentationAction === 'update_execution') {
+	$presentationActivity = mjl_activities_fetch_detail($activityId);
+	if (empty($presentationActivity) || !mjl_activities_can_open($presentationActivity) || !mjl_activities_can_apply_action($presentationActivity, 'update_execution')) {
+		mjl_activities_forbidden();
+	}
+	$mjl_activity_recovery = mjl_form_recovery_consume_route(
+		GETPOST('mjl_recovery', 'alphanohtml'),
+		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'activities', 'object_id' => $activityId),
+		array('execution' => array('update_execution'))
+	);
 } elseif ($presentationAction !== '') {
 	$presentationActivity = mjl_activities_fetch_detail($activityId);
 	if (empty($presentationActivity) || !mjl_activities_can_open($presentationActivity) || !mjl_activities_can_apply_action($presentationActivity, $presentationAction)) {
@@ -94,6 +105,8 @@ if ($presentationAction === 'create') {
 	mjl_activities_render_edit_state($presentationActivity);
 } elseif ($presentationAction === 'upload') {
 	mjl_activities_render_upload_state($presentationActivity);
+} elseif ($presentationAction === 'update_execution') {
+	mjl_activities_render_execution_state($presentationActivity);
 } elseif ($presentationAction !== '') {
 	mjl_activities_render_action_state($presentationActivity, $presentationAction);
 } elseif ($activityId > 0) {
@@ -215,7 +228,7 @@ function mjl_activities_handle_post($action)
 		$handle = mjl_activities_store_recovery_config($action, $id, $errors, $recoveryAliases);
 		setEventMessages(empty($errors) ? mjl_ui_safe_error_message('unknown') : mjl_ui_safe_error_message('validation'), null, 'errors');
 		mjl_ui_log_error('domain', mjl_activities_error_context($action) + array('object_type' => 'activity', 'object_id' => $id), $activity->error);
-		$recoveryState = $action === 'update' ? 'edit' : (in_array($action, mjl_activities_guarded_review_actions(), true) ? $action : '');
+		$recoveryState = $action === 'update' ? 'edit' : ($action === 'update_execution' ? 'update_execution' : (in_array($action, mjl_activities_guarded_review_actions(), true) ? $action : ''));
 		mjl_activities_redirect($id, $handle, $recoveryState);
 	}
 	elseif ($result === 0) setEventMessages('Aucun changement applique', null, 'warnings');
@@ -399,6 +412,24 @@ function mjl_activities_render_upload_state($row)
 	print '<label>Document de l’activité<input required type="file" name="supporting_document"></label>';
 	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter le document"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
 	print '</form></section>';
+}
+
+function mjl_activities_render_execution_state($row)
+{
+	print mjl_page_header_render(
+		'Mettre à jour l’exécution de l’activité '.$row['ref'],
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
+				array('label' => $row['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid'])),
+				array('label' => 'Mettre à jour l’exécution'),
+			),
+			'description' => 'Renseignez l’avancement opérationnel sans modifier l’état du circuit de validation.',
+			'context' => array('label' => 'Statut actuel', 'value' => mjl_activity_status_label($row['status'])),
+		)
+	);
+	mjl_activities_render_summary_card($row);
+	mjl_activities_render_execution_form($row);
 }
 
 function mjl_activities_render_detail($id)
@@ -739,26 +770,35 @@ function mjl_activities_render_decision_form($row, $action, $meta, $withCancel =
 
 function mjl_activities_render_execution_panel($row)
 {
-	$recovery = mjl_activities_recovery_for_action('update_execution');
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Execution physique</h2><p>Avancement operationnel separe des decisions de validation.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Exécution physique</h2><p>Avancement opérationnel séparé des décisions de validation.</p></div>';
 	if (!mjl_activities_can_apply_action($row, 'update_execution')) {
-		print '<div class="mjl-empty-state">Aucune mise a jour execution disponible pour votre role ou l etat actuel.</div>';
+		print '<div class="mjl-empty-state">Aucune mise à jour d’exécution disponible pour votre rôle ou l’état actuel.</div>';
 		print '</section>';
 		return;
 	}
+	print '<a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'&amp;action=update_execution">Mettre à jour l’exécution</a>';
+	print '</section>';
+}
+
+function mjl_activities_render_execution_form($row)
+{
+	$recovery = mjl_activities_recovery_for_action('update_execution');
+	$isRecovered = !empty($recovery['recovered']);
+	print '<section class="mjl-workspace-section mjl-activity-card">';
+	print '<div class="mjl-section-heading"><h2>Exécution physique</h2><p>Avancement opérationnel séparé des décisions de validation.</p></div>';
 	$responsibleOptions = mjl_activities_options('responsible');
 	$prefix = 'mjl-execution-';
-	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-execution">';
+	print '<form class="mjl-activity-form" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-validate data-mjl-form="activity-execution" data-mjl-substantive'.($isRecovered ? ' data-mjl-recovered="true"' : '').'>';
 	print mjl_activities_token_input().'<input type="hidden" name="action" value="update_execution"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-	print '<div data-mjl-form-errors>'.mjl_form_error_summary($recovery['errors'], 'Corrigez les champs indiqués', $prefix).'</div>';
+	print '<div data-mjl-form-errors>'.mjl_form_error_summary($recovery['errors'], 'Corrigez les champs indiqués', $prefix, $isRecovered).'</div>';
 	print mjl_form_field('fk_user_responsible', 'Responsable', mjl_activities_select('fk_user_responsible', $responsibleOptions, 0, 'Créateur par défaut', (int) ($recovery['values']['fk_user_responsible'] ?? $row['fk_user_responsible'])), false, '', $recovery['errors']['fk_user_responsible'] ?? '', $prefix);
 	print mjl_form_field('date_actual_start', 'Début réel', '<input type="date" name="date_actual_start" value="'.dol_escape_htmltag($recovery['values']['date_actual_start'] ?? substr((string) $row['date_actual_start'], 0, 10)).'">', false, '', $recovery['errors']['date_actual_start'] ?? '', $prefix);
 	print mjl_form_field('date_actual_end', 'Fin réelle', '<input type="date" name="date_actual_end" value="'.dol_escape_htmltag($recovery['values']['date_actual_end'] ?? substr((string) $row['date_actual_end'], 0, 10)).'">', false, '', $recovery['errors']['date_actual_end'] ?? '', $prefix);
 	print mjl_form_field('physical_execution_percent', 'Exécution physique (%)', '<input type="number" min="0" max="100" name="physical_execution_percent" aria-label="Execution physique (%)" value="'.dol_escape_htmltag($recovery['values']['physical_execution_percent'] ?? (string) $row['physical_execution_percent']).'">', false, '', $recovery['errors']['physical_execution_percent'] ?? '', $prefix);
 	print mjl_form_field('execution_status', 'Statut d’exécution', mjl_activities_execution_status_select('execution_status', $recovery['values']['execution_status'] ?? (string) $row['execution_status']), false, '', $recovery['errors']['execution_status'] ?? '', $prefix);
 	print mjl_form_field('execution_comment', 'Commentaire d’exécution', '<textarea name="execution_comment" aria-label="Commentaire execution">'.dol_escape_htmltag($recovery['values']['execution_comment'] ?? $row['execution_comment']).'</textarea>', false, '', $recovery['errors']['execution_comment'] ?? '', $prefix);
-	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Mettre a jour l execution"></div>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Mettre à jour l’exécution"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
 	print '</form>';
 	print '</section>';
 }
