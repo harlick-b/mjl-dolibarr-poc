@@ -138,6 +138,7 @@ test('Activity creator uploads and downloads a direct activity document', async 
   await expect(page.getByRole('heading', { name: 'Documents de l activite' })).toBeVisible();
   await expect(page.getByText('Manquante').first()).toBeVisible();
 
+  await page.getByRole('link', { name: 'Ajouter un document' }).click();
   await page.setInputFiles('input[name="supporting_document"]', tmpFile);
   await page.getByRole('button', { name: 'Ajouter le document' }).click();
   await expect(page.getByText('Disponible').first()).toBeVisible();
@@ -156,6 +157,7 @@ test('DPAF uploads and downloads an activity document without activity write', a
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+  await page.getByRole('link', { name: 'Ajouter un document' }).click();
   await page.setInputFiles('input[name="supporting_document"]', tmpFile);
   await page.getByRole('button', { name: 'Ajouter le document' }).click();
   await expect(page.getByText('Disponible').first()).toBeVisible();

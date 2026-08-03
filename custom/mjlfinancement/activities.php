@@ -23,7 +23,7 @@ if (!mjl_workspace_can_access_activity($user)) {
 $langs->load('mjlfinancement@mjlfinancement');
 $action = GETPOST('action', 'alpha');
 $activityId = GETPOSTINT('id');
-$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && (in_array($action, array('create', 'edit'), true) || in_array($action, mjl_activities_guarded_review_actions(), true)) ? $action : '';
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && (in_array($action, array('create', 'edit', 'upload'), true) || in_array($action, mjl_activities_guarded_review_actions(), true)) ? $action : '';
 $presentationActivity = array();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $mjl_activities_page_token = function_exists('newToken') ? newToken() : '';
+$mjl_activity_document_state = GETPOST('mjl_document_state', 'alphanohtml');
 if ($presentationAction === 'create') {
 	if ($activityId !== 0 || !mjl_workspace_can_apply_activity_write($user)) {
 		mjl_activities_forbidden();
@@ -59,6 +60,12 @@ if ($presentationAction === 'create') {
 		array('user_id' => (int) $user->id, 'entity' => (int) $conf->entity, 'route' => 'activities', 'object_id' => $activityId),
 		array('correction' => array('update'))
 	);
+} elseif ($presentationAction === 'upload') {
+	$presentationActivity = mjl_activities_fetch_detail($activityId);
+	if (empty($presentationActivity) || !mjl_activities_can_open($presentationActivity) || !mjl_activities_can_apply_action($presentationActivity, 'upload')) {
+		mjl_activities_forbidden();
+	}
+	$mjl_activity_recovery = array();
 } elseif ($presentationAction !== '') {
 	$presentationActivity = mjl_activities_fetch_detail($activityId);
 	if (empty($presentationActivity) || !mjl_activities_can_open($presentationActivity) || !mjl_activities_can_apply_action($presentationActivity, $presentationAction)) {
@@ -85,6 +92,8 @@ if ($presentationAction === 'create') {
 	mjl_activities_render_create_state();
 } elseif ($presentationAction === 'edit') {
 	mjl_activities_render_edit_state($presentationActivity);
+} elseif ($presentationAction === 'upload') {
+	mjl_activities_render_upload_state($presentationActivity);
 } elseif ($presentationAction !== '') {
 	mjl_activities_render_action_state($presentationActivity, $presentationAction);
 } elseif ($activityId > 0) {
@@ -195,6 +204,11 @@ function mjl_activities_handle_post($action)
 
 	if ($result < 0) {
 		$errors = mjl_form_translate_domain_error($activity->error);
+		if ($action === 'upload') {
+			setEventMessages(mjl_ui_safe_error_message('validation'), null, 'errors');
+			mjl_ui_log_error('domain', mjl_activities_error_context($action) + array('object_type' => 'activity', 'object_id' => $id), $activity->error);
+			mjl_activities_redirect($id, '', 'upload', 'upload-failed');
+		}
 		$recoveryAliases = $action === 'update'
 			? mjl_activity_recovery_validated_update_aliases(GETPOSTINT('fk_user_responsible'), mjl_activities_options('responsible'))
 			: array();
@@ -361,6 +375,30 @@ function mjl_activities_render_edit_state($row)
 		)
 	);
 	mjl_activities_render_update_form($row);
+}
+
+function mjl_activities_render_upload_state($row)
+{
+	$title = 'Ajouter un document à l’activité '.$row['ref'];
+	print mjl_page_header_render(
+		$title,
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
+				array('label' => $row['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid'])),
+				array('label' => 'Ajouter un document'),
+			),
+			'description' => 'Ajoutez un document opérationnel à cette activité. Il restera accessible uniquement par le téléchargement MJL gardé.',
+			'context' => array('label' => 'Statut actuel', 'value' => mjl_activity_status_label($row['status'])),
+		)
+	);
+	mjl_activities_render_activity_document_panel($row, false);
+	print '<section class="mjl-workspace-section mjl-activity-card"><div class="mjl-section-heading"><h2>Document à ajouter</h2><p>Sélectionnez le fichier justificatif associé à cette activité.</p></div>';
+	print '<form class="mjl-activity-action-form" enctype="multipart/form-data" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-form="activity-upload" data-mjl-substantive>';
+	print mjl_activities_token_input().'<input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<label>Document de l’activité<input required type="file" name="supporting_document"></label>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter le document"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
+	print '</form></section>';
 }
 
 function mjl_activities_render_detail($id)
@@ -749,9 +787,10 @@ function mjl_activities_render_document_checklist($activityId)
 	print '</section>';
 }
 
-function mjl_activities_render_activity_document_panel($row)
+function mjl_activities_render_activity_document_panel($row, $withUploadAction = true)
 {
 	$state = mjl_activity_evidence_state((int) $row['rowid'], (int) $row['entity']);
+	if (($GLOBALS['mjl_activity_document_state'] ?? '') === 'upload-failed' && mjl_activities_can_apply_action($row, 'upload')) $state = 'upload-failed';
 	$documents = mjl_activity_document_download_rows((int) $row['rowid']);
 	$modelDocuments = array();
 	foreach ($documents as $document) $modelDocuments[] = array('label' => mjl_activity_document_display_filename($document), 'url' => '/custom/mjlfinancement/documentdownload.php?type=activity&id='.((int) $document['rowid']));
@@ -762,14 +801,8 @@ function mjl_activities_render_activity_document_panel($row)
 		'state_label' => mjl_activities_evidence_label($state),
 		'documents' => $modelDocuments,
 	));
-	if (mjl_activities_can_apply_action($row, 'upload')) {
-		print '<section class="mjl-workspace-section mjl-activity-card"><div class="mjl-section-heading"><h2>Ajouter un document</h2><p>Ajout contextuel à cette activité.</p></div>';
-		print '<form class="mjl-activity-action-form" enctype="multipart/form-data" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
-		print mjl_activities_token_input().'<input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print '<label>Document activite<input required type="file" name="supporting_document"></label>';
-		print '<input class="button" type="submit" value="Ajouter le document">';
-		print '</form>';
-		print '</section>';
+	if ($withUploadAction && mjl_activities_can_apply_action($row, 'upload')) {
+		print '<p><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'&amp;action=upload">Ajouter un document</a></p>';
 	}
 }
 
@@ -1166,6 +1199,7 @@ function mjl_activities_timeline_title($action, $fromStatus, $toStatus)
 function mjl_activities_evidence_label($state)
 {
 	if ($state === 'downloadable') return 'Disponible';
+	if ($state === 'upload-failed') return 'Échec de l’ajout';
 	if ($state === 'unavailable') return 'Référence indisponible';
 	return 'Manquante';
 }
@@ -1288,13 +1322,14 @@ function mjl_activities_store_recovery($form, $action, $objectId, $allowedFields
 	return $handle;
 }
 
-function mjl_activities_redirect($id, $recoveryHandle = '', $presentationAction = '')
+function mjl_activities_redirect($id, $recoveryHandle = '', $presentationAction = '', $documentState = '')
 {
 	$url = DOL_URL_ROOT.'/custom/mjlfinancement/activities.php';
 	$query = array();
 	if ((int) $id > 0) $query['id'] = (int) $id;
 	if ((string) $presentationAction !== '') $query['action'] = (string) $presentationAction;
 	if ((string) $recoveryHandle !== '') $query['mjl_recovery'] = (string) $recoveryHandle;
+	if (in_array((string) $documentState, array('upload-failed'), true)) $query['mjl_document_state'] = (string) $documentState;
 	if (!empty($query)) $url .= '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 	header('Location: '.$url);
 	exit;

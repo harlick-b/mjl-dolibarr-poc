@@ -23,7 +23,7 @@ if (!mjl_workspace_can_access_expense($user)) {
 $langs->load('mjlfinancement@mjlfinancement');
 $action = GETPOST('action', 'alpha');
 $expenseId = GETPOSTINT('id');
-$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && in_array($action, mjl_expenses_guarded_review_actions(), true) ? $action : '';
+$presentationAction = $_SERVER['REQUEST_METHOD'] === 'GET' && ($action === 'upload' || in_array($action, mjl_expenses_guarded_review_actions(), true)) ? $action : '';
 $presentationExpense = array();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -44,7 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $mjl_expenses_page_token = function_exists('newToken') ? newToken() : '';
 $mjl_expense_document_state = GETPOST('mjl_document_state', 'alphanohtml');
-if ($presentationAction !== '') {
+if ($presentationAction === 'upload') {
+	$presentationExpense = mjl_expenses_fetch_detail($expenseId);
+	if (empty($presentationExpense) || !mjl_expenses_can_open($presentationExpense) || !mjl_expenses_can_apply_action($presentationExpense, 'upload')) {
+		mjl_expenses_forbidden();
+	}
+	$mjl_expense_recovery = array();
+} elseif ($presentationAction !== '') {
 	$presentationExpense = mjl_expenses_fetch_detail($expenseId);
 	if (empty($presentationExpense) || !mjl_expenses_can_open($presentationExpense) || !mjl_expenses_can_apply_action($presentationExpense, $presentationAction)) {
 		mjl_expenses_forbidden();
@@ -67,7 +73,9 @@ llxHeader('', 'Depenses MJL');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace mjl-expense-workspace">';
 
-if ($presentationAction !== '') {
+if ($presentationAction === 'upload') {
+	mjl_expenses_render_upload_state($presentationExpense);
+} elseif ($presentationAction !== '') {
 	mjl_expenses_render_action_state($presentationExpense, $presentationAction);
 } elseif ($expenseId > 0) {
 	mjl_expenses_render_detail($expenseId);
@@ -171,7 +179,7 @@ function mjl_expenses_handle_post($action)
 		if (empty($errors)) $errors = array('_form' => mjl_ui_safe_error_message('unknown'));
 		setEventMessages(!empty($errors) ? reset($errors) : mjl_ui_safe_error_message('unknown'), null, 'errors');
 		mjl_ui_log_error('domain', array('route' => 'expenses', 'action' => $action, 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id, 'object_type' => 'expense', 'object_id' => $id), $expense->error);
-		if ($action === 'upload') mjl_expenses_redirect($id, '', 'upload-failed');
+		if ($action === 'upload') mjl_expenses_redirect($id, '', 'upload-failed', 'upload');
 		$handle = mjl_expenses_store_recovery_config($action, $id, $errors);
 		mjl_expenses_redirect($id, $handle, '', in_array($action, mjl_expenses_guarded_review_actions(), true) ? $action : '');
 	}
@@ -427,6 +435,30 @@ function mjl_expenses_render_action_state($row, $action)
 	print '<div class="mjl-section-heading"><h2>'.dol_escape_htmltag($actions[$action]['label']).'</h2><p>Cette décision conserve les contrôles de rôle, de périmètre, de justificatif et d’état de la dépense.</p></div>';
 	mjl_expenses_render_decision_form($row, $action, $actions[$action], true);
 	print '</section>';
+}
+
+function mjl_expenses_render_upload_state($row)
+{
+	$title = 'Ajouter une pièce justificative à la dépense '.$row['ref'];
+	print mjl_page_header_render(
+		$title,
+		array(
+			'breadcrumb' => array(
+				array('label' => 'Dépenses', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php'),
+				array('label' => $row['ref'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid'])),
+				array('label' => 'Ajouter une pièce justificative'),
+			),
+			'description' => 'Ajoutez la pièce requise pour documenter cette dépense. Elle restera accessible uniquement par le téléchargement MJL gardé.',
+			'context' => array('label' => 'Statut actuel', 'value' => mjl_expenses_status_label($row['status'])),
+		)
+	);
+	mjl_expenses_render_document_panel($row, false);
+	print '<section class="mjl-workspace-section mjl-activity-card"><div class="mjl-section-heading"><h2>Pièce à ajouter</h2><p>Sélectionnez le fichier justificatif associé à cette dépense.</p></div>';
+	print '<form class="mjl-activity-action-form" enctype="multipart/form-data" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'" data-mjl-form="expense-upload" data-mjl-substantive>';
+	print mjl_expenses_token_input().'<input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
+	print '<label>Pièce justificative<input required type="file" name="supporting_document"></label>';
+	print '<div class="mjl-activity-form-actions"><input class="button" type="submit" value="Ajouter la pièce"><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']).'">Annuler</a></div>';
+	print '</form></section>';
 }
 
 function mjl_expenses_create_form()
@@ -710,7 +742,7 @@ function mjl_expenses_decision_consequence($action)
 	return '';
 }
 
-function mjl_expenses_render_document_panel($row)
+function mjl_expenses_render_document_panel($row, $withUploadAction = true)
 {
 	$state = $row['evidence_state'] ?? ((int) $row['document_present'] > 0 ? 'downloadable' : 'missing');
 	if (($GLOBALS['mjl_expense_document_state'] ?? '') === 'upload-failed' && mjl_expenses_can_apply_action($row, 'upload')) $state = 'upload-failed';
@@ -737,14 +769,8 @@ function mjl_expenses_render_document_panel($row)
 		'documents' => $modelDocuments,
 		'link_label' => 'Télécharger la pièce',
 	));
-	if (mjl_expenses_can_apply_action($row, 'upload')) {
-		print '<section class="mjl-workspace-section mjl-activity-card"><div class="mjl-section-heading"><h2>Ajouter une piece justificative</h2><p>Ajout contextuel à cette dépense.</p></div>';
-		print '<form class="mjl-activity-action-form" enctype="multipart/form-data" method="POST" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'?id='.((int) $row['rowid']).'">';
-		print mjl_expenses_token_input().'<input type="hidden" name="action" value="upload"><input type="hidden" name="id" value="'.((int) $row['rowid']).'">';
-		print '<label>Piece justificative<input required type="file" name="supporting_document"></label>';
-		print '<input class="button" type="submit" value="Ajouter la piece">';
-		print '</form>';
-		print '</section>';
+	if ($withUploadAction && mjl_expenses_can_apply_action($row, 'upload')) {
+		print '<p><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']).'&amp;action=upload">Ajouter une pièce justificative</a></p>';
 	}
 }
 

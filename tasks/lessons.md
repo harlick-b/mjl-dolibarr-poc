@@ -67,3 +67,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   derive them server-side after authorization, never fall back to same-named
   request fields, and revalidate them against current scoped options before
   rendering. Cover both valid retention and request-injected aliases.
+- A legacy E2E suite that bootstraps, seeds, cleans up, or changes document
+  ownership must call the disposable Compose verifier before its first
+  mutation. Supplying temporary environment variables during one run is not a
+  safety boundary for future direct invocations.

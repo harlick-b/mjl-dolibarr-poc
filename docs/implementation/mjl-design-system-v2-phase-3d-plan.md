@@ -557,6 +557,85 @@ Final gates after review remediation:
 No query logic, permission model, workflow transition, schema, export, expense
 creation form, or Dolibarr core file changed.
 
+### Guarded contextual supporting-document upload states
+
+Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:
+
+- moved activity and expense upload forms out of their default detail pages
+  into allowlisted same-route `id=<id>&action=upload` states;
+- retained the existing multipart POST `action=upload`, Dolibarr CSRF token,
+  entity/scope/ownership/status guards, ECM writes, audit writes, successful
+  detail redirect, and guarded download routes;
+- authorized the object and current upload action before rendering the file
+  field, and denied wrong-role direct GET requests without exposing it;
+- returned failed uploads to the same guarded state with the established
+  persistent `upload-failed` document state and no recovery handle, because
+  browsers cannot safely restore file selections;
+- replaced each inline form with one explicit contextual action link and added
+  a dedicated substantive form with native required-file validation and an
+  explicit cancel link to canonical detail;
+- kept the global Documents route read-only and left expense creation, query
+  logic, permissions, workflows, schemas, and exports unchanged.
+
+The activity tracer was captured red because the default detail still exposed
+the inline form and no upload-state link. It passed after the activity state
+was introduced. The repeated expense tracer failed at the same missing-link
+seam and passed after the expense state adopted the pattern.
+
+Disposable verification environment:
+
+- Compose project: `mjl-phase3d-prereq-upload-states`
+- URL: `http://127.0.0.1:18090`
+- Temporary root: `/tmp/mjl-phase3d-upload-I2LwS5`
+- Database and document binds: dedicated children of that temporary root
+
+Final focused results:
+
+- complete Phase 3D operational suite, including both upload states,
+  wrong-role denial, failure return without recovery, and overflow at 390,
+  768, 1024, and 1366 pixels: 34/34 passed;
+- complete activity/convention document suite, covering owner and supervision
+  uploads, guarded downloads, active-entity/object/path rejection, document
+  states, and audit/report presentation: 8/8 passed;
+- complete expense workflow/document/scope suite: 10/10 passed;
+- exact activity action-isolation and no-upload-recovery regression: 1/1
+  passed;
+- scope-model, activity-workflow, and expense-validation server smokes:
+  passed;
+- changed PHP and JavaScript syntax checks and `git diff --check`: passed.
+
+The first isolated Phase 11 upload attempt failed because its fixture recreated
+the expense document directory as root-owned `0755`. After ownership was
+corrected only inside the verified disposable bind, the unchanged journey
+passed. The Phase 11 suite now refuses mutation unless the shared disposable-
+environment verifier confirms its project, URL, and bind paths, then assigns
+only those document directories to `www-data` with mode `0770`.
+
+The complete repository Playwright suite and manual 200% zoom/assistive-
+technology matrix were not rerun. The selected suites cover the changed
+routes, real file storage, audit writes, guarded downloads, workflow handoff,
+scope/status guards, failure behavior, and responsive layout.
+
+Final gates:
+
+- design-system gate: passed; both routes reuse the page-header, breadcrumb,
+  document-state, contextual-action, substantive-form, and explicit-cancel
+  patterns with French-first labels;
+- security baseline: passed; direct GET denial is proven before file-field
+  exposure, while the existing POST CSRF, entity/scope/ownership/status, ECM,
+  audit, and guarded-download controls remain authoritative;
+- full-feature validation: passed for the contextual-upload slice; browser,
+  server-smoke, syntax, documentation, real upload/download, audit, failure,
+  and responsive evidence are present, with the complete-suite/manual-matrix
+  limitations stated above;
+- final two-axis code review: Spec passed with no findings. Standards passed
+  after the Phase 11 fixture was guarded by the disposable-environment verifier
+  and its document directories were restricted to `www-data` with mode `0770`;
+  one optional low-risk duplicated presentation-shape judgement call remains.
+
+No query logic, permission model, workflow transition, schema, export, expense
+creation form, or Dolibarr core file changed.
+
 ### Guarded activity creation and editing states
 
 Implemented on 2026-08-03 as the next Workstream 3D.2 tracer slice:

@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 const fs = require('fs');
+const { verifyDisposableComposeEnvironment } = require('../helpers/phase3d-prerequisite-isolation');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 let ownDraftId = 0;
@@ -153,7 +154,7 @@ function seedPhase11Fixtures() {
 }
 
 function seedPhase11Files() {
-  dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense /var/www/documents/ecm/mjlfinancement_fund_receipt && printf "%s" "Phase 11 submitted document" > /var/www/documents/ecm/mjlfinancement_expense/P11-SUBMITTED-DOC.pdf && printf "%s" "Phase 11 correction document" > /var/www/documents/ecm/mjlfinancement_expense/P11-CORRECTION.pdf && printf "%s" "Phase 11 self submitted document" > /var/www/documents/ecm/mjlfinancement_expense/P11-SELF-SUBMITTED.pdf && printf "%s" "Phase 11 ECM only document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ECM-ONLY.pdf && printf "%s" "Phase 11 other owned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-OTHER-OWNED.txt && printf "%s" "Phase 11 cross entity document" > /var/www/documents/ecm/mjlfinancement_expense/P11-CROSS-ENTITY.txt && printf "%s" "Phase 11 fund receipt document" > /var/www/documents/ecm/mjlfinancement_fund_receipt/P11-FUND-RECEIPT.txt && printf "%s" "Phase 11 orphan document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ORPHAN.txt && printf "%s" "Phase 11 poisoned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-POISON.txt\'');
+  dockerExec('dolibarr sh -lc \'mkdir -p /var/www/documents/ecm/mjlfinancement_expense /var/www/documents/ecm/mjlfinancement_fund_receipt && chown 33:33 /var/www/documents/ecm/mjlfinancement_expense /var/www/documents/ecm/mjlfinancement_fund_receipt && chmod 0770 /var/www/documents/ecm/mjlfinancement_expense /var/www/documents/ecm/mjlfinancement_fund_receipt && printf "%s" "Phase 11 submitted document" > /var/www/documents/ecm/mjlfinancement_expense/P11-SUBMITTED-DOC.pdf && printf "%s" "Phase 11 correction document" > /var/www/documents/ecm/mjlfinancement_expense/P11-CORRECTION.pdf && printf "%s" "Phase 11 self submitted document" > /var/www/documents/ecm/mjlfinancement_expense/P11-SELF-SUBMITTED.pdf && printf "%s" "Phase 11 ECM only document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ECM-ONLY.pdf && printf "%s" "Phase 11 other owned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-OTHER-OWNED.txt && printf "%s" "Phase 11 cross entity document" > /var/www/documents/ecm/mjlfinancement_expense/P11-CROSS-ENTITY.txt && printf "%s" "Phase 11 fund receipt document" > /var/www/documents/ecm/mjlfinancement_fund_receipt/P11-FUND-RECEIPT.txt && printf "%s" "Phase 11 orphan document" > /var/www/documents/ecm/mjlfinancement_expense/P11-ORPHAN.txt && printf "%s" "Phase 11 poisoned document" > /var/www/documents/ecm/mjlfinancement_expense/P11-POISON.txt\'');
 }
 
 async function expectDownloadResponse(page, href, expectedText) {
@@ -169,6 +170,7 @@ async function expectForbiddenDownload(page, fileId) {
 }
 
 test.beforeAll(() => {
+  verifyDisposableComposeEnvironment();
   dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php');
   dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php');
   cleanupPhase11Fixtures();
@@ -191,8 +193,9 @@ test('Level 1 opens own expense detail, uploads document, submits, and loses mis
   await expect(page.getByText('Piece manquante').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Historique de decision' })).toBeVisible();
 
+  await page.getByRole('link', { name: 'Ajouter une pièce justificative' }).click();
   await page.setInputFiles('input[name="supporting_document"]', '/tmp/p11-supporting-document.txt');
-  await page.getByRole('button', { name: 'Ajouter la piece' }).click();
+  await page.getByRole('button', { name: 'Ajouter la pièce' }).click();
   await expect(page.getByText('Piece disponible').first()).toBeVisible();
   const uploadedHref = await page.getByRole('link', { name: 'Télécharger la pièce' }).first().getAttribute('href');
   expect(uploadedHref).toBeTruthy();

@@ -126,6 +126,11 @@ Those references are current-state/code debt, not target behavior.
   action state. Failed decision recovery returns to that guarded state; the
   original POST action names, CSRF checks, scope/role/status guards, actor
   separation, and workflow methods remain unchanged.
+- Activity and expense supporting-document uploads leave their default detail
+  for guarded same-route `action=upload` states. The existing multipart POST,
+  CSRF, entity/scope/ownership/status checks, ECM persistence, audit writes,
+  and guarded downloads remain unchanged; failed uploads return to the same
+  state without creating a recovery handle.
 - Expense creation, correction, decision, and contextual-comment domain
   failures use the same bounded one-use recovery mechanism with an
   expense-specific exact action/field registry. Upload, security, stale,

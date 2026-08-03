@@ -223,6 +223,108 @@ test('activity editing uses an authorized dedicated presentation state', async (
   }
 });
 
+test('activity supporting-document upload uses an authorized dedicated presentation state', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+  await login(page, 'agent.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
+
+  await expect(page.locator('form[data-mjl-form="activity-upload"]')).toHaveCount(0);
+  const uploadAction = page.getByRole('link', { name: 'Ajouter un document' });
+  await expect(uploadAction).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}&action=upload`);
+  await uploadAction.click();
+
+  await expect(page).toHaveURL(new RegExp(`activities\\.php\\?id=${activityId}&action=upload$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Ajouter un document à l’activité P3D-ACTION-STATE');
+  await expect(page.locator('header.mjl-page-header')).toContainText('Brouillon');
+  const form = page.locator('form[data-mjl-form="activity-upload"]');
+  await expect(form).toBeVisible();
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  await expect(form.locator('input[name="supporting_document"]')).toHaveAttribute('required', '');
+  await expect(form.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', `/custom/mjlfinancement/activities.php?id=${activityId}`);
+  for (const width of [390, 768, 1024, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertNoHorizontalOverflow(page, { label: `activity document upload state at ${width}px` });
+  }
+});
+
+test('expense supporting-document upload uses an authorized dedicated presentation state', async ({ page }) => {
+  restoreExpenseDecisionSample();
+  const expenseId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
+  await login(page, 'agent.mjl');
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}`);
+
+  await expect(page.locator('form[data-mjl-form="expense-upload"]')).toHaveCount(0);
+  const uploadAction = page.getByRole('link', { name: 'Ajouter une pièce justificative' });
+  await expect(uploadAction).toHaveAttribute('href', `/custom/mjlfinancement/expenses.php?id=${expenseId}&action=upload`);
+  await uploadAction.click();
+
+  await expect(page).toHaveURL(new RegExp(`expenses\\.php\\?id=${expenseId}&action=upload$`));
+  await expect(page.locator('header.mjl-page-header h1')).toHaveText('Ajouter une pièce justificative à la dépense EXP-JE-002');
+  await expect(page.locator('header.mjl-page-header')).toContainText('Soumise');
+  const form = page.locator('form[data-mjl-form="expense-upload"]');
+  await expect(form).toBeVisible();
+  await expect(form).toHaveAttribute('data-mjl-substantive', '');
+  await expect(form.locator('input[name="supporting_document"]')).toHaveAttribute('required', '');
+  await expect(form.getByRole('link', { name: 'Annuler' })).toHaveAttribute('href', `/custom/mjlfinancement/expenses.php?id=${expenseId}`);
+  for (const width of [390, 768, 1024, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertNoHorizontalOverflow(page, { label: `expense document upload state at ${width}px` });
+  }
+});
+
+test('supporting-document upload states deny the wrong role and retain failures without recovery handles', async ({ page }) => {
+  const activityId = seedActivityActionFixture();
+  executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
+  restoreExpenseDecisionSample();
+  const expenseId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_expense WHERE ref = 'EXP-JE-002' AND entity = 1 LIMIT 1"));
+
+  await login(page, 'superviseur.n1');
+  let denied = await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=upload`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="activity-upload"]')).toHaveCount(0);
+  await expect(page.locator('input[name="supporting_document"]')).toHaveCount(0);
+  denied = await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}&action=upload`);
+  expect([200, 403]).toContain(denied.status());
+  await expect(page.locator('form[data-mjl-form="expense-upload"]')).toHaveCount(0);
+  await expect(page.locator('input[name="supporting_document"]')).toHaveCount(0);
+
+  await login(page, 'agent.mjl');
+  await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}&action=upload`);
+  let form = page.locator('form[data-mjl-form="activity-upload"]');
+  let response = await page.request.post(`/custom/mjlfinancement/activities.php?id=${activityId}`, {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'upload',
+      id: String(activityId),
+    },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  expect(response.headers().location || '').toMatch(new RegExp(`activities\\.php\\?id=${activityId}&action=upload&mjl_document_state=upload-failed$`));
+  expect(response.headers().location || '').not.toContain('mjl_recovery=');
+  await page.goto(response.headers().location);
+  await expect(page.locator('form[data-mjl-form="activity-upload"]')).toBeVisible();
+  await expect(page.getByText('Échec de l’ajout').first()).toBeVisible();
+
+  await page.goto(`/custom/mjlfinancement/expenses.php?id=${expenseId}&action=upload`);
+  form = page.locator('form[data-mjl-form="expense-upload"]');
+  response = await page.request.post(`/custom/mjlfinancement/expenses.php?id=${expenseId}`, {
+    form: {
+      token: await form.locator('input[name="token"]').inputValue(),
+      action: 'upload',
+      id: String(expenseId),
+    },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  expect(response.headers().location || '').toMatch(new RegExp(`expenses\\.php\\?id=${expenseId}&action=upload&mjl_document_state=upload-failed$`));
+  expect(response.headers().location || '').not.toContain('mjl_recovery=');
+  await page.goto(response.headers().location);
+  await expect(page.locator('form[data-mjl-form="expense-upload"]')).toBeVisible();
+  await expect(page.getByText('Échec de l ajout').first()).toBeVisible();
+});
+
 test('activity create and edit presentation guards deny the wrong role before rendering options', async ({ page }) => {
   const activityId = seedActivityActionFixture();
   executeSql(`UPDATE llx_mjlfinancement_activity SET status = 0 WHERE entity = 1 AND rowid = ${activityId}`);
