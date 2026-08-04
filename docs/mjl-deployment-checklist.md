@@ -69,8 +69,8 @@ Target decisions come from `docs/mjl-authoritative-decisions.md`.
   the MJL 403 page in the browser.
 - Native module maintenance is an operator/bootstrap task, not a browser
   workflow in the MJL workspace.
-- Confirm project creation/editing is available inside MJL only for Admin
-  plateforme and Validateur definitif.
+- Confirm project creation/editing is available inside MJL only for
+  Administrateur plateforme and Validateur définitif.
 - Confirm documents are stored in ECM, not publicly exposed, and downloaded
   through `/custom/mjlfinancement/documentdownload.php`.
 - Confirm CSV/XLSX exports are server-filtered and French-labeled.

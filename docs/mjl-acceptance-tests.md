@@ -63,12 +63,18 @@ versioned commands.
 - `access-shell.spec.js`: guarded native boundary, role-projected shell, current location, focus, responsive drawer, reduced motion, and auth helpers.
 - `auth-invitations.spec.js`: invitation lifecycle, neutral reset response, replay/revocation, unsafe targets, and CSRF.
 - `partners-projects.spec.js`: assigned scope, project create/edit permissions, cross-scope denial, and semantic row actions.
-- `activities.spec.js`: creation, scoped references, execution, correction, staged decisions, audit, and no-self behavior.
-- `expenses.spec.js`: documents, submit/correct/reject, prevalidation, final validation, disbursement, exact-one replay, concurrency, and no-self behavior.
+- `activities.spec.js`: creation, scoped references, JavaScript-free recovery,
+  execution, unavailable aggregate sources, correction, staged decisions,
+  audit, and no-self behavior.
+- `expenses.spec.js`: validation-versus-technical create recovery without
+  diagnostic leakage, documents, submit/correct/reject, prevalidation, final
+  validation, disbursement, exact-one replay, concurrency, and no-self behavior.
 - `finance.spec.js`: authority-backed active-entity and assigned-scope finance references.
 - `documents-audit.spec.js`: contextual uploads/comments, guarded downloads, path/entity/scope denial, read-only aggregates, and audit visibility.
 - `scope-security.spec.js`: representative scope/isolation, safe partial failures, audit-before-download, and export safety.
-- `dashboards-alerts.spec.js`: scoped filters, queues, actionable alerts, safe destinations, and role separation.
+- `dashboards-alerts.spec.js`: raw-condition scoped filters and queues,
+  workflow-specific actionable alerts, partner-card convergence, 390-pixel
+  containment, safe destinations, and role separation.
 - `reports-exports.spec.js`: access, filters/tampering, CSV/XLSX formats, stable filenames, safe cells, and export auditing.
 - `email-notifications.spec.js`: functional invitation/reset/workflow links and recipients without freezing unapproved production wording.
 

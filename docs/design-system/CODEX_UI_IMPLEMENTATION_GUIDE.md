@@ -15,7 +15,7 @@ Define the required execution sequence for future Codex work affecting app UI, a
 
 - Dolibarr core files must not be modified.
 - MJL-specific implementation must remain inside safe custom module/theme boundaries.
-- The production access model uses one global business role per user: AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF, or ADMIN_PLATEFORME.
+- The production access model assigns one global MJL role per user: three business roles (AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF) and one administration role (ADMIN_PLATEFORME).
 - Access is invitation-only.
 - Only Admin can send invitations for now.
 - There is no public register page.

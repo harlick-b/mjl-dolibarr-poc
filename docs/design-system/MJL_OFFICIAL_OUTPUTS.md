@@ -11,7 +11,7 @@ Define how reports and exports should look and behave.
 
 - Dolibarr core files must not be modified.
 - MJL-specific implementation must remain inside safe custom module/theme boundaries.
-- The production access model uses one global business role per user: AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF, or ADMIN_PLATEFORME.
+- The production access model assigns one global MJL role per user: three business roles (AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF) and one administration role (ADMIN_PLATEFORME).
 - Access is invitation-only.
 - Only Admin can send invitations for now.
 - There is no public register page.
@@ -50,13 +50,24 @@ Format : CSV compatible Excel et XLSX
 For this phase, official outputs are CSV/XLSX only. Do not add PDF or Word
 report UX unless a future authoritative decision changes the scope.
 
+The report center keeps four explicit row boundaries: raw query rows, HTML
+display rows, CSV contract rows, and XLSX contract rows. Shared French money,
+number, date, and status formatting applies only to HTML rows. CSV and XLSX
+retain their protected value shapes, column keys/order, numeric magnitudes,
+typed XLSX money cells, BOM/delimiter behavior, filters, filenames, and
+audit-before-delivery behavior.
+
+Declared money headings include `(F CFA)` on HTML, CSV, and XLSX. This heading
+clarification does not authorize formatting numeric export cells as display
+strings or rewriting persisted comments and audit history.
+
 ## French Formats
 
 Use:
 
 ```txt
 26/06/2026
-1 250 000 FCFA
+1 250 000 F CFA
 ```
 
 Avoid ambiguous dates such as `06/26/2026`.

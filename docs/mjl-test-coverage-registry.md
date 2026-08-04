@@ -7,12 +7,13 @@ This is the durable Gate 1 audit and coverage registry for the MJL verification 
 Gate 1 was approved on 2026-08-03 and Gate 2 is implemented. The maintained
 suite now has:
 
-- **87 blocking Playwright cases** behind 11 capability-named public specs;
+- **92 blocking Playwright cases** behind 11 capability-named public specs;
 - **21 executable characterization cases** behind one non-blocking finance spec;
 - **16 Node unit contracts** across runner isolation, cleanup, diagnostics, fixture-marker boundaries, deprecated-vocabulary rejection, and
   verification-entrypoint behavior;
-- **6 PHP contracts** for durable behavior, navigation, page headers,
-  project-form security, table presentation, and verification-module safety;
+- **7 PHP contracts** for durable behavior, presentation convergence,
+  navigation, page headers, project-form security, table presentation, and
+  verification-module safety;
 - one current container-verification layer covering seven schema/data modules,
   sample data, three scope/integrity modules, activity workflow, expense
   workflow, traceability/exports, and dashboard resilience;
@@ -24,9 +25,9 @@ Recorded disposable results:
 | --- | --- | --- |
 | `npm run test:unit` | Passed | No Docker tenant required. |
 | `npm run test:verify` | Passed in 184.1 seconds | Unique loopback tenant; containers, network, and named volumes removed. |
-| `npm run test:e2e` | 87/87 passed in 5.3 minutes; runner duration 478.1 seconds | Unique loopback tenant; containers, network, and named volumes removed. |
+| `npm run test:e2e` | 92/92 passed as part of the latest consolidated run | Unique loopback tenant; containers, network, and named volumes removed. |
 | `npm run test:characterization` | 21/21 passed in 1.0 minute; runner duration 221.9 seconds including bootstrap | Separate unique loopback tenant; containers, network, and named volumes removed. |
-| `npm test` | Latest full proof before removal of one invalid source-scan contract: 17/17 Node contracts, 6/6 PHP contracts, complete container verification, and 87/87 browser cases passed; runner duration 378.8 seconds. The remaining 16-contract unit layer passes independently. | One bootstrap/seed cycle in one unique loopback tenant; containers, network, and named volumes removed. |
+| `npm test` | Latest full proof: 16/16 Node contracts, 7/7 PHP contracts, complete container verification, and 92/92 browser cases passed. | One bootstrap/seed cycle in one unique loopback tenant; containers, network, and named volumes removed. |
 
 The interactive accessibility gate remains unsigned and must not be represented
 as automated evidence.

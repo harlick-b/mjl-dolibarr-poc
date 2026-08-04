@@ -11,9 +11,11 @@ after the documentation cleanup and does not replace browser verification.
 ## Overall Verdict
 
 The current UI has a real MJL workspace shell, guarded routes, workflow
-screens, dashboards, documents, exports, and audit surfaces. It still needs
-production wording polish, less legacy supervision wording, clearer contextual
-timelines/exchanges, and final client review for official outputs.
+screens, dashboards, documents, exports, audit surfaces, and shared
+presentation contracts for formatting, feedback, statuses, alerts, and
+transactional emails. It still needs less legacy supervision wording, clearer
+contextual timelines/exchanges, and final client review for non-protected copy
+and official outputs.
 
 ## Global Findings
 
@@ -32,7 +34,15 @@ timelines/exchanges, and final client review for official outputs.
   authorization.
 - Touched finance routes distinguish allowlisted validation, database,
   timeline, and unknown feedback without exposing raw diagnostics. Unrelated
-  legacy error-output debt remains tracked in the current-vs-target analysis.
+  lower-level diagnostic handling debt remains tracked in the current-vs-target
+  analysis.
+- Operation outcomes render in the server response through closed French
+  message contracts; success uses status semantics and warnings/errors use
+  alert semantics. Computed business alerts remain a separate collection.
+- Shared presentation text distinguishes numeric zero from unavailable data,
+  uses `F CFA` and French date shapes, and rejects unsafe action destinations.
+- Business status labels are surface-aware, while stored values, workflow
+  transitions, audit history, and protected export mappings remain unchanged.
 - Some labels and route names still use legacy DPAF/Convention wording; treat
   that as UI terminology debt.
 
@@ -50,10 +60,10 @@ timelines/exchanges, and final client review for official outputs.
 | Conventions | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; legacy label and role wording still need target review. | `custom/mjlfinancement/conventions.php` |
 | Budget lines | Medium | Shared journey/recovery/pagination/timeline patterns and canonical feedback are present; advanced finance setup must stay guarded. | `custom/mjlfinancement/budgetlines.php` |
 | Fund receipts | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; final wording remains pending client review. | `custom/mjlfinancement/fundreceipts.php` |
-| Reports / exports | Good | The report inventory uses target French wording, explicit Partenaire / Programme filters, POST-token exports, CSV/XLSX filename previews, and scoped audit visibility. Final donor canevas and permission matrix remain pending. | `custom/mjlfinancement/reports.php` |
+| Reports / exports | Good | The report inventory uses target French wording, explicit Partenaire / Programme filters, POST-token exports, CSV/XLSX filename previews, scoped audit visibility, distinct HTML/export rows, and explicit F CFA money headings. Final donor canevas and permission matrix remain pending. | `custom/mjlfinancement/reports.php` |
 | Validation/audit history | Partial | Should be more contextual inside object detail pages. | `validations.php`, `workflowactions.php` |
 | Exchange logs | Partial | Standalone route should not be primary navigation. | `custom/mjlfinancement/exchangelogs.php` |
-| Auth/invitations | Medium | Invitation-only stance is correct; production email/base URL pending. | Auth templates, `admin/access.php`, `invitation.php` |
+| Auth/invitations | Medium | Invitation-only stance and formal accented plain-text templates are aligned; production email/base URL remains pending. | Auth templates, `admin/access.php`, `invitation.php`, `lib/mjl_email.lib.php` |
 
 ## Review Checklist
 
@@ -72,3 +82,19 @@ escaping, empty suppression, and 390-pixel viewport containment are covered.
 
 The unsigned manual accessibility matrix and real 200% browser-zoom evidence
 remain release blockers. This checkpoint does not claim WCAG conformance.
+
+## Phase 3D.3 gate evidence
+
+The presentation layer now has closed contracts for French formatters,
+operation feedback, status surfaces, alert tone/copy/destinations, safe links,
+transactional email templates, and HTML-versus-export report rows. Static PHP
+contracts reject direct native-event calls outside the adapter and cover
+formatter/status/feedback/alert/link edge cases. Browser regression remains
+the affected-surface evidence boundary for this checkpoint. The completed
+worktree passed 92/92 consolidated browser cases and 21/21 characterization
+cases in separate disposable tenants, with cleanup verified after each run.
+
+Client approval of non-protected wording, the signed keyboard/reflow/real-zoom
+matrix, final design/security/production-readiness audits, and the complete
+Phase 3D verdict remain deferred to Phase 3D.4. This audit does not claim WCAG
+conformance, production readiness, or whole-Phase-3D completion.

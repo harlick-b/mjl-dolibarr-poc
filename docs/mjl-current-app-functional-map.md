@@ -28,6 +28,13 @@ activity table, consequence-aware expense decisions, and partial-result
 timeline/alert loaders. These helpers do not change stored workflow values,
 routes, permissions, schemas, or export mappings.
 
+Presentation convergence now also centralizes French money/number/date text,
+safe internal presentation destinations, operation feedback, business status
+labels by surface, computed alert presentation, and closed plain-text email
+templates. Report HTML rows are distinct from protected CSV/XLSX contract
+rows; declared money headings explicitly identify F CFA without converting
+numeric export cells to display strings.
+
 The current implementation centralizes exact-action activity recovery and
 timeline/audit presentation in dependency-leaf registries. Unknown stored
 action, role, object, channel, and status values use neutral French labels on
@@ -72,7 +79,7 @@ Those references are current-state/code debt, not target behavior.
 | --- | --- | --- | --- |
 | Dashboard | `index.php` | Role-aware workspace dashboard with scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | Compatibility fixture names still contain POC-era vocabulary. |
 | Partenaires / Programmes | `partners.php` | Scoped, paginated partner/programme portfolio plus context and related previews. | Name/risk sorts are allowlisted; related previews are independently counted and limited to 12 rows. |
-| Projects | `projects.php` | Scoped, paginated MJL project list/detail with semantic desktop table, responsive labeled cards, shared list states, explicit open actions, related previews, recoverable create/edit, legacy notes, and contextual comments. | Partner/status/sort filters fail closed to zero results; create/edit remains limited to Admin plateforme and Validateur definitif. |
+| Projects | `projects.php` | Scoped, paginated MJL project list/detail with semantic desktop table, responsive labeled cards, shared list states, explicit open actions, related previews, recoverable create/edit, legacy notes, and contextual comments. | Partner/status/sort filters fail closed to zero results; create/edit remains limited to Administrateur plateforme and Validateur définitif. |
 | Activities | `activities.php` | Activity lifecycle, dedicated create/edit/execution states, guarded verifier/final-validator review states, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Partner/project/status/risk/sort filters are allowlisted and fail closed; direct create/edit/execution and review routes recheck action availability and object access before loading options, consuming exact recovery, or rendering fields. |
 | Expenses | `expenses.php` | Expense lifecycle with dedicated create/edit states, a scoped semantic desktop table, responsive labeled list cards, shared list states, explicit open actions, supporting evidence, guarded prevalidation/final-validation/rejection/disbursement states, contextual comments, and consequence-aware decisions. | Filters fail closed to zero results; direct create/edit/decision states recheck object access, scope, ownership, role, actor separation, and current status before loading options, consuming exact-action recovery, or rendering fields. |
 | Documents | `documents.php` | Read-only accessible document library. | Uploads remain contextual. |
@@ -312,3 +319,42 @@ Key scripts currently present include:
   `/tmp/mjl-phase3d-implementation-UIcPqT`. Operational interactions passed
   42/42. The consolidated repository runner reported 64 passed, 3 documented
   stale exact-copy failures, and 16 serial skips; no touched-route case failed.
+
+## Phase 3D.3 Presentation And Content State
+
+- `mjl_presentation.lib.php` owns plain-text French display formatting and
+  safe internal/public action-link resolution. Callers remain responsible for
+  context-appropriate escaping.
+- `mjl_feedback.lib.php` is the sole custom-module adapter for Dolibarr event
+  storage. The MJL shell renders server-side status/alert markup and clears it;
+  closed operation/message registries prevent arbitrary copy and severity.
+- `mjl_status_presentation.lib.php` separates operational and history labels
+  without rewriting stored workflow codes, audit history, transitions, or
+  protected export mappings.
+- Alert calculation emits canonical machine-only conditions with integer
+  priority, partner scope, workflow state, sort date, and raw facts. Dashboard
+  counts and filters consume those conditions; a closed presentation adapter
+  alone owns tone, formal French wording, formatted facts, workflow-specific
+  audience/action, and guarded destinations. Unknown semantic keys fail closed
+  without a destination. Partner detail filters the same current-user
+  conditions, renders at most 12 shared cards, and adds the scoped partner
+  over-allocation condition only for the final validator and Admin.
+- Date-only values are validated as exact calendar dates. Naive SQL datetimes
+  are interpreted in the server timezone and converted to session, configured
+  user, or UTC timezone in that order. Internal links survive only after every
+  layer of bounded recursive decoding passes the path safety contract.
+- Activity budget and linked-document summaries preserve unavailable source
+  state separately from a successful numeric zero and log only redacted
+  diagnostics.
+- Transactional emails use a closed template registry, plain-text-sanitized
+  context, trusted-origin internal links, and redacted delivery diagnostics.
+- Report raw, HTML, CSV, and XLSX rows have explicit boundaries. Shared French
+  formatting is HTML-only; CSV/XLSX contracts remain numeric/typed and stable
+  except for the authorized `(F CFA)` money-heading clarification.
+- Final affected-surface evidence from the completed worktree is green: the
+  consolidated disposable run passed 16 Node checks, all PHP/schema/workflow
+  contracts, and 92/92 browser cases; the separate disposable
+  characterization run passed 21/21 cases. Both tenants were removed.
+- This is affected-surface implementation evidence only. Client copy review,
+  headed manual accessibility evidence, final production/security/design
+  audits, and the Phase 3D integration verdict remain Phase 3D.4 work.

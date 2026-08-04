@@ -72,3 +72,11 @@ debugging discoveries. Do not add one-off observations or generic advice.
   ownership must call the disposable Compose verifier before its first
   mutation. Supplying temporary environment variables during one run is not a
   safety boundary for future direct invocations.
+- Presentation-copy convergence must include a repository-wide scan of exact
+  E2E labels across every spec before the full disposable rerun. Updating only
+  the feature's primary test file can leave equivalent auth, email, or shell
+  selectors stale and force otherwise avoidable environment rebuilds.
+- A presentation-wide French accent correction must classify every changed
+  string before editing. Accent visible copy and presentation metadata only;
+  never rewrite form keys, DOM/test identifiers, persistence literals, domain
+  error classifiers, audit/ECM values, or historical compatibility mappings.

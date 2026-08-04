@@ -11,7 +11,7 @@ Define the reusable component catalog for app UI, auth pages, system emails, off
 
 - Dolibarr core files must not be modified.
 - MJL-specific implementation must remain inside safe custom module/theme boundaries.
-- The production access model uses one global business role per user: AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF, or ADMIN_PLATEFORME.
+- The production access model assigns one global MJL role per user: three business roles (AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF) and one administration role (ADMIN_PLATEFORME).
 - Access is invitation-only.
 - Only Admin can send invitations for now.
 - There is no public register page.
@@ -44,7 +44,7 @@ Each component must define purpose, when to use it, when not to use it, layout, 
 - Error state
 - Confirmation modal
 - Email header
-- Email CTA button
+- Email plain-text action link
 - Email footer
 
 ## Implemented Operational Components
@@ -128,6 +128,88 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   exposing SQL, driver details, paths, or internal identifiers.
 - **Visibility/E2E:** role-neutral inside an already authorized surface;
   helper contracts and browser journeys cover safe output and partial states.
+
+### Operation feedback
+
+- **Purpose/use:** report the outcome of one completed, pre-render operation.
+  Use closed message keys for success, warning, or error feedback; keep field
+  validation in linked form errors and later source failures in persistent
+  system states.
+- **Layout/behavior:** the authenticated shell renders and clears the native
+  cross-request event queue as embedded markup. One operation is deduplicated
+  within a request, while distinct operations retain distinct outcomes even
+  when their visible wording is identical.
+- **Accessibility/French:** success uses `role="status"` with polite live
+  semantics; warning and error feedback use persistent `role="alert"` markup.
+  Registry templates own the formal French wording and severity.
+- **Visibility/E2E:** callers select only an operation key and a closed message
+  key. The adapter is the sole custom-module caller of Dolibarr's native event
+  API; unknown keys or context are logged in redacted form and become one safe
+  generic error.
+
+### Shared display formatting and internal destinations
+
+- **Purpose/use:** format display-only money, numbers, dates, and times, and
+  normalize destinations used by MJL presentation components. It does not
+  rewrite stored values or export row contracts.
+- **Layout/behavior:** display text uses ordinary-space grouping, comma decimal
+  separators, `F CFA` for XOF, and `jj/mm/aaaa` date shapes. Null, empty,
+  invalid, and non-finite values use an explicit empty label; numeric zero
+  remains zero. UI actions accept only normalized internal paths, and email
+  links combine those paths with the trusted configured public origin.
+- **Accessibility/French:** callers escape the returned plain text for their
+  output context. Invalid destinations render no action rather than a broken
+  or external link.
+- **Visibility/E2E:** PHP contracts cover edge values, non-XOF currency codes,
+  negative-zero normalization, traversal, schemes, scheme-relative URLs, and
+  control characters.
+
+### Unified business status presentation
+
+- **Purpose/use:** translate stored business states into a French label and an
+  allowlisted visual tone for activity workflow/execution, expense,
+  convention, budget-line, and fund-receipt surfaces.
+- **Layout/behavior:** callers choose an explicit `operational` or `history`
+  surface. Unknown combinations remain neutral. Machine codes, transitions,
+  audit values, and export mappings are unchanged; the legacy expense status
+  `2` deliberately retains its distinct operational and historical meanings.
+- **Accessibility/French:** every badge communicates status in text and never
+  relies on color alone.
+- **Visibility/E2E:** shared contracts cover known states, aliases, surface
+  differences, and neutral fallbacks.
+
+### Computed alert presentation
+
+- **Purpose/use:** render a computed business condition without persisting it.
+  Calculation supplies a semantic key and data; a closed registry owns the
+  French copy, allowlisted tone, and internal destination.
+- **Layout/behavior:** unknown keys degrade to a neutral alert, arbitrary CSS
+  tones are rejected, and removing the underlying condition removes the alert.
+  Calculation records remain machine-only until the presentation boundary;
+  counts and filters use integer priority and canonical facts rather than
+  translated severity text. Operation feedback never enters the alert
+  collection. Partner detail reuses the same scoped per-object cards, capped
+  at 12, plus one final-validator/Admin over-allocation condition.
+- **Accessibility/French:** wording carries the condition and next action;
+  safe internal links are descriptive and keyboard reachable.
+- **Visibility/E2E:** the existing entity/role/scope-aware alert loader remains
+  authoritative. Contracts and scoped browser tests cover registry output,
+  safe destinations, and partial-source failure.
+
+### Transactional plain-text email
+
+- **Purpose/use:** send invitation and recovery workflow messages from a
+  closed template registry while preserving existing recipients, triggers,
+  delivery mode, and audit events.
+- **Layout/behavior:** templates own the formal French subject/body structure.
+  Identifiers are normalized to one line, user-provided context is plain-text
+  sanitized, and action links accept internal paths resolved against the
+  trusted public origin. Unknown templates or unsafe links fail closed.
+- **Accessibility/French:** messages remain readable plain text with accented
+  French labels and an explicit action URL.
+- **Visibility/E2E:** mail-driver diagnostics are redacted from browser and
+  audit context; browser coverage verifies links, recipients, copy, and
+  unchanged workflow behavior.
 
 ### Shared field, error summary, and recovery
 
