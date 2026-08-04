@@ -68,10 +68,10 @@ permissions, business rules, or claims of runtime conformance.
   of the three business roles and the administration role. A separate reader/auditor audience or
   capability is not approved and must not be assumed.
 - User roles:
-  - `AGENT_SAISIE` — Agent de saisie.
-  - `AGENT_VERIFICATEUR` — Agent vérificateur et prévalidateur.
-  - `VALIDATEUR_DEFINITIF` — Validateur définitif.
-  - `ADMIN_PLATEFORME` — Administrateur plateforme.
+  - `AGENT_SAISIE` - Agent de saisie.
+  - `AGENT_VERIFICATEUR` - Agent vérificateur et prévalidateur.
+  - `VALIDATEUR_DEFINITIF` - Validateur définitif.
+  - `ADMIN_PLATEFORME` - Administrateur plateforme.
 - Role responsibilities:
   - `AGENT_SAISIE`: Create, complete, correct, submit, attach contextual
     evidence, update physical execution, and follow assigned work.
@@ -392,7 +392,7 @@ Describe current implementation and evidence separately from desired changes.
 - Known problems: Legacy terminology, dense forms, partial contextual-history
   consistency, document ergonomics, unapproved official templates, and current
   runtime-evidence gaps.
-- Useful existing patterns: MJL shell/sidebar, page headers, status pills,
+- Useful existing patterns: MJL shell/sidebar, page headers, status badges,
   KPI and alert cards, timelines, filter panels, table wrappers, auth panels,
   guarded document links, export framing, and explanatory empty states.
 
@@ -446,8 +446,8 @@ Do not merely formalize current defects.
   `#202529`, secondary `#34414a`, muted `#5c6870`, white surfaces,
   `#f5f7f8` background, gray borders, focus blue `#7fb3d5`, and documented
   success/warning/danger tones.
-- Existing typography: `Arial, Helvetica, sans-serif`; compact headings and
-  14px-oriented administrative body/help text in current CSS.
+- Existing typography: `Inter, Arial, Helvetica, sans-serif`; compact semantic
+  headings and 14px-oriented administrative body/help text in current CSS.
 - Existing brand documentation: `DESIGN.md` and active files under
   `docs/design-system/`.
 - Mandatory brand elements: French-first institutional tone, MJL mission
@@ -461,7 +461,7 @@ Do not merely formalize current defects.
 - References disliked: Raw Dolibarr ERP navigation, generic SaaS dashboards,
   promotional styling, and developer-oriented surfaces.
 - Existing patterns users should retain: Familiar MJL shell, grouped sidebar,
-  page headers, status pills, timelines, filter/table patterns, and guarded
+  page headers, status badges, timelines, filter/table patterns, and guarded
   document/export flows.
 
 ## 9. Tables, dashboards, and operational data
@@ -712,7 +712,7 @@ the target repository.
 | Current visual baseline and unresolved brand decisions | `DESIGN.md` | High | Design evidence, subordinate to product authority. |
 | Current routes, capabilities, helpers, and implementation caveats | `docs/mjl-current-app-functional-map.md` | High | Current-state evidence only. |
 | Current-to-target gaps and runtime/client blockers | `docs/mjl-current-vs-target-gap-analysis.md` | High | Does not create target requirements. |
-| Approved target UI/navigation and interaction guidance | `docs/design-system/README.md` and its immutable approved-v2 package | High | Use within higher product authority; unresolved capability proposals remain provisional. |
+| Approved target UI/navigation and interaction guidance | `docs/design-system/README.md` and its approved v3 package | High | Use within higher product authority; unresolved capability proposals remain provisional. |
 | Design direction and principles | `docs/design-system/DESIGN.md` | High | Active design guidance. |
 | Component inventory and definition standard | `docs/design-system/MJL_COMPONENTS.md` | High | Generated components need behavior, states, accessibility, role visibility, and test expectations. |
 | French-first content and action wording | `docs/design-system/MJL_CONTENT_GUIDELINES.md` | High | Content guidance remains subordinate to final client wording. |

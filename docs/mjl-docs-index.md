@@ -89,7 +89,7 @@ cleanup records, and stale POC notes are not active implementation guidance.
 ## Deleted Or Merged
 
 Deleted historical docs include prompt archives, superseded navigation/UI
-specifications and evidence, obsolete approved-v2 readiness baselines and
+specifications and evidence, retired v2 readiness baselines and
 plans, superseded phase reports, demo/UAT/client-validation packs, standalone
 role/report/KPI models, implementation summaries, and native-boundary audit
 artifacts. Durable content is consolidated into `CONTEXT.md`,

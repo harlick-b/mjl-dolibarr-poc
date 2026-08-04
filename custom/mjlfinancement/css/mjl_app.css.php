@@ -55,24 +55,36 @@ a.tmenu[href^="/api/"] {
 	--mjl-color-status-info-surface: #eaf3f8;
 	--mjl-color-status-success: #17633a;
 	--mjl-color-status-success-surface: #e8f5ec;
+	--mjl-color-status-success-badge-surface: #caface;
+	--mjl-color-status-warning: #6b4900;
+	--mjl-color-status-warning-surface: #fff4cc;
+	--mjl-color-status-danger: #8a1c1c;
+	--mjl-color-status-danger-surface: #fdecec;
 	--mjl-focus-ring: #164f7a;
+	--mjl-font-sans: Inter, Arial, Helvetica, sans-serif;
 	--mjl-space-1: 4px;
 	--mjl-space-2: 8px;
 	--mjl-space-3: 12px;
 	--mjl-space-4: 16px;
 	--mjl-space-5: 20px;
 	--mjl-space-6: 24px;
-	--mjl-radius-control: 4px;
+	--mjl-radius-control: 10px;
 	--mjl-radius-card: 6px;
 	--mjl-radius-panel: 8px;
+	--mjl-radius-status-badge: 6px;
+	--mjl-radius-pill: 999px;
 	--mjl-shadow-card: 0 1px 4px rgba(22, 50, 79, 0.08);
 	--mjl-shadow-panel: 0 8px 24px rgba(22, 50, 79, 0.16);
 	--mjl-touch-target: 44px;
+	--mjl-control-compact: 32px;
+	--mjl-control-standard: 40px;
+	--mjl-row-data: 40px;
+	--mjl-row-interactive: 44px;
 }
 
 .mjl-workspace {
 	color: var(--mjl-color-text);
-	font-family: Arial, Helvetica, sans-serif;
+	font-family: var(--mjl-font-sans);
 }
 
 .mjl-module-shell {
@@ -237,7 +249,7 @@ a.tmenu[href^="/api/"] {
 	cursor: pointer;
 	display: inline-flex;
 	font-size: 14px;
-	font-weight: 700;
+	font-weight: 600;
 	justify-content: center;
 	line-height: 1.25;
 	min-height: 40px;
@@ -249,6 +261,7 @@ a.tmenu[href^="/api/"] {
 	background: var(--mjl-color-action);
 	border-color: var(--mjl-color-action);
 	color: var(--mjl-color-text-inverse);
+	min-height: var(--mjl-touch-target);
 }
 
 .mjl-module-shell .mjl-action-secondary {
@@ -267,6 +280,7 @@ a.tmenu[href^="/api/"] {
 	background: var(--mjl-color-danger-surface);
 	border-color: var(--mjl-color-danger);
 	color: var(--mjl-color-danger);
+	min-height: var(--mjl-touch-target);
 }
 
 .mjl-action:disabled {
@@ -328,13 +342,15 @@ a.tmenu[href^="/api/"] {
 }
 
 .mjl-workspace h1 {
-	font-size: 26px;
-	line-height: 1.2;
+	font-size: 1.5rem;
+	font-weight: 700;
+	line-height: 2rem;
 }
 
 .mjl-workspace h2 {
-	font-size: 18px;
-	line-height: 1.3;
+	font-size: 1.25rem;
+	font-weight: 600;
+	line-height: 1.5rem;
 }
 
 .mjl-page-header-description,
@@ -367,7 +383,7 @@ a.tmenu[href^="/api/"] {
 .mjl-card-label {
 	color: var(--mjl-color-text-muted);
 	font-size: 12px;
-	font-weight: 700;
+	font-weight: 600;
 	margin: 0;
 	text-transform: uppercase;
 }
@@ -461,8 +477,8 @@ a.tmenu[href^="/api/"] {
 .mjl-card-value {
 	color: #16324f;
 	display: block;
-	font-size: 30px;
-	line-height: 1.1;
+	font-size: 2rem;
+	line-height: 2.5rem;
 }
 
 .mjl-card-link,
@@ -483,16 +499,20 @@ a.tmenu[href^="/api/"] {
 	min-height: 104px;
 }
 
-.mjl-status-pill {
+.mjl-status-pill,
+.mjl-status-badge {
 	border: 1px solid #c5ced4;
-	border-radius: 999px;
+	border-radius: var(--mjl-radius-status-badge);
+	box-sizing: border-box;
 	color: #34414a;
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
 	font-size: 12px;
 	font-weight: 700;
 	line-height: 1.2;
 	margin-top: 10px;
-	padding: 5px 9px;
+	min-height: 20px;
+	padding: 2px 8px;
 }
 
 .mjl-status-info {
@@ -502,21 +522,21 @@ a.tmenu[href^="/api/"] {
 }
 
 .mjl-status-success {
-	background: var(--mjl-color-status-success-surface);
+	background: var(--mjl-color-status-success-badge-surface);
 	border-color: var(--mjl-color-status-success);
 	color: var(--mjl-color-status-success);
 }
 
 .mjl-status-warning {
-	background: #fff4df;
-	border-color: #d99a2b;
-	color: #6f4200;
+	background: var(--mjl-color-status-warning-surface);
+	border-color: var(--mjl-color-status-warning);
+	color: var(--mjl-color-status-warning);
 }
 
 .mjl-status-danger {
-	background: #fff0ed;
-	border-color: #e08a80;
-	color: #8a1f15;
+	background: var(--mjl-color-status-danger-surface);
+	border-color: var(--mjl-color-status-danger);
+	color: var(--mjl-color-status-danger);
 }
 
 .mjl-tabs {
@@ -939,6 +959,10 @@ a.tmenu[href^="/api/"] {
 	margin-top: var(--mjl-space-5);
 }
 
+.mjl-confirmation-actions :where(button, .button, .mjl-action) {
+	min-height: var(--mjl-touch-target);
+}
+
 .mjl-activity-meta {
 	display: grid;
 	gap: 12px;
@@ -1118,6 +1142,69 @@ a.tmenu[href^="/api/"] {
 	outline-offset: var(--mjl-space-1);
 }
 
+.mjl-module-shell :where(input, select, textarea) {
+	border-color: var(--mjl-color-border-strong) !important;
+	border-radius: var(--mjl-radius-control) !important;
+	box-sizing: border-box;
+	min-height: var(--mjl-control-standard) !important;
+}
+
+.mjl-module-shell :where(button:not(.mjl-action), .button:not(.mjl-action), .butAction:not(.mjl-action), .butActionDelete:not(.mjl-action)) {
+	border-radius: var(--mjl-radius-control) !important;
+	box-sizing: border-box;
+	min-height: var(--mjl-control-standard) !important;
+}
+
+.mjl-module-shell :where(button, input, select, textarea):disabled,
+.mjl-module-shell [aria-disabled="true"] {
+	background: var(--mjl-color-surface-disabled);
+	border-color: var(--mjl-color-border-subtle);
+	color: var(--mjl-color-text-muted);
+	cursor: not-allowed;
+}
+
+.mjl-module-shell .mjl-action-primary:focus-visible,
+.mjl-module-shell .mjl-action-danger:focus-visible {
+	box-shadow: 0 0 0 4px var(--mjl-focus-ring);
+	outline-color: var(--mjl-color-text-inverse);
+	outline-offset: 2px;
+}
+
+.mjl-dashboard-table tbody td,
+.mjl-report-table tbody td,
+.mjl-operational-table tbody td {
+	line-height: 24px;
+	padding-bottom: 8px;
+	padding-top: 8px;
+}
+
+.mjl-module-shell tr.mjl-row-interactive > td {
+	padding-bottom: 10px;
+	padding-top: 10px;
+}
+
+@media (hover: hover) {
+	.mjl-module-shell .mjl-action-primary:hover {
+		background: #123f62;
+		border-color: #123f62;
+	}
+
+	.mjl-module-shell .mjl-action-secondary:hover,
+	.mjl-module-shell .mjl-action-quiet:hover {
+		background: var(--mjl-color-surface-selected);
+	}
+
+	.mjl-module-shell .mjl-action-danger:hover {
+		background: #f7d9d9;
+		border-color: #6f1717;
+		color: #6f1717;
+	}
+}
+
+.mjl-module-shell .mjl-action:active {
+	box-shadow: inset 0 1px 2px rgba(22, 50, 79, 0.24);
+}
+
 @media (min-width: 1280px) {
 	.mjl-module-shell {
 		--mjl-dolibarr-edge-correction: 3px;
@@ -1213,14 +1300,21 @@ a.tmenu[href^="/api/"] {
 	}
 }
 
-@media (max-width: 768px), (pointer: coarse) {
+@media (max-width: 768px), (any-pointer: coarse) {
+	.mjl-sidebar-link,
+	.mjl-sidebar-child-link,
+	.mjl-action,
+	.mjl-module-shell .mjl-table-action-menu > summary,
+	.mjl-module-shell :where(button, .button, .butAction, .butActionDelete, input, select, textarea) {
+		align-items: center;
+		box-sizing: border-box;
+		min-height: var(--mjl-touch-target) !important;
+	}
+
 	.mjl-sidebar-link,
 	.mjl-sidebar-child-link,
 	.mjl-action {
-		align-items: center;
-		box-sizing: border-box;
 		display: grid;
-		min-height: var(--mjl-touch-target);
 	}
 }
 
@@ -1375,5 +1469,51 @@ a.tmenu[href^="/api/"] {
 	.mjl-module-shell *::after {
 		scroll-behavior: auto !important;
 		transition-duration: 0ms !important;
+	}
+}
+
+@media (forced-colors: active) {
+	.mjl-module-shell :where(a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+		outline-color: Highlight;
+	}
+
+	.mjl-status-pill,
+	.mjl-status-badge {
+		border-color: CanvasText;
+	}
+}
+
+@media print {
+	.mjl-module-sidebar,
+	.mjl-navigation-trigger,
+	.mjl-navigation-backdrop,
+	.mjl-navigation-close,
+	.mjl-page-header-actions,
+	.mjl-report-export-toolbar,
+	.mjl-table-action-menu {
+		display: none !important;
+	}
+
+	.mjl-module-shell {
+		display: block;
+		margin: 0;
+		width: auto;
+	}
+
+	.mjl-workspace,
+	.mjl-module-shell,
+	.mjl-dashboard-card,
+	.mjl-report-context,
+	.mjl-report-table table {
+		background: #ffffff;
+		box-shadow: none;
+		color: #000000;
+	}
+
+	.mjl-status-pill,
+	.mjl-status-badge,
+	.mjl-activity-timeline,
+	.mjl-report-table table {
+		break-inside: avoid;
 	}
 }

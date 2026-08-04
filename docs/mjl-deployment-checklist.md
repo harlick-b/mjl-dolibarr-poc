@@ -26,6 +26,14 @@ Target decisions come from `docs/mjl-authoritative-decisions.md`.
 
 ## Environment And Configuration
 
+- Confirm production egress and privacy policy permits the approved Inter
+  dependency on `https://fonts.googleapis.com` and
+  `https://fonts.gstatic.com`.
+- If a Content Security Policy is present, allow the first origin in
+  `style-src` and the second in `font-src`. Do not broaden other directives.
+- If production policy forbids these origins, provide an approved local Inter
+  pipeline before release. Browser fallback remains functional but does not
+  replace this operator decision.
 - Configure public/base URL for invitation and password-reset links.
 - Configure production email transport before sending real invitations.
 - Configure `DOL_DATA_ROOT` and ECM storage on persistent storage.

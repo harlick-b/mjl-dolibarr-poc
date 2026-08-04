@@ -1,4 +1,4 @@
-# MJL Clarity System — Components
+# MJL Clarity System - Components
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers UI components only.
@@ -104,11 +104,12 @@ Each component must define purpose, when to use it, when not to use it, layout, 
 - **Purpose/use:** show an existing activity or expense business state before
   supporting detail. Do not use it for validation-stage guidance, alert
   severity, permission, or system availability.
-- **Layout/behavior:** short text inside the existing status-pill pattern;
+- **Layout/behavior:** short text inside the compatibility status selector,
+  rendered as a 6px-radius badge with a 20px minimum height;
   unknown UI values use the neutral `Statut non reconnu` fallback. Runtime
   tones use the approved snapshot pairs: info `#164f7a` on `#eaf3f8` and
-  success `#17633a` on `#e8f5ec`, with the foreground color also used for the
-  solid border.
+  success `#17633a` on badge-only surface `#caface`, with the foreground color
+  also used for the solid border. General success feedback retains `#e8f5ec`.
 - **Accessibility/French:** the label always carries the meaning without
   relying on tone. Final validation and disbursement use distinct French
   labels.
@@ -339,7 +340,7 @@ Each component must define purpose, when to use it, when not to use it, layout, 
   the route has independently authorized it. External and non-MJL URLs are
   discarded, and forbidden/read-only states never acquire upload or removal
   controls from the component.
-- **Accessibility/French:** state text—not color—communicates all six
+- **Accessibility/French:** state text, not color, communicates all six
   conditions; links have document-specific French labels, unavailable and
   upload-failed states explain the next safe step, forbidden/read-only wording
   does not imply a missing file, and the section has a visible heading.

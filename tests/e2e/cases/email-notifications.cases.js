@@ -120,6 +120,9 @@ test('invitation and password reset emails contain working single-use links', as
   expect(e2eConst('MJL_EMAIL_E2E_LAST_INVITATION_SUBJECT')).not.toBe('');
   const invitationBody = e2eConst('MJL_EMAIL_E2E_LAST_INVITATION_BODY');
   expect(invitationBody).toContain('/custom/mjlfinancement/invitation.php?invite=');
+  expect(invitationBody).not.toContain('fonts.googleapis.com');
+  expect(invitationBody).not.toContain('fonts.gstatic.com');
+  expect(invitationBody).not.toContain('<link');
 
   await page.goto(invited.invitationLink);
   await page.locator('#newpass1').fill('MjlEmailNotificationInvite2026!!');
@@ -133,6 +136,9 @@ test('invitation and password reset emails contain working single-use links', as
   expect(e2eConst('MJL_EMAIL_E2E_LAST_PASSWORD_RESET_SUBJECT')).not.toBe('');
   const resetBody = e2eConst('MJL_EMAIL_E2E_LAST_PASSWORD_RESET_BODY');
   expect(resetBody).toContain('/user/passwordforgotten.php?setnewpassword=1&mjlreset=');
+  expect(resetBody).not.toContain('fonts.googleapis.com');
+  expect(resetBody).not.toContain('fonts.gstatic.com');
+  expect(resetBody).not.toContain('<link');
 
   await page.goto(latestLink('password_reset'));
   await page.locator('#newpass1').fill('MjlRoleDashboardeset2026!!');

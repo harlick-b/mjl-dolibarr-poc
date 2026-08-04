@@ -103,6 +103,8 @@ test('final validator and Admin can export scoped CSV and XLSX with stable names
   expect(csv).toContain('Budget révisé');
   expect(csv).toContain('PRJ-JE-2026');
   expect(csv).toContain(';');
+  expect(csv).not.toContain('fonts.googleapis.com');
+  expect(csv).not.toContain('fonts.gstatic.com');
 
   downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exporter le fichier XLSX' }).click();
@@ -113,6 +115,8 @@ test('final validator and Admin can export scoped CSV and XLSX with stable names
   const sharedStrings = xlsxEntry(xlsx, 'xl/sharedStrings.xml');
   expect(sharedStrings).toContain('Partenaire / Programme');
   expect(sharedStrings).toContain('PRJ-JE-2026');
+  expect(sharedStrings).not.toContain('fonts.googleapis.com');
+  expect(sharedStrings).not.toContain('fonts.gstatic.com');
 
   const after = Number(sqlScalar("SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action w INNER JOIN llx_mjlfinancement_report r ON r.rowid = w.object_id AND r.entity = w.entity WHERE w.object_type = 'mjlfinancement_report' AND w.action = 'export_generated' AND r.ref = 'REPORT-FINANCIAL-EXECUTION-PROJECT'"));
   expect(after).toBeGreaterThanOrEqual(before + 2);

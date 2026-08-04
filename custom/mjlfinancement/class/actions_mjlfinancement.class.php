@@ -85,19 +85,63 @@ class ActionsMjlfinancement extends CommonHookActions
 		return 0;
 	}
 
+	public function addHtmlHeader($parameters, &$object, &$action, $hookmanager)
+	{
+		global $user;
+
+		if (!$this->shouldLoadMjlBrowserFont($user)) {
+			return 0;
+		}
+
+		$this->resprints = '<link rel="preconnect" href="https://fonts.googleapis.com">'."\n";
+		$this->resprints .= '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'."\n";
+		$this->resprints .= '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">'."\n";
+
+		return 0;
+	}
+
+	private function shouldLoadMjlBrowserFont($user)
+	{
+		$path = $this->normalizedRequestPath();
+		if ($path === '') {
+			return false;
+		}
+
+		if (($path === '/' || $path === '/index.php') && (empty($user) || empty($user->id))) {
+			return true;
+		}
+		if ($path === '/user/passwordforgotten.php') {
+			return true;
+		}
+		if (strpos($path, '/custom/mjlfinancement/') !== 0) {
+			return false;
+		}
+
+		foreach (array('/css/', '/js/', '/scripts/') as $nonDocumentPath) {
+			if (strpos($path, '/custom/mjlfinancement'.$nonDocumentPath) === 0) {
+				return false;
+			}
+		}
+
+		return $path !== '/custom/mjlfinancement/documentdownload.php';
+	}
+
 	private function isMjlWorkspacePath()
+	{
+		return strpos($this->normalizedRequestPath(), '/custom/mjlfinancement/') === 0;
+	}
+
+	private function normalizedRequestPath()
 	{
 		$path = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 		if (!is_string($path) || $path === '') {
-			return false;
+			return '';
 		}
 
 		$root = rtrim((string) DOL_URL_ROOT, '/');
 		if ($root !== '' && strpos($path, $root.'/') === 0) {
 			$path = substr($path, strlen($root));
 		}
-		$path = '/'.ltrim($path, '/');
-
-		return strpos($path, '/custom/mjlfinancement/') === 0;
+		return '/'.ltrim($path, '/');
 	}
 }

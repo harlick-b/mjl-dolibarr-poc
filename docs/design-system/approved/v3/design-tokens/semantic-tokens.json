@@ -1,5 +1,5 @@
 {
-  "$description": "MJL Financement semantic aliases. All brand-facing mappings are provisional-brand-foundation.",
+  "$description": "MJL Financement v3 semantic aliases.",
   "semantic": {
     "surface": {
       "page": {"$type": "color", "$value": "{color.surface.subtle}"},
@@ -36,26 +36,21 @@
     "status": {
       "success": {
         "text": {"$type": "color", "$value": "{color.status.successText}"},
-        "surface": {"$type": "color", "$value": "{color.status.successSurface}"}
+        "surface": {"$type": "color", "$value": "{color.status.successSurface}"},
+        "badgeSurface": {"$type": "color", "$value": "{color.status.successBadgeSurface}"}
       },
-      "warning": {
-        "text": {"$type": "color", "$value": "{color.status.warningText}"},
-        "surface": {"$type": "color", "$value": "{color.status.warningSurface}"}
-      },
-      "danger": {
-        "text": {"$type": "color", "$value": "{color.status.dangerText}"},
-        "surface": {"$type": "color", "$value": "{color.status.dangerSurface}"}
-      },
-      "info": {
-        "text": {"$type": "color", "$value": "{color.status.infoText}"},
-        "surface": {"$type": "color", "$value": "{color.status.infoSurface}"}
-      }
+      "warning": {"text": {"$type": "color", "$value": "{color.status.warningText}"}, "surface": {"$type": "color", "$value": "{color.status.warningSurface}"}},
+      "danger": {"text": {"$type": "color", "$value": "{color.status.dangerText}"}, "surface": {"$type": "color", "$value": "{color.status.dangerSurface}"}},
+      "info": {"text": {"$type": "color", "$value": "{color.status.infoText}"}, "surface": {"$type": "color", "$value": "{color.status.infoSurface}"}}
     },
     "type": {
+      "metadata": {"$type": "dimension", "$value": "{font.size.xs}"},
+      "label": {"$type": "dimension", "$value": "{font.size.compactLabel}"},
       "body": {"$type": "dimension", "$value": "{font.size.sm}"},
-      "formTouch": {"$type": "dimension", "$value": "{font.size.md}"},
+      "functional": {"$type": "dimension", "$value": "{font.size.md}"},
+      "headingSection": {"$type": "dimension", "$value": "{font.size.lg}"},
       "headingPage": {"$type": "dimension", "$value": "{font.size.xl}"},
-      "headingSection": {"$type": "dimension", "$value": "{font.size.lg}"}
+      "kpi": {"$type": "dimension", "$value": "{font.size.2xl}"}
     },
     "layout": {
       "pageGap": {"$type": "dimension", "$value": "{space.6}"},
@@ -63,10 +58,14 @@
       "formGroupGap": {"$type": "dimension", "$value": "{space.6}"}
     },
     "component": {
+      "controlCompactHeight": {"$type": "dimension", "$value": "{size.controlCompact}"},
       "controlHeight": {"$type": "dimension", "$value": "{size.controlStandard}"},
       "touchTarget": {"$type": "dimension", "$value": "{size.touchTarget}"},
-      "tableRowCompact": {"$type": "dimension", "$value": "{table.rowCompact}"},
-      "tableRowStandard": {"$type": "dimension", "$value": "{table.rowStandard}"}
+      "controlBorder": {"$type": "color", "$value": "{color.border.strong}"},
+      "statusBadgeHeight": {"$type": "dimension", "$value": "{size.statusBadgeMin}"},
+      "statusBadgeRadius": {"$type": "dimension", "$value": "{radius.statusBadge}"},
+      "tableRowData": {"$type": "dimension", "$value": "{table.rowData}"},
+      "tableRowInteractive": {"$type": "dimension", "$value": "{table.rowInteractive}"}
     },
     "motion": {
       "feedback": {"$type": "duration", "$value": "{motion.duration.fast}"},

@@ -80,3 +80,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   string before editing. Accent visible copy and presentation metadata only;
   never rewrite form keys, DOM/test identifiers, persistence literals, domain
   error classifiers, audit/ECM values, or historical compatibility mappings.
+- A materially changed approved design package needs a clean next generation,
+  not edits to an immutable snapshot or a wholesale copy. Migrate every useful
+  artifact through a ledger, validate the candidate, update all active
+  pointers, and remove the retired package so typography and token guidance do
+  not remain split across stale authorities.

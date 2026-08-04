@@ -30,13 +30,14 @@ files were found in the repository scan.
 
 ## Typography
 
-- Current CSS uses `Arial, Helvetica, sans-serif`.
-- Main page headings use navy text and compact sizing:
-  - `h1`: around `26px`, line-height `1.2`.
-  - `h2`: around `18px`, line-height `1.3`.
-  - Auth title: around `24px`.
-- Body/help text is generally `14px` with line-height around `1.45`.
-- Labels and kickers are uppercase, bold, around `12px`.
+- Current CSS uses `Inter, Arial, Helvetica, sans-serif`.
+- Main page headings use navy text and compact semantic sizing:
+  - `h1`: `24px` with a `32px` line height.
+  - `h2`: `20px` with a `24px` line height.
+- KPI values use `32px` with a `40px` line height.
+- Body/help text is generally `14px` with readable line spacing.
+- Metadata and labels use 12px to 13px roles.
+- Available weights are 400, 500, 600, and 700.
 - Letter spacing is explicitly `0` in current MJL CSS.
 
 ## Current palette
@@ -67,8 +68,9 @@ implementation.
 ## Spacing, radius, shadows
 
 - Cards, panels, sidebars, and workspace headers use `6px` border radius.
-- Auth inputs and buttons use `4px` border radius.
-- Status pills use `999px` radius.
+- Form controls and buttons use a `10px` border radius.
+- Status badges use a `6px` radius and at least `20px` height.
+- The `999px` radius is reserved for true chips and pills.
 - Current shell/page spacing commonly uses `12px`, `14px`, `18px`, `22px`,
   and `24px`.
 - Shadows are light and administrative:
@@ -97,9 +99,9 @@ Confirmed recurring components and patterns:
 - MJL workspace shell and grouped sidebar.
 - Page header with one title, optional useful description, semantic
   breadcrumbs, status/scope context, and caller-authorized actions.
-- Dashboard/KPI cards with labels, values, status pills, and action links.
+- Dashboard/KPI cards with labels, values, status badges, and action links.
 - Alert cards with severity tone, affected object, metadata, and destination.
-- Status pills with semantic tone classes.
+- Status badges with semantic tone classes.
 - Timeline/comment blocks for workflow history and project notes.
 - Filter panels and table wrappers for dense administrative data.
 - Auth panels, fields, messages, error states, and primary auth buttons.
@@ -138,7 +140,7 @@ behavior, accessibility, French labels, role visibility, and E2E expectations.
 
 - Role-aware MJL workspace shell and sidebar.
 - Auth panel styling with a single focused task.
-- Status-first workflow detail patterns using status pills and timelines.
+- Status-first workflow detail patterns using status badges and timelines.
 - Alert cards that link to the affected object.
 - Guarded document access surfaced through MJL object/document pages.
 - Export center framing outputs with filters, scope, format, and filenames.

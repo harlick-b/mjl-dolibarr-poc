@@ -4,7 +4,7 @@ header('Content-Type: text/css; charset=UTF-8');
 .mjl-auth-page {
 	background: #f5f7f8;
 	color: #202529;
-	font-family: Arial, Helvetica, sans-serif;
+	font-family: Inter, Arial, Helvetica, sans-serif;
 	min-height: 100vh;
 }
 
@@ -57,14 +57,14 @@ header('Content-Type: text/css; charset=UTF-8');
 .mjl-auth-field label {
 	display: block;
 	font-size: 13px;
-	font-weight: 700;
+	font-weight: 600;
 	margin-bottom: 6px;
 }
 
 .mjl-auth-field input,
 .mjl-auth-field select {
-	border: 1px solid #b7c2c9;
-	border-radius: 4px;
+	border: 1px solid #5c6870;
+	border-radius: 10px;
 	box-sizing: border-box;
 	font-size: 15px;
 	min-height: 40px;
@@ -83,11 +83,12 @@ header('Content-Type: text/css; charset=UTF-8');
 .mjl-auth-button {
 	background: #16324f;
 	border: 1px solid #16324f;
-	border-radius: 4px;
+	border-radius: 10px;
 	color: #ffffff !important;
 	cursor: pointer;
 	font-size: 14px;
 	font-weight: 700;
+	min-height: 44px;
 	padding: 10px 14px;
 	text-decoration: none;
 }
@@ -95,6 +96,7 @@ header('Content-Type: text/css; charset=UTF-8');
 .mjl-auth-link {
 	color: #164f7a;
 	font-size: 14px;
+	font-weight: 500;
 	text-decoration: underline;
 }
 
@@ -112,4 +114,55 @@ header('Content-Type: text/css; charset=UTF-8');
 	background: #fff1f1;
 	border-color: #e3b7b7;
 	color: #8a2f2f;
+}
+
+.mjl-auth-page :where(a, button, input, select, textarea):focus-visible {
+	outline: 2px solid #164f7a;
+	outline-offset: 4px;
+}
+
+.mjl-auth-button:focus-visible {
+	box-shadow: 0 0 0 4px #164f7a;
+	outline-color: #ffffff !important;
+	outline-offset: 2px !important;
+}
+
+@media (hover: hover) {
+	.mjl-auth-button:hover {
+		background: #123f62;
+		border-color: #123f62;
+	}
+}
+
+.mjl-auth-button:active {
+	box-shadow: inset 0 1px 2px rgba(22, 50, 79, 0.3);
+}
+
+.mjl-auth-page :where(button, input, select, textarea):disabled,
+.mjl-auth-page [aria-disabled="true"] {
+	background: #e3e8eb;
+	border-color: #c8d0d5;
+	color: #5c6870;
+	cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mjl-auth-page *,
+	.mjl-auth-page *::before,
+	.mjl-auth-page *::after {
+		scroll-behavior: auto !important;
+		transition-duration: 0ms !important;
+	}
+}
+
+@media (forced-colors: active) {
+	.mjl-auth-page :where(a, button, input, select, textarea):focus-visible {
+		outline-color: Highlight;
+	}
+}
+
+@media (any-pointer: coarse) {
+	.mjl-auth-page :where(button, input, select, textarea) {
+		min-height: 44px;
+	}
 }

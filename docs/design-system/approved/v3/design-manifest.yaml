@@ -1,0 +1,69 @@
+manifest_version: 0.3.0
+package: mjl-financement-design-system
+generation:
+  id: v3
+  mode: repository-refinement
+  status: APPROVED
+authority:
+  source_prompt_sha256: 34a7257e17a8d693524bbcc490325062ae80d03bf6dcb5e3aa4d955685e0f7dd
+  implementation_plan_sha256: 253438f890afe36f1ccc1791a64afd23eeaf4b694cc395433e2513e96f592909
+  baseline_commit: bc820e1e3e46acddfbd2d55878a6f78c0403d67d
+  baseline_dirty_paths:
+    modified:
+      - custom/mjlfinancement/activities.php
+      - custom/mjlfinancement/admin/access.php
+      - custom/mjlfinancement/deployment/apache-native-guard.conf
+      - custom/mjlfinancement/expenses.php
+      - custom/mjlfinancement/index.php
+      - custom/mjlfinancement/scripts/audit_schema_current.php
+      - custom/mjlfinancement/scripts/bootstrap_poc.php
+      - custom/mjlfinancement/scripts/check_production_readiness.php
+      - custom/mjlfinancement/scripts/disable_native_workspace_modules.php
+      - custom/mjlfinancement/scripts/seed_sample_data.php
+      - custom/mjlfinancement/scripts/verify_activity_workflow.php
+      - custom/mjlfinancement/scripts/verify_expense_workflow.php
+      - custom/mjlfinancement/scripts/verify_sample_data.php
+      - custom/mjlfinancement/scripts/verify_scope_integrity.php
+      - custom/mjlfinancement/scripts/verify_traceability_exports.php
+      - docs/design-system/README.md
+      - docs/design-system/audit/current-screen-inventory.md
+      - docs/design-system/audit/current-ui-audit.md
+      - docs/mjl-acceptance-tests.md
+      - docs/mjl-current-app-functional-map.md
+      - docs/mjl-current-vs-target-gap-analysis.md
+      - docs/mjl-deployment-checklist.md
+      - docs/mjl-test-coverage-registry.md
+      - package.json
+      - playwright.config.js
+      - tasks/lessons.md
+      - tests/e2e/cases/activity-workflow.cases.js
+      - tests/e2e/cases/contextual-exchanges.cases.js
+      - tests/e2e/cases/expense-workflow.cases.js
+      - tests/manual/accessibility-gate.spec.js
+      - tests/runner/disposable-run.js
+      - tests/runner/run-suite.js
+      - tests/unit/disposable-run.test.js
+      - tests/unit/verification-entrypoints.test.js
+    untracked:
+      - custom/mjlfinancement/scripts/cli_guard.php
+      - tests/e2e/screen-inventory.spec.js
+      - tests/unit/operational-script-boundary.test.js
+  decisions: docs/mjl-authoritative-decisions.md
+recovery:
+  retired_generation: v2
+  git_commit: e95927f816bb127914b432adb119e522c669cbc8
+font:
+  family: Inter
+  weights: [400, 500, 600, 700]
+  source: https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap
+  fallback: [Arial, Helvetica, sans-serif]
+  policy: local-first-with-approved-central-cdn-fallback
+provenance:
+  rights: repository-owned refinement of the approved MJL design direction
+  anti_cloning: no external design-system namespace or token bundle copied
+  migration_ledger: docs/design/design-validation-report.md
+validation:
+  report: docs/design/design-validation-report.md
+  manual_review: MANUAL-REVIEW.md
+  automated_verdict: PASSED
+  implementation_verdict: IMPLEMENTED_WITH_NOTES

@@ -2,9 +2,9 @@
 
 ## 1. Résumé d'autorité
 
-La référence visuelle retenue est la génération canonique v2 enregistrée par `docs/design-system/README.md`. Les valeurs viennent de `docs/design-system/approved/v2/design-tokens/tokens.json` et `docs/design-system/approved/v2/design-tokens/semantic-tokens.json`. Les principes et composants viennent de `docs/design-system/approved/v2/DESIGN.md` et de son inventaire de composants. La feuille `custom/mjlfinancement/css/mjl_app.css.php` confirme l'adoption des principaux tokens v2 dans le shell actif, sans servir de source pour ses anciennes valeurs littérales.
+La référence visuelle retenue est la génération canonique v3 enregistrée par `docs/design-system/README.md`. Les valeurs viennent de `docs/design-system/approved/v3/design-tokens/tokens.json` et `docs/design-system/approved/v3/design-tokens/semantic-tokens.json`. Les principes et composants viennent de `docs/design-system/approved/v3/DESIGN.md` et de son inventaire de composants. La feuille `custom/mjlfinancement/css/mjl_app.css.php` confirme l'adoption des principaux tokens v3 dans le shell actif, sans servir de source pour ses anciennes valeurs littérales.
 
-Les documents de design non versionnés antérieurs à v2, la mémoire racine fondée sur les anciens styles, les styles d'authentification divergents, le chrome Dolibarr natif, les pages historiques et les expériences temporaires sont ignorés. La palette v2 constitue la fondation de marque canonique actuelle, tout en restant remplaçable après validation des futurs actifs de marque.
+Les documents de design non versionnés antérieurs à v3, la mémoire racine fondée sur les anciens styles, le chrome Dolibarr natif, les pages historiques et les expériences temporaires sont ignorés. La palette et la typographie v3 constituent la fondation canonique actuelle, tout en restant remplaçables après validation des futurs actifs de marque.
 
 ## 2. Identité visuelle à reprendre
 
@@ -13,7 +13,7 @@ Les documents de design non versionnés antérieurs à v2, la mémoire racine fo
 - Un rythme fondé sur une grille de 4 px, avec des regroupements aérés et une densité plus compacte dans les matrices.
 - Des cartes à bordure fine, petit rayon et ombre discrète, sans effet flottant spectaculaire.
 - Des boutons directs, libellés en français, avec une action principale bleue et une action secondaire blanche bordée.
-- Des badges courts en forme de pastille, dont le texte porte toujours le sens indépendamment de la couleur.
+- Des badges courts à rayon de 6 px, dont le texte porte toujours le sens indépendamment de la couleur.
 - Des matrices et tableaux clairs, comparables ligne par ligne, avec en-têtes sobres, bordures visibles et cellules compactes.
 - Des indicateurs limités aux informations utiles, avec une valeur forte, un libellé court et un contexte explicite.
 - Des alertes persistantes à bordure latérale, formulées comme un point d'attention et une action attendue.
@@ -34,6 +34,7 @@ Les documents de design non versionnés antérieurs à v2, la mémoire racine fo
   --mjl-muted: #5c6870;
   --mjl-success: #17633a;
   --mjl-success-soft: #e8f5ec;
+  --mjl-success-badge: #caface;
   --mjl-warning: #6b4900;
   --mjl-warning-soft: #fff4cc;
   --mjl-danger: #8a1c1c;
@@ -41,7 +42,7 @@ Les documents de design non versionnés antérieurs à v2, la mémoire racine fo
   --mjl-info: #164f7a;
   --mjl-info-soft: #eaf3f8;
 
-  --mjl-font-family: Arial, Helvetica, sans-serif;
+  --mjl-font-family: Inter, Arial, Helvetica, sans-serif;
   --mjl-font-size-xs: 12px;
   --mjl-font-size-sm: 14px;
   --mjl-font-size-base: 16px;
@@ -52,7 +53,8 @@ Les documents de design non versionnés antérieurs à v2, la mémoire racine fo
   --mjl-radius-sm: 4px;
   --mjl-radius-md: 6px;
   --mjl-radius-lg: 8px;
-  --mjl-radius-xl: 999px;
+  --mjl-radius-control: 10px;
+  --mjl-radius-pill: 999px;
 
   --mjl-space-1: 4px;
   --mjl-space-2: 8px;
@@ -69,7 +71,7 @@ Les documents de design non versionnés antérieurs à v2, la mémoire racine fo
 }
 ```
 
-Utiliser `--mjl-font-size-sm` pour le texte courant dense et `--mjl-font-size-base` pour les contrôles tactiles ou les textes de cadrage importants. Le rayon `--mjl-radius-xl` est réservé aux pastilles.
+Utiliser `--mjl-font-size-sm` pour le texte courant dense et `--mjl-font-size-base` pour les contrôles tactiles ou les textes de cadrage importants. Le rayon `--mjl-radius-pill` est réservé aux vraies puces et pastilles.
 
 ## 4. Règles de composants pour le support de cadrage
 
@@ -161,9 +163,9 @@ Utiliser `--mjl-font-size-sm` pour le texte courant dense et `--mjl-font-size-ba
 
 ## 7. Notes d'inférence
 
-- Les noms de variables imposés par ce handoff sont des alias Sites des tokens v2. `--mjl-primary-soft` reprend la surface sélectionnée et `--mjl-surface-muted` reprend la surface subtile.
-- Le paquet v2 fournit deux élévations. `--mjl-shadow-lg` reprend donc volontairement `--mjl-shadow-md` au lieu d'introduire une ombre plus forte sans source autoritative.
-- La matrice des rôles, les étapes du parcours financier, les cartes d'ambiguïté et la checklist sont propres au support de cadrage. Leurs formes sont dérivées des cartes, tableaux, badges, panneaux de décision et états sémantiques v2.
+- Les noms de variables imposés par ce handoff sont des alias Sites des tokens v3. `--mjl-primary-soft` reprend la surface sélectionnée et `--mjl-surface-muted` reprend la surface subtile.
+- Les élévations restent des adaptations du shell existant et ne remplacent pas les tokens v3 autoritatifs.
+- La matrice des rôles, les étapes du parcours financier, les cartes d'ambiguïté et la checklist sont propres au support de cadrage. Leurs formes sont dérivées des cartes, tableaux, badges, panneaux de décision et états sémantiques v3.
 - Les correspondances `Oui`, `Non`, `Selon périmètre`, `À confirmer`, `à décider` et `à revoir` sont des adaptations sémantiques pour l'atelier. Elles ne définissent aucun droit applicatif ni aucune règle métier.
 - Les actifs de marque futurs peuvent remplacer la palette, la typographie ou les icônes. Les noms sémantiques et les exigences de contraste doivent alors être conservés.
 
@@ -196,7 +198,7 @@ Applique l'identité visuelle MJL décrite dans ce handoff et utilise ses variab
   align-items: center;
   width: fit-content;
   border: 1px solid var(--mjl-border);
-  border-radius: var(--mjl-radius-xl);
+  border-radius: var(--mjl-radius-md);
   color: var(--mjl-muted);
   font-family: var(--mjl-font-family);
   font-size: var(--mjl-font-size-xs);
@@ -213,7 +215,7 @@ Applique l'identité visuelle MJL décrite dans ce handoff et utilise ses variab
   justify-content: center;
   min-height: 44px;
   border: 1px solid var(--mjl-accent);
-  border-radius: var(--mjl-radius-sm);
+  border-radius: var(--mjl-radius-control);
   cursor: pointer;
   font: inherit;
   font-weight: 700;
