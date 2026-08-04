@@ -119,25 +119,25 @@ test('Current final-validator fixture creates, edits, activates, filters, and vi
   await page.getByRole('link', { name: 'Créer une ligne budgétaire' }).click();
   await expect(page.locator('form[data-mjl-form="budgetline-create"]')).toHaveAttribute('data-mjl-substantive', '');
 
-  await page.getByLabel('Reference').fill('BGT-UI-BL');
-  await page.getByLabel('Libelle').fill('Budget Budget integrity UI');
+  await page.getByLabel('Référence').fill('BGT-UI-BL');
+  await page.getByLabel('Libellé').fill('Budget Budget integrity UI');
   await page.locator('select[name="fk_project"]').selectOption(projectId);
   await page.locator('select[name="fk_convention"]').selectOption(conventionId);
   await page.locator('select[name="fk_mjl_activity"]').selectOption(activityId);
   await page.getByLabel('Budget initial').fill('600000');
-  await page.getByLabel('Budget revise').fill('650000');
-  await page.getByLabel('Categorie').fill('budget_integrity');
+  await page.getByLabel('Budget révisé').fill('650000');
+  await page.getByLabel('Catégorie').fill('budget_integrity');
   await page.getByRole('button', { name: 'Créer la ligne' }).click();
 
   await expect(page).toHaveURL(/budgetlines\.php\?id=\d+/);
   await expect(page.getByRole('heading', { name: /BGT-UI-BL/ })).toBeVisible();
   await expect(page.getByText('Brouillon').first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Historique ligne budgetaire' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Historique de la ligne budgétaire' })).toBeVisible();
 
   await expect(page.locator('form input[name="action"][value="update"]')).toHaveCount(0);
   await page.getByRole('link', { name: 'Modifier la ligne' }).click();
   await expect(page.locator('form[data-mjl-form="budgetline-edit"]')).toHaveAttribute('data-mjl-substantive', '');
-  await page.getByLabel('Libelle').fill('Budget Budget integrity modifie');
+  await page.getByLabel('Libellé').fill('Budget Budget integrity modifie');
   await page.getByLabel('Motif de modification').fill('Correction libelle Budget integrity');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByRole('heading', { name: /Budget Budget integrity modifie/ })).toBeVisible();

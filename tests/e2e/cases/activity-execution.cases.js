@@ -148,13 +148,15 @@ test('update_execution updates only execution fields and writes production audit
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
   await page.getByRole('link', { name: 'Mettre à jour l’exécution' }).click();
-  await page.getByLabel('Execution physique (%)').fill('80');
+  await expect(page.locator('form[data-mjl-form="activity-execution"]')).toBeVisible();
+  await expect(page.locator('[name="exécution"], [data-mjl-form="activity-exécution"], [id^="mjl-exécution-"]')).toHaveCount(0);
+  await page.getByLabel('Exécution physique (%)').fill('80');
   await page.locator('select[name="execution_status"]').selectOption('in_progress');
-  await page.getByLabel('Commentaire execution').fill('Avancement Activity execution');
+  await page.getByLabel('Commentaire exécution').fill('Avancement Activity execution');
   await page.getByRole('button', { name: 'Mettre à jour l’exécution' }).click();
 
   await page.getByRole('link', { name: 'Mettre à jour l’exécution' }).click();
-  await expect(page.getByLabel('Execution physique (%)')).toHaveValue('80');
+  await expect(page.getByLabel('Exécution physique (%)')).toHaveValue('80');
   await expect(page.locator('select[name="execution_status"]')).toHaveValue('in_progress');
   expect(scalar(`SELECT status FROM llx_mjlfinancement_activity WHERE rowid = ${activityId}`)).toBe(beforeStatus);
   expect(scalar(`SELECT physical_execution_percent FROM llx_mjlfinancement_activity WHERE rowid = ${activityId}`)).toBe('80');
@@ -177,18 +179,18 @@ test('project and dashboard execution KPIs reflect execution update and late ale
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await expect(page.locator('body')).toContainText('Execution physique');
+  await expect(page.locator('body')).toContainText('Exécution physique');
   await expect(page.locator('body')).toContainText(`${projectKpi}%`);
   await expect(page.locator('body')).toContainText('ACTX-LATE');
-  await expect(page.locator('body')).toContainText('En retard');
+  await expect(page.locator('body')).toContainText('Échéance dépassée');
 
   await page.goto('/custom/mjlfinancement/index.php');
-  await expect(page.locator('body')).toContainText('Execution physique');
+  await expect(page.locator('body')).toContainText('Exécution physique');
   await expect(page.locator('body')).toContainText(`${dashboardKpi}%`);
 
   await page.goto('/custom/mjlfinancement/alerts.php');
   await expect(page.locator('body')).toContainText('ACTX-LATE');
-  await expect(page.locator('body')).toContainText('En retard');
+  await expect(page.locator('body')).toContainText('Échéance dépassée');
 });
 
 test('no-self-prevalidation still holds after execution work', async ({ page }) => {

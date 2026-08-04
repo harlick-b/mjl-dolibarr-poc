@@ -146,13 +146,13 @@ test('Data-entry agent creates, opens, submits, and sees timeline updates', asyn
   await expect(page.getByText('Mes activités')).toBeVisible();
   await page.getByRole('link', { name: 'Créer une activité' }).click();
 
-  await page.getByLabel('Reference').fill('ACTW-UI-CREATE');
-  await page.getByLabel('Libelle').fill('Activite Activity workflow creee par UI');
+  await page.getByLabel('Référence').fill('ACTW-UI-CREATE');
+  await page.getByLabel('Libellé').fill('Activite Activity workflow creee par UI');
   await page.locator('select[name="fk_project"]').selectOption({ label: 'PRJ-JE-2026 - Projet Justice Enfants' });
   await page.locator('select[name="fk_convention"]').selectOption({ label: 'CONV-UNICEF-2026-001 - Convention UNICEF Justice Enfants 2026 (PRJ-JE-2026)' });
   await page.locator('input[name="date_start"]').fill('2026-06-20');
   await page.locator('input[name="date_end"]').fill(relativeDate(14));
-  await page.getByLabel('Execution physique (%)').fill('25');
+  await page.getByLabel('Exécution physique (%)').fill('25');
   await page.locator('select[name="execution_status"]').selectOption('in_progress');
   await page.getByRole('button', { name: 'Créer l’activité' }).click();
 
@@ -162,10 +162,10 @@ test('Data-entry agent creates, opens, submits, and sees timeline updates', asyn
   await expect(page.getByText('Brouillon').first()).toBeVisible();
   await expect(page.getByText('25% - Partiellement exécutée')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Historique de decision' })).toBeVisible();
-  await expect(page.getByText('Activite creee', { exact: true })).toBeVisible();
+  await expect(page.getByText('Activité créée', { exact: true })).toBeVisible();
 
   await page.getByLabel('Commentaire de soumission').fill('Soumission Activity workflow');
-  await page.getByRole('button', { name: 'Soumettre l activite' }).click();
+  await page.getByRole('button', { name: 'Soumettre l activité' }).click();
   await expect(page.getByText('Soumise').first()).toBeVisible();
   await expect(page.getByText('Soumission', { exact: true })).toBeVisible();
   await expect(page.getByText('Soumission Activity workflow')).toBeVisible();
@@ -188,6 +188,52 @@ test('Create form filters conventions and tasks by selected project', async ({ p
   await expectOptionDisabled(page, 'fk_convention', 'CONV-RED-2026-001', false);
   await expectOptionDisabled(page, 'fk_task', 'ACT-JE-001', true);
   await expectOptionDisabled(page, 'fk_task', 'ACT-RED-001', false);
+});
+
+test('JavaScript-disabled create recovers a server-invalid date relationship with ASCII form keys', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  try {
+    await login(page, 'agent.mjl');
+    await page.goto('/custom/mjlfinancement/activities.php?action=create');
+    await page.getByLabel('Référence').fill('ACTW-NOJS-DATE');
+    await page.getByLabel('Libellé').fill('Activité sans JavaScript avec dates invalides');
+    await page.locator('select[name="fk_project"]').selectOption(scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1"));
+    await page.locator('select[name="fk_convention"]').selectOption(scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1"));
+    await page.locator('input[name="date_start"]').fill('2026-08-20');
+    await page.locator('input[name="date_end"]').fill('2026-08-19');
+    await page.getByRole('button', { name: 'Créer l’activité' }).click();
+    await expect(page).toHaveURL(/activities\.php\?action=create&mjl_recovery=/);
+	await expect(page.locator('#mjl-field-date_end-error')).toHaveText('La date de fin doit être postérieure ou égale à la date de début.');
+    await expect(page.locator('input[name="ref"]')).toHaveValue('ACTW-NOJS-DATE');
+    await expect(page.locator('form[data-mjl-form="activity-create"]')).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(/Ajoutéz|Depensé/);
+    await expect(page.locator('[name*="é"], [data-mjl-form*="é"]')).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test('activity aggregate failures stay unavailable instead of becoming zero or operation feedback', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  sql('RENAME TABLE llx_mjlfinancement_budget_line TO llx_mjlfinancement_budget_line_actw_failure');
+  try {
+    await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
+    await expect(page.getByText('Budget rattaché').locator('xpath=..')).toContainText('Indisponible');
+    await expect(page.locator('body')).not.toContainText('0 ligne(s), 0 F CFA');
+    await expect(page.locator('body')).not.toContainText('Action enregistrée');
+  } finally {
+    sql('RENAME TABLE llx_mjlfinancement_budget_line_actw_failure TO llx_mjlfinancement_budget_line');
+  }
+
+  sql('RENAME TABLE llx_mjlfinancement_expense TO llx_mjlfinancement_expense_actw_failure');
+  try {
+    await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
+    await expect(page.getByText('Documents liés indisponibles')).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('0 dépense(s) liée(s)');
+  } finally {
+    sql('RENAME TABLE llx_mjlfinancement_expense_actw_failure TO llx_mjlfinancement_expense');
+  }
 });
 
 test('Tampered create POST with mismatched project and convention is rejected server-side', async ({ page }) => {
@@ -254,9 +300,9 @@ test('Verifier prevalidates submitted activity, then final validator validates i
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${submittedActivityId}`);
   await expect(page.getByRole('heading', { name: /ACTW-SUBMITTED/ })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Pieces justificatives des depenses liees' })).toBeVisible();
-  await expect(page.getByText('1 avec piece')).toBeVisible();
-  await expect(page.getByText('1 piece(s) manquante(s)')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pièces justificatives des dépenses liées' })).toBeVisible();
+  await expect(page.getByText('1 avec pièce')).toBeVisible();
+  await expect(page.getByText('1 pièce(s) manquante(s)')).toBeVisible();
   await expect(page.getByText('ACTW-EXP-DOC')).toBeVisible();
   await expect(page.getByText('ACTW-EXP-MISS')).toBeVisible();
 
@@ -304,7 +350,7 @@ test('Return for correction preserves previous decision through correction and r
   await expect(page.getByText('Corrigée').first()).toBeVisible();
 
   await page.getByLabel('Commentaire de soumission').fill('Resoumission Activity workflow');
-  await page.getByRole('button', { name: 'Soumettre l activite' }).click();
+  await page.getByRole('button', { name: 'Soumettre l activité' }).click();
   await expect(page.getByText('Soumise').first()).toBeVisible();
   await expect(page.getByText('Motif correction Activity workflow')).toBeVisible();
   await expect(page.getByText('Resoumission Activity workflow')).toBeVisible();

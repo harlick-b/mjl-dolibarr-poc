@@ -173,6 +173,8 @@ test('admin sees all partners and final validator can create and edit projects w
   expect(Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'PRJSC-FINAL-PROJ' AND entity = 1 AND fk_soc IS NOT NULL"))).toBe(1);
   const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJSC-FINAL-PROJ' AND entity = 1 LIMIT 1");
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
+  expect(scalar(`SELECT to_status FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' ORDER BY rowid DESC LIMIT 1`)).toBe('Projet cree');
+  expect(scalar(`SELECT comment FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' ORDER BY rowid DESC LIMIT 1`)).toBe('Projet MJL cree');
 
   await page.getByRole('link', { name: 'Modifier le projet' }).click();
   await page.getByLabel('Intitulé').fill('Projet Project scope Final validator modifie');

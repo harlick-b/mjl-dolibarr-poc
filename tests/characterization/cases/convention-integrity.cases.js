@@ -86,11 +86,11 @@ test('Current final-validator fixture creates, edits, activates, closes, and vie
   await expect(page.getByRole('heading', { name: 'Gestion des enveloppes de financement' })).toBeVisible();
   await page.getByRole('link', { name: 'Créer une enveloppe' }).click();
 
-  await page.getByLabel('Reference').fill('CNV-UI-CONV');
-  await page.getByLabel('Intitule').fill('Convention Convention management UI');
+  await page.getByLabel('Référence').fill('CNV-UI-CONV');
+  await page.getByLabel('Intitulé').fill('Convention Convention management UI');
   await page.locator('select[name="fk_soc"]').selectOption(ptfId);
   await page.locator('select[name="fk_project"]').selectOption(projectId);
-  await page.getByLabel('Debut').fill('2026-07-01');
+  await page.getByLabel('Début').fill('2026-07-01');
   await page.locator('input[name="date_end"]').fill('2026-12-31');
   await page.getByLabel('Montant total').fill('1234567');
   await page.getByLabel('Devise').fill('XOF');
@@ -102,7 +102,7 @@ test('Current final-validator fixture creates, edits, activates, closes, and vie
   await expect(page.getByRole('heading', { name: 'Historique enveloppe' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Modifier l’enveloppe' }).click();
-  await page.getByLabel('Intitule').fill('Convention Convention management modifiee');
+  await page.getByLabel('Intitulé').fill('Convention Convention management modifiee');
   await page.getByLabel('Motif de modification').fill('Correction libelle Convention management');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByRole('heading', { name: /Convention Convention management modifiee/ })).toBeVisible();
@@ -198,8 +198,8 @@ test('Unlinked draft deletion works but linked deletion is blocked', async ({ pa
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/conventions.php');
   await page.getByRole('link', { name: 'Créer une enveloppe' }).click();
-  await page.getByLabel('Reference').fill('CNV-DELETE-DRAFT');
-  await page.getByLabel('Intitule').fill('Convention Convention management suppression');
+  await page.getByLabel('Référence').fill('CNV-DELETE-DRAFT');
+  await page.getByLabel('Intitulé').fill('Convention Convention management suppression');
   await page.locator('select[name="fk_soc"]').selectOption(ptfId);
   await page.locator('select[name="fk_project"]').selectOption(projectId);
   await page.getByLabel('Montant total').fill('500000');

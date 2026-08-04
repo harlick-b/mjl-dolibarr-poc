@@ -70,7 +70,7 @@ async function inviteUser(page, suffix) {
   await page.locator('#mjl-email').fill(email);
   const firstScope = await page.locator('select[name="scope_soc_ids[]"] option').first().getAttribute('value');
   await page.locator('select[name="scope_soc_ids[]"]').first().selectOption(firstScope);
-  await page.getByRole('button', { name: 'Envoyer l invitation' }).click();
+  await page.getByRole('button', { name: 'Envoyer l’invitation' }).click();
   const linkOutput = page.locator('code').filter({ hasText: '/custom/mjlfinancement/invitation.php?invite=' });
   await expect(linkOutput).toBeVisible();
   const invitationLink = await linkOutput.textContent();
@@ -90,12 +90,12 @@ test.afterAll(() => {
 test('MJL login and forgotten-password pages replace raw native auth UI', async ({ page }) => {
   await page.goto('/index.php');
   await expect(page.getByRole('heading', { name: 'MJL Financement' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Mot de passe oublie' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Mot de passe oublié' })).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/Register|Sign up|Créer un compte|Inscription/);
 
   await page.goto('/user/passwordforgotten.php');
-  await expect(page.getByRole('heading', { name: 'Mot de passe oublie' })).toBeVisible();
-  await expect(page.getByLabel('Adresse email')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Mot de passe oublié' })).toBeVisible();
+  await expect(page.getByLabel('Adresse e-mail')).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/Identifiant|Code sécurité|Register|Sign up|Créer un compte|Inscription/);
 });
 
@@ -109,7 +109,7 @@ test('Admin invitation flow, landing page, and non-admin access blocking', async
   await expect(page.getByRole('heading', { name: 'Invitation MJL' })).toBeVisible();
   await page.locator('#newpass1').fill('MjlInvite2026!!');
   await page.locator('#newpass2').fill('MjlInvite2026!!');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
 
   await login(page, invited.loginName, 'MjlInvite2026!!');
   await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
@@ -121,7 +121,7 @@ test('Admin invitation flow, landing page, and non-admin access blocking', async
 test('Admin assignment UI blocks self-deactivation and unresolved legacy access fails closed', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/admin/access.php');
-  await expect(page.getByText('Profil legacy non resolu').first()).toBeVisible();
+  await expect(page.getByText('Profil historique non résolu').first()).toBeVisible();
 
   const adminId = sqlScalar("SELECT rowid FROM llx_user WHERE login = 'admin.poc' LIMIT 1");
   await page.evaluate((userId) => {
@@ -137,7 +137,7 @@ test('Admin assignment UI blocks self-deactivation and unresolved legacy access 
     document.body.appendChild(form);
     form.submit();
   }, adminId);
-  await expect(page.getByText('Vous ne pouvez pas desactiver votre propre acces')).toBeVisible();
+  await expect(page.getByText('Vous ne pouvez pas désactiver votre propre accès.')).toBeVisible();
 
   await login(page, 'lecteur.audit');
   await page.goto('/custom/mjlfinancement/index.php');
@@ -166,8 +166,8 @@ test('double-submit invitation acceptance cannot disable an activated user', asy
     pageTwo.locator('#newpass2').fill('MjlDouble2026!!')
   ]);
   await Promise.allSettled([
-    pageOne.getByRole('button', { name: 'Definir mon mot de passe' }).click(),
-    pageTwo.getByRole('button', { name: 'Definir mon mot de passe' }).click()
+    pageOne.getByRole('button', { name: 'Définir mon mot de passe' }).click(),
+    pageTwo.getByRole('button', { name: 'Définir mon mot de passe' }).click()
   ]);
   await contextOne.close();
   await contextTwo.close();
@@ -188,7 +188,7 @@ test('stale revoke cannot overwrite an accepted invitation or deactivate user', 
   await page.goto(invited.invitationLink);
   await page.locator('#newpass1').fill('MjlStaleRevoke2026!!');
   await page.locator('#newpass2').fill('MjlStaleRevoke2026!!');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
 
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/admin/access.php');
@@ -205,7 +205,7 @@ test('stale revoke cannot overwrite an accepted invitation or deactivate user', 
     document.body.appendChild(form);
     form.submit();
   }, invitationId);
-  await expect(page.getByText('Cette invitation est deja acceptee')).toBeVisible();
+  await expect(page.getByText('Cette invitation est déjà acceptée.')).toBeVisible();
 
   expect(sqlScalar(`SELECT statut FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`)).toBe('1');
   expect(sqlScalar(`SELECT status FROM llx_mjlfinancement_invitation WHERE rowid = ${invitationId}`)).toBe('accepted');
@@ -217,11 +217,11 @@ test('revoked invitation link cannot be accepted later', async ({ page }) => {
 
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/admin/access.php');
-  await page.locator(`form:has(input[name="id"][value="${invitationId}"]) button`, { hasText: 'Revoquer' }).click();
-  await expect(page.getByText('Invitation revoquee')).toBeVisible();
+  await page.locator(`form:has(input[name="id"][value="${invitationId}"]) button`, { hasText: 'Révoquer' }).click();
+  await expect(page.getByText('Invitation révoquée.')).toBeVisible();
 
   await page.goto(invited.invitationLink);
-  await expect(page.getByText('Cette invitation a ete revoquee')).toBeVisible();
+  await expect(page.getByText('Cette invitation a été révoquée')).toBeVisible();
   expect(sqlScalar(`SELECT statut FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`)).toBe('0');
   expect(sqlScalar(`SELECT status FROM llx_mjlfinancement_invitation WHERE rowid = ${invitationId}`)).toBe('revoked');
 });
@@ -231,25 +231,25 @@ test('forgotten password uses neutral response and does not mutate sample users'
   await page.goto(invited.invitationLink);
   await page.locator('#newpass1').fill('MjlBeforeReset2026!!');
   await page.locator('#newpass2').fill('MjlBeforeReset2026!!');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
 
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/user/passwordforgotten.php');
-  await page.getByLabel('Adresse email').fill('missing-user@mjl-poc.local');
-  await page.getByRole('button', { name: 'Reinitialiser le mot de passe' }).click();
+  await page.getByLabel('Adresse e-mail').fill('missing-user@mjl-poc.local');
+  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   const missingResponse = await page.locator('main').innerText();
 
   await page.goto('/user/passwordforgotten.php');
-  await page.getByLabel('Adresse email').fill(invited.email);
-  await page.getByRole('button', { name: 'Reinitialiser le mot de passe' }).click();
+  await page.getByLabel('Adresse e-mail').fill(invited.email);
+  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   const existingResponse = await page.locator('main').innerText();
   expect(existingResponse).toBe(missingResponse);
 
   await page.goto(latestLink('password_reset'));
-  await expect(page.getByRole('heading', { name: 'Definir un nouveau mot de passe' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Définir un nouveau mot de passe' })).toBeVisible();
   await page.locator('#newpass1').fill('MjlReset2026!!');
   await page.locator('#newpass2').fill('MjlReset2026!!');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
 
   await login(page, invited.loginName, 'MjlReset2026!!');
   await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
@@ -260,35 +260,35 @@ test('password reset lifecycle invalidates old and pending links', async ({ page
   await page.goto(invited.invitationLink);
   await page.locator('#newpass1').fill('MjlResetLife2026!!');
   await page.locator('#newpass2').fill('MjlResetLife2026!!');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
 
   await page.goto('/user/passwordforgotten.php');
-  await page.getByLabel('Adresse email').fill(invited.email);
-  await page.getByRole('button', { name: 'Reinitialiser le mot de passe' }).click();
+  await page.getByLabel('Adresse e-mail').fill(invited.email);
+  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   const firstLink = latestLink('password_reset');
 
   await page.goto('/user/passwordforgotten.php');
-  await page.getByLabel('Adresse email').fill(invited.email);
-  await page.getByRole('button', { name: 'Reinitialiser le mot de passe' }).click();
+  await page.getByLabel('Adresse e-mail').fill(invited.email);
+  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   const secondLink = latestLink('password_reset');
   expect(secondLink).not.toBe(firstLink);
 
   await page.goto(firstLink);
-  await expect(page.getByText('Ce lien de reinitialisation est invalide ou expire')).toBeVisible();
+  await expect(page.getByText('Ce lien de réinitialisation est invalide ou expiré')).toBeVisible();
 
   const pendingToken = `pending-${Date.now()}`;
   const userId = sqlScalar(`SELECT rowid FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`);
   sql(`INSERT INTO llx_mjlfinancement_password_reset (entity, fk_user, status, token_hash, date_expiry, date_creation, fk_user_creat) VALUES (1, ${userId}, 'pending_send', SHA2('${pendingToken}', 256), DATE_ADD(NOW(), INTERVAL 1 HOUR), NOW(), ${userId})`);
   await page.goto(`/user/passwordforgotten.php?setnewpassword=1&mjlreset=${pendingToken}`);
-  await expect(page.getByText('Ce lien de reinitialisation est invalide ou expire')).toBeVisible();
+  await expect(page.getByText('Ce lien de réinitialisation est invalide ou expiré')).toBeVisible();
 
   await page.goto(secondLink);
   await page.locator('#newpass1').fill('MjlResetLifeNew2026!!');
   await page.locator('#newpass2').fill('MjlResetLifeNew2026!!');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
 
   await page.goto(secondLink);
-  await expect(page.getByText('Ce lien de reinitialisation est invalide ou expire')).toBeVisible();
+  await expect(page.getByText('Ce lien de réinitialisation est invalide ou expiré')).toBeVisible();
 });
 
 test('unsafe invitation targets are rejected without changing existing users', async ({ page }) => {
@@ -300,8 +300,8 @@ test('unsafe invitation targets are rejected without changing existing users', a
   await page.locator('#mjl-firstname').fill('Admin');
   await page.locator('#mjl-lastname').fill('Duplicate');
   await page.locator('#mjl-email').fill('admin.poc@mjl-poc.local');
-  await page.getByRole('button', { name: 'Envoyer l invitation' }).click();
-  await expect(page.getByText('Cet identifiant correspond deja a un utilisateur existant')).toBeVisible();
+  await page.getByRole('button', { name: 'Envoyer l’invitation' }).click();
+  await expect(page.getByText('Cet identifiant correspond déjà à un utilisateur existant.')).toBeVisible();
 
   const after = sqlScalar("SELECT CONCAT(admin, ':', statut, ':', email) FROM llx_user WHERE login = 'admin.poc' ORDER BY entity DESC LIMIT 1");
   expect(after).toBe(before);
@@ -310,8 +310,8 @@ test('unsafe invitation targets are rejected without changing existing users', a
   await page.locator('#mjl-firstname').fill('Duplicate');
   await page.locator('#mjl-lastname').fill('Email');
   await page.locator('#mjl-email').fill('agent.mjl@mjl-poc.local');
-  await page.getByRole('button', { name: 'Envoyer l invitation' }).click();
-  await expect(page.getByText('Cette adresse email est deja utilisee')).toBeVisible();
+  await page.getByRole('button', { name: 'Envoyer l’invitation' }).click();
+  await expect(page.getByText('Cette adresse e-mail est déjà utilisée.')).toBeVisible();
 });
 
 test('bad invitation password does not activate user and invalid links are safe', async ({ page }) => {
@@ -320,8 +320,8 @@ test('bad invitation password does not activate user and invalid links are safe'
   await page.goto(invited.invitationLink);
   await page.locator('#newpass1').fill('short');
   await page.locator('#newpass2').fill('short');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
-  await expect(page.locator('.mjl-auth-error').getByText('Le mot de passe doit contenir au moins 10 caracteres')).toBeVisible();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
+  await expect(page.locator('.mjl-auth-error').getByText('Le mot de passe doit contenir au moins 10 caractères')).toBeVisible();
   expect(sqlScalar(`SELECT statut FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`)).toBe('0');
 
   await page.goto('/custom/mjlfinancement/invitation.php?invite=invalid-token');

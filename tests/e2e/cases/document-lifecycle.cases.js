@@ -131,18 +131,22 @@ test('Activity creator uploads and downloads a direct activity document', async 
 
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
-  await expect(page.getByRole('heading', { name: 'Documents de l activite' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Documents de l’activité' })).toBeVisible();
   await expect(page.getByText('Manquante').first()).toBeVisible();
 
   await page.getByRole('link', { name: 'Ajouter un document' }).click();
+  await expect(page.locator('body')).not.toContainText('Ajoutéz');
   await page.setInputFiles('input[name="supporting_document"]', tmpFile);
   await page.getByRole('button', { name: 'Ajouter le document' }).click();
   await expect(page.getByText('Disponible').first()).toBeVisible();
-  await expect(page.getByText('Document ajoute a l activite')).toBeVisible();
+  await expect(page.getByText('Document ajouté à l’activité')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Brouillon vers Brouillon');
   const href = await page.getByRole('link', { name: 'Telecharger le document' }).first().getAttribute('href');
   await expectDownload(page, href, 'Document lifecycle creator activity document');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'document_uploaded'`))).toBe(1);
+  expect(scalar(`SELECT CONCAT(from_status, '|', to_status, '|', actor_role) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'document_uploaded' ORDER BY rowid DESC LIMIT 1`)).toBe('Brouillon|Brouillon|AGENT_SAISIE');
+  expect(scalar(`SELECT comment FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'document_uploaded' ORDER BY rowid DESC LIMIT 1`)).toMatch(/^Document ajoute: /);
+  expect(scalar(`SELECT description FROM llx_ecm_files WHERE entity = 1 AND src_object_type = 'mjlfinancement_activity' AND src_object_id = ${activityId} ORDER BY rowid DESC LIMIT 1`)).toBe('Document activite MJL');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_activity' AND object_id = ${activityId} AND action = 'document_downloaded' AND actor_role = 'AGENT_SAISIE'`))).toBe(1);
 });
 
@@ -186,7 +190,7 @@ test('Activity document states show available, unavailable, and missing labels',
   ]) {
     const activityId = scalar(`SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = '${ref}' AND entity = 1`);
     await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
-    const panel = page.getByRole('heading', { name: 'Documents de l activite' }).locator('xpath=ancestor::section[1]');
+    const panel = page.getByRole('heading', { name: 'Documents de l’activité' }).locator('xpath=ancestor::section[1]');
     await expect(panel).toContainText(label);
   }
 });
@@ -202,13 +206,15 @@ test('Final validator uploads and downloads convention documents; normal users a
   await page.setInputFiles('input[name="supporting_document"]', tmpFile);
   await page.getByRole('button', { name: 'Ajouter le document' }).click();
   await expect(page.getByText('Disponible').first()).toBeVisible();
-  await expect(page.getByText('Document ajoute a l enveloppe')).toBeVisible();
+  await expect(page.getByText('Document ajouté à l’enveloppe')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Active vers Active');
   await page.reload();
   const fileId = scalar(`SELECT rowid FROM llx_ecm_files WHERE entity = 1 AND src_object_type = 'mjlfinancement_convention' AND src_object_id = ${conventionId} ORDER BY rowid DESC LIMIT 1`);
   const href = `/custom/mjlfinancement/documentdownload.php?type=convention&id=${fileId}`;
   await expectDownload(page, href, 'Document lifecycle convention document');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_convention' AND object_id = ${conventionId} AND action = 'document_uploaded'`))).toBe(1);
+  expect(scalar(`SELECT CONCAT(from_status, '|', to_status, '|', actor_role) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_convention' AND object_id = ${conventionId} AND action = 'document_uploaded' ORDER BY rowid DESC LIMIT 1`)).toBe('Active|Active|VALIDATEUR_DEFINITIF');
+  expect(scalar(`SELECT comment FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_convention' AND object_id = ${conventionId} AND action = 'document_uploaded' ORDER BY rowid DESC LIMIT 1`)).toMatch(/^Document ajoute: /);
 
   await login(page, 'agent.mjl');
   await expectForbiddenDownload(page, href);
@@ -246,12 +252,12 @@ test('Convention document states show available, unavailable, and missing labels
 test('Workflow audit, Final validator dashboard, and reports label document uploads explicitly', async ({ page }) => {
   await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/workflowactions.php?workflow_action=document_uploaded');
-  await expect(page.getByText('Document ajoute').first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Document ajouté', exact: true }).first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/dpafdashboard.php');
-  await expect(page.getByText('Document ajouté').first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Document ajouté', exact: true }).first()).toBeVisible();
 
   await page.goto('/custom/mjlfinancement/reports.php?report=workflow_actions');
-  await expect(page.getByText('Document ajoute').first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Document ajouté', exact: true }).first()).toBeVisible();
   await expect(page.locator('body')).not.toContainText('document_uploaded');
 });

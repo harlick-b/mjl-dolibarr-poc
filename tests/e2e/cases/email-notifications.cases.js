@@ -50,7 +50,7 @@ async function inviteUser(page, suffix) {
   await page.locator('#mjl-email').fill(email);
   const firstScope = await page.locator('select[name="scope_soc_ids[]"] option').first().getAttribute('value');
   await page.locator('select[name="scope_soc_ids[]"]').first().selectOption(firstScope);
-  await page.getByRole('button', { name: 'Envoyer l invitation' }).click();
+  await page.getByRole('button', { name: 'Envoyer l’invitation' }).click();
 
   return { loginName, email, invitationLink: latestLink('invitation') };
 }
@@ -124,11 +124,11 @@ test('invitation and password reset emails contain working single-use links', as
   await page.goto(invited.invitationLink);
   await page.locator('#newpass1').fill('MjlEmailNotificationInvite2026!!');
   await page.locator('#newpass2').fill('MjlEmailNotificationInvite2026!!');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
 
   await page.goto('/user/passwordforgotten.php');
-  await page.getByLabel('Adresse email').fill(invited.email);
-  await page.getByRole('button', { name: 'Reinitialiser le mot de passe' }).click();
+  await page.getByLabel('Adresse e-mail').fill(invited.email);
+  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
 
   expect(e2eConst('MJL_EMAIL_E2E_LAST_PASSWORD_RESET_SUBJECT')).not.toBe('');
   const resetBody = e2eConst('MJL_EMAIL_E2E_LAST_PASSWORD_RESET_BODY');
@@ -137,7 +137,7 @@ test('invitation and password reset emails contain working single-use links', as
   await page.goto(latestLink('password_reset'));
   await page.locator('#newpass1').fill('MjlRoleDashboardeset2026!!');
   await page.locator('#newpass2').fill('MjlRoleDashboardeset2026!!');
-  await page.getByRole('button', { name: 'Definir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
 
   await login(page, invited.loginName, 'MjlRoleDashboardeset2026!!');
   await expect(page).toHaveURL(/custom\/mjlfinancement\/index\.php/);
@@ -148,7 +148,8 @@ test('activity submission notifies validators once per email address', async ({ 
   await login(page, 'agent.mjl');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${id}`);
   await page.getByLabel('Commentaire de soumission').fill('Soumission Email notification');
-  await page.getByRole('button', { name: 'Soumettre l activite' }).click();
+  await page.getByRole('button', { name: 'Soumettre l activité' }).click();
+  await expect(page.locator('[role="status"]')).toContainText('Action sur l’activité enregistrée.');
   await expect(page.getByText('Soumise').first()).toBeVisible();
 
   const submitted = outboxMessages().filter((message) => message.template === 'activity_submitted' && message.body.includes('EML-SUBMIT'));
@@ -208,9 +209,12 @@ test('notrigger workflow calls do not send workflow emails', async () => {
   expect(after).toBe(before);
 });
 
-test('alert email templates render usable activity references', async () => {
-  const rendered = execSync(`docker compose exec -T dolibarr php -r "define('NOLOGIN', 1); require '/var/www/html/main.inc.php'; require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_email.lib.php'; print json_encode(array(mjl_email_render('alert_deadline_approaching', array('activity_ref' => 'EML-ALERT')), mjl_email_render('alert_overdue_activity', array('activity_ref' => 'EML-ALERT'))));"`, { encoding: 'utf8' });
+test('email registry keeps formal French and rejects unsafe or unknown templates', async () => {
+  const rendered = execSync(`docker compose exec -T dolibarr php -r "define('NOLOGIN', 1); require '/var/www/html/main.inc.php'; require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_email.lib.php'; print json_encode(array(mjl_email_render('alert_deadline_approaching', array('activity_ref' => 'EML-ALERT')), mjl_email_render('alert_overdue_activity', array('activity_ref' => 'EML-ALERT')), mjl_email_render('invitation', array('link' => 'https://evil.test/x')), mjl_email_render('unknown_template', array())));"`, { encoding: 'utf8' });
   const alerts = JSON.parse(rendered);
   expect(alerts[0].subject).toContain('EML-ALERT');
   expect(alerts[1].subject).toContain('EML-ALERT');
+  expect(alerts[0].body).toContain('échéance');
+  expect(alerts[2]).toBe(false);
+  expect(alerts[3]).toBe(false);
 });

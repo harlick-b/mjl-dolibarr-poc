@@ -136,12 +136,12 @@ test('dashboard filters scope cards, queues, funds, budgets, and audit rows', as
 
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/index.php?fk_soc=${unicef}&fk_project=${project}&date_start=2026-07-01&date_end=2026-07-31&status_bucket=to_prevalidate`);
-  await expectCardValue(page, 'Activites en revue', 1);
-  await expectCardValue(page, 'Depenses en revue', 1);
+  await expectCardValue(page, 'Activités en revue', 1);
+  await expectCardValue(page, 'Dépenses en revue', 1);
   await page.goto(`/custom/mjlfinancement/index.php?fk_soc=${redev}`);
   await expect(page.locator('body')).toContainText('Partenaire / Programme hors périmètre');
-  await expectCardValue(page, 'Activites en revue', 0);
-  await expectCardValue(page, 'Depenses en revue', 0);
+  await expectCardValue(page, 'Activités en revue', 0);
+  await expectCardValue(page, 'Dépenses en revue', 0);
 
   await login(page, 'dpaf.mjl');
   await page.goto(`/custom/mjlfinancement/dpafdashboard.php?fk_soc=${unicef}&fk_project=${project}&date_start=2026-07-01&date_end=2026-07-31&status_bucket=to_final_validate`);

@@ -77,6 +77,8 @@ mjl_behavior_assert(mjl_timeline_presentation_action_label('', 'future_action') 
 mjl_behavior_assert(mjl_timeline_presentation_actor_role_label('', '', 'future_role') === 'Rôle non reconnu', 'unknown roles use neutral labels');
 mjl_behavior_assert(mjl_timeline_presentation_status_label('mjlfinancement_activity', 'future') === 'Statut non reconnu', 'unknown statuses use neutral labels');
 mjl_behavior_assert(mjl_timeline_presentation_status_label('mjlfinancement_expense', '7') === 'Décaissée', 'disbursement stays distinct');
+mjl_behavior_assert(mjl_timeline_presentation_status_label('mjlfinancement_project', 'Projet cree', 'created') === 'Projet créé', 'historical project status is mapped by object and action');
+mjl_behavior_assert(mjl_timeline_presentation_status_label('mjlfinancement_expense', 'Projet cree', 'submitted') === 'Statut non reconnu', 'arbitrary historical comment-like text is not rewritten');
 
 $journey = mjl_journey_render_summary(array('title' => '<Unsafe>', 'items' => array(array('label' => 'Statut', 'value' => 'Actif', 'tone' => 'future'))));
 mjl_behavior_assert(strpos($journey, '&lt;Unsafe&gt;') !== false && strpos($journey, 'mjl-status-neutral') !== false, 'journey escapes content and closes tones');

@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { execSync } = require('child_process');
+const { execFileSync, execSync } = require('child_process');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 
@@ -9,6 +9,16 @@ function dockerExec(command) {
 
 function sql(query) {
   dockerExec(`mariadb mariadb -udolidbuser -ppoc_pwd dolidb -e "${query.replace(/"/g, '\\"')}"`);
+}
+
+function scalar(query) {
+  return dockerExec(`mariadb mariadb -udolidbuser -ppoc_pwd dolidb -N -B -e "${query.replace(/"/g, '\\"')}"`).toString().trim();
+}
+
+function feedbackRenderProbe() {
+  const feedbackPath = `${process.cwd()}/custom/mjlfinancement/lib/mjl_feedback.lib.php`.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const php = `$_SESSION = array(); function setEventMessages($message, $unused = null, $style = 'mesgs') { if (!isset($_SESSION['dol_events'])) $_SESSION['dol_events'] = array(); $_SESSION['dol_events'][] = array('type' => $style, 'mesg' => $message); } require '${feedbackPath}'; mjl_feedback_reset_request_state(); mjl_feedback_add('browser:one', 'activity.created'); mjl_feedback_add('browser:one', 'activity.created'); mjl_feedback_add('browser:two', 'activity.created'); echo json_encode(array(mjl_feedback_render_and_clear(), mjl_feedback_render_and_clear()));`;
+  return JSON.parse(execFileSync('php', ['-r', php], { cwd: process.cwd(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
 }
 
 async function login(page, username) {
@@ -77,7 +87,8 @@ function seedScopedAlertsFixtures() {
     VALUES
       (1, 'ALT-BL-WARN', 'Budget Scoped alerts surveillance', @project, @convention, 1000, 1000, 'scoped_alerts', 1, NOW(), @final, 'ALTBLWARN'),
       (1, 'ALT-BL-CRIT', 'Budget Scoped alerts critique', @project, @convention, 1000, 1000, 'scoped_alerts', 1, NOW(), @final, 'ALTBLCRIT'),
-      (1, 'ALT-BL-OVER', 'Budget Scoped alerts depassement', @project, @convention, 1000, 1000, 'scoped_alerts', 1, NOW(), @final, 'ALTBLOVER');
+      (1, 'ALT-BL-OVER', 'Budget Scoped alerts depassement', @project, @convention, 1000, 1000, 'scoped_alerts', 1, NOW(), @final, 'ALTBLOVER'),
+      (1, 'ALT-BL-ALLOC', 'Budget Scoped alerts surallocation partenaire', @project, @convention, 999999999, 999999999, 'scoped_alerts', 1, NOW(), @final, 'ALTBLALLOC');
     SET @bl_warn = (SELECT rowid FROM llx_mjlfinancement_budget_line WHERE ref = 'ALT-BL-WARN' AND entity = 1);
     SET @bl_crit = (SELECT rowid FROM llx_mjlfinancement_budget_line WHERE ref = 'ALT-BL-CRIT' AND entity = 1);
     SET @bl_over = (SELECT rowid FROM llx_mjlfinancement_budget_line WHERE ref = 'ALT-BL-OVER' AND entity = 1);
@@ -117,6 +128,7 @@ test('agent sees operational activity and expense alerts only in assigned partne
   await expect(page.locator('body')).toContainText('ALT-EXP-UNAVAILABLE');
   await expect(page.locator('body')).toContainText('ALT-EXP-REJECTED');
   await expect(page.locator('body')).toContainText('ALT-EXP-OVER');
+	await expect(page.locator('article', { hasText: 'ALT-EXP-OVER' }).filter({ has: page.getByText('Budget dépassé', { exact: true }) })).toContainText('Agent vérificateur et prévalidateur');
   await expect(page.locator('body')).not.toContainText('ALT-ACT-RED');
   await expect(page.locator('body')).not.toContainText('ALT-EXP-NOT-DISB');
 });
@@ -126,6 +138,7 @@ test('validation queues are role-specific', async ({ page }) => {
   await page.goto('/custom/mjlfinancement/alerts.php');
   await expect(page.locator('body')).toContainText('ALT-ACT-SUB');
   await expect(page.locator('body')).toContainText('ALT-EXP-SUB');
+	await expect(page.locator('article', { hasText: 'ALT-EXP-OVER' }).filter({ has: page.getByText('Budget dépassé', { exact: true }) })).toContainText('Agent vérificateur et prévalidateur');
   await expect(page.locator('body')).not.toContainText('ALT-ACT-PRE');
   await expect(page.locator('body')).not.toContainText('ALT-EXP-PRE');
 
@@ -135,6 +148,34 @@ test('validation queues are role-specific', async ({ page }) => {
   await expect(page.locator('body')).toContainText('ALT-EXP-PRE');
   await expect(page.locator('body')).toContainText('ALT-EXP-NOT-DISB');
   await expect(page.locator('body')).not.toContainText('ALT-ACT-RED');
+});
+
+test('partner detail reuses scoped alert cards and remains overflow-free at 390px', async ({ page }) => {
+  await login(page, 'dpaf.mjl');
+  const partnerId = scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/custom/mjlfinancement/partners.php?id=${partnerId}`);
+  const alertSection = page.getByRole('heading', { name: 'Alertes', exact: true }).locator('xpath=ancestor::section[1]');
+  await expect(alertSection.locator('article.mjl-alert-card').first()).toBeVisible();
+  await expect(alertSection).toContainText('Budget suralloué');
+  await expect(alertSection).not.toContainText('ALT-ACT-RED');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+  sql("UPDATE llx_mjlfinancement_budget_line SET revised_budget = -999999999 WHERE ref = 'ALT-BL-ALLOC' AND entity = 1");
+  try {
+    await page.reload();
+    await expect(alertSection).not.toContainText('Budget suralloué');
+  } finally {
+    sql("UPDATE llx_mjlfinancement_budget_line SET revised_budget = 999999999 WHERE ref = 'ALT-BL-ALLOC' AND entity = 1");
+  }
+});
+
+test('distinct feedback operations retain identical copy once and do not replay', async ({ page }) => {
+	const [firstRender, replayRender] = feedbackRenderProbe();
+	await page.setContent(firstRender);
+  await expect(page.getByText('Activité créée en brouillon.')).toHaveCount(2);
+	await page.setContent(replayRender || '<main></main>');
+  await expect(page.getByText('Activité créée en brouillon.')).toHaveCount(0);
 });
 
 test('scope filter separates activities, expenses, and finance alerts', async ({ page }) => {
@@ -165,7 +206,7 @@ test('scope filter separates activities, expenses, and finance alerts', async ({
 test('finance alerts are suppressed when the user cannot open finance routes', async ({ page }) => {
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/alerts.php?scope=finance');
-  await expect(page.getByText('Aucune alerte active dans votre perimetre.')).toBeVisible();
+  await expect(page.getByText('Aucune alerte active dans votre périmètre.')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('ALT-BL-WARN');
   await expect(page.locator('body')).not.toContainText('ALT-CONV-SOON');
 });

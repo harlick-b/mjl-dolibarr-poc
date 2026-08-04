@@ -155,8 +155,8 @@ test('expense moves through prevalidation, final validation, and disbursement wi
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${flowId}`);
   await page.getByRole('link', { name: 'Enregistrer le décaissement' }).click();
-  await page.getByLabel('Beneficiaire').fill('Cabinet Expense disbursement');
-  await page.getByLabel('Date decaissement').fill('2026-07-08');
+  await page.getByLabel('Bénéficiaire').fill('Cabinet Expense disbursement');
+  await page.getByLabel('Date décaissement').fill('2026-07-08');
   await submitDecision(page, 'Enregistrer le décaissement');
   await expect(page.getByText('Décaissée').first()).toBeVisible();
   await expect(page.getByText('Cabinet Expense disbursement')).toBeVisible();

@@ -29,5 +29,5 @@ test('authentication helper routes remain reachable outside the native block', a
   await page.goto('/index.php');
   await expect(page.getByLabel('Identifiant')).toBeVisible();
   await page.goto('/user/passwordforgotten.php');
-  await expect(page.getByLabel('Adresse email')).toBeVisible();
+  await expect(page.getByLabel('Adresse e-mail')).toBeVisible();
 });

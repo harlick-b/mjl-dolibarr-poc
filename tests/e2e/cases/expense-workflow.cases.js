@@ -78,6 +78,7 @@ async function postExpenseAction(page, expenseId, action, comment = '', extraFor
 
 function cleanupExpenseWorkflowFixtures() {
   sql(`
+	DROP TRIGGER IF EXISTS expw_force_technical_create;
     SET @expense_workflow_user = (SELECT rowid FROM llx_user WHERE login = 'mjl.expense_workflow.otheragent');
     DELETE FROM llx_ecm_files WHERE ref LIKE 'EXPW-%' OR (src_object_type = 'mjlfinancement_expense' AND src_object_id IN (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref LIKE 'EXPW-%'));
     DELETE FROM llx_mjlfinancement_validation WHERE fk_expense IN (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref LIKE 'EXPW-%');
@@ -177,6 +178,42 @@ test.beforeAll(() => {
   fs.writeFileSync('/tmp/expflow-supporting-document.txt', 'Expense workflow supporting document');
 });
 
+test('expense create distinguishes validation from forced technical failure without diagnostic leakage', async ({ page }) => {
+  await login(page, 'agent.mjl');
+  const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJ-JE-2026' AND entity = 1 LIMIT 1");
+  const conventionId = scalar("SELECT rowid FROM llx_mjlfinancement_convention WHERE ref = 'CONV-UNICEF-2026-001' AND entity = 1 LIMIT 1");
+  const activityId = scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE ref = 'ACT-JE-002' AND entity = 1 LIMIT 1");
+  const budgetLineId = scalar("SELECT rowid FROM llx_mjlfinancement_budget_line WHERE ref = 'BL-JE-002' AND entity = 1 LIMIT 1");
+
+  async function fillCreate(ref, amount) {
+    await page.locator('input[name="ref"]').fill(ref);
+    await page.locator('select[name="fk_project"]').selectOption(projectId);
+    await page.locator('select[name="fk_convention"]').selectOption(conventionId);
+    await page.locator('select[name="fk_mjl_activity"]').selectOption(activityId);
+    await page.locator('select[name="fk_budget_line"]').selectOption(budgetLineId);
+    await page.locator('input[name="amount"]').fill(amount);
+    await page.locator('input[name="description"]').fill('Dépense de contrôle des retours');
+  }
+
+  await page.goto('/custom/mjlfinancement/expenses.php?action=create');
+  await fillCreate('EXPW-VALIDATION-FAIL', '0');
+  await page.getByRole('button', { name: 'Créer la dépense' }).click();
+  await expect(page.getByText('Les informations saisies doivent être corrigées avant de continuer.')).toBeVisible();
+	await expect(page.locator('#mjl-expense-create-amount-error')).toHaveText('Le montant doit être supérieur à zéro.');
+  await expect(page.locator('input[name="ref"]')).toHaveValue('EXPW-VALIDATION-FAIL');
+
+  sql("CREATE TRIGGER expw_force_technical_create BEFORE INSERT ON llx_mjlfinancement_expense FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'EXPW secret database diagnostic'");
+  try {
+    await fillCreate('EXPW-TECHNICAL-FAIL', '1000');
+    await page.getByRole('button', { name: 'Créer la dépense' }).click();
+    await expect(page.getByRole('paragraph').filter({ hasText: 'L’action n’a pas pu être réalisée. Veuillez réessayer.' })).toBeVisible();
+    await expect(page.locator('input[name="ref"]')).toHaveValue('EXPW-TECHNICAL-FAIL');
+    await expect(page.locator('body')).not.toContainText('EXPW secret database diagnostic');
+  } finally {
+    sql('DROP TRIGGER IF EXISTS expw_force_technical_create');
+  }
+});
+
 test.afterAll(() => {
   cleanupExpenseWorkflowFixtures();
 });
@@ -188,19 +225,19 @@ test('Data-entry agent opens own expense detail, uploads document, submits, and 
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${ownDraftId}`);
   await expect(page.getByRole('heading', { name: 'EXPW-OWN-DRAFT' })).toBeVisible();
-  await expect(page.getByText('Piece manquante').first()).toBeVisible();
+  await expect(page.getByText('Pièce manquante').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Historique de decision' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Ajouter une pièce justificative' }).click();
   await page.setInputFiles('input[name="supporting_document"]', '/tmp/expflow-supporting-document.txt');
   await page.getByRole('button', { name: 'Ajouter la pièce' }).click();
-  await expect(page.getByText('Piece disponible').first()).toBeVisible();
+  await expect(page.getByText('Pièce disponible').first()).toBeVisible();
   const uploadedHref = await page.getByRole('link', { name: 'Télécharger la pièce' }).first().getAttribute('href');
   expect(uploadedHref).toBeTruthy();
   await expectDownloadResponse(page, uploadedHref, 'Expense workflow supporting document');
 
   await page.getByLabel('Commentaire de soumission').fill('Soumission Expense workflow');
-  await page.getByRole('button', { name: 'Soumettre la depense' }).click();
+  await page.getByRole('button', { name: 'Soumettre la dépense' }).click();
   await expect(page.getByText('Soumise').first()).toBeVisible();
   await expect(page.getByText('Soumission Expense workflow')).toBeVisible();
 
@@ -221,10 +258,10 @@ test('Verifier prevalidates submitted expense, Final validator final-validates i
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${submittedDocId}`);
   await expect(page.getByRole('heading', { name: 'EXPW-SUBMITTED-DOC' })).toBeVisible();
-  await expect(page.getByText('Piece disponible').first()).toBeVisible();
+  await expect(page.getByText('Pièce disponible').first()).toBeVisible();
   await expect(page.getByText('BL-JE-002').first()).toBeVisible();
   await expect(page.getByText('agent.mjl').first()).toBeVisible();
-  await expect(page.getByText('Non validee').first()).toBeVisible();
+  await expect(page.getByText('Non validée').first()).toBeVisible();
   await page.getByRole('link', { name: 'Prévalider la dépense' }).click();
   await page.getByLabel('Montant prévalidé').fill('1100');
   await page.getByLabel('Commentaire de prévalidation').fill('Prevalidation Expense workflow');
@@ -243,7 +280,7 @@ test('Verifier prevalidates submitted expense, Final validator final-validates i
 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${ecmOnlyId}`);
   await expect(page.getByText('EXPW-ECM-ONLY.pdf').first()).toBeVisible();
-  await expect(page.getByText('Piece disponible').first()).toBeVisible();
+  await expect(page.getByText('Pièce disponible').first()).toBeVisible();
   const ecmOnlyHref = await page.getByRole('link', { name: 'Télécharger la pièce' }).first().getAttribute('href');
   expect(ecmOnlyHref).toBe(`/custom/mjlfinancement/documentdownload.php?id=${ecmOnlyDocFileId}`);
   await expectDownloadResponse(page, ecmOnlyHref, 'Expense workflow ECM only document');
@@ -278,7 +315,7 @@ test('Missing document blocks validation UI and direct POST', async ({ page }) =
 test('Unavailable referenced document blocks validation and stays visible in alerts', async ({ page }) => {
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${unavailableId}`);
-  await expect(page.getByText('Piece referencee indisponible').first()).toBeVisible();
+  await expect(page.getByText('Pièce référencée indisponible').first()).toBeVisible();
   await expect(page.getByText('EXPW-UNAVAILABLE.pdf').first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Télécharger la pièce' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Prévalider la dépense' })).toHaveCount(0);
@@ -291,7 +328,7 @@ test('Unavailable referenced document blocks validation and stays visible in ale
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/alerts.php');
   await expect(page.getByText('EXPW-UNAVAILABLE')).toBeVisible();
-  await expect(page.getByText('Piece indisponible').first()).toBeVisible();
+  await expect(page.getByText('Pièce justificative indisponible').first()).toBeVisible();
 });
 
 test('Reject, correct, and resubmit preserves decision comments', async ({ page }) => {
@@ -316,7 +353,7 @@ test('Reject, correct, and resubmit preserves decision comments', async ({ page 
   await page.getByRole('button', { name: 'Marquer corrigee' }).click();
   await expect(page.getByText('Corrigée').first()).toBeVisible();
   await page.getByLabel('Commentaire de soumission').fill('Resoumission Expense workflow');
-  await page.getByRole('button', { name: 'Soumettre la depense' }).click();
+  await page.getByRole('button', { name: 'Soumettre la dépense' }).click();
   await expect(page.getByText('Soumise').first()).toBeVisible();
   await expect(page.getByText('Motif rejet Expense workflow')).toBeVisible();
   await expect(page.getByText('Correction Expense workflow')).toBeVisible();
