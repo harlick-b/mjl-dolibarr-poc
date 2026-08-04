@@ -93,9 +93,8 @@ function mjl_workspace_user_in_group(User $targetUser, $groupName)
 
 	$resql = $db->query($sql);
 	if (!$resql) {
-		if (function_exists('setEventMessages')) {
-			setEventMessages($db->lasterror(), null, 'errors');
-		}
+		if (function_exists('mjl_ui_log_error')) mjl_ui_log_error('database', array('route' => 'workspace', 'action' => 'resolve_group', 'entity' => (int) $conf->entity, 'user_id' => (int) $targetUser->id), $db->lasterror());
+		if (function_exists('mjl_feedback_add')) mjl_feedback_add('workspace:resolve_group:database', 'generic.database');
 		return false;
 	}
 
@@ -466,7 +465,7 @@ function mjl_workspace_record_failure($message)
 	$entity = isset($GLOBALS['conf']->entity) ? (int) $GLOBALS['conf']->entity : 0;
 	$userId = isset($GLOBALS['user']->id) ? (int) $GLOBALS['user']->id : 0;
 	mjl_ui_log_error('database', array('route' => 'workspace', 'action' => 'load_metric', 'entity' => $entity, 'user_id' => $userId), $message);
-	if (function_exists('setEventMessages')) setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+	if (function_exists('mjl_feedback_add')) mjl_feedback_add('workspace:metric:database', 'generic.database');
 }
 
 function mjl_workspace_dashboard_partner_filter_sql($column, $filters = null)

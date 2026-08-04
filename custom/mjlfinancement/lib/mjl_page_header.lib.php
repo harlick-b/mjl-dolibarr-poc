@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/mjl_presentation.lib.php';
+
 /**
  * Render the general MJL page header.
  *
@@ -41,8 +43,8 @@ function mjl_page_header_render($title, $options = array())
 				$html .= '<li>';
 				if ($index === $lastIndex) {
 					$html .= '<span aria-current="page">'.$label.'</span>';
-				} elseif (trim((string) (isset($item['href']) ? $item['href'] : '')) !== '') {
-					$html .= '<a href="'.mjl_page_header_escape($item['href']).'">'.$label.'</a>';
+				} elseif (mjl_safe_internal_path(isset($item['href']) ? $item['href'] : '') !== '') {
+					$html .= '<a href="'.mjl_page_header_escape(mjl_safe_internal_path($item['href'])).'">'.$label.'</a>';
 				} else {
 					$html .= '<span>'.$label.'</span>';
 				}
@@ -83,12 +85,12 @@ function mjl_page_header_render($title, $options = array())
 function mjl_page_header_action_is_renderable($action)
 {
 	return trim((string) (isset($action['label']) ? $action['label'] : '')) !== ''
-		&& trim((string) (isset($action['href']) ? $action['href'] : '')) !== '';
+		&& mjl_safe_internal_path(isset($action['href']) ? $action['href'] : '') !== '';
 }
 
 function mjl_page_header_render_action($action, $priority)
 {
-	return '<a class="mjl-action mjl-action-'.mjl_page_header_escape($priority).' mjl-page-header-action-'.mjl_page_header_escape($priority).'" href="'.mjl_page_header_escape($action['href']).'">'.mjl_page_header_escape($action['label']).'</a>';
+	return '<a class="mjl-action mjl-action-'.mjl_page_header_escape($priority).' mjl-page-header-action-'.mjl_page_header_escape($priority).'" href="'.mjl_page_header_escape(mjl_safe_internal_path($action['href'])).'">'.mjl_page_header_escape($action['label']).'</a>';
 }
 
 function mjl_page_header_escape($value)

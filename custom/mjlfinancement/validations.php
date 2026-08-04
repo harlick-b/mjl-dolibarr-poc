@@ -35,7 +35,7 @@ if (!$resql) {
 	mjl_ui_log_error('database', array('route' => 'validations', 'action' => 'list', 'entity' => (int) $conf->entity, 'user_id' => (int) $user->id), $db->lasterror());
 } else {
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Ref</th><th>Depense</th><th>Action</th><th>De</th><th>Vers</th><th>Acteur</th><th>Role</th><th>Date</th><th>Commentaire</th></tr>';
+	print '<tr class="liste_titre"><th>Réf.</th><th>Dépense</th><th>Action</th><th>De</th><th>Vers</th><th>Acteur</th><th>Rôle</th><th>Date</th><th>Commentaire</th></tr>';
 	while ($obj = $db->fetch_object($resql)) {
 		print '<tr class="oddeven"><td>'.dol_escape_htmltag($obj->ref).'</td><td>'.dol_escape_htmltag($obj->expense_ref).'</td><td>'.dol_escape_htmltag($obj->action).'</td><td>'.dol_escape_htmltag($obj->from_status).'</td><td>'.dol_escape_htmltag($obj->to_status).'</td><td>'.dol_escape_htmltag($obj->login).'</td><td>'.dol_escape_htmltag($obj->actor_role).'</td><td>'.dol_escape_htmltag($obj->action_date).'</td><td>'.dol_escape_htmltag($obj->comment).'</td></tr>';
 	}

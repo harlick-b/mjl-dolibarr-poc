@@ -43,7 +43,7 @@ function mjl_workflowactions_filter_form($filters)
 {
 	print '<form method="GET" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'">';
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Objet</th><th>Action</th><th>Role acteur</th><th>Date debut</th><th>Date fin</th><th></th></tr>';
+	print '<tr class="liste_titre"><th>Objet</th><th>Action</th><th>Rôle acteur</th><th>Date de début</th><th>Date de fin</th><th></th></tr>';
 	print '<tr class="oddeven">';
 	print '<td>'.mjl_workflowactions_select('object_type', mjl_workflowactions_distinct_options('object_type'), $filters['object_type'], 'Tous').'</td>';
 	print '<td>'.mjl_workflowactions_select('workflow_action', mjl_workflowactions_distinct_options('action'), $filters['action'], 'Toutes').'</td>';
@@ -97,7 +97,7 @@ function mjl_workflowactions_list($filters)
 	}
 
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Ref</th><th>Objet</th><th>ID</th><th>Ref objet</th><th>Action</th><th>De</th><th>Vers</th><th>Acteur</th><th>Role</th><th>Date</th><th>Motif</th><th>Commentaire</th><th>Changements</th></tr>';
+	print '<tr class="liste_titre"><th>Réf.</th><th>Objet</th><th>ID</th><th>Réf. objet</th><th>Action</th><th>De</th><th>Vers</th><th>Acteur</th><th>Rôle</th><th>Date</th><th>Motif</th><th>Commentaire</th><th>Changements</th></tr>';
 	while ($obj = $db->fetch_object($resql)) {
 		print '<tr class="oddeven">';
 		print '<td>'.dol_escape_htmltag($obj->ref).'</td>';
@@ -105,8 +105,8 @@ function mjl_workflowactions_list($filters)
 		print '<td>'.((int) $obj->object_id).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->object_ref).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_workflowactions_action_label($obj->action)).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->from_status, $obj->object_type)).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->to_status, $obj->object_type)).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->from_status, $obj->object_type, $obj->action)).'</td>';
+		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->to_status, $obj->object_type, $obj->action)).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->login).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_timeline_presentation_actor_role_label($obj->object_type, $obj->action, $obj->actor_role)).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->action_date).'</td>';
@@ -128,9 +128,9 @@ function mjl_workflowactions_action_label($action)
 	return mjl_timeline_presentation_action_label('', $action);
 }
 
-function mjl_workflowactions_status_label($status, $objectType = '')
+function mjl_workflowactions_status_label($status, $objectType = '', $action = '')
 {
-	return mjl_timeline_presentation_status_label($objectType, $status);
+	return mjl_timeline_presentation_status_label($objectType, $status, $action);
 }
 
 function mjl_workflowactions_distinct_options($column)

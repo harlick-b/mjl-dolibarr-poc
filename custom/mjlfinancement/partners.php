@@ -10,6 +10,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_table.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_alerts.lib.php';
 
 mjl_workspace_require_partners_access($user);
 
@@ -58,21 +59,21 @@ function mjl_partners_render_list()
 		print mjl_ui_system_state('danger', 'Liste indisponible', mjl_ui_safe_error_message('database'));
 	}
 	if (empty($rows)) {
-		print '<div class="mjl-empty-state">Aucun partenaire ou programme accessible dans votre perimetre.</div>';
+		print '<div class="mjl-empty-state">Aucun partenaire ou programme accessible dans votre périmètre.</div>';
 	} else {
 		print '<div class="div-table-responsive"><table class="noborder centpercent">';
-		print '<tr class="liste_titre"><th>Partenaire / Programme</th><th>Portefeuille</th><th>Financement</th><th>Execution financiere</th><th>Validation</th><th>Alertes</th><th>Documents</th></tr>';
+		print '<tr class="liste_titre"><th>Partenaire / Programme</th><th>Portefeuille</th><th>Financement</th><th>Exécution financière</th><th>Validation</th><th>Alertes</th><th>Documents</th></tr>';
 		foreach ($rows as $row) {
 			$executionRate = mjl_partners_percent($row['financial_execution_rate']);
 			$validationRate = mjl_partners_percent($row['financial_validation_rate']);
 			$balanceTone = (float) $row['available_balance'] < 0 ? 'Alerte allocation' : 'Disponible';
 			print '<tr class="oddeven">';
 			print '<td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/partners.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['nom']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['email']).'</span></td>';
-			print '<td>'.((int) $row['projects_count']).' projet(s)<br><span class="opacitymedium">'.((int) $row['activities_in_progress']).' activite(s) en cours</span></td>';
-			print '<td>'.mjl_partners_price($row['funds_received']).'<br><span class="opacitymedium">Budget alloue '.mjl_partners_price($row['allocated_budget']).'</span></td>';
+			print '<td>'.((int) $row['projects_count']).' projet(s)<br><span class="opacitymedium">'.((int) $row['activities_in_progress']).' activité(s) en cours</span></td>';
+			print '<td>'.mjl_partners_price($row['funds_received']).'<br><span class="opacitymedium">Budget alloué '.mjl_partners_price($row['allocated_budget']).'</span></td>';
 			print '<td>'.mjl_partners_price($row['final_validated_amount']).'<br><span class="opacitymedium">'.$executionRate.' execute, '.$balanceTone.' '.mjl_partners_price($row['available_balance']).'</span></td>';
-			print '<td>'.$validationRate.'<br><span class="opacitymedium">'.((int) $row['expenses_to_prevalidate']).' prevalidation, '.((int) $row['expenses_to_final_validate']).' finale</span></td>';
-			print '<td>'.((int) $row['overdue_activities']).' retard<br><span class="opacitymedium">'.((int) $row['missing_justificatifs']).' piece(s) manquante(s)</span></td>';
+			print '<td>'.$validationRate.'<br><span class="opacitymedium">'.((int) $row['expenses_to_prevalidate']).' prévalidation, '.((int) $row['expenses_to_final_validate']).' finale</span></td>';
+			print '<td>'.((int) $row['overdue_activities']).' retard<br><span class="opacitymedium">'.((int) $row['missing_justificatifs']).' pièce(s) manquante(s)</span></td>';
 			print '<td>'.((int) $row['documents_count']).'</td>';
 			print '</tr>';
 		}
@@ -104,29 +105,29 @@ function mjl_partners_render_detail($partnerId)
 	);
 
 	$cards = array(
-		array('label' => 'Financement total recu', 'value' => mjl_partners_price($row['funds_received']), 'context' => 'Receptions marquees recues uniquement', 'href' => '/custom/mjlfinancement/fundreceipts.php', 'action' => 'Voir les fonds', 'status' => 'Tresorerie', 'tone' => 'neutral'),
-		array('label' => 'Budget alloue', 'value' => mjl_partners_price($row['allocated_budget']), 'context' => 'Lignes budgetaires rattachees', 'href' => '/custom/mjlfinancement/budgetlines.php', 'action' => 'Voir les budgets', 'status' => 'Allocation', 'tone' => 'neutral'),
-		array('label' => 'Budget non alloue', 'value' => mjl_partners_price($row['unallocated_budget']), 'context' => (float) $row['unallocated_budget'] < 0 ? 'Allocation superieure aux fonds recus' : 'Fonds recus non alloues', 'href' => '/custom/mjlfinancement/budgetlines.php', 'action' => 'Voir les budgets', 'status' => (float) $row['unallocated_budget'] < 0 ? 'Surallocation' : 'Disponible', 'tone' => (float) $row['unallocated_budget'] < 0 ? 'warning' : 'neutral'),
-		array('label' => 'Depenses validees', 'value' => mjl_partners_price($row['final_validated_amount']), 'context' => 'Montants valides definitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'Validation', 'tone' => 'neutral'),
-		array('label' => 'Depenses decaissees', 'value' => mjl_partners_price($row['disbursed_amount']), 'context' => 'Paiements effectivement enregistres', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'Decaissement', 'tone' => 'neutral'),
-		array('label' => 'Solde disponible', 'value' => mjl_partners_price($row['available_balance']), 'context' => 'Fonds recus moins depenses decaissees', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => (float) $row['available_balance'] < 0 ? 'Alerte' : 'Disponible', 'tone' => (float) $row['available_balance'] < 0 ? 'warning' : 'neutral'),
-		array('label' => 'Taux execution financiere', 'value' => mjl_partners_percent($row['financial_execution_rate']), 'context' => 'Depenses validees / budget alloue', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'Execution', 'tone' => 'neutral'),
-		array('label' => 'Taux validation financiere', 'value' => mjl_partners_percent($row['financial_validation_rate']), 'context' => 'Depenses validees / depenses soumises', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'Validation', 'tone' => 'neutral'),
-		array('label' => 'Execution physique moyenne', 'value' => mjl_partners_percent($row['physical_execution_average']), 'context' => 'Moyenne des activites rattachees', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites', 'status' => 'Physique', 'tone' => 'neutral'),
-		array('label' => 'Validation en attente', 'value' => ((int) $row['expenses_to_prevalidate'] + (int) $row['expenses_to_final_validate']), 'context' => ((int) $row['expenses_to_prevalidate']).' a prevalider, '.((int) $row['expenses_to_final_validate']).' a valider definitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'File', 'tone' => ((int) $row['expenses_to_prevalidate'] + (int) $row['expenses_to_final_validate']) > 0 ? 'warning' : 'neutral'),
-		array('label' => 'Activites en retard', 'value' => (string) $row['overdue_activities'], 'context' => 'Activites ouvertes apres echeance', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites', 'status' => 'Alerte', 'tone' => (int) $row['overdue_activities'] > 0 ? 'warning' : 'neutral'),
-		array('label' => 'Pieces manquantes', 'value' => (string) $row['missing_justificatifs'], 'context' => 'Depenses sans document ECM telechargeable', 'href' => '/custom/mjlfinancement/documents.php', 'action' => 'Voir les documents', 'status' => 'Justificatifs', 'tone' => (int) $row['missing_justificatifs'] > 0 ? 'warning' : 'neutral'),
+		array('label' => 'Financement total reçu', 'value' => mjl_partners_price($row['funds_received']), 'context' => 'Réceptions marquées reçues uniquement', 'href' => '/custom/mjlfinancement/fundreceipts.php', 'action' => 'Voir les fonds', 'status' => 'Trésorerie', 'tone' => 'neutral'),
+		array('label' => 'Budget alloué', 'value' => mjl_partners_price($row['allocated_budget']), 'context' => 'Lignes budgétaires rattachées', 'href' => '/custom/mjlfinancement/budgetlines.php', 'action' => 'Voir les budgets', 'status' => 'Allocation', 'tone' => 'neutral'),
+		array('label' => 'Budget non alloué', 'value' => mjl_partners_price($row['unallocated_budget']), 'context' => (float) $row['unallocated_budget'] < 0 ? 'Allocation supérieure aux fonds reçus' : 'Fonds reçus non alloués', 'href' => '/custom/mjlfinancement/budgetlines.php', 'action' => 'Voir les budgets', 'status' => (float) $row['unallocated_budget'] < 0 ? 'Surallocation' : 'Disponible', 'tone' => (float) $row['unallocated_budget'] < 0 ? 'warning' : 'neutral'),
+		array('label' => 'Dépenses validées', 'value' => mjl_partners_price($row['final_validated_amount']), 'context' => 'Montants validés définitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les dépenses', 'status' => 'Validation', 'tone' => 'neutral'),
+		array('label' => 'Dépenses décaissées', 'value' => mjl_partners_price($row['disbursed_amount']), 'context' => 'Paiements effectivement enregistrés', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les dépenses', 'status' => 'Décaissement', 'tone' => 'neutral'),
+		array('label' => 'Solde disponible', 'value' => mjl_partners_price($row['available_balance']), 'context' => 'Fonds reçus moins dépenses décaissées', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les dépenses', 'status' => (float) $row['available_balance'] < 0 ? 'Alerte' : 'Disponible', 'tone' => (float) $row['available_balance'] < 0 ? 'warning' : 'neutral'),
+		array('label' => 'Taux d’exécution financière', 'value' => mjl_partners_percent($row['financial_execution_rate']), 'context' => 'Dépenses validées / budget alloué', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les dépenses', 'status' => 'Exécution', 'tone' => 'neutral'),
+		array('label' => 'Taux de validation financière', 'value' => mjl_partners_percent($row['financial_validation_rate']), 'context' => 'Dépenses validées / dépenses soumises', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les dépenses', 'status' => 'Validation', 'tone' => 'neutral'),
+		array('label' => 'Exécution physique moyenne', 'value' => mjl_partners_percent($row['physical_execution_average']), 'context' => 'Moyenne des activités rattachées', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités', 'status' => 'Physique', 'tone' => 'neutral'),
+		array('label' => 'Validation en attente', 'value' => ((int) $row['expenses_to_prevalidate'] + (int) $row['expenses_to_final_validate']), 'context' => ((int) $row['expenses_to_prevalidate']).' à prévalider, '.((int) $row['expenses_to_final_validate']).' à valider définitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les dépenses', 'status' => 'File', 'tone' => ((int) $row['expenses_to_prevalidate'] + (int) $row['expenses_to_final_validate']) > 0 ? 'warning' : 'neutral'),
+		array('label' => 'Activités en retard', 'value' => (string) $row['overdue_activities'], 'context' => 'Activités ouvertes après échéance', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités', 'status' => 'Alerte', 'tone' => (int) $row['overdue_activities'] > 0 ? 'warning' : 'neutral'),
+		array('label' => 'Pièces manquantes', 'value' => (string) $row['missing_justificatifs'], 'context' => 'Dépenses sans document ECM téléchargeable', 'href' => '/custom/mjlfinancement/documents.php', 'action' => 'Voir les documents', 'status' => 'Justificatifs', 'tone' => (int) $row['missing_justificatifs'] > 0 ? 'warning' : 'neutral'),
 	);
 	foreach ($cards as &$card) $card['href'] = mjl_partners_context_url($card['href'], $partnerId);
 	unset($card);
-	mjl_dashboard_render_card_section('Synthese', 'Vue consolidee des objets accessibles pour ce partenaire ou programme.', $cards);
+	mjl_dashboard_render_card_section('Synthèse', 'Vue consolidée des objets accessibles pour ce partenaire ou programme.', $cards);
 	mjl_partners_render_identity($row);
-	mjl_partners_render_related('Projets lies', mjl_partners_project_rows($partnerId, 12), 'projects.php', $partnerId, (int) $row['projects_count']);
+	mjl_partners_render_related('Projets liés', mjl_partners_project_rows($partnerId, 12), 'projects.php', $partnerId, (int) $row['projects_count']);
 	mjl_partners_render_related('Enveloppes de financement', mjl_partners_convention_rows($partnerId, 12), 'conventions.php', $partnerId, mjl_partners_readable_total('convention', $row['envelopes_count']));
-	mjl_partners_render_related('Lignes budgetaires', mjl_partners_budget_line_rows($partnerId, 12), 'budgetlines.php', $partnerId, mjl_partners_readable_total('budgetline', $row['budget_lines_count']));
-	mjl_partners_render_related('Activites liees', mjl_partners_activity_rows($partnerId, 12), 'activities.php', $partnerId, mjl_partners_readable_total('activity', $row['activities_count']));
-	mjl_partners_render_related('Depenses liees', mjl_partners_expense_rows($partnerId, 12), 'expenses.php', $partnerId, mjl_partners_readable_total('expense', $row['expenses_count']));
-	mjl_partners_render_related('Fonds recus', mjl_partners_fund_receipt_rows($partnerId, 12), 'fundreceipts.php', $partnerId, mjl_partners_readable_total('fundreceipt', $row['fund_receipts_count']));
+	mjl_partners_render_related('Lignes budgétaires', mjl_partners_budget_line_rows($partnerId, 12), 'budgetlines.php', $partnerId, mjl_partners_readable_total('budgetline', $row['budget_lines_count']));
+	mjl_partners_render_related('Activités liées', mjl_partners_activity_rows($partnerId, 12), 'activities.php', $partnerId, mjl_partners_readable_total('activity', $row['activities_count']));
+	mjl_partners_render_related('Dépenses liées', mjl_partners_expense_rows($partnerId, 12), 'expenses.php', $partnerId, mjl_partners_readable_total('expense', $row['expenses_count']));
+	mjl_partners_render_related('Fonds reçus', mjl_partners_fund_receipt_rows($partnerId, 12), 'fundreceipts.php', $partnerId, mjl_partners_readable_total('fundreceipt', $row['fund_receipts_count']));
 	mjl_partners_render_documents($partnerId);
 	mjl_partners_render_alerts($row);
 	mjl_partners_render_timeline($partnerId);
@@ -141,11 +142,11 @@ function mjl_partners_render_related($title, $rows, $route, $partnerId, $total)
 	if (mjl_partners_can_open_related_route($route)) print ' <a class="mjl-table-link" href="'.dol_escape_htmltag(DOL_URL_ROOT.$drilldown).'">Voir la liste complète</a>';
 	print '</p></div>';
 	if (empty($rows)) {
-		print '<div class="mjl-empty-state">Aucun element accessible.</div></section>';
+		print '<div class="mjl-empty-state">Aucun élément accessible.</div></section>';
 		return;
 	}
 	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Reference</th><th>Libelle</th><th>Statut</th></tr>';
+	print '<tr class="liste_titre"><th>Référence</th><th>Libellé</th><th>Statut</th></tr>';
 	foreach ($rows as $item) {
 		print '<tr class="oddeven"><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$route.'?id='.((int) $item['rowid']).'">'.dol_escape_htmltag($item['ref']).'</a></td><td>'.dol_escape_htmltag($item['label']).'</td><td>'.dol_escape_htmltag($item['status_label']).'</td></tr>';
 	}
@@ -182,12 +183,12 @@ function mjl_partners_can_open_related_route($route)
 function mjl_partners_render_identity($row)
 {
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Identite partenaire / programme</h2><p>Informations issues du tiers Dolibarr actif.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Identité partenaire / programme</h2><p>Informations issues du tiers Dolibarr actif.</p></div>';
 	print '<div class="div-table-responsive"><table class="noborder centpercent">';
 	print '<tr class="oddeven"><td><strong>Nom</strong></td><td>'.dol_escape_htmltag($row['nom']).'</td></tr>';
-	print '<tr class="oddeven"><td><strong>Email</strong></td><td>'.dol_escape_htmltag($row['email'] ?: 'Non renseigne').'</td></tr>';
-	print '<tr class="oddeven"><td><strong>Telephone</strong></td><td>'.dol_escape_htmltag($row['phone'] ?: 'Non renseigne').'</td></tr>';
-	print '<tr class="oddeven"><td><strong>Derniere activite / decision</strong></td><td>'.dol_escape_htmltag($row['latest_activity_decision'] ?: 'Aucune trace').'</td></tr>';
+	print '<tr class="oddeven"><td><strong>Email</strong></td><td>'.dol_escape_htmltag($row['email'] ?: 'Non renseigné').'</td></tr>';
+	print '<tr class="oddeven"><td><strong>Téléphone</strong></td><td>'.dol_escape_htmltag($row['phone'] ?: 'Non renseigné').'</td></tr>';
+	print '<tr class="oddeven"><td><strong>Dernière activité / décision</strong></td><td>'.dol_escape_htmltag($row['latest_activity_decision'] ?: 'Aucune trace').'</td></tr>';
 	print '</table></div></section>';
 }
 
@@ -202,8 +203,8 @@ function mjl_partners_render_documents($partnerId)
 		);
 	}
 	print mjl_journey_render_document_panel(array(
-		'title' => 'Documents lies',
-		'description' => 'Telechargements controles par les routes MJL.',
+		'title' => 'Documents liés',
+		'description' => 'Téléchargements contrôlés par les routes MJL.',
 		'state' => empty($modelDocuments) ? 'missing' : 'read-only',
 		'state_label' => empty($modelDocuments) ? 'Aucun document accessible' : 'Consultation uniquement',
 		'documents' => $modelDocuments,
@@ -212,34 +213,34 @@ function mjl_partners_render_documents($partnerId)
 
 function mjl_partners_render_alerts($row)
 {
+	global $user;
+	$result = mjl_alert_conditions_result_for_user($user, 2000, 'all', (int) $row['rowid']);
+	$conditions = $result['items'];
+	usort($conditions, 'mjl_alerts_sort');
+	$total = count($conditions);
 	$alerts = array();
-	if ((float) $row['unallocated_budget'] < 0) $alerts[] = array('label' => 'Budget non alloue negatif', 'detail' => 'Les budgets alloues depassent les fonds recus de '.mjl_partners_price(abs((float) $row['unallocated_budget'])).'.');
-	if ((int) $row['overdue_activities'] > 0) $alerts[] = array('label' => 'Activites en retard', 'detail' => ((int) $row['overdue_activities']).' activite(s) ouverte(s) ont depasse leur date de fin.');
-	if ((int) $row['expenses_to_prevalidate'] > 0) $alerts[] = array('label' => 'Prevalidation attendue', 'detail' => ((int) $row['expenses_to_prevalidate']).' depense(s) sont soumises.');
-	if ((int) $row['expenses_to_final_validate'] > 0) $alerts[] = array('label' => 'Validation definitive attendue', 'detail' => ((int) $row['expenses_to_final_validate']).' depense(s) sont prevalidees.');
-	if ((int) $row['final_validated_not_disbursed'] > 0) $alerts[] = array('label' => 'Decaissement attendu', 'detail' => ((int) $row['final_validated_not_disbursed']).' depense(s) validees ne sont pas encore decaissees.');
-	if ((int) $row['missing_justificatifs'] > 0) $alerts[] = array('label' => 'Pieces justificatives manquantes', 'detail' => ((int) $row['missing_justificatifs']).' depense(s) n ont pas de document telechargeable.');
+	foreach (array_slice($conditions, 0, 12) as $condition) $alerts[] = mjl_alert_present_condition($condition);
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Alertes</h2><p>Points de vigilance calcules depuis les donnees rattachees au partenaire.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Alertes</h2><p>Points de vigilance calculés pour ce Partenaire / Programme et votre rôle.</p></div>';
+	if (!empty($result['errors'])) print mjl_ui_system_state('partial-error', 'Alertes partiellement disponibles', mjl_ui_safe_error_message('alerts'));
 	if (empty($alerts)) {
 		print '<div class="mjl-empty-state">Aucune alerte portefeuille.</div></section>';
 		return;
 	}
-	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Alerte</th><th>Detail</th></tr>';
-	foreach ($alerts as $alert) {
-		print '<tr class="oddeven"><td>'.dol_escape_htmltag($alert['label']).'</td><td>'.dol_escape_htmltag($alert['detail']).'</td></tr>';
-	}
-	print '</table></div></section>';
+	print '<div class="mjl-alert-grid">';
+	foreach ($alerts as $alert) mjl_alerts_render_card($alert);
+	print '</div>';
+	if ($total > 12) print '<p><a class="mjl-card-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/alerts.php?partner='.((int) $row['rowid']).'">Voir toutes les alertes de ce Partenaire / Programme</a></p>';
+	print '</section>';
 }
 
 function mjl_partners_render_timeline($partnerId)
 {
 	$items = mjl_partners_timeline_rows($partnerId);
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Historique contextuel</h2><p>Dernieres decisions, notes et echanges lisibles dans ce perimetre, sans creation de commentaire.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Historique contextuel</h2><p>Dernières décisions, notes et échanges lisibles dans ce périmètre, sans création de commentaire.</p></div>';
 	if (empty($items)) {
-		print '<div class="mjl-empty-state">Aucune activite contextuelle.</div></section>';
+		print '<div class="mjl-empty-state">Aucune activité contextuelle.</div></section>';
 		return;
 	}
 	print '<ol class="mjl-activity-timeline">';
@@ -263,7 +264,7 @@ function mjl_partners_render_assigned_users($partnerId)
 		return;
 	}
 	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Utilisateur</th><th>Role</th><th>Debut</th></tr>';
+	print '<tr class="liste_titre"><th>Utilisateur</th><th>Rôle</th><th>Début</th></tr>';
 	foreach ($rows as $row) {
 		print '<tr class="oddeven"><td>'.dol_escape_htmltag($row['login']).'<br><span class="opacitymedium">'.dol_escape_htmltag(trim($row['firstname'].' '.$row['lastname'])).'</span></td><td>'.dol_escape_htmltag(mjl_scope_role_label($row['role_code'])).'</td><td>'.dol_escape_htmltag(mjl_partners_date($row['date_start'])).'</td></tr>';
 	}
@@ -400,7 +401,7 @@ function mjl_partners_convention_rows($partnerId, $limit = 0)
 	$sql = 'SELECT rowid, ref, title AS label, status FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $partnerId).' ORDER BY ref ASC, rowid ASC';
 	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
 	$rows = mjl_partners_fetch_all($sql);
-	foreach ($rows as &$row) $row['status_label'] = mjl_partners_status($row['status']);
+	foreach ($rows as &$row) $row['status_label'] = mjl_status_presentation('convention', $row['status'], 'operational')['label'];
 	return $rows;
 }
 
@@ -433,7 +434,7 @@ function mjl_partners_budget_line_rows($partnerId, $limit = 0)
 	$sql = 'SELECT bl.rowid, bl.ref, bl.label, bl.status FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity WHERE bl.entity = '.((int) $conf->entity).' AND c.fk_soc = '.((int) $partnerId).' ORDER BY bl.ref ASC, bl.rowid ASC';
 	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
 	$rows = mjl_partners_fetch_all($sql);
-	foreach ($rows as &$row) $row['status_label'] = mjl_partners_status($row['status']);
+	foreach ($rows as &$row) $row['status_label'] = mjl_status_presentation('budget_line', $row['status'], 'operational')['label'];
 	return $rows;
 }
 
@@ -444,17 +445,17 @@ function mjl_partners_fund_receipt_rows($partnerId, $limit = 0)
 	$sql = 'SELECT rowid, ref, comment AS label, status FROM '.$db->prefix().'mjlfinancement_fund_receipt WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $partnerId).' ORDER BY ref ASC, rowid ASC';
 	if ((int) $limit > 0) $sql .= ' LIMIT '.((int) $limit);
 	$rows = mjl_partners_fetch_all($sql);
-	foreach ($rows as &$row) $row['status_label'] = mjl_partners_status($row['status']);
+	foreach ($rows as &$row) $row['status_label'] = mjl_status_presentation('fund_receipt', $row['status'], 'operational')['label'];
 	return $rows;
 }
 
 function mjl_partners_document_rows($partnerId)
 {
 	$documents = array();
-	foreach (mjl_partners_activity_rows($partnerId) as $activity) foreach (mjl_activity_document_download_rows((int) $activity['rowid']) as $row) $documents[] = mjl_partners_document_row($row, 'activity', 'Activite', $activity['ref']);
-	foreach (mjl_partners_expense_rows($partnerId) as $expense) foreach (mjl_expense_document_download_rows((int) $expense['rowid']) as $row) $documents[] = mjl_partners_document_row($row, 'expense', 'Depense', $expense['ref']);
+	foreach (mjl_partners_activity_rows($partnerId) as $activity) foreach (mjl_activity_document_download_rows((int) $activity['rowid']) as $row) $documents[] = mjl_partners_document_row($row, 'activity', 'Activité', $activity['ref']);
+	foreach (mjl_partners_expense_rows($partnerId) as $expense) foreach (mjl_expense_document_download_rows((int) $expense['rowid']) as $row) $documents[] = mjl_partners_document_row($row, 'expense', 'Dépense', $expense['ref']);
 	foreach (mjl_partners_convention_rows($partnerId) as $convention) foreach (mjl_convention_document_download_rows((int) $convention['rowid']) as $row) $documents[] = mjl_partners_document_row($row, 'convention', 'Enveloppe', $convention['ref']);
-	foreach (mjl_partners_fund_receipt_rows($partnerId) as $receipt) foreach (mjl_fund_receipt_document_download_rows((int) $receipt['rowid']) as $row) $documents[] = mjl_partners_document_row($row, 'fundreceipt', 'Fonds recu', $receipt['ref']);
+	foreach (mjl_partners_fund_receipt_rows($partnerId) as $receipt) foreach (mjl_fund_receipt_document_download_rows((int) $receipt['rowid']) as $row) $documents[] = mjl_partners_document_row($row, 'fundreceipt', 'Fonds reçu', $receipt['ref']);
 	return $documents;
 }
 
@@ -551,7 +552,7 @@ function mjl_partners_fetch_all($sql)
 	global $db;
 	$resql = $db->query($sql);
 	if (!$resql) {
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_feedback_add('partners:load:database', 'generic.database');
 		mjl_ui_log_error('database', array('route' => 'partners', 'action' => 'load_summary', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
 		return array();
 	}
@@ -562,8 +563,7 @@ function mjl_partners_fetch_all($sql)
 
 function mjl_partners_status($status)
 {
-	$map = array(0 => 'Brouillon', 1 => 'Actif', 2 => 'Clos', 3 => 'Soumis', 4 => 'Correction', 5 => 'Corrige', 6 => 'Valide', 8 => 'Rejete', 9 => 'Annule');
-	return isset($map[(int) $status]) ? $map[(int) $status] : 'Statut '.$status;
+	return mjl_status_presentation('convention', $status, 'operational')['label'];
 }
 
 function mjl_partners_activity_status($status)
@@ -588,17 +588,17 @@ function mjl_partners_actor_role_label($role, $objectType = '', $action = '')
 
 function mjl_partners_price($value)
 {
-	return function_exists('price') ? price((float) $value, 0, '', 1, -1, -1, 'XOF') : number_format((float) $value, 0, ',', ' ').' XOF';
+	return mjl_format_money($value);
 }
 
 function mjl_partners_percent($value)
 {
-	return number_format((float) $value, 1, ',', ' ').' %';
+	return mjl_format_number($value, 'percentage');
 }
 
 function mjl_partners_date($value)
 {
 	$value = trim((string) $value);
-	if ($value === '') return 'Non renseigne';
-	return function_exists('dol_print_date') ? dol_print_date(strtotime($value), 'dayhour') : $value;
+	if ($value === '') return 'Non renseigné';
+	return mjl_format_date($value, 'datetime');
 }

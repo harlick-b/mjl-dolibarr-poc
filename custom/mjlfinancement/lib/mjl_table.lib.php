@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/mjl_presentation.lib.php';
+
 function mjl_table_normalize_request($raw, $allowedStatuses, $accessibleProjectIds, $total = null, $pageSize = 50, $accessiblePartnerIds = array())
 {
 	$raw = (array) $raw;
@@ -220,7 +222,7 @@ function mjl_table_render_action_menu($recordLabel, $actions)
 	foreach ((array) $actions as $action) {
 		if (!is_array($action) || !is_scalar($action['label'] ?? null) || !is_scalar($action['href'] ?? null)) continue;
 		$label = trim((string) $action['label']);
-		$href = trim((string) $action['href']);
+		$href = mjl_safe_internal_path($action['href']);
 		if ($label === '' || $href === '') continue;
 		$tone = (string) ($action['tone'] ?? '');
 		$items[] = array('label' => $label, 'href' => $href, 'tone' => in_array($tone, array('danger'), true) ? $tone : '');

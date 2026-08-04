@@ -1,5 +1,9 @@
 <?php
 
+require_once __DIR__.'/mjl_presentation.lib.php';
+require_once __DIR__.'/mjl_status_presentation.lib.php';
+require_once __DIR__.'/mjl_feedback.lib.php';
+
 /**
  * Presentation-only vocabulary and safe system states.
  *
@@ -9,56 +13,12 @@
 
 function mjl_ui_activity_status($status)
 {
-	$map = array(
-		'0' => array('label' => 'Brouillon', 'tone' => 'neutral'),
-		'1' => array('label' => 'En cours', 'tone' => 'info'),
-		'2' => array('label' => 'Terminée', 'tone' => 'success'),
-		'3' => array('label' => 'Soumise', 'tone' => 'warning'),
-		'4' => array('label' => 'Correction demandée', 'tone' => 'danger'),
-		'5' => array('label' => 'Corrigée', 'tone' => 'warning'),
-		'6' => array('label' => 'Validée définitivement', 'tone' => 'success'),
-		'7' => array('label' => 'Prévalidée', 'tone' => 'warning'),
-		'8' => array('label' => 'Rejetée', 'tone' => 'danger'),
-		'9' => array('label' => 'Annulée', 'tone' => 'neutral'),
-		'draft' => array('label' => 'Brouillon', 'tone' => 'neutral'),
-		'ongoing' => array('label' => 'En cours', 'tone' => 'info'),
-		'completed' => array('label' => 'Terminée', 'tone' => 'success'),
-		'submitted' => array('label' => 'Soumise', 'tone' => 'warning'),
-		'correction_requested' => array('label' => 'Correction demandée', 'tone' => 'danger'),
-		'corrected' => array('label' => 'Corrigée', 'tone' => 'warning'),
-		'validated' => array('label' => 'Validée définitivement', 'tone' => 'success'),
-		'final_validated' => array('label' => 'Validée définitivement', 'tone' => 'success'),
-		'prevalidated' => array('label' => 'Prévalidée', 'tone' => 'warning'),
-		'rejected' => array('label' => 'Rejetée', 'tone' => 'danger'),
-		'cancelled' => array('label' => 'Annulée', 'tone' => 'neutral'),
-	);
-	$key = (string) $status;
-	return isset($map[$key]) ? $map[$key] : array('label' => 'Statut non reconnu', 'tone' => 'neutral');
+	return mjl_status_presentation('activity', $status, 'operational');
 }
 
 function mjl_ui_expense_status($status)
 {
-	$map = array(
-		'0' => array('label' => 'Brouillon', 'tone' => 'neutral'),
-		'1' => array('label' => 'Soumise', 'tone' => 'warning'),
-		'2' => array('label' => 'Validée définitivement', 'tone' => 'success'),
-		'3' => array('label' => 'Corrigée', 'tone' => 'warning'),
-		'4' => array('label' => 'Prévalidée', 'tone' => 'warning'),
-		'6' => array('label' => 'Validée définitivement', 'tone' => 'success'),
-		'7' => array('label' => 'Décaissée', 'tone' => 'success'),
-		'8' => array('label' => 'Rejetée', 'tone' => 'danger'),
-		'draft' => array('label' => 'Brouillon', 'tone' => 'neutral'),
-		'submitted' => array('label' => 'Soumise', 'tone' => 'warning'),
-		'legacy_validated' => array('label' => 'Validée définitivement', 'tone' => 'success'),
-		'validated' => array('label' => 'Validée définitivement', 'tone' => 'success'),
-		'corrected' => array('label' => 'Corrigée', 'tone' => 'warning'),
-		'prevalidated' => array('label' => 'Prévalidée', 'tone' => 'warning'),
-		'final_validated' => array('label' => 'Validée définitivement', 'tone' => 'success'),
-		'disbursed' => array('label' => 'Décaissée', 'tone' => 'success'),
-		'rejected' => array('label' => 'Rejetée', 'tone' => 'danger'),
-	);
-	$key = (string) $status;
-	return isset($map[$key]) ? $map[$key] : array('label' => 'Statut non reconnu', 'tone' => 'neutral');
+	return mjl_status_presentation('expense', $status, 'operational');
 }
 
 function mjl_ui_escape($value)
@@ -89,8 +49,9 @@ function mjl_ui_system_state($type, $title, $message, $options = array())
 	if ((string) $message !== '') {
 		$html .= '<p>'.mjl_ui_escape($message).'</p>';
 	}
-	if (!empty($options['href']) && !empty($options['action'])) {
-		$html .= '<a class="mjl-action mjl-action-secondary" href="'.mjl_ui_escape($options['href']).'">'.mjl_ui_escape($options['action']).'</a>';
+	$href = !empty($options['href']) ? mjl_safe_internal_path($options['href']) : '';
+	if ($href !== '' && !empty($options['action'])) {
+		$html .= '<a class="mjl-action mjl-action-secondary" href="'.mjl_ui_escape($href).'">'.mjl_ui_escape($options['action']).'</a>';
 	}
 	return $html.'</div>';
 }

@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/mjl_status_presentation.lib.php';
+
 /**
  * Presentation-only vocabulary for normal timeline and audit UI.
  *
@@ -50,9 +52,9 @@ function mjl_timeline_presentation_actor_role_label($objectType, $action, $role)
 	$labels = array(
 		'AGENT' => 'Agent de saisie',
 		'AGENT_SAISIE' => 'Agent de saisie',
-		'SUPERVISEUR_N1' => 'Agent vérificateur',
-		'SUPERVISEUR_N2' => 'Agent vérificateur',
-		'AGENT_VERIFICATEUR' => 'Agent vérificateur',
+		'SUPERVISEUR_N1' => 'Agent vérificateur et prévalidateur',
+		'SUPERVISEUR_N2' => 'Agent vérificateur et prévalidateur',
+		'AGENT_VERIFICATEUR' => 'Agent vérificateur et prévalidateur',
 		'VALIDATEUR_DEFINITIF' => 'Validateur définitif',
 		'ADMIN' => 'Administrateur plateforme',
 		'ADMIN_PLATEFORME' => 'Administrateur plateforme',
@@ -100,14 +102,21 @@ function mjl_timeline_presentation_channel_label($channel)
 	return isset($labels[$channel]) ? $labels[$channel] : 'Canal non reconnu';
 }
 
-function mjl_timeline_presentation_status_label($objectType, $status)
+function mjl_timeline_presentation_status_label($objectType, $status, $action = '')
 {
 	$objectType = (string) $objectType;
 	$status = (string) $status;
+	$action = (string) $action;
 	if ($status === '') return 'Statut non renseigné';
-	if ($objectType === 'mjlfinancement_expense' && in_array($status, array('validated', 'legacy_validated'), true)) {
-		return 'Validation enregistrée';
+	if ($objectType === 'mjlfinancement_project' && $action === 'created') return 'Projet créé';
+	if ($objectType === 'mjlfinancement_project' && $action === 'field_changed') return 'Projet mis à jour';
+	if ($action === 'document_downloaded') return 'Document téléchargé';
+	if ($objectType === 'mjlfinancement_report' && $action === 'export_generated') {
+		if ($status === 'Export csv') return 'Export CSV';
+		if ($status === 'Export xlsx') return 'Export XLSX';
 	}
+	$shared = mjl_status_presentation($objectType, $status, 'history');
+	if ($shared['label'] !== 'Statut non reconnu') return $shared['label'];
 
 	$common = array(
 		'draft' => 'Brouillon',
@@ -130,17 +139,7 @@ function mjl_timeline_presentation_status_label($objectType, $status)
 		'Active' => 'Active',
 		'Cloturee' => 'Clôturée',
 		'Clôturée' => 'Clôturée',
-		'Projet cree' => 'Projet créé',
-		'Projet créé' => 'Projet créé',
-		'Projet mis a jour' => 'Projet mis à jour',
-		'Projet mis à jour' => 'Projet mis à jour',
 		'Note projet' => 'Note projet',
-		'Document telecharge' => 'Document téléchargé',
-		'Document téléchargé' => 'Document téléchargé',
-		'Export csv' => 'Export CSV',
-		'Export CSV' => 'Export CSV',
-		'Export xlsx' => 'Export XLSX',
-		'Export XLSX' => 'Export XLSX',
 	);
 	if (isset($common[$status])) return $common[$status];
 

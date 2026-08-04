@@ -25,15 +25,15 @@ print mjl_page_header_render(
 mjl_dashboard_render_filters($filters, '/custom/mjlfinancement/dpafdashboard.php');
 
 mjl_dashboard_render_card_section(
-	'Synthese de supervision',
-	'Indicateurs principaux pour prioriser les controles.',
+	'Synthèse de supervision',
+	'Indicateurs principaux pour prioriser les contrôlés.',
 	mjl_dashboard_supervision_kpis($filters)
 );
 
 $deadlineRisks = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_deadline_risks(20, $filters); });
 if ($deadlineRisks['available']) mjl_dashboard_render_alert_section(
-	'Risques echeance',
-	'Activites ouvertes avec une echeance proche ou depassee. Chaque alerte indique l objet, le risque et l action attendue.',
+	'Risques échéance',
+	'Activités ouvertes avec une échéance proche ou depassee. Chaque alerte indique l objet, le risque et l action attendue.',
 	$deadlineRisks['value'],
 	'Aucun risque échéance détecté pour le moment.'
 ); else mjl_dpaf_render_unavailable('Risques échéance');
@@ -41,11 +41,11 @@ if ($deadlineRisks['available']) mjl_dashboard_render_alert_section(
 $pendingReviews = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_pending_reviews(30, $filters); });
 if ($pendingReviews['available']) mjl_dashboard_render_table_section(
 	'Revues en attente',
-	'Activites et depenses soumises qui attendent une decision.',
+	'Activités et dépenses soumises qui attendent une décision.',
 	array(
 		array('label' => 'Type'),
 		array('label' => 'Ref'),
-		array('label' => 'Libelle'),
+		array('label' => 'Libellé'),
 		array('label' => 'Date'),
 		array('label' => 'Montant', 'class' => 'right'),
 		array('label' => 'Action'),
@@ -127,9 +127,9 @@ function mjl_dpaf_render_pending_review_row($row)
 	print '<td>'.dol_escape_htmltag($row['ref']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['label']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['item_date']).'</td>';
-	print '<td class="right">'.(((float) $row['amount'] > 0) ? price($row['amount']) : '').'</td>';
+	print '<td class="right">'.dol_escape_htmltag(mjl_format_money($row['amount'])).'</td>';
 	$href = $row['href'];
-	if ($row['item_type'] === 'Activite' || $row['item_type'] === 'Depense') {
+	if ($row['item_type'] === 'Activité' || $row['item_type'] === 'Dépense') {
 		$href .= '?id='.((int) $row['item_id']);
 	}
 	print '<td><a class="mjl-table-link" href="'.mjl_dashboard_url($href).'">Examiner</a></td>';
@@ -141,10 +141,10 @@ function mjl_dpaf_render_budget_row($row)
 	$available = (float) $row['budget_revise'] - (float) $row['depenses_validees'];
 	print '<tr class="oddeven">';
 	print '<td>'.dol_escape_htmltag($row['convention_ref']).'</td>';
-	print '<td class="right">'.price($row['budget_revise']).'</td>';
-	print '<td class="right">'.price($row['depenses_validees']).'</td>';
-	print '<td class="right">'.price($row['depenses_soumises']).'</td>';
-	print '<td class="right">'.price($available).'</td>';
+	print '<td class="right">'.dol_escape_htmltag(mjl_format_money($row['budget_revise'])).'</td>';
+	print '<td class="right">'.dol_escape_htmltag(mjl_format_money($row['depenses_validees'])).'</td>';
+	print '<td class="right">'.dol_escape_htmltag(mjl_format_money($row['depenses_soumises'])).'</td>';
+	print '<td class="right">'.dol_escape_htmltag(mjl_format_money($available)).'</td>';
 	print '</tr>';
 }
 
@@ -155,7 +155,7 @@ function mjl_dpaf_render_fund_row($row)
 	print '<td>'.dol_escape_htmltag($row['reception_date']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['project_ref'] ?: 'Enveloppe globale').'</td>';
 	print '<td>'.dol_escape_htmltag($row['convention_ref']).'</td>';
-	print '<td class="right">'.price($row['amount']).'</td>';
+	print '<td class="right">'.dol_escape_htmltag(mjl_format_money($row['amount'])).'</td>';
 	print '<td>'.dol_escape_htmltag($row['document_state']).'</td>';
 	print '</tr>';
 }
@@ -166,8 +166,8 @@ function mjl_dpaf_render_audit_row($row)
 	print '<td>'.dol_escape_htmltag(mjl_timeline_presentation_object_label($row['object_type'] ?? '')).'</td>';
 	print '<td>'.dol_escape_htmltag($row['object_ref']).'</td>';
 	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_action_label($row['action'])).'</td>';
-	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['from_status'], $row['object_type'] ?? '')).'</td>';
-	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['to_status'], $row['object_type'] ?? '')).'</td>';
+	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['from_status'], $row['object_type'] ?? '', $row['action'] ?? '')).'</td>';
+	print '<td>'.dol_escape_htmltag(mjl_dpaf_audit_status_label($row['to_status'], $row['object_type'] ?? '', $row['action'] ?? '')).'</td>';
 	print '<td>'.dol_escape_htmltag($row['login']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['action_date']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['comment']).'</td>';
@@ -179,7 +179,7 @@ function mjl_dpaf_audit_action_label($action)
 	return mjl_timeline_presentation_action_label('', $action);
 }
 
-function mjl_dpaf_audit_status_label($status, $objectType = '')
+function mjl_dpaf_audit_status_label($status, $objectType = '', $action = '')
 {
-	return mjl_timeline_presentation_status_label($objectType, $status);
+	return mjl_timeline_presentation_status_label($objectType, $status, $action);
 }

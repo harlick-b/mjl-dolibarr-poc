@@ -60,7 +60,7 @@ top_htmlhead('', 'Connexion @ '.$titletruedolibarrversion, 0, 0, array('/core/js
 		?>
 		<div class="mjl-auth-actions">
 			<button type="submit" class="mjl-auth-button">Connexion</button>
-			<a class="mjl-auth-link" href="<?php print DOL_URL_ROOT; ?>/user/passwordforgotten.php">Mot de passe oublie</a>
+			<a class="mjl-auth-link" href="<?php print DOL_URL_ROOT; ?>/user/passwordforgotten.php">Mot de passe oublié</a>
 		</div>
 	</form>
 </main>

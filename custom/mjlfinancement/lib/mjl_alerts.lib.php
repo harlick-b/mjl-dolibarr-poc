@@ -10,6 +10,8 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_finance_metrics.l
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_alert_condition.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_alert_presentation.lib.php';
 
 function mjl_alerts_user_can_read(User $targetUser)
 {
@@ -19,32 +21,48 @@ function mjl_alerts_user_can_read(User $targetUser)
 		|| mjl_workspace_can_access_reference_data($targetUser, 'convention');
 }
 
-function mjl_alerts_for_user(User $targetUser, $limit = 100, $scope = 'all')
+function mjl_alerts_for_user(User $targetUser, $limit = 100, $scope = 'all', $partnerId = 0)
 {
-	$result = mjl_alerts_result_for_user($targetUser, $limit, $scope);
+	$result = mjl_alerts_result_for_user($targetUser, $limit, $scope, $partnerId);
 	return $result['items'];
 }
 
-function mjl_alerts_result_for_user(User $targetUser, $limit = 100, $scope = 'all')
+function mjl_alerts_result_for_user(User $targetUser, $limit = 100, $scope = 'all', $partnerId = 0)
+{
+	$result = mjl_alert_conditions_result_for_user($targetUser, $limit, $scope, $partnerId);
+	$items = array();
+	foreach ($result['items'] as $condition) $items[] = mjl_alert_present_condition($condition);
+	return array('items' => $items, 'errors' => $result['errors']);
+}
+
+function mjl_alert_conditions_for_user(User $targetUser, $limit = 100, $scope = 'all', $partnerId = 0)
+{
+	$result = mjl_alert_conditions_result_for_user($targetUser, $limit, $scope, $partnerId);
+	return $result['items'];
+}
+
+function mjl_alert_conditions_result_for_user(User $targetUser, $limit = 100, $scope = 'all', $partnerId = 0)
 {
 	$scope = mjl_alerts_normalize_scope($scope);
 	$limit = max(1, (int) $limit);
+	$partnerId = max(0, (int) $partnerId);
+	if ($partnerId > 0 && !mjl_scope_can_access_fk_soc($targetUser, $partnerId)) return array('items' => array(), 'errors' => array());
 	$GLOBALS['mjl_alerts_load_errors'] = array();
 	$sources = array();
 
 	if (($scope === 'all' || $scope === 'activities') && mjl_workspace_can_access_activity($targetUser)) {
-		$sources[] = mjl_alerts_capture_source('activities', function () use ($targetUser, $limit) {
-			return mjl_alerts_activity_alerts($targetUser, $limit);
+		$sources[] = mjl_alerts_capture_source('activities', function () use ($targetUser, $limit, $partnerId) {
+			return mjl_alerts_activity_alerts($targetUser, $limit, $partnerId);
 		});
 	}
 	if (($scope === 'all' || $scope === 'expenses') && mjl_workspace_can_access_expense($targetUser)) {
-		$sources[] = mjl_alerts_capture_source('expenses', function () use ($targetUser, $limit) {
-			return mjl_alerts_expense_alerts($targetUser, $limit);
+		$sources[] = mjl_alerts_capture_source('expenses', function () use ($targetUser, $limit, $partnerId) {
+			return mjl_alerts_expense_alerts($targetUser, $limit, $partnerId);
 		});
 	}
 	if ($scope === 'all' || $scope === 'finance') {
-		$sources[] = mjl_alerts_capture_source('finance', function () use ($targetUser, $limit) {
-			return mjl_alerts_finance_alerts($targetUser, $limit);
+		$sources[] = mjl_alerts_capture_source('finance', function () use ($targetUser, $limit, $partnerId) {
+			return mjl_alerts_finance_alerts($targetUser, $limit, $partnerId);
 		});
 	}
 	$alerts = array();
@@ -64,7 +82,7 @@ function mjl_alerts_render_result($result)
 		print mjl_ui_system_state('partial-error', 'Alertes partiellement disponibles', mjl_ui_safe_error_message('alerts'));
 	}
 	if (empty($alerts)) {
-		print '<div class="mjl-empty-state">Aucune alerte active dans votre perimetre.</div>';
+		print '<div class="mjl-empty-state">Aucune alerte active dans votre périmètre.</div>';
 		return;
 	}
 	print '<div class="mjl-alert-grid">';
@@ -76,7 +94,7 @@ function mjl_alerts_render_result($result)
 
 function mjl_alerts_render_card($alert)
 {
-	$tone = empty($alert['tone']) ? 'warning' : $alert['tone'];
+	$tone = isset($alert['tone']) && in_array($alert['tone'], array('neutral', 'info', 'success', 'warning', 'danger'), true) ? $alert['tone'] : 'neutral';
 	print '<article class="mjl-alert-card mjl-alert-'.$tone.'">';
 	print '<div class="mjl-alert-card-main">';
 	print '<span class="mjl-status-pill mjl-status-'.$tone.'">'.dol_escape_htmltag($alert['severity']).'</span>';
@@ -84,7 +102,7 @@ function mjl_alerts_render_card($alert)
 	print '<p>'.dol_escape_htmltag($alert['label']).'</p>';
 	print '</div>';
 	print '<dl class="mjl-alert-meta">';
-	print '<div><dt>Acteur concerne</dt><dd>'.dol_escape_htmltag($alert['audience']).'</dd></div>';
+	print '<div><dt>Acteur concerné</dt><dd>'.dol_escape_htmltag($alert['audience']).'</dd></div>';
 	print '<div><dt>Action attendue</dt><dd>'.dol_escape_htmltag($alert['expected_action']).'</dd></div>';
 	foreach ((array) ($alert['meta'] ?? array()) as $label => $value) {
 		if ((string) $value === '') {
@@ -93,7 +111,7 @@ function mjl_alerts_render_card($alert)
 		print '<div><dt>'.dol_escape_htmltag($label).'</dt><dd>'.dol_escape_htmltag($value).'</dd></div>';
 	}
 	print '</dl>';
-	print '<a class="mjl-card-link" href="'.mjl_dashboard_url($alert['href']).'">Ouvrir l objet concerne</a>';
+	if (mjl_safe_internal_path($alert['href']) !== '') print '<a class="mjl-card-link" href="'.mjl_dashboard_url($alert['href']).'">Ouvrir l’objet concerné</a>';
 	print '</article>';
 }
 
@@ -108,7 +126,26 @@ function mjl_alerts_capture_source($source, $loader)
 
 function mjl_alerts_count_for_user(User $targetUser, $scope = 'all')
 {
-	return count(mjl_alerts_for_user($targetUser, 500, $scope));
+	return count(mjl_alert_conditions_for_user($targetUser, 500, $scope));
+}
+
+function mjl_alert_condition_partner_overallocation(User $targetUser, array $partner)
+{
+	$partnerId = isset($partner['rowid']) ? (int) $partner['rowid'] : 0;
+	$unallocated = isset($partner['unallocated_budget']) ? (float) $partner['unallocated_budget'] : 0.0;
+	if ($partnerId <= 0 || $unallocated >= 0 || (!mjl_scope_is_final_validator($targetUser) && !mjl_scope_is_platform_admin($targetUser))) return array();
+	$condition = mjl_alerts_payload($targetUser, array(
+		'type' => 'partner_overallocated',
+		'domain' => 'partners',
+		'object_type' => 'societe',
+		'object_id' => $partnerId,
+		'partner_id' => $partnerId,
+		'ref' => isset($partner['nom']) ? (string) $partner['nom'] : '',
+		'label' => isset($partner['nom']) ? (string) $partner['nom'] : '',
+		'sort_date' => '',
+		'facts' => array('overallocation_amount' => abs($unallocated)),
+	));
+	return mjl_alerts_user_can_open_alert($targetUser, $condition) ? $condition : array();
 }
 
 function mjl_alerts_normalize_scope($scope)
@@ -117,17 +154,17 @@ function mjl_alerts_normalize_scope($scope)
 	return in_array($scope, array('all', 'activities', 'expenses', 'finance'), true) ? $scope : 'all';
 }
 
-function mjl_alerts_activity_alerts(User $targetUser, $limit)
+function mjl_alerts_activity_alerts(User $targetUser, $limit, $partnerId = 0)
 {
 	$alerts = array();
-	$alerts = array_merge($alerts, mjl_alerts_activity_deadlines($targetUser, $limit));
-	$alerts = array_merge($alerts, mjl_alerts_activity_pending_reviews($targetUser, $limit));
-	$alerts = array_merge($alerts, mjl_alerts_activity_corrections($targetUser, $limit));
-	$alerts = array_merge($alerts, mjl_alerts_activity_stale_execution($targetUser, $limit));
+	$alerts = array_merge($alerts, mjl_alerts_activity_deadlines($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_activity_pending_reviews($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_activity_corrections($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_activity_stale_execution($targetUser, $limit, $partnerId));
 	return $alerts;
 }
 
-function mjl_alerts_activity_deadlines(User $targetUser, $limit)
+function mjl_alerts_activity_deadlines(User $targetUser, $limit, $partnerId = 0)
 {
 	global $db, $conf;
 
@@ -136,25 +173,21 @@ function mjl_alerts_activity_deadlines(User $targetUser, $limit)
 	$sql .= ' AND a.status IN ('.implode(',', array_map('intval', MjlActivity::openStatuses())).')';
 	$sql .= " AND a.date_end IS NOT NULL AND a.date_end <= '".$db->escape(date('Y-m-d', strtotime('+7 days')))."'";
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 	$sql .= mjl_alerts_activity_role_sql($targetUser, 'deadline');
 	$sql .= ' ORDER BY a.date_end ASC, a.ref ASC LIMIT '.((int) $limit);
 
 	$alerts = array();
 	foreach (mjl_alerts_fetch_rows($sql) as $row) {
-		$severity = mjl_alerts_deadline_severity($row['date_end']);
 		$alerts[] = mjl_alerts_activity_payload($targetUser, $row, array(
-			'type' => $severity === 'En retard' ? 'activity_overdue' : 'activity_deadline_soon',
-			'severity' => $severity,
-			'tone' => $severity === 'En retard' ? 'danger' : 'warning',
-			'audience' => 'Agent de saisie',
-			'expected_action' => 'Examiner l echeance et confirmer la prochaine action.',
+			'type' => mjl_alerts_deadline_is_overdue($row['date_end']) ? 'activity_overdue' : 'activity_deadline_soon',
 			'sort_date' => $row['date_end'],
 		));
 	}
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
 }
 
-function mjl_alerts_activity_pending_reviews(User $targetUser, $limit)
+function mjl_alerts_activity_pending_reviews(User $targetUser, $limit, $partnerId = 0)
 {
 	global $conf;
 
@@ -167,15 +200,11 @@ function mjl_alerts_activity_pending_reviews(User $targetUser, $limit)
 		array(
 			'status' => MjlActivity::STATUS_SUBMITTED,
 			'type' => 'activity_awaiting_prevalidation',
-			'audience' => 'Agent verificateur',
-			'expected_action' => 'Prevalider l activite ou demander une correction.',
 			'allowed' => mjl_scope_is_verifier($targetUser) || mjl_scope_is_platform_admin($targetUser),
 		),
 		array(
 			'status' => MjlActivity::STATUS_PREVALIDATED,
 			'type' => 'activity_awaiting_final_validation',
-			'audience' => 'Validateur definitif',
-			'expected_action' => 'Valider definitivement l activite ou demander une correction.',
 			'allowed' => mjl_scope_is_final_validator($targetUser) || mjl_scope_is_platform_admin($targetUser),
 		),
 	);
@@ -189,14 +218,11 @@ function mjl_alerts_activity_pending_reviews(User $targetUser, $limit)
 		$sql .= ' AND a.fk_user_creat <> '.((int) $targetUser->id);
 		$sql .= ' AND (a.fk_user_responsible IS NULL OR a.fk_user_responsible <> '.((int) $targetUser->id).')';
 		$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+		$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 		$sql .= ' ORDER BY a.date_end ASC, a.ref ASC LIMIT '.((int) $limit);
 		foreach (mjl_alerts_fetch_rows($sql) as $row) {
 			$alerts[] = mjl_alerts_activity_payload($targetUser, $row, array(
 				'type' => $config['type'],
-				'severity' => 'Decision attendue',
-				'tone' => 'warning',
-				'audience' => $config['audience'],
-				'expected_action' => $config['expected_action'],
 				'sort_date' => $row['date_end'],
 			));
 		}
@@ -204,7 +230,7 @@ function mjl_alerts_activity_pending_reviews(User $targetUser, $limit)
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
 }
 
-function mjl_alerts_activity_corrections(User $targetUser, $limit)
+function mjl_alerts_activity_corrections(User $targetUser, $limit, $partnerId = 0)
 {
 	global $conf;
 
@@ -212,6 +238,7 @@ function mjl_alerts_activity_corrections(User $targetUser, $limit)
 	$sql .= ' WHERE a.entity = '.((int) $conf->entity);
 	$sql .= ' AND a.status = '.MjlActivity::STATUS_CORRECTION_REQUESTED;
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 	$sql .= ' AND (a.fk_user_creat = '.((int) $targetUser->id).' OR a.fk_user_responsible = '.((int) $targetUser->id).')';
 	$sql .= ' ORDER BY a.date_end ASC, a.ref ASC LIMIT '.((int) $limit);
 
@@ -219,21 +246,17 @@ function mjl_alerts_activity_corrections(User $targetUser, $limit)
 	foreach (mjl_alerts_fetch_rows($sql) as $row) {
 		$alerts[] = mjl_alerts_activity_payload($targetUser, $row, array(
 			'type' => 'activity_returned_for_correction',
-			'severity' => 'Correction demandee',
-			'tone' => 'danger',
-			'audience' => 'Agent de saisie',
-			'expected_action' => 'Corriger l activite puis la resoumettre.',
 			'sort_date' => $row['date_end'],
 		));
 	}
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
 }
 
-function mjl_alerts_activity_stale_execution(User $targetUser, $limit)
+function mjl_alerts_activity_stale_execution(User $targetUser, $limit, $partnerId = 0)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT a.rowid, a.ref, a.label, a.date_end, a.status, a.fk_user_creat, a.fk_user_responsible, p.ref AS project_ref, c.ref AS convention_ref, COALESCE((SELECT MAX(w.action_date) FROM '.$db->prefix().'mjlfinancement_workflow_action w WHERE w.entity = a.entity AND w.object_type = \'mjlfinancement_activity\' AND w.object_id = a.rowid AND w.action = \'execution_updated\'), a.date_creation) AS last_execution_update';
+	$sql = 'SELECT a.rowid, a.ref, a.label, a.date_end, a.status, a.fk_user_creat, a.fk_user_responsible, c.fk_soc AS partner_id, p.ref AS project_ref, c.ref AS convention_ref, COALESCE((SELECT MAX(w.action_date) FROM '.$db->prefix().'mjlfinancement_workflow_action w WHERE w.entity = a.entity AND w.object_type = \'mjlfinancement_activity\' AND w.object_id = a.rowid AND w.action = \'execution_updated\'), a.date_creation) AS last_execution_update';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
@@ -241,6 +264,7 @@ function mjl_alerts_activity_stale_execution(User $targetUser, $limit)
 	$sql .= ' AND a.status IN ('.implode(',', array_map('intval', MjlActivity::executionEditableStatuses())).')';
 	$sql .= " AND COALESCE((SELECT MAX(w2.action_date) FROM ".$db->prefix()."mjlfinancement_workflow_action w2 WHERE w2.entity = a.entity AND w2.object_type = 'mjlfinancement_activity' AND w2.object_id = a.rowid AND w2.action = 'execution_updated'), a.date_creation) < '".$db->escape(date('Y-m-d H:i:s', strtotime('-14 days')))."'";
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 	$sql .= mjl_alerts_activity_role_sql($targetUser, 'correction');
 	$sql .= ' ORDER BY last_execution_update ASC, a.ref ASC LIMIT '.((int) $limit);
 
@@ -248,12 +272,8 @@ function mjl_alerts_activity_stale_execution(User $targetUser, $limit)
 	foreach (mjl_alerts_fetch_rows($sql) as $row) {
 		$alerts[] = mjl_alerts_activity_payload($targetUser, $row, array(
 			'type' => 'activity_stale_execution',
-			'severity' => 'Execution a actualiser',
-			'tone' => 'warning',
-			'audience' => 'Agent de saisie',
-			'expected_action' => 'Mettre a jour l execution physique de l activite.',
 			'sort_date' => $row['last_execution_update'],
-			'meta_extra' => array('Derniere mise a jour' => mjl_alerts_format_date($row['last_execution_update'])),
+			'facts_extra' => array('last_execution_update' => $row['last_execution_update']),
 		));
 	}
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
@@ -263,25 +283,25 @@ function mjl_alerts_activity_base_sql()
 {
 	global $db;
 
-	$sql = 'SELECT a.rowid, a.ref, a.label, a.date_end, a.status, a.fk_user_creat, a.fk_user_responsible, p.ref AS project_ref, c.ref AS convention_ref';
+	$sql = 'SELECT a.rowid, a.ref, a.label, a.date_end, a.status, a.fk_user_creat, a.fk_user_responsible, c.fk_soc AS partner_id, p.ref AS project_ref, c.ref AS convention_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
 	return $sql;
 }
 
-function mjl_alerts_expense_alerts(User $targetUser, $limit)
+function mjl_alerts_expense_alerts(User $targetUser, $limit, $partnerId = 0)
 {
 	$alerts = array();
-	$alerts = array_merge($alerts, mjl_alerts_expense_pending_reviews($targetUser, $limit));
-	$alerts = array_merge($alerts, mjl_alerts_expense_corrections($targetUser, $limit));
-	$alerts = array_merge($alerts, mjl_alerts_expense_missing_documents($targetUser, $limit));
-	$alerts = array_merge($alerts, mjl_alerts_expense_over_budget($targetUser, $limit));
-	$alerts = array_merge($alerts, mjl_alerts_expense_validated_not_disbursed($targetUser, $limit));
+	$alerts = array_merge($alerts, mjl_alerts_expense_pending_reviews($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_expense_corrections($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_expense_missing_documents($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_expense_over_budget($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_expense_validated_not_disbursed($targetUser, $limit, $partnerId));
 	return $alerts;
 }
 
-function mjl_alerts_expense_pending_reviews(User $targetUser, $limit)
+function mjl_alerts_expense_pending_reviews(User $targetUser, $limit, $partnerId = 0)
 {
 	global $conf;
 
@@ -293,15 +313,11 @@ function mjl_alerts_expense_pending_reviews(User $targetUser, $limit)
 		array(
 			'status' => MjlExpense::STATUS_SUBMITTED,
 			'type' => 'expense_awaiting_prevalidation',
-			'audience' => 'Agent verificateur',
-			'expected_action' => 'Controler la depense et la prevalider ou la rejeter.',
 			'allowed' => mjl_scope_is_verifier($targetUser) || mjl_scope_is_platform_admin($targetUser),
 		),
 		array(
 			'status' => MjlExpense::STATUS_PREVALIDATED,
 			'type' => 'expense_awaiting_final_validation',
-			'audience' => 'Validateur definitif',
-			'expected_action' => 'Valider definitivement la depense ou la rejeter.',
 			'allowed' => mjl_scope_is_final_validator($targetUser) || mjl_scope_is_platform_admin($targetUser),
 		),
 	);
@@ -315,14 +331,11 @@ function mjl_alerts_expense_pending_reviews(User $targetUser, $limit)
 		$sql .= ' AND e.status = '.((int) $config['status']);
 		$sql .= ' AND e.fk_user_creat <> '.((int) $targetUser->id);
 		$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+		$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 		$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.((int) $limit);
 		foreach (mjl_alerts_fetch_rows($sql) as $row) {
 			$alerts[] = mjl_alerts_expense_payload($targetUser, $row, array(
 				'type' => $config['type'],
-				'severity' => 'Decision attendue',
-				'tone' => 'warning',
-				'audience' => $config['audience'],
-				'expected_action' => $config['expected_action'],
 				'sort_date' => $row['expense_date'],
 			));
 		}
@@ -330,7 +343,7 @@ function mjl_alerts_expense_pending_reviews(User $targetUser, $limit)
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
 }
 
-function mjl_alerts_expense_corrections(User $targetUser, $limit)
+function mjl_alerts_expense_corrections(User $targetUser, $limit, $partnerId = 0)
 {
 	global $conf;
 
@@ -339,23 +352,20 @@ function mjl_alerts_expense_corrections(User $targetUser, $limit)
 	$sql .= ' AND e.status = '.MjlExpense::STATUS_REJECTED;
 	$sql .= ' AND e.fk_user_creat = '.((int) $targetUser->id);
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.((int) $limit);
 
 	$alerts = array();
 	foreach (mjl_alerts_fetch_rows($sql) as $row) {
 		$alerts[] = mjl_alerts_expense_payload($targetUser, $row, array(
 			'type' => 'expense_returned_for_correction',
-			'severity' => 'Correction demandee',
-			'tone' => 'danger',
-			'audience' => 'Agent de saisie',
-			'expected_action' => 'Corriger la depense rejetee puis la resoumettre.',
 			'sort_date' => $row['expense_date'],
 		));
 	}
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
 }
 
-function mjl_alerts_expense_missing_documents(User $targetUser, $limit)
+function mjl_alerts_expense_missing_documents(User $targetUser, $limit, $partnerId = 0)
 {
 	global $conf;
 
@@ -363,6 +373,7 @@ function mjl_alerts_expense_missing_documents(User $targetUser, $limit)
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
 	$sql .= ' AND e.status IN ('.MjlExpense::STATUS_DRAFT.', '.MjlExpense::STATUS_CORRECTED.', '.MjlExpense::STATUS_SUBMITTED.')';
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 	$sql .= mjl_alerts_expense_role_sql($targetUser, 'document');
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.max((int) $limit * 5, (int) $limit);
 
@@ -374,21 +385,18 @@ function mjl_alerts_expense_missing_documents(User $targetUser, $limit)
 		}
 		$alerts[] = mjl_alerts_expense_payload($targetUser, $row, array(
 			'type' => 'expense_missing_document',
-			'severity' => $state === 'unavailable' ? 'Piece indisponible' : 'Piece manquante',
-			'tone' => 'danger',
-			'audience' => mjl_alerts_actor_label($targetUser),
-			'expected_action' => $state === 'unavailable' ? 'Remplacer la piece justificative indisponible avant validation.' : 'Ajouter la piece justificative avant validation.',
+			'document_state' => $state,
 			'sort_date' => $row['expense_date'],
 		));
 	}
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
 }
 
-function mjl_alerts_expense_over_budget(User $targetUser, $limit)
+function mjl_alerts_expense_over_budget(User $targetUser, $limit, $partnerId = 0)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.ref, e.description, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, e.status, e.fk_user_creat, e.supporting_document AS evidence_supporting_document, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref, bl.revised_budget, COALESCE((SELECT SUM(CASE WHEN ex.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).') AND ex.rowid <> e.rowid THEN '.mjl_expense_budget_amount_sql('ex').' ELSE 0 END) FROM '.$db->prefix().'mjlfinancement_expense ex WHERE ex.entity = e.entity AND ex.fk_budget_line = e.fk_budget_line), 0) AS spent_amount';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.ref, e.description, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, e.status, e.fk_user_creat, e.supporting_document AS evidence_supporting_document, c.fk_soc AS partner_id, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref, bl.revised_budget, COALESCE((SELECT SUM(CASE WHEN ex.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).') AND ex.rowid <> e.rowid THEN '.mjl_expense_budget_amount_sql('ex').' ELSE 0 END) FROM '.$db->prefix().'mjlfinancement_expense ex WHERE ex.entity = e.entity AND ex.fk_budget_line = e.fk_budget_line), 0) AS spent_amount';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = e.fk_budget_line AND bl.entity = e.entity';
@@ -398,6 +406,7 @@ function mjl_alerts_expense_over_budget(User $targetUser, $limit)
 	$sql .= ' AND e.status IN ('.MjlExpense::STATUS_DRAFT.', '.MjlExpense::STATUS_CORRECTED.', '.MjlExpense::STATUS_SUBMITTED.', '.MjlExpense::STATUS_PREVALIDATED.')';
 	$sql .= ' AND '.mjl_alerts_expense_candidate_amount_sql('e').' > (COALESCE(bl.revised_budget, 0) - COALESCE((SELECT SUM(CASE WHEN ex2.status IN ('.mjl_expense_status_sql_list(mjl_expense_budget_consuming_statuses()).') AND ex2.rowid <> e.rowid THEN '.mjl_expense_budget_amount_sql('ex2').' ELSE 0 END) FROM '.$db->prefix().'mjlfinancement_expense ex2 WHERE ex2.entity = e.entity AND ex2.fk_budget_line = e.fk_budget_line), 0)) + 0.001';
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 	$sql .= mjl_alerts_expense_role_sql($targetUser, 'document');
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.((int) $limit);
 
@@ -407,21 +416,17 @@ function mjl_alerts_expense_over_budget(User $targetUser, $limit)
 		$available = (float) $row['revised_budget'] - (float) $row['spent_amount'];
 		$alerts[] = mjl_alerts_expense_payload($targetUser, $row, array(
 			'type' => 'expense_exceeds_budget',
-			'severity' => 'Budget depasse',
-			'tone' => 'danger',
-			'audience' => mjl_alerts_actor_label($targetUser),
-			'expected_action' => 'Reviser la depense ou la ligne budgetaire avant validation.',
 			'sort_date' => $row['expense_date'],
-			'meta_extra' => array(
-				'Montant candidat' => price($candidate),
-				'Solde disponible' => price($available),
+			'facts_extra' => array(
+				'candidate_amount' => $candidate,
+				'available_amount' => $available,
 			),
 		));
 	}
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
 }
 
-function mjl_alerts_expense_validated_not_disbursed(User $targetUser, $limit)
+function mjl_alerts_expense_validated_not_disbursed(User $targetUser, $limit, $partnerId = 0)
 {
 	global $conf;
 
@@ -432,16 +437,13 @@ function mjl_alerts_expense_validated_not_disbursed(User $targetUser, $limit)
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity);
 	$sql .= ' AND e.status IN ('.MjlExpense::STATUS_VALIDATED.', '.MjlExpense::STATUS_FINAL_VALIDATED.')';
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 	$sql .= ' ORDER BY e.expense_date ASC, e.ref ASC LIMIT '.((int) $limit);
 
 	$alerts = array();
 	foreach (mjl_alerts_fetch_rows($sql) as $row) {
 		$alerts[] = mjl_alerts_expense_payload($targetUser, $row, array(
 			'type' => 'expense_validated_not_disbursed',
-			'severity' => 'Decaissement attendu',
-			'tone' => 'warning',
-			'audience' => 'Validateur definitif',
-			'expected_action' => 'Enregistrer le decaissement si le paiement a ete effectue.',
 			'sort_date' => $row['expense_date'],
 		));
 	}
@@ -452,7 +454,7 @@ function mjl_alerts_expense_base_sql()
 {
 	global $db;
 
-	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.ref, e.description, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, e.status, e.fk_user_creat, e.supporting_document AS evidence_supporting_document, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref';
+	$sql = 'SELECT e.rowid, e.entity AS evidence_entity, e.ref, e.description, e.expense_date, e.amount, e.prevalidated_amount, e.final_validated_amount, e.status, e.fk_user_creat, e.supporting_document AS evidence_supporting_document, c.fk_soc AS partner_id, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = e.fk_project AND p.entity = e.entity';
@@ -460,22 +462,42 @@ function mjl_alerts_expense_base_sql()
 	return $sql;
 }
 
-function mjl_alerts_finance_alerts(User $targetUser, $limit)
+function mjl_alerts_finance_alerts(User $targetUser, $limit, $partnerId = 0)
 {
 	$alerts = array();
-	$alerts = array_merge($alerts, mjl_alerts_budget_consumption($targetUser, $limit));
-	$alerts = array_merge($alerts, mjl_alerts_funding_envelope_near_end($targetUser, $limit));
+	$alerts = array_merge($alerts, mjl_alerts_budget_consumption($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_funding_envelope_near_end($targetUser, $limit, $partnerId));
+	$alerts = array_merge($alerts, mjl_alerts_partner_overallocations($targetUser, $limit, $partnerId));
 	return $alerts;
 }
 
-function mjl_alerts_budget_consumption(User $targetUser, $limit)
+function mjl_alerts_partner_overallocations(User $targetUser, $limit, $partnerId = 0)
+{
+	global $db, $conf;
+	if (!mjl_scope_is_final_validator($targetUser) && !mjl_scope_is_platform_admin($targetUser)) return array();
+	$sql = 'SELECT s.rowid, s.nom,';
+	$sql .= ' (COALESCE((SELECT SUM(fr.amount) FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE fr.entity = s.entity AND fr.fk_soc = s.rowid AND fr.status = 1), 0)';
+	$sql .= ' - COALESCE((SELECT SUM(bl.revised_budget) FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity WHERE c.entity = s.entity AND c.fk_soc = s.rowid), 0)) AS unallocated_budget';
+	$sql .= ' FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1';
+	$sql .= mjl_alerts_partner_scope_sql($targetUser, 's.rowid');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 's.rowid');
+	$sql .= ' HAVING unallocated_budget < 0 ORDER BY unallocated_budget ASC, s.nom ASC LIMIT '.((int) $limit);
+	$conditions = array();
+	foreach (mjl_alerts_fetch_rows($sql) as $row) {
+		$condition = mjl_alert_condition_partner_overallocation($targetUser, $row);
+		if (!empty($condition)) $conditions[] = $condition;
+	}
+	return $conditions;
+}
+
+function mjl_alerts_budget_consumption(User $targetUser, $limit, $partnerId = 0)
 {
 	global $db, $conf;
 
 	if (!mjl_workspace_can_access_reference_data($targetUser, 'budgetline')) {
 		return array();
 	}
-	$sql = 'SELECT bl.rowid, bl.ref, bl.label, bl.revised_budget, p.ref AS project_ref, c.ref AS convention_ref, COALESCE(SUM('.mjl_finance_final_validated_amount_sql('e').'), 0) AS final_validated_amount';
+	$sql = 'SELECT bl.rowid, bl.ref, bl.label, bl.revised_budget, c.fk_soc AS partner_id, p.ref AS project_ref, c.ref AS convention_ref, COALESCE(SUM('.mjl_finance_final_validated_amount_sql('e').'), 0) AS final_validated_amount';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_budget_line bl';
 	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project AND p.entity = bl.entity';
@@ -483,7 +505,8 @@ function mjl_alerts_budget_consumption(User $targetUser, $limit)
 	$sql .= ' WHERE bl.entity = '.((int) $conf->entity);
 	$sql .= ' AND bl.status = '.MjlBudgetLine::STATUS_ACTIVE;
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
-	$sql .= ' GROUP BY bl.rowid, bl.ref, bl.label, bl.revised_budget, p.ref, c.ref';
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
+	$sql .= ' GROUP BY bl.rowid, bl.ref, bl.label, bl.revised_budget, c.fk_soc, p.ref, c.ref';
 	$sql .= ' HAVING bl.revised_budget > 0 AND (final_validated_amount / bl.revised_budget) >= 0.80';
 	$sql .= ' ORDER BY (final_validated_amount / bl.revised_budget) DESC, bl.ref ASC LIMIT '.((int) $limit);
 
@@ -494,36 +517,32 @@ function mjl_alerts_budget_consumption(User $targetUser, $limit)
 		$alerts[] = mjl_alerts_payload($targetUser, array(
 			'type' => $critical ? 'budget_critical' : 'budget_warning',
 			'domain' => 'finance',
-			'object_type' => 'Ligne budgetaire',
+			'object_type' => 'mjlfinancement_budget_line',
 			'object_id' => (int) $row['rowid'],
+			'partner_id' => (int) $row['partner_id'],
 			'ref' => $row['ref'],
 			'label' => $row['label'],
-			'severity' => $critical ? 'Budget critique' : 'Budget sous surveillance',
-			'tone' => $critical ? 'danger' : 'warning',
-			'audience' => 'Validateur definitif',
-			'expected_action' => 'Verifier la consommation finalisee de la ligne budgetaire.',
-			'href' => '/custom/mjlfinancement/budgetlines.php?id='.((int) $row['rowid']),
 			'sort_date' => sprintf('%010.2f', 100 - $rate),
-			'meta' => array(
-				'Projet' => $row['project_ref'],
-				'Enveloppe' => $row['convention_ref'],
-				'Budget revise' => price($row['revised_budget']),
-				'Consommation validee' => price($row['final_validated_amount']),
-				'Taux' => round($rate, 2).'%',
+			'facts' => array(
+				'project_reference' => $row['project_ref'],
+				'envelope_reference' => $row['convention_ref'],
+				'revised_budget' => (float) $row['revised_budget'],
+				'validated_amount' => (float) $row['final_validated_amount'],
+				'rate' => $rate,
 			),
 		));
 	}
 	return mjl_alerts_filter_route_access($targetUser, $alerts);
 }
 
-function mjl_alerts_funding_envelope_near_end(User $targetUser, $limit)
+function mjl_alerts_funding_envelope_near_end(User $targetUser, $limit, $partnerId = 0)
 {
 	global $db, $conf;
 
 	if (!mjl_workspace_can_access_reference_data($targetUser, 'convention')) {
 		return array();
 	}
-	$sql = 'SELECT c.rowid, c.ref, c.title, c.date_end, p.ref AS project_ref';
+	$sql = 'SELECT c.rowid, c.ref, c.title, c.date_end, c.fk_soc AS partner_id, p.ref AS project_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_convention c';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity);
@@ -531,6 +550,7 @@ function mjl_alerts_funding_envelope_near_end(User $targetUser, $limit)
 	$sql .= " AND c.date_end IS NOT NULL AND c.date_end <= '".$db->escape(date('Y-m-d', strtotime('+7 days')))."'";
 	$sql .= " AND c.date_end >= '".$db->escape(date('Y-m-d'))."'";
 	$sql .= mjl_alerts_partner_scope_sql($targetUser, 'c.fk_soc');
+	$sql .= mjl_alerts_partner_filter_sql($partnerId, 'c.fk_soc');
 	$sql .= ' ORDER BY c.date_end ASC, c.ref ASC LIMIT '.((int) $limit);
 
 	$alerts = array();
@@ -538,19 +558,15 @@ function mjl_alerts_funding_envelope_near_end(User $targetUser, $limit)
 		$alerts[] = mjl_alerts_payload($targetUser, array(
 			'type' => 'funding_envelope_near_end',
 			'domain' => 'finance',
-			'object_type' => 'Enveloppe de financement',
+			'object_type' => 'mjlfinancement_convention',
 			'object_id' => (int) $row['rowid'],
+			'partner_id' => (int) $row['partner_id'],
 			'ref' => $row['ref'],
 			'label' => $row['title'],
-			'severity' => 'Fin proche',
-			'tone' => 'warning',
-			'audience' => 'Validateur definitif',
-			'expected_action' => 'Verifier la cloture ou la prolongation de l enveloppe.',
-			'href' => '/custom/mjlfinancement/conventions.php?id='.((int) $row['rowid']),
 			'sort_date' => $row['date_end'],
-			'meta' => array(
-				'Projet' => $row['project_ref'],
-				'Date fin' => mjl_alerts_format_date($row['date_end']),
+			'facts' => array(
+				'project_reference' => $row['project_ref'],
+				'deadline' => $row['date_end'],
 			),
 		));
 	}
@@ -559,59 +575,52 @@ function mjl_alerts_funding_envelope_near_end(User $targetUser, $limit)
 
 function mjl_alerts_activity_payload(User $targetUser, $row, $options)
 {
-	$meta = array(
-		'Projet' => $row['project_ref'],
-		'Enveloppe' => $row['convention_ref'],
-		'Echeance' => mjl_alerts_format_date($row['date_end']),
-		'Statut' => mjl_alerts_activity_status_label($row['status']),
+	$facts = array(
+		'project_reference' => $row['project_ref'],
+		'envelope_reference' => $row['convention_ref'],
+		'deadline' => $row['date_end'],
 	);
-	if (!empty($options['meta_extra'])) {
-		$meta = array_merge($meta, $options['meta_extra']);
+	if (!empty($options['facts_extra'])) {
+		$facts = array_merge($facts, $options['facts_extra']);
 	}
 	return mjl_alerts_payload($targetUser, array(
 		'type' => $options['type'],
 		'domain' => 'activities',
-		'object_type' => 'Activite',
+		'object_type' => 'mjlfinancement_activity',
 		'object_id' => (int) $row['rowid'],
+		'partner_id' => (int) $row['partner_id'],
 		'ref' => $row['ref'],
 		'label' => $row['label'],
-		'severity' => $options['severity'],
-		'tone' => $options['tone'],
-		'audience' => $options['audience'],
-		'expected_action' => $options['expected_action'],
-		'href' => '/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']),
+		'status_code' => (int) $row['status'],
 		'sort_date' => $options['sort_date'],
-		'meta' => $meta,
+		'facts' => $facts,
 	));
 }
 
 function mjl_alerts_expense_payload(User $targetUser, $row, $options)
 {
-	$meta = array(
-		'Projet' => $row['project_ref'],
-		'Enveloppe' => $row['convention_ref'],
-		'Activite' => $row['activity_ref'],
-		'Montant' => price($row['amount']),
-		'Date depense' => mjl_alerts_format_date($row['expense_date']),
-		'Statut' => mjl_alerts_expense_status_label($row['status']),
+	$facts = array(
+		'project_reference' => $row['project_ref'],
+		'envelope_reference' => $row['convention_ref'],
+		'activity_reference' => $row['activity_ref'],
+		'amount' => (float) $row['amount'],
+		'expense_date' => $row['expense_date'],
 	);
-	if (!empty($options['meta_extra'])) {
-		$meta = array_merge($meta, $options['meta_extra']);
+	if (!empty($options['facts_extra'])) {
+		$facts = array_merge($facts, $options['facts_extra']);
 	}
+	if (isset($options['document_state'])) $facts['document_state'] = (string) $options['document_state'];
 	return mjl_alerts_payload($targetUser, array(
 		'type' => $options['type'],
 		'domain' => 'expenses',
-		'object_type' => 'Depense',
+		'object_type' => 'mjlfinancement_expense',
 		'object_id' => (int) $row['rowid'],
+		'partner_id' => (int) $row['partner_id'],
 		'ref' => $row['ref'],
 		'label' => $row['description'],
-		'severity' => $options['severity'],
-		'tone' => $options['tone'],
-		'audience' => $options['audience'],
-		'expected_action' => $options['expected_action'],
-		'href' => '/custom/mjlfinancement/expenses.php?id='.((int) $row['rowid']),
+		'status_code' => (int) $row['status'],
 		'sort_date' => $options['sort_date'],
-		'meta' => $meta,
+		'facts' => $facts,
 	));
 }
 
@@ -622,17 +631,30 @@ function mjl_alerts_payload(User $targetUser, $alert)
 		'domain' => '',
 		'object_type' => '',
 		'object_id' => 0,
+		'partner_id' => 0,
 		'ref' => '',
 		'label' => '',
-		'severity' => 'A surveiller',
-		'tone' => 'warning',
-		'audience' => mjl_alerts_actor_label($targetUser),
-		'expected_action' => '',
-		'href' => '',
+		'status_code' => null,
 		'sort_date' => '',
-		'meta' => array(),
+		'facts' => array(),
 	);
-	return array_merge($defaults, $alert);
+	$payload = array_merge($defaults, $alert);
+	$definition = mjl_alert_presentation_registry();
+	$semanticKey = (string) $payload['type'];
+	return mjl_alert_condition(array(
+		'semantic_key' => $semanticKey,
+		'domain' => (string) $payload['domain'],
+		'object_type' => (string) $payload['object_type'],
+		'object_id' => (int) $payload['object_id'],
+		'partner_id' => (int) $payload['partner_id'],
+		'reference' => (string) $payload['ref'],
+		'domain_label' => (string) $payload['label'],
+		'status_code' => $payload['status_code'],
+		'sort_date' => (string) $payload['sort_date'],
+		'priority' => isset($definition[$semanticKey]['priority']) ? (int) $definition[$semanticKey]['priority'] : 999,
+		'dynamic_actor_role_key' => isset($payload['dynamic_actor_role_key']) ? (string) $payload['dynamic_actor_role_key'] : '',
+		'facts' => (array) $payload['facts'],
+	));
 }
 
 function mjl_alerts_filter_route_access(User $targetUser, $alerts)
@@ -661,13 +683,17 @@ function mjl_alerts_user_can_open_alert(User $targetUser, $alert)
 		return mjl_workspace_can_access_expense($targetUser)
 			&& mjl_alerts_can_open_expense_for_user($targetUser, $id);
 	}
-	if ($domain === 'finance' && $alert['object_type'] === 'Ligne budgetaire') {
+	if ($domain === 'finance' && $alert['object_type'] === 'mjlfinancement_budget_line') {
 		return mjl_workspace_can_access_reference_data($targetUser, 'budgetline')
 			&& mjl_scope_can_access_object($targetUser, 'mjlfinancement_budget_line', $id);
 	}
-	if ($domain === 'finance' && $alert['object_type'] === 'Enveloppe de financement') {
+	if ($domain === 'finance' && $alert['object_type'] === 'mjlfinancement_convention') {
 		return mjl_workspace_can_access_reference_data($targetUser, 'convention')
 			&& mjl_scope_can_access_object($targetUser, 'mjlfinancement_convention', $id);
+	}
+	if ($domain === 'partners' && $alert['object_type'] === 'societe') {
+		return (mjl_scope_is_final_validator($targetUser) || mjl_scope_is_platform_admin($targetUser))
+			&& mjl_scope_can_access_fk_soc($targetUser, $id);
 	}
 	return false;
 }
@@ -697,6 +723,12 @@ function mjl_alerts_can_open_expense_for_user(User $targetUser, $expenseId)
 function mjl_alerts_partner_scope_sql(User $targetUser, $partnerColumn)
 {
 	return mjl_scope_partner_sql_filter($partnerColumn, $targetUser);
+}
+
+function mjl_alerts_partner_filter_sql($partnerId, $partnerColumn)
+{
+	$partnerId = (int) $partnerId;
+	return $partnerId > 0 ? ' AND '.$partnerColumn.' = '.$partnerId : '';
 }
 
 function mjl_alerts_activity_role_sql(User $targetUser, $mode)
@@ -741,36 +773,25 @@ function mjl_alerts_expense_candidate_amount($row)
 	return (float) $row['amount'];
 }
 
-function mjl_alerts_deadline_severity($dateEnd)
+function mjl_alerts_deadline_is_overdue($dateEnd)
 {
 	$end = strtotime((string) $dateEnd);
 	$today = strtotime(date('Y-m-d'));
-	if ($end > 0 && $end < $today) {
-		return 'En retard';
-	}
-	return 'Echeance proche';
+	return $end > 0 && $end < $today;
 }
 
 function mjl_alerts_format_date($value)
 {
-	$value = (string) $value;
-	if ($value === '') {
-		return '';
-	}
-	$date = substr($value, 0, 10);
-	if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-		return $value;
-	}
-	return substr($date, 8, 2).'/'.substr($date, 5, 2).'/'.substr($date, 0, 4);
+	return mjl_format_date($value, 'date', 'Non renseigné');
 }
 
 function mjl_alerts_actor_label(User $targetUser)
 {
-	if (mjl_scope_is_platform_admin($targetUser)) return 'Admin plateforme';
-	if (mjl_scope_is_final_validator($targetUser)) return 'Validateur definitif';
-	if (mjl_scope_is_verifier($targetUser)) return 'Agent verificateur';
+	if (mjl_scope_is_platform_admin($targetUser)) return 'Administrateur plateforme';
+	if (mjl_scope_is_final_validator($targetUser)) return 'Validateur définitif';
+	if (mjl_scope_is_verifier($targetUser)) return 'Agent vérificateur et prévalidateur';
 	if (mjl_scope_is_input_agent($targetUser)) return 'Agent de saisie';
-	return 'Utilisateur concerne';
+	return 'Utilisateur concerné';
 }
 
 function mjl_alerts_is_level1_operational(User $targetUser)
@@ -789,22 +810,8 @@ function mjl_alerts_audience_label(User $targetUser, $type)
 
 function mjl_alerts_sort($left, $right)
 {
-	$severityOrder = array(
-		'En retard' => 0,
-		'Budget depasse' => 1,
-		'Budget critique' => 2,
-		'Piece manquante' => 3,
-		'Piece indisponible' => 4,
-		'Correction demandee' => 5,
-		'Decision attendue' => 6,
-		'Decaissement attendu' => 7,
-		'Execution a actualiser' => 8,
-		'Echeance proche' => 9,
-		'Budget sous surveillance' => 10,
-		'Fin proche' => 11,
-	);
-	$leftRank = isset($severityOrder[$left['severity']]) ? $severityOrder[$left['severity']] : 99;
-	$rightRank = isset($severityOrder[$right['severity']]) ? $severityOrder[$right['severity']] : 99;
+	$leftRank = isset($left['priority']) ? (int) $left['priority'] : 999;
+	$rightRank = isset($right['priority']) ? (int) $right['priority'] : 999;
 	if ($leftRank !== $rightRank) {
 		return $leftRank - $rightRank;
 	}

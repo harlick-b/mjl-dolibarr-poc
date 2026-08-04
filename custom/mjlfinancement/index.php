@@ -20,7 +20,7 @@ if ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['superv
 	$dashboardMetrics = mjl_dashboard_workspace_metrics_filtered($filters);
 }
 $alertMetric = mjl_dashboard_capture(function () use ($user, $filters) {
-	return mjl_alerts_user_can_read($user) ? count(mjl_dashboard_filter_alerts(mjl_alerts_for_user($user, 500), $filters)) : 0;
+	return mjl_alerts_user_can_read($user) ? count(mjl_dashboard_filter_alerts(mjl_alert_conditions_for_user($user, 500), $filters)) : 0;
 });
 $alertCount = $alertMetric['value'];
 
@@ -39,20 +39,20 @@ mjl_dashboard_render_filters($filters, '/custom/mjlfinancement/index.php');
 
 if ($capabilities['admin']) {
 	$cards = array(
-		array('label' => 'Invitations en attente', 'value' => $metrics['pending_invitations'], 'available' => $metrics['available']['pending_invitations'], 'context' => 'Acces envoyes non encore actives', 'href' => '/custom/mjlfinancement/admin/access.php', 'action' => 'Gerer les invitations', 'status' => 'Administration', 'tone' => 'neutral'),
+		array('label' => 'Invitations en attente', 'value' => $metrics['pending_invitations'], 'available' => $metrics['available']['pending_invitations'], 'context' => 'Accès envoyés non encore activés', 'href' => '/custom/mjlfinancement/admin/access.php', 'action' => 'Gérer les invitations', 'status' => 'Administration', 'tone' => 'neutral'),
 		array('label' => 'Rapports disponibles', 'value' => $metrics['reports_available'], 'available' => $metrics['available']['reports_available'], 'context' => 'Exports et rapports MJL', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports', 'status' => 'Sorties officielles', 'tone' => 'neutral'),
 	);
 	$unresolved = mjl_dashboard_capture(function () { return mjl_dashboard_unresolved_scope_count(); });
 	$unresolvedCount = $unresolved['value'];
 	$cards[] = array('label' => 'Données à qualifier', 'value' => $unresolvedCount, 'available' => $unresolved['available'], 'context' => 'Objets ou traces sans périmètre résolu, visibles uniquement en administration plateforme', 'href' => '/custom/mjlfinancement/workflowactions.php', 'action' => 'Ouvrir l audit', 'status' => 'Diagnostic', 'tone' => $unresolvedCount > 0 ? 'warning' : 'neutral');
 	if (mjl_alerts_user_can_read($user)) {
-		$cards[] = array('label' => 'Risques echeance', 'value' => $dashboardMetrics['deadline_risks'], 'available' => $dashboardMetrics['available']['deadline_risks'], 'context' => 'Activites ouvertes a traiter avant ou apres echeance', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Supervision', 'tone' => $dashboardMetrics['deadline_risks'] > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Risques échéance', 'value' => $dashboardMetrics['deadline_risks'], 'available' => $dashboardMetrics['available']['deadline_risks'], 'context' => 'Activités ouvertes à traiter avant ou après échéance', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Supervision', 'tone' => $dashboardMetrics['deadline_risks'] > 0 ? 'warning' : 'neutral');
 	}
-	$cards[] = array('label' => 'Execution physique', 'value' => $dashboardMetrics['physical_execution_percent'].'%', 'available' => $dashboardMetrics['available']['physical_execution_percent'], 'context' => 'Moyenne des activites visibles avec avancement renseigne', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites', 'status' => 'Execution', 'tone' => 'neutral');
+	$cards[] = array('label' => 'Exécution physique', 'value' => $dashboardMetrics['physical_execution_percent'].'%', 'available' => $dashboardMetrics['available']['physical_execution_percent'], 'context' => 'Moyenne des activités visibles avec avancement renseigné', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités', 'status' => 'Exécution', 'tone' => 'neutral');
 	if (!empty($cards)) {
 		mjl_dashboard_render_card_section(
 			'Administration plateforme',
-			'Gerer les invitations et garder un acces rapide aux surfaces de supervision.',
+			'Gérer les invitations et garder un accès rapide aux surfaces de supervision.',
 			$cards
 		);
 	}
@@ -61,19 +61,19 @@ if ($capabilities['admin']) {
 if (!$capabilities['admin'] && $capabilities['operational']) {
 	$cards = array();
 	if ($capabilities['activity_read']) {
-		$cards[] = array('label' => 'Activites a finaliser', 'value' => $metrics['own_activity_drafts'], 'available' => $metrics['available']['own_activity_drafts'], 'context' => 'Brouillons ou corrections a reprendre', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Ouvrir les activites', 'status' => 'Action attendue', 'tone' => $metrics['own_activity_drafts'] > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Activités a finaliser', 'value' => $metrics['own_activity_drafts'], 'available' => $metrics['available']['own_activity_drafts'], 'context' => 'Brouillons ou corrections a reprendre', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Ouvrir les activités', 'status' => 'Action attendue', 'tone' => $metrics['own_activity_drafts'] > 0 ? 'warning' : 'neutral');
 	}
 	if ($capabilities['expense_read']) {
-		$cards[] = array('label' => 'Depenses soumises', 'value' => $metrics['own_expenses_submitted'], 'available' => $metrics['available']['own_expenses_submitted'], 'context' => 'Depenses actuellement en revue', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Suivre les depenses', 'status' => 'En revue', 'tone' => 'neutral');
-		$cards[] = array('label' => 'Pieces manquantes', 'value' => $metrics['own_missing_expense_documents'], 'available' => $metrics['available']['own_missing_expense_documents'], 'context' => 'Depenses ouvertes sans piece justificative detectee', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Completer les depenses', 'status' => 'Justificatif', 'tone' => $metrics['own_missing_expense_documents'] > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Dépenses soumises', 'value' => $metrics['own_expenses_submitted'], 'available' => $metrics['available']['own_expenses_submitted'], 'context' => 'Dépenses actuellement en revue', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Suivre les dépenses', 'status' => 'En revue', 'tone' => 'neutral');
+		$cards[] = array('label' => 'Pièces manquantes', 'value' => $metrics['own_missing_expense_documents'], 'available' => $metrics['available']['own_missing_expense_documents'], 'context' => 'Dépenses ouvertes sans pièce justificative detectee', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Completer les dépenses', 'status' => 'Justificatif', 'tone' => $metrics['own_missing_expense_documents'] > 0 ? 'warning' : 'neutral');
 	}
 	if (mjl_alerts_user_can_read($user)) {
-		$cards[] = array('label' => 'Alertes actives', 'value' => $alertCount, 'available' => $alertMetric['available'], 'context' => 'Delais et justificatifs incomplets dans votre perimetre', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Action attendue', 'tone' => $alertCount > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Alertes actives', 'value' => $alertCount, 'available' => $alertMetric['available'], 'context' => 'Delais et justificatifs incomplets dans votre périmètre', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Action attendue', 'tone' => $alertCount > 0 ? 'warning' : 'neutral');
 	}
 	if (!empty($cards)) {
 		mjl_dashboard_render_card_section(
 			'Mes actions attendues',
-			'Creer, corriger et suivre les activites ou depenses sous votre responsabilite.',
+			'Créer, corriger et suivre les activités ou dépenses sous votre responsabilite.',
 			$cards
 		);
 	}
@@ -82,16 +82,16 @@ if (!$capabilities['admin'] && $capabilities['operational']) {
 if (!$capabilities['admin'] && $capabilities['reviewer']) {
 	$cards = array();
 	if ($capabilities['activity_read']) {
-		$cards[] = array('label' => 'Activites en revue', 'value' => $metrics['activities_submitted'], 'available' => $metrics['available']['activities_submitted'], 'context' => 'Activites soumises a decision', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner les activites', 'status' => 'Decision attendue', 'tone' => $metrics['activities_submitted'] > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Activités en revue', 'value' => $metrics['activities_submitted'], 'available' => $metrics['available']['activities_submitted'], 'context' => 'Activités soumises à décision', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner les activités', 'status' => 'Décision attendue', 'tone' => $metrics['activities_submitted'] > 0 ? 'warning' : 'neutral');
 	}
 	if ($capabilities['expense_read']) {
-		$cards[] = array('label' => 'Depenses en revue', 'value' => $metrics['expenses_submitted'], 'available' => $metrics['available']['expenses_submitted'], 'context' => 'Depenses soumises a validation', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Examiner les depenses', 'status' => 'Decision attendue', 'tone' => $metrics['expenses_submitted'] > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Dépenses en revue', 'value' => $metrics['expenses_submitted'], 'available' => $metrics['available']['expenses_submitted'], 'context' => 'Dépenses soumises à validation', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Examiner les dépenses', 'status' => 'Décision attendue', 'tone' => $metrics['expenses_submitted'] > 0 ? 'warning' : 'neutral');
 	}
 	if (mjl_alerts_user_can_read($user)) {
-		$cards[] = array('label' => 'Risques echeance', 'value' => $dashboardMetrics['deadline_risks'], 'available' => $dashboardMetrics['available']['deadline_risks'], 'context' => 'Activites ouvertes a verifier avant ou apres echeance', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Delai', 'tone' => $dashboardMetrics['deadline_risks'] > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Risques échéance', 'value' => $dashboardMetrics['deadline_risks'], 'available' => $dashboardMetrics['available']['deadline_risks'], 'context' => 'Activités ouvertes à vérifier avant ou après échéance', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Délai', 'tone' => $dashboardMetrics['deadline_risks'] > 0 ? 'warning' : 'neutral');
 		$cards[] = array('label' => 'Alertes actives', 'value' => $alertCount, 'available' => $alertMetric['available'], 'context' => 'Risques et decisions attendues dans la file', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Alertes', 'tone' => $alertCount > 0 ? 'warning' : 'neutral');
 	}
-	$cards[] = array('label' => 'Execution physique', 'value' => $dashboardMetrics['physical_execution_percent'].'%', 'available' => $dashboardMetrics['available']['physical_execution_percent'], 'context' => 'Moyenne des activites visibles avec avancement renseigne', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Ouvrir les activites', 'status' => 'Execution', 'tone' => 'neutral');
+	$cards[] = array('label' => 'Exécution physique', 'value' => $dashboardMetrics['physical_execution_percent'].'%', 'available' => $dashboardMetrics['available']['physical_execution_percent'], 'context' => 'Moyenne des activités visibles avec avancement renseigné', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Ouvrir les activités', 'status' => 'Exécution', 'tone' => 'neutral');
 	if (!empty($cards)) {
 		mjl_dashboard_render_card_section(
 			'File de validation',
@@ -103,13 +103,13 @@ if (!$capabilities['admin'] && $capabilities['reviewer']) {
 
 if (!$capabilities['admin'] && $capabilities['supervision']) {
 	$cards = array(
-		array('label' => 'Revues en attente', 'value' => $dashboardMetrics['pending_reviews'], 'available' => $dashboardMetrics['available']['pending_reviews'], 'context' => 'Activites et depenses soumises', 'href' => '/custom/mjlfinancement/dpafdashboard.php', 'action' => 'Ouvrir la supervision finance', 'status' => 'Supervision', 'tone' => $dashboardMetrics['pending_reviews'] > 0 ? 'warning' : 'neutral'),
+		array('label' => 'Revues en attente', 'value' => $dashboardMetrics['pending_reviews'], 'available' => $dashboardMetrics['available']['pending_reviews'], 'context' => 'Activités et dépenses soumises', 'href' => '/custom/mjlfinancement/dpafdashboard.php', 'action' => 'Ouvrir la supervision finance', 'status' => 'Supervision', 'tone' => $dashboardMetrics['pending_reviews'] > 0 ? 'warning' : 'neutral'),
 		array('label' => 'Rapports disponibles', 'value' => $metrics['reports_available'], 'available' => $metrics['available']['reports_available'], 'context' => 'Exports et rapports MJL', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports', 'status' => 'Sorties officielles', 'tone' => 'neutral'),
 	);
 	if (mjl_alerts_user_can_read($user)) {
-		$cards[] = array('label' => 'Risques echeance', 'value' => $dashboardMetrics['deadline_risks'], 'available' => $dashboardMetrics['available']['deadline_risks'], 'context' => 'Activites ouvertes avec delai proche ou depasse', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Analyser les risques', 'status' => 'Delai', 'tone' => $dashboardMetrics['deadline_risks'] > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Risques échéance', 'value' => $dashboardMetrics['deadline_risks'], 'available' => $dashboardMetrics['available']['deadline_risks'], 'context' => 'Activités ouvertes avec delai proche ou depasse', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Analyser les risques', 'status' => 'Delai', 'tone' => $dashboardMetrics['deadline_risks'] > 0 ? 'warning' : 'neutral');
 	}
-	$cards[] = array('label' => 'Execution physique', 'value' => $dashboardMetrics['physical_execution_percent'].'%', 'available' => $dashboardMetrics['available']['physical_execution_percent'], 'context' => 'Moyenne des activites visibles avec avancement renseigne', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites', 'status' => 'Execution', 'tone' => 'neutral');
+	$cards[] = array('label' => 'Exécution physique', 'value' => $dashboardMetrics['physical_execution_percent'].'%', 'available' => $dashboardMetrics['available']['physical_execution_percent'], 'context' => 'Moyenne des activités visibles avec avancement renseigné', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités', 'status' => 'Exécution', 'tone' => 'neutral');
 	if (!empty($cards)) {
 		mjl_dashboard_render_card_section(
 			'Supervision finance',

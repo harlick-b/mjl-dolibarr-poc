@@ -14,6 +14,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workflow_audit.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
 
 mjl_workspace_require_supervision_access($user);
 
@@ -47,11 +48,11 @@ if ($action === 'export_csv' || $action === 'export_xlsx') {
 	if (!empty($inaccessibleFilters)) {
 		accessforbidden('Filtre hors de votre perimetre: '.implode(', ', $inaccessibleFilters));
 	}
-	$exportRows = mjl_reports_export_rows($report, $filters);
+	$format = $action === 'export_xlsx' ? 'xlsx' : 'csv';
+	$exportRows = $format === 'xlsx' ? mjl_reports_xlsx_contract_rows($report, $filters) : mjl_reports_csv_contract_rows($report, $filters);
 	if (!empty($GLOBALS['mjl_reports_query_failed'])) {
 		mjl_reports_export_unavailable();
 	}
-	$format = $action === 'export_xlsx' ? 'xlsx' : 'csv';
 	$filename = $format === 'xlsx' ? $xlsxFilename : $csvFilename;
 	$file = mjl_reports_export_temp_path($format);
 	if ($file === '') {
@@ -308,7 +309,7 @@ function mjl_reports_def($report)
 {
 	$defs = mjl_reports_defs();
 	if ($report === 'convention_budget') {
-		return array(
+		return mjl_reports_prepare_def(array(
 			'key' => 'convention_budget',
 			'label' => 'Exécution budgétaire par programme',
 			'description' => 'Suivre les lignes budgétaires, les dépenses validées et le solde restant.',
@@ -319,10 +320,10 @@ function mjl_reports_def($report)
 			'status_domain' => '',
 			'headers' => array('ref' => 'Ligne budgétaire', 'label' => 'Libellé', 'initial_budget' => 'Budget initial', 'revised_budget' => 'Budget révisé', 'status' => 'Statut', 'submitted_expenses' => 'Dépenses soumises', 'prevalidated_expenses' => 'Dépenses prévalidées', 'validated_expenses' => 'Dépenses validées définitivement', 'disbursed_expenses' => 'Dépenses décaissées', 'remaining_amount' => 'Restant'),
 			'money_fields' => array('initial_budget', 'revised_budget', 'submitted_expenses', 'prevalidated_expenses', 'validated_expenses', 'disbursed_expenses', 'remaining_amount'),
-		);
+		));
 	}
 	if ($report === 'fund_receipts') {
-		return array(
+		return mjl_reports_prepare_def(array(
 			'key' => 'fund_receipts',
 			'label' => 'Suivi des fonds reçus',
 			'description' => 'Exporter les réceptions de fonds, leurs statuts et la disponibilité des preuves documentaires.',
@@ -334,7 +335,7 @@ function mjl_reports_def($report)
 			'headers' => array('receipt_ref' => 'Référence réception', 'ptf' => 'Partenaire / Programme', 'project' => 'Projet', 'programme' => 'Programme', 'reception_date' => 'Date de réception', 'amount' => 'Montant', 'status' => 'Statut', 'document_present' => 'Preuve disponible', 'supporting_document' => 'Preuve documentaire', 'comment' => 'Commentaire'),
 			'money_fields' => array('amount'),
 			'date_fields' => array('reception_date'),
-		);
+		));
 	}
 	$aliases = array(
 		'project_summary' => 'financial_execution_project',
@@ -347,7 +348,16 @@ function mjl_reports_def($report)
 	if (isset($aliases[$report])) {
 		$report = $aliases[$report];
 	}
-	return isset($defs[$report]) ? $defs[$report] : $defs['financial_execution_project'];
+	return mjl_reports_prepare_def(isset($defs[$report]) ? $defs[$report] : $defs['financial_execution_project']);
+}
+
+function mjl_reports_prepare_def($def)
+{
+	foreach (isset($def['money_fields']) ? $def['money_fields'] : array() as $field) {
+		if (!isset($def['headers'][$field])) continue;
+		if (substr($def['headers'][$field], -7) !== '(F CFA)') $def['headers'][$field] .= ' (F CFA)';
+	}
+	return $def;
 }
 
 function mjl_reports_raw_filters()
@@ -510,35 +520,54 @@ function mjl_reports_rows($report, $filters)
 
 function mjl_reports_formatted_rows($report, $filters)
 {
-	return mjl_reports_transformed_rows($report, $filters, true);
+	return mjl_reports_transformed_rows($report, $filters, 'html');
 }
 
 function mjl_reports_export_rows($report, $filters)
 {
-	return mjl_reports_transformed_rows($report, $filters, false);
+	return mjl_reports_transformed_rows($report, $filters, 'export');
 }
 
-function mjl_reports_transformed_rows($report, $filters, $formatMoney)
+function mjl_reports_csv_contract_rows($report, $filters)
+{
+	return mjl_reports_transformed_rows($report, $filters, 'export');
+}
+
+function mjl_reports_xlsx_contract_rows($report, $filters)
+{
+	return mjl_reports_transformed_rows($report, $filters, 'export');
+}
+
+function mjl_reports_transformed_rows($report, $filters, $surface)
 {
 	$def = mjl_reports_def($report);
 	$rows = mjl_reports_rows($report, $filters);
 	foreach ($rows as &$row) {
-		$row = mjl_reports_format_row($def, $row, $formatMoney);
+		$row = mjl_reports_format_row($def, $row, $surface);
 	}
 	unset($row);
 	return $rows;
 }
 
-function mjl_reports_format_row($def, $row, $formatMoney = true)
+function mjl_reports_format_row($def, $row, $surface = 'html')
 {
+	$surface = $surface === 'export' ? 'export' : 'html';
+	if ($surface === 'html' && in_array($def['key'], array('workflow_decisions', 'general_audit'), true)) {
+		if (isset($row['action'])) {
+			$row['decision'] = mjl_timeline_presentation_action_label(isset($row['object_type']) ? $row['object_type'] : '', $row['action']);
+		}
+		if (isset($row['object_type'])) {
+			$row['object_type_label'] = mjl_timeline_presentation_object_label($row['object_type']);
+		}
+	}
 	if ($def['key'] === 'expense_documents' && isset($row['status'])) {
-		$row['status'] = mjl_reports_expense_status_label($row['status']);
+		$row['status'] = $surface === 'html' ? mjl_status_presentation('expense', $row['status'], 'operational')['label'] : mjl_reports_expense_status_label($row['status']);
 	}
 	if (($def['key'] === 'budget_allocation_project' || $def['key'] === 'convention_budget') && isset($row['status'])) {
-		$row['status'] = mjl_reports_budget_status_label($row['status']);
+		$row['status'] = $surface === 'html' ? mjl_status_presentation('budget_line', $row['status'], 'operational')['label'] : mjl_reports_budget_status_label($row['status']);
 	}
 	if (($def['key'] === 'funding_received_partner' || $def['key'] === 'fund_receipts') && isset($row['status'])) {
-		$row['status'] = mjl_reports_fund_receipt_status_label($row['status']);
+		$row['status'] = $surface === 'html' ? mjl_status_presentation('fund_receipt', $row['status'], 'operational')['label'] : mjl_reports_fund_receipt_status_label($row['status']);
 	}
 	if (isset($row['actor_role'])) {
 		$row['actor_role'] = mjl_actor_role_label($row['actor_role']);
@@ -549,21 +578,32 @@ function mjl_reports_format_row($def, $row, $formatMoney = true)
 		}
 	}
 	foreach (isset($def['money_fields']) ? $def['money_fields'] : array() as $field) {
-		if ($formatMoney && isset($row[$field]) && $row[$field] !== '') {
-			$row[$field] = price($row[$field]);
+		if ($surface === 'html' && array_key_exists($field, $row)) {
+			$row[$field] = mjl_format_money($row[$field]);
 		}
 	}
 	foreach (isset($def['date_fields']) ? $def['date_fields'] : array() as $field) {
-		if (isset($row[$field]) && $row[$field] !== '') {
-			$row[$field] = mjl_reports_format_date($row[$field]);
-		}
+		if (!array_key_exists($field, $row)) continue;
+		if ($surface === 'html') $row[$field] = mjl_format_date($row[$field]);
+		elseif ($row[$field] !== '') $row[$field] = mjl_reports_format_date($row[$field]);
 	}
-	foreach ($row as $key => $value) {
-		if (is_string($value)) {
-			$row[$key] = mjl_reports_target_wording($value);
-		}
+	if ($surface === 'export') {
+		foreach ($row as $key => $value) if (is_string($value)) $row[$key] = mjl_reports_target_wording($value);
+	} else {
+		foreach ($row as $key => $value) if (is_string($value)) $row[$key] = mjl_reports_html_exact_label($value);
 	}
 	return $row;
+}
+
+function mjl_reports_html_exact_label($value)
+{
+	$map = array(
+		'Terminee' => 'Terminée', 'Correction demandee' => 'Correction demandée', 'Corrigee' => 'Corrigée',
+		'Validee definitivement' => 'Validée définitivement', 'Prevalidee' => 'Prévalidée', 'Rejetee' => 'Rejetée',
+		'Annulee' => 'Annulée', 'Decaissee' => 'Décaissée', 'Cloturee' => 'Clôturée', 'Supprimee' => 'Supprimée',
+		'En retard' => 'Échéance dépassée', 'Echeance proche' => 'Échéance proche', 'Activite' => 'Activité', 'Depense' => 'Dépense',
+	);
+	return isset($map[$value]) ? $map[$value] : $value;
 }
 
 function mjl_reports_target_wording($value)
@@ -955,7 +995,7 @@ function mjl_reports_fetch_rows($sql)
 	if (!$resql) {
 		$GLOBALS['mjl_reports_query_failed'] = true;
 		mjl_ui_log_error('database', array('route' => 'reports', 'action' => 'fetch_rows', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_feedback_add('reports:load:database', 'generic.database');
 		return array();
 	}
 	$rows = array();
@@ -1062,7 +1102,7 @@ function mjl_reports_object_type_label($objectType)
 		return 'Programme';
 	}
 	if ($objectType === 'mjlfinancement_budget_line') {
-		return 'Ligne budgetaire';
+		return 'Ligne budgétaire';
 	}
 	if ($objectType === 'mjlfinancement_fund_receipt') {
 		return 'Réception de fonds';
@@ -1111,7 +1151,7 @@ function mjl_reports_workflow_status_label($status)
 		'completed' => 'Terminee',
 		'cancelled' => 'Annulee',
 		'received' => 'Recu',
-		'not_received' => 'Non recu',
+		'not_received' => 'Non reçu',
 	);
 	return isset($map[(string) $status]) ? $map[(string) $status] : (string) $status;
 }

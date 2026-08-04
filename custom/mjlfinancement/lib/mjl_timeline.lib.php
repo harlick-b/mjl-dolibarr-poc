@@ -11,11 +11,11 @@ function mjl_timeline_supported_object_types()
 {
 	return array(
 		'mjlfinancement_project' => 'Projet',
-		'mjlfinancement_activity' => 'Activite',
-		'mjlfinancement_expense' => 'Depense',
+		'mjlfinancement_activity' => 'Activité',
+		'mjlfinancement_expense' => 'Dépense',
 		'mjlfinancement_convention' => 'Enveloppe de financement',
-		'mjlfinancement_budget_line' => 'Ligne budgetaire',
-		'mjlfinancement_fund_receipt' => 'Fonds recu',
+		'mjlfinancement_budget_line' => 'Ligne budgétaire',
+		'mjlfinancement_fund_receipt' => 'Fonds reçu',
 	);
 }
 
@@ -35,7 +35,7 @@ function mjl_timeline_channel_labels()
 	return array(
 		'commentaire' => 'Commentaire',
 		'email' => 'Email',
-		'telephone' => 'Telephone',
+		'telephone' => 'Téléphone',
 		'reunion' => 'Reunion',
 		'courrier' => 'Courrier',
 		'autre' => 'Autre',
@@ -124,7 +124,7 @@ function mjl_timeline_create_comment(User $actor, $objectType, $objectId, $messa
 		mjl_ui_log_error('database', array('route' => 'timeline', 'action' => 'create_comment', 'entity' => (int) $conf->entity, 'user_id' => (int) $actor->id, 'object_type' => $objectType, 'object_id' => $objectId), $log->error ?: $db->lasterror());
 		return array(-1, 'Le commentaire n’a pas pu être ajouté. Veuillez réessayer.');
 	}
-	return array((int) $result, 'Commentaire ajoute.');
+	return array((int) $result, 'Commentaire ajouté.');
 }
 
 function mjl_timeline_exchange_items($objectType, $objectId, $ascending = true)
@@ -288,5 +288,5 @@ function mjl_timeline_format_datetime($value)
 {
 	if (empty($value)) return '';
 	$time = strtotime((string) $value);
-	return $time > 0 ? dol_print_date($time, 'dayhour') : (string) $value;
+	return mjl_format_date($value, 'datetime');
 }

@@ -108,16 +108,16 @@ function mjl_projects_handle_exchange_post($projectId)
 	$message = trim(GETPOST('message', 'restricthtml'));
 	if ($message === '') {
 		$handle = mjl_projects_store_recovery_config(GETPOST('action', 'alphanohtml'), (int) $projectId, array('message' => 'Le commentaire est obligatoire.'));
-		setEventMessages('Le commentaire est obligatoire.', null, 'errors');
+		mjl_feedback_add('projects:add_exchange:'.((int) $projectId).':validation', 'generic.validation');
 		mjl_projects_redirect($projectId, $handle);
 	}
 	list($result, $statusMessage) = mjl_timeline_create_comment($user, 'mjlfinancement_project', (int) $projectId, $message);
 	if ($result <= 0) {
 		$handle = mjl_projects_store_recovery_config(GETPOST('action', 'alphanohtml'), (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')));
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_feedback_add('projects:add_exchange:'.((int) $projectId).':database', 'generic.database');
 		mjl_projects_redirect($projectId, $handle);
 	}
-	setEventMessages($statusMessage, null, $result > 0 ? 'mesgs' : 'errors');
+	mjl_feedback_add('projects:add_exchange:'.((int) $projectId), 'project.comment_added');
 	mjl_projects_redirect($projectId);
 }
 
@@ -128,7 +128,7 @@ function mjl_projects_handle_project_post($action, $projectId, $authorizedProjec
 	$fkSoc = GETPOSTINT('fk_soc');
 	$partnerIsValid = $fkSoc > 0 && mjl_projects_can_use_partner($fkSoc);
 	if ($fkSoc > 0 && !$partnerIsValid) {
-		accessforbidden('Partenaire hors de votre perimetre');
+		accessforbidden('Partenaire hors de votre périmètre');
 	}
 	$ref = trim(GETPOST('ref', 'alphanohtml'));
 	$title = trim(GETPOST('title', 'restricthtml'));
@@ -150,12 +150,12 @@ function mjl_projects_handle_project_post($action, $projectId, $authorizedProjec
 	if (!mjl_form_submission_consume(GETPOST('mjl_submission', 'alphanohtml'), $submissionContext)) {
 		$message = 'Ce formulaire n’est plus valide. Vérifiez les données avant de réessayer.';
 		$handle = mjl_projects_store_recovery_config($action, (int) $projectId, array('_form' => $message), $recoveryValues);
-		setEventMessages($message, null, 'errors');
+		mjl_feedback_add('projects:'.$action.':'.((int) $projectId).':stale', 'generic.validation');
 		mjl_projects_redirect($projectId, $handle, $action === 'create' ? 'create' : 'edit');
 	}
 	if (!empty($errors)) {
 		$handle = mjl_projects_store_recovery_config($action, (int) $projectId, $errors, $recoveryValues);
-		setEventMessages(mjl_ui_safe_error_message('validation'), null, 'errors');
+		mjl_feedback_add('projects:'.$action.':'.((int) $projectId).':validation', 'generic.validation');
 		mjl_projects_redirect($projectId, $handle, $action === 'create' ? 'create' : 'edit');
 	}
 
@@ -168,7 +168,7 @@ function mjl_projects_handle_project_post($action, $projectId, $authorizedProjec
 			$db->rollback();
 			mjl_ui_log_error('database', mjl_projects_error_context('create'), $db->lasterror());
 			$handle = mjl_projects_store_recovery_config('create', 0, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
-			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+			mjl_feedback_add('projects:create:database', 'generic.database');
 			mjl_projects_redirect(0, $handle, 'create');
 		}
 		$newProjectId = (int) $db->last_insert_id($db->prefix().'projet');
@@ -181,11 +181,11 @@ function mjl_projects_handle_project_post($action, $projectId, $authorizedProjec
 			$db->rollback();
 			mjl_ui_log_error('database', mjl_projects_error_context('create_audit'), $db->lasterror());
 			$handle = mjl_projects_store_recovery_config('create', 0, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
-			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+			mjl_feedback_add('projects:create:audit:database', 'generic.database');
 			mjl_projects_redirect(0, $handle, 'create');
 		}
 		$db->commit();
-		setEventMessages('Projet MJL cree.', null, 'mesgs');
+		mjl_feedback_add('projects:create:'.$newProjectId, 'project.created');
 		mjl_projects_redirect($newProjectId);
 	}
 
@@ -197,7 +197,7 @@ function mjl_projects_handle_project_post($action, $projectId, $authorizedProjec
 		$db->rollback();
 		mjl_ui_log_error('database', mjl_projects_error_context('update_lock'), $db->lasterror());
 		$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_feedback_add('projects:update:'.((int) $projectId).':lock', 'generic.database');
 		mjl_projects_redirect((int) $projectId, $handle, 'edit');
 	}
 	$current = mjl_projects_fetch_project((int) $projectId);
@@ -216,7 +216,7 @@ function mjl_projects_handle_project_post($action, $projectId, $authorizedProjec
 	));
 	if (empty($changes)) {
 		$db->commit();
-		setEventMessages('Aucune modification à enregistrer.', null, 'mesgs');
+		mjl_feedback_add('projects:update:'.((int) $projectId).':unchanged', 'generic.no_change');
 		mjl_projects_redirect((int) $projectId);
 	}
 	$sql = 'UPDATE '.$db->prefix().'projet SET';
@@ -227,7 +227,7 @@ function mjl_projects_handle_project_post($action, $projectId, $authorizedProjec
 		$db->rollback();
 		mjl_ui_log_error('database', mjl_projects_error_context('update'), $db->lasterror());
 		$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_feedback_add('projects:update:'.((int) $projectId).':database', 'generic.database');
 		mjl_projects_redirect((int) $projectId, $handle, 'edit');
 	} else {
 		$audit = mjl_workflow_audit_insert('mjlfinancement_project', (int) $projectId, (int) $conf->entity, 'Projet mis a jour', $user, mjl_projects_actor_role(), 'field_changed', 'Projet MJL mis a jour', $changes, 'WFA-PRJ');
@@ -235,11 +235,11 @@ function mjl_projects_handle_project_post($action, $projectId, $authorizedProjec
 			$db->rollback();
 			mjl_ui_log_error('database', mjl_projects_error_context('update_audit'), $db->lasterror());
 			$handle = mjl_projects_store_recovery_config('update', (int) $projectId, array('_form' => mjl_ui_safe_error_message('database')), $recoveryValues);
-			setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+			mjl_feedback_add('projects:update:'.((int) $projectId).':audit', 'generic.database');
 			mjl_projects_redirect((int) $projectId, $handle, 'edit');
 		}
 		$db->commit();
-		setEventMessages('Projet MJL mis a jour.', null, 'mesgs');
+		mjl_feedback_add('projects:update:'.((int) $projectId), 'project.updated');
 	}
 	mjl_projects_redirect((int) $projectId);
 }
@@ -375,21 +375,21 @@ function mjl_projects_render_detail($project)
 	mjl_projects_render_identity($project);
 
 	$cards = array(
-		array('label' => 'Execution physique', 'value' => mjl_projects_physical_execution_percent((int) $project['rowid']).'%', 'context' => 'Moyenne des activites rattachees avec avancement renseigne', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites', 'status' => 'Execution', 'tone' => 'neutral'),
-		array('label' => 'Execution financiere', 'value' => mjl_projects_financial_execution_percent($project).'%', 'context' => 'Depenses validees rapportees au budget revise', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'Finances', 'tone' => 'neutral'),
-		array('label' => 'Budget total', 'value' => mjl_projects_price($project['budget_total']), 'context' => 'Lignes budgetaires rattachees', 'href' => '/custom/mjlfinancement/budgetlines.php', 'action' => 'Voir les budgets', 'status' => 'Financement', 'tone' => 'neutral'),
-		array('label' => 'Budget consomme', 'value' => mjl_projects_price($project['budget_spent']), 'context' => 'Depenses validees', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les depenses', 'status' => 'Execution', 'tone' => 'neutral'),
-		array('label' => 'Fonds recus', 'value' => mjl_projects_price($project['funds_received']), 'context' => 'Receptions de fonds confirmees', 'href' => '/custom/mjlfinancement/fundreceipts.php', 'action' => 'Voir les fonds', 'status' => 'Financement', 'tone' => 'neutral'),
-		array('label' => 'Activites', 'value' => (int) $project['activities_count'], 'context' => 'Activites operationnelles rattachees', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Ouvrir les activites', 'status' => 'Suivi', 'tone' => 'neutral'),
-		array('label' => 'Depenses', 'value' => (int) $project['expenses_count'], 'context' => 'Depenses rattachees au projet', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les depenses', 'status' => 'Suivi', 'tone' => 'neutral'),
-		array('label' => 'Documents', 'value' => (int) $project['documents_count'], 'context' => 'Pieces accessibles via routes MJL gardees', 'href' => '/custom/mjlfinancement/documents.php', 'action' => 'Voir les documents', 'status' => 'Pieces', 'tone' => 'neutral'),
+		array('label' => 'Exécution physique', 'value' => mjl_projects_physical_execution_percent((int) $project['rowid']).'%', 'context' => 'Moyenne des activités rattachées avec avancement renseigné', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités', 'status' => 'Exécution', 'tone' => 'neutral'),
+		array('label' => 'Exécution financière', 'value' => mjl_projects_financial_execution_percent($project).'%', 'context' => 'Dépenses validées rapportées au budget révisé', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les dépenses', 'status' => 'Finances', 'tone' => 'neutral'),
+		array('label' => 'Budget total', 'value' => mjl_projects_price($project['budget_total']), 'context' => 'Lignes budgétaires rattachées', 'href' => '/custom/mjlfinancement/budgetlines.php', 'action' => 'Voir les budgets', 'status' => 'Financement', 'tone' => 'neutral'),
+		array('label' => 'Budget consomme', 'value' => mjl_projects_price($project['budget_spent']), 'context' => 'Dépenses validées', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Voir les dépenses', 'status' => 'Exécution', 'tone' => 'neutral'),
+		array('label' => 'Fonds reçus', 'value' => mjl_projects_price($project['funds_received']), 'context' => 'Réceptions de fonds confirmées', 'href' => '/custom/mjlfinancement/fundreceipts.php', 'action' => 'Voir les fonds', 'status' => 'Financement', 'tone' => 'neutral'),
+		array('label' => 'Activités', 'value' => (int) $project['activities_count'], 'context' => 'Activités opérationnelles rattachées', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Ouvrir les activités', 'status' => 'Suivi', 'tone' => 'neutral'),
+		array('label' => 'Dépenses', 'value' => (int) $project['expenses_count'], 'context' => 'Dépenses rattachées au projet', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les dépenses', 'status' => 'Suivi', 'tone' => 'neutral'),
+		array('label' => 'Documents', 'value' => (int) $project['documents_count'], 'context' => 'Pièces accessibles via routes MJL gardees', 'href' => '/custom/mjlfinancement/documents.php', 'action' => 'Voir les documents', 'status' => 'Pièces', 'tone' => 'neutral'),
 	);
 	foreach ($cards as &$card) $card['href'] = mjl_projects_context_url($card['href'], (int) $project['fk_soc'], (int) $project['rowid']);
 	unset($card);
-	mjl_dashboard_render_card_section('Resume', 'Vue consolidee du projet et de ses objets MJL rattaches.', $cards);
+	mjl_dashboard_render_card_section('Résumé', 'Vue consolidée du projet et de ses objets MJL rattachés.', $cards);
 
-	mjl_projects_render_related_table('Activites liees', mjl_projects_activity_rows((int) $project['rowid'], 12), 'activities.php', $project, (int) $project['activities_count']);
-	mjl_projects_render_related_table('Depenses liees', mjl_projects_expense_rows((int) $project['rowid'], 12), 'expenses.php', $project, (int) $project['expenses_count']);
+	mjl_projects_render_related_table('Activités liées', mjl_projects_activity_rows((int) $project['rowid'], 12), 'activities.php', $project, (int) $project['activities_count']);
+	mjl_projects_render_related_table('Dépenses liées', mjl_projects_expense_rows((int) $project['rowid'], 12), 'expenses.php', $project, (int) $project['expenses_count']);
 	mjl_projects_render_alerts((int) $project['rowid']);
 	mjl_projects_render_document_table((int) $project['rowid']);
 	mjl_projects_render_timeline((int) $project['rowid']);
@@ -399,14 +399,14 @@ function mjl_projects_render_detail($project)
 function mjl_projects_render_identity($project)
 {
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Identite du projet</h2><p>Rattachement Partenaire / Programme et dates de suivi.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Identité du projet</h2><p>Rattachement Partenaire / Programme et dates de suivi.</p></div>';
 	print '<dl class="mjl-activity-meta">';
-	print '<div><dt>Partenaire / Programme</dt><dd>'.dol_escape_htmltag($project['partner_name'] ?: 'Non renseigne').'</dd></div>';
-	print '<div><dt>Reference</dt><dd>'.dol_escape_htmltag($project['ref']).'</dd></div>';
+	print '<div><dt>Partenaire / Programme</dt><dd>'.dol_escape_htmltag($project['partner_name'] ?: 'Non renseigné').'</dd></div>';
+	print '<div><dt>Référence</dt><dd>'.dol_escape_htmltag($project['ref']).'</dd></div>';
 	print '<div><dt>Intitule</dt><dd>'.dol_escape_htmltag($project['title']).'</dd></div>';
 	print '<div><dt>Debut</dt><dd>'.dol_escape_htmltag(mjl_projects_date($project['dateo'])).'</dd></div>';
 	print '<div><dt>Fin</dt><dd>'.dol_escape_htmltag(mjl_projects_date($project['datee'])).'</dd></div>';
-	print '<div><dt>Enveloppes</dt><dd>'.dol_escape_htmltag($project['convention_refs'] ?: 'Non renseignee').'</dd></div>';
+	print '<div><dt>Enveloppes</dt><dd>'.dol_escape_htmltag($project['convention_refs'] ?: 'Non renseignée').'</dd></div>';
 	print '</dl></section>';
 }
 
@@ -448,12 +448,12 @@ function mjl_projects_render_related_table($title, $rows, $route, $project, $tot
 	print '<section class="mjl-workspace-section">';
 	print '<div class="mjl-section-heading"><h2>'.dol_escape_htmltag($title).' ('.((int) $total).')</h2><p>Aperçu limité à 12 éléments. <a class="mjl-table-link" href="'.dol_escape_htmltag(DOL_URL_ROOT.$drilldown).'">Voir la liste complète</a></p></div>';
 	if (empty($rows)) {
-		print '<div class="mjl-empty-state">Aucun element accessible.</div>';
+		print '<div class="mjl-empty-state">Aucun élément accessible.</div>';
 		print '</section>';
 		return;
 	}
 	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Reference</th><th>Libelle</th><th>Statut</th></tr>';
+	print '<tr class="liste_titre"><th>Référence</th><th>Libellé</th><th>Statut</th></tr>';
 	foreach ($rows as $row) {
 		print '<tr class="oddeven"><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$route.'?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['ref']).'</a></td><td>'.dol_escape_htmltag($row['label']).'</td><td>'.dol_escape_htmltag($row['status_label']).'</td></tr>';
 	}
@@ -485,8 +485,8 @@ function mjl_projects_render_document_table($projectId)
 		);
 	}
 	print mjl_journey_render_document_panel(array(
-		'title' => 'Documents lies',
-		'description' => 'Telechargements controles par les regles MJL.',
+		'title' => 'Documents liés',
+		'description' => 'Téléchargements contrôlés par les règles MJL.',
 		'state' => empty($modelDocuments) ? 'missing' : 'read-only',
 		'state_label' => empty($modelDocuments) ? 'Aucun document accessible' : 'Consultation uniquement',
 		'documents' => $modelDocuments,
@@ -497,14 +497,14 @@ function mjl_projects_render_alerts($projectId)
 {
 	$alerts = mjl_projects_alert_rows($projectId);
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Alertes du projet</h2><p>Activites ouvertes avec echeance proche ou depassee.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Alertes du projet</h2><p>Activités ouvertes avec échéance proche ou depassee.</p></div>';
 	if (empty($alerts)) {
 		print '<div class="mjl-empty-state">Aucune alerte projet active.</div>';
 		print '</section>';
 		return;
 	}
 	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Activite</th><th>Echeance</th><th>Alerte</th><th>Statut</th></tr>';
+	print '<tr class="liste_titre"><th>Activité</th><th>Échéance</th><th>Alerte</th><th>Statut</th></tr>';
 	foreach ($alerts as $row) {
 		print '<tr class="oddeven"><td><a class="mjl-table-link" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'">'.dol_escape_htmltag($row['ref']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['label']).'</span></td><td>'.dol_escape_htmltag(mjl_projects_date($row['date_end'])).'</td><td>'.dol_escape_htmltag(mjl_projects_activity_deadline_alert($row['date_end'], $row['status'])).'</td><td>'.dol_escape_htmltag(mjl_projects_activity_status_label($row['status'])).'</td></tr>';
 	}
@@ -515,9 +515,9 @@ function mjl_projects_render_timeline($projectId)
 {
 	$items = mjl_projects_timeline_rows($projectId);
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Historique contextualise</h2><p>Actions recentes rattachees au projet et a ses objets MJL.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Historique contextualisé</h2><p>Actions récentes rattachées au projet et à ses objets MJL.</p></div>';
 	if (empty($items)) {
-		print '<div class="mjl-empty-state">Aucune action recente rattachee au projet.</div>';
+		print '<div class="mjl-empty-state">Aucune action récente rattachée au projet.</div>';
 		print '</section>';
 		return;
 	}
@@ -690,12 +690,12 @@ function mjl_projects_document_rows($projectId)
 	$documents = array();
 	foreach (mjl_projects_activity_rows($projectId) as $activity) {
 		foreach (mjl_activity_document_download_rows((int) $activity['rowid']) as $row) {
-			$documents[] = mjl_projects_document_row($row, 'activity', 'Activite', $activity['ref']);
+			$documents[] = mjl_projects_document_row($row, 'activity', 'Activité', $activity['ref']);
 		}
 	}
 	foreach (mjl_projects_expense_rows($projectId) as $expense) {
 		foreach (mjl_expense_document_download_rows((int) $expense['rowid']) as $row) {
-			$documents[] = mjl_projects_document_row($row, 'expense', 'Depense', $expense['ref']);
+			$documents[] = mjl_projects_document_row($row, 'expense', 'Dépense', $expense['ref']);
 		}
 	}
 	foreach (mjl_projects_convention_rows($projectId) as $convention) {
@@ -705,7 +705,7 @@ function mjl_projects_document_rows($projectId)
 	}
 	foreach (mjl_projects_fund_receipt_rows($projectId) as $receipt) {
 		foreach (mjl_fund_receipt_document_download_rows((int) $receipt['rowid']) as $row) {
-			$documents[] = mjl_projects_document_row($row, 'fundreceipt', 'Fonds recu', $receipt['ref']);
+			$documents[] = mjl_projects_document_row($row, 'fundreceipt', 'Fonds reçu', $receipt['ref']);
 		}
 	}
 	return $documents;
@@ -946,7 +946,7 @@ function mjl_projects_fetch_all($sql)
 	$resql = $db->query($sql);
 	if (!$resql) {
 		mjl_ui_log_error('database', array('route' => 'projects', 'action' => 'fetch_rows', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_feedback_add('projects:load:database', 'generic.database');
 		return array();
 	}
 	$rows = array();
@@ -985,8 +985,8 @@ function mjl_projects_activity_deadline_alert($dateEnd, $status)
 	$end = strtotime((string) $dateEnd);
 	if ($end <= 0) return '';
 	$today = strtotime(date('Y-m-d'));
-	if ($end < $today) return 'En retard';
-	if ($end <= strtotime('+7 days', $today)) return 'Echeance proche';
+	if ($end < $today) return 'Échéance dépassée';
+	if ($end <= strtotime('+7 days', $today)) return 'Échéance proche';
 	return '';
 }
 
@@ -997,7 +997,7 @@ function mjl_projects_workflow_action_label($action)
 
 function mjl_projects_price($value)
 {
-	return function_exists('price') ? price((float) $value, 0, '', 1, -1, -1, 'XOF') : number_format((float) $value, 0, ',', ' ').' XOF';
+	return mjl_format_money($value);
 }
 
 function mjl_projects_changed_fields($before, $after)
@@ -1019,7 +1019,7 @@ function mjl_projects_changed_fields($before, $after)
 
 function mjl_projects_date($value)
 {
-	return trim((string) $value) === '' ? 'Non renseignee' : (string) $value;
+	return trim((string) $value) === '' ? 'Non renseignée' : (string) $value;
 }
 
 function mjl_projects_actor_role()

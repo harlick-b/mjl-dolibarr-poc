@@ -14,8 +14,8 @@ function mjl_scope_role_labels()
 {
 	return array(
 		'AGENT_SAISIE' => 'Agent de saisie',
-		'AGENT_VERIFICATEUR' => 'Agent verificateur',
-		'VALIDATEUR_DEFINITIF' => 'Validateur definitif',
+		'AGENT_VERIFICATEUR' => 'Agent vérificateur et prévalidateur',
+		'VALIDATEUR_DEFINITIF' => 'Validateur définitif',
 		'ADMIN_PLATEFORME' => 'Administrateur plateforme',
 	);
 }
@@ -23,7 +23,7 @@ function mjl_scope_role_labels()
 function mjl_scope_role_label($roleCode)
 {
 	$labels = mjl_scope_role_labels();
-	return isset($labels[$roleCode]) ? $labels[$roleCode] : 'Profil legacy non resolu';
+	return isset($labels[$roleCode]) ? $labels[$roleCode] : 'Profil historique non résolu';
 }
 
 function mjl_scope_legacy_group_name_for_role($roleCode)
@@ -149,7 +149,7 @@ function mjl_scope_assign_access_profile($userId, $roleCode, array $fkSocIds, Us
 			continue;
 		}
 		if (mjl_scope_scalar_int('SELECT rowid FROM '.$db->prefix().'societe WHERE rowid = '.$fkSoc.' AND entity = '.$entity) === null) {
-			return array(-1, 'Perimetre partenaire invalide.');
+			return array(-1, 'Périmètre partenaire invalide.');
 		}
 		$cleanSocIds[$fkSoc] = $fkSoc;
 	}
@@ -186,7 +186,7 @@ function mjl_scope_assign_access_profile($userId, $roleCode, array $fkSocIds, Us
 	if (!$db->commit('mjl access profile')) {
 		return array(-1, $db->lasterror());
 	}
-	return array(1, 'Profil et perimetre enregistres.');
+	return array(1, 'Profil et périmètre enregistres.');
 }
 
 function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
@@ -199,7 +199,7 @@ function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
 		return array(-1, 'Utilisateur invalide.');
 	}
 	if ((int) $actor->id === $userId) {
-		return array(-1, 'Vous ne pouvez pas desactiver votre propre acces.');
+		return array(-1, 'Vous ne pouvez pas desactiver votre propre accès.');
 	}
 	$target = new User($db);
 	if ($target->fetch($userId) <= 0 || (int) $target->entity !== $entity) {

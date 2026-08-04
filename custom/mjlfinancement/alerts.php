@@ -11,7 +11,13 @@ if (!mjl_alerts_user_can_read($user)) {
 
 $langs->load('mjlfinancement@mjlfinancement');
 $scope = mjl_alerts_normalize_scope(GETPOST('scope', 'alphanohtml'));
-$alertResult = mjl_alerts_result_for_user($user, 100, $scope);
+$partnerId = GETPOSTINT('partner');
+if ($partnerId > 0 && !mjl_scope_can_access_fk_soc($user, $partnerId)) accessforbidden();
+$conditionResult = mjl_alert_conditions_result_for_user($user, 500, $scope, $partnerId);
+$conditions = $conditionResult['items'];
+$alertItems = array();
+foreach (array_slice($conditions, 0, 100) as $condition) $alertItems[] = mjl_alert_present_condition($condition);
+$alertResult = array('items' => $alertItems, 'errors' => $conditionResult['errors']);
 
 llxHeader('', 'Alertes MJL');
 
@@ -26,7 +32,7 @@ print mjl_page_header_render(
 );
 
 print '<section class="mjl-workspace-section">';
-print '<div class="mjl-section-heading"><h2>Alertes actives</h2><p>Ces alertes sont calculees depuis les activites, depenses et pieces justificatives existantes.</p></div>';
+print '<div class="mjl-section-heading"><h2>Alertes actives</h2><p>Ces alertes sont calculées à partir des activités, dépenses et pièces justificatives existantes.</p></div>';
 mjl_alerts_render_scope_filter($scope);
 mjl_alerts_render_result($alertResult);
 print '</section>';
@@ -54,8 +60,8 @@ function mjl_alerts_render_scope_filter($activeScope)
 {
 	$options = array(
 		'all' => 'Toutes',
-		'activities' => 'Activites',
-		'expenses' => 'Depenses',
+		'activities' => 'Activités',
+		'expenses' => 'Dépenses',
 		'finance' => 'Finance',
 	);
 	print '<nav class="mjl-tabs" aria-label="Filtrer les alertes">';

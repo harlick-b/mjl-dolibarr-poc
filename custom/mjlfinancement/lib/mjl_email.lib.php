@@ -2,6 +2,9 @@
 
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_presentation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_email_presentation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
 function mjl_email_entity()
 {
@@ -31,21 +34,13 @@ function mjl_email_string_sql($value)
 function mjl_email_absolute_url($relativeUrl)
 {
 	global $dolibarr_main_url_root;
-
-	$relativeUrl = (string) $relativeUrl;
-	if (preg_match('/^https?:\/\//i', $relativeUrl)) {
-		return $relativeUrl;
-	}
-
 	$root = trim((string) $dolibarr_main_url_root);
-	if ($root === '' && defined('DOL_MAIN_URL_ROOT')) {
-		$root = DOL_MAIN_URL_ROOT;
-	}
-	if ($root === '') {
-		$root = DOL_URL_ROOT;
-	}
-	$root = preg_replace('/'.preg_quote(DOL_URL_ROOT, '/').'$/i', '', $root);
-	return rtrim($root, '/').DOL_URL_ROOT.$relativeUrl;
+	if ($root === '' && defined('DOL_MAIN_URL_ROOT')) $root = DOL_MAIN_URL_ROOT;
+	if (defined('DOL_URL_ROOT') && DOL_URL_ROOT !== '' && substr($root, -strlen(DOL_URL_ROOT)) === DOL_URL_ROOT) $root = substr($root, 0, -strlen(DOL_URL_ROOT));
+	$path = mjl_safe_internal_path($relativeUrl);
+	if ($path === '') return '';
+	if (defined('DOL_URL_ROOT') && DOL_URL_ROOT !== '' && strpos($path, DOL_URL_ROOT.'/') !== 0) $path = DOL_URL_ROOT.$path;
+	return mjl_public_url_for_internal_path($path, $root);
 }
 
 function mjl_email_mail_from()
@@ -57,80 +52,39 @@ function mjl_email_mail_from()
 	return $from !== '' ? $from : 'MJL Financement <noreply@mjl-poc.local>';
 }
 
+function mjl_email_plain_text($value, $maxLength = 500)
+{
+	$value = html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	$value = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $value);
+	$value = trim(preg_replace('/\s+/u', ' ', $value));
+	return function_exists('mb_substr') ? mb_substr($value, 0, $maxLength, 'UTF-8') : substr($value, 0, $maxLength);
+}
+
 function mjl_email_render($template, array $context)
 {
+	$templates = mjl_email_templates();
 	$template = (string) $template;
-	$name = isset($context['recipient_name']) && trim((string) $context['recipient_name']) !== '' ? trim((string) $context['recipient_name']) : 'Madame, Monsieur';
+	if (!isset($templates[$template])) return false;
+	$definition = $templates[$template];
+	$name = mjl_email_plain_text(isset($context['recipient_name']) ? $context['recipient_name'] : '', 120);
+	if ($name === '') $name = 'Madame, Monsieur';
 	$link = isset($context['link']) ? mjl_email_absolute_url($context['link']) : '';
-	$activityRef = isset($context['activity_ref']) ? (string) $context['activity_ref'] : '';
-	$activityLabel = isset($context['activity_label']) ? (string) $context['activity_label'] : '';
-	$projectRef = isset($context['project_ref']) ? (string) $context['project_ref'] : '';
-	$conventionRef = isset($context['convention_ref']) ? (string) $context['convention_ref'] : '';
-	$comment = isset($context['comment']) ? trim((string) $context['comment']) : '';
-
-	$subject = '[MJL Financement] Notification';
-	$title = 'Notification MJL';
-	$message = 'Une information est disponible dans votre espace MJL Financement.';
-	$action = 'Consulter l espace MJL';
-	$security = 'Si vous n etes pas concerne par ce message, veuillez contacter l administrateur.';
+	if (isset($context['link']) && $link === '') return false;
+	$activityRef = mjl_email_plain_text(isset($context['activity_ref']) ? $context['activity_ref'] : '', 80);
+	$activityLabel = mjl_email_plain_text(isset($context['activity_label']) ? $context['activity_label'] : '', 160);
+	$projectRef = mjl_email_plain_text(isset($context['project_ref']) ? $context['project_ref'] : '', 80);
+	$conventionRef = mjl_email_plain_text(isset($context['convention_ref']) ? $context['convention_ref'] : '', 80);
+	$comment = mjl_email_plain_text(isset($context['comment']) ? $context['comment'] : '', 500);
+	$subject = '[MJL Financement] '.$definition['subject'].($activityRef !== '' ? ' : '.$activityRef : '');
+	$title = $definition['title'];
+	$message = $definition['message'];
+	$action = $definition['action_label'];
+	$security = $definition['security_note'];
 	$details = array();
-
-	if ($template === 'invitation') {
-		$subject = '[MJL Financement] Invitation a votre espace';
-		$title = 'Invitation a votre espace MJL';
-		$message = 'Vous etes invite a acceder a l espace MJL Financement.';
-		$action = 'Definir mon mot de passe';
-		$security = 'Si vous n attendiez pas cette invitation, ignorez ce message et contactez l administrateur.';
-	} elseif ($template === 'password_reset') {
-		$subject = '[MJL Financement] Reinitialisation du mot de passe';
-		$title = 'Reinitialisation du mot de passe';
-		$message = 'Une demande de reinitialisation de mot de passe a ete recue pour votre acces MJL.';
-		$action = 'Choisir un nouveau mot de passe';
-		$security = 'Si vous n avez pas fait cette demande, ignorez ce message.';
-	} elseif ($template === 'activity_submitted') {
-		$subject = '[MJL Financement] Activite a examiner: '.$activityRef;
-		$title = 'Activite a examiner';
-		$message = 'Une activite liee a un projet a financement exterieur attend une decision.';
-		$action = 'Examiner l activite';
-		$details['Statut'] = 'Soumise';
-	} elseif ($template === 'activity_correction_requested') {
-		$subject = '[MJL Financement] Correction demandee: '.$activityRef;
-		$title = 'Correction demandee';
-		$message = 'Une correction est demandee sur une activite que vous avez soumise.';
-		$action = 'Corriger l activite';
-		$details['Statut'] = 'Correction demandee';
-	} elseif ($template === 'activity_prevalidated') {
-		$subject = '[MJL Financement] Activite prevalidee: '.$activityRef;
-		$title = 'Activite prevalidee';
-		$message = 'Une activite a ete prevalidee et attend la validation definitive.';
-		$action = 'Examiner l activite';
-		$details['Statut'] = 'Prevalidee';
-	} elseif ($template === 'activity_validated') {
-		$subject = '[MJL Financement] Activite validee: '.$activityRef;
-		$title = 'Activite validee definitivement';
-		$message = 'Une activite que vous avez soumise a ete validee definitivement.';
-		$action = 'Consulter l activite';
-		$details['Statut'] = 'Validee definitivement';
-	} elseif ($template === 'activity_rejected') {
-		$subject = '[MJL Financement] Activite rejetee: '.$activityRef;
-		$title = 'Activite rejetee';
-		$message = 'Une activite que vous avez soumise a ete rejetee.';
-		$action = 'Consulter la decision';
-		$details['Statut'] = 'Rejetee';
-	} elseif ($template === 'alert_deadline_approaching') {
-		$subject = '[MJL Financement] Echeance proche: '.$activityRef;
-		$title = 'Echeance proche';
-		$message = 'Une activite approche de son echeance et necessite une attention.';
-		$action = 'Consulter l alerte';
-	} elseif ($template === 'alert_overdue_activity') {
-		$subject = '[MJL Financement] Activite en retard: '.$activityRef;
-		$title = 'Activite en retard';
-		$message = 'Une activite a depasse son echeance et necessite une action.';
-		$action = 'Consulter l alerte';
-	}
+	if ($definition['status_label'] !== '') $details['Statut'] = $definition['status_label'];
 
 	if ($activityRef !== '') {
-		$details['Activite'] = trim($activityRef.' - '.$activityLabel, ' -');
+		$details['Activité'] = trim($activityRef.' - '.$activityLabel, ' -');
 	}
 	if ($projectRef !== '') {
 		$details['Projet'] = $projectRef;
@@ -162,7 +116,7 @@ function mjl_email_render($template, array $context)
 	}
 	$body .= $security."\n\n";
 	$body .= "MJL Financement\n";
-	$body .= "Message automatique - merci de ne pas repondre directement.";
+	$body .= "Message automatique — merci de ne pas répondre directement.";
 
 	return array('subject' => $subject, 'body' => $body);
 }
@@ -177,6 +131,11 @@ function mjl_email_send(User $recipient, $template, array $context, array $audit
 	$fullName = trim(trim((string) $recipient->firstname).' '.trim((string) $recipient->lastname));
 	$context['recipient_name'] = $fullName !== '' ? $fullName : $recipient->login;
 	$rendered = mjl_email_render($template, $context);
+	if ($rendered === false) {
+		mjl_email_record_event('email_send_failed', $recipient, $audit, 'unknown', 'reason=unknown_template');
+		mjl_ui_log_error('email', array('route' => 'email', 'action' => 'unknown_template', 'entity' => mjl_email_entity(), 'user_id' => (int) $recipient->id));
+		return array(-1, 'L’envoi du message n’a pas pu être réalisé.');
+	}
 	$delivery = mjl_email_e2e_enabled() ? 'e2e' : 'mail';
 
 	if ($delivery === 'e2e') {
@@ -190,8 +149,9 @@ function mjl_email_send(User $recipient, $template, array $context, array $audit
 
 	$mail = new CMailFile($rendered['subject'], $recipient->email, mjl_email_mail_from(), $rendered['body'], array(), array(), array(), '', '', 0, 0, '', '', 'mjl_'.$template, '', 'standard');
 	if (!$mail->sendfile()) {
-		mjl_email_record_event('email_send_failed', $recipient, $audit, $template, 'delivery=mail;error='.mjl_email_context_value($mail->error));
-		return array(-1, $mail->error);
+		mjl_email_record_event('email_send_failed', $recipient, $audit, $template, 'delivery=mail;reason=transport_failed');
+		mjl_ui_log_error('email', array('route' => 'email', 'action' => 'delivery', 'entity' => mjl_email_entity(), 'user_id' => (int) $recipient->id), $mail->error);
+		return array(-1, 'L’envoi du message n’a pas pu être réalisé.');
 	}
 
 	mjl_email_record_event('email_sent', $recipient, $audit, $template, 'delivery=mail');

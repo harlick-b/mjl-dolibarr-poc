@@ -111,10 +111,12 @@ function mjl_navigation_shell_start(User $targetUser)
 	print '</nav>';
 	print '</aside>';
 	print '<main class="mjl-module-main" id="mjl-main-content" tabindex="-1">';
+	print mjl_feedback_render_and_clear();
 }
 
 function mjl_navigation_shell_end()
 {
+	print mjl_feedback_render_and_clear();
 	print '<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_components.js"></script>';
 	print '</main>';
 	print '</div>';

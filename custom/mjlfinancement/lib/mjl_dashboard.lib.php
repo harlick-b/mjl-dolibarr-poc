@@ -351,12 +351,12 @@ function mjl_dashboard_dpaf_kpis()
 function mjl_dashboard_supervision_kpis($filters = null)
 {
 	$definitions = array(
-		array('label' => 'Activites en cours', 'load' => function () use ($filters) { return mjl_dashboard_activity_count(array(MjlActivity::STATUS_ONGOING), $filters); }, 'context' => 'Activites ouvertes dans l entite active', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites'),
-		array('label' => 'Activites en validation', 'load' => function () use ($filters) { return mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED), $filters); }, 'context' => 'Dossiers en attente de prevalidation ou validation definitive', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner'),
-		array('label' => 'Execution physique', 'load' => function () use ($filters) { return mjl_dashboard_physical_execution_percent($filters).'%'; }, 'context' => 'Moyenne des activites visibles avec avancement renseigne', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activites'),
-		array('label' => 'Depenses en validation', 'load' => function () use ($filters) { return mjl_dashboard_expense_count(array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters); }, 'context' => 'Depenses a controler ou valider definitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les depenses'),
-		array('label' => 'Budget revise', 'load' => function () use ($filters) { return price(mjl_dashboard_budget_total($filters)); }, 'context' => 'Total des lignes budgetaires', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports'),
-		array('label' => 'Depenses validees', 'load' => function () use ($filters) { return price(mjl_dashboard_validated_expense_total($filters)); }, 'context' => 'Montant deja valide', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Voir les exports'),
+		array('label' => 'Activités en cours', 'load' => function () use ($filters) { return mjl_dashboard_activity_count(array(MjlActivity::STATUS_ONGOING), $filters); }, 'context' => 'Activités ouvertes dans l entite active', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités'),
+		array('label' => 'Activités en validation', 'load' => function () use ($filters) { return mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED), $filters); }, 'context' => 'Dossiers en attente de prévalidation ou de validation définitive', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner'),
+		array('label' => 'Exécution physique', 'load' => function () use ($filters) { return mjl_dashboard_physical_execution_percent($filters).'%'; }, 'context' => 'Moyenne des activités visibles avec avancement renseigné', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités'),
+		array('label' => 'Dépenses en validation', 'load' => function () use ($filters) { return mjl_dashboard_expense_count(array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters); }, 'context' => 'Dépenses à contrôler ou à valider définitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les dépenses'),
+		array('label' => 'Budget révisé', 'load' => function () use ($filters) { return mjl_format_money(mjl_dashboard_budget_total($filters)); }, 'context' => 'Total des lignes budgétaires', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports'),
+		array('label' => 'Dépenses validées', 'load' => function () use ($filters) { return mjl_format_money(mjl_dashboard_validated_expense_total($filters)); }, 'context' => 'Montant déjà validé', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Voir les exports'),
 	);
 	$cards = array();
 	foreach ($definitions as $definition) {
@@ -373,8 +373,10 @@ function mjl_dashboard_deadline_risks($limit = 20, $filters = null)
 {
 	global $user;
 
-	$alerts = mjl_alerts_activity_deadlines($user, 500);
-	return array_slice(mjl_dashboard_filter_alerts($alerts, $filters), 0, (int) $limit);
+	$conditions = array_slice(mjl_dashboard_filter_alerts(mjl_alerts_activity_deadlines($user, 500), $filters), 0, (int) $limit);
+	$alerts = array();
+	foreach ($conditions as $condition) $alerts[] = mjl_alert_present_condition($condition);
+	return $alerts;
 }
 
 function mjl_dashboard_filter_alerts(array $alerts, $filters = null)
@@ -452,11 +454,12 @@ function mjl_dashboard_object_project_id($objectType, $objectId)
 function mjl_dashboard_scope_object_type($objectType)
 {
 	$map = array(
-		'Activite' => 'mjlfinancement_activity',
 		'Activité' => 'mjlfinancement_activity',
-		'Depense' => 'mjlfinancement_expense',
+		'Activité' => 'mjlfinancement_activity',
+		'Dépense' => 'mjlfinancement_expense',
 		'Dépense' => 'mjlfinancement_expense',
 		'Ligne budgetaire' => 'mjlfinancement_budget_line',
+		'Ligne budgétaire' => 'mjlfinancement_budget_line',
 		'Ligne budgétaire' => 'mjlfinancement_budget_line',
 		'Enveloppe de financement' => 'mjlfinancement_convention',
 		'Projet' => 'mjlfinancement_project',
@@ -474,14 +477,14 @@ function mjl_dashboard_pending_reviews($limit = 30, $filters = null)
 	if (empty($activityStatuses) && empty($expenseStatuses)) {
 		return array();
 	}
-	$sql = 'SELECT \'Activite\' AS item_type, a.rowid AS item_id, a.ref, a.label, a.date_end AS item_date, 0 AS amount, \'/custom/mjlfinancement/activities.php\' AS href';
+	$sql = 'SELECT \'Activité\' AS item_type, a.rowid AS item_id, a.ref, a.label, a.date_end AS item_date, 0 AS amount, \'/custom/mjlfinancement/activities.php\' AS href';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 	$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND '.(empty($activityStatuses) ? '1=0' : 'a.status IN ('.implode(',', array_map('intval', $activityStatuses)).')');
 	$sql .= mjl_dashboard_partner_filter_sql('c.fk_soc', $filters);
 	$sql .= mjl_dashboard_project_filter_sql('a.fk_project', $filters);
 	$sql .= mjl_dashboard_date_filter_sql('a.date_end', $filters);
 	$sql .= ' UNION ALL ';
-	$sql .= 'SELECT \'Depense\' AS item_type, e.rowid AS item_id, e.ref, e.description AS label, e.expense_date AS item_date, e.amount, \'/custom/mjlfinancement/expenses.php\' AS href';
+	$sql .= 'SELECT \'Dépense\' AS item_type, e.rowid AS item_id, e.ref, e.description AS label, e.expense_date AS item_date, e.amount, \'/custom/mjlfinancement/expenses.php\' AS href';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention ce ON ce.rowid = e.fk_convention AND ce.entity = e.entity';
 	$sql .= ' WHERE e.entity = '.((int) $conf->entity).' AND '.(empty($expenseStatuses) ? '1=0' : 'e.status IN ('.mjl_expense_status_sql_list($expenseStatuses).')');
 	$sql .= mjl_dashboard_partner_filter_sql('ce.fk_soc', $filters);
@@ -577,7 +580,7 @@ function mjl_dashboard_recent_audit($limit = 30, $filters = null)
 
 	$scopeSql = mjl_dashboard_audit_partner_filter_sql('w', $filters);
 	$projectSql = mjl_dashboard_audit_project_filter_sql('w', $filters);
-	$sql = 'SELECT w.object_type, CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN \'Activite\' WHEN w.object_type = \'mjlfinancement_expense\' THEN \'Depense\' WHEN w.object_type = \'mjlfinancement_convention\' THEN \'Enveloppe de financement\' WHEN w.object_type = \'mjlfinancement_budget_line\' THEN \'Ligne budgetaire\' WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN \'Réception de fonds\' WHEN w.object_type = \'mjlfinancement_project\' THEN \'Projet\' ELSE w.object_type END AS source,';
+	$sql = 'SELECT w.object_type, CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN \'Activité\' WHEN w.object_type = \'mjlfinancement_expense\' THEN \'Dépense\' WHEN w.object_type = \'mjlfinancement_convention\' THEN \'Enveloppe de financement\' WHEN w.object_type = \'mjlfinancement_budget_line\' THEN \'Ligne budgétaire\' WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN \'Réception de fonds\' WHEN w.object_type = \'mjlfinancement_project\' THEN \'Projet\' ELSE w.object_type END AS source,';
 	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_expense\' THEN e.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref WHEN w.object_type = \'mjlfinancement_project\' THEN p.ref ELSE NULL END AS object_ref,';
 	$sql .= ' w.action, w.from_status, w.to_status, u.login, w.action_date, w.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
@@ -595,7 +598,7 @@ function mjl_dashboard_recent_audit($limit = 30, $filters = null)
 	$sql .= ' AND COALESCE(a.rowid, e.rowid, c.rowid, bl.rowid, fr.rowid, p.rowid) IS NOT NULL';
 	$sql .= $scopeSql.$projectSql.mjl_dashboard_date_filter_sql('w.action_date', $filters, true);
 	$sql .= ' UNION ALL ';
-	$sql .= 'SELECT \'mjlfinancement_expense\' AS object_type, \'Depense\' AS source, e.ref AS object_ref, v.action, v.from_status, v.to_status, u.login, v.action_date, v.comment';
+	$sql .= 'SELECT \'mjlfinancement_expense\' AS object_type, \'Dépense\' AS source, e.ref AS object_ref, v.action, v.from_status, v.to_status, u.login, v.action_date, v.comment';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_validation v';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = v.fk_expense AND e.entity = v.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention vc ON vc.rowid = e.fk_convention AND vc.entity = e.entity';
@@ -703,7 +706,8 @@ function mjl_dashboard_expense_count($statuses, $filters = null)
 
 function mjl_dashboard_deadline_risk_count($filters = null)
 {
-	return count(mjl_dashboard_deadline_risks(500, $filters));
+	global $user;
+	return count(mjl_dashboard_filter_alerts(mjl_alerts_activity_deadlines($user, 500), $filters));
 }
 
 function mjl_dashboard_physical_execution_percent($filters = null)
@@ -828,12 +832,12 @@ function mjl_dashboard_render_alert_section($title, $description, $alerts, $empt
 	print '<div class="mjl-alert-grid">';
 	foreach ($alerts as $alert) {
 		$urgency = empty($alert['severity']) ? (empty($alert['urgency']) ? 'A surveiller' : $alert['urgency']) : $alert['severity'];
-		$tone = empty($alert['tone']) ? ($urgency === 'En retard' ? 'danger' : 'warning') : $alert['tone'];
+		$tone = isset($alert['tone']) && in_array($alert['tone'], array('neutral', 'info', 'success', 'warning', 'danger'), true) ? $alert['tone'] : 'neutral';
 		print '<article class="mjl-alert-card mjl-alert-'.$tone.'">';
 		print '<div class="mjl-alert-card-main">';
 		print '<span class="mjl-status-pill mjl-status-'.$tone.'">'.dol_escape_htmltag($urgency).'</span>';
 		print '<h3>'.dol_escape_htmltag($alert['ref']).' - '.dol_escape_htmltag($alert['label']).'</h3>';
-		print '<p>'.dol_escape_htmltag(empty($alert['expected_action']) ? 'Action attendue: examiner l activite et confirmer la prochaine decision.' : $alert['expected_action']).'</p>';
+		print '<p>'.dol_escape_htmltag(empty($alert['expected_action']) ? 'Action attendue : examiner l’activité et confirmer la prochaine décision.' : $alert['expected_action']).'</p>';
 		print '</div>';
 		print '<dl class="mjl-alert-meta">';
 		if (!empty($alert['meta'])) {
@@ -844,12 +848,12 @@ function mjl_dashboard_render_alert_section($title, $description, $alerts, $empt
 		} else {
 			print '<div><dt>Projet</dt><dd>'.dol_escape_htmltag($alert['project_ref']).'</dd></div>';
 			print '<div><dt>Enveloppe</dt><dd>'.dol_escape_htmltag($alert['convention_ref']).'</dd></div>';
-			print '<div><dt>Echeance</dt><dd>'.dol_escape_htmltag($alert['date_end']).'</dd></div>';
+			print '<div><dt>Échéance</dt><dd>'.dol_escape_htmltag($alert['date_end']).'</dd></div>';
 			print '<div><dt>Statut</dt><dd>'.dol_escape_htmltag($alert['status_label']).'</dd></div>';
 		}
 		print '</dl>';
-		$href = empty($alert['href']) ? '/custom/mjlfinancement/activities.php?id='.((int) $alert['rowid']) : $alert['href'];
-		print '<a class="mjl-card-link" href="'.mjl_dashboard_url($href).'">Ouvrir l objet concerne</a>';
+		$href = mjl_safe_internal_path(isset($alert['href']) ? $alert['href'] : '');
+		if ($href !== '') print '<a class="mjl-card-link" href="'.mjl_dashboard_url($href).'">Ouvrir l’objet concerné</a>';
 		print '</article>';
 	}
 	print '</div>';
@@ -900,10 +904,10 @@ function mjl_dashboard_render_link_section($title, $description, $items)
 
 function mjl_dashboard_url($href)
 {
-	if (strpos($href, DOL_URL_ROOT) === 0) {
-		return dol_escape_htmltag($href);
-	}
-	return DOL_URL_ROOT.dol_escape_htmltag($href);
+	$href = mjl_safe_internal_path($href);
+	if ($href === '') return '#';
+	if (DOL_URL_ROOT !== '' && strpos($href, DOL_URL_ROOT.'/') !== 0) $href = DOL_URL_ROOT.$href;
+	return dol_escape_htmltag($href);
 }
 
 function mjl_dashboard_scalar($sql, $field = 'nb')
@@ -969,9 +973,7 @@ function mjl_dashboard_error($message)
 	$entity = isset($GLOBALS['conf']->entity) ? (int) $GLOBALS['conf']->entity : 0;
 	$userId = isset($GLOBALS['user']->id) ? (int) $GLOBALS['user']->id : 0;
 	mjl_ui_log_error('database', array('route' => 'dashboard', 'action' => 'load', 'entity' => $entity, 'user_id' => $userId), $message);
-	if (function_exists('setEventMessages')) {
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
-	}
+	if (function_exists('mjl_feedback_add')) mjl_feedback_add('dashboard:load:database', 'generic.database');
 }
 
 function mjl_dashboard_deadline_alert($dateEnd)
@@ -985,7 +987,7 @@ function mjl_dashboard_deadline_alert($dateEnd)
 		return 'En retard';
 	}
 	if ($end <= strtotime('+7 days', $today)) {
-		return 'Echeance proche';
+		return 'Échéance proche';
 	}
 	return '';
 }

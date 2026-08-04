@@ -86,10 +86,10 @@ function mjl_fundreceipts_handle_post($action)
 		$result = $receipt->createDraft($user);
 		if ($result <= 0) {
 			$feedback = mjl_finance_feedback_domain('fundreceipts', 'create', 0, $receipt->error);
-			setEventMessages(mjl_finance_feedback_domain_message('fundreceipts', 'create', $feedback), null, 'errors');
+			mjl_feedback_add('fundreceipts:create:error', 'generic.validation');
 			mjl_fundreceipts_redirect(0, mjl_fundreceipts_store_recovery('create', 0, $feedback), 'create');
 		}
-		setEventMessages('Réception de fonds créée en brouillon', null, 'mesgs');
+		mjl_feedback_add('fundreceipts:create:'.((int) $result), 'fund_receipt.created');
 		mjl_fundreceipts_redirect((int) $result);
 	}
 
@@ -104,7 +104,7 @@ function mjl_fundreceipts_handle_post($action)
 
 	if ($action === 'add_exchange') {
 		list($result, $message) = mjl_timeline_create_comment($user, 'mjlfinancement_fund_receipt', $id, GETPOST('message', 'restricthtml'));
-		setEventMessages($message, null, $result > 0 ? 'mesgs' : 'errors');
+		mjl_feedback_add('fundreceipts:add_exchange:'.$id.($result > 0 ? '' : ':error'), $result > 0 ? 'generic.saved' : 'generic.validation');
 		mjl_fundreceipts_redirect($id, $result > 0 ? '' : mjl_fundreceipts_store_recovery('add_exchange', $id, $message));
 	}
 
@@ -137,14 +137,14 @@ function mjl_fundreceipts_handle_post($action)
 
 	if ($result < 0) {
 		$feedback = mjl_finance_feedback_domain('fundreceipts', $failureAction, $id, $receipt->error);
-		setEventMessages(mjl_finance_feedback_domain_message('fundreceipts', $failureAction, $feedback), null, 'errors');
+		mjl_feedback_add('fundreceipts:'.$failureAction.':'.$id.':error', 'generic.validation');
 		if ($failureAction === 'upload') mjl_fundreceipts_redirect($id, '', 'upload', 'upload-failed');
 		$recoveryHandle = mjl_fundreceipts_store_recovery($failureAction, $id, $feedback);
 		mjl_fundreceipts_redirect($id, $recoveryHandle, $failureAction === 'update' ? 'edit' : $failureAction);
 	} elseif ($result === 0) {
-		setEventMessages('Aucun changement appliqué', null, 'warnings');
+		mjl_feedback_add('fundreceipts:'.$failureAction.':'.$id.':unchanged', 'generic.no_change');
 	} else {
-		setEventMessages('Action sur la réception de fonds enregistrée', null, 'mesgs');
+		mjl_feedback_add('fundreceipts:'.$failureAction.':'.$id, 'fund_receipt.saved');
 	}
 	mjl_fundreceipts_redirect($id);
 }
@@ -355,7 +355,7 @@ function mjl_fundreceipts_render_list($filters)
 		print '<td>'.dol_escape_htmltag($obj->project_ref).'</td>';
 		print '<td>'.dol_escape_htmltag($obj->convention_ref).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_fundreceipts_format_date($obj->reception_date)).'</td>';
-		print '<td class="right">'.price($obj->amount).'</td>';
+		print '<td class="right">'.dol_escape_htmltag(mjl_format_money($obj->amount)).'</td>';
 		print '<td>'.dol_escape_htmltag(mjl_fundreceipts_evidence_label($state)).'</td>';
 		print '<td>'.mjl_fundreceipts_status_badge($obj->status).'</td>';
 		$actions = array();
@@ -386,7 +386,7 @@ function mjl_fundreceipts_render_summary($row)
 			array('label' => 'Projet', 'value' => $row['project_ref'] ? $row['project_ref'].' - '.$row['project_title'] : 'Enveloppe globale'),
 			array('label' => 'Enveloppe', 'value' => $row['convention_ref'].' - '.$row['convention_title']),
 			array('label' => 'Date de réception', 'value' => mjl_fundreceipts_format_date($row['reception_date'])),
-			array('label' => 'Montant', 'value' => price($row['amount'])),
+			array('label' => 'Montant', 'value' => mjl_format_money($row['amount'])),
 			array('label' => 'Preuve', 'value' => mjl_fundreceipts_evidence_label($state), 'tone' => $state === 'downloadable' ? 'success' : 'warning'),
 			array('label' => 'Commentaire', 'value' => $row['comment']),
 		),
@@ -496,7 +496,7 @@ function mjl_fundreceipts_fetch_detail($id)
 	$query = mjl_finance_source_query($db, $sql, 'fundreceipts', 'fetch_detail', $id);
 	$resql = $query['result'];
 	if (!$resql) {
-		setEventMessages(mjl_finance_feedback_source_message('fundreceipts', 'fetch_detail', $query['feedback']), null, 'errors');
+		mjl_feedback_add('fundreceipts:detail:'.((int) $id).':database', 'generic.database');
 		return array();
 	}
 	$obj = $db->fetch_object($resql);
@@ -516,7 +516,7 @@ function mjl_fundreceipts_timeline_items($row)
 	$query = mjl_finance_source_query($db, $sql, 'fundreceipts', 'timeline', (int) $row['rowid']);
 	$resql = $query['result'];
 	if (!$resql) {
-		setEventMessages(mjl_finance_feedback_source_message('fundreceipts', 'timeline', $query['feedback']), null, 'errors');
+		mjl_feedback_add('fundreceipts:timeline:'.((int) $row['rowid']).':database', 'generic.partial');
 		return array(mjl_fundreceipts_legacy_creation_timeline_item($row));
 	}
 	while ($obj = $db->fetch_object($resql)) {
@@ -669,8 +669,7 @@ function mjl_fundreceipt_actor_role_label($role)
 
 function mjl_fundreceipts_status_badge($status)
 {
-	$tone = (int) $status === MjlFundReceipt::STATUS_DRAFT ? 'warning' : ((int) $status === MjlFundReceipt::STATUS_NOT_RECEIVED ? 'danger' : 'neutral');
-	return '<span class="mjl-status-pill'.($tone !== 'neutral' ? ' mjl-status-'.$tone : '').'">'.dol_escape_htmltag(mjl_fundreceipt_status_label($status)).'</span>';
+	return mjl_ui_status_badge(mjl_status_presentation('fund_receipt', $status, 'operational'));
 }
 
 function mjl_fundreceipts_next_action_label($row)
@@ -704,14 +703,14 @@ function mjl_fundreceipts_format_date($value)
 {
 	if (empty($value)) return '';
 	$time = strtotime((string) $value);
-	return $time > 0 ? dol_print_date($time, 'day') : (string) $value;
+	return mjl_format_date($value, 'date');
 }
 
 function mjl_fundreceipts_format_datetime($value)
 {
 	if (empty($value)) return '';
 	$time = strtotime((string) $value);
-	return $time > 0 ? dol_print_date($time, 'dayhour') : (string) $value;
+	return mjl_format_date($value, 'datetime');
 }
 
 function mjl_fundreceipts_valid_date($value)

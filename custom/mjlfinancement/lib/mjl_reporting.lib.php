@@ -139,11 +139,10 @@ function mjl_report_fetch_rows($sql)
 
 function mjl_report_error($message)
 {
-	if (function_exists('setEventMessages')) {
-		setEventMessages($message, null, 'errors');
-		return;
-	}
 	if (function_exists('fail')) {
 		fail($message);
+		return;
 	}
+	if (function_exists('mjl_ui_log_error')) mjl_ui_log_error('database', array('route' => 'reporting', 'action' => 'query'), $message);
+	if (function_exists('mjl_feedback_add')) mjl_feedback_add('reporting:query:database', 'generic.database');
 }

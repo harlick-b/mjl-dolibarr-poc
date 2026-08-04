@@ -16,7 +16,7 @@ $generatedLink = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
-		$error = 'Jeton de securite invalide.';
+		$error = 'Jeton de sécurité invalide.';
 	} elseif ($action === 'invite') {
 		$roleCode = GETPOST('role_code', 'aZ09');
 		$scopeIds = mjl_access_post_scope_ids();
@@ -69,6 +69,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			$error = $revokeResult[1];
 		}
 	}
+	$operation = 'admin_access:'.($action !== '' ? $action : 'unknown').':'.GETPOSTINT('user_id').':'.GETPOSTINT('id');
+	if ($error !== '') {
+		mjl_ui_log_error('admin_access', array('route' => 'admin/access', 'action' => $action, 'entity' => mjl_auth_entity(), 'user_id' => (int) $user->id), $error);
+		$errorKey = $error === 'Jeton de sécurité invalide.' ? 'generic.validation' : 'generic.error';
+		if ($action === 'deactivate' && GETPOSTINT('user_id') === (int) $user->id) $errorKey = 'access.self_deactivation_denied';
+		if ($action === 'invite' && $error === 'Cet identifiant correspond déjà à un utilisateur existant.') $errorKey = 'access.login_exists';
+		if ($action === 'invite' && $error === 'Cette adresse e-mail est déjà utilisée.') $errorKey = 'access.email_in_use';
+		mjl_feedback_add($operation.':error', $errorKey);
+	} elseif ($message !== '') {
+		$keys = array('invite' => 'access.invitation_sent', 'update_profile' => 'access.profile_updated', 'deactivate' => 'access.deactivated', 'revoke' => 'access.invitation_revoked');
+		if ($action === 'revoke') {
+			$revokeKeys = array(
+				'Cette invitation est déjà acceptée.' => 'access.invitation_already_accepted',
+				'Cette invitation est déjà révoquée.' => 'access.invitation_already_revoked',
+				'Cette invitation est en cours d’acceptation.' => 'access.invitation_accepting',
+				'Cette invitation ne peut pas être révoquée dans son état actuel.' => 'access.invitation_cannot_revoke',
+			);
+			if (isset($revokeKeys[$message])) $keys['revoke'] = $revokeKeys[$message];
+		}
+		mjl_feedback_add($operation, isset($keys[$action]) ? $keys[$action] : 'generic.saved');
+	}
 }
 
 $roles = mjl_scope_role_labels();
@@ -87,12 +108,6 @@ print mjl_page_header_render(
 	)
 );
 
-if ($message !== '') {
-	print '<div class="ok">'.dol_escape_htmltag($message).'</div>';
-}
-if ($error !== '') {
-	print '<div class="error">'.dol_escape_htmltag($error).'</div>';
-}
 if ($generatedLink !== '') {
 	print '<div class="info">Lien E2E: <code>'.dol_escape_htmltag($generatedLink).'</code></div>';
 }
@@ -102,19 +117,19 @@ print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<input type="hidden" name="action" value="invite">';
 print '<table class="border centpercent">';
 print '<tr><td><label for="mjl-login">Identifiant</label></td><td><input id="mjl-login" class="flat minwidth300" name="login" required></td></tr>';
-print '<tr><td><label for="mjl-firstname">Prenom</label></td><td><input id="mjl-firstname" class="flat minwidth300" name="firstname" required></td></tr>';
+print '<tr><td><label for="mjl-firstname">Prénom</label></td><td><input id="mjl-firstname" class="flat minwidth300" name="firstname" required></td></tr>';
 print '<tr><td><label for="mjl-lastname">Nom</label></td><td><input id="mjl-lastname" class="flat minwidth300" name="lastname" required></td></tr>';
 print '<tr><td><label for="mjl-email">Email</label></td><td><input id="mjl-email" class="flat minwidth300" type="email" name="email" required></td></tr>';
 print '<tr><td><label for="mjl-role">Profil de production</label></td><td>'.mjl_access_role_select('role_code', 'AGENT_SAISIE', $roles).'</td></tr>';
-print '<tr><td><label for="mjl-scope">Partenaires / programmes</label></td><td>'.mjl_access_scope_select($partners, array()).'</td></tr>';
+print '<tr><td><label for="mjl-scope">Partenaires / Programmes</label></td><td>'.mjl_access_scope_select($partners, array()).'</td></tr>';
 print '</table>';
-print '<div class="tabsAction"><button class="butAction" type="submit">Envoyer l invitation</button></div>';
+print '<div class="tabsAction"><button class="butAction" type="submit">Envoyer l’invitation</button></div>';
 print '</form>';
 
 print '<br>';
 print load_fiche_titre('Utilisateurs MJL', '', '');
 print '<table class="noborder centpercent">';
-print '<tr class="liste_titre"><th>Utilisateur</th><th>Email</th><th>Statut</th><th>Profil</th><th>Perimetre</th><th>Actions</th></tr>';
+print '<tr class="liste_titre"><th>Utilisateur</th><th>Email</th><th>Statut</th><th>Profil</th><th>Périmètre</th><th>Actions</th></tr>';
 foreach ($users as $row) {
 	$currentScopes = mjl_access_user_scope_ids((int) $row['rowid']);
 	print '<tr class="oddeven">';
@@ -137,7 +152,7 @@ foreach ($users as $row) {
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="deactivate">';
 		print '<input type="hidden" name="user_id" value="'.((int) $row['rowid']).'">';
-		print '<button class="button small" type="submit">Desactiver</button>';
+		print '<button class="button small" type="submit">Désactiver</button>';
 		print '</form>';
 	}
 	print '</td>';
@@ -146,7 +161,7 @@ foreach ($users as $row) {
 print '</table>';
 
 print '<br>';
-print load_fiche_titre('Invitations recentes', '', '');
+print load_fiche_titre('Invitations récentes', '', '');
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre"><th>Utilisateur</th><th>Email</th><th>Statut</th><th>Envoi</th><th>Expiration</th><th></th></tr>';
 $sql = 'SELECT i.rowid, i.status, i.date_sent, i.date_expiry, u.login, u.email FROM '.$db->prefix().'mjlfinancement_invitation i';
@@ -167,7 +182,7 @@ if ($resql) {
 			print '<input type="hidden" name="token" value="'.newToken().'">';
 			print '<input type="hidden" name="action" value="revoke">';
 			print '<input type="hidden" name="id" value="'.((int) $obj->rowid).'">';
-			print '<button class="button small" type="submit">Revoquer</button>';
+			print '<button class="button small" type="submit">Révoquer</button>';
 			print '</form>';
 		}
 		print '</td>';
@@ -216,7 +231,7 @@ function mjl_access_users()
 	if ($resql) {
 		while ($obj = $db->fetch_object($resql)) {
 			$row = (array) $obj;
-			$row['role_label'] = $row['role_code'] !== null && $row['role_code'] !== '' ? mjl_scope_role_label($row['role_code']) : 'Profil legacy non resolu';
+			$row['role_label'] = $row['role_code'] !== null && $row['role_code'] !== '' ? mjl_scope_role_label($row['role_code']) : 'Profil historique non résolu';
 			$rows[] = $row;
 		}
 	}
@@ -264,7 +279,7 @@ function mjl_access_scope_summary(array $scopeIds, array $partners, $roleCode)
 		return 'Tous les perimetres';
 	}
 	if (empty($scopeIds)) {
-		return 'Aucun perimetre actif';
+		return 'Aucun périmètre actif';
 	}
 	$labels = array();
 	foreach ($scopeIds as $id) {

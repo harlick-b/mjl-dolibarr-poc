@@ -90,7 +90,7 @@ function mjl_exchangelogs_list($filters)
 	}
 
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Ref</th><th>Objet</th><th>ID</th><th>Reference objet</th><th>Date</th><th>Acteur</th><th>Role</th><th>Canal</th><th>Sujet</th><th>Message</th></tr>';
+	print '<tr class="liste_titre"><th>Réf.</th><th>Objet</th><th>ID</th><th>Référence objet</th><th>Date</th><th>Acteur</th><th>Rôle</th><th>Canal</th><th>Sujet</th><th>Message</th></tr>';
 	while ($obj = $db->fetch_object($resql)) {
 		print '<tr class="oddeven">';
 		print '<td>'.dol_escape_htmltag($obj->ref).'</td>';

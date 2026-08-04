@@ -42,10 +42,10 @@ $db->close();
 function mjl_documents_render_filters($filters)
 {
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Les resultats restent limites a votre perimetre d acces.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Filtres</h2><p>Les résultats restent limités a votre périmètre d accès.</p></div>';
 	print '<form method="GET" class="mjl-form-grid">';
 	print '<label>Type<select name="type">';
-	$options = array('' => 'Tous', 'activity' => 'Activite', 'expense' => 'Depense', 'convention' => 'Enveloppe de financement', 'fundreceipt' => 'Fonds recu');
+	$options = array('' => 'Tous', 'activity' => 'Activité', 'expense' => 'Dépense', 'convention' => 'Enveloppe de financement', 'fundreceipt' => 'Fonds reçu');
 	foreach ($options as $value => $label) {
 		print '<option value="'.dol_escape_htmltag($value).'"'.($filters['type'] === $value ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
 	}
@@ -70,7 +70,7 @@ function mjl_documents_render_library($filters)
 		'documents' => array(),
 	));
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Bibliotheque</h2><p>Les documents sont ajoutes depuis la fiche activite, depense, enveloppe, fonds recu ou projet concerne.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Bibliothèque</h2><p>Les documents sont ajoutés depuis la fiche de l’activité, de la dépense, de l’enveloppe, du fonds reçu ou du projet concerné.</p></div>';
 	print '<div class="mjl-empty-state">Aucun bouton d upload global n est disponible. Ajoutez les documents depuis leur objet metier.</div>';
 	if (empty($documents)) {
 		print '<div class="mjl-empty-state">Aucun document accessible avec ces filtres.</div>';
@@ -78,7 +78,7 @@ function mjl_documents_render_library($filters)
 		return;
 	}
 	print '<div class="div-table-responsive"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Nom du document</th><th>Type</th><th>Objet lie</th><th>Projet</th><th>Enveloppe</th><th>Activite</th><th>Depense</th><th>Ajoute par</th><th>Date ajout</th><th>Statut</th><th>Action telecharger</th></tr>';
+	print '<tr class="liste_titre"><th>Nom du document</th><th>Type</th><th>Objet lie</th><th>Projet</th><th>Enveloppe</th><th>Activité</th><th>Dépense</th><th>Ajouté par</th><th>Date ajout</th><th>Statut</th><th>Action telecharger</th></tr>';
 	foreach ($documents as $document) {
 		print '<tr class="oddeven">';
 		print '<td>'.dol_escape_htmltag($document['name']).'</td>';
@@ -134,7 +134,7 @@ function mjl_documents_activity_rows($filters)
 	foreach (mjl_documents_fetch_all($sql) as $activity) {
 		foreach (mjl_activity_document_download_rows((int) $activity['rowid']) as $row) {
 			if (!mjl_documents_date_matches($row, $filters)) continue;
-			$documents[] = mjl_documents_make_row($row, 'activity', 'Activite', $activity['ref'], $activity['project_ref'], $activity['convention_ref'], $activity['ref'], '', $activity['label']);
+			$documents[] = mjl_documents_make_row($row, 'activity', 'Activité', $activity['ref'], $activity['project_ref'], $activity['convention_ref'], $activity['ref'], '', $activity['label']);
 		}
 	}
 	return $documents;
@@ -157,7 +157,7 @@ function mjl_documents_expense_rows($filters)
 	foreach (mjl_documents_fetch_all($sql) as $expense) {
 		foreach (mjl_expense_document_download_rows((int) $expense['rowid']) as $row) {
 			if (!mjl_documents_date_matches($row, $filters)) continue;
-			$documents[] = mjl_documents_make_row($row, 'expense', 'Depense', $expense['ref'], $expense['project_ref'], $expense['convention_ref'], $expense['activity_ref'], $expense['ref'], $expense['description']);
+			$documents[] = mjl_documents_make_row($row, 'expense', 'Dépense', $expense['ref'], $expense['project_ref'], $expense['convention_ref'], $expense['activity_ref'], $expense['ref'], $expense['description']);
 		}
 	}
 	return $documents;
@@ -202,7 +202,7 @@ function mjl_documents_fund_receipt_rows($filters)
 	foreach (mjl_documents_fetch_all($sql) as $receipt) {
 		foreach (mjl_fund_receipt_document_download_rows((int) $receipt['rowid']) as $row) {
 			if (!mjl_documents_date_matches($row, $filters)) continue;
-			$documents[] = mjl_documents_make_row($row, 'fundreceipt', 'Fonds recu', $receipt['ref'], $receipt['project_ref'], $receipt['convention_ref'], '', '', $receipt['comment']);
+			$documents[] = mjl_documents_make_row($row, 'fundreceipt', 'Fonds reçu', $receipt['ref'], $receipt['project_ref'], $receipt['convention_ref'], '', '', $receipt['comment']);
 		}
 	}
 	return $documents;
@@ -216,7 +216,7 @@ function mjl_documents_make_row($row, $downloadType, $typeLabel, $objectRef, $pr
 		'download_type' => $downloadType,
 		'type_label' => $typeLabel,
 		'object_ref' => trim((string) $objectRef) !== '' ? $objectRef : $label,
-		'project_ref' => $projectRef ?: 'Non renseigne',
+		'project_ref' => $projectRef ?: 'Non renseigné',
 		'convention_ref' => $conventionRef ?: '',
 		'activity_ref' => $activityRef ?: '',
 		'expense_ref' => $expenseRef ?: '',
@@ -280,7 +280,7 @@ function mjl_documents_fetch_all($sql)
 	$resql = $db->query($sql);
 	if (!$resql) {
 		mjl_ui_log_error('database', array('route' => 'documents', 'action' => 'fetch_rows', 'entity' => (int) $GLOBALS['conf']->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
-		setEventMessages(mjl_ui_safe_error_message('database'), null, 'errors');
+		mjl_feedback_add('documents:load:database', 'generic.database');
 		return array();
 	}
 	$rows = array();

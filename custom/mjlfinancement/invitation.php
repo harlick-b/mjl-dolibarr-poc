@@ -12,7 +12,7 @@ $done = false;
 
 if ($action === 'accept') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
-		$error = 'Le jeton de securite est invalide. Veuillez recharger la page.';
+		$error = 'Le jeton de sécurité est invalide. Veuillez recharger la page.';
 	} else {
 		$error = mjl_auth_accept_invitation($token, GETPOST('newpass1', 'restricthtml'), GETPOST('newpass2', 'restricthtml'));
 		$done = ($error === '');
@@ -28,23 +28,23 @@ top_htmlhead('', 'Invitation MJL', 0, 0, array(), array('/custom/mjlfinancement/
 <main class="mjl-auth-panel" aria-labelledby="mjl-invitation-title">
 	<div class="mjl-auth-brand">
 		<h1 id="mjl-invitation-title">Invitation MJL</h1>
-		<p>Definissez votre mot de passe pour acceder a votre espace.</p>
+		<p>Définissez votre mot de passe pour accéder à votre espace.</p>
 	</div>
 
 	<?php if ($done) { ?>
-		<div class="mjl-auth-message">Votre acces est active. Vous pouvez vous connecter.</div>
-		<div class="mjl-auth-actions"><a class="mjl-auth-button" href="<?php print DOL_URL_ROOT; ?>/index.php">Acceder a mon espace</a></div>
+		<div class="mjl-auth-message">Votre accès est activé. Vous pouvez vous connecter.</div>
+		<div class="mjl-auth-actions"><a class="mjl-auth-button" href="<?php print DOL_URL_ROOT; ?>/index.php">Accéder à mon espace</a></div>
 	<?php } elseif ($status === 'expired') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Cette invitation a expire. Veuillez contacter l administrateur pour recevoir une nouvelle invitation.</div>
+		<div class="mjl-auth-message mjl-auth-error">Cette invitation a expiré. Veuillez contacter l’administrateur pour recevoir une nouvelle invitation.</div>
 	<?php } elseif ($status === 'revoked') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Cette invitation a ete revoquee. Veuillez contacter l administrateur.</div>
+		<div class="mjl-auth-message mjl-auth-error">Cette invitation a été révoquée. Veuillez contacter l’administrateur.</div>
 	<?php } elseif ($status === 'send_failed') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Cette invitation n a pas pu etre envoyee. Veuillez contacter l administrateur.</div>
+		<div class="mjl-auth-message mjl-auth-error">Cette invitation n’a pas pu être envoyée. Veuillez contacter l’administrateur.</div>
 	<?php } elseif ($status === 'accepted') { ?>
-		<div class="mjl-auth-message">Cette invitation a deja ete acceptee. Vous pouvez vous connecter.</div>
+		<div class="mjl-auth-message">Cette invitation a déjà été acceptée. Vous pouvez vous connecter.</div>
 		<div class="mjl-auth-actions"><a class="mjl-auth-button" href="<?php print DOL_URL_ROOT; ?>/index.php">Connexion</a></div>
 	<?php } elseif ($status !== 'valid') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Cette invitation est invalide. Veuillez contacter l administrateur.</div>
+		<div class="mjl-auth-message mjl-auth-error">Cette invitation est invalide. Veuillez contacter l’administrateur.</div>
 	<?php } else { ?>
 		<?php if ($error !== '') { ?><div class="mjl-auth-message mjl-auth-error"><?php print dol_escape_htmltag($error); ?></div><?php } ?>
 		<form id="mjl-invitation-accept" method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/invitation.php">
@@ -59,9 +59,9 @@ top_htmlhead('', 'Invitation MJL', 0, 0, array(), array('/custom/mjlfinancement/
 				<label for="newpass2">Confirmer le mot de passe</label>
 				<input type="password" id="newpass2" name="newpass2" autocomplete="new-password">
 			</div>
-			<p class="mjl-auth-help">Le mot de passe doit contenir au moins 10 caracteres.</p>
+			<p class="mjl-auth-help">Le mot de passe doit contenir au moins 10 caractères.</p>
 			<div class="mjl-auth-actions">
-				<button type="submit" class="mjl-auth-button">Definir mon mot de passe</button>
+				<button type="submit" class="mjl-auth-button">Définir mon mot de passe</button>
 			</div>
 		</form>
 	<?php } ?>
