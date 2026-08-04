@@ -88,13 +88,21 @@ Final business decision approving an activity or expense.
 **Decaissement**:
 Record that money actually moved for a final-validated expense.
 
-**Admin plateforme**:
+**Administrateur plateforme**:
 Technical/platform administration responsibility for access, invitations, and
 configuration.
-_Avoid_: treating Admin plateforme as the same concept as final business
-validation.
+_Avoid_: Admin plateforme, treating Administrateur plateforme as the same
+concept as final business validation.
 
-**Validateur definitif**:
+**Agent de saisie**:
+Business role responsible for operational creation, correction, submission,
+supporting documents, and follow-up within assigned scope.
+
+**Agent vérificateur et prévalidateur**:
+Business role responsible for independent verification, correction requests,
+and prevalidation within assigned scope.
+
+**Validateur définitif**:
 Business role responsible for final validation and disbursement decisions.
 
 **Historique / audit**:
@@ -103,19 +111,23 @@ values, exports, document uploads, and expected document downloads.
 
 ## Roles
 
-The confirmed production business roles are:
+The confirmed production model has three business roles and one administration
+role:
 
-- `AGENT_SAISIE`: operational creation, submission, correction, supporting
-  documents, and follow-up for assigned Partenaires / Programmes.
-- `AGENT_VERIFICATEUR`: verification, correction requests, invalidation, and
-  prevalidation for assigned Partenaires / Programmes.
-- `VALIDATEUR_DEFINITIF`: final business validation, rejection, closure, and
-  disbursement decisions for assigned Partenaires / Programmes.
-- `ADMIN_PLATEFORME`: platform administration, user access, invitations, and
-  configuration.
+- `AGENT_SAISIE` - Agent de saisie: operational creation, submission,
+  correction, supporting documents, and follow-up for assigned Partenaires /
+  Programmes.
+- `AGENT_VERIFICATEUR` - Agent vérificateur et prévalidateur: verification,
+  correction requests, invalidation, and prevalidation for assigned
+  Partenaires / Programmes.
+- `VALIDATEUR_DEFINITIF` - Validateur définitif: final business validation,
+  rejection, closure, and disbursement decisions for assigned Partenaires /
+  Programmes.
+- `ADMIN_PLATEFORME` - Administrateur plateforme: platform administration,
+  user access, invitations, and configuration.
 
-A user has one global business role and may be assigned to one or many
-Partenaires / Programmes. Admin plateforme and Validateur definitif are
+A user has one global MJL role and may be assigned to one or many
+Partenaires / Programmes. Administrateur plateforme and Validateur définitif are
 separate concepts; one person may hold both powers.
 
 Legacy role terms are migration-only vocabulary:

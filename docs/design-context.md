@@ -65,13 +65,13 @@ permissions, business rules, or claims of runtime conformance.
   independent verifiers, final business validators, and platform
   administrators.
 - Secondary users: Supervisory work is performed through approved capabilities
-  of the four production roles. A separate reader/auditor audience or
+  of the three business roles and the administration role. A separate reader/auditor audience or
   capability is not approved and must not be assumed.
 - User roles:
   - `AGENT_SAISIE` — Agent de saisie.
-  - `AGENT_VERIFICATEUR` — Agent verificateur / prevalidateur.
-  - `VALIDATEUR_DEFINITIF` — Validateur definitif.
-  - `ADMIN_PLATEFORME` — Admin plateforme.
+  - `AGENT_VERIFICATEUR` — Agent vérificateur et prévalidateur.
+  - `VALIDATEUR_DEFINITIF` — Validateur définitif.
+  - `ADMIN_PLATEFORME` — Administrateur plateforme.
 - Role responsibilities:
   - `AGENT_SAISIE`: Create, complete, correct, submit, attach contextual
     evidence, update physical execution, and follow assigned work.
@@ -82,7 +82,7 @@ permissions, business rules, or claims of runtime conformance.
   - `ADMIN_PLATEFORME`: Manage invitations, access, roles, scopes,
     configuration, and unresolved-data diagnostics.
 - Read-only roles: Not approved. A possible read-only audit capability remains
-  to be confirmed and must not create a fifth role or broaden scope.
+  to be confirmed and must not create an additional role or broaden scope.
 - Administrative roles: `ADMIN_PLATEFORME`; platform administration is
   separate from business validation.
 - Approval or validation roles: `AGENT_VERIFICATEUR` for prevalidation and
@@ -102,7 +102,7 @@ permissions, business rules, or claims of runtime conformance.
   `SUPERVISEUR_N1`, and `SUPERVISEUR_N2` are compatibility vocabulary, not
   target roles.
 
-Every user has one global business role and may be assigned to one or many
+Every user has one global MJL role and may be assigned to one or many
 Partenaires / Programmes. Non-admin users see only assigned scope;
 `ADMIN_PLATEFORME` sees all. UI visibility never replaces direct URL and POST
 authorization.
@@ -434,7 +434,7 @@ Do not merely formalize current defects.
 - Feedback-state rule: Loading, populated, truly empty, filtered-empty,
   partial-error, forbidden, and not-found states are distinct. A local failure
   must not erase unrelated available content.
-- Existing client or user decisions: Four-role model, scoped Partenaires /
+- Existing client or user decisions: Three business roles plus one administration role, scoped Partenaires /
   Programmes, invitation-only access, no public registration, contextual
   uploads, guarded downloads, contextual exchanges, distinct final validation
   and disbursement, CSV/XLSX only, and immutable Dolibarr core.
@@ -638,7 +638,7 @@ is allowed, but do not omit the field.
   guarded MJL routes, avoid raw native/ECM links, and preserve direct-route
   authorization unless a separate approved implementation decision changes a
   route.
-- Permissions: Do not broaden access, create a fifth role, infer final report
+- Permissions: Do not broaden access, create an additional role, infer final report
   rights, or replace server checks with hidden UI.
 - Workflows: Keep prevalidation, final validation, and disbursement distinct;
   preserve correction/rejection history and no-self-action.

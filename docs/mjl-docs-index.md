@@ -23,6 +23,7 @@ cleanup records, and stale POC notes are not active implementation guidance.
 | `docs/mjl-authoritative-decisions.md` | Highest MJL target-decision authority. |
 | `docs/mjl-current-app-functional-map.md` | Current implementation evidence only. |
 | `docs/mjl-current-vs-target-gap-analysis.md` | Current implementation debt, blockers, and pending client decisions. |
+| `docs/client-cadrage-app-vision.md` | Client-facing cadrage support presenting the target functional vision and decisions to validate; not a source of implementation status. |
 
 ## Operational And Verification Docs
 

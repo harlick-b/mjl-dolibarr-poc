@@ -56,7 +56,9 @@ Programme Redevabilite
 
 ## Role Model
 
-Use one global business role per user.
+Use one global MJL role per user.
+
+Exactly three business roles and one administration role are approved.
 
 A user can be assigned to one or many Partenaires / Programmes.
 
@@ -67,9 +69,9 @@ Roles:
 
 ```md
 AGENT_SAISIE - Agent de saisie
-AGENT_VERIFICATEUR - Agent verificateur / prevalidateur
-VALIDATEUR_DEFINITIF - Validateur definitif
-ADMIN_PLATEFORME - Admin plateforme
+AGENT_VERIFICATEUR - Agent vérificateur et prévalidateur
+VALIDATEUR_DEFINITIF - Validateur définitif
+ADMIN_PLATEFORME - Administrateur plateforme
 ```
 
 `ADMIN_PLATEFORME` is technical/platform administration.
