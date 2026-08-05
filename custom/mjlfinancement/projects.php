@@ -281,7 +281,7 @@ function mjl_projects_render_list()
 		print '<thead><tr class="liste_titre"><th>Projet</th><th>Statut</th><th>Partenaire / Programme</th><th>Enveloppe liée</th><th>Budget total</th><th>Budget consommé</th><th>Budget restant</th><th>Fonds reçus</th><th>Activités</th><th>Dépenses</th><th>Documents</th><th>Échéance</th><th>Ouvrir</th><th>Actions</th></tr></thead><tbody>';
 		foreach ($rows as $row) {
 			$href = DOL_URL_ROOT.'/custom/mjlfinancement/projects.php?id='.((int) $row['rowid']);
-			print '<tr class="oddeven">';
+			print '<tr class="oddeven mjl-row-interactive">';
 			print '<td data-label="Projet"><a class="mjl-table-link" href="'.dol_escape_htmltag($href).'">'.dol_escape_htmltag($row['ref']).'</a><br><span class="opacitymedium">'.dol_escape_htmltag($row['title']).'</span></td>';
 			print '<td data-label="Statut">'.dol_escape_htmltag(mjl_projects_status_label($row['fk_statut'])).'</td>';
 			print '<td data-label="Partenaire / Programme">'.dol_escape_htmltag($row['partner_name'] ?: 'Non renseigné').'</td>';

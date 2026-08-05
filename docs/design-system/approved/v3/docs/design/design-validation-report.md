@@ -80,3 +80,81 @@ must allow `https://fonts.googleapis.com` in `style-src` and
 `https://fonts.gstatic.com` in `font-src`, or the font source must be replaced
 with an approved local pipeline. Manual accessibility, client content, and
 operator production evidence remain release blockers.
+
+## Remediation evidence, 2026-08-04
+
+The five post-promotion findings were remediated without rewriting the
+approved normative v3 artifacts. This section is an append-only evidence
+record under the active-generation governance policy.
+
+- Governance and privacy contract tests were introduced red, then passed
+  after the active README and deployment checklist were updated.
+- The approved authentication title role now renders at `24px/32px`, and the
+  real project-list row with independently accessible actions uses the 44px
+  interactive-row role at desktop and mobile widths.
+- PHP syntax checks passed for `projects.php`, `mjl_app.css.php`, and
+  `mjl_auth.css.php`. Both CSS endpoints returned HTTP 200 with a CSS content
+  type and no PHP warning output.
+- Live Google evidence passed: the stylesheet response returned HTTP 200;
+  28 `@font-face` blocks covered semantic weights 400, 500, 600, and 700 with
+  `font-display: swap`; three observed font responses completed with HTTP 200;
+  all four semantic weights rendered as Inter. The blocked-CDN fallback also
+  remained usable and rendered a non-Inter platform fallback.
+- `npm run test:e2e` passed 118/118 browser cases in disposable tenant
+  `mjl-test-20260804t185355-1472417-b0eb2dc3`; all tenant resources were
+  removed. Duration was 728.7 seconds.
+- `npm run test:characterization` passed 27/27 cases in disposable tenant
+  `mjl-test-20260804t191057-1551394-27329b98`; all tenant resources were
+  removed. Duration was 251.8 seconds. The run also corrected a stale
+  characterization report key and actor-owned audit cleanup predicate.
+- Final `npm test` passed 28 Node checks, all maintained PHP, schema, scope,
+  workflow, export, and resilience checks, and 118/118 browser cases in
+  disposable tenant `mjl-test-20260804t191522-1574161-b8fc9e1b`; all tenant
+  resources were removed. Duration was 632.1 seconds.
+
+The remediation verdict is `PASSED`. Manual accessibility and the existing
+production CSP, egress, privacy, client-content, and operator confirmations
+remain external release confirmations; no automated claim is made for them.
+
+### Post-review closure evidence
+
+- The two-axis review found one Standards false-pass risk and one Spec
+  governance false-closure risk. Both were fixed and both reviewers confirmed
+  that no task-owned finding remains.
+- The governance contract now compares every protected normative v3 index
+  blob with remediation base `ed0584f`, preserves the validation report's
+  exact 4,377-byte historical prefix, and constrains any indexed report to the
+  append-only worktree candidate.
+- `npm run test:unit` passed all 7 unit files and maintained PHP contracts after
+  the governance contract was strengthened. Duration was 0.8 seconds.
+- A concurrent unconditional Apache `Header` directive prevented disposable
+  Apache startup because the test image does not load `mod_headers`. Guarding
+  that directive with `IfModule headers_module` preserved it where available,
+  while scoped PHP responses continued to emit the required policy.
+- Post-review `npm run test:e2e` passed the current 116/116 browser cases in
+  disposable tenant `mjl-test-20260804t195247-1705655-ac1c7585`; all tenant
+  resources were removed. Duration was 642.7 seconds. This run included the
+  mandatory visible 40px activity-create control under the authorized Agent
+  role and the separately authorized Admin checks.
+
+### Concurrent-write correction
+
+After the post-review run, concurrent worktree edits temporarily removed the
+protected-index assertions and the guarded Apache `Header` line. The final
+audit restored both task-owned requirements without staging the unrelated
+normative worktree changes. The later verification results below supersede
+that transient worktree state; no earlier evidence entry was rewritten.
+
+### Restored-state verification
+
+- `node --test tests/unit/design-system-v3-remediation.test.js` passed the
+  isolated remediation contract, including protected index blobs and the
+  append-only validation prefix.
+- `npm run test:unit` passed all 8 current unit files and maintained PHP
+  contracts after restoration. Duration was 1.0 seconds.
+- `git diff --check` passed.
+- `git diff --cached --name-only` returned no paths; no unrelated or normative
+  worktree hunk is staged.
+- The final Standards review confirmed no remaining task-owned finding. The
+  final Spec review required this appended command record as its sole remaining
+  documentation correction.

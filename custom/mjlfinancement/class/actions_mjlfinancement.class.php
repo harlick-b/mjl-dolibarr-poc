@@ -93,9 +93,10 @@ class ActionsMjlfinancement extends CommonHookActions
 			return 0;
 		}
 
-		$this->resprints = '<link rel="preconnect" href="https://fonts.googleapis.com">'."\n";
-		$this->resprints .= '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'."\n";
-		$this->resprints .= '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">'."\n";
+		$this->resprints = '<meta name="referrer" content="same-origin">'."\n";
+		$this->resprints .= '<link rel="preconnect" href="https://fonts.googleapis.com" referrerpolicy="no-referrer">'."\n";
+		$this->resprints .= '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin referrerpolicy="no-referrer">'."\n";
+		$this->resprints .= '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" referrerpolicy="no-referrer">'."\n";
 
 		return 0;
 	}

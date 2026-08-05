@@ -23,6 +23,22 @@ consolidated, or explicitly retired in the v3 migration ledger. It is not kept
 as a stale in-tree archive and remains recoverable from Git commit
 `e95927f816bb127914b432adb119e522c669cbc8`.
 
+## Approved generation governance
+
+The normative v3 artifacts are immutable after this remediation closes. This
+applies to the product definition, design direction, manifest, tokens,
+assumptions, decisions, component inventory, and manual approval. Context,
+audits, and runtime implementation evidence do not rewrite those artifacts.
+
+Material design changes require a validated v4 or later generation. This
+README remains the movable pointer to the active approved generation. Runtime
+CSS and tests remain code-owned conformance mappings and do not redefine the
+approved tokens or design decisions.
+
+The validation report is the sole append-only exception inside the approved
+package. New executed evidence may be appended, but prior results may never be
+rewritten or deleted.
+
 ## Authoritative paths
 
 - [Product definition](approved/v3/PRODUCT.md)
@@ -47,6 +63,16 @@ exports, email, and other non-browser output.
 
 No Dolibarr core, database schema, permission, workflow, export format, email
 contract, or guarded-document behavior changes are part of v3.
+
+Loading Google Fonts discloses ordinary network metadata, including the IP
+address, user agent, request timing, and requested Google URLs. Eligible pages
+emit a `same-origin` referrer meta policy and external font links use
+`referrerpolicy="no-referrer"`; production must also preserve the
+`Referrer-Policy: same-origin` response header. These controls prevent Google
+from receiving MJL application paths and query tokens; they do not suppress
+ordinary connection metadata.
+The gstatic font origin may receive the Google stylesheet URL as its referrer.
+Production infrastructure must preserve this policy.
 
 ## Remaining confirmations
 

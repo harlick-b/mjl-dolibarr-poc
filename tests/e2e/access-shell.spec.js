@@ -49,13 +49,19 @@ test('Inter resources are scoped to MJL browser documents and emitted once', asy
     await route.fulfill({ contentType: 'font/woff2', body: '' });
   });
   const expectInterHead = async () => {
+    await expect(page.locator('meta[name="referrer"][content="same-origin"]')).toHaveCount(1);
     await expect(page.locator(`link[rel="stylesheet"][href="${stylesheet}"]`)).toHaveCount(1);
     await expect(page.locator('link[rel="preconnect"][href="https://fonts.googleapis.com"]')).toHaveCount(1);
     await expect(page.locator('link[rel="preconnect"][href="https://fonts.gstatic.com"][crossorigin]')).toHaveCount(1);
   };
+  const expectSameOriginPolicy = (response) => {
+    expect(response).not.toBeNull();
+    expect(response.headers()['referrer-policy']).toBe('same-origin');
+  };
 
   await page.goto('/user/logout.php').catch(() => {});
-  await page.goto('/custom/mjlfinancement/invitation.php?invite=token-value-must-not-leak');
+  const invitationResponse = await page.goto('/custom/mjlfinancement/invitation.php?invite=token-value-must-not-leak');
+  expectSameOriginPolicy(invitationResponse);
   await expectInterHead();
   await expect.poll(() => fontFileReferer).not.toBeNull();
   expect(fontCssReferer).toBe('');
@@ -63,12 +69,14 @@ test('Inter resources are scoped to MJL browser documents and emitted once', asy
   expect(fontFileReferer).not.toContain('token-value-must-not-leak');
   expect(fontFileReferer).not.toContain('/custom/mjlfinancement/');
 
-  await page.goto('/index.php');
+  const loginResponse = await page.goto('/index.php');
+  expectSameOriginPolicy(loginResponse);
   await expectInterHead();
 
   fontCssReferer = null;
   fontFileReferer = null;
-  await page.goto('/user/passwordforgotten.php?setnewpassword=1&mjlreset=token-value-must-not-leak');
+  const resetResponse = await page.goto('/user/passwordforgotten.php?setnewpassword=1&mjlreset=token-value-must-not-leak');
+  expectSameOriginPolicy(resetResponse);
   await expectInterHead();
   await expect.poll(() => fontCssReferer).not.toBeNull();
   await expect.poll(() => fontFileReferer).not.toBeNull();
@@ -113,6 +121,7 @@ test('v3 visual roles render with the approved metrics and print behavior', asyn
   await page.goto('/index.php');
 
   await expect(page.locator('.mjl-auth-brand h1')).toHaveCSS('font-size', '24px');
+  await expect(page.locator('.mjl-auth-brand h1')).toHaveCSS('line-height', '32px');
   await expect(page.locator('.mjl-auth-brand h1')).toHaveCSS('font-weight', '700');
   await expect(page.locator('.mjl-auth-field label').first()).toHaveCSS('font-weight', '600');
   await expect(page.locator('.mjl-auth-link')).toHaveCSS('font-weight', '500');
@@ -143,10 +152,39 @@ test('v3 visual roles render with the approved metrics and print behavior', asyn
   await expect(badge).toHaveCSS('border-radius', '6px');
   expect((await badge.boundingBox()).height).toBeGreaterThanOrEqual(20);
 
+  await page.setViewportSize({ width: 980, height: 844 });
+  await page.goto('/custom/mjlfinancement/projects.php');
+  const interactiveRow = page.locator('.mjl-operational-table tbody tr.mjl-row-interactive').first();
+  await expect(interactiveRow).toBeVisible();
+  expect(await interactiveRow.evaluate((node) => ({
+    role: node.getAttribute('role'),
+    tabindex: node.getAttribute('tabindex'),
+    onclick: node.getAttribute('onclick'),
+  }))).toEqual({ role: null, tabindex: null, onclick: null });
+  const interactiveStatusCell = interactiveRow.locator('td[data-label="Statut"]');
+  expect((await interactiveStatusCell.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  const openProject = interactiveRow.getByRole('link', { name: 'Ouvrir', exact: true });
+  await openProject.focus();
+  await expect(openProject).toBeFocused();
+  const projectActions = interactiveRow.locator('.mjl-table-action-menu > summary');
+  await projectActions.focus();
+  await expect(projectActions).toBeFocused();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect((await interactiveStatusCell.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await page.setViewportSize({ width: 980, height: 844 });
+
   await page.goto('/custom/mjlfinancement/activities.php');
-  const dataCell = page.locator('.mjl-operational-table tbody tr').first().locator('td').first();
+  const dataCell = page.locator('.mjl-operational-table tbody tr').first().locator('td[data-label="Statut"]');
   expect((await dataCell.boundingBox()).height).toBeGreaterThanOrEqual(40);
 
+  await login(page, 'agent.mjl');
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
+  const activityControl = page.locator('.mjl-activity-form input:not([type="hidden"]), .mjl-activity-form select').first();
+  await expect(activityControl).toBeVisible();
+  expect((await activityControl.boundingBox()).height).toBeGreaterThanOrEqual(40);
+
+  await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/documents.php');
   const nativeButton = page.locator('.mjl-module-shell .button').first();
   expect((await nativeButton.boundingBox()).height).toBeGreaterThanOrEqual(40);

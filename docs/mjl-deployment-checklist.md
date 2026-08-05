@@ -34,6 +34,10 @@ Target decisions come from `docs/mjl-authoritative-decisions.md`.
 - If production policy forbids these origins, provide an approved local Inter
   pipeline before release. Browser fallback remains functional but does not
   replace this operator decision.
+- Confirm the reverse proxy preserves `Referrer-Policy: same-origin` on login,
+  invitation, password-reset, and MJL browser documents. A missing or weaker
+  policy blocks release because application paths or query tokens could become
+  cross-origin referrers.
 - Configure public/base URL for invitation and password-reset links.
 - Configure production email transport before sending real invitations.
 - Configure `DOL_DATA_ROOT` and ECM storage on persistent storage.

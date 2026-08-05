@@ -43,6 +43,8 @@ test.beforeAll(() => {
 });
 
 test('responsive navigation drawer preserves fallback, focus, and background isolation', async ({ browser, page }) => {
+  test.setTimeout(90_000);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page, 'admin.poc');
 

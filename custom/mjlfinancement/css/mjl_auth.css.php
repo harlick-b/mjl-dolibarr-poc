@@ -37,7 +37,7 @@ header('Content-Type: text/css; charset=UTF-8');
 	font-size: 24px;
 	font-weight: 700;
 	letter-spacing: 0;
-	line-height: 1.2;
+	line-height: 2rem;
 	margin: 0 0 8px;
 }
 

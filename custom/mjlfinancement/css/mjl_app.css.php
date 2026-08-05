@@ -1427,6 +1427,12 @@ a.tmenu[href^="/api/"] {
 		text-align: left !important;
 	}
 
+	.mjl-operational-table tr.mjl-row-interactive > td {
+		min-height: var(--mjl-row-interactive);
+		padding-bottom: 10px;
+		padding-top: 10px;
+	}
+
 	.mjl-operational-table td::before {
 		color: var(--mjl-color-text-muted);
 		content: attr(data-label);
