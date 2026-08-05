@@ -179,6 +179,41 @@ CSV must remain:
 
 Every export should be audited.
 
+## Development Sequence
+
+The historical post-Phase-3D Phase 4 is recorded as:
+
+```text
+IMPLEMENTED_WITH_MANUAL_VALIDATION_DEFERRED
+```
+
+Its authentication, communication, responsive, and automated accessibility
+work is implemented and locally verified. The signed keyboard, screen-reader,
+reflow, and real-browser-zoom exercise is intentionally deferred. This status
+does not claim WCAG conformance.
+
+The historical Phase 5 production and operator requirements are deferred until
+the user explicitly reactivates release-readiness work. They remain documented
+but are not completion gates for the current development milestone. No
+production-readiness claim follows from this deferral.
+
+The next functional development milestone is:
+
+```text
+V1_FUNCTIONAL_RULES_AND_PILOT_VALIDATION
+```
+
+Its priorities are, in order:
+
+1. confirm and implement the final role/route/action permission matrix;
+2. confirm budget controls and mandatory supporting-document rules;
+3. confirm priority dashboard KPIs and CSV/XLSX report definitions;
+4. validate the complete project-to-expense journeys with representative pilot
+   data and correct the resulting functional defects.
+
+Production infrastructure, deployment rehearsal, backup/restore, monitoring,
+and operator configuration are outside this milestone.
+
 ## Deleted Or Merged Documentation Rule
 
 Executed plans, duplicate generated prompts, stale POC docs, and older

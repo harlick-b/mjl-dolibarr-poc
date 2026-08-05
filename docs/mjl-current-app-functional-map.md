@@ -450,3 +450,18 @@ Key scripts currently present include:
   in tenant `mjl-test-20260805t124037-61357-2c67e47b` in 176.0 seconds. Both
   tenants were fully removed; the readiness verdict remains
   `BLOCKED_PENDING_CLIENT_AND_OPERATOR_CONFIRMATION`.
+
+## Current Development Sequence
+
+- Historical Phase 4 is
+  `IMPLEMENTED_WITH_MANUAL_VALIDATION_DEFERRED`. Authentication,
+  communication, responsive behavior, and automated accessibility contracts
+  are implemented; the signed human accessibility matrix remains deferred and
+  no WCAG claim is made.
+- Historical Phase 5 production/operator readiness is deferred and is not a
+  gate for current feature development. Existing diagnostics remain available
+  for the future release-readiness phase.
+- The active next milestone is `V1_FUNCTIONAL_RULES_AND_PILOT_VALIDATION`:
+  close the permission matrix, budget/document rules, priority KPI/report
+  definitions, and representative end-to-end pilot journeys. Production
+  infrastructure work is excluded.

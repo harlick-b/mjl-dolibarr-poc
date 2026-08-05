@@ -8,10 +8,10 @@ const root = path.resolve(__dirname, '../..');
 const approvedRoot = 'docs/design-system/approved/v3';
 const validationReport = `${approvedRoot}/docs/design/design-validation-report.md`;
 const protectedIndexBlobs = new Map([
-  [`${approvedRoot}/DESIGN.md`, '54a8a790fd4c5a7b09b2dbc731e851792d1150a2'],
+  [`${approvedRoot}/DESIGN.md`, '38e3f8012c82f0222b5df9ea159790827b73122b'],
   [`${approvedRoot}/MANUAL-REVIEW.md`, '89f46c3890e7d9156cec275ceb414fa0ff01329a'],
   [`${approvedRoot}/PRODUCT.md`, 'ec570fc01a1c04dced67571ba251f8f7bcdb2046'],
-  [`${approvedRoot}/design-manifest.yaml`, 'd8bba8fcad4b672aa168ed33085f10394079a0f1'],
+  [`${approvedRoot}/design-manifest.yaml`, 'c24c97c60ccd2eca9d43482664b52465af7cdbb7'],
   [`${approvedRoot}/design-tokens/README.md`, '4dfa681c8909f3d5a9fb93478cc6f9acf4e00a00'],
   [`${approvedRoot}/design-tokens/semantic-tokens.json`, 'fca1235bbbeb93d4560c9636c7ab7c1923adc4a3'],
   [`${approvedRoot}/design-tokens/tokens.json`, '51b80342a1bf2f5a589fd463799121f32ca82c45'],
@@ -51,11 +51,12 @@ function gitBlobOid(content) {
   return crypto.createHash('sha1').update(header).update(content).digest('hex');
 }
 
-test('active v3 governance freezes normative artifacts and keeps evidence append-only', () => {
+test('active v3 governance records explicit amendments and keeps evidence append-only', () => {
   const readme = read('docs/design-system/README.md');
 
-  assert.match(readme, /normative v3 artifacts are immutable/i);
-  assert.match(readme, /material design changes require a validated v4/i);
+  assert.match(readme, /normative v3 artifacts are stable by default/i);
+  assert.match(readme, /may be amended in place\s+only under explicit user authorization/i);
+  assert.match(readme, /A new\s+design generation is not mandatory/i);
   assert.match(readme, /runtime\s+CSS and tests remain code-owned/i);
   assert.match(readme, /validation report is the sole append-only exception/i);
   assert.match(readme, /prior results (?:must not|may never) be\s+rewritten or deleted/i);

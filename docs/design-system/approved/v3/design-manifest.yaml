@@ -57,7 +57,7 @@ font:
   weights: [400, 500, 600, 700]
   source: https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap
   fallback: [Arial, Helvetica, sans-serif]
-  policy: local-first-with-approved-central-cdn-fallback
+  policy: approved-cdn-with-system-fallback
 provenance:
   rights: repository-owned refinement of the approved MJL design direction
   anti_cloning: no external design-system namespace or token bundle copied

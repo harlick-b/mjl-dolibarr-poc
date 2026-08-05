@@ -4,6 +4,14 @@ This plan defines how production readiness is evaluated. Target decisions come
 from `docs/mjl-authoritative-decisions.md`; current implementation evidence
 comes from `docs/mjl-current-app-functional-map.md`.
 
+## Current Scheduling Status
+
+Historical Phase 5 production and operator work is `DEFERRED`. The requirements
+in this document are retained for future release-readiness work, but they are
+not completion gates for `V1_FUNCTIONAL_RULES_AND_PILOT_VALIDATION`. Deferral
+does not convert an unknown or blocked control into a pass and does not
+authorize production deployment.
+
 ## Readiness Rule
 
 A feature is production-ready only when route guards, direct POST guards, data
@@ -55,6 +63,7 @@ Unavailable commands must be reported explicitly.
 
 ## Current Readiness Summary
 
+- `schedule`: deferred until explicitly reactivated.
 - `ready`: no full production release claim yet.
 - `partial`: workspace, role/scope foundation, activities, expenses,
   disbursement, guarded documents, dashboards, reports, exports, invitations,

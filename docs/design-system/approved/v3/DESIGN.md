@@ -37,6 +37,14 @@ two-color focus treatment on dark or accent surfaces. Reduced-motion and
 forced-colors preferences remain functional. Meaning is never communicated by
 color alone.
 
+DS3-008 applicability matrix:
+
+- visible keyboard focus applies to every interactive control;
+- hover applies only when the browser reports hover capability;
+- active applies to links, buttons, and other activatable controls;
+- disabled applies only to controls that support a disabled state;
+- unavailable or unauthorized links are omitted instead of rendered disabled.
+
 Report printing hides navigation and transient controls while retaining
 headings, status, audit history, and tabular evidence. Email and server export
 outputs have no CDN dependency.
