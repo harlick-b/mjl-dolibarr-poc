@@ -161,7 +161,7 @@ test('Data-entry agent creates, opens, submits, and sees timeline updates', asyn
   await expect(page.getByRole('heading', { name: /ACTW-UI-CREATE/ })).toBeVisible();
   await expect(page.getByText('Brouillon').first()).toBeVisible();
   await expect(page.getByText('25% - Partiellement exécutée')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Historique de decision' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Historique de décision' })).toBeVisible();
   await expect(page.getByText('Activité créée', { exact: true })).toBeVisible();
 
   await page.getByLabel('Commentaire de soumission').fill('Soumission Activity workflow');
@@ -204,7 +204,7 @@ test('JavaScript-disabled create recovers a server-invalid date relationship wit
     await page.locator('input[name="date_end"]').fill('2026-08-19');
     await page.getByRole('button', { name: 'Créer l’activité' }).click();
     await expect(page).toHaveURL(/activities\.php\?action=create&mjl_recovery=/);
-	await expect(page.locator('#mjl-field-date_end-error')).toHaveText('La date de fin doit être postérieure ou égale à la date de début.');
+    await expect(page.locator('#mjl-field-date_end-error')).toHaveText('La date de fin doit être postérieure ou égale à la date de début.');
     await expect(page.locator('input[name="ref"]')).toHaveValue('ACTW-NOJS-DATE');
     await expect(page.locator('form[data-mjl-form="activity-create"]')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/Ajoutéz|Depensé/);

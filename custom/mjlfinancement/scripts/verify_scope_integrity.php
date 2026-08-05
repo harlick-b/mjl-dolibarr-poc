@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/cli_guard.php';
+
 require_once __DIR__.'/verification/runner.php';
 
 $modules = array(

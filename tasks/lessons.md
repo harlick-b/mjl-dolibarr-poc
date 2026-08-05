@@ -24,6 +24,13 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Production readiness requires current evidence in the readiness matrix,
   deployment checks, and test results; historical pass counts are not current
   verification.
+- Operational diagnostics must reference the maintained current-purpose
+  verifier, not a deleted phase/version-era script. Cover the path statically so
+  readiness checks cannot silently report a false missing-control failure.
+- A CLI operational script under a web-published custom module needs both a
+  server-level route-family deny and an in-script CLI guard. `NOLOGIN` is not a
+  CLI boundary and can turn bootstrap, seed, or diagnostics into anonymous web
+  entrypoints.
 - Validation verdicts must name their evidence boundary. Automated responsive
   checks cannot stand in for a required signed human keyboard/reflow/real
   browser-zoom matrix; keep the verdict pending until that evidence exists.
@@ -85,3 +92,11 @@ debugging discoveries. Do not add one-off observations or generic advice.
   artifact through a ledger, validate the candidate, update all active
   pointers, and remove the retired package so typography and token guidance do
   not remain split across stale authorities.
+- A mounted Apache policy must not assume optional modules are enabled in the
+  Dolibarr image. Validate server startup after every directive change; for a
+  browser referrer boundary, a repository-owned HTML meta policy and per-link
+  `referrerpolicy` can provide defense in depth while the production response
+  header remains an explicit reverse-proxy gate.
+- Role, scope, and account-deactivation changes must persist their access audit
+  inside the same transaction. If audit insertion fails, roll back every
+  authorization mutation and return only a safe user-facing failure.

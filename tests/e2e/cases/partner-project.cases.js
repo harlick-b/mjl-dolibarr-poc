@@ -31,17 +31,6 @@ async function expectAccessDenied(page, path) {
   await expect(page.locator('body')).toContainText(forbiddenResponsePattern);
 }
 
-async function sessionToken(page) {
-  const tokenInput = page.locator('input[name="token"]').first();
-  if (await tokenInput.count()) {
-    const token = await tokenInput.getAttribute('value');
-    if (token) return token;
-  }
-  const metaToken = await page.locator('meta[name="anti-csrf-newtoken"]').getAttribute('content');
-  expect(metaToken).toBeTruthy();
-  return metaToken;
-}
-
 function cleanupProjectScope() {
   sql(`
     SET @project_scope_activities = (SELECT GROUP_CONCAT(rowid) FROM llx_mjlfinancement_activity WHERE ref LIKE 'PRJSC-%');
@@ -156,60 +145,37 @@ test('UNICEF project detail excludes cross-scope related rows and aggregates', a
   await expect(page.locator('body')).not.toContainText('999 999 999');
 });
 
-test('admin sees all partners and final validator can create and edit projects while lower roles cannot', async ({ page }) => {
+test('Admin project mutations are audited and reject direct POST without CSRF', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/partners.php');
   await expect(page.locator('body')).toContainText('UNICEF');
   await expect(page.locator('body')).toContainText('Programme Redevabilité');
 
-  await login(page, 'dpaf.mjl');
   await page.goto('/custom/mjlfinancement/projects.php');
   await page.getByRole('link', { name: 'Créer un projet' }).click();
-  await page.getByLabel('Référence').first().fill('PRJSC-FINAL-PROJ');
-  await page.getByLabel('Intitulé').first().fill('Projet Project scope Final validator');
+  await page.getByLabel('Référence').first().fill('PRJSC-ADMIN-PROJ');
+  await page.getByLabel('Intitulé').first().fill('Projet Project scope Admin');
   await page.locator('select[name="fk_soc"]').first().selectOption(scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1"));
   await page.getByRole('button', { name: 'Créer le projet' }).click();
   await expect(page).toHaveURL(/projects\.php\?id=\d+/);
-  expect(Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'PRJSC-FINAL-PROJ' AND entity = 1 AND fk_soc IS NOT NULL"))).toBe(1);
-  const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJSC-FINAL-PROJ' AND entity = 1 LIMIT 1");
-  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
+  const projectId = scalar("SELECT rowid FROM llx_projet WHERE ref = 'PRJSC-ADMIN-PROJ' AND entity = 1 LIMIT 1");
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' AND actor_role = 'ADMIN_PLATEFORME'`))).toBe(1);
   expect(scalar(`SELECT to_status FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' ORDER BY rowid DESC LIMIT 1`)).toBe('Projet cree');
   expect(scalar(`SELECT comment FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' ORDER BY rowid DESC LIMIT 1`)).toBe('Projet MJL cree');
 
   await page.getByRole('link', { name: 'Modifier le projet' }).click();
-  await page.getByLabel('Intitulé').fill('Projet Project scope Final validator modifie');
+  await page.getByLabel('Intitulé').fill('Projet Project scope Admin modifié');
   await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
   await expect(page).toHaveURL(/projects\.php\?id=\d+/);
-  expect(scalar(`SELECT title FROM llx_projet WHERE rowid = ${projectId}`)).toBe('Projet Project scope Final validator modifie');
-  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'field_changed' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBeGreaterThanOrEqual(1);
+  expect(scalar(`SELECT title FROM llx_projet WHERE rowid = ${projectId}`)).toBe('Projet Project scope Admin modifié');
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'field_changed' AND actor_role = 'ADMIN_PLATEFORME'`))).toBeGreaterThanOrEqual(1);
 
-  await login(page, 'admin.poc');
-  await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await page.getByRole('link', { name: 'Modifier le projet' }).click();
-  await page.getByLabel('Référence').fill('PRJSC-ADMIN-PROJ');
-  await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
-  expect(scalar(`SELECT ref FROM llx_projet WHERE rowid = ${projectId}`)).toBe('PRJSC-ADMIN-PROJ');
-
-  await login(page, 'mjl.project_scope.unicef');
-  await page.goto('/custom/mjlfinancement/projects.php');
-  await expect(page.getByRole('heading', { name: 'Projets', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Créer un projet' })).toHaveCount(0);
-  const before = Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'PRJSC-FORBIDDEN' AND entity = 1"));
-  const token = await sessionToken(page);
+  const before = Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'PRJSC-NO-CSRF' AND entity = 1"));
   const response = await page.request.post('/custom/mjlfinancement/projects.php', {
-    form: { token, action: 'create', ref: 'PRJSC-FORBIDDEN', title: 'Projet interdit', fk_soc: scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1") },
+    form: { action: 'create', ref: 'PRJSC-NO-CSRF', title: 'Projet sans jeton', fk_soc: scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1") },
   });
-  expect(await response.text()).toMatch(forbiddenResponsePattern);
-  expect(Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'PRJSC-FORBIDDEN' AND entity = 1"))).toBe(before);
-
-  await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await expect(page.getByRole('link', { name: 'Modifier le projet' })).toHaveCount(0);
-  const editToken = await sessionToken(page);
-  const editResponse = await page.request.post(`/custom/mjlfinancement/projects.php?id=${projectId}`, {
-    form: { token: editToken, action: 'update', id: projectId, ref: 'PRJSC-FORBIDDEN-EDIT', title: 'Projet modification interdite', fk_soc: scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1") },
-  });
-  expect(await editResponse.text()).toMatch(forbiddenResponsePattern);
-  expect(scalar(`SELECT ref FROM llx_projet WHERE rowid = ${projectId}`)).toBe('PRJSC-ADMIN-PROJ');
+  expect(response.status()).toBeGreaterThanOrEqual(400);
+  expect(Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'PRJSC-NO-CSRF' AND entity = 1"))).toBe(before);
 });
 
 test('public registration remains absent', async ({ page }) => {

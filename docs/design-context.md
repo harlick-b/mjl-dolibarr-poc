@@ -41,10 +41,9 @@ permissions, business rules, or claims of runtime conformance.
   alerts, reporting, and audit history.
 - Product category: Institutional public-finance project monitoring and
   administrative workflow application.
-- Product stage: The target product is a production-ready workspace, not a POC
-  or MVP. Current runtime, deployment, and client-acceptance evidence remains
-  incomplete, so this context does not claim that a specific tenant is ready
-  for production release.
+- Product stage: The target product has a production-quality target, not a POC
+  or MVP. Deployment readiness is not established; runtime, deployment, and
+  client-acceptance evidence remains incomplete.
 - Organizational context: Ministry of Justice and Legislation, with
   Partenaires / Programmes such as UNICEF and Programme Redevabilite.
 - Primary objectives: Make scoped project execution and financing traceable;

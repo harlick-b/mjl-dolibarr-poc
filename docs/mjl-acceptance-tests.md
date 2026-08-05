@@ -11,14 +11,16 @@ npm run test:verify
 npm run test:e2e
 npm run test:characterization
 npm run test:manual-accessibility
+npm run audit:production-readiness
 ```
 
 - `npm test` provisions one disposable tenant, runs unit contracts, current container verification, and blocking Chromium capability suites, then removes the tenant.
 - `npm run test:unit` runs fast Node and PHP contracts without Docker.
 - `npm run test:verify` runs the current schema, sample-data, scope/integrity, activity, expense, traceability/export, and dashboard-resilience checks in one disposable tenant.
-- `npm run test:e2e` runs the eleven blocking capability suites in one disposable tenant.
-- `npm run test:characterization` runs current finance security/data-integrity behavior that still lacks product authority. It is intentionally excluded from `npm test`, but exits nonzero on drift.
-- `npm run test:manual-accessibility` opens the real application in headed Chromium for keyboard, focus, reflow, and actual 100%/200% browser-zoom review.
+- `npm run test:e2e` runs the twelve blocking capability suites in one disposable tenant.
+- `npm run test:characterization` runs current finance behavior (C1) and pending role-to-route/project/export admissions (C2) that still lack product authority. It is intentionally excluded from `npm test`, but exits nonzero on drift.
+- `npm run test:manual-accessibility` opens the real application in headed Chromium for a signed keyboard, focus, forms/workflow, screen-reader, reflow, and actual 100%/200% browser-zoom review.
+- `npm run audit:production-readiness` runs the non-blocking local readiness diagnostic in its own disposable tenant. It is intentionally excluded from `npm test` and prints an explicit blocked verdict while client/operator confirmations remain unknown.
 
 ## Disposable tenant contract
 
@@ -56,7 +58,7 @@ scope entrypoints accept only runner-supplied allowlisted module names so each
 legacy check executes in a separate PHP process without exposing historical
 versioned commands.
 
-`check_production_readiness.php` remains an operational diagnostic, not a test gate. It may report deployment-dependent `UNKNOWN` values for production email, public URL, secrets, backup/restore, monitoring, and retention.
+`check_production_readiness.php` remains an operational diagnostic, not a test gate. It reports client/operator-dependent `UNKNOWN` values for the final permission matrix, official outputs and content, production email, public URL, secrets, document storage, backup/restore, monitoring, and retention. Operational scripts are CLI-only and the Apache boundary denies their complete HTTP route family.
 
 ## Blocking capability coverage
 
@@ -77,7 +79,8 @@ versioned commands.
   containment, safe destinations, and role separation.
 - `reports-exports.spec.js`: access, filters/tampering, CSV/XLSX formats, stable filenames, safe cells, and export auditing.
 - `email-notifications.spec.js`: functional invitation/reset/workflow links and recipients without freezing unapproved production wording.
+- `screen-inventory.spec.js`: all sixteen active application screens, exact document titles and headings, one semantic main landmark, safe rendering, read-only global Documents, guarded downloads, protected advanced routes, hidden roadmap, absent public registration, and denied operational-script URLs.
 
 ## Manual evidence
 
-The headed accessibility command is intentionally interactive. Record completion or blockers for keyboard order, visible focus, real 100% and 200% zoom, horizontal overflow, form/error usability, navigation, and non-color state meaning. Automated viewport emulation is not accepted as proof of real browser zoom.
+The headed accessibility command is intentionally interactive. It requires `MJL_MANUAL_ACCESSIBILITY_REVIEWER`, `MJL_MANUAL_ACCESSIBILITY_ASSISTIVE_TECH`, non-empty `MJL_MANUAL_ACCESSIBILITY_NOTES`, and `MJL_MANUAL_ACCESSIBILITY_VERDICT=pass|fail`. Record keyboard order, visible focus, representative screen-reader output, real 100% and 200% zoom at 390/768/980/1024/1366, horizontal overflow, form/error recovery, workflow states, navigation, and non-color meaning. Each of the 90 resumed combinations records its geometry, focus, notes, reviewer and result in the signed evidence. Automated viewport emulation is not accepted as proof of real browser zoom, and an unsigned run cannot emit a passing evidence status.

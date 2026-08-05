@@ -62,6 +62,7 @@ function getSuitePlan(mode) {
     e2e: ['e2e'],
     characterization: ['characterization'],
     'manual-accessibility': ['manual-accessibility'],
+    'production-readiness': ['production-readiness'],
   };
   if (!Object.hasOwn(plans, mode)) {
     throw new Error(`Unknown test mode: ${mode}`);

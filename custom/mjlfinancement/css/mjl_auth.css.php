@@ -132,10 +132,20 @@ header('Content-Type: text/css; charset=UTF-8');
 		background: #123f62;
 		border-color: #123f62;
 	}
+
+	.mjl-auth-link:hover {
+		color: #16324f;
+		text-decoration-thickness: 2px;
+	}
 }
 
 .mjl-auth-button:active {
 	box-shadow: inset 0 1px 2px rgba(22, 50, 79, 0.3);
+}
+
+.mjl-auth-link:active {
+	color: #16324f;
+	text-decoration-thickness: 2px;
 }
 
 .mjl-auth-page :where(button, input, select, textarea):disabled,

@@ -14,6 +14,7 @@ module.exports = defineConfig({
     'dashboards-alerts.spec.js',
     'reports-exports.spec.js',
     'email-notifications.spec.js',
+    'screen-inventory.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',

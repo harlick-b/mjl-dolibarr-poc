@@ -358,3 +358,95 @@ Key scripts currently present include:
 - This is affected-surface implementation evidence only. Client copy review,
   headed manual accessibility evidence, final production/security/design
   audits, and the Phase 3D integration verdict remain Phase 3D.4 work.
+
+## Phase 3D.4 Integration State
+
+- `screen-inventory.spec.js` adds a maintained whole-inventory regression for
+  sixteen application screens and the invitation, registration, download,
+  roadmap, and operational-script helper routes. It verifies exact titles/H1,
+  one semantic main landmark, shell rendering, diagnostic-free failure,
+  authenticated no-role denial, read-only global Documents, guarded download
+  behavior, hidden roadmap, and absent public registration. Pending exact
+  advanced-route admissions are recorded by characterization C2.
+- The manual accessibility gate covers auth, dashboard, list, form, workflow,
+  Documents, alerts, reports, and administration. It requires reviewer identity,
+  assistive technology, non-empty notes, an explicit pass/fail verdict, and a
+  recorded result for every one of the 90 Chromium 100%/200% combinations at
+  390/768/980/1024/1366. No signed human run is recorded.
+- `npm run audit:production-readiness` provisions a separate disposable tenant
+  and remains outside `npm test`. Its 2026-08-04 run used tenant
+  `mjl-test-20260804t162654-974592-2c4d483c`, URL
+  `http://127.0.0.1:36275`, passed 11 local controls, retained 9 client/operator
+  confirmations as `UNKNOWN`, printed
+  `BLOCKED_PENDING_CLIENT_AND_OPERATOR_CONFIRMATION`, and completed cleanup in
+  151.9 seconds.
+- Independent audits found one high-risk HTTP exposure of operational scripts.
+  The Apache configuration now denies the whole route family, every operational
+  entrypoint requires a shared CLI-only guard, and anonymous browser coverage
+  proves the diagnostic cannot disclose readiness state. No high-risk audit
+  finding remains open after remediation.
+- The affected browser run passed 113/113 in tenant
+  `mjl-test-20260804t162004-941966-e614149e` on port 46207 in 399.2 seconds. The
+  separate finance characterization run passed 21/21 in tenant
+  `mjl-test-20260804t162933-982937-3ed3dd46` on port 44551 in 208.4 seconds.
+  Every tenant removed its containers, network, database volume, and document
+  volume.
+- Historical v2 `FACT-001` remains recoverable in Git history; the active
+  current-purpose unresolved-scope verifier is green and reconciles that old
+  failure as locally remediated evidence.
+- Phase 3D.4 implementation and automated local integration are complete only
+  at the evidence boundary above. Whole-phase closure remains
+  `BLOCKED_PENDING_MANUAL_ACCESSIBILITY`, `BLOCKED_PENDING_CLIENT_REVIEW`, and
+  `BLOCKED_PENDING_CLIENT_AND_OPERATOR_CONFIRMATION`; no production-readiness or
+  WCAG claim is made.
+
+### Phase 3D.4 execution ledger
+
+- TDD contracts were observed red then green for the disposable
+  `production-readiness` mode (`node --test tests/unit/disposable-run.test.js`),
+  the maintained verifier path (`node --test
+  tests/unit/verification-entrypoints.test.js`), and the HTTP/CLI operational
+  boundary (`node --test tests/unit/verification-entrypoints.test.js
+  tests/unit/operational-script-boundary.test.js`).
+- The first inventory E2E run isolated an over-broad finance-route status
+  assertion: 112 passed/1 failed in tenant
+  `mjl-test-20260804t154726-812187-cec6f5b0`, port 42771, 408.2 seconds. The
+  first full rerun then isolated Dolibarr's safe-denial HTTP-200 convention on
+  supervision: 112 passed/1 failed in tenant
+  `mjl-test-20260804t160232-866111-6d04c7ea`, port 34029, 374.5 seconds. The
+  contracts were corrected to assert denied content and no diagnostic; both
+  tenants were fully removed.
+- The first readiness run found the obsolete deleted verifier path and exited
+  nonzero in tenant `mjl-test-20260804t155549-846937-c544a1eb`, port 34155,
+  162.1 seconds. A corrected interim run passed 10 local checks with 5 expected
+  external unknowns in tenant `mjl-test-20260804t155914-856606-340b3c9e`, port
+  39773, 183.1 seconds. The final enriched diagnostic evidence is the 11-OK,
+  9-UNKNOWN run recorded above. Every run completed resource cleanup.
+- Before the audit remediations, `npm test` passed 17 Node contracts, 7 PHP
+  contracts, all container verification, and 113/113 browsers in tenant
+  `mjl-test-20260804t160938-900418-cf07d4e7`, port 40729, 431.4 seconds, with
+  complete cleanup. This remains recorded as pre-audit evidence only.
+- The final post-audit `npm test` passed 20/20 Node contracts, 7/7 PHP
+  contracts, all current container checks, and 116/116 browser cases in tenant
+  `mjl-test-20260804t165458-1076689-96f5f821`, URL
+  `http://127.0.0.1:46729`, in 601.3 seconds. The browser total includes the
+  strengthened route-by-route inventory with a seeded/cleaned entity-2 marker
+  and two concurrent v3 font-resource checks outside 3D.4. Containers, network,
+  database volume, and document volume were all removed.
+- `git diff --check 07013f8` passed. `php -l` passed on every PHP file added or
+  modified since `07013f8`, including `cli_guard.php`. The affected browser,
+  characterization, and readiness commands/results are recorded above.
+- `npm run test:manual-accessibility` was not executed because no human reviewer
+  identity, assistive technology, signed verdict, or interactive headed-browser
+  session was available. This is a required skipped control, not a pass.
+- The final strengthened-remediation `npm test` passed 31/31 Node contracts,
+  7/7 PHP contracts, every current container check, and 114/114 blocking browser
+  cases in tenant `mjl-test-20260805t124354-71091-ed08d24c`, URL
+  `http://127.0.0.1:36037`, in 475.0 seconds. The tenant's containers, network,
+  database volume, and document volume were removed.
+- Final C1/C2 characterization passed 28/28 in tenant
+  `mjl-test-20260805t123629-44505-8ff6b050` in 238.1 seconds. Final production
+  readiness passed 11 local controls and retained 9 confirmations as `UNKNOWN`
+  in tenant `mjl-test-20260805t124037-61357-2c67e47b` in 176.0 seconds. Both
+  tenants were fully removed; the readiness verdict remains
+  `BLOCKED_PENDING_CLIENT_AND_OPERATOR_CONFIRMATION`.

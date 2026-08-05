@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/cli_guard.php';
+
 define('NOLOGIN', 1);
 
 require '/var/www/html/main.inc.php';

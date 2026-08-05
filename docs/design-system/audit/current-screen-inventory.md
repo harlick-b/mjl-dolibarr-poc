@@ -12,7 +12,7 @@ coverage.
 | Screen | Route/path | Current purpose | Access notes | Current-state caveat |
 | --- | --- | --- | --- | --- |
 | Workspace dashboard | `/custom/mjlfinancement/index.php` | Role-aware enriched cards with definition/scope/period/freshness/destination metadata, local source-unavailable states, scoped filters, alerts context, and Admin-only unresolved-data diagnostics. | Any user who can enter the MJL workspace; server queries retain role/entity/scope guards. | Fixture and compatibility identifiers still contain POC-era vocabulary. |
-| Partenaires / Programmes | `/custom/mjlfinancement/partners.php` | Partner/programme list/detail and related data. | Scoped by MJL helpers. | Needs current browser verification. |
+| Partenaires / Programmes | `/custom/mjlfinancement/partners.php` | Partner/programme list/detail and related data. | Scoped by MJL helpers. | Inventory rendering is browser-verified; deeper role journeys remain in capability suites. |
 | Projects | `/custom/mjlfinancement/projects.php` | Project list/detail, dedicated create/edit states, shared scoped filters/pagination and list states, responsive operational cards, related MJL objects, notes. | Create/edit actions are caller-authorized; direct presentation routes, POST actions, project objects, recovery state, filters, and partner options retain MJL permission/entity/scope guards. | Dense related-detail tables remain outside the responsive operational-list treatment. |
 | Activities | `/custom/mjlfinancement/activities.php` | Activity lifecycle, dedicated create/edit/execution/contextual-upload states, shared scoped filters/pagination, responsive operational list, guarded review-decision states, documents, and timeline. | Direct create/edit/execution, upload, and review-state routes recheck write/read access, active entity, scope, role, ownership, and current workflow state before loading options, consuming recovery, or exposing fields; POST guards remain authoritative. | Short submission/correction comments remain contextual on detail by design. |
 | Expenses | `/custom/mjlfinancement/expenses.php` | Expense lifecycle, dedicated create/edit/contextual-upload states, shared scoped filters/pagination and list states, responsive operational cards, evidence, and review/final-validation/disbursement states. | Direct create/edit/upload and decision-state routes recheck write/read access, active entity, scope, ownership, role, actor separation, and current workflow state before loading options, consuming recovery, or exposing fields; POST guards remain authoritative. | Short submission/correction comments remain contextual on detail by design. |
@@ -43,3 +43,51 @@ coverage.
   upload states.
 - Finance guards run before fields, options, or exact recovery. Uploads and
   convention deletion remain nonrecoverable; mutations remain POST-only.
+
+## Phase 3D.4 integration evidence
+
+The maintained browser inventory covers every one of the sixteen active
+application screens plus invitation, registration, document-download, roadmap,
+and operational-script helper routes. Each application route asserts its exact
+document title and H1, a unique visible `main` landmark, the MJL shell, safe
+rendering without raw diagnostics, and Admin access. Separate assertions cover
+an authenticated user with no MJL role, global Documents read-only behavior,
+guarded downloads, hidden roadmap, absent public registration, and HTTP denial
+of the entire operational-script family. Exact advanced-route admissions stay
+in non-blocking characterization C2 pending the client permission matrix.
+
+The affected browser run passed 113/113 cases in tenant
+`mjl-test-20260804t162004-941966-e614149e` on
+`http://127.0.0.1:46207` in 399.2 seconds; containers, network, and named volumes
+were removed. Finance behavior without final authority remains isolated in
+characterization and passed 21/21 in separate tenant
+`mjl-test-20260804t162933-982937-3ed3dd46` on port 44551 in 208.4 seconds,
+including bootstrap and cleanup.
+
+After audit review, the inventory added route-by-route Agent checks for the
+dashboard plus six displayed business routes using positive assigned markers,
+same-entity out-of-scope markers, and equivalent entity-2 markers assigned to
+the same Agent. It does not freeze the pending role-to-advanced-route matrix;
+C2 records those current admissions. The fixture is removed in suite teardown.
+The then-current intermediate run passed 116/116
+browser cases in tenant `mjl-test-20260804t165458-1076689-96f5f821` on port
+46729; the total includes
+two concurrent v3 font-resource checks outside 3D.4. Runner duration was 601.3
+seconds including 20 Node contracts, 7 PHP contracts, full container
+verification, and complete resource cleanup.
+
+The manual gate now names auth, dashboard, list, form, workflow, Documents,
+alerts, reports, and administration archetypes and requires reviewer identity,
+assistive technology, explicit verdict, and real Chromium 100%/200% evidence at
+390/768/980/1024/1366. Every one of the 90 combinations must record its result,
+geometry, visible-focus observation, reviewer, and non-empty notes. It remains
+unsigned, so the integration verdict is
+`BLOCKED_PENDING_MANUAL_ACCESSIBILITY` and does not claim WCAG conformance.
+
+The final strengthened-remediation `npm test` passed 31/31 Node contracts,
+7/7 PHP contracts, the complete container-verification layer, and 114/114
+blocking browser cases. It ran in tenant
+`mjl-test-20260805t124354-71091-ed08d24c` on port 36037 for 475.0 seconds and
+removed its containers, network, database volume, and document volume. The
+separate final C1/C2 characterization passed 28/28 in tenant
+`mjl-test-20260805t123629-44505-8ff6b050`; that tenant was also removed.

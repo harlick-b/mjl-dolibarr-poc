@@ -23,10 +23,10 @@ top_htmlhead('', 'Réinitialiser le mot de passe', 0, 0, array(), array('/custom
 	</div>
 
 	<?php if ($status !== 'valid') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Ce lien de réinitialisation est invalide ou expiré. Veuillez refaire une demande.</div>
+		<div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive">Ce lien de réinitialisation est invalide ou expiré. Veuillez refaire une demande.</div>
 		<div class="mjl-auth-actions"><a class="mjl-auth-button" href="<?php print DOL_URL_ROOT; ?>/user/passwordforgotten.php">Demander un nouveau lien</a></div>
 	<?php } else { ?>
-		<?php if ($error !== '') { ?><div class="mjl-auth-message mjl-auth-error"><?php print dol_escape_htmltag($error); ?></div><?php } ?>
+		<?php if ($error !== '') { ?><div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive"><?php print dol_escape_htmltag($error); ?></div><?php } ?>
 		<form id="mjl-password-reset" method="post" action="<?php print DOL_URL_ROOT; ?>/user/passwordforgotten.php">
 			<input type="hidden" name="token" value="<?php print newToken(); ?>">
 			<input type="hidden" name="action" value="mjl_validate_password_reset">

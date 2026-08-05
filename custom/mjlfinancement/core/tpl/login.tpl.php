@@ -20,11 +20,11 @@ top_htmlhead('', 'Connexion @ '.$titletruedolibarrversion, 0, 0, array('/core/js
 <main class="mjl-auth-panel" aria-labelledby="mjl-login-title">
 	<div class="mjl-auth-brand">
 		<h1 id="mjl-login-title">MJL Financement</h1>
-		<p>Espace de suivi administratif et financier des projets a financement externe.</p>
+		<p>Espace de suivi administratif et financier des projets à financement externe.</p>
 	</div>
 
 	<?php if (!empty($dol_loginmesg)) { ?>
-		<div class="mjl-auth-message mjl-auth-error"><?php print dol_escape_htmltag(strip_tags($dol_loginmesg)); ?></div>
+		<div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive"><?php print dol_escape_htmltag(strip_tags($dol_loginmesg)); ?></div>
 	<?php } ?>
 
 	<form id="login" name="login" method="post" action="<?php print $php_self; ?>">

@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/cli_guard.php';
+
 define('NOLOGIN', 1);
 
 require '/var/www/html/main.inc.php';
@@ -16,15 +18,22 @@ check('access_scope_table_present', tableExists('mjlfinancement_user_soc_scope')
 check('workflow_audit_table_present', tableExists('mjlfinancement_workflow_action'), 'Workflow audit table exists.');
 check('report_table_present', tableExists('mjlfinancement_report'), 'Report registry table exists for export audit anchors.');
 check('document_route_present', file_exists(DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/documentdownload.php'), 'Guarded document download route exists.');
-check('unresolved_scope_script_present', file_exists(DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/audit_unresolved_scope.php'), 'Unresolved scope audit script exists.');
+check('current_scope_verifier_present', file_exists(DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/verify_scope_integrity.php'), 'Current scope and unresolved-data verifier exists.');
 check('csv_export_helper_present', file_exists(DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_csv_export.lib.php'), 'CSV export helper exists.');
 check('xlsx_export_helper_present', file_exists(DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_xlsx_export.lib.php'), 'XLSX export helper exists.');
+check('e2e_token_exposure_disabled', empty($conf->global->MJL_AUTH_E2E_EXPOSE_TOKENS), 'E2E invitation and reset token exposure is disabled.');
 
+unknown('final_permission_matrix', 'Requires client approval and deployment operator confirmation.');
+unknown('official_output_templates', 'Requires client approval of official CSV/XLSX templates and labels.');
+unknown('client_content_approval', 'Requires client approval of unprotected labels, emails, and official outputs.');
 unknown('production_email_transport', 'Requires deployment operator confirmation.');
 unknown('public_base_url', 'Requires deployment operator confirmation.');
 unknown('production_secrets', 'Requires deployment operator confirmation.');
+unknown('production_document_storage', 'Requires deployment operator confirmation of private ECM storage and permissions.');
 unknown('backup_restore_procedure', 'Requires deployment operator confirmation.');
 unknown('monitoring_and_log_retention', 'Requires deployment operator confirmation.');
+
+out('VERDICT BLOCKED_PENDING_CLIENT_AND_OPERATOR_CONFIRMATION');
 
 exit($failed ? 1 : 0);
 

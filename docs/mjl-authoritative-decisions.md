@@ -9,11 +9,13 @@ For MJL implementation work, use this precedence order:
 
 1. Direct user instruction in the current Codex task.
 2. `docs/mjl-authoritative-decisions.md`.
-3. Active implementation prompt or task file for the current phase.
-4. `docs/mjl-current-vs-target-gap-analysis.md`.
-5. `docs/mjl-current-app-functional-map.md` for current-state evidence only.
-6. Existing implementation code.
-7. Older docs, historical prompts, executed plans, or POC notes.
+3. `docs/design-system/approved/v3/` as presentation authority, subordinate
+   to business rules, security, permissions, and workflows in this file.
+4. Active implementation prompt or task file for the current phase.
+5. `docs/mjl-current-vs-target-gap-analysis.md`.
+6. `docs/mjl-current-app-functional-map.md` for current-state evidence only.
+7. Existing implementation code.
+8. Older docs, historical prompts, executed plans, or POC notes.
 
 If an older document conflicts with this file, the older document is
 superseded. If current code conflicts with this file, current code is
@@ -21,8 +23,8 @@ implementation debt, not target behavior.
 
 ## Product Stance
 
-The MJL app is a production-ready custom workspace inside Dolibarr. It is not a
-POC and not an MVP.
+The MJL app is a production-quality target custom workspace inside Dolibarr;
+deployment readiness is not established. It is not a POC and not an MVP.
 
 Dolibarr provides authentication, users/groups/rights, third parties, projects,
 ECM/documents, and export support. MJL custom code provides the workspace,

@@ -89,13 +89,13 @@ if (!$capabilities['admin'] && $capabilities['reviewer']) {
 	}
 	if (mjl_alerts_user_can_read($user)) {
 		$cards[] = array('label' => 'Risques échéance', 'value' => $dashboardMetrics['deadline_risks'], 'available' => $dashboardMetrics['available']['deadline_risks'], 'context' => 'Activités ouvertes à vérifier avant ou après échéance', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Délai', 'tone' => $dashboardMetrics['deadline_risks'] > 0 ? 'warning' : 'neutral');
-		$cards[] = array('label' => 'Alertes actives', 'value' => $alertCount, 'available' => $alertMetric['available'], 'context' => 'Risques et decisions attendues dans la file', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Alertes', 'tone' => $alertCount > 0 ? 'warning' : 'neutral');
+		$cards[] = array('label' => 'Alertes actives', 'value' => $alertCount, 'available' => $alertMetric['available'], 'context' => 'Risques et décisions attendues dans la file', 'href' => '/custom/mjlfinancement/alerts.php', 'action' => 'Ouvrir les alertes', 'status' => 'Alertes', 'tone' => $alertCount > 0 ? 'warning' : 'neutral');
 	}
 	$cards[] = array('label' => 'Exécution physique', 'value' => $dashboardMetrics['physical_execution_percent'].'%', 'available' => $dashboardMetrics['available']['physical_execution_percent'], 'context' => 'Moyenne des activités visibles avec avancement renseigné', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Ouvrir les activités', 'status' => 'Exécution', 'tone' => 'neutral');
 	if (!empty($cards)) {
 		mjl_dashboard_render_card_section(
 			'File de validation',
-			'Identifier rapidement les dossiers a examiner et les risques de delai.',
+			'Identifier rapidement les dossiers à examiner et les risques de délai.',
 			$cards
 		);
 	}

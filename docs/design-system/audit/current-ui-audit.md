@@ -98,3 +98,33 @@ Client approval of non-protected wording, the signed keyboard/reflow/real-zoom
 matrix, final design/security/production-readiness audits, and the complete
 Phase 3D verdict remain deferred to Phase 3D.4. This audit does not claim WCAG
 conformance, production readiness, or whole-Phase-3D completion.
+
+## Phase 3D.4 integration audit
+
+- The active inventory has an exact title/H1/main/shell browser contract for
+  all sixteen application screens, safe contracts for auxiliary routes,
+  route-by-route Agent scope checks on the dashboard plus six displayed
+  business routes, and authenticated no-role denial. Current advanced-route
+  admissions are isolated in characterization C2 pending client authority.
+- Security and production audits found a high-risk web exposure of operational
+  scripts. It was corrected with an Apache family deny, a shared CLI-only
+  defense on every operational entrypoint, and anonymous HTTP regression.
+- Formal-French residuals on dashboard, activity/expense timelines, and access
+  scope summaries were corrected. Non-protected labels, emails, and CSV/XLSX
+  output still require client approval: `BLOCKED_PENDING_CLIENT_REVIEW`.
+- The signed accessibility harness now includes auth, dashboard, list, form,
+  workflow, Documents, alert, report, and administration archetypes plus
+  representative screen-reader and real-zoom evidence. It requires a recorded
+  result, geometry, visible-focus observation, reviewer, and non-empty notes for
+  all 90 combinations. No reviewer has signed this run:
+  `BLOCKED_PENDING_MANUAL_ACCESSIBILITY`.
+- The final strengthened-remediation run passed the complete local verification
+  layer and 114/114 blocking browser cases in a disposable tenant. Separate
+  characterization passed 28/28. Both tenants and their named resources were
+  removed.
+- The retired v2 `FACT-001` remains recoverable in Git history and is
+  reconciled by the current green unresolved-scope verifier.
+
+Automated design and security evidence has no open high-risk finding after
+remediation. This remains a local integration result, not WCAG conformance or
+production-readiness approval.

@@ -32,21 +32,21 @@ top_htmlhead('', 'Invitation MJL', 0, 0, array(), array('/custom/mjlfinancement/
 	</div>
 
 	<?php if ($done) { ?>
-		<div class="mjl-auth-message">Votre accès est activé. Vous pouvez vous connecter.</div>
+		<div class="mjl-auth-message" role="status" aria-live="polite">Votre accès est activé. Vous pouvez vous connecter.</div>
 		<div class="mjl-auth-actions"><a class="mjl-auth-button" href="<?php print DOL_URL_ROOT; ?>/index.php">Accéder à mon espace</a></div>
 	<?php } elseif ($status === 'expired') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Cette invitation a expiré. Veuillez contacter l’administrateur pour recevoir une nouvelle invitation.</div>
+		<div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive">Cette invitation a expiré. Veuillez contacter l’administrateur pour recevoir une nouvelle invitation.</div>
 	<?php } elseif ($status === 'revoked') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Cette invitation a été révoquée. Veuillez contacter l’administrateur.</div>
+		<div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive">Cette invitation a été révoquée. Veuillez contacter l’administrateur.</div>
 	<?php } elseif ($status === 'send_failed') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Cette invitation n’a pas pu être envoyée. Veuillez contacter l’administrateur.</div>
+		<div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive">Cette invitation n’a pas pu être envoyée. Veuillez contacter l’administrateur.</div>
 	<?php } elseif ($status === 'accepted') { ?>
-		<div class="mjl-auth-message">Cette invitation a déjà été acceptée. Vous pouvez vous connecter.</div>
+		<div class="mjl-auth-message" role="status" aria-live="polite">Cette invitation a déjà été acceptée. Vous pouvez vous connecter.</div>
 		<div class="mjl-auth-actions"><a class="mjl-auth-button" href="<?php print DOL_URL_ROOT; ?>/index.php">Connexion</a></div>
 	<?php } elseif ($status !== 'valid') { ?>
-		<div class="mjl-auth-message mjl-auth-error">Cette invitation est invalide. Veuillez contacter l’administrateur.</div>
+		<div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive">Cette invitation est invalide. Veuillez contacter l’administrateur.</div>
 	<?php } else { ?>
-		<?php if ($error !== '') { ?><div class="mjl-auth-message mjl-auth-error"><?php print dol_escape_htmltag($error); ?></div><?php } ?>
+		<?php if ($error !== '') { ?><div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive"><?php print dol_escape_htmltag($error); ?></div><?php } ?>
 		<form id="mjl-invitation-accept" method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/invitation.php">
 			<input type="hidden" name="token" value="<?php print newToken(); ?>">
 			<input type="hidden" name="action" value="accept">

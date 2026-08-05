@@ -124,7 +124,14 @@ test('v3 visual roles render with the approved metrics and print behavior', asyn
   await expect(page.locator('.mjl-auth-brand h1')).toHaveCSS('line-height', '32px');
   await expect(page.locator('.mjl-auth-brand h1')).toHaveCSS('font-weight', '700');
   await expect(page.locator('.mjl-auth-field label').first()).toHaveCSS('font-weight', '600');
-  await expect(page.locator('.mjl-auth-link')).toHaveCSS('font-weight', '500');
+  const authLink = page.locator('.mjl-auth-link');
+  await expect(authLink).toHaveCSS('font-weight', '500');
+  await authLink.hover();
+  await expect(authLink).toHaveCSS('color', 'rgb(22, 50, 79)');
+  await page.mouse.down();
+  await expect(authLink).toHaveCSS('text-decoration-thickness', '2px');
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
   await expect(page.locator('.mjl-auth-field input').first()).toHaveCSS('border-radius', '10px');
   const authButton = page.locator('.mjl-auth-button');
   expect((await authButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
@@ -132,6 +139,7 @@ test('v3 visual roles render with the approved metrics and print behavior', asyn
   await expect(authButton).toHaveCSS('background-color', 'rgb(18, 63, 98)');
   await page.mouse.down();
   expect(await authButton.evaluate((node) => getComputedStyle(node).boxShadow)).not.toBe('none');
+  await page.mouse.move(0, 0);
   await page.mouse.up();
   await authButton.evaluate((node) => { node.disabled = true; });
   await expect(authButton).toHaveCSS('background-color', 'rgb(227, 232, 235)');
@@ -140,8 +148,10 @@ test('v3 visual roles render with the approved metrics and print behavior', asyn
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(authButton).toHaveCSS('transition-duration', '0s');
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'no-preference' });
-  await page.locator('.mjl-auth-link').focus();
-  await expect(page.locator('.mjl-auth-link')).toHaveCSS('outline-style', 'solid');
+  await authButton.focus();
+  await page.keyboard.press('Tab');
+  await expect(authLink).toBeFocused();
+  await expect(authLink).toHaveCSS('outline-style', 'solid');
   await page.emulateMedia({ forcedColors: 'none' });
 
   await login(page, 'admin.poc');
@@ -152,7 +162,54 @@ test('v3 visual roles render with the approved metrics and print behavior', asyn
   await expect(badge).toHaveCSS('border-radius', '6px');
   expect((await badge.boundingBox()).height).toBeGreaterThanOrEqual(20);
 
+  await page.emulateMedia({ forcedColors: 'active' });
+  await page.keyboard.press('Tab');
+  await expect(page.locator(':focus-visible')).toHaveCount(1);
+  await expect(page.locator(':focus-visible')).toHaveCSS('outline-style', 'solid');
+  await expect(badge).toHaveCSS('border-top-style', 'solid');
+  await page.emulateMedia({ forcedColors: 'none' });
+
+  const sidebarLink = page.locator('.mjl-sidebar-link').first();
+  await sidebarLink.hover();
+  await expect(sidebarLink).toHaveCSS('background-color', 'rgb(234, 243, 248)');
+  await page.mouse.down();
+  expect(await sidebarLink.evaluate((node) => getComputedStyle(node).boxShadow)).not.toBe('none');
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+
+  const cardLink = page.locator('.mjl-card-link').first();
+  await cardLink.hover();
+  await expect(cardLink).toHaveCSS('text-decoration-line', 'underline');
+  await page.mouse.down();
+  await expect(cardLink).toHaveCSS('color', 'rgb(22, 50, 79)');
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+
+  await page.locator('.mjl-workspace').evaluate((workspace) => {
+    const card = document.createElement('a');
+    card.className = 'mjl-nav-card';
+    card.href = '#mjl-nav-card-contract';
+    card.innerHTML = '<strong>Navigation test</strong><span>Contrat d’état v3</span>';
+    workspace.appendChild(card);
+  });
+  const navigationCard = page.locator('.mjl-nav-card').first();
+  await navigationCard.hover();
+  await expect(navigationCard).toHaveCSS('background-color', 'rgb(234, 243, 248)');
+  await page.mouse.down();
+  expect(await navigationCard.evaluate((node) => getComputedStyle(node).boxShadow)).not.toBe('none');
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+
   await page.setViewportSize({ width: 980, height: 844 });
+  const fineTrigger = page.getByRole('button', { name: 'Ouvrir le menu principal' });
+  await expect.poll(() => page.evaluate(() => window.matchMedia('(any-pointer: fine)').matches)).toBe(true);
+  expect((await fineTrigger.boundingBox()).height).toBe(32);
+  await fineTrigger.hover();
+  await page.mouse.down();
+  expect(await fineTrigger.evaluate((node) => getComputedStyle(node).boxShadow)).not.toBe('none');
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+
   await page.goto('/custom/mjlfinancement/projects.php');
   const interactiveRow = page.locator('.mjl-operational-table tbody tr.mjl-row-interactive').first();
   await expect(interactiveRow).toBeVisible();
@@ -185,6 +242,10 @@ test('v3 visual roles render with the approved metrics and print behavior', asyn
   expect((await activityControl.boundingBox()).height).toBeGreaterThanOrEqual(40);
 
   await login(page, 'admin.poc');
+  await page.goto('/custom/mjlfinancement/reports.php');
+  const reportControl = page.locator('.mjl-report-filter-bar :is(input, select), .mjl-report-selector select').first();
+  expect((await reportControl.boundingBox()).height).toBeGreaterThanOrEqual(40);
+
   await page.goto('/custom/mjlfinancement/documents.php');
   const nativeButton = page.locator('.mjl-module-shell .button').first();
   expect((await nativeButton.boundingBox()).height).toBeGreaterThanOrEqual(40);
@@ -192,4 +253,20 @@ test('v3 visual roles render with the approved metrics and print behavior', asyn
 
   await page.emulateMedia({ media: 'print' });
   await expect(page.locator('.mjl-module-sidebar')).toHaveCSS('display', 'none');
+
+  const coarseContext = await page.context().browser().newContext({
+    baseURL: process.env.MJL_BASE_URL,
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 980, height: 844 },
+  });
+  try {
+    const coarsePage = await coarseContext.newPage();
+    await login(coarsePage, 'admin.poc');
+    await expect.poll(() => coarsePage.evaluate(() => window.matchMedia('(any-pointer: coarse)').matches)).toBe(true);
+    const coarseTrigger = coarsePage.getByRole('button', { name: 'Ouvrir le menu principal' });
+    expect((await coarseTrigger.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  } finally {
+    await coarseContext.close();
+  }
 });

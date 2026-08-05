@@ -230,18 +230,6 @@ test.afterAll(() => {
   cleanupFixtures();
 });
 
-test('non-admin validation and audit routes show only resolved assigned-partner records', async ({ page }) => {
-  await login(page, fixtureLogin);
-  await page.goto('/custom/mjlfinancement/validations.php');
-  await expect(page.locator('body')).toContainText('VISIBLE-PARTNER-A');
-  await expect(page.locator('body')).not.toContainText(/SECRET-PARTNER-B|SECRET-ORPHAN|SECRET-CROSS-ENTITY|ADMIN-CNV-MISSING/);
-
-  await page.goto('/custom/mjlfinancement/workflowactions.php');
-  await expect(page.locator('body')).toContainText('VISIBLE-WFA-A');
-  await expect(page.locator('body')).toContainText(/VISIBLE-WFA-A-PROJECT|VISIBLE-WFA-A-ACTIVITY|VISIBLE-WFA-A-CNV|VISIBLE-WFA-A-BGT|VISIBLE-WFA-A-RECEIPT/);
-  await expect(page.locator('body')).not.toContainText(/SECRET-WFA-B|SECRET-WFA-CROSS|SECRET-WFA-RECEIPT-CROSS|ADMIN-WFA|scopesec_partner_b_secret|scopesec_cross_entity_secret|scopesec_report_admin|scopesec_unresolved_admin|scopesec_missing_parent_admin|scopesec_receipt_missing_parent_admin|scopesec_unknown_admin/);
-});
-
 test('Admin sees active-entity unresolved diagnostics but no cross-entity targets or parents', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/validations.php');
@@ -258,16 +246,7 @@ test('Admin sees active-entity unresolved diagnostics but no cross-entity target
   await expect(page.locator('body')).not.toContainText(/SECRET-WFA-CROSS-ENTITY|SECRET-WFA-CROSS-PARENT|SECRET-WFA-RECEIPT-CROSS-PARENT/);
 });
 
-test('workflow audit filter options use the same visibility predicate as result rows', async ({ page }) => {
-  await login(page, fixtureLogin);
-  await page.goto('/custom/mjlfinancement/workflowactions.php');
-  await expect(page.locator('select[name="workflow_action"] option[value="scopesec_partner_a_action"]')).toHaveCount(1);
-  await expect(page.locator('select[name="workflow_action"] option[value="scopesec_partner_b_secret"]')).toHaveCount(0);
-  await expect(page.locator('select[name="workflow_action"] option[value="scopesec_unresolved_admin"]')).toHaveCount(0);
-  await expect(page.locator('select[name="workflow_action"] option[value="scopesec_receipt_missing_parent_admin"]')).toHaveCount(0);
-  await expect(page.locator('select[name="workflow_action"] option[value="scopesec_receipt_cross_parent_secret"]')).toHaveCount(0);
-  await expect(page.locator('select[name="workflow_action"] option[value="scopesec_unknown_admin"]')).toHaveCount(0);
-
+test('Admin workflow audit filters retain active-entity diagnostics and reject cross-entity metadata', async ({ page }) => {
   await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/workflowactions.php');
   await expect(page.locator('select[name="workflow_action"] option[value="scopesec_unresolved_admin"]')).toHaveCount(1);

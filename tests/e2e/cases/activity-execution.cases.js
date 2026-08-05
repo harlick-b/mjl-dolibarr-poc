@@ -84,43 +84,6 @@ test.afterAll(() => {
   cleanupActivityExecution();
 });
 
-test('project create/edit is allowed for admin and final validator but denied to agent', async ({ page }) => {
-  const unicef = scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1");
-
-  await login(page, 'dpaf.mjl');
-  await page.goto('/custom/mjlfinancement/projects.php');
-  await page.getByRole('link', { name: 'Créer un projet' }).click();
-  await page.getByLabel('Référence').first().fill('ACTX-FINAL-PROJ');
-  await page.getByLabel('Intitulé').first().fill('Projet Activity execution Final validator');
-  await page.locator('select[name="fk_soc"]').first().selectOption(unicef);
-  await page.getByRole('button', { name: 'Créer le projet' }).click();
-  await expect(page).toHaveURL(/projects\.php\?id=\d+/);
-  const projectId = Number(new URL(page.url()).searchParams.get('id'));
-  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_workflow_action WHERE object_type = 'mjlfinancement_project' AND object_id = ${projectId} AND action = 'created' AND actor_role = 'VALIDATEUR_DEFINITIF'`))).toBe(1);
-
-  await page.getByRole('link', { name: 'Modifier le projet' }).click();
-  await page.getByLabel('Intitulé').fill('Projet Activity execution Final validator modifie');
-  await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
-  expect(scalar(`SELECT title FROM llx_projet WHERE rowid = ${projectId}`)).toBe('Projet Activity execution Final validator modifie');
-
-  await login(page, 'admin.poc');
-  await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await page.getByRole('link', { name: 'Modifier le projet' }).click();
-  await page.getByLabel('Référence').fill('ACTX-ADMIN-PROJ');
-  await page.getByRole('button', { name: 'Enregistrer le projet' }).click();
-  expect(scalar(`SELECT ref FROM llx_projet WHERE rowid = ${projectId}`)).toBe('ACTX-ADMIN-PROJ');
-
-  await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/projects.php');
-  await expect(page.getByRole('link', { name: 'Créer un projet' })).toHaveCount(0);
-  const token = await pageToken(page);
-  const response = await page.request.post('/custom/mjlfinancement/projects.php', {
-    form: { token, action: 'create', ref: 'ACTX-FORBIDDEN', title: 'Projet interdit', fk_soc: unicef },
-  });
-  expect(await response.text()).toMatch(deniedPattern);
-  expect(Number(scalar("SELECT COUNT(*) FROM llx_projet WHERE ref = 'ACTX-FORBIDDEN' AND entity = 1"))).toBe(0);
-});
-
 test('activity options are scoped and mismatched project/convention POST is rejected', async ({ page }) => {
   await login(page, 'agent.mjl');
   await page.goto('/custom/mjlfinancement/activities.php?action=create');

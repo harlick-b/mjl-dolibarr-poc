@@ -249,8 +249,8 @@ test('Convention document states show available, unavailable, and missing labels
   await expect(page.locator('input[name="supporting_document"]')).toHaveCount(0);
 });
 
-test('Workflow audit, Final validator dashboard, and reports label document uploads explicitly', async ({ page }) => {
-  await login(page, 'dpaf.mjl');
+test('Admin audit, supervision, and reports label document uploads explicitly', async ({ page }) => {
+  await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/workflowactions.php?workflow_action=document_uploaded');
   await expect(page.getByRole('cell', { name: 'Document ajouté', exact: true }).first()).toBeVisible();
 

@@ -42,7 +42,7 @@ cleanup records, and stale POC notes are not active implementation guidance.
 | --- | --- |
 | `DESIGN.md` | Durable design memory. |
 | `docs/design-context.md` | Sole active target-project context copied into `proj-design` for design-system generation. |
-| `docs/design-system/README.md` | Active entry point for the approved MJL Financement v2 design documentation and its implementation chronology. |
+| `docs/design-system/README.md` | Active entry point for the approved MJL Financement v3 design documentation and its implementation chronology. |
 | `docs/design-system/CODEX_UI_IMPLEMENTATION_GUIDE.md` | UI implementation guidance. |
 | `docs/design-system/DESIGN.md` | Design-system memory. |
 | `docs/design-system/MJL_ACCESSIBILITY_CHECKLIST.md` | Accessibility checklist. |

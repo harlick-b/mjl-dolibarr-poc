@@ -27,6 +27,7 @@ function invitationIdForLogin(loginName) {
 
 function cleanupTestState() {
   sql(`
+    DROP TRIGGER IF EXISTS authe2e_fail_access_audit;
     SET @mjl_e2e_users = (SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'mjl.e2e.%' OR login LIKE 'invite.%');
     DELETE FROM llx_const WHERE entity = 1 AND name LIKE 'MJL_AUTH_E2E_%';
     DELETE FROM llx_usergroup_user WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
@@ -142,6 +143,39 @@ test('Admin assignment UI blocks self-deactivation and unresolved legacy access 
   await login(page, 'lecteur.audit');
   await page.goto('/custom/mjlfinancement/index.php');
   await expect(page.locator('body')).toContainText(/Accès refusé|Access denied|Forbidden|Non autorisé/);
+});
+
+test('access profile and deactivation mutations roll back when audit persistence fails', async ({ page }) => {
+  const targetId = sqlScalar("SELECT rowid FROM llx_user WHERE login = 'agent.mjl' AND entity = 1 LIMIT 1");
+  const originalStatus = sqlScalar(`SELECT statut FROM llx_user WHERE rowid = ${targetId}`);
+  const originalRole = sqlScalar(`SELECT role_code FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1 ORDER BY rowid DESC LIMIT 1`);
+  const originalScopes = sqlScalar(`SELECT GROUP_CONCAT(fk_soc ORDER BY fk_soc) FROM llx_mjlfinancement_user_soc_scope WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1`);
+  const scopeId = sqlScalar("SELECT rowid FROM llx_societe WHERE entity = 1 ORDER BY rowid LIMIT 1");
+
+  await login(page, 'admin.poc');
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  sql("CREATE TRIGGER authe2e_fail_access_audit BEFORE INSERT ON llx_mjlfinancement_access_audit FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced access audit failure'");
+  try {
+    let token = await page.locator('input[name="token"]').first().getAttribute('value');
+    let response = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+      form: { token, action: 'update_profile', user_id: targetId, role_code: 'AGENT_VERIFICATEUR', 'scope_soc_ids[]': scopeId },
+    });
+    expect(await response.text()).not.toMatch(/SQLSTATE|forced access audit failure/i);
+    expect(sqlScalar(`SELECT role_code FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1 ORDER BY rowid DESC LIMIT 1`)).toBe(originalRole);
+    expect(sqlScalar(`SELECT GROUP_CONCAT(fk_soc ORDER BY fk_soc) FROM llx_mjlfinancement_user_soc_scope WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1`)).toBe(originalScopes);
+
+    await page.reload();
+    token = await page.locator('input[name="token"]').first().getAttribute('value');
+    response = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+      form: { token, action: 'deactivate', user_id: targetId },
+    });
+    expect(await response.text()).not.toMatch(/SQLSTATE|forced access audit failure/i);
+    expect(sqlScalar(`SELECT statut FROM llx_user WHERE rowid = ${targetId}`)).toBe(originalStatus);
+    expect(sqlScalar(`SELECT role_code FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1 ORDER BY rowid DESC LIMIT 1`)).toBe(originalRole);
+    expect(sqlScalar(`SELECT GROUP_CONCAT(fk_soc ORDER BY fk_soc) FROM llx_mjlfinancement_user_soc_scope WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1`)).toBe(originalScopes);
+  } finally {
+    sql('DROP TRIGGER IF EXISTS authe2e_fail_access_audit');
+  }
 });
 
 test('double-submit invitation acceptance cannot disable an activated user', async ({ browser }) => {
@@ -321,11 +355,11 @@ test('bad invitation password does not activate user and invalid links are safe'
   await page.locator('#newpass1').fill('short');
   await page.locator('#newpass2').fill('short');
   await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
-  await expect(page.locator('.mjl-auth-error').getByText('Le mot de passe doit contenir au moins 10 caractères')).toBeVisible();
+  await expect(page.locator('.mjl-auth-error[role="alert"][aria-live="assertive"]').getByText('Le mot de passe doit contenir au moins 10 caractères')).toBeVisible();
   expect(sqlScalar(`SELECT statut FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`)).toBe('0');
 
   await page.goto('/custom/mjlfinancement/invitation.php?invite=invalid-token');
-  await expect(page.getByText('Cette invitation est invalide')).toBeVisible();
+  await expect(page.locator('[role="alert"][aria-live="assertive"]').getByText('Cette invitation est invalide')).toBeVisible();
 
   const pending = await inviteUser(page, `pending.${Date.now()}`);
   const pendingToken = tokenFromLink(pending.invitationLink, 'invite');

@@ -161,6 +161,16 @@ async function runVerification(plan, signal) {
   }
 }
 
+async function runProductionReadiness(plan, signal) {
+  await compose(plan, [
+    'exec',
+    '-T',
+    'dolibarr',
+    'php',
+    '/var/www/html/custom/mjlfinancement/scripts/check_production_readiness.php',
+  ], { signal });
+}
+
 async function runPlaywright(plan, target, signal) {
   const args = ['playwright', 'test'];
   if (target === 'e2e') {
@@ -251,6 +261,7 @@ async function main() {
         await provision(plan, controller.signal);
       }
       if (layer === 'verify') await runVerification(plan, controller.signal);
+      else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);
     }
   } catch (error) {

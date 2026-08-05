@@ -2,8 +2,6 @@ const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
-const forbiddenResponsePattern = /Acces refuse|Accès refusé|Access denied|Forbidden|Non autorise|Non autorisé|hors de votre perimetre|hors de votre périmètre/i;
-
 test.describe.configure({ mode: 'serial' });
 
 function dockerExec(command) {
@@ -128,11 +126,10 @@ test.afterAll(() => {
   cleanupRoleDashboard();
 });
 
-test('dashboard filters scope cards, queues, funds, budgets, and audit rows', async ({ page }) => {
+test('operational dashboard filters scoped review cards and rejects out-of-scope filters', async ({ page }) => {
   const unicef = scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1");
   const redev = scalar("SELECT rowid FROM llx_societe WHERE nom LIKE 'Programme Redev%' AND entity = 1 LIMIT 1");
   const project = scalar("SELECT rowid FROM llx_projet WHERE ref = 'DSH-PRJ-UNICEF' AND entity = 1 LIMIT 1");
-  const redProject = scalar("SELECT rowid FROM llx_projet WHERE ref = 'DSH-PRJ-RED' AND entity = 1 LIMIT 1");
 
   await login(page, 'superviseur.n1');
   await page.goto(`/custom/mjlfinancement/index.php?fk_soc=${unicef}&fk_project=${project}&date_start=2026-07-01&date_end=2026-07-31&status_bucket=to_prevalidate`);
@@ -143,47 +140,4 @@ test('dashboard filters scope cards, queues, funds, budgets, and audit rows', as
   await expectCardValue(page, 'Activités en revue', 0);
   await expectCardValue(page, 'Dépenses en revue', 0);
 
-  await login(page, 'dpaf.mjl');
-  await page.goto(`/custom/mjlfinancement/dpafdashboard.php?fk_soc=${unicef}&fk_project=${project}&date_start=2026-07-01&date_end=2026-07-31&status_bucket=to_final_validate`);
-  await expect(page.locator('body')).toContainText('DSH-ACT-PRE');
-  await expect(page.locator('body')).toContainText('DSH-EXP-PRE');
-  await expect(page.locator('body')).toContainText('DSH-FR-UNICEF');
-  await expect(page.locator('body')).toContainText('DSH-ACT-SUB');
-  await expect(page.locator('body')).not.toContainText('DSH-EXP-SUB');
-  await expect(page.locator('body')).not.toContainText('DSH-FR-GLOBAL');
-  await expect(page.locator('body')).not.toContainText('DSH-RED');
-  await expect(page.locator('body')).not.toContainText('999999');
-  await expect(page.locator('body')).not.toContainText('DSH-WFA-ORPHAN');
-
-  await page.goto(`/custom/mjlfinancement/dpafdashboard.php?fk_soc=${unicef}&date_start=2026-07-01&date_end=2026-07-31&status_bucket=all`);
-  await expect(page.locator('body')).toContainText('DSH-FR-GLOBAL');
-  await expect(page.locator('body')).not.toContainText('DSH-FR-RED');
-
-  await page.goto(`/custom/mjlfinancement/dpafdashboard.php?fk_project=${redProject}`);
-  await expect(page.locator('body')).toContainText('Projet hors périmètre');
-  await expect(page.locator('body')).not.toContainText('DSH-ACT-RED');
-});
-
-test('final validator and platform admin stay distinct on filtered supervision', async ({ page }) => {
-  const unicef = scalar("SELECT rowid FROM llx_societe WHERE nom = 'UNICEF' AND entity = 1 LIMIT 1");
-
-  await login(page, 'dpaf.mjl');
-  await page.goto(`/custom/mjlfinancement/dpafdashboard.php?fk_soc=${unicef}&status_bucket=to_disburse`);
-  await expect(page.locator('.mjl-page-header-context')).toContainText('Validateur définitif');
-  await expect(page.locator('body')).toContainText('DSH-EXP-DISB');
-  await expect(page.locator('body')).not.toContainText('Données à qualifier');
-  await expect(page.locator('body')).not.toContainText('Administrateur plateforme');
-
-  await login(page, 'admin.poc');
-  await page.goto(`/custom/mjlfinancement/index.php?fk_soc=${unicef}`);
-  await expect(page.locator('.mjl-page-header-context')).toContainText('Utilisateur');
-  await expect(page.locator('body')).toContainText('Administration plateforme');
-  await expect(page.locator('body')).toContainText('Données à qualifier');
-  await expect(page.locator('body')).not.toContainText('Validateur définitif');
-});
-
-test('direct dashboard access remains guarded for non-supervision users', async ({ page }) => {
-  await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/dpafdashboard.php');
-  await expect(page.locator('body')).toContainText(forbiddenResponsePattern);
 });

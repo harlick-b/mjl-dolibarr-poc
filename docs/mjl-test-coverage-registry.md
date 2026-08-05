@@ -7,10 +7,11 @@ This is the durable Gate 1 audit and coverage registry for the MJL verification 
 Gate 1 was approved on 2026-08-03 and Gate 2 is implemented. The maintained
 suite now has:
 
-- **92 blocking Playwright cases** behind 11 capability-named public specs;
-- **21 executable characterization cases** behind one non-blocking finance spec;
-- **16 Node unit contracts** across runner isolation, cleanup, diagnostics, fixture-marker boundaries, deprecated-vocabulary rejection, and
-  verification-entrypoint behavior;
+- **114 blocking Playwright cases** behind 12 capability-named public specs;
+- **28 executable characterization cases** behind two non-blocking public specs;
+- **31 Node unit contracts** across runner isolation, cleanup, diagnostics, fixture-marker boundaries, deprecated-vocabulary rejection,
+  verification-entrypoint behavior, the operational-script boundary, and the
+  concurrently supplied v3 token contract;
 - **7 PHP contracts** for durable behavior, presentation convergence,
   navigation, page headers, project-form security, table presentation, and
   verification-module safety;
@@ -25,12 +26,15 @@ Recorded disposable results:
 | --- | --- | --- |
 | `npm run test:unit` | Passed | No Docker tenant required. |
 | `npm run test:verify` | Passed in 184.1 seconds | Unique loopback tenant; containers, network, and named volumes removed. |
-| `npm run test:e2e` | 92/92 passed as part of the latest consolidated run | Unique loopback tenant; containers, network, and named volumes removed. |
-| `npm run test:characterization` | 21/21 passed in 1.0 minute; runner duration 221.9 seconds including bootstrap | Separate unique loopback tenant; containers, network, and named volumes removed. |
-| `npm test` | Latest full proof: 16/16 Node contracts, 7/7 PHP contracts, complete container verification, and 92/92 browser cases passed. | One bootstrap/seed cycle in one unique loopback tenant; containers, network, and named volumes removed. |
+| `npm run test:e2e` | Pre-final affected run: 113/113 passed; runner duration 399.2 seconds. The later strengthened inventory is included in the final `npm test` row. | Tenant `mjl-test-20260804t162004-941966-e614149e`, loopback port 46207; containers, network, and named volumes removed. |
+| `npm run test:characterization` | Final C1/C2 evidence: 28/28 passed; runner duration 238.1 seconds including bootstrap. | Tenant `mjl-test-20260805t123629-44505-8ff6b050`, loopback port 33319; containers, network, and named volumes removed. |
+| `npm run audit:production-readiness` | Final diagnostic: 11 local checks OK, 9 client/operator confirmations UNKNOWN, verdict `BLOCKED_PENDING_CLIENT_AND_OPERATOR_CONFIRMATION`; runner duration 176.0 seconds. | Tenant `mjl-test-20260805t124037-61357-2c67e47b`, loopback port 38347; containers, network, and named volumes removed. |
+| `npm test` | Final strengthened-remediation proof: 31/31 Node contracts, 7/7 PHP contracts, complete container verification, and 114/114 blocking browser cases passed; runner duration 475.0 seconds. | Tenant `mjl-test-20260805t124354-71091-ed08d24c`, loopback port 36037; containers, network, database volume, and document volume removed. |
 
 The interactive accessibility gate remains unsigned and must not be represented
-as automated evidence.
+as automated evidence. It cannot emit `signed_pass` without reviewer identity,
+assistive-technology evidence, non-empty notes, an explicit pass verdict, and a
+record for each of the 90 archetype/width/zoom combinations.
 
 ## Audit baseline
 
@@ -76,6 +80,7 @@ as automated evidence.
 | D1 | Active semantic/accessibility design rules; no phase-specific pixel, color, class, or wording snapshots. |
 | P1 | The approved cleanup plan's durable verification requirements, including functional email behavior and balanced test layers. |
 | C1 | Current convention, budget-line, and fund-receipt management roles/lifecycle behavior retained as non-blocking characterization pending explicit product authority. |
+| C2 | Current admission to supervision, reports/exports, validation history, workflow history, and exchange history, with route-by-route scope filtering, retained as non-blocking characterization pending explicit product authority. |
 | S1 | Current schema and current-data integrity only; historical upgrade entrypoints are not retained. |
 | O1 | Operational fixture/readiness evidence, not a product acceptance contract. |
 

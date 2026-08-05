@@ -130,7 +130,7 @@ test('readonly user sees contextual history without a comment form', async ({ pa
 
   await login(page, 'mjl.contextual_exchange.readonly');
   await page.goto(`/custom/mjlfinancement/activities.php?id=${activityId}`);
-  await expect(page.getByRole('heading', { name: /Historique de decision/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Historique de décision/ })).toBeVisible();
   await expect(page.locator('textarea[name="message"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Ajouter le commentaire' })).toHaveCount(0);
 });
@@ -173,7 +173,7 @@ test('direct contextual POST fails closed when route-specific access denies the 
 });
 
 test('global exchanges route is advanced audit only and absent from primary navigation', async ({ page }) => {
-  await login(page, 'dpaf.mjl');
+  await login(page, 'admin.poc');
   await page.goto('/custom/mjlfinancement/index.php');
   await expect(page.getByLabel('Menu module MJL')).not.toContainText('Échanges');
 

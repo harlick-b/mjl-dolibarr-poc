@@ -180,8 +180,9 @@ function mjl_scope_assign_access_profile($userId, $roleCode, array $fkSocIds, Us
 		$db->rollback('mjl access group failed');
 		return array(-1, $db->lasterror());
 	}
-	if (function_exists('mjl_auth_record_event')) {
-		mjl_auth_record_event('access_profile_assigned', $userId, (int) $actor->id, 'role='.$roleCode.';scopes='.implode(',', $cleanSocIds).';source='.$source);
+	if (!function_exists('mjl_auth_record_event') || mjl_auth_record_event('access_profile_assigned', $userId, (int) $actor->id, 'role='.$roleCode.';scopes='.implode(',', $cleanSocIds).';source='.$source) < 1) {
+		$db->rollback('mjl access audit failed');
+		return array(-1, 'La journalisation de la modification des accès a échoué.');
 	}
 	if (!$db->commit('mjl access profile')) {
 		return array(-1, $db->lasterror());
@@ -227,8 +228,9 @@ function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
 		$db->rollback('mjl deactivate scope failed');
 		return array(-1, $db->lasterror());
 	}
-	if (function_exists('mjl_auth_record_event')) {
-		mjl_auth_record_event('access_deactivated', $userId, (int) $actor->id, 'source=admin_access');
+	if (!function_exists('mjl_auth_record_event') || mjl_auth_record_event('access_deactivated', $userId, (int) $actor->id, 'source=admin_access') < 1) {
+		$db->rollback('mjl deactivate audit failed');
+		return array(-1, 'La journalisation de la désactivation a échoué.');
 	}
 	if (!$db->commit('mjl deactivate access')) {
 		return array(-1, $db->lasterror());

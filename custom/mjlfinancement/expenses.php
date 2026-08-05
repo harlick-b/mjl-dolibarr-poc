@@ -848,7 +848,7 @@ function mjl_expenses_render_timeline($expense)
 	$result = mjl_expenses_timeline_result($expense);
 	$commentRecovery = mjl_expenses_recovery_for_action('add_exchange');
 	print '<section class="mjl-workspace-section mjl-activity-card">';
-	print '<div class="mjl-section-heading"><h2>Historique de decision et commentaires</h2><p>Soumissions, corrections, decisions et echanges contextualises.</p></div>';
+	print '<div class="mjl-section-heading"><h2>Historique de décision et commentaires</h2><p>Soumissions, corrections, décisions et échanges contextualisés.</p></div>';
 	mjl_timeline_render_comment_form('mjlfinancement_expense', (int) $expense['rowid'], DOL_URL_ROOT.'/custom/mjlfinancement/expenses.php?id='.((int) $expense['rowid']), $commentRecovery);
 	mjl_timeline_render($result, 'Aucun événement enregistré pour cette dépense.');
 	print '</section>';

@@ -110,8 +110,8 @@ function mjl_alert_present_facts($semanticKey, array $facts, array $condition)
 	if (isset($facts['rate'])) $meta['Taux'] = mjl_format_number($facts['rate'], 'percentage');
 	if (isset($facts['overallocation_amount'])) $meta['Dépassement'] = mjl_format_money($facts['overallocation_amount']);
 	if (isset($condition['status_code']) && function_exists('mjl_status_presentation')) {
-		$surface = strpos((string) ($condition['object_type'] ?? ''), 'expense') !== false ? 'expense' : 'activity';
-		$meta['Statut'] = mjl_status_presentation($surface, $condition['status_code'], 'operational')['label'];
+		$statusObjectType = strpos((string) ($condition['object_type'] ?? ''), 'expense') !== false ? 'expense' : 'activity';
+		$meta['Statut'] = mjl_status_presentation($statusObjectType, $condition['status_code'], 'operational')['label'];
 	}
 	return $meta;
 }

@@ -66,6 +66,13 @@ Target decisions come from `docs/mjl-authoritative-decisions.md`.
 
 ## Production Diagnostics
 
+- Run `npm run audit:production-readiness` in its disposable tenant and retain
+  its `OK`, `UNKNOWN`, explicit blocked verdict, tenant identity, loopback port,
+  duration, and cleanup evidence. This diagnostic is not part of `npm test` and
+  is not production approval.
+- Confirm `/custom/mjlfinancement/scripts/*` returns HTTP 403 while the same
+  guarded operational entrypoints remain callable only through deployment CLI.
+
 - Confirm module version remains below `1.0.0` unless every in-scope readiness
   row is ready.
 - Confirm active entity filtering on dashboards, exports, audit lists,
@@ -94,3 +101,7 @@ Target decisions come from `docs/mjl-authoritative-decisions.md`.
 - Final official report/export columns and templates.
 - Production email transport, public/base URL, and secrets configuration.
 - Final deployment storage, backup, restore, and monitoring procedure.
+- Signed manual keyboard, screen-reader, reflow, and real 100%/200% Chromium
+  evidence at the required widths.
+- Client approval of non-protected French labels, emails, and official CSV/XLSX
+  outputs.

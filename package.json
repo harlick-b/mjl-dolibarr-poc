@@ -5,7 +5,8 @@
     "test:verify": "node tests/runner/run-suite.js verify",
     "test:e2e": "node tests/runner/run-suite.js e2e",
     "test:characterization": "node tests/runner/run-suite.js characterization",
-    "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility"
+    "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility",
+    "audit:production-readiness": "node tests/runner/run-suite.js production-readiness"
   },
   "devDependencies": {
     "@playwright/test": "^1.46.0"

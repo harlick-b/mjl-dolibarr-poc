@@ -276,7 +276,7 @@ function mjl_access_scope_select(array $partners, array $selected)
 function mjl_access_scope_summary(array $scopeIds, array $partners, $roleCode)
 {
 	if ($roleCode === 'ADMIN_PLATEFORME') {
-		return 'Tous les perimetres';
+		return 'Tous les périmètres';
 	}
 	if (empty($scopeIds)) {
 		return 'Aucun périmètre actif';

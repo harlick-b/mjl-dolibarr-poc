@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/cli_guard.php';
+
 define('NOLOGIN', 1);
 
 require '/var/www/html/main.inc.php';
@@ -259,7 +261,7 @@ function ensureApiKey(User $targetUser, User $adminUser)
 	if ($result < 0) {
 		fail('Unable to set API key for '.$targetUser->login.': '.$targetUser->error);
 	}
-	mjl_out('API key for '.$targetUser->login.': '.$targetUser->api_key);
+	mjl_out('API key ensured for '.$targetUser->login.'.');
 }
 
 function assignProductionProfile(User $targetUser, $legacyRoleCode, User $adminUser, $entity)

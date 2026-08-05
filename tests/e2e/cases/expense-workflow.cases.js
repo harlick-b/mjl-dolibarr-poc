@@ -78,7 +78,7 @@ async function postExpenseAction(page, expenseId, action, comment = '', extraFor
 
 function cleanupExpenseWorkflowFixtures() {
   sql(`
-	DROP TRIGGER IF EXISTS expw_force_technical_create;
+    DROP TRIGGER IF EXISTS expw_force_technical_create;
     SET @expense_workflow_user = (SELECT rowid FROM llx_user WHERE login = 'mjl.expense_workflow.otheragent');
     DELETE FROM llx_ecm_files WHERE ref LIKE 'EXPW-%' OR (src_object_type = 'mjlfinancement_expense' AND src_object_id IN (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref LIKE 'EXPW-%'));
     DELETE FROM llx_mjlfinancement_validation WHERE fk_expense IN (SELECT rowid FROM llx_mjlfinancement_expense WHERE ref LIKE 'EXPW-%');
@@ -199,7 +199,7 @@ test('expense create distinguishes validation from forced technical failure with
   await fillCreate('EXPW-VALIDATION-FAIL', '0');
   await page.getByRole('button', { name: 'Créer la dépense' }).click();
   await expect(page.getByText('Les informations saisies doivent être corrigées avant de continuer.')).toBeVisible();
-	await expect(page.locator('#mjl-expense-create-amount-error')).toHaveText('Le montant doit être supérieur à zéro.');
+  await expect(page.locator('#mjl-expense-create-amount-error')).toHaveText('Le montant doit être supérieur à zéro.');
   await expect(page.locator('input[name="ref"]')).toHaveValue('EXPW-VALIDATION-FAIL');
 
   sql("CREATE TRIGGER expw_force_technical_create BEFORE INSERT ON llx_mjlfinancement_expense FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'EXPW secret database diagnostic'");
@@ -226,7 +226,7 @@ test('Data-entry agent opens own expense detail, uploads document, submits, and 
   await page.goto(`/custom/mjlfinancement/expenses.php?id=${ownDraftId}`);
   await expect(page.getByRole('heading', { name: 'EXPW-OWN-DRAFT' })).toBeVisible();
   await expect(page.getByText('Pièce manquante').first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Historique de decision' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Historique de décision' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Ajouter une pièce justificative' }).click();
   await page.setInputFiles('input[name="supporting_document"]', '/tmp/expflow-supporting-document.txt');

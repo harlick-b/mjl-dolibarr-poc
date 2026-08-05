@@ -128,7 +128,7 @@ test('agent sees operational activity and expense alerts only in assigned partne
   await expect(page.locator('body')).toContainText('ALT-EXP-UNAVAILABLE');
   await expect(page.locator('body')).toContainText('ALT-EXP-REJECTED');
   await expect(page.locator('body')).toContainText('ALT-EXP-OVER');
-	await expect(page.locator('article', { hasText: 'ALT-EXP-OVER' }).filter({ has: page.getByText('Budget dépassé', { exact: true }) })).toContainText('Agent vérificateur et prévalidateur');
+  await expect(page.locator('article', { hasText: 'ALT-EXP-OVER' }).filter({ has: page.getByText('Budget dépassé', { exact: true }) })).toContainText('Agent vérificateur et prévalidateur');
   await expect(page.locator('body')).not.toContainText('ALT-ACT-RED');
   await expect(page.locator('body')).not.toContainText('ALT-EXP-NOT-DISB');
 });
@@ -138,7 +138,7 @@ test('validation queues are role-specific', async ({ page }) => {
   await page.goto('/custom/mjlfinancement/alerts.php');
   await expect(page.locator('body')).toContainText('ALT-ACT-SUB');
   await expect(page.locator('body')).toContainText('ALT-EXP-SUB');
-	await expect(page.locator('article', { hasText: 'ALT-EXP-OVER' }).filter({ has: page.getByText('Budget dépassé', { exact: true }) })).toContainText('Agent vérificateur et prévalidateur');
+  await expect(page.locator('article', { hasText: 'ALT-EXP-OVER' }).filter({ has: page.getByText('Budget dépassé', { exact: true }) })).toContainText('Agent vérificateur et prévalidateur');
   await expect(page.locator('body')).not.toContainText('ALT-ACT-PRE');
   await expect(page.locator('body')).not.toContainText('ALT-EXP-PRE');
 
@@ -171,10 +171,10 @@ test('partner detail reuses scoped alert cards and remains overflow-free at 390p
 });
 
 test('distinct feedback operations retain identical copy once and do not replay', async ({ page }) => {
-	const [firstRender, replayRender] = feedbackRenderProbe();
-	await page.setContent(firstRender);
+  const [firstRender, replayRender] = feedbackRenderProbe();
+  await page.setContent(firstRender);
   await expect(page.getByText('Activité créée en brouillon.')).toHaveCount(2);
-	await page.setContent(replayRender || '<main></main>');
+  await page.setContent(replayRender || '<main></main>');
   await expect(page.getByText('Activité créée en brouillon.')).toHaveCount(0);
 });
 

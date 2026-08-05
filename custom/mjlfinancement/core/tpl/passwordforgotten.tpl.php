@@ -18,7 +18,7 @@ top_htmlhead('', 'Mot de passe oublié', 0, 0, array(), array('/custom/mjlfinanc
 	</div>
 
 	<?php if (GETPOST('mjl_reset_requested', 'int')) { ?>
-		<div class="mjl-auth-message">Si un compte correspond à cette adresse, un lien de réinitialisation sera envoyé.</div>
+		<div class="mjl-auth-message" role="status" aria-live="polite">Si un compte correspond à cette adresse, un lien de réinitialisation sera envoyé.</div>
 	<?php } ?>
 
 	<form id="mjl-password-request" method="post" action="<?php print $php_self; ?>">
