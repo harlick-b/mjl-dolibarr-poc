@@ -22,6 +22,7 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-reset-manifest-v2.md` | Canonical owner of pending reset actions and approvals |
 | `docs/mjl-implementation-roadmap-v2.md` | Canonical owner of phase sequence and stop conditions |
 | `docs/mjl-phase-0-audit-report.md` | Active Phase 0 evidence and verdict; not target-rule authority |
+| `docs/mjl-phase-1-reset-report.md` | Active RST-000 execution and restore evidence; not target-rule authority |
 | `docs/mjl_fully_revised_implementation_prompts_by_phase.md` | Frozen post-cadrage source package; subordinate to canonical v2 and never executable as one request |
 | `docs/mjl-current-app-functional-map.md` | Current implementation evidence only; superseded wherever it states target behavior |
 | `docs/mjl-current-vs-target-gap-analysis.md` | Active debt summary only; canonical owners decide target behavior |

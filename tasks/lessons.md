@@ -100,3 +100,9 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Role, scope, and account-deactivation changes must persist their access audit
   inside the same transaction. If audit insertion fails, roll back every
   authorization mutation and return only a safe user-facing failure.
+- Backup/restore capture and comparison commands must use Bash fail-fast mode
+  with `set -euo pipefail` and isolate directory changes in subshells (or use
+  absolute paths). Apply pipefail inside helper-container shells too. Never
+  print a PASS marker after unchecked `cmp`, `diff`, checksum, or piped capture
+  commands; a changed working directory or successful final pipe stage can
+  otherwise mask failed verification while leaving artifacts untouched.

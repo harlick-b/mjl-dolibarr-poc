@@ -1,11 +1,13 @@
 # MJL Reset Manifest v2
 
-No action is approved or executed. Each ID below is an independently scoped
-approval unit. Approval of a parent number does not approve a suffixed unit.
+RST-000 was explicitly approved and executed for the local tenant on
+2026-08-10. Every other action remains unapproved and unexecuted. Each ID below
+is an independently scoped approval unit. Approval of a parent number does not
+approve a suffixed unit.
 
 ## Safety and Approval Contract
 
-- Every action is `PENDING_APPROVAL`.
+- RST-000 is `EXECUTED`; every other action is `PENDING_APPROVAL`.
 - RST-000 must complete and its restore rehearsal must pass before any action
   that mutates existing data.
 - Exact row identifiers must be exported and reviewed immediately before a
@@ -19,7 +21,7 @@ approval unit. Approval of a parent number does not approve a suffixed unit.
 
 ### RST-000 - Recovery boundary
 
-- Status: `PENDING_APPROVAL`
+- Status: `EXECUTED`
 - Current component: existing local Compose tenant, configuration, and document storage.
 - Proposed action: capture and restore-test a complete recovery boundary.
 - Reason: later approved destructive actions require proven recovery.
@@ -30,6 +32,8 @@ approval unit. Approval of a parent number does not approve a suffixed unit.
 - Action and data impact: create a logical database dump, configuration export, and document snapshot/inventory; no business-data mutation.
 - Backup prerequisite: destination capacity and checksum algorithm confirmed before capture; dump and document archive checksums recorded.
 - Rollback/verification: restore into an isolated disposable tenant and compare schema plus row counts before any dependent approval may execute.
+- Execution evidence: `docs/mjl-phase-1-reset-report.md`; all database,
+  document, and configuration restore comparisons passed.
 
 ### RST-001 - Effective roles and native-admin invariant
 

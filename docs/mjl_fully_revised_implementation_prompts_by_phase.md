@@ -119,6 +119,8 @@ Official UNICEF and Coopération Suisse financial reports must be planned archit
 - Do not execute destructive repository or database changes during Phase 0.
 - Mark conflicting documentation as superseded.
 - Do not reintroduce legacy concepts from older MJL phases.
+- Existing legacy sample data is based on obsolete business rules and must not be treated as authoritative. Its replacement with a new deterministic QA dataset will be specified after the MJL Fully Revised Implementation Prompts by Phase is finalized. Do not design or implement the replacement QA dataset yet.
+- **SAFETY RULE:** Until the new QA dataset is defined, existing legacy sample data must not be used to infer, validate or justify current business rules.
 
 ## 3. Authoritative hierarchy
 
