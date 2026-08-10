@@ -3,10 +3,9 @@
 This file is current-state evidence only. It does not override
 `docs/mjl-authoritative-decisions.md`.
 
-The legacy users, business rows, documents, bootstrap, and seed package
-described here are scheduled for deletion/retirement by RST-000A/RST-014A.
-They will not be migrated. Exactly one native technical administrator is the
-only account preserved by the clean reset.
+RST-000A deleted the legacy users, business rows, documents, and seed package
+described here without migration. The bootstrap is now non-seeding. Exactly
+one native technical administrator is the only preserved account.
 
 ## Executive Summary
 
@@ -61,9 +60,10 @@ linked field errors and safe database feedback. A dependency-leaf journey
 presentation module has its first proven callers for activity summary and
 guarded document presentation.
 
-Legacy POC vocabulary remains in compatibility areas such as bootstrap scripts,
-seed data, SQL backfills, route names, module descriptors, and some labels.
-Those references are current-state/code debt, not target behavior.
+Legacy POC vocabulary remains in compatibility areas such as route names,
+module descriptors, old implementation code, and some labels. Persistent seed
+data and SQL data backfills have been removed. Remaining references are
+current-state/code debt, not target behavior.
 
 ## Technical Structure
 
@@ -297,9 +297,10 @@ Key scripts currently present include:
 - Production email/base URL/secrets and final permission matrix remain
   unconfirmed.
 - Official donor/client export templates remain unconfirmed.
-- The local development database contains historical workflow rows whose
-  referenced test fixtures were deleted. The current scope/integrity verifier
-  continues to report these genuine missing targets rather than mutating tenant data.
+- The local development tenant is persistently empty after `RST-000A`, apart
+  from the single preserved native technical administrator. All fifteen MJL
+  persistent data tables are empty, so legacy container checks that require
+  business fixtures must create disposable, test-only fixtures under `RST-014`.
 
 ## Phase 3D.2 Operational Interaction State
 

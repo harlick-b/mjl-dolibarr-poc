@@ -74,9 +74,12 @@ MJL-specific code stays outside Dolibarr core. Native third parties, projects,
 users, authentication, ECM, and export capabilities may be reused through safe
 MJL interfaces.
 
-RST-000 is executed. No other reset-manifest entry is approved by this file;
-every remaining destructive action stays `PENDING_APPROVAL` until its exact
-row/file appendix and identifier are explicitly approved.
+RST-000 and RST-000A are executed. RST-000A's recorded approval-boundary
+deviation was ratified through supplemental checksum
+`5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`.
+It deleted the checksum-approved legacy sample rows/files without migration
+and preserved native administrator `llx_user.rowid=1`. Every other
+reset-manifest entry remains `PENDING_APPROVAL`.
 
 ## Design Authority
 

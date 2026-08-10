@@ -107,3 +107,13 @@ debugging discoveries. Do not add one-off observations or generic advice.
   print a PASS marker after unchecked `cmp`, `diff`, checksum, or piped capture
   commands; a changed working directory or successful final pipe stage can
   otherwise mask failed verification while leaving artifacts untouched.
+- A checksum-approved clean reset must derive deletion predicates from every
+  inventoried row's actual entity and identifier; do not assume custom rows
+  all use the active entity. Keep the mutation transactional so a surviving
+  foreign key fails closed, then prove every table count and file hash rolled
+  back before correcting the plan.
+- Dolibarr module activation can rerun historical update SQL even when the
+  module is already installed. Removing seed scripts is insufficient if an old
+  update file still contains data backfills. Run the non-seeding bootstrap and
+  persistent-absence verifier in sequence, and strip obsolete backfills while
+  retaining required schema/index/constraint operations.

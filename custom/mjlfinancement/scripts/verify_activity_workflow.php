@@ -139,7 +139,7 @@ function requireId($table, $where)
 	}
 	$obj = $db->fetch_object($resql);
 	if (!$obj) {
-		fail('Missing required '.$table.' row for '.$where.'. Run seed_sample_data.php first.');
+		fail('Missing required '.$table.' row for '.$where.'. This legacy check requires disposable RST-014 fixtures.');
 	}
 	return (int) $obj->rowid;
 }

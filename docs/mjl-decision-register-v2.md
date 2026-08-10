@@ -9,6 +9,9 @@ belong to the subject-specific canonical document referenced in each row.
 - `FORBIDDEN`: explicitly excluded.
 - `DEFERRED_CLIENT_INPUT`: no implementation until required client material exists.
 - `PENDING_APPROVAL`: proposed reset action or later decision awaiting approval.
+- `EXECUTED`: approved execution is complete and verified.
+- `EXECUTED_PENDING_RATIFICATION`: physical execution occurred, but a recorded
+  approval-boundary deviation must be checksum-ratified before completion.
 
 ## Decisions
 
@@ -44,6 +47,10 @@ belong to the subject-specific canonical document referenced in each row.
 | DEC-028 | Create no persistent sample/demo dataset until all implementation phases are complete and a later dataset specification is approved. | APPROVED | Roadmap | User decision on 2026-08-10 |
 | DEC-029 | Permit disposable test-only fixtures in isolated tenants when they are created for a test and removed with that tenant. | APPROVED | Acceptance tests | User decision on 2026-08-10 |
 | DEC-030 | Legacy sample data and fixture behavior are implementation debt, never evidence for current business rules. | APPROVED | Functional specification | User decision on 2026-08-10 |
+| DEC-031 | Approve RST-000A at unit level and begin read-only implementation preparation; destructive execution remains blocked until the generated deletion-appendix bundle checksum receives explicit approval. | APPROVED | Reset manifest | User decision on 2026-08-10 |
+| DEC-032 | Approve RST-000A appendix bundle checksum `15ba42a2dba1e3e8c3f8171b93e1049ffcbee7ddea1fb12fb6f3cfe358ce593d` for destructive execution. | APPROVED | RST-000A deletion appendix | User decision on 2026-08-10 |
+| DEC-033 | Execute RST-000A against the local tenant, preserve native administrator row 1, retain no migrated business data, and keep the new bootstrap non-seeding. | EXECUTED | RST-000A execution report | Execution on 2026-08-10 |
+| DEC-034 | Ratify the exact RST-000A out-of-appendix transient role row and 22-file supporting snapshot bound by checksum `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`; authorize no new mutation or later RST unit. | APPROVED | RST-000A supplemental appendix | User decision on 2026-08-10 |
 
 ## Deliberately Unspecified
 

@@ -113,7 +113,6 @@ async function provision(plan, signal) {
   await compose(plan, ['up', '-d'], { signal });
   await waitUntilReady(plan, signal);
   await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'], { quiet: true, signal });
-  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/seed_sample_data.php'], { quiet: true, signal });
   await compose(plan, ['exec', '-T', 'dolibarr', 'chown', '-R', 'www-data:www-data', '/var/www/documents'], { quiet: true, signal });
 }
 

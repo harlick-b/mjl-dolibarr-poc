@@ -134,10 +134,9 @@ test('active design authority and deployment language remain aligned with phase 
   const manifest = read('docs/design-system/approved/v3/design-manifest.yaml');
   const v3Design = read('docs/design-system/approved/v3/DESIGN.md');
 
-  assert.match(authority, /approved\/v3.*presentation authority/i);
-  assert.match(authority, /subordinate\s+to business.*security.*permissions.*workflows/i);
-  assert.match(docsIndex, /approved MJL Financement v3 design documentation/);
-  assert.doesNotMatch(docsIndex, /approved MJL Financement v2 design documentation/);
+  assert.match(authority, /approved v3 design package for visual presentation only/i);
+  assert.match(authority, /Product, role, permission, workflow, document, and[\s\S]*superseded/i);
+  assert.match(docsIndex, /Approved visual authority; old product assertions superseded/i);
   assert.match(manifest, /^\s*policy: approved-cdn-with-system-fallback\s*$/m);
   assert.match(v3Design, /DS3-008/);
   assert.match(v3Design, /unavailable or unauthorized links are omitted/i);
@@ -153,7 +152,7 @@ test('active design authority and deployment language remain aligned with phase 
     assert.doesNotMatch(source, /approved\/v2/i, `${relative} contains an active v2 reference`);
   }
 
-  assert.match(authority, /production-quality target[\s\S]*deployment readiness is not established/i);
+  assert.match(designContext, /production-quality target[\s\S]*deployment readiness is not established/i);
   assert.doesNotMatch(durableDesign, /#[0-9a-f]{3,8}\b/i);
   assert.doesNotMatch(durableDesign, /recommended token/i);
   assert.doesNotMatch(durableDesign, /3px solid/i);

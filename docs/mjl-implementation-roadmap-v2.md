@@ -13,6 +13,11 @@ installation/activation path. Phases
 then build target structures against an empty persistent tenant. Test suites
 may create and destroy isolated test-only fixtures.
 
+RST-000A was checksum-approved, physically executed, and supplementally
+ratified on 2026-08-10. The shared tenant contains no persistent
+business/sample data and preserves only the native technical administrator.
+RST-001 is the next independent approval unit.
+
 ## Phase 0: Authoritative Audit and Reset Manifest
 
 Deliver canonical v2 documents and current-state evidence. Execute no reset.

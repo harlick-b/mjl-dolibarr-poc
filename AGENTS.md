@@ -28,7 +28,7 @@ stale doc.
 ## Important Directories
 
 - `custom/mjlfinancement`: MJL custom module, pages, classes, scripts, SQL,
-  CSS, JS, language files, and legacy sample sources pending approved removal.
+  CSS, JS, and language files.
 - `docs/`: authority, current-state, deployment, readiness, testing, and
   decision docs.
 - `docs/design-system/`: active design guidance, current screen inventory, and
@@ -39,8 +39,6 @@ stale doc.
   debugging discoveries.
 - `tests/e2e`: Playwright E2E tests.
 - `data/documents`: local Dolibarr document storage.
-- `mjl_dolibarr_poc_sample_data`: retired legacy fixture package; never use it
-  as target-rule evidence or load it into the shared tenant.
 
 ## Setup Commands
 
@@ -52,10 +50,8 @@ docker compose up -d
 
 Open `http://127.0.0.1:8080/`.
 
-Do not run the current `bootstrap_poc.php` or `seed_sample_data.php`. RST-000A
-must replace/strip bootstrap to a non-seeding module installation path. Normal
-local startup remains empty afterward except for one native technical
-administrator.
+The retained `bootstrap_poc.php` is a non-seeding module activation path. It
+must preserve the empty tenant and the one native technical administrator.
 
 ## Development Commands
 
@@ -77,10 +73,10 @@ npm run test:manual-accessibility
 
 Active verification guidance is in `docs/mjl-acceptance-tests.md`.
 
-Use `npm run test:verify` for the complete current schema and behavioral
-verification layer. Its runner supplies allowlisted internal module names to
-the composite schema and scope entrypoints; do not revive versioned audit or
-smoke commands.
+`npm run test:unit` remains available after RST-000A. Container-backed legacy
+suites are not target acceptance gates until RST-014 replaces their removed
+persistent seed with disposable factories; do not revive the seed to make
+them pass.
 
 Lint command: Needs confirmation. Build command: Needs confirmation.
 
@@ -91,8 +87,8 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 - Credentials in `docker-compose.yml` are local development/test values only.
 - Production email transport, public/base URL, final permissions, and secrets
   configuration remain Needs confirmation.
-- Do not run `bootstrap_poc.php`, `seed_sample_data.php`, or legacy sample-data
-  CSVs in any shared or production tenant.
+- Never recreate `seed_sample_data.php`, the legacy sample-data library/CSVs,
+  or persistent fixture packages in a shared or production tenant.
 
 ## Coding Conventions
 

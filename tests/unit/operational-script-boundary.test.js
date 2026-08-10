@@ -21,7 +21,6 @@ test('operational entrypoints require the shared CLI-only guard', () => {
     'bootstrap_poc.php',
     'check_production_readiness.php',
     'disable_native_workspace_modules.php',
-    'seed_sample_data.php',
     'verify_activity_workflow.php',
     'verify_expense_workflow.php',
     'verify_sample_data.php',
@@ -36,12 +35,35 @@ test('operational entrypoints require the shared CLI-only guard', () => {
   }
 });
 
-test('local bootstrap never prints API key material', () => {
+test('local bootstrap activates modules without persistent sample creation', () => {
   const source = fs.readFileSync(
     path.join(repositoryRoot, 'custom/mjlfinancement/scripts/bootstrap_poc.php'),
     'utf8',
   );
 
-  assert.doesNotMatch(source, /mjl_out\([^\n]*api_key/i);
-  assert.match(source, /API key ensured for/);
+  assert.doesNotMatch(source, /mjl_sample_data|mjl_csv_|ensureUser|setPassword|api_key/i);
+  assert.match(source, /without creating users, roles, groups, Partners, Projects, business records, documents, or sample data/);
+});
+
+test('operational module scripts fail closed on the exact preserved administrator', () => {
+  const helper = fs.readFileSync(
+    path.join(repositoryRoot, 'custom/mjlfinancement/scripts/preserved_admin.lib.php'),
+    'utf8',
+  );
+
+  assert.match(helper, /fetch\(1\)/);
+  assert.match(helper, /\$adminUser->id !== 1/);
+  assert.match(helper, /\$adminUser->entity !== 0/);
+  assert.match(helper, /\$adminUser->login !== 'admin'/);
+  assert.match(helper, /empty\(\$adminUser->admin\)/);
+  assert.match(helper, /empty\(\$adminUser->statut\)/);
+
+  for (const script of ['bootstrap_poc.php', 'disable_native_workspace_modules.php']) {
+    const source = fs.readFileSync(
+      path.join(repositoryRoot, 'custom/mjlfinancement/scripts', script),
+      'utf8',
+    );
+    assert.match(source, /require_once __DIR__\.'\/preserved_admin\.lib\.php';/, script);
+    assert.match(source, /mjl_load_preserved_native_admin\(\$db\)/, script);
+  }
 });

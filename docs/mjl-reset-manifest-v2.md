@@ -1,16 +1,19 @@
 # MJL Reset Manifest v2
 
-RST-000 was explicitly approved and executed for the local tenant on
-2026-08-10. Every other action remains unapproved and unexecuted. Each ID below
-is an independently scoped approval unit. Approval of a parent number does not
-approve a suffixed unit.
+RST-000 and RST-000A were explicitly approved and executed for the local
+tenant on 2026-08-10. RST-000A's discovered approval-boundary deviation was
+explicitly ratified by supplemental checksum. Every other action remains
+unapproved and unexecuted.
+Each ID below is an independently scoped approval unit. Approval of a parent
+number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
-- RST-000 is `EXECUTED`; every other action is `PENDING_APPROVAL`.
-- RST-000A is the next destructive gate. It deletes legacy local sample data
-  without migration, preserves exactly one native technical administrator,
-  and requires a checksum-approved deletion appendix before execution.
+- RST-000 and RST-000A are `EXECUTED`; every other action is
+  `PENDING_APPROVAL`.
+- RST-000A deleted legacy local sample data without migration and preserved
+  exactly one native technical administrator through a checksum-approved
+  deletion appendix.
 - No selective inactivation, old-to-new user/Partner/Project/Activity mapping,
   or phase-owned persistent seed is authorized.
 - Persistent sample/demo data remains absent until every implementation phase
@@ -44,17 +47,19 @@ approve a suffixed unit.
 
 ### RST-000A - Clean local sample-data purge
 
-- Status: `PENDING_APPROVAL`
+- Status: `EXECUTED`
 - Current component: legacy POC users, role/scope assignments, business rows, audit/log rows, generated files, documents, and persistent seed sources.
 - Proposed action: delete all inventoried local sample data without migration while preserving exactly one native technical administrator account.
 - Reason: the target must start from an empty persistent tenant, and legacy POC data is not business-rule evidence.
 - Phase: Phase 1 destructive precondition
 - Dependencies: RST-000
 - Exact paths: `data/documents`, `custom/mjlfinancement/sample_data`, `mjl_dolibarr_poc_sample_data`, `custom/mjlfinancement/scripts/bootstrap_poc.php`, `custom/mjlfinancement/scripts/seed_sample_data.php`, `custom/mjlfinancement/lib/mjl_sample_data.lib.php`, and every database row/file path enumerated in the required deletion appendix.
-- Exact tables/data: all existing entity-1 rows in `llx_mjlfinancement_*` data tables; all inventoried sample-owned `llx_user`, user-group/right, `llx_societe`, `llx_projet`, ECM, invitation/token, email-outbox, generated-output, and document rows/files; exactly one checksum-identified native administrator is excluded. Dolibarr system/reference/configuration rows and all table definitions are excluded.
+- Exact tables/data: all appendix-inventoried rows in the 15 `llx_mjlfinancement_*` data tables, including legacy entity-0 backfill rows; all inventoried sample-owned `llx_user`, user-group/right, `llx_societe`, `llx_projet`, ECM, invitation/token, email-outbox, generated-output, and document rows/files; exactly one checksum-identified native administrator is excluded. Dolibarr system/reference/configuration rows and all table definitions are excluded.
 - Action and data impact: dependency-ordered hard deletion of only appendix-listed sample rows/files; no value is copied, transformed, mapped, or retained for compatibility. Legacy CSVs, placeholder documents, and `seed_sample_data.php` are removed. `bootstrap_poc.php` is replaced or stripped to a non-seeding installation/activation path that preserves the one technical administrator and cannot recreate business data; Git history and RST-000 provide recovery.
-- Backup prerequisite: verified RST-000 artifacts plus a read-only deletion appendix containing every row identifier, entity, ownership marker, dependency class, file path/hash, before count, and the one preserved administrator identifier; the appendix checksum and RST-000A must be explicitly approved.
+- Backup prerequisite: satisfied by verified RST-000 artifacts and explicit approval of appendix bundle checksum `15ba42a2dba1e3e8c3f8171b93e1049ffcbee7ddea1fb12fb6f3cfe358ce593d` on 2026-08-10.
+- Approval deviation: post-reset activation recreated one legacy Admin-role row, and its removal plus supporting source/test/evidence changes exceeded the first appendix. The user ratified that exact scope on 2026-08-10 through supplemental checksum `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`.
 - Rollback/verification: restore RST-000; prove the preserved administrator can authenticate, all appendix targets are absent, no non-appendix native row changed, persistent business tables are empty, normal setup cannot repopulate them, and disposable-test infrastructure remains isolated.
+- Execution evidence: `docs/mjl-rst-000a-execution-report.md`.
 
 ### RST-001 - Effective roles and native-admin invariant
 
@@ -64,7 +69,7 @@ approve a suffixed unit.
 - Reason: the target requires one effective role and no native-admin business role.
 - Phase: Phase 1
 - Dependencies: RST-000A
-- Exact paths: `custom/mjlfinancement/admin/access.php`, `custom/mjlfinancement/lib/mjl_scope.lib.php`, `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_user_role.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_user_role.key.sql`, `custom/mjlfinancement/scripts/bootstrap_poc.php`, `custom/mjlfinancement/scripts/seed_sample_data.php`, `custom/mjlfinancement/scripts/verification/schema/role_scope_schema.php`, `tests/e2e/auth-invitations.spec.js`, `tests/e2e/cases/auth-lifecycle.cases.js`, `tests/e2e/cases/role-dashboards.cases.js`, `tests/unit/access-audit-fail-closed.test.js`.
+- Exact paths: `custom/mjlfinancement/admin/access.php`, `custom/mjlfinancement/lib/mjl_scope.lib.php`, `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_user_role.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_user_role.key.sql`, the non-seeding `custom/mjlfinancement/scripts/bootstrap_poc.php`, `custom/mjlfinancement/scripts/verification/schema/role_scope_schema.php`, `tests/e2e/auth-invitations.spec.js`, `tests/e2e/cases/auth-lifecycle.cases.js`, `tests/e2e/cases/role-dashboards.cases.js`, `tests/unit/access-audit-fail-closed.test.js`.
 - Exact tables/data: target structure and guards for `llx_mjlfinancement_user_role`, `llx_user`, `llx_usergroup`, `llx_usergroup_user`, `llx_user_rights`, `llx_usergroup_rights`, and `llx_rights_def`; no deleted sample assignment is an input.
 - Action and data impact: enforce one effective role for future accounts, derive `ADMIN_PLATEFORME` for the one preserved native administrator, and prohibit concurrent business-role rows for any native admin. No existing sample user or role assignment is migrated.
 - Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
@@ -102,7 +107,6 @@ approve a suffixed unit.
   `custom/mjlfinancement/lib/mjl_expense_access.lib.php`,
   `custom/mjlfinancement/lib/mjl_integrity.lib.php`,
   `custom/mjlfinancement/lib/mjl_reporting.lib.php`,
-  `custom/mjlfinancement/lib/mjl_sample_data.lib.php`,
   `custom/mjlfinancement/lib/mjl_timeline.lib.php`,
   `custom/mjlfinancement/partners.php`,
   `custom/mjlfinancement/projects.php`,
@@ -144,7 +148,7 @@ approve a suffixed unit.
 - Reason: current Partner/Programme naming and one-project shape conflict with v2.
 - Phase: Phase 1
 - Dependencies: RST-000A, RST-001
-- Exact paths: `custom/mjlfinancement/partners.php`, `custom/mjlfinancement/projects.php`, `custom/mjlfinancement/lib/mjl_project_recovery.lib.php`, `custom/mjlfinancement/lib/mjl_recovery_registry.lib.php`, `custom/mjlfinancement/sample_data/seed/ptfs_bailleurs.csv`, `custom/mjlfinancement/sample_data/seed/projects.csv`, planned `custom/mjlfinancement/operationtypes.php`, planned `custom/mjlfinancement/class/mjloperationtype.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.key.sql`, `tests/e2e/partners-projects.spec.js`, `tests/e2e/cases/partner-project.cases.js`, `tests/contracts/project_form_security_test.php`.
+- Exact paths: `custom/mjlfinancement/partners.php`, `custom/mjlfinancement/projects.php`, `custom/mjlfinancement/lib/mjl_project_recovery.lib.php`, `custom/mjlfinancement/lib/mjl_recovery_registry.lib.php`, planned `custom/mjlfinancement/operationtypes.php`, planned `custom/mjlfinancement/class/mjloperationtype.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.key.sql`, `tests/e2e/partners-projects.spec.js`, `tests/e2e/cases/partner-project.cases.js`, `tests/contracts/project_form_security_test.php`.
 - Exact tables/data: empty target-facing use of `llx_societe` and `llx_projet`; planned empty `llx_mjlfinancement_operation_type`. Legacy native rows are deleted only by RST-000A.
 - Action and data impact: implement stable identifiers, active/inactive behavior, and Validator-only management without creating UNICEF, Coopération Suisse, Project, or Opération-type sample rows. Final values come from later real entry or the post-all-phases dataset specification.
 - Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
@@ -327,7 +331,7 @@ approve a suffixed unit.
 - Reason: target sources, scopes, formats, and audit contract differ.
 - Phase: Phase 3B
 - Dependencies: RST-006B, RST-007B
-- Exact paths: `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/class/mjlreport.class.php`, `custom/mjlfinancement/lib/mjl_reporting.lib.php`, `custom/mjlfinancement/lib/mjl_csv_export.lib.php`, `custom/mjlfinancement/lib/mjl_xlsx_export.lib.php`, planned `custom/mjlfinancement/lib/mjl_pdf_export.lib.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_report.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_report.key.sql`, `custom/mjlfinancement/sql/update_0.3.0.sql`, `custom/mjlfinancement/scripts/verify_traceability_exports.php`, `custom/mjlfinancement/scripts/verification/scope/traceability_targets.php`, `custom/mjlfinancement/scripts/verification/schema/core_schema.php`, `custom/mjlfinancement/scripts/check_production_readiness.php`, `custom/mjlfinancement/sample_data/seed/fixed_reports.csv`, `custom/mjlfinancement/scripts/seed_sample_data.php`, `custom/mjlfinancement/lib/mjl_sample_data.lib.php`, `custom/mjlfinancement/lib/mjl_navigation_registry.lib.php`, `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `custom/mjlfinancement/lib/mjl_dashboard.lib.php`, `custom/mjlfinancement/lib/mjl_integrity.lib.php`, `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, `custom/mjlfinancement/lib/mjl_traceability_scope.lib.php`, `custom/mjlfinancement/index.php`, `tests/e2e/reports-exports.spec.js`, `tests/e2e/cases/report-exports.cases.js`, `tests/contracts/navigation_registry_test.php`, `tests/e2e/access-shell.spec.js`, `tests/e2e/cases/navigation-shell.cases.js`, `tests/e2e/cases/scope-security.cases.js`, `tests/e2e/screen-inventory.spec.js`, `tests/manual/accessibility-gate.spec.js`, `tests/runner/run-suite.js`, `tests/unit/operational-script-boundary.test.js`.
+- Exact paths: `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/class/mjlreport.class.php`, `custom/mjlfinancement/lib/mjl_reporting.lib.php`, `custom/mjlfinancement/lib/mjl_csv_export.lib.php`, `custom/mjlfinancement/lib/mjl_xlsx_export.lib.php`, planned `custom/mjlfinancement/lib/mjl_pdf_export.lib.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_report.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_report.key.sql`, `custom/mjlfinancement/sql/update_0.3.0.sql`, `custom/mjlfinancement/scripts/verify_traceability_exports.php`, `custom/mjlfinancement/scripts/verification/scope/traceability_targets.php`, `custom/mjlfinancement/scripts/verification/schema/core_schema.php`, `custom/mjlfinancement/scripts/check_production_readiness.php`, `custom/mjlfinancement/lib/mjl_navigation_registry.lib.php`, `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `custom/mjlfinancement/lib/mjl_dashboard.lib.php`, `custom/mjlfinancement/lib/mjl_integrity.lib.php`, `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, `custom/mjlfinancement/lib/mjl_traceability_scope.lib.php`, `custom/mjlfinancement/index.php`, `tests/e2e/reports-exports.spec.js`, `tests/e2e/cases/report-exports.cases.js`, `tests/contracts/navigation_registry_test.php`, `tests/e2e/access-shell.spec.js`, `tests/e2e/cases/navigation-shell.cases.js`, `tests/e2e/cases/scope-security.cases.js`, `tests/e2e/screen-inventory.spec.js`, `tests/manual/accessibility-gate.spec.js`, `tests/runner/run-suite.js`, `tests/unit/operational-script-boundary.test.js`; continued absence of removed persistent report seed sources is an invariant.
 - Exact tables/data: empty target `llx_mjlfinancement_report`; disposable generated test outputs; read-only target Activity/Opération/revision/audit sources.
 - Action and data impact: replace all 18 legacy code keys with the approved PDF/XLSX catalog and retain supplemental CSV; create no persistent sample report row and label no output official without later approval.
 - Backup prerequisite: RST-000, executed RST-000A, and a report code/schema baseline.

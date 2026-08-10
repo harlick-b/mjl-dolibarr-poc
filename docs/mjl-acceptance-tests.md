@@ -36,10 +36,10 @@ Before startup, the resolved Compose configuration rejects:
 - extra services, unapproved host binds, privileged mode, host namespaces,
   host networking, devices, or non-Dolibarr published ports.
 
-The current runner still bootstraps legacy records once inside its disposable
-tenant. Those records are tolerated only as current-state characterization and
-must not support a target-rule assertion. RST-013A/RST-014A replace this with
-minimal per-test or per-suite factories. Normal completion, failure, and
+RST-000A removed the legacy persistent seed. The runner may activate modules
+inside its disposable tenant but creates no business records. RST-014 must add
+minimal per-test or per-suite factories before the container-backed legacy
+journeys can serve as target acceptance. Normal completion, failure, and
 interruption run `docker compose down -v --remove-orphans` and verify no
 labeled containers, networks, or volumes remain.
 
@@ -63,9 +63,9 @@ scope entrypoints accept only runner-supplied allowlisted module names so each
 legacy check executes in a separate PHP process without exposing historical
 versioned commands.
 
-`verify_sample_data.php` is a legacy current-state entrypoint scheduled for
-removal. A passing result proves only that the obsolete disposable fixture is
-self-consistent; it is not target acceptance evidence.
+`verify_sample_data.php` now verifies the opposite contract: all persistent
+sample/business rows and paths are absent while the single native technical
+administrator remains.
 
 ## Target fixture contract
 
