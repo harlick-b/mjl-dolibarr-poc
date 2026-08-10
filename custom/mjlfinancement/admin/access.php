@@ -20,20 +20,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	} elseif ($action === 'invite') {
 		$roleCode = GETPOST('role_code', 'aZ09');
 		$scopeIds = mjl_access_post_scope_ids();
-		$result = mjl_auth_create_or_update_user(
-			GETPOST('login', 'alphanohtml'),
-			GETPOST('firstname', 'restricthtml'),
-			GETPOST('lastname', 'restricthtml'),
-			GETPOST('email', 'restricthtml'),
-			0,
-			$user
-		);
+		$inviteLogin = GETPOST('login', 'alphanohtml');
+		$existingInvitee = mjl_auth_user_by_login($inviteLogin);
+		$recoveringInvitee = $existingInvitee && mjl_access_user_requires_recovery((int) $existingInvitee->id);
+		if ($recoveringInvitee && strcasecmp(trim((string) $existingInvitee->email), trim(GETPOST('email', 'restricthtml'))) === 0) {
+			$result = array((int) $existingInvitee->id, '');
+		} else {
+			$result = mjl_auth_create_or_update_user(
+				$inviteLogin,
+				GETPOST('firstname', 'restricthtml'),
+				GETPOST('lastname', 'restricthtml'),
+				GETPOST('email', 'restricthtml'),
+				0,
+				$user
+			);
+		}
 		if ($result[0] < 0) {
 			$error = $result[1];
 		} else {
 			$profile = mjl_scope_assign_access_profile($result[0], $roleCode, $scopeIds, $user, mjl_auth_entity(), 'admin_access', 'Invitation administrateur');
 			if ($profile[0] < 0) {
-				$error = $profile[1];
+				if (!$existingInvitee && !mjl_access_delete_failed_invitee((int) $result[0], $user)) {
+					mjl_ui_log_error('admin_access', array('route' => 'admin/access', 'action' => 'invite_compensation', 'entity' => mjl_auth_entity(), 'user_id' => (int) $user->id), 'Failed to remove an unprofiled invitee.');
+					if (mjl_auth_record_event('invite_compensation_failed', (int) $result[0], (int) $user->id, 'source=admin_access;state=inactive_recovery_required') < 1) {
+						mjl_ui_log_error('admin_access', array('route' => 'admin/access', 'action' => 'invite_compensation_audit', 'entity' => mjl_auth_entity(), 'user_id' => (int) $user->id), 'Failed to audit an invitee recovery blocker; current-state discovery remains active.');
+					}
+					$error = 'La création du compte a échoué. Un compte inactif sans accès exige une récupération administrative avant toute nouvelle invitation.';
+				} else {
+					$error = $profile[1];
+				}
 			} else {
 				$linkResult = mjl_auth_create_invitation($result[0], $user);
 				if ($linkResult[1] !== '') {
@@ -143,7 +158,12 @@ foreach ($users as $row) {
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="update_profile">';
 	print '<input type="hidden" name="user_id" value="'.((int) $row['rowid']).'">';
-	print mjl_access_role_select('role_code', $row['role_code'] !== '' ? $row['role_code'] : 'AGENT_SAISIE', $roles);
+	if (!empty($row['native_admin'])) {
+		print '<input type="hidden" name="role_code" value="ADMIN_PLATEFORME">';
+		print '<span class="opacitymedium">Admin natif Dolibarr</span>';
+	} else {
+		print mjl_access_role_select('role_code', $row['role_code'] !== '' ? $row['role_code'] : 'AGENT_SAISIE', $roles);
+	}
 	print mjl_access_scope_select($partners, $currentScopes);
 	print '<button class="button small" type="submit">Enregistrer</button>';
 	print '</form>';
@@ -202,6 +222,36 @@ function mjl_access_post_scope_ids()
 	return array_values(array_unique(array_map('intval', $values)));
 }
 
+function mjl_access_delete_failed_invitee($userId, User $actor)
+{
+	global $db;
+
+	$target = new User($db);
+	if ($target->fetch((int) $userId) <= 0 || (int) $target->entity !== mjl_auth_entity() || !empty($target->admin) || (int) $target->statut !== 0) {
+		return false;
+	}
+	return $target->delete($actor) > 0;
+}
+
+function mjl_access_user_requires_recovery($userId)
+{
+	global $db;
+
+	$sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'user recovery_user';
+	$sql .= ' WHERE recovery_user.rowid = '.((int) $userId).' AND '.mjl_access_recovery_state_sql('recovery_user');
+	return mjl_scope_scalar_int($sql) === 1;
+}
+
+function mjl_access_recovery_state_sql($userAlias)
+{
+	global $db;
+
+	$userAlias = preg_replace('/[^A-Za-z0-9_]/', '', (string) $userAlias);
+	return $userAlias.'.entity = '.mjl_auth_entity().' AND '.$userAlias.'.admin = 0 AND '.$userAlias.'.statut = 0'
+		.' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_user_role recovery_role WHERE recovery_role.entity = '.$userAlias.'.entity AND recovery_role.fk_user = '.$userAlias.'.rowid)'
+		.' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_invitation recovery_invitation WHERE recovery_invitation.entity = '.$userAlias.'.entity AND recovery_invitation.fk_user = '.$userAlias.'.rowid)';
+}
+
 function mjl_access_partner_options()
 {
 	global $db;
@@ -222,16 +272,17 @@ function mjl_access_users()
 	global $db;
 
 	$rows = array();
-	$sql = 'SELECT u.rowid, u.login, u.email, u.statut, r.role_code';
+	$sql = "SELECT u.rowid, u.login, u.email, u.statut, u.admin AS native_admin, CASE WHEN u.admin = 1 THEN 'ADMIN_PLATEFORME' ELSE r.role_code END AS role_code";
+	$sql .= ', ('.mjl_access_recovery_state_sql('u').') AS recovery_required';
 	$sql .= ' FROM '.$db->prefix().'user u';
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_user_role r ON r.entity = u.entity AND r.fk_user = u.rowid AND r.is_active = 1';
-	$sql .= ' WHERE u.entity = '.mjl_auth_entity().' AND (r.rowid IS NOT NULL OR EXISTS (SELECT 1 FROM '.$db->prefix().'usergroup_user ugu INNER JOIN '.$db->prefix()."usergroup ug ON ug.rowid = ugu.fk_usergroup AND ug.entity = u.entity WHERE ugu.fk_user = u.rowid AND ugu.entity = u.entity AND ug.nom LIKE 'MJL POC - %') OR u.admin = 1)";
+	$sql .= ' WHERE u.entity = '.mjl_auth_entity().' AND (r.rowid IS NOT NULL OR EXISTS (SELECT 1 FROM '.$db->prefix().'usergroup_user ugu INNER JOIN '.$db->prefix()."usergroup ug ON ug.rowid = ugu.fk_usergroup AND ug.entity = u.entity WHERE ugu.fk_user = u.rowid AND ugu.entity = u.entity AND ug.nom LIKE 'MJL POC - %') OR u.admin = 1 OR (".mjl_access_recovery_state_sql('u').'))';
 	$sql .= ' ORDER BY u.login';
 	$resql = $db->query($sql);
 	if ($resql) {
 		while ($obj = $db->fetch_object($resql)) {
 			$row = (array) $obj;
-			$row['role_label'] = $row['role_code'] !== null && $row['role_code'] !== '' ? mjl_scope_role_label($row['role_code']) : 'Profil historique non résolu';
+			$row['role_label'] = !empty($row['recovery_required']) ? 'Récupération administrative requise' : ($row['role_code'] !== null && $row['role_code'] !== '' ? mjl_scope_role_label($row['role_code']) : 'Profil historique non résolu');
 			$rows[] = $row;
 		}
 	}

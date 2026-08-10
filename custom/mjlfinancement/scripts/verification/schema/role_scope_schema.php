@@ -10,7 +10,7 @@ global $db;
 $hasFindings = false;
 
 $requiredColumns = array(
-	'mjlfinancement_user_role' => array('rowid', 'entity', 'fk_user', 'role_code', 'is_active', 'date_start', 'date_end', 'source', 'date_creation', 'fk_user_creat', 'import_key'),
+	'mjlfinancement_user_role' => array('rowid', 'entity', 'fk_user', 'role_code', 'is_active', 'active_user_id', 'date_start', 'date_end', 'source', 'date_creation', 'fk_user_creat', 'import_key'),
 	'mjlfinancement_user_soc_scope' => array('rowid', 'entity', 'fk_user', 'fk_soc', 'is_active', 'date_start', 'date_end', 'source', 'date_creation', 'fk_user_creat', 'import_key'),
 );
 foreach ($requiredColumns as $table => $columns) {
@@ -30,6 +30,7 @@ $requiredIndexes = array(
 	array('mjlfinancement_user_role', 'idx_mjlfinancement_user_role_fk_user'),
 	array('mjlfinancement_user_role', 'idx_mjlfinancement_user_role_active'),
 	array('mjlfinancement_user_role', 'idx_mjlfinancement_user_role_code'),
+	array('mjlfinancement_user_role', 'uk_mjlfinancement_user_role_active_user'),
 	array('mjlfinancement_user_soc_scope', 'idx_mjlfinancement_user_soc_scope_entity'),
 	array('mjlfinancement_user_soc_scope', 'idx_mjlfinancement_user_soc_scope_fk_user'),
 	array('mjlfinancement_user_soc_scope', 'idx_mjlfinancement_user_soc_scope_fk_soc'),
@@ -38,6 +39,23 @@ $requiredIndexes = array(
 foreach ($requiredIndexes as $index) {
 	if (!indexExists($index[0], $index[1])) {
 		finding('missing_index', $index[0].'.'.$index[1]);
+	}
+}
+if (tableExists('mjlfinancement_user_role')) {
+	if (!generatedColumnExists('mjlfinancement_user_role', 'active_user_id')) {
+		finding('invalid_generated_column', 'mjlfinancement_user_role.active_user_id');
+	}
+	if (!uniqueIndexExists('mjlfinancement_user_role', 'uk_mjlfinancement_user_role_active_user')) {
+		finding('invalid_unique_index', 'mjlfinancement_user_role.uk_mjlfinancement_user_role_active_user');
+	}
+	foreach (array(
+		$db->prefix().'mjlfinancement_user_role_bi',
+		$db->prefix().'mjlfinancement_user_role_bu',
+		$db->prefix().'mjlfinancement_user_admin_bu',
+	) as $trigger) {
+		if (!triggerExists($trigger)) {
+			finding('missing_trigger', $trigger);
+		}
 	}
 }
 
@@ -53,6 +71,14 @@ if (tableExists('mjlfinancement_user_role')) {
 	reportRows(
 		'user_role_orphan_user',
 		'SELECT r.rowid, r.entity, r.fk_user, r.role_code FROM '.$db->prefix().'mjlfinancement_user_role r LEFT JOIN '.$db->prefix().'user u ON u.rowid = r.fk_user WHERE u.rowid IS NULL'
+	);
+	reportRows(
+		'user_role_entity_mismatch',
+		'SELECT r.rowid, r.entity, r.fk_user, r.role_code, u.entity AS user_entity FROM '.$db->prefix().'mjlfinancement_user_role r INNER JOIN '.$db->prefix().'user u ON u.rowid = r.fk_user WHERE r.entity <> u.entity'
+	);
+	reportRows(
+		'native_admin_active_business_role',
+		'SELECT r.rowid, r.entity, r.fk_user, r.role_code FROM '.$db->prefix()."mjlfinancement_user_role r INNER JOIN ".$db->prefix()."user u ON u.rowid = r.fk_user WHERE r.is_active = 1 AND u.admin = 1 AND r.role_code <> 'ADMIN_PLATEFORME'"
 	);
 }
 
@@ -114,6 +140,38 @@ function indexExists($table, $index)
 	$sql = 'SELECT COUNT(*) AS nb FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()';
 	$sql .= " AND TABLE_NAME = '".$db->escape($db->prefix().$table)."'";
 	$sql .= " AND INDEX_NAME = '".$db->escape($index)."'";
+	return scalar($sql) > 0;
+}
+
+function uniqueIndexExists($table, $index)
+{
+	global $db;
+
+	$sql = 'SELECT COUNT(*) AS nb FROM (';
+	$sql .= 'SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()';
+	$sql .= " AND TABLE_NAME = '".$db->escape($db->prefix().$table)."'";
+	$sql .= " AND INDEX_NAME = '".$db->escape($index)."' AND NON_UNIQUE = 0";
+	$sql .= " GROUP BY INDEX_NAME HAVING GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) = 'active_user_id'";
+	$sql .= ') valid_index';
+	return scalar($sql) > 0;
+}
+
+function generatedColumnExists($table, $column)
+{
+	global $db;
+
+	$sql = 'SELECT COUNT(*) AS nb FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()';
+	$sql .= " AND TABLE_NAME = '".$db->escape($db->prefix().$table)."'";
+	$sql .= " AND COLUMN_NAME = '".$db->escape($column)."' AND IS_GENERATED = 'ALWAYS'";
+	return scalar($sql) > 0;
+}
+
+function triggerExists($trigger)
+{
+	global $db;
+
+	$sql = 'SELECT COUNT(*) AS nb FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE()';
+	$sql .= " AND TRIGGER_NAME = '".$db->escape($trigger)."'";
 	return scalar($sql) > 0;
 }
 

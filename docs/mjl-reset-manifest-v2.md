@@ -1,15 +1,15 @@
 # MJL Reset Manifest v2
 
-RST-000 and RST-000A were explicitly approved and executed for the local
-tenant on 2026-08-10. RST-000A's discovered approval-boundary deviation was
-explicitly ratified by supplemental checksum. Every other action remains
+RST-000, RST-000A, and RST-001 were explicitly approved and executed for the
+local tenant on 2026-08-10. RST-000A's discovered approval-boundary deviation
+was explicitly ratified by supplemental checksum. Every other action remains
 unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
-- RST-000 and RST-000A are `EXECUTED`; every other action is
+- RST-000, RST-000A, and RST-001 are `EXECUTED`; every other action is
   `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
@@ -63,7 +63,7 @@ number does not approve a suffixed unit.
 
 ### RST-001 - Effective roles and native-admin invariant
 
-- Status: `PENDING_APPROVAL`
+- Status: `EXECUTED`
 - Current component: role enforcement code, native-admin bypasses, groups, and rights after the RST-000A purge.
 - Proposed action: implement target effective-role enforcement against an empty account set except for the preserved native administrator.
 - Reason: the target requires one effective role and no native-admin business role.
@@ -74,6 +74,7 @@ number does not approve a suffixed unit.
 - Action and data impact: enforce one effective role for future accounts, derive `ADMIN_PLATEFORME` for the one preserved native administrator, and prohibit concurrent business-role rows for any native admin. No existing sample user or role assignment is migrated.
 - Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
 - Rollback/verification: restore prior code/schema; verify the preserved administrator retains technical access and disposable target users cannot acquire zero, multiple, or native-admin-plus-business roles.
+- Execution evidence: `docs/mjl-rst-001-execution-report.md`; singular active-role persistence, derived native Admin, business-role rejection, Admin business-route denial, clean schema audit, and clean persistent tenant checks passed.
 
 ### RST-002A - Retire Partner authorization scopes
 

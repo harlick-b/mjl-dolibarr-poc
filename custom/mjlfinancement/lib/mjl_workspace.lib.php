@@ -17,7 +17,7 @@ function mjl_workspace_is_level3(User $targetUser)
 
 function mjl_workspace_can_access_supervision(User $targetUser)
 {
-	return mjl_workspace_is_admin($targetUser) || mjl_workspace_is_level3($targetUser);
+	return mjl_workspace_is_level3($targetUser);
 }
 
 function mjl_workspace_require_supervision_access(User $targetUser)
@@ -122,7 +122,7 @@ function mjl_workspace_user_can_enter(User $targetUser)
 
 function mjl_workspace_can_access_projects(User $targetUser)
 {
-	return mjl_workspace_user_has_production_access($targetUser)
+	return mjl_scope_user_has_active_business_role($targetUser)
 		&& ($targetUser->hasRight('mjlfinancement', 'activity', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'expense', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'convention', 'read')
@@ -132,7 +132,7 @@ function mjl_workspace_can_access_projects(User $targetUser)
 
 function mjl_workspace_can_access_partners(User $targetUser)
 {
-	return mjl_workspace_user_has_production_access($targetUser)
+	return mjl_scope_user_has_active_business_role($targetUser)
 		&& ($targetUser->hasRight('mjlfinancement', 'activity', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'expense', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'convention', 'read')
@@ -156,7 +156,7 @@ function mjl_workspace_require_projects_access(User $targetUser)
 
 function mjl_workspace_can_access_documents(User $targetUser)
 {
-	return mjl_workspace_user_has_production_access($targetUser)
+	return mjl_scope_user_has_active_business_role($targetUser)
 		&& ($targetUser->hasRight('mjlfinancement', 'activity', 'read')
 		|| $targetUser->hasRight('mjlfinancement', 'expense', 'read')
 		|| mjl_workspace_can_access_reference_data($targetUser, 'convention')
@@ -205,10 +205,10 @@ function mjl_workspace_capabilities(User $targetUser)
 		'admin' => $isAdmin,
 		'operational' => $hasProductionAccess && $isInputAgent && ($targetUser->hasRight('mjlfinancement', 'activity', 'write') || $targetUser->hasRight('mjlfinancement', 'expense', 'write')),
 		'reviewer' => $hasProductionAccess && $isBusinessValidator && ($targetUser->hasRight('mjlfinancement', 'activity', 'validate') || $targetUser->hasRight('mjlfinancement', 'expense', 'validate')),
-		'supervision' => $hasProductionAccess && ($isAdmin || $isFinalValidator),
+		'supervision' => $hasProductionAccess && $isFinalValidator,
 		'readonly' => $hasProductionAccess && mjl_workspace_user_can_read($targetUser),
-		'activity_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'activity', 'read') && ($isAdmin || $isInputAgent || $isBusinessValidator || $isFinalValidator),
-		'expense_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'expense', 'read') && ($isAdmin || $isInputAgent || $isBusinessValidator || $isFinalValidator),
+		'activity_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'activity', 'read') && ($isInputAgent || $isBusinessValidator || $isFinalValidator),
+		'expense_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'expense', 'read') && ($isInputAgent || $isBusinessValidator || $isFinalValidator),
 		'validation_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'validation', 'read') && ($isAdmin || $isBusinessValidator || $isFinalValidator),
 		'workflowaction_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'workflowaction', 'read') && ($isAdmin || $isBusinessValidator || $isFinalValidator),
 		'exchangelog_read' => $hasProductionAccess && $targetUser->hasRight('mjlfinancement', 'exchangelog', 'read') && ($isAdmin || $isFinalValidator),
@@ -224,7 +224,7 @@ function mjl_workspace_user_has_production_access(User $targetUser)
 	if (empty($targetUser->id)) {
 		return false;
 	}
-	return mjl_scope_is_platform_admin($targetUser) || mjl_scope_user_has_active_business_role((int) $targetUser->id);
+	return mjl_scope_is_platform_admin($targetUser) || mjl_scope_user_has_active_business_role($targetUser);
 }
 
 function mjl_workspace_can_access_activity(User $targetUser)

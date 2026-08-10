@@ -14,7 +14,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'MJL financing POC';
 		$this->descriptionlong = 'MJL financing POC module for conventions, activities, budget lines, expenses, fund receipts, validations, workflow actions, exchange logs, and reports.';
-		$this->version = '0.10.0';
+		$this->version = '0.11.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(
@@ -114,8 +114,30 @@ class modMjlFinancement extends DolibarrModules
 		if ($result < 0) {
 			return -1;
 		}
+		if ($this->ensureRoleInvariantTriggers() < 0) {
+			return -1;
+		}
 		$this->remove($options);
 		return $this->_init(array(), $options);
+	}
+
+	private function ensureRoleInvariantTriggers()
+	{
+		$roleTable = $this->db->prefix().'mjlfinancement_user_role';
+		$userTable = $this->db->prefix().'user';
+		$businessRoles = "'AGENT_SAISIE', 'AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'";
+		$effectiveRoles = $businessRoles.", 'ADMIN_PLATEFORME'";
+		$statements = array(
+			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_user_role_bi BEFORE INSERT ON '.$roleTable.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 0; DECLARE target_entity INTEGER DEFAULT -1; IF NEW.role_code NOT IN ('.$effectiveRoles.') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL role code\'; END IF; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid = NEW.fk_user; IF target_entity <> NEW.entity THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'MJL role entity mismatch\'; END IF; IF NEW.is_active = 1 AND target_admin = 1 AND NEW.role_code IN ('.$businessRoles.') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Native admin cannot hold an MJL business role\'; END IF; END',
+			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_user_role_bu BEFORE UPDATE ON '.$roleTable.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 0; DECLARE target_entity INTEGER DEFAULT -1; IF NEW.role_code NOT IN ('.$effectiveRoles.') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL role code\'; END IF; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid = NEW.fk_user; IF target_entity <> NEW.entity THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'MJL role entity mismatch\'; END IF; IF NEW.is_active = 1 AND target_admin = 1 AND NEW.role_code IN ('.$businessRoles.') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Native admin cannot hold an MJL business role\'; END IF; END',
+			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_user_admin_bu BEFORE UPDATE ON '.$userTable.' FOR EACH ROW BEGIN IF NEW.admin = 1 AND OLD.admin <> 1 AND EXISTS (SELECT 1 FROM '.$roleTable.' WHERE fk_user = NEW.rowid AND is_active = 1 AND role_code IN ('.$businessRoles.')) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'MJL business-role user cannot become native admin\'; END IF; END',
+		);
+		foreach ($statements as $sql) {
+			if (!$this->db->query($sql)) {
+				return -1;
+			}
+		}
+		return 1;
 	}
 
 	public function remove($options = '')

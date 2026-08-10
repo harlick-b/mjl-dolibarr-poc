@@ -17,3 +17,10 @@ test('profile assignment and deactivation roll back when access audit persistenc
     assert.match(nearby, /rollback/);
   }
 });
+
+test('low-level role assignment fails closed when its transaction commit fails', () => {
+  const functionOffset = source.indexOf('function mjl_scope_assign_active_role');
+  const nextFunctionOffset = source.indexOf('\nfunction ', functionOffset + 1);
+  const assignmentSource = source.slice(functionOffset, nextFunctionOffset);
+  assert.match(assignmentSource, /if \(!\$db->commit\(\)\) \{[\s\S]*?return -1;/);
+});

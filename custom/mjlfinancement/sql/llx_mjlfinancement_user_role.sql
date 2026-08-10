@@ -4,6 +4,7 @@ CREATE TABLE llx_mjlfinancement_user_role (
 	fk_user INTEGER NOT NULL,
 	role_code VARCHAR(64) NOT NULL,
 	is_active TINYINT DEFAULT 1 NOT NULL,
+	active_user_id INTEGER AS (CASE WHEN is_active = 1 THEN fk_user ELSE NULL END) PERSISTENT,
 	date_start DATETIME DEFAULT NULL,
 	date_end DATETIME DEFAULT NULL,
 	source VARCHAR(64) DEFAULT NULL,

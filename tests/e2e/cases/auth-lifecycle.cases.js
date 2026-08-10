@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 
 const password = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
+const nativeAdminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -25,6 +26,16 @@ function invitationIdForLogin(loginName) {
   return sqlScalar(`SELECT i.rowid FROM llx_mjlfinancement_invitation i INNER JOIN llx_user u ON u.rowid = i.fk_user WHERE u.login = '${loginName}' ORDER BY i.rowid DESC LIMIT 1`);
 }
 
+function exactMjlRights(userId) {
+  const result = sqlScalar(`
+    SELECT GROUP_CONCAT(CONCAT(rd.perms, '.', rd.subperms) ORDER BY rd.perms, rd.subperms SEPARATOR ',')
+    FROM llx_user_rights ur
+    INNER JOIN llx_rights_def rd ON rd.id = ur.fk_id AND rd.entity = ur.entity
+    WHERE ur.entity = 1 AND ur.fk_user = ${userId} AND rd.module = 'mjlfinancement'
+  `);
+  return result === 'NULL' ? '' : result;
+}
+
 function cleanupTestState() {
   sql(`
     DROP TRIGGER IF EXISTS authe2e_fail_access_audit;
@@ -36,7 +47,9 @@ function cleanupTestState() {
     DELETE FROM llx_mjlfinancement_invitation WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
     DELETE FROM llx_mjlfinancement_password_reset WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
     DELETE FROM llx_mjlfinancement_access_audit WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, '')) OR FIND_IN_SET(fk_actor, COALESCE(@mjl_e2e_users, '')) OR context LIKE '%mjl.e2e.%' OR context LIKE '%invite.%' OR context LIKE '%delivery=e2e%';
+    DELETE FROM llx_user_rights WHERE FIND_IN_SET(fk_user, COALESCE(@mjl_e2e_users, ''));
     DELETE FROM llx_user WHERE FIND_IN_SET(rowid, COALESCE(@mjl_e2e_users, ''));
+    DELETE FROM llx_societe WHERE entity = 1 AND nom = 'RST001 Test Partenaire';
   `);
   dockerExec("dolibarr sh -lc 'rm -rf /var/www/documents/mjlfinancement/auth-test-outbox'");
 }
@@ -50,7 +63,7 @@ function latestLink(type) {
   return sqlScalar(`SELECT value FROM llx_const WHERE name = '${name}' AND entity = 1 ORDER BY rowid DESC LIMIT 1`);
 }
 
-async function login(page, username, userPassword = password) {
+async function login(page, username, userPassword = username === 'admin' ? nativeAdminPassword : password) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(username);
@@ -58,17 +71,18 @@ async function login(page, username, userPassword = password) {
   await page.getByRole('button', { name: 'Connexion' }).click();
 }
 
-async function inviteUser(page, suffix) {
+async function inviteUser(page, suffix, roleCode = 'AGENT_SAISIE') {
   const loginName = `mjl.e2e.${suffix}`;
   const email = `${loginName}@mjl-poc.local`;
 
-  await login(page, 'admin.poc');
+  await login(page, 'admin');
   await page.goto('/custom/mjlfinancement/admin/access.php');
   await expect(page.getByText('Gestion des accès MJL').first()).toBeVisible();
   await page.locator('#mjl-login').fill(loginName);
   await page.locator('#mjl-firstname').fill('E2E');
   await page.locator('#mjl-lastname').fill('MJL');
   await page.locator('#mjl-email').fill(email);
+  await page.locator('select[name="role_code"]').first().selectOption(roleCode);
   const firstScope = await page.locator('select[name="scope_soc_ids[]"] option').first().getAttribute('value');
   await page.locator('select[name="scope_soc_ids[]"]').first().selectOption(firstScope);
   await page.getByRole('button', { name: 'Envoyer l’invitation' }).click();
@@ -86,6 +100,232 @@ test.beforeAll(() => {
 
 test.afterAll(() => {
   cleanupTestState();
+});
+
+test('effective-role assignment stays singular and rejects business roles for native admins', async ({ page }) => {
+  sql(`
+    INSERT INTO llx_societe (entity, nom, client, fournisseur, datec)
+    SELECT 1, 'RST001 Test Partenaire', 0, 0, NOW()
+    WHERE NOT EXISTS (SELECT 1 FROM llx_societe WHERE entity = 1 AND nom = 'RST001 Test Partenaire');
+  `);
+
+  await login(page, 'admin');
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  const failedLogin = `mjl.e2e.rst001.failed.${Date.now()}`;
+  const failedToken = await page.locator('input[name="token"]').first().getAttribute('value');
+  const failedInviteResponse = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+    form: {
+      token: failedToken,
+      action: 'invite',
+      login: failedLogin,
+      firstname: 'E2E',
+      lastname: 'Failure',
+      email: `${failedLogin}@mjl-poc.local`,
+      role_code: 'ROLE_INVALIDE',
+    },
+  });
+  expect(failedInviteResponse.ok()).toBeTruthy();
+  expect(sqlScalar(`SELECT COUNT(*) FROM llx_user WHERE login = '${failedLogin}'`)).toBe('0');
+
+  const blockedLogin = `mjl.e2e.rst001.blocked.${Date.now()}`;
+  sql("CREATE TRIGGER rst001_block_failed_invitee_delete BEFORE DELETE ON llx_user FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'RST001 injected deletion failure'");
+  sql("CREATE TRIGGER rst001_block_recovery_audit BEFORE INSERT ON llx_mjlfinancement_access_audit FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'RST001 injected audit failure'");
+  let blockedInviteResponse;
+  try {
+    await page.goto('/custom/mjlfinancement/admin/access.php');
+    const blockedToken = await page.locator('input[name="token"]').first().getAttribute('value');
+    blockedInviteResponse = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+      form: {
+        token: blockedToken,
+        action: 'invite',
+        login: blockedLogin,
+        firstname: 'E2E',
+        lastname: 'Blocked recovery',
+        email: `${blockedLogin}@mjl-poc.local`,
+        role_code: 'ROLE_INVALIDE',
+      },
+    });
+  } finally {
+    sql('DROP TRIGGER IF EXISTS rst001_block_failed_invitee_delete');
+    sql('DROP TRIGGER IF EXISTS rst001_block_recovery_audit');
+  }
+  const blockedUserId = sqlScalar(`SELECT rowid FROM llx_user WHERE login = '${blockedLogin}'`);
+  expect(blockedUserId).not.toBe('');
+  expect(sqlScalar(`SELECT statut FROM llx_user WHERE rowid = ${blockedUserId}`)).toBe('0');
+  expect(sqlScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_user_role WHERE fk_user = ${blockedUserId}`)).toBe('0');
+  expect(sqlScalar(`SELECT COUNT(*) FROM llx_user_rights WHERE fk_user = ${blockedUserId}`)).toBe('0');
+  expect(sqlScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_invitation WHERE fk_user = ${blockedUserId}`)).toBe('0');
+  expect(sqlScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_access_audit WHERE fk_user = ${blockedUserId} AND event = 'invite_compensation_failed'`)).toBe('0');
+  expect(await blockedInviteResponse.text()).toContain('R&eacute;cup&eacute;ration administrative requise');
+
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  const recoveryToken = await page.locator('input[name="token"]').first().getAttribute('value');
+  const recoveryScope = sqlScalar("SELECT rowid FROM llx_societe WHERE entity = 1 AND nom = 'RST001 Test Partenaire' LIMIT 1");
+  const recoveredInviteResponse = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+    form: {
+      token: recoveryToken,
+      action: 'invite',
+      login: blockedLogin,
+      firstname: 'E2E',
+      lastname: 'Blocked recovery',
+      email: `${blockedLogin}@mjl-poc.local`,
+      role_code: 'AGENT_SAISIE',
+      'scope_soc_ids[]': recoveryScope,
+    },
+  });
+  const recoveredInviteBody = await recoveredInviteResponse.text();
+  expect(recoveredInviteResponse.ok()).toBeTruthy();
+  expect(recoveredInviteBody).not.toContain('R&eacute;cup&eacute;ration administrative requise');
+  expect(sqlScalar(`SELECT role_code FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${blockedUserId} AND is_active = 1`)).toBe('AGENT_SAISIE');
+  expect(exactMjlRights(blockedUserId)).toBe('activity.read,activity.write');
+  expect(sqlScalar(`SELECT status FROM llx_mjlfinancement_invitation WHERE entity = 1 AND fk_user = ${blockedUserId} ORDER BY rowid DESC LIMIT 1`)).toBe('sent');
+
+  const invited = await inviteUser(page, `rst001.${Date.now()}`, 'AGENT_VERIFICATEUR');
+  const targetId = sqlScalar(`SELECT rowid FROM llx_user WHERE login = '${invited.loginName}' LIMIT 1`);
+  expect(sqlScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1`)).toBe('1');
+  expect(exactMjlRights(targetId)).toBe('activity.read,activity.validate,validation.read,workflowaction.read');
+
+  sql("UPDATE llx_rights_def SET perms = 'activity_rst001_missing' WHERE entity = 1 AND module = 'mjlfinancement' AND perms = 'activity' AND subperms = 'validate'");
+  try {
+    await page.goto('/custom/mjlfinancement/admin/access.php');
+    const rollbackToken = await page.locator('input[name="token"]').first().getAttribute('value');
+    const rollbackResponse = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+      form: {
+        token: rollbackToken,
+        action: 'update_profile',
+        user_id: targetId,
+        role_code: 'VALIDATEUR_DEFINITIF',
+        'scope_soc_ids[]': invited.firstScope,
+      },
+    });
+    expect(rollbackResponse.ok()).toBeTruthy();
+  } finally {
+    sql("UPDATE llx_rights_def SET perms = 'activity' WHERE entity = 1 AND module = 'mjlfinancement' AND perms = 'activity_rst001_missing' AND subperms = 'validate'");
+  }
+  expect(sqlScalar(`SELECT role_code FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1`)).toBe('AGENT_VERIFICATEUR');
+  expect(exactMjlRights(targetId)).toBe('activity.read,activity.validate,validation.read,workflowaction.read');
+
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  const token = await page.locator('input[name="token"]').first().getAttribute('value');
+  const response = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+    form: {
+      token,
+      action: 'update_profile',
+      user_id: targetId,
+      role_code: 'VALIDATEUR_DEFINITIF',
+      'scope_soc_ids[]': invited.firstScope,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  expect(sqlScalar(`SELECT GROUP_CONCAT(role_code ORDER BY rowid) FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1`)).toBe('VALIDATEUR_DEFINITIF');
+  expect(exactMjlRights(targetId)).toBe('activity.read,activity.validate,budgetline.read,budgetline.write,convention.read,convention.write,exchangelog.read,exchangelog.write,export.read,export.write,fundreceipt.read,fundreceipt.write,report.read,validation.read,validation.write,workflowaction.read,workflowaction.write');
+
+  expect(() => sql(`
+    INSERT INTO llx_mjlfinancement_user_role
+      (entity, fk_user, role_code, is_active, date_start, source, date_creation)
+    VALUES (1, ${targetId}, 'AGENT_SAISIE', 1, NOW(), 'rst001_duplicate_probe', NOW());
+  `)).toThrow();
+  expect(() => sql(`
+    INSERT INTO llx_mjlfinancement_user_role
+      (entity, fk_user, role_code, is_active, date_start, source, date_creation)
+    VALUES (1, ${targetId}, 'ROLE_INVALIDE', 0, NOW(), 'rst001_invalid_role_probe', NOW());
+  `)).toThrow();
+  expect(() => sql(`
+    INSERT INTO llx_mjlfinancement_user_role
+      (entity, fk_user, role_code, is_active, date_start, source, date_creation)
+    VALUES (2, ${targetId}, 'AGENT_SAISIE', 1, NOW(), 'rst001_cross_entity_probe', NOW());
+  `)).toThrow();
+
+  await page.goto(invited.invitationLink);
+  await page.locator('#newpass1').fill('MjlRst0012026!!');
+  await page.locator('#newpass2').fill('MjlRst0012026!!');
+  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
+  await login(page, invited.loginName, 'MjlRst0012026!!');
+  await page.goto('/custom/mjlfinancement/index.php');
+  await expect(page.getByRole('heading', { name: 'Tableau de bord MJL' })).toBeVisible();
+
+  sql(`
+    UPDATE llx_mjlfinancement_user_role SET is_active = 0, date_end = NOW() WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1;
+    DELETE FROM llx_mjlfinancement_user_soc_scope WHERE entity = 1 AND fk_user = ${targetId};
+  `);
+  await page.goto('/custom/mjlfinancement/index.php');
+  await expect(page.locator('body')).toContainText(/Accès refusé|Access denied|Forbidden|Non autorisé/);
+
+  await login(page, 'admin');
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  const reassignmentToken = await page.locator('input[name="token"]').first().getAttribute('value');
+  const reassignmentResponse = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+    form: {
+      token: reassignmentToken,
+      action: 'update_profile',
+      user_id: targetId,
+      role_code: 'VALIDATEUR_DEFINITIF',
+      'scope_soc_ids[]': invited.firstScope,
+    },
+  });
+  expect(reassignmentResponse.ok()).toBeTruthy();
+  expect(() => sql(`UPDATE llx_user SET admin = 1 WHERE rowid = ${targetId}`)).toThrow();
+  expect(sqlScalar(`SELECT admin FROM llx_user WHERE rowid = ${targetId}`)).toBe('0');
+  sql(`
+    UPDATE llx_mjlfinancement_user_role SET is_active = 0, date_end = NOW() WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1;
+    UPDATE llx_user SET admin = 1 WHERE rowid = ${targetId};
+  `);
+
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  const nativeAdminForm = page.locator(`form:has(input[name="user_id"][value="${targetId}"])`).first();
+  await expect(nativeAdminForm.locator('select[name="role_code"]')).toHaveCount(0);
+  await expect(nativeAdminForm.locator('input[name="role_code"][value="ADMIN_PLATEFORME"]')).toHaveCount(1);
+  const nativeToken = await page.locator('input[name="token"]').first().getAttribute('value');
+  const nativeResponse = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+    form: {
+      token: nativeToken,
+      action: 'update_profile',
+      user_id: targetId,
+      role_code: 'AGENT_SAISIE',
+      'scope_soc_ids[]': invited.firstScope,
+    },
+  });
+  expect(await nativeResponse.text()).toContain('L’action n’a pas pu être réalisée. Veuillez réessayer.');
+  expect(sqlScalar(`SELECT COUNT(*) FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${targetId} AND is_active = 1`)).toBe('0');
+
+  const preservedAdminId = sqlScalar("SELECT rowid FROM llx_user WHERE login = 'admin' AND admin = 1 LIMIT 1");
+  expect(() => sql(`
+    INSERT INTO llx_mjlfinancement_user_role
+      (entity, fk_user, role_code, is_active, date_start, source, date_creation)
+    VALUES (0, ${preservedAdminId}, 'AGENT_SAISIE', 1, NOW(), 'rst001_native_probe', NOW());
+  `)).toThrow();
+  await page.goto('/custom/mjlfinancement/activities.php?action=create');
+  await expect(page.locator('body')).toContainText(/Accès refusé|Access denied|Forbidden|Non autorisé/);
+  expect(() => dockerExec('dolibarr php /var/www/html/custom/mjlfinancement/scripts/audit_schema_current.php role_scope_schema.php')).not.toThrow();
+
+  const agent = await inviteUser(page, `rst001.agent.${Date.now()}`);
+  const agentId = sqlScalar(`SELECT rowid FROM llx_user WHERE login = '${agent.loginName}' LIMIT 1`);
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  const agentToken = await page.locator('input[name="token"]').first().getAttribute('value');
+  await page.request.post('/custom/mjlfinancement/admin/access.php', {
+    form: {
+      token: agentToken,
+      action: 'update_profile',
+      user_id: agentId,
+      role_code: 'AGENT_VERIFICATEUR',
+      'scope_soc_ids[]': agent.firstScope,
+    },
+  });
+  expect(sqlScalar(`SELECT role_code FROM llx_mjlfinancement_user_role WHERE entity = 1 AND fk_user = ${agentId} AND is_active = 1`)).toBe('AGENT_SAISIE');
+  expect(exactMjlRights(agentId)).toBe('activity.read,activity.write');
+
+  await page.goto('/custom/mjlfinancement/admin/access.php');
+  const deactivateToken = await page.locator('input[name="token"]').first().getAttribute('value');
+  const deactivateResponse = await page.request.post('/custom/mjlfinancement/admin/access.php', {
+    form: {
+      token: deactivateToken,
+      action: 'deactivate',
+      user_id: agentId,
+    },
+  });
+  expect(deactivateResponse.ok()).toBeTruthy();
+  expect(await deactivateResponse.text()).not.toContain('R&eacute;cup&eacute;ration administrative requise');
+  expect(exactMjlRights(agentId)).toBe('');
 });
 
 test('MJL login and forgotten-password pages replace raw native auth UI', async ({ page }) => {

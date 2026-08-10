@@ -117,3 +117,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   update file still contains data backfills. Run the non-seeding bootstrap and
   persistent-absence verifier in sequence, and strip obsolete backfills while
   retaining required schema/index/constraint operations.
+- Manual targeted Playwright runs must satisfy the same disposable identity
+  contract as the public runner: use an `mjl-test-` Compose project name and
+  set the repository root, base URL, port, Compose files, and isolated output
+  path explicitly. A container starting is not evidence that the disposable
+  guard accepted the run; only test output after global setup is valid.
