@@ -28,7 +28,7 @@ stale doc.
 ## Important Directories
 
 - `custom/mjlfinancement`: MJL custom module, pages, classes, scripts, SQL,
-  CSS, JS, language files, and sample data.
+  CSS, JS, language files, and legacy sample sources pending approved removal.
 - `docs/`: authority, current-state, deployment, readiness, testing, and
   decision docs.
 - `docs/design-system/`: active design guidance, current screen inventory, and
@@ -39,8 +39,8 @@ stale doc.
   debugging discoveries.
 - `tests/e2e`: Playwright E2E tests.
 - `data/documents`: local Dolibarr document storage.
-- `mjl_dolibarr_poc_sample_data`: local fixture package for development/test
-  data only.
+- `mjl_dolibarr_poc_sample_data`: retired legacy fixture package; never use it
+  as target-rule evidence or load it into the shared tenant.
 
 ## Setup Commands
 
@@ -48,21 +48,19 @@ Confirmed from `README.md` and `docker-compose.yml`:
 
 ```bash
 docker compose up -d
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php
 ```
 
 Open `http://127.0.0.1:8080/`.
 
-Optional local fixture password override:
-
-```bash
-MJL_POC_DEFAULT_PASSWORD='change-me' docker compose up -d
-```
+Do not run the current `bootstrap_poc.php` or `seed_sample_data.php`. RST-000A
+must replace/strip bootstrap to a non-seeding module installation path. Normal
+local startup remains empty afterward except for one native technical
+administrator.
 
 ## Development Commands
 
 Needs confirmation. No dedicated dev-server, watch, formatter, or generic
-developer command is confirmed beyond Docker Compose start/bootstrap.
+developer command is confirmed beyond Docker Compose start.
 
 ## Test/Lint/Build Commands
 
@@ -90,17 +88,16 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 
 - Do not commit real secrets, production credentials, private keys, API tokens,
   or client-specific confidential values.
-- Credentials in `docker-compose.yml` and the default local fixture password
-  are local development/test values only.
+- Credentials in `docker-compose.yml` are local development/test values only.
 - Production email transport, public/base URL, final permissions, and secrets
   configuration remain Needs confirmation.
-- Do not load `bootstrap_poc.php`, `seed_sample_data.php`, or sample-data CSVs
-  into a production tenant.
+- Do not run `bootstrap_poc.php`, `seed_sample_data.php`, or legacy sample-data
+  CSVs in any shared or production tenant.
 
 ## Coding Conventions
 
 - Keep MJL-specific code inside `custom/mjlfinancement`, `docs/`, documented
-  setup scripts, documented sample-data locations, tests, SQL/update files, or
+  setup scripts, disposable test-fixture locations, tests, SQL/update files, or
   a documented safe custom theme boundary.
 - If a requirement appears to need Dolibarr core edits, stop and escalate the
   architecture decision.
@@ -108,6 +105,11 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
   users/groups, permissions, ECM/documents, and export helpers.
 - Preserve French-first UI/content and XOF/FCFA assumptions.
 - Preserve invitation-only access. Only Admin can send invitations for now.
+- Preserve exactly one native technical administrator through the clean local
+  reset; migrate no other existing sample user or business record.
+- Keep persistent sample/demo data absent until all implementation phases are
+  complete. Tests may create minimal records only inside isolated disposable
+  tenants and must remove all test data with tenant teardown.
 - Do not create or expose a public register page.
 - Filter custom queries by the active Dolibarr entity for custom objects,
   dashboards, alerts, exports, audit lists, document lookups, and workflow

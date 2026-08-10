@@ -2,6 +2,12 @@
 
 This is the durable Gate 1 audit and coverage registry for the MJL verification system. Target behavior follows `docs/mjl-authoritative-decisions.md`; current-state evidence that is not yet approved is explicitly classified as characterization.
 
+All recorded suites below predate DEC-026 through DEC-030. Any suite that uses
+the legacy POC seed is historical/current-state evidence only, even when it
+passed. Target acceptance requires minimal disposable fixtures created in an
+isolated tenant and removed with that tenant; no persistent dataset is allowed
+until all implementation phases are complete.
+
 ## Gate 2 implementation evidence
 
 Gate 1 was approved on 2026-08-03 and Gate 2 is implemented. The maintained

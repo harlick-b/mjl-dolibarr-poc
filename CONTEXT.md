@@ -136,3 +136,26 @@ _Avoid_: Official Partner report without an approved template
 Partner-specific output generated from an approved versioned template and
 preserved as an immutable snapshot.
 _Avoid_: Generic operational export labeled official
+
+## Local data lifecycle
+
+**Administrateur technique conservé**:
+The single native Dolibarr administrator account retained across the clean
+local reset solely for platform administration and recovery.
+_Avoid_: Migrated sample Admin, business superuser
+
+**Données de démonstration persistantes**:
+User-visible local sample records intended to demonstrate the completed
+application; none exist until all implementation phases and the later dataset
+specification are complete.
+_Avoid_: Legacy POC seed, business-rule evidence
+
+**Fixture de test jetable**:
+Test-scoped data created only inside an isolated tenant and destroyed with that
+tenant after verification.
+_Avoid_: Shared sample database, persistent seed, production example
+
+**Réinitialisation locale propre**:
+Approved deletion of legacy sample data without mapping or migrating it into
+the target model, while preserving the one technical administrator.
+_Avoid_: Selective compatibility migration, old-to-new data mapping

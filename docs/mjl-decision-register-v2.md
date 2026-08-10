@@ -39,6 +39,11 @@ belong to the subject-specific canonical document referenced in each row.
 | DEC-023 | Official Partner reports wait for approved templates and mappings. | DEFERRED_CLIENT_INPUT | Scope boundary | Phase 6 gate |
 | DEC-024 | Phase 3C is not a go-live authorization. | APPROVED | Roadmap | Revised post-cadrage package |
 | DEC-025 | Every reset-manifest action requires explicit later approval. | APPROVED | Reset manifest | Phase 0 restriction |
+| DEC-026 | Delete all existing local sample/demo data through an approved clean reset; migrate no existing user, role assignment, Partner, Project, Activity, finance record, log, or document. | APPROVED | Reset manifest | User decision on 2026-08-10 |
+| DEC-027 | Preserve exactly one native Dolibarr technical administrator account and delete every other existing sample account. | APPROVED | Permission matrix and reset manifest | User decision on 2026-08-10 |
+| DEC-028 | Create no persistent sample/demo dataset until all implementation phases are complete and a later dataset specification is approved. | APPROVED | Roadmap | User decision on 2026-08-10 |
+| DEC-029 | Permit disposable test-only fixtures in isolated tenants when they are created for a test and removed with that tenant. | APPROVED | Acceptance tests | User decision on 2026-08-10 |
+| DEC-030 | Legacy sample data and fixture behavior are implementation debt, never evidence for current business rules. | APPROVED | Functional specification | User decision on 2026-08-10 |
 
 ## Deliberately Unspecified
 

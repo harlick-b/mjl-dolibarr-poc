@@ -121,6 +121,9 @@ Official UNICEF and Coopération Suisse financial reports must be planned archit
 - Do not reintroduce legacy concepts from older MJL phases.
 - Existing legacy sample data is based on obsolete business rules and must not be treated as authoritative. Its replacement with a new deterministic QA dataset will be specified after the MJL Fully Revised Implementation Prompts by Phase is finalized. Do not design or implement the replacement QA dataset yet.
 - **SAFETY RULE:** Until the new QA dataset is defined, existing legacy sample data must not be used to infer, validate or justify current business rules.
+- **CONFIRMED CLEAN-RESET DECISION (2026-08-10):** Delete all existing local sample data without migrating users, role assignments, Partners, Projects, Activities, finance records, logs, or documents. Preserve exactly one native technical administrator account.
+- **CONFIRMED DATASET DECISION (2026-08-10):** Keep persistent sample/demo data absent through every implementation phase. A new persistent dataset may be specified only after all phases are complete. Tests may create minimal disposable fixtures only inside isolated tenants and must destroy them with the tenant.
+- Any later instruction in this prompt package to migrate existing POC data, create an initial/core persistent seed, or build phase-owned persistent fixtures is superseded by these confirmed decisions.
 
 ## 3. Authoritative hierarchy
 
@@ -1329,7 +1332,7 @@ Implement:
 - Account activation and deactivation
 - Partner management
 - Project management
-- Initial Partner and Project seed
+- Empty-state Partner and Project behavior
 - Operation type reference management
 - Stable identifiers
 - Transactional append-only audit infrastructure
@@ -1384,10 +1387,9 @@ Requirements:
 
 Implement one-to-many Partner to Project.
 
-Seed:
-
-- UNICEF -> UNICEF
-- Coopération Suisse -> Programme Redevabilité
+Create no Partner or Project seed. UNICEF, Coopération Suisse, and their
+Projects may appear only in disposable tests until the post-all-phases dataset
+specification is approved.
 
 Validateur définitif manages Partner and Project business data.
 
@@ -1407,7 +1409,7 @@ Validateur définitif manages it.
 
 Do not invent the final client classification.
 
-Use temporary development values only when necessary and label them clearly as temporary.
+Use temporary values only inside disposable tests; persist no development catalog.
 
 ### Transactional audit foundation
 
@@ -1455,7 +1457,7 @@ Cover journeys:
 8. Partner supports multiple Projects.
 9. Inactive Project cannot be used for future Activity creation.
 10. Referenced Partner or Project cannot be hard-deleted.
-11. Initial seed is safe and repeatable.
+11. Normal startup remains empty and disposable test fixtures are isolated and fully removed.
 12. Audit and business mutation are transactional.
 13. Audit records cannot be updated or deleted through application services.
 14. Invitation secrets do not appear in audit.
@@ -2298,7 +2300,7 @@ Harden:
 - Revisions
 - Concurrency
 - Scheduled status reconciliation
-- Core seed
+- Empty-state and disposable-fixture isolation
 - Configuration
 - Backup and restore
 - Logging and monitoring
@@ -2311,17 +2313,12 @@ Harden:
 
 Do not implement deferred modules.
 
-### Core seed
+### Empty persistent tenant and disposable tests
 
-Prepare a safe, idempotent seed for:
-
-- UNICEF
-- UNICEF Project
-- Coopération Suisse
-- Programme Redevabilité
-- Approved Operation types if available
-
-Do not hard-code user secrets.
+Prove that normal startup creates no persistent sample user, Partner, Project,
+Activity, Opération, report, or document. Test factories may create only the
+minimum records needed inside an isolated tenant, must use no shared secrets,
+and must remove all database/document state with tenant teardown.
 
 ### Authorization audit
 
@@ -2647,7 +2644,7 @@ If missing:
 - Do not invent
 - Produce accounting gap analysis
 - Produce client questionnaire
-- Produce existing-data mapping proposal
+- Produce target accounting mapping gaps only; do not map legacy POC sample data
 - Stop
 
 ### Architecture when approved

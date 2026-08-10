@@ -1,7 +1,8 @@
 # MJL Data Dictionary v2
 
-This dictionary describes target data only. Current tables and migration gaps
-belong to the Phase 0 audit report and reset manifest.
+This dictionary describes target data only. Existing POC records are deleted,
+not mapped into these entities. Current tables and clean-reset gaps belong to
+the Phase 0 audit report and reset manifest.
 
 ## Shared Rules
 
@@ -13,6 +14,8 @@ belong to the Phase 0 audit report and reset manifest.
 - Versioned mutable records use optimistic locking.
 - Dates and scheduled derivations use `Africa/Porto-Novo`.
 - Audit events are append-only.
+- Target business tables start without persistent sample/demo rows. Disposable
+  test fixtures exist only in isolated test tenants and define no target value.
 
 ## Partenaire
 

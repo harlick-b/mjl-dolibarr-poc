@@ -6,6 +6,13 @@ Run one phase at a time. Read every canonical v2 document, verify that its
 preconditions and required reset approvals are satisfied, implement only that
 phase, report exact results, emit the phase verdict, and stop.
 
+After RST-000, the next destructive gate is one approved clean local purge:
+delete all legacy sample data without migration, preserve exactly one native
+technical administrator, and replace the legacy bootstrap with a non-seeding
+installation/activation path. Phases
+then build target structures against an empty persistent tenant. Test suites
+may create and destroy isolated test-only fixtures.
+
 ## Phase 0: Authoritative Audit and Reset Manifest
 
 Deliver canonical v2 documents and current-state evidence. Execute no reset.
@@ -22,9 +29,10 @@ Preconditions:
 - explicit approval of each required Phase 1 reset ID;
 - no contradiction among canonical v2 documents.
 
-Deliver effective roles, safe role changes, invitations, accounts, Partner,
-Project, Opération types, stable identifiers, and transactional append-only
-audit. Execute only approved reset IDs. Do not implement Activities.
+Deliver effective-role enforcement, safe role changes, invitations, accounts,
+empty Partner/Project/Opération-type reference structures, stable identifiers,
+and transactional append-only audit. Execute only approved reset IDs. Do not
+implement Activities or persistent sample data.
 
 Verdict: `PHASE_1_READY`, `PHASE_1_READY_WITH_NOTES`, or `PHASE_1_BLOCKED`.
 
@@ -68,7 +76,8 @@ Verdict: `PHASE_3B_READY`, `PHASE_3B_READY_WITH_NOTES`, or
 
 Preconditions: approved Phases 1, 2, 3A, and 3B.
 
-Harden authorization, data integrity, concurrency, scheduled jobs, seed,
+Harden authorization, data integrity, concurrency, scheduled jobs, empty-state
+operation, disposable test-fixture isolation,
 backup/restore, configuration, security, performance, accessibility, errors,
 and regression coverage. Produce a client-owned decision matrix for Phases
 4-6.
@@ -107,3 +116,10 @@ phase. A phase verdict never authorizes the next phase automatically.
 After Phase 3C, the client and project owner decide which gated phases are
 mandatory before launch. Production deployment remains outside every Codex
 verdict.
+
+## Post-implementation Persistent Sample Dataset Gate
+
+No persistent sample/demo dataset may be designed or loaded during Phases 1-6.
+After every implementation phase is complete, a separately reviewed dataset
+specification may define new records from the final business rules. Legacy POC
+data cannot be copied, mapped, or used to justify that specification.

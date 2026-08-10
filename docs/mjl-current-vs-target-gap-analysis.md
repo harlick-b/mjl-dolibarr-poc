@@ -10,7 +10,8 @@ The current repository implements a different finance-centered application.
 The target is an Activity-and-Opération application with immutable revisions,
 assignment-based Agent access, identity-based review separation, integer XOF,
 exception request workflows, and gated future modules. Backward compatibility
-is not required, but no reset action is approved yet.
+is not required. RST-000 is complete; the clean sample-data purge still needs
+its exact deletion appendix and explicit approval.
 
 ## Current Gaps
 
@@ -32,18 +33,19 @@ is not required, but no reset action is approved yet.
 | Required PDF/XLSX plus supplemental CSV | Current reports are CSV/XLSX finance reports | Required PDF and target catalogs are absent | Mislabelled or incomplete outputs | 3B |
 | Gated document behavior | Guarded documents are already implemented with unapproved business assumptions | Security primitives and business policy are conflated | Premature Phase 4 behavior | 1 and 4 |
 | Gated accounting and official reports | No approved accounting rules or Partner templates exist | Required client inputs are missing | Invented financial/reporting behavior | 5-6 |
-| Target-aligned tests and fixtures | Current suites and bootstrap encode old scope/finance | Green legacy tests can create false confidence | Removed behavior appears authoritative | 1-3C |
+| Empty persistent tenant plus disposable test fixtures | Current suites and bootstrap encode and persist old scope/finance sample data | Green legacy tests can recreate removed behavior | Obsolete data appears authoritative or leaks between tests | 1-3C |
 | Core integration readiness | Existing readiness docs describe the old product | Target security, restore, performance, and go-live gates are not evaluated | False production claim | 3C |
 
 ## Live Data Risk
 
 The existing local tenant contains substantial role/scope and workflow history,
 including 13,541 role rows, 1,194 scope rows, and 1,101 workflow events. It is
-not production evidence, but it proves that later reset commands need exact
-targets, backups, rollback, and explicit approval.
+not production evidence and will not be migrated. It proves that the clean
+purge still needs exact targets, dependency ordering, backups, rollback, and
+explicit approval.
 
 ## Next Action
 
-Review `docs/mjl-reset-manifest-v2.md` and approve only the Phase 1 IDs required
-for foundation work. Do not start Phase 1 while any required action remains
-`PENDING_APPROVAL` or any canonical v2 contradiction exists.
+Prepare the read-only clean-purge deletion appendix and preservation allowlist
+for the next reset unit. Do not delete data or start Phase 1 until its checksum
+and exact ID are explicitly approved.

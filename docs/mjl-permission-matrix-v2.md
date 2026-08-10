@@ -13,6 +13,11 @@ Each user has one effective role. Native Dolibarr admin status implies
 `ADMIN_PLATEFORME`. A native admin cannot have an active Agent, Supervisor, or
 Validator role. Native status must not grant business workflow actions.
 
+The clean local reset preserves exactly one native technical administrator
+account. It does not migrate any existing sample business-role assignment.
+Later target users receive roles only through the implemented invitation and
+account-administration lifecycle.
+
 ## Visibility
 
 | Resource | Agent | Supervisor | Validator | Admin |

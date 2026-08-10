@@ -40,6 +40,22 @@ waits for approved templates and mappings.
   change, or new behavior.
 - Conflicting documentation is superseded or classified as non-authoritative.
 
+## 2A. Clean Local Data Strategy
+
+The existing local tenant is disposable POC evidence, not a migration source.
+After an exact checksum-approved deletion appendix is reviewed, all existing
+sample users except one preserved native technical administrator, and all
+sample role assignments, Partners, Projects, Activities, finance objects,
+audit/log records, invitations, tokens, reports, and documents are deleted.
+No existing record is mapped, transformed, inactivated for compatibility, or
+used to seed a target record.
+
+Target tables and services begin empty. Persistent sample/demo data remains
+absent until all implementation phases are complete and a later dataset
+specification is approved. Tests may create only disposable test-scoped
+fixtures inside isolated tenants; teardown must remove the tenant and its data.
+Neither legacy sample data nor disposable fixtures define business rules.
+
 ## 3. Authoritative Hierarchy
 
 ```text
@@ -49,17 +65,20 @@ Partenaire
             -> Opérations
 ```
 
-One Partenaire supports several Projects. Initial planned records are UNICEF
-with Project UNICEF, and Coopération Suisse with Project Programme
-Redevabilité. `Projet` is the generic user-facing entity name.
-The current initial data's one-Project-per-Partner shape is incidental and is
-not a permanent one-to-one rule.
+One Partenaire supports several Projects. `Projet` is the generic user-facing
+entity name. Existing UNICEF, Coopération Suisse, and Project rows are legacy
+sample data and are deleted without migration. No replacement record is
+created until entered through the finished target application or defined by
+the post-all-phases dataset specification.
 
 ## 4. Roles and Exclusivity
 
-Each user has one effective role: Agent, Supervisor, Validator, or Admin. Role
+Each target user has one effective role: Agent, Supervisor, Validator, or Admin. Role
 combinations are forbidden. Native Dolibarr admin status implies Admin and
 cannot coexist with an active business role.
+
+The clean local reset preserves exactly one native technical administrator.
+No existing sample user's role assignment is migrated.
 
 The Validator is the business superuser. Admin is technical and audit-only.
 Admin may invite users, assign one role, activate/deactivate accounts, access

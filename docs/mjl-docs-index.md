@@ -10,7 +10,7 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `AGENTS.md` | Active repository instructions; not product-rule authority |
 | `CONTEXT.md` | Active domain glossary only; v2 rules prevail |
 | `DESIGN.md` | Active visual memory; subordinate to v2 product rules |
-| `README.md` | Current local setup evidence only |
+| `README.md` | Active safe local-start guidance; legacy bootstrap is prohibited |
 | `docs/mjl-authoritative-decisions.md` | Active authority router |
 | `docs/mjl-docs-index.md` | Active path-by-path authority classification |
 | `docs/mjl-functional-specification-v2.md` | Canonical owner of complete post-cadrage business rules |
@@ -21,13 +21,15 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-data-dictionary-v2.md` | Canonical owner of target entities and invariants |
 | `docs/mjl-reset-manifest-v2.md` | Canonical owner of pending reset actions and approvals |
 | `docs/mjl-implementation-roadmap-v2.md` | Canonical owner of phase sequence and stop conditions |
-| `docs/mjl-phase-0-audit-report.md` | Active Phase 0 evidence and verdict; not target-rule authority |
+| `docs/mjl-phase-0-audit-report.md` | Active Phase 0 evidence and verdict; its selective reset/fixture recommendations are superseded by DEC-026 through DEC-030 |
 | `docs/mjl-phase-1-reset-report.md` | Active RST-000 execution and restore evidence; not target-rule authority |
-| `docs/mjl_fully_revised_implementation_prompts_by_phase.md` | Frozen post-cadrage source package; subordinate to canonical v2 and never executable as one request |
+| `docs/mjl_fully_revised_implementation_prompts_by_phase.md` | Post-cadrage source package with clean-reset addendum; subordinate to canonical v2 and never executable as one request |
 | `docs/mjl-current-app-functional-map.md` | Current implementation evidence only; superseded wherever it states target behavior |
 | `docs/mjl-current-vs-target-gap-analysis.md` | Active debt summary only; canonical owners decide target behavior |
-| `docs/mjl-acceptance-tests.md` | Current test-command evidence; target cases require phase-owned replacement |
-| `docs/mjl-test-coverage-registry.md` | Historical/current test inventory; not target authority |
+| `docs/mjl-acceptance-tests.md` | Active transitional test guidance; target tests require isolated disposable fixtures and no persistent seed |
+| `docs/mjl-test-coverage-registry.md` | Historical/current legacy-suite inventory; results are not target acceptance authority |
+| `mjl_dolibarr_poc_sample_data/README_SAMPLE_DATA.md` | Retired legacy fixture notice pending RST-000A removal |
+| `mjl_dolibarr_poc_sample_data/TEST_SCENARIOS.md` | Retired legacy scenarios; prohibited as target acceptance evidence |
 | `docs/mjl-deployment-checklist.md` | Old-product deployment evidence; DEFER and rewrite in Phase 3C |
 | `docs/mjl-production-readiness-plan.md` | Old-product readiness evidence; DEFER and rewrite in Phase 3C |
 | `docs/client-cadrage-app-vision.md` | Superseded pre-decision cadrage support; historical only |

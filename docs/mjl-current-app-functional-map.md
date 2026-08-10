@@ -3,6 +3,11 @@
 This file is current-state evidence only. It does not override
 `docs/mjl-authoritative-decisions.md`.
 
+The legacy users, business rows, documents, bootstrap, and seed package
+described here are scheduled for deletion/retirement by RST-000A/RST-014A.
+They will not be migrated. Exactly one native technical administrator is the
+only account preserved by the clean reset.
+
 ## Executive Summary
 
 The current application is a custom MJL workspace inside Dolibarr, not a

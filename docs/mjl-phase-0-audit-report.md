@@ -4,6 +4,17 @@ Audit timestamp: `2026-08-10 12:07:58 Africa/Porto-Novo`
 Baseline commit: `38a2a9c1f0b0081abb734ad2d0b37a6c49302acb`
 Scope: repository plus read-only aggregate inspection of the existing local tenant
 
+## Post-audit Decision Addendum
+
+User decisions recorded on 2026-08-10 supersede this report's proposed
+selective inactivation, legacy mapping, and phase-owned persistent fixture
+strategy. The approved target is a clean local purge with no migration,
+preservation of exactly one native technical administrator, no persistent
+sample/demo data until every implementation phase is complete, and isolated
+test-only fixtures destroyed with their tenants. This report remains factual
+evidence of the pre-reset state; `docs/mjl-reset-manifest-v2.md` owns the
+revised executable scope.
+
 ## Executive Finding
 
 The current application is a mature implementation of a different product
@@ -152,45 +163,46 @@ received 1, submitted 1, and unsafe edit rejected 159. Live metadata has 100
 MJL indexed-column entries, 33 unique-index column entries including primary
 keys, and 32 foreign-key constraints.
 
-The stable local fixture predicate is
+At audit time, the stable local fixture predicate was
 `entity=1 AND import_key='MJLPOC2026'`. It matches four native third parties and five native
 Projects. One Project is outside that predicate and is excluded from reset.
 Within the fixture set, each expected Project ref `PRJ-JE-2026`,
 `PRJ-RED-2026`, and `PRJ-EXT-2026` occurs once. These predicates and counts
-bound RST-003/RST-014A; a changed count blocks execution and revised approval
-is required.
+are now inputs to the checksum-approved RST-000A deletion appendix. They no
+longer bound RST-003 or RST-014A.
 
-The six repository-declared local fixture logins are `admin.poc`, `agent.mjl`,
+At audit time, the six repository-declared local fixture logins were `admin.poc`, `agent.mjl`,
 `superviseur.n1`, `superviseur.n2`, `dpaf.mjl`, and `lecteur.audit`. Read-only
 live inspection found exactly one active `llx_user` row for each and six total.
-RST-014A permits inactivation only, blocks on any count/state drift, and
-requires the checksum-approved row-ID appendix; it authorizes no other user.
+The former RST-014A inactivation proposal is superseded. RST-000A owns their
+checksum-scoped hard deletion while preserving exactly one separately
+identified native technical-administrator account.
 
 ## Complete Conflict Matrix
 
 | ID | Current repository concept | New authoritative concept | Conflict and risk | Disposition | Target phase | Expected files | Schema consequence | Test consequence | Data reset consequence | Reset ID |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| C-001 | Partner/Programme user scopes drive non-admin visibility | Agent sees assigned Activities; Supervisor/Validator see all | Current scope can deny authorized review or expose unrelated objects after partial migration | REPLACE | 1-2 | Exact RST-002A/RST-002B path inventory | Retire `user_soc_scope`; add assignments | Replace scope-security, dashboard, report, and fixture cases | Remove scope rows only through approved reset | RST-002A, RST-002B |
-| C-002 | Native admin bypass plus explicit role rows | Native admin implies platform Admin and cannot hold business role | Implicit bypass can violate one-role semantics or grant business actions | REPLACE | 1 | Exact RST-001 path inventory | Enforce effective-role invariant | Add native-admin/no-business journey | Rebuild active roles after backup | RST-001 |
+| C-001 | Partner/Programme user scopes drive non-admin visibility | Agent sees assigned Activities; Supervisor/Validator see all | Current scope can deny authorized review or expose unrelated objects after partial migration | REPLACE | 1-2 | Exact RST-002A/RST-002B path inventory | Retire `user_soc_scope`; add assignments | Replace scope-security, dashboard, report, and fixture cases | Hard-delete legacy scope rows through approved RST-000A; create no mapped replacements | RST-000A, RST-002A, RST-002B |
+| C-002 | Native admin bypass plus explicit role rows | Native admin implies platform Admin and cannot hold business role | Implicit bypass can violate one-role semantics or grant business actions | REPLACE | 1 | Exact RST-001 path inventory | Enforce effective-role invariant | Add native-admin/no-business journey | Hard-delete sample business-role rows; preserve exactly one identified native technical administrator | RST-000A, RST-001 |
 | C-003 | Admin currently creates/edits Projects and accesses business surfaces | Validator alone manages business reference data; Admin is technical/audit-only | Separation between technical and business power is violated | REPLACE | 1 | Exact RST-001/RST-003 path inventory | No new table; permission changes | Replace Admin project-success assertions with denial | No native-row deletion implied | RST-001, RST-003 |
 | C-004 | `Partenaires / Programmes` generic terminology | Partenaire and Projet | Programme is conflated with Partner scope | REPLACE | 1 | Exact RST-003/RST-009A path inventory | None | Remove wording-only tests; retain semantic contracts | None | RST-003, RST-009A |
 | C-005 | One responsible Activity user | Primary plus additional time-bounded assignments | Current model cannot support shared editing or immediate removal | REPLACE | 2 | Exact RST-002B/RST-005 path inventory | Add assignment table; retire responsible field | Add assignment, transfer, removal, stale-save journeys | Map or reset seven local Activities | RST-002B, RST-005 |
-| C-006 | Activity linked to convention/task with no authorized amount | Activity directly owns one proposed/validated amount and Opérations | Current structure cannot balance budget or preserve target hierarchy | REPLACE | 2 | Exact RST-005 path inventory | Replace legacy fields; integer amount/version | Replace current create/workflow journeys | Reset or explicitly map Activity rows | RST-005 |
+| C-006 | Activity linked to convention/task with no authorized amount | Activity directly owns one proposed/validated amount and Opérations | Current structure cannot balance budget or preserve target hierarchy | REPLACE | 2 | Exact RST-005 path inventory | Replace legacy fields; integer amount/version | Replace current create/workflow journeys | Hard-delete legacy Activity rows; do not map them | RST-000A, RST-005 |
 | C-007 | No first-class Opération | Opération is planned/executed child of Activity | Required lifecycle, amount, completeness, and cancellation cannot exist | REPLACE | 2-3A | Exact RST-006A/RST-006B path inventory | Add Opération and type structures | Add balanced planning and execution journeys | No automatic Expense-to-Opération inference | RST-006A, RST-006B |
 | C-008 | Mutable Activity workflow rows, no immutable submitted revision | Every submission creates exact immutable revision and contributors | Review may apply to changed content and role changes can bypass identity rules | REPLACE | 2 | Exact RST-005/RST-006A/RST-007B path inventory | Add revision/contributor/review structures | Add same-revision, contributor, stale-decision cases | Do not fabricate revisions for legacy rows | RST-005, RST-006A, RST-007B |
-| C-009 | Current statuses include legacy validated/corrected/completed patterns | Exact v2 validation, execution, request, and completeness models | Collapsed meanings can allow invalid transitions and misleading display | REPLACE | 2-3A | Exact RST-005/RST-006B path inventory | Replace enum values and derived-state storage | Replace transition and presentation assertions | Reset legacy status rows or map only with evidence | RST-005, RST-006B |
+| C-009 | Current statuses include legacy validated/corrected/completed patterns | Exact v2 validation, execution, request, and completeness models | Collapsed meanings can allow invalid transitions and misleading display | REPLACE | 2-3A | Exact RST-005/RST-006B path inventory | Replace enum values and derived-state storage | Replace transition and presentation assertions | Hard-delete legacy status rows; do not map them | RST-000A, RST-005, RST-006B |
 | C-010 | Expense/disbursement is core execution model | Opération spent amount is core; payment/accounting flows are outside core | Retaining Expenses preserves obsolete scope and double-counts execution | REMOVE | 1 | Exact RST-004 path inventory | Retire Expense/validation tables after approval | Remove/replace Expense journeys by phase | Export evidence then approved clean reset | RST-004 |
-| C-011 | Conventions, budgets, and fund receipts are top-level core finance | Upstream funding and receipt processes are outside core | Current screens imply unapproved upstream scope | REMOVE | 1 | Exact RST-004 path inventory | Retire related custom tables after approval | Retain only durable security patterns in replacements | Approved reset after database backup | RST-004 |
+| C-011 | Conventions, budgets, and fund receipts are top-level core finance | Upstream funding and receipt processes are outside core | Current screens imply unapproved upstream scope | REMOVE | 1 | Exact RST-004 path inventory | Retire related custom tables after approval | Retain only durable security patterns in replacements | Hard-delete all legacy rows through approved RST-000A; no archive or migration | RST-000A, RST-004 |
 | C-012 | Money uses `DOUBLE(24,8)` | Integer-safe XOF; missing distinct from zero | Floating point and nullable/zero ambiguity threaten financial integrity | REPLACE | 2-3A | Exact RST-005/RST-006A/RST-012 path inventory | Integer columns with explicit nullability | Add zero/null/variance numeric tests | No unproven conversion of legacy values | RST-005, RST-006A, RST-012 |
 | C-013 | Split validation/workflow/exchange/access/report logs | Transactional append-only audit plus Activity chronology | Split logs lack one immutable revision-linked contract | REPLACE | 1-2 | Exact RST-007A/RST-007B path inventory | Replace/adapt audit structures and constraints | Add mutation rollback and immutability tests | Archive/reset current audit only after export | RST-007A, RST-007B |
 | C-014 | Implemented document library/uploads/downloads | Document behavior gated to Phase 4; guarded seam retained | Existing rules could be mistaken for approved target behavior | DEFER | 1 | Exact RST-010A path inventory | No new Phase 0 schema; later design gated | Keep security evidence, defer business journeys | Never delete files without inventory/snapshot | RST-010A |
 | C-015 | Finance and Partner-scope dashboards/alerts | Revision-aware Activity/Opération metrics with separated totals | Current KPIs mix obsolete sources and scopes | REPLACE | 3B | Exact RST-011 path inventory | Query/read-model changes | Replace role queues and aggregation cases | No separate reset beyond sources | RST-011 |
 | C-016 | CSV/XLSX-only finance report center | Required PDF/XLSX Activity/Opération outputs plus supplemental CSV | Required PDF is absent and existing report keys are obsolete | REPLACE | 3B | Exact RST-012 path inventory | Report registry/audit adaptation | Add PDF/XLSX plus retained CSV contract tests | Inventory generated files and report rows | RST-012 |
-| C-017 | POC bootstrap and finance-heavy fixtures | Phase-aligned safe target seed | Current seed recreates obsolete roles, scopes, objects, and tests | REPLACE | 1-3B | Exact RST-014A/RST-014B/RST-014C/RST-014D path inventory | Fixture schema follows approved phases | Replace fixture-dependent cases | Clean local fixture reset preferred | RST-014A, RST-014B, RST-014C, RST-014D |
+| C-017 | POC bootstrap and finance-heavy fixtures | Empty persistent tenant plus isolated disposable test fixtures | Current seed recreates obsolete roles, scopes, objects, and tests | REPLACE | 1-3B | Exact RST-000A/RST-014A/RST-014B/RST-014C/RST-014D path inventory | Test factories follow approved phases without persistent seed data | Replace fixture-dependent cases with isolated tenant journeys | Delete the legacy seed and persistent sample package; defer any new persistent sample dataset until all phases are complete | RST-000A, RST-014A, RST-014B, RST-014C, RST-014D |
 | C-018 | Current tests are classified against old authority | Tests follow v2 journeys and phase ownership | Old green tests could falsely validate removed behavior | REPLACE | 1-3C | Exact RST-013A/RST-013B/RST-013C/RST-013D/RST-013E path inventory | None directly | Classify every test before later deletion; replace security invariants | Test data reset follows approved phase | RST-013A, RST-013B, RST-013C, RST-013D, RST-013E |
 | C-019 | Approved v3 product text forbids PDF and describes old scope | v3 remains visual authority only | Product assertions could override v2 accidentally | KEEP | 0 | Exact C-019 crosswalk inventory below | None | Design conformance remains visual | None | None |
 | C-020 | Historical readiness/deployment model describes old app | Phase 3C hardening and client-owned go-live scope | Old readiness claims can imply wrong completion gates | DEFER | 3C | Exact RST-015 path inventory | Configuration changes only if later approved | Replace readiness assertions at Phase 3C | None in Phase 0 | RST-015 |
-| C-021 | Secure invitation/reset primitives carry old role and Partner-scope payload semantics | Keep secure invitation-only lifecycle while enforcing one revised effective role and no Partner scope | Reusing payload semantics can recreate obsolete authorization even if token handling remains safe | REPLACE | 1 | Exact RST-008 path inventory | `llx_mjlfinancement_invitation`, `llx_mjlfinancement_password_reset`, `llx_mjlfinancement_user_role`, `llx_user`; no raw-token migration | Replace role/scope journeys while retaining token, expiry, concurrency, enumeration, and audit security cases | Only expired local token rows may be reset after exact inventory | RST-008 |
+| C-021 | Secure invitation/reset primitives carry old role and Partner-scope payload semantics | Keep secure invitation-only lifecycle while enforcing one revised effective role and no Partner scope | Reusing payload semantics can recreate obsolete authorization even if token handling remains safe | REPLACE | 1 | Exact RST-008 path inventory | `llx_mjlfinancement_invitation`, `llx_mjlfinancement_password_reset`, `llx_mjlfinancement_user_role`, `llx_user`; no raw-token migration | Replace role/scope journeys while retaining token, expiry, concurrency, enumeration, and audit security cases | Hard-delete all legacy invitation/reset rows; migrate no tokens or payloads | RST-000A, RST-008 |
 
 ## Conflict-to-Exact-Reset Inventory
 

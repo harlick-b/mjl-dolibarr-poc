@@ -4,7 +4,7 @@ Update this file only after repeated mistakes, user corrections, or durable
 debugging discoveries. Do not add one-off observations or generic advice.
 
 - Dolibarr core files must not be edited for MJL work; use the custom module,
-  documented setup scripts, documentation, sample-data locations, or a
+  documented setup scripts, documentation, disposable test-fixture locations, or a
   documented safe theme boundary.
 - UI hiding is not access control. Direct URL and direct POST routes must stay
   guarded server-side.
@@ -14,7 +14,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   visibility.
 - Guarded ECM downloads must check entity, source type, source id, object
   access, and safe filesystem paths.
-- Sample POC roles and groups are not the final production permission matrix.
+- Legacy POC roles, groups, and sample records are not target evidence and must
+  not be mapped into the clean target model.
 - Future-only or internal roadmap features must not appear as available user
   actions.
 - `MjlConvention` is the current funding-envelope model unless confirmed

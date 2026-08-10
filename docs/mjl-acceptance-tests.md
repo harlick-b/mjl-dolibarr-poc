@@ -16,7 +16,7 @@ npm run audit:production-readiness
 
 - `npm test` provisions one disposable tenant, runs unit contracts, current container verification, and blocking Chromium capability suites, then removes the tenant.
 - `npm run test:unit` runs fast Node and PHP contracts without Docker.
-- `npm run test:verify` runs the current schema, sample-data, scope/integrity, activity, expense, traceability/export, and dashboard-resilience checks in one disposable tenant.
+- `npm run test:verify` currently runs legacy schema/sample-data and old-product behavioral checks in one disposable tenant. It is current-state characterization only until RST-013A/RST-014A replace its data setup; it cannot validate target business rules.
 - `npm run test:e2e` runs the twelve blocking capability suites in one disposable tenant.
 - `npm run test:characterization` runs current finance behavior (C1) and pending role-to-route/project/export admissions (C2) that still lack product authority. It is intentionally excluded from `npm test`, but exits nonzero on drift.
 - `npm run test:manual-accessibility` opens the real application in headed Chromium for a signed keyboard, focus, forms/workflow, screen-reader, reflow, and actual 100%/200% browser-zoom review.
@@ -36,7 +36,12 @@ Before startup, the resolved Compose configuration rejects:
 - extra services, unapproved host binds, privileged mode, host namespaces,
   host networking, devices, or non-Dolibarr published ports.
 
-Bootstrap and sample seeding run once per complete tenant. Normal completion, failure, and interruption run `docker compose down -v --remove-orphans` and verify no labeled containers, networks, or volumes remain.
+The current runner still bootstraps legacy records once inside its disposable
+tenant. Those records are tolerated only as current-state characterization and
+must not support a target-rule assertion. RST-013A/RST-014A replace this with
+minimal per-test or per-suite factories. Normal completion, failure, and
+interruption run `docker compose down -v --remove-orphans` and verify no
+labeled containers, networks, or volumes remain.
 
 Set `MJL_TEST_RETAIN=1` to retain a failed tenant. The runner prints its exact project, URL, storage names, and cleanup command. Playwright output and sanitized Compose diagnostics remain under `test-results/runs/<project>/` independently of tenant teardown.
 
@@ -57,6 +62,22 @@ custom/mjlfinancement/scripts/verify_traceability_exports.php
 scope entrypoints accept only runner-supplied allowlisted module names so each
 legacy check executes in a separate PHP process without exposing historical
 versioned commands.
+
+`verify_sample_data.php` is a legacy current-state entrypoint scheduled for
+removal. A passing result proves only that the obsolete disposable fixture is
+self-consistent; it is not target acceptance evidence.
+
+## Target fixture contract
+
+- Normal shared-tenant startup creates no persistent sample data.
+- Tests create only the minimum records needed inside the runner's unique
+  database/entity and document volumes.
+- Test data is never copied from the legacy POC dataset and never defines a
+  business rule.
+- Teardown must remove records, files, containers, networks, and volumes on
+  success, failure, and interruption.
+- No persistent demonstration dataset is introduced until all implementation
+  phases and the later dataset specification are complete.
 
 `check_production_readiness.php` remains an operational diagnostic, not a test gate. It reports client/operator-dependent `UNKNOWN` values for the final permission matrix, official outputs and content, production email, public URL, secrets, document storage, backup/restore, monitoring, and retention. Operational scripts are CLI-only and the Apache boundary denies their complete HTTP route family.
 

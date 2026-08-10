@@ -32,32 +32,21 @@ Open:
 http://127.0.0.1:8080/
 ```
 
-Bootstrap the local development/test configuration:
+Do not run the current `bootstrap_poc.php` or `seed_sample_data.php`. They
+recreate obsolete persistent POC data. RST-000A removes the seed entrypoint and
+replaces or strips the bootstrap to a documented non-seeding module
+installation/activation path. The shared local tenant must remain empty after
+that purge except for one native technical administrator.
 
-```bash
-docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php
-```
-
-The bootstrap is idempotent. It activates required Dolibarr modules, enables
-the custom `mjlfinancement` module, creates local fixture groups and users,
-reapplies permissions, and generates an API key for `admin_poc`.
-
-Default local fixture password:
-
-```text
-MjlPoc2026!!
-```
-
-Optional local password override:
-
-```bash
-MJL_POC_DEFAULT_PASSWORD='change-me' docker compose up -d
-```
+Target tests create their own minimal records only inside isolated disposable
+tenants and remove those tenants after the run. A new persistent demonstration
+dataset is deferred until all implementation phases are complete.
 
 ## Verification
 
-Use `docs/mjl-acceptance-tests.md` for the active verification matrix and
-`docs/mjl-deployment-checklist.md` for deployment and clean-install checks.
+Use `docs/mjl-acceptance-tests.md` for the active transitional verification
+matrix. `docs/mjl-deployment-checklist.md` is old-product evidence and must not
+be used as a target deployment gate until its Phase 3C rewrite.
 
 Primary complete regression command:
 

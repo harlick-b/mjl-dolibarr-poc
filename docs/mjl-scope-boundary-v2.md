@@ -20,6 +20,10 @@ Partenaire. It does not model negotiation or approval of the upstream PTA.
 - PDF and XLSX outputs plus supplemental audited CSV.
 - Authentication, invitations, authorization, concurrency, and readiness hardening.
 
+Core implementation is delivered against an empty persistent tenant after the
+approved clean reset. Persistent demonstration data is not part of Phases 1
+through 6. Test-only records may exist solely inside disposable test tenants.
+
 ## Outside Core Scope
 
 - PTA proposal, negotiation, or Partner approval.
@@ -32,6 +36,10 @@ Partenaire. It does not model negotiation or approval of the upstream PTA.
 - Full accounting ERP replacement.
 - Payroll, procurement, SMS, bank APIs, OCR, external portals, offline mode,
   dynamic report builders, and AI reporting.
+- Migration, transformation, or compatibility preservation of existing POC
+  users or business data.
+- A persistent sample/demo dataset before every implementation phase is
+  complete and its later dataset specification is approved.
 
 ## Gated Modules
 

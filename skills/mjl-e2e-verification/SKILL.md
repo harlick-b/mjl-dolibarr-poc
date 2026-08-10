@@ -22,8 +22,10 @@ installs.
 
 1. Match checks to the changed surface.
 2. Prefer `npm run test:e2e` for UI-covered flows.
-3. Use documented smoke and audit scripts for schema, workflow, export, and
-   sample-data checks.
+3. Use documented smoke and audit scripts for schema, workflow, and export
+   checks. Target behavior may use only minimal disposable test fixtures;
+   legacy sample-data checks are current-state characterization, not target
+   evidence.
 4. Report skipped checks with reasons.
 
 ## Output

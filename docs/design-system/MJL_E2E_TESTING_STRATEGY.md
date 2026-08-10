@@ -25,10 +25,11 @@ End-to-end tests are the primary validation method. Micro/unit tests are allowed
 ## Disposable Execution
 
 Run browser coverage through the repository runner. It provisions one isolated
-tenant with named volumes, bootstraps and seeds it once, verifies the resolved
-Compose configuration before startup, and removes project-scoped containers,
-networks, and volumes after the run. A failed run may be retained only through
-the explicit `MJL_TEST_RETAIN=1` diagnostic option.
+tenant with named volumes, creates only the minimal test-scoped records needed
+for the selected journey, verifies the resolved Compose configuration before
+startup, and removes project-scoped containers, networks, and volumes after
+the run. Legacy POC seed data is prohibited as target evidence. A failed run
+may be retained only through the explicit `MJL_TEST_RETAIN=1` diagnostic option.
 
 Run artifacts live below a run-specific `test-results/runs/` directory. They
 are diagnostics, not source evidence, and must not be committed unless a
@@ -54,9 +55,9 @@ Reviewer returns an activity with comment, AGENT_SAISIE corrects it, resubmits i
 
 ### Scenario 5 - Alerts
 
-Seed approaching or overdue activity, the appropriate production role sees the
-alert, the alert links to the object, user acts, and alert state updates if
-applicable.
+Create an approaching or overdue Activity inside the isolated test tenant; the
+appropriate production role sees the alert, the alert links to the object,
+user acts, and alert state updates if applicable.
 
 ### Scenario 6 - Export
 

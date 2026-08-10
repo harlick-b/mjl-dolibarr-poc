@@ -37,6 +37,17 @@ contradiction by choosing an implicit precedence rule.
 ## Post-cadrage Decisions
 
 - The application is not live. Backward compatibility is not required.
+- All existing local sample/demo data must be deleted through an approved,
+  checksum-scoped clean reset. Existing users, role assignments, Partners,
+  Projects, Activities, finance records, logs, and documents are not migrated
+  into the target model.
+- Exactly one native Dolibarr technical administrator account is preserved.
+  Every other existing sample account is deleted rather than migrated.
+- No persistent sample/demo dataset is created until all implementation phases
+  are complete and a later dataset specification is approved.
+- Disposable test-only fixtures are permitted only in isolated tenants and
+  must be removed with the tenant. They are not persistent sample data and are
+  never business-rule authority.
 - The canonical hierarchy is `Partenaire -> Projet -> Activité -> Opérations`.
 - `Programme` is not a generic entity name. It may remain inside a proper name.
 - Each user has one effective MJL role.
@@ -63,8 +74,9 @@ MJL-specific code stays outside Dolibarr core. Native third parties, projects,
 users, authentication, ECM, and export capabilities may be reused through safe
 MJL interfaces.
 
-No reset-manifest entry is approved by this file. Every reset action remains
-`PENDING_APPROVAL` until a later explicit user decision.
+RST-000 is executed. No other reset-manifest entry is approved by this file;
+every remaining destructive action stays `PENDING_APPROVAL` until its exact
+row/file appendix and identifier are explicitly approved.
 
 ## Design Authority
 
