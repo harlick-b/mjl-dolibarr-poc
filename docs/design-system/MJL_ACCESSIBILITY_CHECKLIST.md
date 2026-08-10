@@ -1,4 +1,4 @@
-# MJL Clarity System — Accessibility Checklist
+# MJL Clarity System - Accessibility Checklist
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 checklist covers accessibility only.

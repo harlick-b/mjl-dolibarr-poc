@@ -1,4 +1,4 @@
-# MJL Clarity System — Auth And Access
+# MJL Clarity System - Auth And Access
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers auth/access UX only.

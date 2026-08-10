@@ -1,98 +1,89 @@
 # MJL Documentation Index
 
-MJL product decisions come from `docs/mjl-authoritative-decisions.md`.
+Read `docs/mjl-authoritative-decisions.md` first. It routes each subject to one
+canonical v2 owner. If canonical documents contradict, stop.
 
-## Authority Order
+## Path-by-Path Authority Classification
 
-1. Direct user instruction in the current Codex task.
-2. `docs/mjl-authoritative-decisions.md`.
-3. `docs/mjl-current-vs-target-gap-analysis.md`.
-4. `docs/mjl-current-app-functional-map.md` for current-state evidence only.
-5. Existing implementation code.
-
-Historical prompts, executed plans, superseded phase reports, demo/UAT packs,
-cleanup records, and stale POC notes are not active implementation guidance.
-
-## Core Product And Domain Docs
-
-| Document | Purpose |
+| Path | Phase 0 classification and disposition |
 | --- | --- |
-| `AGENTS.md` | Agent routing, safety, repository conventions, and verification rules. |
-| `README.md` | Local setup and project entrypoint. |
-| `CONTEXT.md` | Durable product/domain vocabulary, role rules, reports, dashboard KPI families, and pending confirmations. |
-| `docs/mjl-authoritative-decisions.md` | Highest MJL target-decision authority. |
-| `docs/mjl-current-app-functional-map.md` | Current implementation evidence only. |
-| `docs/mjl-current-vs-target-gap-analysis.md` | Current implementation debt, blockers, and pending client decisions. |
-| `docs/client-cadrage-app-vision.md` | Client-facing cadrage support presenting the target functional vision and decisions to validate; not a source of implementation status. |
+| `AGENTS.md` | Active repository instructions; not product-rule authority |
+| `CONTEXT.md` | Active domain glossary only; v2 rules prevail |
+| `DESIGN.md` | Active visual memory; subordinate to v2 product rules |
+| `README.md` | Current local setup evidence only |
+| `docs/mjl-authoritative-decisions.md` | Active authority router |
+| `docs/mjl-docs-index.md` | Active path-by-path authority classification |
+| `docs/mjl-functional-specification-v2.md` | Canonical owner of complete post-cadrage business rules |
+| `docs/mjl-decision-register-v2.md` | Canonical owner of decision status and provenance |
+| `docs/mjl-scope-boundary-v2.md` | Canonical owner of core, excluded, and gated scope |
+| `docs/mjl-permission-matrix-v2.md` | Canonical owner of visibility and actions |
+| `docs/mjl-status-and-transition-model-v2.md` | Canonical owner of states, transitions, and guards |
+| `docs/mjl-data-dictionary-v2.md` | Canonical owner of target entities and invariants |
+| `docs/mjl-reset-manifest-v2.md` | Canonical owner of pending reset actions and approvals |
+| `docs/mjl-implementation-roadmap-v2.md` | Canonical owner of phase sequence and stop conditions |
+| `docs/mjl-phase-0-audit-report.md` | Active Phase 0 evidence and verdict; not target-rule authority |
+| `docs/mjl_fully_revised_implementation_prompts_by_phase.md` | Frozen post-cadrage source package; subordinate to canonical v2 and never executable as one request |
+| `docs/mjl-current-app-functional-map.md` | Current implementation evidence only; superseded wherever it states target behavior |
+| `docs/mjl-current-vs-target-gap-analysis.md` | Active debt summary only; canonical owners decide target behavior |
+| `docs/mjl-acceptance-tests.md` | Current test-command evidence; target cases require phase-owned replacement |
+| `docs/mjl-test-coverage-registry.md` | Historical/current test inventory; not target authority |
+| `docs/mjl-deployment-checklist.md` | Old-product deployment evidence; DEFER and rewrite in Phase 3C |
+| `docs/mjl-production-readiness-plan.md` | Old-product readiness evidence; DEFER and rewrite in Phase 3C |
+| `docs/client-cadrage-app-vision.md` | Superseded pre-decision cadrage support; historical only |
+| `docs/design-context.md` | Historical input to v3 generation; not current product authority |
+| `docs/design/mjl-sites-style-handoff.md` | Historical design handoff; not current product authority |
+| `docs/design-system/README.md` | Active visual-system entry point under the v2 authority boundary |
+| `docs/design-system/DESIGN.md` | Active visual/interaction guidance only; conflicting roles, scope, finance, and output rules superseded |
+| `docs/design-system/CODEX_UI_IMPLEMENTATION_GUIDE.md` | Active implementation presentation guidance only; conflicting business assertions superseded |
+| `docs/design-system/MJL_ACCESSIBILITY_CHECKLIST.md` | Active accessibility guidance; business examples are non-authoritative |
+| `docs/design-system/MJL_AUTH_AND_ACCESS.md` | Retain visual/security interaction patterns; old role/scope behavior superseded |
+| `docs/design-system/MJL_COMPONENTS.md` | Active component guidance only; product semantics come from v2 |
+| `docs/design-system/MJL_CONTENT_GUIDELINES.md` | Active French content guidance; old terminology/status examples superseded |
+| `docs/design-system/MJL_DASHBOARD_AND_DATA_VIZ.md` | Retain visualization guidance; old finance KPIs and scope behavior superseded |
+| `docs/design-system/MJL_DESIGN_GOVERNANCE.md` | Active visual-governance process; v2 owns business decisions |
+| `docs/design-system/MJL_E2E_TESTING_STRATEGY.md` | Retain visual/E2E methods; old journeys and assertions superseded |
+| `docs/design-system/MJL_EMAIL_SYSTEM.md` | Retain email presentation/security guidance; v2 owns lifecycle and roles |
+| `docs/design-system/MJL_INFORMATION_ARCHITECTURE.md` | Retain IA method only; old routes, finance areas, and role navigation superseded |
+| `docs/design-system/MJL_OFFICIAL_OUTPUTS.md` | Retain output presentation guidance; PDF prohibition and old catalog superseded |
+| `docs/design-system/MJL_SCREEN_INVENTORY_TEMPLATE.md` | Active evidence template only; no product-rule authority |
+| `docs/design-system/MJL_SECURITY_UX.md` | Active security-UX guidance; v2 permissions and workflows prevail |
+| `docs/design-system/MJL_TOKENS.md` | Active visual token guidance only |
+| `docs/design-system/MJL_UI_RULES.md` | Active UI rules only; conflicting product semantics superseded |
+| `docs/design-system/audit/current-screen-inventory.md` | Current old-product screen evidence only |
+| `docs/design-system/audit/current-ui-audit.md` | Current old-product UI evidence only |
+| `docs/design-system/approved/v3/DESIGN.md` | Approved visual authority; old product assertions superseded |
+| `docs/design-system/approved/v3/PRODUCT.md` | Superseded as product authority; retained only as evidence supporting the v3 visual package |
+| `docs/design-system/approved/v3/MANUAL-REVIEW.md` | Retained visual manual-review evidence; target journeys require replacement |
+| `docs/design-system/approved/v3/design-manifest.yaml` | Approved visual package manifest; no business-rule authority |
+| `docs/design-system/approved/v3/design-tokens/README.md` | Approved visual token documentation |
+| `docs/design-system/approved/v3/design-tokens/semantic-tokens.json` | Approved semantic visual tokens |
+| `docs/design-system/approved/v3/design-tokens/tokens.json` | Approved primitive visual tokens |
+| `docs/design-system/approved/v3/docs/design/component-inventory.md` | Approved component inventory; product examples subordinate to v2 |
+| `docs/design-system/approved/v3/docs/design/design-assumptions.md` | Historical v3 design assumptions; conflicting product assumptions superseded |
+| `docs/design-system/approved/v3/docs/design/design-decisions.md` | Approved visual decisions only; conflicting product decisions superseded |
+| `docs/design-system/approved/v3/docs/design/design-validation-report.md` | Retained visual validation evidence; not target functional validation |
+| `docs/agents/README.md` | Active agent-process support; no product-rule authority |
+| `docs/agents/domain.md` | Active agent domain-process support; canonical v2 glossary/rules prevail |
+| `docs/agents/issue-tracker.md` | Active issue-process support; no product-rule authority |
+| `docs/agents/triage-labels.md` | Active triage-process support; no product-rule authority |
+| `docs/adr/0000-template.md` | Active ADR template; no decision until instantiated and accepted |
+| `tasks/lessons.md` | Active process lessons; no product-rule authority |
+| `skills/confidence-review-loop/SKILL.md` | Active local review procedure; no product-rule authority |
+| `skills/design-system-guardian/SKILL.md` | Active local UI review procedure; no product-rule authority |
+| `skills/diagnose/SKILL.md` | Active local diagnosis procedure; no product-rule authority |
+| `skills/full-feature-validation/SKILL.md` | Active local validation procedure; no product-rule authority |
+| `skills/mjl-design-system-gate/SKILL.md` | Active local design gate; v2 owns business semantics |
+| `skills/mjl-e2e-verification/SKILL.md` | Active local E2E procedure; no product-rule authority |
+| `skills/mjl-production-readiness-audit/SKILL.md` | Active local audit procedure; production approval remains client-owned |
+| `skills/security-baseline-review/SKILL.md` | Active local security review procedure; no product-rule authority |
 
-## Operational And Verification Docs
+## Approved-v3 Boundary
 
-| Document | Purpose |
-| --- | --- |
-| `docs/mjl-acceptance-tests.md` | E2E, smoke, schema, and clean-install verification guidance. |
-| `docs/mjl-test-coverage-registry.md` | Maintained case audit, authority classification, capability destinations, and verification evidence. |
-| `docs/mjl-deployment-checklist.md` | Deployment, backup, restore, diagnostics, and production operations checklist. |
-| `docs/mjl-production-readiness-plan.md` | Production readiness gates and unresolved deployment confirmations. |
-| `mjl_dolibarr_poc_sample_data/README_SAMPLE_DATA.md` | Local fixture package notes for development/test data only. |
-| `mjl_dolibarr_poc_sample_data/TEST_SCENARIOS.md` | Fixture scenarios for development/test data only. |
+Phase 0 does not edit files below `docs/design-system/approved/v3/`. Their
+tokens, component contracts, focus states, density, responsive behavior, and
+accessibility guidance remain valid. Their old roles, Partner authorization
+scopes, finance scope, report catalog, and PDF prohibition do not.
 
-## Design And UI Docs
-
-| Document | Purpose |
-| --- | --- |
-| `DESIGN.md` | Durable design memory. |
-| `docs/design-context.md` | Sole active target-project context copied into `proj-design` for design-system generation. |
-| `docs/design-system/README.md` | Active entry point for the approved MJL Financement v3 design documentation and its implementation chronology. |
-| `docs/design-system/CODEX_UI_IMPLEMENTATION_GUIDE.md` | UI implementation guidance. |
-| `docs/design-system/DESIGN.md` | Design-system memory. |
-| `docs/design-system/MJL_ACCESSIBILITY_CHECKLIST.md` | Accessibility checklist. |
-| `docs/design-system/MJL_AUTH_AND_ACCESS.md` | Auth/access UX guidance. |
-| `docs/design-system/MJL_COMPONENTS.md` | Component guidance. |
-| `docs/design-system/MJL_CONTENT_GUIDELINES.md` | Content guidance. |
-| `docs/design-system/MJL_DASHBOARD_AND_DATA_VIZ.md` | Dashboard/data-viz guidance. |
-| `docs/design-system/MJL_DESIGN_GOVERNANCE.md` | Design governance. |
-| `docs/design-system/MJL_E2E_TESTING_STRATEGY.md` | UI E2E strategy. |
-| `docs/design-system/MJL_EMAIL_SYSTEM.md` | Email UI/content guidance. |
-| `docs/design-system/MJL_INFORMATION_ARCHITECTURE.md` | Information architecture guidance. |
-| `docs/design-system/MJL_OFFICIAL_OUTPUTS.md` | Official output guidance. |
-| `docs/design-system/MJL_SCREEN_INVENTORY_TEMPLATE.md` | Screen inventory template. |
-| `docs/design-system/MJL_SECURITY_UX.md` | Security UX guidance. |
-| `docs/design-system/MJL_TOKENS.md` | Design tokens. |
-| `docs/design-system/MJL_UI_RULES.md` | UI rules. |
-| `docs/design-system/audit/current-screen-inventory.md` | Current UI screen inventory. |
-| `docs/design-system/audit/current-ui-audit.md` | Current UI audit. |
-
-## Agent Support Docs
-
-| Document | Purpose |
-| --- | --- |
-| `docs/agents/README.md` | Agent support docs overview. |
-| `docs/agents/domain.md` | Agent domain support docs. |
-| `docs/agents/issue-tracker.md` | Agent issue-tracker support docs. |
-| `docs/agents/triage-labels.md` | Agent triage labels. |
-| `docs/adr/0000-template.md` | ADR template. |
-| `tasks/lessons.md` | Durable lessons from repeated mistakes or debugging discoveries. |
-
-## Local Skills
-
-| Document | Purpose |
-| --- | --- |
-| `skills/confidence-review-loop/SKILL.md` | Local confidence review skill. |
-| `skills/design-system-guardian/SKILL.md` | Local design review skill. |
-| `skills/diagnose/SKILL.md` | Local diagnosis skill. |
-| `skills/full-feature-validation/SKILL.md` | Local feature validation skill. |
-| `skills/mjl-design-system-gate/SKILL.md` | Local MJL design gate. |
-| `skills/mjl-e2e-verification/SKILL.md` | Local MJL E2E verification skill. |
-| `skills/mjl-production-readiness-audit/SKILL.md` | Local readiness audit skill. |
-| `skills/security-baseline-review/SKILL.md` | Local security review skill. |
-
-## Deleted Or Merged
-
-Deleted historical docs include prompt archives, superseded navigation/UI
-specifications and evidence, retired v2 readiness baselines and
-plans, superseded phase reports, demo/UAT/client-validation packs, standalone
-role/report/KPI models, implementation summaries, and native-boundary audit
-artifacts. Durable content is consolidated into `CONTEXT.md`,
-`docs/design-system/README.md`, `docs/mjl-current-app-functional-map.md`,
-`docs/mjl-current-vs-target-gap-analysis.md`, and the maintained test coverage
-registry.
+Historical evidence may remain useful, but it cannot override a canonical v2
+owner. A future retained document that is not listed here is non-authoritative
+until this index classifies it explicitly.

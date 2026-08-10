@@ -1,4 +1,4 @@
-# MJL Clarity System — Email System
+# MJL Clarity System - Email System
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers email UX only.

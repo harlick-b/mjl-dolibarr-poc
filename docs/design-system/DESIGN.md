@@ -1,5 +1,9 @@
 # MJL Clarity System
 
+> Phase 0 authority notice: this file provides visual and interaction guidance
+> only. Canonical v2 controls product scope, roles, permissions, workflows,
+> data, documents, and output formats.
+
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file records design direction only.
 

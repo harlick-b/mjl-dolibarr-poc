@@ -1,4 +1,4 @@
-# MJL Clarity System — Design Governance
+# MJL Clarity System - Design Governance
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers design governance only.

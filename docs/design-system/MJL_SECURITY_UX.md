@@ -1,4 +1,4 @@
-# MJL Clarity System — Security UX
+# MJL Clarity System - Security UX
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers security UX only.

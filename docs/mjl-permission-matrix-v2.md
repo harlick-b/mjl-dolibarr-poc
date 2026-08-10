@@ -1,0 +1,74 @@
+# MJL Permission Matrix v2
+
+## Effective Roles
+
+| Internal code | User-facing label | Meaning |
+| --- | --- | --- |
+| `AGENT_SAISIE` | Agent de saisie | Assigned Activity creation, correction, submission, and execution |
+| `AGENT_VERIFICATEUR` | Agent superviseur et prévalidateur | Independent review and prévalidation |
+| `VALIDATEUR_DEFINITIF` | Validateur définitif | Business superuser and final decision-maker |
+| `ADMIN_PLATEFORME` | Admin | Technical administration, audit, and controlled recovery |
+
+Each user has one effective role. Native Dolibarr admin status implies
+`ADMIN_PLATEFORME`. A native admin cannot have an active Agent, Supervisor, or
+Validator role. Native status must not grant business workflow actions.
+
+## Visibility
+
+| Resource | Agent | Supervisor | Validator | Admin |
+| --- | --- | --- | --- | --- |
+| Active Partner/Project reference data | Read for Activity creation | Read | Read all | Technical diagnostics only |
+| Activity and Opérations | Current assignment only | Read all | Read all | Audit or controlled recovery only |
+| Current workflow messages | Assigned Activity | Read all | Read all | Complete audit |
+| Complete audit | No | No | Yes | Yes |
+| Technical access administration | No | No | No | Yes |
+
+Partner assignment is not an authorization model. The current
+`mjlfinancement_user_soc_scope` behavior is obsolete target behavior.
+
+## Actions
+
+| Action | Agent | Supervisor | Validator | Admin |
+| --- | --- | --- | --- | --- |
+| Create Activity | Yes | No | No | No |
+| Edit authorized Activity structure | If currently assigned | No | No direct edit | No |
+| Add/edit/remove draft Opérations | If currently assigned and structurally editable | No | No | No |
+| Submit or resubmit revision | If currently assigned | No | No | No |
+| Prevalidate revision | No | Yes, subject to separation of duties | No | No |
+| Return submitted revision for correction | No | Yes, reason required | No | No |
+| Definitively validate | No | No | Yes, same prevalidated revision | No |
+| Return prevalidated revision for correction | No | No | Yes, reason required | No |
+| Manage Partner/Project/Opération types | No | No | Yes | Technical import support only |
+| Add/remove/transfer Activity assignments | No | No | Yes | No |
+| Enter Opération execution data | If currently assigned | No | No | No |
+| Request or withdraw cancellation/reopening | If currently assigned | No | No | No |
+| Decide cancellation/reopening | No | No | Yes | No |
+| Export complete audit | No | No | Yes | Yes |
+| Invite and activate/deactivate users | No | No | No | Yes |
+| Change effective role | No | No | No | Yes, assignment guard applies |
+| Controlled technical recovery | No | No | No | Yes, audited |
+
+## Separation of Duties
+
+For one business revision:
+
+- its creator or structural contributor cannot prevalidate it;
+- its creator or structural contributor cannot definitively validate it;
+- its prevalidator cannot definitively validate it;
+- later role changes do not remove these restrictions.
+
+## Assignment Rules
+
+- The creator becomes the primary Agent automatically.
+- Primary assignment is coordination metadata, not exclusive permission.
+- Every current Agent assignment grants the same authorized edit and submit rights.
+- Only the Validator changes assignments.
+- Removing an Agent revokes read and write access immediately, including open-form saves.
+- Historical assignments and actions remain in audit.
+- An Agent cannot change role while current assignments remain.
+
+## Enforcement
+
+Every route, direct URL, form render, POST, export, and background action must
+enforce the matrix server-side with active Dolibarr entity filtering. UI
+hiding is not authorization. Stale actions fail without changing data.

@@ -1,4 +1,4 @@
-# MJL Clarity System — Dashboard And Data Visualization
+# MJL Clarity System - Dashboard And Data Visualization
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers dashboard and data-visualization UX only.

@@ -1,4 +1,4 @@
-# MJL Clarity System — Codex UI Implementation Guide
+# MJL Clarity System - Codex UI Implementation Guide
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 guide covers UI implementation only.

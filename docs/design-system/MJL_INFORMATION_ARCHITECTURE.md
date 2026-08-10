@@ -1,4 +1,4 @@
-# MJL Clarity System — Information Architecture
+# MJL Clarity System - Information Architecture
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers information architecture only.

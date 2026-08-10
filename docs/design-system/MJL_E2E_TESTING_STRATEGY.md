@@ -1,4 +1,4 @@
-# MJL Clarity System — E2E Testing Strategy
+# MJL Clarity System - E2E Testing Strategy
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers UI/E2E strategy only.
@@ -36,39 +36,39 @@ reviewed compliance record explicitly requires them.
 
 ## Required Scenarios
 
-### Scenario 1 — Invitation And First Access
+### Scenario 1 - Invitation And First Access
 
 Admin logs in, sends invitation, invitation status becomes sent, user opens link, defines password, logs in, account becomes active, and audit records lifecycle.
 
-### Scenario 2 — Forgotten Password
+### Scenario 2 - Forgotten Password
 
 User requests reset, neutral confirmation appears, user opens reset link, sets new password, and logs in.
 
-### Scenario 3 — Activity Lifecycle
+### Scenario 3 - Activity Lifecycle
 
 AGENT_SAISIE creates and submits an activity, AGENT_VERIFICATEUR prevalidates or returns it, timeline updates, audit updates, dashboard updates, and export reflects the result where applicable.
 
-### Scenario 4 — Return For Correction
+### Scenario 4 - Return For Correction
 
 Reviewer returns an activity with comment, AGENT_SAISIE corrects it, resubmits it, and previous decision remains visible.
 
-### Scenario 5 — Alerts
+### Scenario 5 - Alerts
 
 Seed approaching or overdue activity, the appropriate production role sees the
 alert, the alert links to the object, user acts, and alert state updates if
 applicable.
 
-### Scenario 6 — Export
+### Scenario 6 - Export
 
 User applies filters, exports, export respects filters, file is Excel-readable, filename is stable, and export is logged if applicable.
 
-### Scenario 7 — Role Visibility
+### Scenario 7 - Role Visibility
 
 AGENT_SAISIE sees operational workspace, AGENT_VERIFICATEUR sees prevalidation
 workspace, VALIDATEUR_DEFINITIF sees business supervision, ADMIN_PLATEFORME
 sees platform administration, and unauthorized pages are blocked.
 
-### Scenario 8 — Finance Feedback And Recovery
+### Scenario 8 - Finance Feedback And Recovery
 
 Convention, budget-line, and fund-receipt required-field failures preserve
 only registered values and link only exact field errors. Composite failures

@@ -1,223 +1,81 @@
 # MJL Authoritative Decisions
 
-This is the highest-level MJL business and implementation authority for the
-repository.
+This file is the highest-level MJL authority router after the post-cadrage
+Phase 0 reset. It supersedes the former POC-era authority model.
 
 ## Authority Order
 
-For MJL implementation work, use this precedence order:
-
-1. Direct user instruction in the current Codex task.
-2. `docs/mjl-authoritative-decisions.md`.
-3. `docs/design-system/approved/v3/` as presentation authority, subordinate
-   to business rules, security, permissions, and workflows in this file.
-4. Active implementation prompt or task file for the current phase.
-5. `docs/mjl-current-vs-target-gap-analysis.md`.
-6. `docs/mjl-current-app-functional-map.md` for current-state evidence only.
-7. Existing implementation code.
-8. Older docs, historical prompts, executed plans, or POC notes.
-
-If an older document conflicts with this file, the older document is
-superseded. If current code conflicts with this file, current code is
-implementation debt, not target behavior.
-
-## Product Stance
-
-The MJL app is a production-quality target custom workspace inside Dolibarr;
-deployment readiness is not established. It is not a POC and not an MVP.
-
-Dolibarr provides authentication, users/groups/rights, third parties, projects,
-ECM/documents, and export support. MJL custom code provides the workspace,
-activities, expenses, documents, supervision, alerts, reports, exports, audit,
-exchange logs, and invitations.
-
-MJL-specific work must stay in `custom/mjlfinancement`, `docs/`, documented
-setup scripts, documented sample-data locations, tests, SQL/update files, or a
-documented safe custom theme boundary. Dolibarr core files must not be
-modified.
-
-## User-Facing Terminology
-
-Use:
-
-```md
-Partenaires / Programmes
-```
-
-Do not use `Bailleurs / Programmes`.
-
-Do not use `Tiers` as normal user-facing wording except in technical Dolibarr
-explanations.
-
-Known Partenaires / Programmes:
-
-```md
-UNICEF
-Programme Redevabilite
-```
-
-## Role Model
-
-Use one global MJL role per user.
-
-Exactly three business roles and one administration role are approved.
-
-A user can be assigned to one or many Partenaires / Programmes.
-
-A user does not have different roles per Partenaire / Programme for current
-production/test data.
-
-Roles:
-
-```md
-AGENT_SAISIE - Agent de saisie
-AGENT_VERIFICATEUR - Agent vérificateur et prévalidateur
-VALIDATEUR_DEFINITIF - Validateur définitif
-ADMIN_PLATEFORME - Administrateur plateforme
-```
-
-`ADMIN_PLATEFORME` is technical/platform administration.
-
-`VALIDATEUR_DEFINITIF` is business validation.
-
-They are not the same concept, even if one person can have both powers.
-
-## Deprecated POC Concepts
-
-These are legacy only:
-
-```md
-DPAF
-SUPERVISEUR_N1
-SUPERVISEUR_N2
-N1
-N2
-MJL POC roles
-```
-
-Mapping:
-
-```md
-AGENT -> AGENT_SAISIE
-SUPERVISEUR_N1 -> AGENT_VERIFICATEUR
-SUPERVISEUR_N2 -> AGENT_VERIFICATEUR unless explicitly migrated otherwise
-DPAF -> VALIDATEUR_DEFINITIF or ADMIN_PLATEFORME depending user intent
-```
-
-## Scope Model
-
-A non-admin user can access only data connected to assigned Partenaires /
-Programmes.
-
-Admin sees all.
-
-Fail closed:
-
-```md
-If an object cannot resolve to a Partenaire / Programme, only Admin can access
-it until the data is fixed.
-```
-
-Every custom query must filter by the active Dolibarr entity.
-
-## Workflow
-
-`Valide definitivement` and `Decaisse` are separate states.
-
-Final validation approves the business decision.
-
-Decaissement means money actually moved.
-
-No self-validation remains mandatory:
-
-- no self-prevalidation;
-- no self-final-validation;
-- no self-disbursement unless a future explicit audited override is designed.
-
-Do not implement that override now.
-
-## Projects
-
-Project creation and editing must be available inside the MJL workspace.
-
-Only `ADMIN_PLATEFORME` and `VALIDATEUR_DEFINITIF` can create/edit projects.
-
-Normal MJL users must not need native Dolibarr project screens.
-
-## Documents
-
-Global Documents page remains read-only.
-
-Uploads remain contextual.
-
-Guarded downloads are mandatory.
-
-Document uploads and downloads should be audited.
-
-Supporting documents must use guarded MJL routes, not raw public ECM links.
-
-## Exchanges
-
-Do not expose `Echanges` as a primary top-level menu item.
-
-Build contextual timeline/exchanges inside object detail pages.
-
-A global search/audit view may exist under Supervision/Audit only.
-
-## Reports And Exports
-
-No PDF/Word reports in this phase.
-
-CSV/XLSX only.
-
-CSV must remain:
-
-- UTF-8 BOM;
-- semicolon-separated;
-- French headers;
-- stable filenames.
-
-Every export should be audited.
-
-## Development Sequence
-
-The historical post-Phase-3D Phase 4 is recorded as:
-
-```text
-IMPLEMENTED_WITH_MANUAL_VALIDATION_DEFERRED
-```
-
-Its authentication, communication, responsive, and automated accessibility
-work is implemented and locally verified. The signed keyboard, screen-reader,
-reflow, and real-browser-zoom exercise is intentionally deferred. This status
-does not claim WCAG conformance.
-
-The historical Phase 5 production and operator requirements are deferred until
-the user explicitly reactivates release-readiness work. They remain documented
-but are not completion gates for the current development milestone. No
-production-readiness claim follows from this deferral.
-
-The next functional development milestone is:
-
-```text
-V1_FUNCTIONAL_RULES_AND_PILOT_VALIDATION
-```
-
-Its priorities are, in order:
-
-1. confirm and implement the final role/route/action permission matrix;
-2. confirm budget controls and mandatory supporting-document rules;
-3. confirm priority dashboard KPIs and CSV/XLSX report definitions;
-4. validate the complete project-to-expense journeys with representative pilot
-   data and correct the resulting functional defects.
-
-Production infrastructure, deployment rehearsal, backup/restore, monitoring,
-and operator configuration are outside this milestone.
-
-## Deleted Or Merged Documentation Rule
-
-Executed plans, duplicate generated prompts, stale POC docs, and older
-conflicting docs should not remain active documentation.
-
-Before deletion, unique useful decisions or real conclusions must be moved into
-this file or another active doc.
+Use this order for MJL work:
+
+1. Direct user instruction in the current task.
+2. This authority router.
+3. The canonical v2 documents listed below, each for its assigned subject.
+4. The approved v3 design package for visual presentation only.
+5. The current-vs-target gap analysis.
+6. The current application functional map as current-state evidence only.
+7. Existing implementation code and tests as current-state evidence only.
+8. Historical prompts, plans, reports, and POC notes.
+
+If canonical v2 documents contradict one another, stop. Do not conceal the
+contradiction by choosing an implicit precedence rule.
+
+## Canonical v2 Ownership
+
+| Subject | Canonical document |
+| --- | --- |
+| Complete business rules | `docs/mjl-functional-specification-v2.md` |
+| Decision provenance and status | `docs/mjl-decision-register-v2.md` |
+| Core, excluded, and gated scope | `docs/mjl-scope-boundary-v2.md` |
+| Visibility and permitted actions | `docs/mjl-permission-matrix-v2.md` |
+| States, transitions, and guards | `docs/mjl-status-and-transition-model-v2.md` |
+| Target entities, fields, and invariants | `docs/mjl-data-dictionary-v2.md` |
+| Proposed reset actions and approvals | `docs/mjl-reset-manifest-v2.md` |
+| Phase dependencies and stop conditions | `docs/mjl-implementation-roadmap-v2.md` |
+
+`docs/mjl-phase-0-audit-report.md` is evidence, not a target-decision source.
+
+## Post-cadrage Decisions
+
+- The application is not live. Backward compatibility is not required.
+- The canonical hierarchy is `Partenaire -> Projet -> Activité -> Opérations`.
+- `Programme` is not a generic entity name. It may remain inside a proper name.
+- Each user has one effective MJL role.
+- Stable role codes remain `AGENT_SAISIE`, `AGENT_VERIFICATEUR`,
+  `VALIDATEUR_DEFINITIF`, and `ADMIN_PLATEFORME`.
+- `AGENT_VERIFICATEUR` is labeled `Agent superviseur et prévalidateur`.
+- Native Dolibarr admin status implies `ADMIN_PLATEFORME` and cannot coexist
+  with an active MJL business role.
+- Agent visibility is based on current Activity assignment, not Partner scope.
+- Supervisors and Validators can view all Activities.
+- The Validator is the business superuser. Admin is technical and audit-only.
+- Submitted business revisions are immutable and review decisions target one
+  exact revision.
+- Missing financial information is never zero.
+- XOF amounts use integer-safe storage.
+- Operational outputs require PDF and XLSX. Audited CSV remains supplemental.
+- Document management, accounting entries, and official Partner reports remain
+  gated by later client decisions.
+- Phase 3C is not a production-launch authorization.
+
+## Implementation Boundary
+
+MJL-specific code stays outside Dolibarr core. Native third parties, projects,
+users, authentication, ECM, and export capabilities may be reused through safe
+MJL interfaces.
+
+No reset-manifest entry is approved by this file. Every reset action remains
+`PENDING_APPROVAL` until a later explicit user decision.
+
+## Design Authority
+
+`docs/design-system/approved/v3/` remains approved for visual tokens,
+components, density, interaction states, responsive behavior, and
+accessibility guidance. Product, role, permission, workflow, document, and
+export assertions in that package are superseded where they conflict with the
+canonical v2 documents.
+
+## Historical Documentation
+
+Historical evidence remains recoverable, but it is not active guidance.
+Conflicting documents must be marked non-authoritative in
+`docs/mjl-docs-index.md` or updated to the canonical v2 model.

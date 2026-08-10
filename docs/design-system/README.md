@@ -14,10 +14,16 @@ This approval does not establish WCAG conformance or production readiness.
 
 ## Authority
 
-MJL business rules, permissions, workflows, and product meaning remain governed
-by [`docs/mjl-authoritative-decisions.md`](../mjl-authoritative-decisions.md).
-Within that boundary, [`approved/v3/`](approved/v3/) is the canonical design
-generation and this README is its active entry point.
+MJL business rules, permissions, workflows, data, outputs, and product meaning
+are governed by [`docs/mjl-authoritative-decisions.md`](../mjl-authoritative-decisions.md)
+and its canonical v2 owners. Within that boundary,
+[`approved/v3/`](approved/v3/) is the canonical visual design generation and
+this README is its active entry point.
+
+The approved package predates the post-cadrage v2 product reset. Its tokens,
+components, focus states, density, responsive behavior, and accessibility
+guidance remain authoritative. Its old role, Partner-scope, finance,
+document-policy, CSV/XLSX-only, and PDF-prohibition statements are superseded.
 
 The former v2 package was retired after every useful artifact was rebuilt,
 consolidated, or explicitly retired in the v3 migration ledger. It is not kept
@@ -79,7 +85,7 @@ Production infrastructure must preserve this policy.
 
 - Production reverse-proxy CSP, egress, and privacy policy.
 - Signed keyboard, screen-reader, reflow, and real browser-zoom evidence.
-- Client approval of non-protected wording and official CSV/XLSX canevas.
+- Client approval of non-protected wording and Phase 6 official templates.
 - Production email, public URL, secrets, storage, backup, monitoring, and
   retention configuration.
 

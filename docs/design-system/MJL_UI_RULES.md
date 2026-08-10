@@ -1,4 +1,4 @@
-# MJL Clarity System — UI Rules
+# MJL Clarity System - UI Rules
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers UI rules only.

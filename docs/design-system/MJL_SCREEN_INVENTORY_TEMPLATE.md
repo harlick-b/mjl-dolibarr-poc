@@ -1,4 +1,4 @@
-# MJL Clarity System — Screen Inventory Template
+# MJL Clarity System - Screen Inventory Template
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 template covers screen inventory evidence only.

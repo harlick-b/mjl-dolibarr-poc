@@ -1,245 +1,138 @@
-# MJL Dolibarr Context
+# MJL Domain Language
 
-This file records durable product and domain vocabulary. Target decisions live
-in `docs/mjl-authoritative-decisions.md`; if this file conflicts with that
-authority, update this file.
+This glossary defines the ubiquitous language for the post-cadrage MJL
+application. Target rules live in the canonical v2 documents.
 
-## Project Purpose
+## Portfolio
 
-The MJL app is a production-target custom workspace inside Dolibarr for
-monitoring externally funded Ministry of Justice and Legislation projects.
-Dolibarr provides authentication, users/groups/rights, third parties, projects,
-ECM/documents, and export support. MJL-specific behavior stays in the custom
-module and documented supporting areas.
-
-Confirmed goals:
-
-- trace projects and activities;
-- follow expenses, disbursements, and supporting documents;
-- support verification, final validation, and audit history;
-- provide supervised portfolio visibility;
-- produce French, Excel-readable CSV/XLSX reports and exports;
-- show scoped alerts for deadlines, pending reviews, budget risk, and document
-  issues.
-
-Confirmed non-goals for the current production-readiness phase:
-
-- full accounting ERP replacement;
-- public registration;
-- SMS, bank API, OCR, external partner portal, offline mode, dynamic report
-  builder, payroll, procurement, PDF reports, Word reports, or AI reporting.
-
-## Runtime And Deployment Assumptions
-
-- Local runtime uses Docker Compose.
-- `docker-compose.yml` runs Dolibarr `23.0.2` with MariaDB `11`.
-- Dolibarr is exposed locally on `http://127.0.0.1:8080/`.
-- The custom module lives under `custom/mjlfinancement`.
-- The module declaration reports version `0.10.0`.
-- The module requires Dolibarr `23.0.x` and PHP `7.4+`.
-- Dolibarr documents are mounted under `./data/documents`.
-- Production deployment requires persistent database/document storage,
-  backup/restore procedures, schema audits, guarded document access, and
-  production secrets/email/base-URL configuration outside source control.
-
-## Language
-
-**Partenaire / Programme**:
-User-facing partner/programme scope for MJL data access and reporting,
-represented technically by native Dolibarr third parties.
-_Avoid_: Bailleurs / Programmes, Tiers in normal UI, PTF in production UI.
+**Partenaire**:
+Organization that agrees and supports Activities through one or more Projects.
+_Avoid_: Partenaire / Programme, Tiers in normal user-facing language, PTF as a generic application entity
 
 **Projet**:
-Native Dolibarr project exposed through MJL workspace screens.
-_Avoid_: raw native project screens for normal MJL business users.
+Stable MJL project belonging to one Partenaire and containing Activities.
+_Avoid_: Programme as a generic entity, native Dolibarr project screen as the normal MJL experience
 
-**Convention**:
-Current MJL funding-envelope object linked to a partner/programme, project,
-dates, amount, currency, and status.
-_Avoid_: MjlMissionEnvelope unless future business rules prove it necessary.
+**Activité**:
+Planned and validated body of work under one Project, composed of Opérations.
+_Avoid_: Task, Dépense as a substitute for execution
 
-**Activite**:
-Operational activity under a project/convention with physical execution,
-documents, and staged validation.
-_Avoid_: task when referring to MJL business workflow; task is a native
-Dolibarr technical object.
+**Opération**:
+Planned unit of Activity execution with a type, authorized amount, spent
+amount, observation, and execution status.
+_Avoid_: Expense as the core execution unit
 
-**Ligne budgetaire**:
-Budget allocation and execution tracking line.
+**Type d'Opération**:
+Active or inactive reference classification selected for an Opération.
+_Avoid_: Invented accounting, budget, or document categories
 
-**Fonds recu**:
-Funding receipt trace linked to a convention/project/partner with proof
-documents and received/not-received lifecycle.
+## Planning and review
 
-**Depense**:
-Expense linked to project, convention, optional activity, budget line,
-supporting document, staged validation, and possible disbursement.
+**Montant autorisé**:
+Single Activity budget concept balanced by the authorized amounts of its
+Opérations.
+_Avoid_: Montant final
 
-**Piece justificative**:
-Supporting document stored in ECM and served only through guarded MJL routes.
+**Révision métier**:
+Immutable snapshot created when an Activity is submitted or resubmitted for
+review.
+_Avoid_: Mutable validation payload, draft history as a submitted revision
 
-**Prevalidation**:
-Verifier decision that accepts a submitted activity or expense before final
-business validation.
+**Contributeur de révision**:
+User who created or structurally modified information contained in a submitted
+business revision.
+_Avoid_: Role-only separation of duties
 
-**Validation definitive**:
-Final business decision approving an activity or expense.
+**Prévalidation**:
+Supervisor decision accepting one exact submitted revision before definitive
+validation.
+_Avoid_: Generic validation, direct structural correction by the reviewer
 
-**Decaissement**:
-Record that money actually moved for a final-validated expense.
+**Validation définitive**:
+Validator decision approving the same exact revision that was prevalidated.
+_Avoid_: Admin approval, disbursement, payment
 
-**Administrateur plateforme**:
-Technical/platform administration responsibility for access, invitations, and
-configuration.
-_Avoid_: Admin plateforme, treating Administrateur plateforme as the same
-concept as final business validation.
+**Retour en correction**:
+Reasoned review decision requiring an assigned Agent to change and resubmit
+the Activity.
+_Avoid_: Silent return to draft, reviewer editing
 
-**Agent de saisie**:
-Business role responsible for operational creation, correction, submission,
-supporting documents, and follow-up within assigned scope.
+## Assignment and access
 
-**Agent vérificateur et prévalidateur**:
-Business role responsible for independent verification, correction requests,
-and prevalidation within assigned scope.
+**Agent principal**:
+Current assigned Agent used for coordination and display, without exclusive
+editing permission.
+_Avoid_: Owner with exclusive business rights
+
+**Agent additionnel**:
+Currently assigned Agent with the same authorized Activity editing and
+submission capabilities as the primary Agent.
+_Avoid_: Partner-scoped user assignment
+
+**Agent superviseur et prévalidateur**:
+Independent business reviewer who can view all Activities, request correction,
+and prevalidate.
+_Avoid_: Agent vérificateur as a user-facing label, N1, N2
 
 **Validateur définitif**:
-Business role responsible for final validation and disbursement decisions.
+Business superuser who manages reference data and assignments, performs final
+validation, and decides cancellation and reopening requests.
+_Avoid_: Admin, DPAF as an application role
 
-**Historique / audit**:
-Trace of decisions, status changes, actors, comments, dates, important changed
-values, exports, document uploads, and expected document downloads.
+**Admin**:
+Technical and audit role for access administration, diagnostics, audit export,
+and controlled recovery.
+_Avoid_: Business superuser, reviewer, reference-data manager
 
-## Roles
+## Execution
 
-The confirmed production model has three business roles and one administration
-role:
+**Montant dépensé**:
+Explicit XOF amount entered for an Opération after definitive validation; it
+may be null or explicitly zero.
+_Avoid_: Inferring zero from missing information
 
-- `AGENT_SAISIE` - Agent de saisie: operational creation, submission,
-  correction, supporting documents, and follow-up for assigned Partenaires /
-  Programmes.
-- `AGENT_VERIFICATEUR` - Agent vérificateur et prévalidateur: verification,
-  correction requests, invalidation, and prevalidation for assigned
-  Partenaires / Programmes.
-- `VALIDATEUR_DEFINITIF` - Validateur définitif: final business validation,
-  rejection, closure, and disbursement decisions for assigned Partenaires /
-  Programmes.
-- `ADMIN_PLATEFORME` - Administrateur plateforme: platform administration,
-  user access, invitations, and configuration.
+**Écart**:
+Difference between an Opération's spent amount and authorized amount.
+_Avoid_: Missing value presented as zero
 
-A user has one global MJL role and may be assigned to one or many
-Partenaires / Programmes. Administrateur plateforme and Validateur définitif are
-separate concepts; one person may hold both powers.
+**Complétude financière**:
+Derived indication of whether relevant Opérations have explicit spent amounts.
+_Avoid_: Activity execution status, cancellation as proof of completeness
 
-Legacy role terms are migration-only vocabulary:
+**Statut d'exécution de l'Activité**:
+Derived operational state calculated from validation, dates, cancellation,
+and Opération terminal states.
+_Avoid_: Validation status, manually edited Activity execution status
 
-- `AGENT` maps to `AGENT_SAISIE`.
-- `SUPERVISEUR_N1` maps to `AGENT_VERIFICATEUR`.
-- `SUPERVISEUR_N2` maps to `AGENT_VERIFICATEUR` unless explicitly migrated
-  otherwise.
-- `DPAF` maps to `VALIDATEUR_DEFINITIF` or `ADMIN_PLATEFORME` depending user
-  intent.
-- `LECTEUR` has no approved production role equivalent.
+## Exception workflows
 
-## Permissions And Scope
+**Demande d'annulation**:
+Version-bound request by an assigned Agent for a Validator decision that may
+make an Activity or Opération terminal.
+_Avoid_: Direct deletion, silent budget rewrite
 
-The current role/action matrix remains pending client validation, but these
-rules are durable unless `docs/mjl-authoritative-decisions.md` changes:
+**Demande de réouverture**:
+Version-bound request to return a completed Opération to in-progress execution
+after Validator approval.
+_Avoid_: Direct edit of a completed Opération, reopening a cancelled Opération
 
-- `AGENT_SAISIE` creates, submits, corrects, uploads contextual justificatifs,
-  and updates physical execution for assigned Partenaires / Programmes.
-- `AGENT_VERIFICATEUR` prevalidates or returns assigned activities and
-  expenses, without self-review.
-- `VALIDATEUR_DEFINITIF` performs final validation, rejection, closure,
-  disbursement decisions, and MJL project creation/editing where granted.
-- `ADMIN_PLATEFORME` manages platform access, invitations, roles, scopes, and
-  diagnostics; this is not the same responsibility as business validation.
-- Report export rights, advanced audit access, and any read-only audit overlay
-  require final client approval before they can be treated as final.
+## Evidence and reporting
 
-## Business Rules
+**Audit structure**:
+Append-only immutable record of committed business and technical actions.
+_Avoid_: Editable log, keystroke history, secret storage
 
-- MJL-specific implementation must remain outside Dolibarr core files.
-- User-facing labels and content are French-first.
-- Access is invitation-only.
-- Only Admin can send invitations for now.
-- Public registration is forbidden.
-- Active Dolibarr entity filtering is required for custom objects, dashboards,
-  alerts, exports, audit lists, workflow lookups, and document lookups.
-- Non-admin users can access only data connected to assigned Partenaires /
-  Programmes.
-- If an object cannot resolve to a Partenaire / Programme, only Admin can
-  access it until the data is fixed.
-- UI hiding is not access control; direct URL and POST guards are required.
-- No-self-prevalidation, no-self-final-validation, and no-self-disbursement are
-  mandatory unless a future audited override is explicitly designed.
-- Workflow status is distinct from computed alert state.
-- Supporting documents are stored through ECM and exposed through guarded MJL
-  routes rather than raw public document links.
-- Global Documents remains read-only; uploads are contextual.
-- Official exports are French-labeled, Excel-readable, server-filtered,
-  audited, and stable in filename/format.
+**Chronologie d'Activité**:
+Human-readable linear presentation of Activity, Opération, revision, request,
+assignment, and status events.
+_Avoid_: Raw audit payload as the primary user experience
 
-## Reports And Exports
+**Export opérationnel**:
+Audited PDF, XLSX, or supplemental CSV generated from authorized application
+data and filters.
+_Avoid_: Official Partner report without an approved template
 
-The active report model is CSV/XLSX only. Current report families include:
-
-- financements recus par Partenaire / Programme;
-- allocation budgetaire by Partenaire / Programme and by project;
-- execution financiere by Partenaire / Programme and by project;
-- execution physique par projet;
-- suivi des activites;
-- suivi des depenses / decaissements;
-- depenses avec justificatifs;
-- depenses validees non decaissees;
-- prevalidations and validations definitives en attente;
-- corrections, invalidations, rejets;
-- historique des decisions;
-- historique des echanges / commentaires;
-- audit general.
-
-Client-readable exports should include Partenaire / Programme and project
-context, workflow status, relevant dates, actors/last decision where useful,
-amounts split between submitted/prevalidated/final-validated/disbursed, and
-justificatif presence for expense flows. Final donor/client canevas, required
-columns/order, and role-by-report export rights remain pending validation.
-
-## Dashboards And KPIs
-
-Dashboard cards, queues, filters, and tables must apply active Dolibarr entity
-and assigned Partenaire / Programme scope. Direct filter tampering to an
-unassigned scope must fail closed to empty or zeroed results.
-
-Durable KPI families are:
-
-- activity status and physical execution;
-- expense workflow and disbursement status;
-- financial execution: allocated, submitted, prevalidated, final validated,
-  disbursed, remaining balance, validation rate, and execution rate;
-- alerts for deadlines, missing documents, pending validation, budget risk, and
-  final-validated-not-disbursed risk;
-- recent resolvable audit/timeline activity;
-- Admin-only unresolved-data diagnostics.
-
-Final KPI labels, dashboard exposure by role, and client-specific risk
-threshold wording remain pending validation.
-
-## Current MJL Custom Objects
-
-- `MjlConvention`
-- `MjlActivity`
-- `MjlBudgetLine`
-- `MjlFundReceipt`
-- `MjlExpense`
-- `MjlValidation`
-- `MjlWorkflowAction`
-- `MjlExchangeLog`
-- `MjlReport`
-
-## Needs Confirmation
-
-- Final client-approved route/action permission matrix.
-- Final donor report canevas and official output columns.
-- Production email transport, public/base URL, and secrets configuration.
-- Budget-line close/deactivation lifecycle policy.
-- Document preview policy and final document ergonomics.
-- Final client-approved wording for production screens and official outputs.
+**Rapport officiel Partenaire**:
+Partner-specific output generated from an approved versioned template and
+preserved as an immutable snapshot.
+_Avoid_: Generic operational export labeled official

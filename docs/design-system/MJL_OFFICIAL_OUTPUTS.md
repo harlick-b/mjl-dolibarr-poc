@@ -1,4 +1,4 @@
-# MJL Clarity System — Official Outputs
+# MJL Clarity System - Official Outputs
 
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file covers official-output UX only.
