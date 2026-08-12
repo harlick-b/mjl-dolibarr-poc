@@ -859,23 +859,23 @@ function mjl_expenses_options($type)
 	global $db, $conf;
 
 	if ($type === 'partner') {
-		$sql = 'SELECT s.rowid, s.nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $GLOBALS['user']).' ORDER BY s.nom, s.rowid';
+		$sql = 'SELECT s.rowid, s.nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.' AND 1=0'.' ORDER BY s.nom, s.rowid';
 	} elseif ($type === 'project') {
-		$sql = 'SELECT p.rowid, p.ref, p.title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
+		$sql = 'SELECT p.rowid, p.ref, p.title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).' AND 1=0'.' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
 		$sql = 'SELECT c.rowid, c.ref, c.title, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_convention c';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
-		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' AND c.fk_project IS NOT NULL'.mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
+		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' AND c.fk_project IS NOT NULL'.' AND 1=0'.' ORDER BY c.ref';
 	} elseif ($type === 'activity') {
 		$sql = 'SELECT a.rowid, a.ref, a.label, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_activity a';
 		$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
-		$sql .= ' WHERE a.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY p.ref, a.ref';
+		$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND 1=0'.' ORDER BY p.ref, a.ref';
 	} elseif ($type === 'budget_line') {
 		$sql = 'SELECT bl.rowid, bl.ref, bl.label, p.ref AS project_ref, c.ref AS convention_ref FROM '.$db->prefix().'mjlfinancement_budget_line bl';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project AND p.entity = bl.entity';
 		$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity AND c.status = '.MjlConvention::STATUS_ACTIVE;
-		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.status = '.MjlBudgetLine::STATUS_ACTIVE.mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY p.ref, c.ref, bl.ref';
+		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.status = '.MjlBudgetLine::STATUS_ACTIVE.' AND 1=0'.' ORDER BY p.ref, c.ref, bl.ref';
 	} else {
 		return array();
 	}
@@ -912,33 +912,7 @@ function mjl_expenses_options($type)
 
 function mjl_expenses_can_use_links($fkProject, $fkConvention, $fkMjlActivity, $fkBudgetLine)
 {
-	global $db, $conf, $user;
-
-	$fkProject = (int) $fkProject;
-	$fkConvention = (int) $fkConvention;
-	$fkMjlActivity = (int) $fkMjlActivity;
-	$fkBudgetLine = (int) $fkBudgetLine;
-	if ($fkProject <= 0 || $fkConvention <= 0 || $fkBudgetLine <= 0) {
-		return false;
-	}
-	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', $fkConvention) || !mjl_legacy_partner_dependent_access($user, 'project', $fkProject) || !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_budget_line', $fkBudgetLine)) {
-		return false;
-	}
-	if ($fkMjlActivity > 0 && !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_activity', $fkMjlActivity)) {
-		return false;
-	}
-	$probe = new stdClass();
-	$probe->fk_project = $fkProject;
-	$probe->fk_convention = $fkConvention;
-	$probe->fk_mjl_activity = $fkMjlActivity;
-	$probe->fk_budget_line = $fkBudgetLine;
-	if (mjl_assert_expense_links($probe, (int) $conf->entity, true) < 0) {
-		return false;
-	}
-	$sql = 'SELECT c.fk_soc FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.rowid = '.$fkConvention.' AND c.entity = '.((int) $conf->entity);
-	$resql = $db->query($sql);
-	$row = $resql ? $db->fetch_object($resql) : null;
-	return $row && mjl_legacy_partner_dependent_access($user, (int) $row->fk_soc);
+	return false;
 }
 
 function mjl_expenses_select($name, $options, $required = 0, $emptyLabel = '', $selected = 0)
@@ -993,35 +967,6 @@ function mjl_expenses_fetch_detail($id)
 
 function mjl_expenses_can_apply_action($expense, $action)
 {
-	global $user;
-
-	$row = is_array($expense) ? $expense : (array) $expense;
-	$status = (int) $row['status'];
-	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_expense', (int) $row['rowid'])) {
-		return false;
-	}
-	if ($action === 'upload') {
-		if (!mjl_workspace_can_apply_expense_write($user) || in_array($status, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_DISBURSED), true)) return false;
-		return !mjl_expenses_requires_own_scope($user) || (int) $row['fk_user_creat'] === (int) $user->id;
-	}
-	if (in_array($action, array('update', 'submit', 'correct'), true)) {
-		if (!mjl_workspace_can_apply_expense_write($user)) return false;
-		if (mjl_expenses_requires_own_scope($user) && (int) $row['fk_user_creat'] !== (int) $user->id) return false;
-		if ($action === 'update') return $status === MjlExpense::STATUS_REJECTED;
-		if ($action === 'submit') return in_array($status, array(MjlExpense::STATUS_DRAFT, MjlExpense::STATUS_CORRECTED), true);
-		return $status === MjlExpense::STATUS_REJECTED;
-	}
-	if (in_array($action, array('validate', 'prevalidate', 'final_validate', 'disburse', 'reject'), true)) {
-		if (!mjl_workspace_can_apply_expense_validation($user)) return false;
-		if ((int) $row['fk_user_creat'] === (int) $user->id) return false;
-		if (($action === 'validate' || $action === 'prevalidate') && (!mjl_scope_is_verifier($user) || $status !== MjlExpense::STATUS_SUBMITTED)) return false;
-		if ($action === 'final_validate' && (!mjl_scope_is_final_validator($user) || $status !== MjlExpense::STATUS_PREVALIDATED)) return false;
-		if ($action === 'disburse' && (!mjl_scope_is_final_validator($user) || !in_array($status, array(MjlExpense::STATUS_VALIDATED, MjlExpense::STATUS_FINAL_VALIDATED), true))) return false;
-		if ($action === 'reject' && !in_array($status, array(MjlExpense::STATUS_SUBMITTED, MjlExpense::STATUS_PREVALIDATED), true)) return false;
-		if (in_array($action, array('validate', 'prevalidate', 'final_validate'), true) && array_key_exists('evidence_state', $row) && $row['evidence_state'] !== 'downloadable') return false;
-		if (in_array($action, array('validate', 'prevalidate', 'final_validate'), true) && !array_key_exists('evidence_state', $row) && array_key_exists('document_present', $row) && (int) $row['document_present'] <= 0) return false;
-		return true;
-	}
 	return false;
 }
 

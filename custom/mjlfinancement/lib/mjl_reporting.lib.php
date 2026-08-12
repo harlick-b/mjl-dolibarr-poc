@@ -108,10 +108,7 @@ function mjl_report_expense_filter_sql($alias, $filters, $joinClause)
 
 function mjl_report_partner_scope_sql($column)
 {
-	if (empty($GLOBALS['user']) || empty($GLOBALS['user']->id)) {
-		return '';
-	}
-	return mjl_legacy_partner_dependent_sql_filter($column, $GLOBALS['user']);
+	return ' AND 1=0';
 }
 
 function mjl_report_fetch_row($sql)

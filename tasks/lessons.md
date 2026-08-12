@@ -122,3 +122,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   set the repository root, base URL, port, Compose files, and isolated output
   path explicitly. A container starting is not evidence that the disposable
   guard accepted the run; only test output after global setup is valid.
+- When a reset contract retires an authorization helper or input, renaming it
+  behind a compatibility shim does not remove the dependency. Delete both the
+  definitions and callers, make each retained seam explicitly fail closed, and
+  keep a runtime-wide structural test that rejects replacement-name families.

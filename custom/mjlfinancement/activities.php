@@ -119,18 +119,13 @@ $db->close();
 function mjl_activities_handle_post($action)
 {
 	global $db, $user, $conf;
+	mjl_activities_forbidden('Les modifications d’activités sont temporairement indisponibles.');
 
 	if ($action === 'create') {
 		$fkProject = GETPOSTINT('fk_project');
 		$fkConvention = GETPOSTINT('fk_convention');
 		$fkTask = GETPOSTINT('fk_task');
 		$fkResponsible = GETPOSTINT('fk_user_responsible');
-		if ($fkProject > 0 && !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_project', $fkProject)) {
-			mjl_activities_forbidden('Projet hors de votre périmètre');
-		}
-		if ($fkConvention > 0 && !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', $fkConvention)) {
-			mjl_activities_forbidden('Enveloppe hors de votre périmètre');
-		}
 		$errors = array();
 		if (trim((string) GETPOST('ref', 'alphanohtml')) === '') $errors['ref'] = 'La référence est obligatoire.';
 		if (trim((string) GETPOST('label', 'restricthtml')) === '') $errors['label'] = 'Le libellé est obligatoire.';
@@ -851,17 +846,17 @@ function mjl_activities_options($type)
 	global $db, $conf, $user;
 
 	if ($type === 'partner') {
-		$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $user).' ORDER BY s.nom, s.rowid';
+		$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.' AND 1=0'.' ORDER BY s.nom, s.rowid';
 	} elseif ($type === 'project') {
-		$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $user).' ORDER BY p.ref';
+		$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).' AND 1=0'.' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
 		$sql = 'SELECT c.rowid, c.ref, c.title, c.fk_project, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_convention c';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
-		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user).' ORDER BY c.ref';
+		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' AND 1=0'.' ORDER BY c.ref';
 	} elseif ($type === 'task') {
 		$sql = 'SELECT t.rowid, t.ref, t.label, t.fk_projet, p.ref AS project_ref FROM '.$db->prefix().'projet_task t';
 		$sql .= ' INNER JOIN '.$db->prefix().'projet p ON p.rowid = t.fk_projet AND p.entity = t.entity';
-		$sql .= ' WHERE t.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $user).' ORDER BY p.ref, t.ref';
+		$sql .= ' WHERE t.entity = '.((int) $conf->entity).' AND 1=0'.' ORDER BY p.ref, t.ref';
 	} elseif ($type === 'responsible') {
 		return array();
 	} else {

@@ -53,8 +53,10 @@ class MjlExchangeLog extends CommonObject
 
 	public function create(User $user, $notrigger = 0)
 	{
-		if ((string) $this->object_type === 'mjlfinancement_activity') {
-			$this->error = 'Les échanges d’activité sont temporairement indisponibles pendant RST-002A.';
+		global $conf;
+		if ((int) $this->entity <= 0) $this->entity = (int) $conf->entity;
+		if ((int) $this->entity !== (int) $conf->entity || (string) $this->object_type === 'mjlfinancement_activity') {
+			$this->error = 'La mutation de cet échange est interdite dans l’entité active pendant RST-002A.';
 			return -1;
 		}
 		return $this->createCommon($user, $notrigger);
@@ -68,7 +70,7 @@ class MjlExchangeLog extends CommonObject
 	public function update(User $user, $notrigger = 0)
 	{
 		if ($this->exchangeMutationDenied()) {
-			$this->error = 'Les échanges d’activité sont temporairement indisponibles pendant RST-002A.';
+			$this->error = 'La mutation de cet échange est interdite dans l’entité active pendant RST-002A.';
 			return -1;
 		}
 		return $this->updateCommon($user, $notrigger);
@@ -86,9 +88,9 @@ class MjlExchangeLog extends CommonObject
 	private function exchangeMutationDenied()
 	{
 		global $conf;
-		if ((string) $this->object_type === 'mjlfinancement_activity' || (int) $this->id <= 0) return true;
+		if ((int) $this->entity !== (int) $conf->entity || (string) $this->object_type === 'mjlfinancement_activity' || (int) $this->id <= 0) return true;
 		$sql = 'SELECT entity, object_type FROM '.$this->db->prefix().$this->table_element;
-		$sql .= ' WHERE rowid = '.((int) $this->id);
+		$sql .= ' WHERE rowid = '.((int) $this->id).' AND entity = '.((int) $conf->entity);
 		$resql = $this->db->query($sql);
 		$row = $resql ? $this->db->fetch_object($resql) : null;
 		return !$row || (int) $row->entity !== (int) $conf->entity || (string) $row->object_type === 'mjlfinancement_activity';

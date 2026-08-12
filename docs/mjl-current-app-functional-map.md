@@ -102,7 +102,7 @@ current-state/code debt, not target behavior.
 | Workflow audit | `workflowactions.php` | Admin-only active-entity diagnostic history. | Rows and filter metadata share the complete object-specific target predicate. |
 | Exchange logs | `exchangelogs.php` | Admin-only active-entity diagnostic history. | Activity exchange create/update/delete is frozen at the persistence seam; rows and metadata use the same target predicate. |
 | Admin access | `admin/access.php` | Invitation and effective-role administration. | Admin-only; native admins cannot receive business roles and concurrent active roles are rejected by persistence. |
-| Roadmap | `roadmap.php` | Internal roadmap/readiness page. | Hidden unless configured. |
+| Roadmap | `roadmap.php` | Temporarily unavailable under RST-002A. | The capability denies every role; any target navigation or readiness surface is owned by RST-009A and later units. |
 | Document download | `documentdownload.php` | Guarded ECM file download. | Contextual helper route. |
 | Invitation acceptance | `invitation.php` | Public token invitation flow. | Outside app sidebar. |
 

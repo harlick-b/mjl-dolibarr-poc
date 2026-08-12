@@ -82,14 +82,21 @@ function seed() {
     SET @ca = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref='${marker}-CA');
     SET @cb = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref='${marker}-CB');
     SET @cx = (SELECT rowid FROM llx_mjlfinancement_convention WHERE ref='${marker}-CX');
+    INSERT INTO llx_projet_task (entity, ref, fk_projet, fk_task_parent, datec, label, fk_user_creat, fk_statut, import_key)
+    VALUES (1, '${marker}-TB', @prb, 0, NOW(), '${marker} Wrong Project Task', @admin, 0, '${marker}');
+    SET @tb = (SELECT rowid FROM llx_projet_task WHERE ref='${marker}-TB');
     INSERT INTO llx_mjlfinancement_activity (entity, ref, label, fk_project, fk_convention, date_start, date_end, status, date_creation, fk_user_creat, import_key)
     VALUES (1, '${marker}-AA', '${marker} Activity A', @pra, @ca, '2026-01-01', '2026-12-31', 3, NOW(), @admin, '${marker}'),
            (1, '${marker}-AB', '${marker} Activity B', @prb, @cb, '2026-01-01', '2026-12-31', 3, NOW(), @admin, '${marker}'),
            (2, '${marker}-AX', '${marker} Activity X', @prx, @cx, '2026-01-01', '2026-12-31', 3, NOW(), @admin, '${marker}');
     SET FOREIGN_KEY_CHECKS=0;
     INSERT INTO llx_mjlfinancement_activity (entity, ref, label, fk_project, fk_convention, date_start, date_end, status, date_creation, fk_user_creat, import_key)
-    VALUES (1, '${marker}-AC', '${marker} Activity Corrupt', @pra, @cx, '2026-01-01', '2026-12-31', 3, NOW(), @admin, '${marker}');
+    VALUES (1, '${marker}-AC', '${marker} Activity Cross Parent', @pra, @cx, '2026-01-01', '2026-12-31', 3, NOW(), @admin, '${marker}'),
+           (2, '${marker}-AI', '${marker} Activity Inverse Cross Parent', @pra, @ca, '2026-01-01', '2026-12-31', 3, NOW(), @admin, '${marker}'),
+           (1, '${marker}-AM', '${marker} Activity Same Entity Mismatch', @pra, @cb, '2026-01-01', '2026-12-31', 3, NOW(), @admin, '${marker}');
     SET FOREIGN_KEY_CHECKS=1;
+    INSERT INTO llx_mjlfinancement_activity (entity, ref, label, fk_project, fk_convention, fk_task, date_start, date_end, status, date_creation, fk_user_creat, import_key)
+    VALUES (1, '${marker}-AT', '${marker} Activity Wrong Task', @pra, @ca, @tb, '2026-01-01', '2026-12-31', 3, NOW(), @admin, '${marker}');
     INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec, fk_user_creat, import_key)
     SELECT 1, '${prefix}.agent', 'RST002A', 'Agent', '${prefix}.agent@mjl.invalid', pass_crypted, 1, 0, NOW(), @admin, '${marker}' FROM llx_user WHERE rowid=@admin;
     INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec, fk_user_creat, import_key)
@@ -111,12 +118,15 @@ function seed() {
     activityB: `SELECT rowid FROM llx_mjlfinancement_activity WHERE ref='${marker}-AB'`,
     activityX: `SELECT rowid FROM llx_mjlfinancement_activity WHERE ref='${marker}-AX'`,
     activityCorrupt: `SELECT rowid FROM llx_mjlfinancement_activity WHERE ref='${marker}-AC'`,
+    activityInverseCorrupt: `SELECT rowid FROM llx_mjlfinancement_activity WHERE ref='${marker}-AI'`,
+    activitySameEntityMismatch: `SELECT rowid FROM llx_mjlfinancement_activity WHERE ref='${marker}-AM'`,
+    activityWrongTask: `SELECT rowid FROM llx_mjlfinancement_activity WHERE ref='${marker}-AT'`,
     projectB: `SELECT rowid FROM llx_projet WHERE ref='${marker}-PB'`,
   })) {
     ids[key] = Number(scalar(query));
     expect(ids[key]).toBeGreaterThan(0);
   }
-  expect(new Set([ids.activityA, ids.activityB, ids.activityX, ids.activityCorrupt]).size).toBe(4);
+  expect(new Set([ids.activityA, ids.activityB, ids.activityX, ids.activityCorrupt, ids.activityInverseCorrupt, ids.activitySameEntityMismatch, ids.activityWrongTask]).size).toBe(7);
   expect(ids.partnerA).not.toBe(ids.partnerB);
 }
 
@@ -276,6 +286,9 @@ test('direct Activity class mutations including notrigger fail at the domain sea
   sql(`INSERT INTO llx_mjlfinancement_exchange_log (entity,ref,object_type,object_id,exchange_date,actor,actor_role,channel,subject,message,date_creation,fk_user_creat,import_key) VALUES (2,'${marker}-CROSS-SPOOF','mjlfinancement_activity',${ids.activityX},NOW(),1,'ADMIN_PLATEFORME','commentaire','CrossFrozen','Immutable',NOW(),1,'${marker}')`);
   const crossSpoofId = Number(scalar(`SELECT rowid FROM llx_mjlfinancement_exchange_log WHERE ref='${marker}-CROSS-SPOOF'`));
   expect(crossSpoofId).toBeGreaterThan(0);
+  sql(`INSERT INTO llx_mjlfinancement_exchange_log (entity,ref,object_type,object_id,exchange_date,actor,actor_role,channel,subject,message,date_creation,fk_user_creat,import_key) VALUES (1,'${marker}-PROJECT-EXCHANGE','mjlfinancement_project',${ids.projectB},NOW(),1,'ADMIN_PLATEFORME','commentaire','ProjectOriginal','Immutable',NOW(),1,'${marker}')`);
+  const projectExchangeId = Number(scalar(`SELECT rowid FROM llx_mjlfinancement_exchange_log WHERE ref='${marker}-PROJECT-EXCHANGE'`));
+  expect(projectExchangeId).toBeGreaterThan(0);
   const sideSeams = JSON.parse(phpEval(`
     define('NOLOGIN',1); require '/var/www/html/main.inc.php';
     require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
@@ -290,7 +303,9 @@ test('direct Activity class mutations including notrigger fail at the domain sea
     $spoofDelete=new MjlExchangeLog($db); $spoofDelete->fetch(${spoofId}); $spoofDelete->object_type='mjlfinancement_project';
     $cross=new MjlExchangeLog($db); $cross->id=${crossSpoofId}; $cross->object_type='mjlfinancement_project'; $cross->subject='SPOOFED';
     $missing=new MjlExchangeLog($db); $missing->id=999999999; $missing->object_type='mjlfinancement_project';
-    echo json_encode(array('comment'=>$comment[0],'upload'=>count($upload),'upload_error'=>$error,'exchange'=>$x->create($u,1),'exchange_update'=>$x->update($u,1),'exchange_delete'=>$x->delete($u,1),'spoof_update'=>$spoofUpdate->update($u,1),'spoof_delete'=>$spoofDelete->delete($u,1),'cross_update'=>$cross->update($u,1),'cross_delete'=>$cross->delete($u,1),'missing_update'=>$missing->update($u,1),'missing_delete'=>$missing->delete($u,1)));
+    $crossCreate=new MjlExchangeLog($db); $crossCreate->entity=2; $crossCreate->ref='${marker}-FORBIDDEN-CREATE'; $crossCreate->object_type='mjlfinancement_project'; $crossCreate->object_id=${ids.projectB}; $crossCreate->exchange_date=dol_now(); $crossCreate->actor=$u->id; $crossCreate->actor_role='VALIDATEUR_DEFINITIF'; $crossCreate->message='FORBIDDEN';
+    $move=new MjlExchangeLog($db); $move->fetch(${projectExchangeId}); $move->entity=2; $move->subject='MOVED';
+    echo json_encode(array('comment'=>$comment[0],'upload'=>count($upload),'upload_error'=>$error,'exchange'=>$x->create($u,1),'exchange_update'=>$x->update($u,1),'exchange_delete'=>$x->delete($u,1),'spoof_update'=>$spoofUpdate->update($u,1),'spoof_delete'=>$spoofDelete->delete($u,1),'cross_update'=>$cross->update($u,1),'cross_delete'=>$cross->delete($u,1),'missing_update'=>$missing->update($u,1),'missing_delete'=>$missing->delete($u,1),'cross_create'=>$crossCreate->create($u,1),'entity_move'=>$move->update($u,1)));
   `));
   expect(sideSeams.comment).toBe(-1);
   expect(sideSeams.upload).toBe(0);
@@ -304,10 +319,14 @@ test('direct Activity class mutations including notrigger fail at the domain sea
   expect(sideSeams.cross_delete).toBe(-1);
   expect(sideSeams.missing_update).toBe(-1);
   expect(sideSeams.missing_delete).toBe(-1);
+  expect(sideSeams.cross_create).toBe(-1);
+  expect(sideSeams.entity_move).toBe(-1);
   expect(scalar(`SELECT CONCAT(object_type,'|',subject,'|',message) FROM llx_mjlfinancement_exchange_log WHERE rowid=${spoofId}`)).toBe('mjlfinancement_activity|Frozen|Immutable');
   expect(scalar(`SELECT COUNT(*) FROM llx_ecm_files WHERE src_object_type='mjlfinancement_activity' AND src_object_id=${ids.activityA}`)).toBe('0');
   expect(scalar(`SELECT CONCAT(object_type,'|',subject,'|',message) FROM llx_mjlfinancement_exchange_log WHERE rowid=${crossSpoofId}`)).toBe('mjlfinancement_activity|CrossFrozen|Immutable');
-  sql(`DELETE FROM llx_mjlfinancement_exchange_log WHERE rowid IN (${spoofId},${crossSpoofId})`);
+  expect(scalar(`SELECT CONCAT(entity,'|',subject,'|',message) FROM llx_mjlfinancement_exchange_log WHERE rowid=${projectExchangeId}`)).toBe('1|ProjectOriginal|Immutable');
+  expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_exchange_log WHERE ref='${marker}-FORBIDDEN-CREATE'`)).toBe('0');
+  sql(`DELETE FROM llx_mjlfinancement_exchange_log WHERE rowid IN (${spoofId},${crossSpoofId},${projectExchangeId})`);
 });
 
 test('reviewers receive only the safe same-entity Activity projection', async ({ page }) => {
@@ -325,6 +344,9 @@ test('reviewers receive only the safe same-entity Activity projection', async ({
     await expect(page.locator('form[method="POST"]')).toHaveCount(0);
     await expectDenied(page, `/custom/mjlfinancement/activities.php?id=${ids.activityX}`);
     await expectDenied(page, `/custom/mjlfinancement/activities.php?id=${ids.activityCorrupt}`);
+    await expectDenied(page, `/custom/mjlfinancement/activities.php?id=${ids.activityInverseCorrupt}`);
+    await expectDenied(page, `/custom/mjlfinancement/activities.php?id=${ids.activitySameEntityMismatch}`);
+    await expectDenied(page, `/custom/mjlfinancement/activities.php?id=${ids.activityWrongTask}`);
     await expectDenied(page, `/custom/mjlfinancement/partners.php?id=${ids.partnerB}`);
     await expectDenied(page, `/custom/mjlfinancement/projects.php?id=${ids.projectB}`);
   }

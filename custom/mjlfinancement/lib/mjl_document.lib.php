@@ -176,11 +176,11 @@ function mjl_convention_document_download_rows($conventionId)
 {
 	global $conf, $user;
 
-	if ((int) $conventionId <= 0 || !mjl_workspace_can_access_reference_data($user, 'convention')) {
+	if ((int) $conventionId <= 0 || !mjl_workspace_can_access_documents($user)) {
 		return array();
 	}
 	$convention = mjl_convention_document_fetch_convention_for_access((int) $conventionId);
-	if (empty($convention) || !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', (int) $conventionId)) {
+	if (empty($convention)) {
 		return array();
 	}
 	return mjl_convention_downloadable_document_rows((int) $conventionId, (int) $conf->entity);
@@ -190,7 +190,7 @@ function mjl_convention_document_fetch_convention_for_access($conventionId)
 {
 	global $db, $conf, $user;
 
-	if ((int) $conventionId <= 0) {
+	if ((int) $conventionId <= 0 || !mjl_workspace_can_access_documents($user)) {
 		return array();
 	}
 	$sql = 'SELECT rowid, entity, status';
@@ -204,18 +204,14 @@ function mjl_convention_document_fetch_convention_for_access($conventionId)
 	if (!$obj) {
 		return array();
 	}
-	$row = (array) $obj;
-	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', (int) $row['rowid'])) {
-		return array();
-	}
-	return $row;
+	return (array) $obj;
 }
 
 function mjl_convention_document_fetch_download_row($fileId)
 {
 	global $db, $conf, $user;
 
-	if ((int) $fileId <= 0 || !mjl_workspace_can_access_reference_data($user, 'convention')) {
+	if ((int) $fileId <= 0 || !mjl_workspace_can_access_documents($user)) {
 		return array();
 	}
 	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.date_c, f.fk_user_c, f.src_object_type, f.src_object_id,';
@@ -233,11 +229,7 @@ function mjl_convention_document_fetch_download_row($fileId)
 	if (!$obj) {
 		return array();
 	}
-	$row = (array) $obj;
-	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', (int) $row['convention_rowid'], (int) $conf->entity)) {
-		return array();
-	}
-	return $row;
+	return (array) $obj;
 }
 
 function mjl_convention_document_resolve_path($fileRow)
@@ -281,12 +273,12 @@ function mjl_fund_receipt_document_download_rows($receiptId)
 {
 	global $db, $conf, $user;
 
-	if ((int) $receiptId <= 0 || !mjl_workspace_can_access_reference_data($user, 'fundreceipt')) {
+	if ((int) $receiptId <= 0 || !mjl_workspace_can_access_documents($user)) {
 		return array();
 	}
 
 	$receipt = mjl_fund_receipt_document_fetch_receipt_for_access((int) $receiptId);
-	if (empty($receipt) || !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_fund_receipt', (int) $receiptId)) {
+	if (empty($receipt)) {
 		return array();
 	}
 
@@ -297,7 +289,7 @@ function mjl_fund_receipt_document_fetch_receipt_for_access($receiptId)
 {
 	global $db, $conf, $user;
 
-	if ((int) $receiptId <= 0) {
+	if ((int) $receiptId <= 0 || !mjl_workspace_can_access_documents($user)) {
 		return array();
 	}
 	$sql = 'SELECT rowid, entity, status';
@@ -311,18 +303,14 @@ function mjl_fund_receipt_document_fetch_receipt_for_access($receiptId)
 	if (!$obj) {
 		return array();
 	}
-	$row = (array) $obj;
-	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_fund_receipt', (int) $row['rowid'])) {
-		return array();
-	}
-	return $row;
+	return (array) $obj;
 }
 
 function mjl_fund_receipt_document_fetch_download_row($fileId)
 {
 	global $db, $conf, $user;
 
-	if ((int) $fileId <= 0 || !mjl_workspace_can_access_reference_data($user, 'fundreceipt')) {
+	if ((int) $fileId <= 0 || !mjl_workspace_can_access_documents($user)) {
 		return array();
 	}
 	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.date_c, f.fk_user_c, f.src_object_type, f.src_object_id,';
@@ -340,11 +328,7 @@ function mjl_fund_receipt_document_fetch_download_row($fileId)
 	if (!$obj) {
 		return array();
 	}
-	$row = (array) $obj;
-	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_fund_receipt', (int) $row['receipt_rowid'], (int) $conf->entity)) {
-		return array();
-	}
-	return $row;
+	return (array) $obj;
 }
 
 function mjl_fund_receipt_document_resolve_path($fileRow)

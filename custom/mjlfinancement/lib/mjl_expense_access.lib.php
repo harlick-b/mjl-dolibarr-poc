@@ -5,23 +5,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php
 
 function mjl_expenses_can_open($expense)
 {
-	global $user;
-
-	$row = is_array($expense) ? $expense : (array) $expense;
-	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_expense', (int) $row['rowid'])) {
-		return false;
-	}
-	if (mjl_workspace_can_access_supervision($user) || mjl_expenses_is_readonly_consultation()) {
-		return true;
-	}
-	if (mjl_expenses_is_level1_operational()) {
-		return (int) $row['fk_user_creat'] === (int) $user->id;
-	}
-	if ($user->hasRight('mjlfinancement', 'expense', 'validate')) {
-		$reviewStatuses = mjl_scope_is_final_validator($user) ? array_merge(mjl_expense_pending_final_validator_statuses(), array(MjlExpense::STATUS_FINAL_VALIDATED, MjlExpense::STATUS_VALIDATED)) : mjl_expense_pending_verifier_statuses();
-		return in_array((int) $row['status'], $reviewStatuses, true) || mjl_expenses_user_has_validation_history((int) $row['rowid']);
-	}
-	return true;
+	return false;
 }
 
 function mjl_expenses_scope_sql($alias)
@@ -30,9 +14,9 @@ function mjl_expenses_scope_sql($alias)
 
 	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
 	if (mjl_workspace_can_access_supervision($user) || mjl_expenses_is_readonly_consultation()) {
-		return mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user);
+		return ' AND 1=0';
 	}
-	$scopeFilter = mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user);
+	$scopeFilter = ' AND 1=0';
 	if (mjl_expenses_is_level1_operational()) {
 		return $scopeFilter.' AND '.$a.'.fk_user_creat = '.((int) $user->id);
 	}

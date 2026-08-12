@@ -43,7 +43,7 @@ function mjl_alert_conditions_result_for_user(User $targetUser, $limit = 100, $s
 	$scope = mjl_alerts_normalize_scope($scope);
 	$limit = max(1, (int) $limit);
 	$partnerId = max(0, (int) $partnerId);
-	if ($partnerId > 0 && !mjl_legacy_partner_dependent_access($targetUser, $partnerId)) return array('items' => array(), 'errors' => array());
+	if ($partnerId > 0) return array('items' => array(), 'errors' => array());
 	$GLOBALS['mjl_alerts_load_errors'] = array();
 	$sources = array();
 
@@ -680,18 +680,6 @@ function mjl_alerts_user_can_open_alert(User $targetUser, $alert)
 		return mjl_workspace_can_access_expense($targetUser)
 			&& mjl_alerts_can_open_expense_for_user($targetUser, $id);
 	}
-	if ($domain === 'finance' && $alert['object_type'] === 'mjlfinancement_budget_line') {
-		return mjl_workspace_can_access_reference_data($targetUser, 'budgetline')
-			&& mjl_legacy_partner_dependent_access($targetUser, 'mjlfinancement_budget_line', $id);
-	}
-	if ($domain === 'finance' && $alert['object_type'] === 'mjlfinancement_convention') {
-		return mjl_workspace_can_access_reference_data($targetUser, 'convention')
-			&& mjl_legacy_partner_dependent_access($targetUser, 'mjlfinancement_convention', $id);
-	}
-	if ($domain === 'partners' && $alert['object_type'] === 'societe') {
-		return (mjl_scope_is_final_validator($targetUser) || mjl_scope_is_platform_admin($targetUser))
-			&& mjl_legacy_partner_dependent_access($targetUser, $id);
-	}
 	return false;
 }
 
@@ -719,7 +707,7 @@ function mjl_alerts_can_open_expense_for_user(User $targetUser, $expenseId)
 
 function mjl_alerts_partner_scope_sql(User $targetUser, $partnerColumn)
 {
-	return mjl_legacy_partner_dependent_sql_filter($partnerColumn, $targetUser);
+	return ' AND 1=0';
 }
 
 function mjl_alerts_partner_filter_sql($partnerId, $partnerColumn)

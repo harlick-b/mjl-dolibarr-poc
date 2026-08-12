@@ -756,18 +756,8 @@ class MjlActivity extends CommonObject
 		if ($actor && mjl_scope_is_platform_admin($actor, $entity)) {
 			return true;
 		}
-		$fkSoc = null;
-		if ((int) $conventionId > 0) {
-			$fkSoc = mjl_legacy_partner_reference_unavailable('mjlfinancement_convention', (int) $conventionId, (int) $entity);
-		}
-		if ($fkSoc === null && (int) $projectId > 0) {
-			$fkSoc = mjl_legacy_partner_reference_unavailable('mjlfinancement_project', (int) $projectId, (int) $entity);
-		}
-		if ($fkSoc === null || !mjl_legacy_partner_dependent_access((object) array('id' => (int) $responsibleId), (int) $fkSoc, (int) $entity)) {
-			$this->error = 'Responsible user is not scoped to the selected Partenaire / Programme';
-			return false;
-		}
-		return true;
+		$this->error = 'Responsible assignment is unavailable during the RST-002A transition';
+		return false;
 	}
 
 	private function fetchCurrentForWorkflow($id, $forUpdate = false)

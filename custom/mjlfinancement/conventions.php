@@ -87,6 +87,7 @@ $db->close();
 function mjl_conventions_handle_post($action)
 {
 	global $db, $user, $conf;
+	mjl_conventions_forbidden('Les modifications d’enveloppes sont temporairement indisponibles.');
 
 	if ($action === 'create') {
 		$convention = new MjlConvention($db);
@@ -120,10 +121,6 @@ function mjl_conventions_handle_post($action)
 	if ($id <= 0 || $convention->fetch($id) <= 0 || (int) $convention->entity !== (int) $conf->entity) {
 		mjl_conventions_forbidden('Enveloppe introuvable ou hors de votre périmètre');
 	}
-	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', $id)) {
-		mjl_conventions_forbidden('Enveloppe hors de votre périmètre');
-	}
-
 	if ($action === 'add_exchange') {
 		list($result, $message) = mjl_timeline_create_comment($user, 'mjlfinancement_convention', $id, GETPOST('message', 'restricthtml'));
 		mjl_feedback_add('conventions:add_exchange:'.$id.($result > 0 ? '' : ':error'), $result > 0 ? 'generic.saved' : 'generic.validation');
@@ -396,7 +393,7 @@ function mjl_conventions_render_list($filters)
 	$from = ' FROM '.$db->prefix().'mjlfinancement_convention c';
 	$from .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
 	$from .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc AND s.entity = c.entity';
-	$where = ' WHERE c.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']);
+	$where = ' WHERE c.entity = '.((int) $conf->entity).' AND 1=0';
 	if (!empty($filters['fail_closed'])) $where .= ' AND 1 = 0';
 	if ((int) $filters['partner_id'] > 0) $where .= ' AND c.fk_soc = '.((int) $filters['partner_id']);
 	if ((int) $filters['project_id'] > 0) $where .= ' AND c.fk_project = '.((int) $filters['project_id']);
@@ -595,7 +592,7 @@ function mjl_conventions_fetch_detail($id)
 	$sql .= ' LEFT JOIN '.$db->prefix().'societe s ON s.rowid = c.fk_soc';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = c.fk_user_creat';
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.rowid = '.((int) $id);
-	$sql .= mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']);
+	$sql .= ' AND 1=0';
 	$query = mjl_finance_source_query($db, $sql, 'conventions', 'fetch_detail', $id);
 	$resql = $query['result'];
 	if (!$resql) {
@@ -661,9 +658,9 @@ function mjl_conventions_options($type)
 {
 	global $db, $conf;
 	if ($type === 'ptf') {
-		$sql = 'SELECT rowid, nom AS label FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $GLOBALS['user']).' ORDER BY s.nom';
+		$sql = 'SELECT rowid, nom AS label FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.' AND 1=0'.' ORDER BY s.nom';
 	} else {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).' AND 1=0'.' ORDER BY p.ref';
 	}
 	$resql = $db->query($sql);
 	$options = array();
@@ -677,17 +674,7 @@ function mjl_conventions_options($type)
 
 function mjl_conventions_can_use_partner_project($fkSoc, $fkProject)
 {
-	global $db, $conf, $user;
-	$fkSoc = (int) $fkSoc;
-	$fkProject = (int) $fkProject;
-	if ($fkSoc <= 0 || !mjl_legacy_partner_dependent_access($user, $fkSoc)) return false;
-	$sql = 'SELECT rowid FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkSoc.' AND status = 1';
-	$resql = $db->query($sql);
-	if (!$resql || !$db->fetch_object($resql)) return false;
-	if ($fkProject <= 0) return true;
-	$sql = 'SELECT rowid FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkProject.' AND fk_soc = '.$fkSoc;
-	$resql = $db->query($sql);
-	return $resql && (bool) $db->fetch_object($resql);
+	return false;
 }
 
 function mjl_conventions_can_use_supplied_links($fkSoc, $fkProject)

@@ -44,21 +44,23 @@ function mjl_dashboard_workspace_metrics()
 
 function mjl_dashboard_workspace_metrics_filtered($filters = null)
 {
-	$deadline = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_deadline_risk_count($filters); });
-	$missing = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_missing_expense_document_count($filters); });
-	$pending = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_pending_review_count($filters); });
-	$physical = mjl_dashboard_capture(function () use ($filters) { return mjl_dashboard_physical_execution_percent($filters); });
+	return mjl_dashboard_unavailable_workspace_metrics();
+}
+
+function mjl_dashboard_unavailable_workspace_metrics()
+{
 	return array(
-		'deadline_risks' => $deadline['value'],
-		'missing_expense_documents' => $missing['value'],
-		'pending_reviews' => $pending['value'],
-		'physical_execution_percent' => $physical['value'],
+		'deadline_risks' => null,
+		'missing_expense_documents' => null,
+		'pending_reviews' => null,
+		'physical_execution_percent' => null,
 		'available' => array(
-			'deadline_risks' => $deadline['available'],
-			'missing_expense_documents' => $missing['available'],
-			'pending_reviews' => $pending['available'],
-			'physical_execution_percent' => $physical['available'],
+			'deadline_risks' => false,
+			'missing_expense_documents' => false,
+			'pending_reviews' => false,
+			'physical_execution_percent' => false,
 		),
+		'unavailable' => true,
 	);
 }
 
@@ -106,10 +108,10 @@ function mjl_dashboard_normalize_filters(array $raw, User $targetUser)
 	if ($filters['date_start'] !== '' && $filters['date_end'] !== '' && $filters['date_start'] > $filters['date_end']) {
 		$filters['invalid_reasons'][] = 'Période invalide.';
 	}
-	if ($filters['fk_soc'] > 0 && !mjl_legacy_partner_dependent_access($targetUser, $filters['fk_soc'], (int) $conf->entity)) {
+	if ($filters['fk_soc'] > 0) {
 		$filters['invalid_reasons'][] = 'Partenaire / Programme hors périmètre.';
 	}
-	if ($filters['fk_project'] > 0 && !mjl_legacy_partner_dependent_access($targetUser, 'project', $filters['fk_project'], (int) $conf->entity)) {
+	if ($filters['fk_project'] > 0) {
 		$filters['invalid_reasons'][] = 'Projet hors périmètre.';
 	}
 	if ($filters['fk_project'] > 0 && $filters['fk_soc'] > 0) {
@@ -175,7 +177,7 @@ function mjl_dashboard_partner_options()
 	global $db, $conf, $user;
 
 	$options = array();
-	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('rowid', $user).' ORDER BY nom';
+	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).' AND 1=0'.' ORDER BY nom';
 	foreach (mjl_dashboard_fetch_rows($sql) as $row) {
 		$options[(int) $row['rowid']] = $row['nom'];
 	}
@@ -190,7 +192,7 @@ function mjl_dashboard_project_options(array $filters)
 	if (!empty($filters['invalid'])) {
 		return $options;
 	}
-	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('fk_soc', $user);
+	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND 1=0';
 	if (!empty($filters['fk_soc'])) {
 		$sql .= ' AND fk_soc = '.((int) $filters['fk_soc']);
 	}
@@ -255,7 +257,7 @@ function mjl_dashboard_partner_filter_sql($column, $filters = null)
 
 	$filters = mjl_dashboard_filters_or_default($filters);
 	$sql = mjl_dashboard_invalid_filter_sql($filters);
-	$sql .= mjl_legacy_partner_dependent_sql_filter($column, $user);
+	$sql .= ' AND 1=0';
 	if (!empty($filters['fk_soc'])) {
 		$sql .= ' AND '.mjl_scope_sanitized_sql_identifier($column).' = '.((int) $filters['fk_soc']);
 	}
@@ -350,23 +352,25 @@ function mjl_dashboard_dpaf_kpis()
 
 function mjl_dashboard_supervision_kpis($filters = null)
 {
+	return mjl_dashboard_unavailable_supervision_kpis();
+}
+
+function mjl_dashboard_unavailable_supervision_kpis()
+{
 	$definitions = array(
-		array('label' => 'Activités en cours', 'load' => function () use ($filters) { return mjl_dashboard_activity_count(array(MjlActivity::STATUS_ONGOING), $filters); }, 'context' => 'Activités ouvertes dans l entite active', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités'),
-		array('label' => 'Activités en validation', 'load' => function () use ($filters) { return mjl_dashboard_activity_count(array(MjlActivity::STATUS_SUBMITTED, MjlActivity::STATUS_PREVALIDATED), $filters); }, 'context' => 'Dossiers en attente de prévalidation ou de validation définitive', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Examiner'),
-		array('label' => 'Exécution physique', 'load' => function () use ($filters) { return mjl_dashboard_physical_execution_percent($filters).'%'; }, 'context' => 'Moyenne des activités visibles avec avancement renseigné', 'href' => '/custom/mjlfinancement/activities.php', 'action' => 'Voir les activités'),
-		array('label' => 'Dépenses en validation', 'load' => function () use ($filters) { return mjl_dashboard_expense_count(array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters); }, 'context' => 'Dépenses à contrôler ou à valider définitivement', 'href' => '/custom/mjlfinancement/expenses.php', 'action' => 'Ouvrir les dépenses'),
-		array('label' => 'Budget révisé', 'load' => function () use ($filters) { return mjl_format_money(mjl_dashboard_budget_total($filters)); }, 'context' => 'Total des lignes budgétaires', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Ouvrir les rapports'),
-		array('label' => 'Dépenses validées', 'load' => function () use ($filters) { return mjl_format_money(mjl_dashboard_validated_expense_total($filters)); }, 'context' => 'Montant déjà validé', 'href' => '/custom/mjlfinancement/reports.php', 'action' => 'Voir les exports'),
+		array('label' => 'Activités en cours', 'context' => 'Indisponible pendant la transition RST-002A'),
+		array('label' => 'Activités en validation', 'context' => 'Indisponible pendant la transition RST-002A'),
+		array('label' => 'Exécution physique', 'context' => 'Indisponible pendant la transition RST-002A'),
+		array('label' => 'Dépenses en validation', 'context' => 'Indisponible pendant la transition RST-002A'),
+		array('label' => 'Budget révisé', 'context' => 'Indisponible pendant la transition RST-002A'),
+		array('label' => 'Dépenses validées', 'context' => 'Indisponible pendant la transition RST-002A'),
 	);
-	$cards = array();
-	foreach ($definitions as $definition) {
-		$result = mjl_dashboard_capture($definition['load']);
-		unset($definition['load']);
-		$definition['value'] = $result['value'];
-		$definition['available'] = $result['available'];
-		$cards[] = $definition;
+	foreach ($definitions as &$definition) {
+		$definition['value'] = null;
+		$definition['available'] = false;
 	}
-	return $cards;
+	unset($definition);
+	return $definitions;
 }
 
 function mjl_dashboard_deadline_risks($limit = 20, $filters = null)
@@ -401,10 +405,7 @@ function mjl_dashboard_alert_matches_filters(array $alert, array $filters)
 	$objectType = mjl_dashboard_scope_object_type($objectType);
 	$objectId = empty($alert['object_id']) ? 0 : (int) $alert['object_id'];
 	if (!empty($filters['fk_soc'])) {
-		$fkSoc = $objectType !== '' && $objectId > 0 ? mjl_legacy_partner_reference_unavailable($objectType, $objectId) : null;
-		if ((int) $fkSoc !== (int) $filters['fk_soc']) {
-			return false;
-		}
+		return false;
 	}
 	if (!empty($filters['fk_project'])) {
 		$fkProject = $objectType !== '' && $objectId > 0 ? mjl_dashboard_object_project_id($objectType, $objectId) : 0;
@@ -621,7 +622,7 @@ function mjl_dashboard_audit_partner_filter_sql($auditAlias, $filters = null)
 	if (!empty($filters['invalid'])) {
 		return ' AND 1=0';
 	}
-	$scopeIds = mjl_legacy_partner_ids($user);
+	$scopeIds = array();
 	$case = mjl_dashboard_audit_partner_case_sql($auditAlias);
 	$sql = '';
 	if ($scopeIds !== null) {

@@ -14,10 +14,15 @@ npm run test:manual-accessibility
 npm run audit:production-readiness
 ```
 
-- `npm test` provisions one disposable tenant, runs unit contracts, current container verification, and blocking Chromium capability suites, then removes the tenant.
-- `npm run test:unit` runs fast Node and PHP contracts without Docker.
+- `npm test` still invokes the retained aggregate runner, but its legacy
+  container and Chromium suites are non-gating after RST-002A. A failure there
+  does not override the focused RST-002A evidence below.
+- `npm run test:unit` runs fast Node and PHP contracts without Docker and is a
+  current RST-002A gate.
 - `npm run test:verify` currently runs legacy schema/sample-data and old-product behavioral checks in one disposable tenant. It is current-state characterization only until RST-013A/RST-014A replace its data setup; it cannot validate target business rules.
-- `npm run test:e2e` runs the twelve blocking capability suites in one disposable tenant.
+- `npm run test:e2e` runs twelve retained legacy capability suites in one
+  disposable tenant. They are non-gating until RST-013A/RST-014A replace stale
+  expectations and removed persistent fixtures.
 - `npm run test:characterization` retains legacy finance characterization and a
   structural RST-002A authorization-removal contract. It remains a non-target
   gate until RST-013A/RST-014A replace legacy runtime fixtures.
@@ -88,7 +93,12 @@ administrator remains.
 
 `check_production_readiness.php` remains an operational diagnostic, not a test gate. It reports client/operator-dependent `UNKNOWN` values for the final permission matrix, official outputs and content, production email, public URL, secrets, document storage, backup/restore, monitoring, and retention. Operational scripts are CLI-only and the Apache boundary denies their complete HTTP route family.
 
-## Blocking capability coverage
+## Deferred legacy capability inventory
+
+Except for the focused `scope-security.spec.js` RST-002A mode described above,
+the suites in this inventory characterize the pre-reset application and are
+not blocking target acceptance until RST-013A/RST-014A. Their old Partner-scope
+and mutable-workflow assertions are intentionally not authoritative.
 
 - `access-shell.spec.js`: guarded native boundary, role-projected shell, current location, focus, responsive drawer, reduced motion, and auth helpers.
 - `auth-invitations.spec.js`: invitation lifecycle, neutral reset response, replay/revocation, unsafe targets, and CSRF.
@@ -101,7 +111,8 @@ administrator remains.
   validation, disbursement, exact-one replay, concurrency, and no-self behavior.
 - `finance.spec.js`: authority-backed active-entity and assigned-scope finance references.
 - `documents-audit.spec.js`: contextual uploads/comments, guarded downloads, path/entity/scope denial, read-only aggregates, and audit visibility.
-- `scope-security.spec.js`: representative scope/isolation, safe partial failures, audit-before-download, and export safety.
+- `scope-security.spec.js`: the focused RST-002A mode is blocking and covers
+  the transition contract; any retained legacy mode remains non-gating.
 - `dashboards-alerts.spec.js`: raw-condition scoped filters and queues,
   workflow-specific actionable alerts, partner-card convergence, 390-pixel
   containment, safe destinations, and role separation.

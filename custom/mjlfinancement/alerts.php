@@ -12,7 +12,7 @@ if (!mjl_alerts_user_can_read($user)) {
 $langs->load('mjlfinancement@mjlfinancement');
 $scope = mjl_alerts_normalize_scope(GETPOST('scope', 'alphanohtml'));
 $partnerId = GETPOSTINT('partner');
-if ($partnerId > 0 && !mjl_legacy_partner_dependent_access($user, $partnerId)) accessforbidden();
+if ($partnerId > 0) accessforbidden();
 $conditionResult = mjl_alert_conditions_result_for_user($user, 500, $scope, $partnerId);
 $conditions = $conditionResult['items'];
 $alertItems = array();

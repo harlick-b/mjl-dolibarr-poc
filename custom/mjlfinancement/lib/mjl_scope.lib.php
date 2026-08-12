@@ -133,30 +133,6 @@ function mjl_scope_business_role_can_write($userObj, $entity = null)
 	return mjl_scope_is_input_agent($userObj, $entity);
 }
 
-/** RST-002A containment seam: remove under the owning RST-003/004/010A route reset. */
-function mjl_legacy_partner_dependent_sql_filter($column, $userObj = null, $entity = null)
-{
-	return ' AND 1=0';
-}
-
-/** RST-002A containment seam: legacy Partner-dependent object access is unavailable. */
-function mjl_legacy_partner_dependent_access($userObj = null, $objectOrPartner = null, $objectIdOrEntity = null, $entity = null)
-{
-	return false;
-}
-
-/** RST-002A containment seam: legacy Partner lists have no authorization input. */
-function mjl_legacy_partner_ids($userObj = null, $entity = null)
-{
-	return array();
-}
-
-/** RST-002A containment seam: do not resolve a Partner as an authorization result. */
-function mjl_legacy_partner_reference_unavailable($objectType = null, $objectId = null, $entity = null, $depth = 0)
-{
-	return null;
-}
-
 function mjl_scope_assign_access_profile($userId, $roleCode, User $actor, $entity = null, $source = 'manual', $note = '')
 {
 	global $db, $conf;

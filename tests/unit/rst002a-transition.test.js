@@ -5,6 +5,17 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '../..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+const customRoot = path.join(root, 'custom/mjlfinancement');
+
+function phpFiles(directory = customRoot) {
+  const files = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...phpFiles(full));
+    else if (entry.isFile() && entry.name.endsWith('.php')) files.push(full);
+  }
+  return files;
+}
 
 test('access-profile assignment is role-only and never persists Partner scopes', () => {
   const source = read('custom/mjlfinancement/lib/mjl_scope.lib.php');
@@ -14,7 +25,6 @@ test('access-profile assignment is role-only and never persists Partner scopes',
 });
 
 test('normal runtime PHP does not depend on the retained Partner-scope table', () => {
-  const customRoot = path.join(root, 'custom/mjlfinancement');
   const allowed = new Set([
     'scripts/check_production_readiness.php',
     'scripts/verify_sample_data.php',
@@ -23,36 +33,18 @@ test('normal runtime PHP does not depend on the retained Partner-scope table', (
     'scripts/verification/scope/access_model.php',
     'scripts/verification/scope/unresolved_scope.php',
   ]);
-  const findings = [];
-  const walk = (directory) => {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const full = path.join(directory, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.isFile() && entry.name.endsWith('.php')) {
-        const relative = path.relative(customRoot, full);
-        if (!allowed.has(relative) && fs.readFileSync(full, 'utf8').includes('mjlfinancement_user_soc_scope')) findings.push(relative);
-      }
-    }
-  };
-  walk(customRoot);
+  const findings = phpFiles()
+    .map((full) => [full, path.relative(customRoot, full)])
+    .filter(([full, relative]) => !allowed.has(relative) && fs.readFileSync(full, 'utf8').includes('mjlfinancement_user_soc_scope'))
+    .map(([, relative]) => relative);
   assert.deepEqual(findings, []);
 });
 
 test('retired Partner authorization inputs and audit payloads have no runtime backdoor', () => {
-  const customRoot = path.join(root, 'custom/mjlfinancement');
-  const retired = /mjl_scope_(?:assign_soc_scope|user_soc_ids|partner_sql_filter|programme_sql_filter|partner_ids|programme_ids|can_access_fk_soc|object_fk_soc|can_access_object|replace_scope_rows)\b|scope_soc_ids|scopes=/;
-  const findings = [];
-  const walk = (directory) => {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const full = path.join(directory, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.isFile() && entry.name.endsWith('.php')) {
-        const source = fs.readFileSync(full, 'utf8');
-        if (retired.test(source)) findings.push(path.relative(customRoot, full));
-      }
-    }
-  };
-  walk(customRoot);
+  const retired = /mjl_legacy_partner_[A-Za-z0-9_]*\b|mjl_scope_(?:assign_soc_scope|user_soc_ids|partner_sql_filter|programme_sql_filter|partner_ids|programme_ids|can_access_fk_soc|object_fk_soc|can_access_object|replace_scope_rows)\b|scope_soc_ids|scopes=/;
+  const findings = phpFiles()
+    .filter((full) => retired.test(fs.readFileSync(full, 'utf8')))
+    .map((full) => path.relative(customRoot, full));
   assert.deepEqual(findings, []);
 });
 
@@ -80,8 +72,48 @@ test('Activity side-effect helpers enforce the transition freeze at persistence 
     if (method === 'create') assert.match(body, /object_type === 'mjlfinancement_activity'/, `${method} allows Activity exchange writes`);
     else assert.match(body, /exchangeMutationDenied\(/, `${method} bypasses persisted Activity exchange guard`);
   }
-  assert.match(exchange, /SELECT entity, object_type[\s\S]*WHERE rowid =/);
+  assert.match(exchange, /SELECT entity, object_type[\s\S]*WHERE rowid = [^;\n]+ AND entity =/);
   assert.match(exchange, /!\$row \|\| \(int\) \$row->entity !== \(int\) \$conf->entity/);
+  assert.match(exchange, /function create[\s\S]*\(int\) \$this->entity !== \(int\) \$conf->entity/);
+  assert.match(exchange, /function exchangeMutationDenied[\s\S]*\(int\) \$this->entity !== \(int\) \$conf->entity/);
+});
+
+test('workspace metrics are explicitly unavailable before any legacy loader can run', () => {
+  const source = read('custom/mjlfinancement/lib/mjl_workspace.lib.php');
+  const start = source.indexOf('function mjl_workspace_metrics(');
+  const next = source.indexOf('\nfunction ', start + 1);
+  const body = source.slice(start, next);
+  assert.match(body, /return mjl_workspace_unavailable_metrics\(\);/);
+  assert.doesNotMatch(body, /mjl_workspace_(?:own_activity_drafts|activity_count|expense_review_count|count|capture)\(/);
+});
+
+test('dashboard aggregate entrypoints are unavailable before legacy loaders can run', () => {
+  const source = read('custom/mjlfinancement/lib/mjl_dashboard.lib.php');
+  for (const [name, expectedReturn] of [
+    ['mjl_dashboard_workspace_metrics_filtered', 'mjl_dashboard_unavailable_workspace_metrics'],
+    ['mjl_dashboard_supervision_kpis', 'mjl_dashboard_unavailable_supervision_kpis'],
+  ]) {
+    const start = source.indexOf(`function ${name}(`);
+    const next = source.indexOf('\nfunction ', start + 1);
+    const body = source.slice(start, next);
+    assert.match(body, new RegExp(`return ${expectedReturn}\\(\\);`));
+    assert.doesNotMatch(body, /mjl_dashboard_(?:capture|activity_count|expense_count|deadline_risk_count|physical_execution_percent|budget_total|validated_expense_total)\(/);
+  }
+});
+
+test('validation diagnostics reuse the complete Expense target predicate', () => {
+  const validation = read('custom/mjlfinancement/validations.php');
+  const traceability = read('custom/mjlfinancement/lib/mjl_traceability_scope.lib.php');
+  assert.match(validation, /mjl_traceability_expense_target_integrity_sql\('v\.fk_expense', 'v\.entity'\)/);
+  assert.match(traceability, /function mjl_traceability_expense_target_integrity_sql\(/);
+});
+
+test('RST-002A acceptance and current-state docs classify deferred suites and Roadmap accurately', () => {
+  const acceptance = read('docs/mjl-acceptance-tests.md');
+  const functionalMap = read('docs/mjl-current-app-functional-map.md');
+  assert.match(acceptance, /`npm run test:e2e` runs twelve retained legacy capability suites[\s\S]{0,200}They are non-gating until RST-013A\/RST-014A/);
+  assert.doesNotMatch(acceptance, /test:e2e` runs the twelve blocking capability suites/);
+  assert.match(functionalMap, /\| Roadmap \| `roadmap\.php` \| Temporarily unavailable under RST-002A\./);
 });
 
 test('Activity document list and direct-download resolvers fail closed', () => {

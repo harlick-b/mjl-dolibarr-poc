@@ -3,6 +3,21 @@
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 
 /**
+ * Return the complete resolved-Expense integrity predicate for trusted SQL
+ * column expressions owned by this module's diagnostic queries.
+ */
+function mjl_traceability_expense_target_integrity_sql($objectIdSql, $entitySql)
+{
+	global $db;
+	$objectIdSql = preg_replace('/[^A-Za-z0-9_.]/', '', (string) $objectIdSql);
+	$entitySql = preg_replace('/[^A-Za-z0-9_.]/', '', (string) $entitySql);
+	if ($objectIdSql === '' || $entitySql === '') return '1=0';
+
+	$p = $db->prefix();
+	return "EXISTS (SELECT 1 FROM {$p}mjlfinancement_expense o INNER JOIN {$p}mjlfinancement_convention c ON c.rowid=o.fk_convention AND c.entity=o.entity AND c.fk_project=o.fk_project INNER JOIN {$p}projet pr ON pr.rowid=o.fk_project AND pr.entity=o.entity AND pr.fk_soc=c.fk_soc INNER JOIN {$p}societe s ON s.rowid=c.fk_soc AND s.entity=o.entity INNER JOIN {$p}mjlfinancement_budget_line bl ON bl.rowid=o.fk_budget_line AND bl.entity=o.entity AND bl.fk_convention=c.rowid AND (bl.fk_project IS NULL OR bl.fk_project=0 OR bl.fk_project=o.fk_project) LEFT JOIN {$p}mjlfinancement_activity ac ON ac.rowid=o.fk_mjl_activity AND ac.entity=o.entity AND ac.fk_project=o.fk_project AND ac.fk_convention=c.rowid WHERE o.rowid={$objectIdSql} AND o.entity={$entitySql} AND (o.fk_mjl_activity IS NULL OR o.fk_mjl_activity=0 OR ac.rowid IS NOT NULL))";
+}
+
+/**
  * RST-002A Admin diagnostic predicate.
  *
  * Business roles cannot read the legacy traceability stores. An Admin can read
@@ -38,7 +53,7 @@ function mjl_traceability_scope_sql($auditAlias, $userObj, $entity = null)
 	$valid['mjlfinancement_convention'] = "EXISTS (SELECT 1 FROM {$p}mjlfinancement_convention o INNER JOIN {$p}societe s ON s.rowid=o.fk_soc AND s.entity=o.entity LEFT JOIN {$p}projet pr ON pr.rowid=o.fk_project AND pr.entity=o.entity AND pr.fk_soc=o.fk_soc WHERE o.rowid={$a}.object_id AND o.entity={$a}.entity AND (o.fk_project IS NULL OR o.fk_project=0 OR pr.rowid IS NOT NULL))";
 	$valid['mjlfinancement_activity'] = "EXISTS (SELECT 1 FROM {$p}mjlfinancement_activity o INNER JOIN {$p}projet pr ON pr.rowid=o.fk_project AND pr.entity=o.entity INNER JOIN {$p}societe s ON s.rowid=pr.fk_soc AND s.entity=pr.entity INNER JOIN {$p}mjlfinancement_convention c ON c.rowid=o.fk_convention AND c.entity=o.entity AND c.fk_project=o.fk_project AND c.fk_soc=pr.fk_soc LEFT JOIN {$p}projet_task t ON t.rowid=o.fk_task AND t.entity=o.entity AND t.fk_projet=o.fk_project WHERE o.rowid={$a}.object_id AND o.entity={$a}.entity AND (o.fk_task IS NULL OR o.fk_task=0 OR t.rowid IS NOT NULL))";
 	$valid['mjlfinancement_budget_line'] = "EXISTS (SELECT 1 FROM {$p}mjlfinancement_budget_line o INNER JOIN {$p}mjlfinancement_convention c ON c.rowid=o.fk_convention AND c.entity=o.entity INNER JOIN {$p}projet pr ON pr.rowid=c.fk_project AND pr.entity=o.entity AND pr.fk_soc=c.fk_soc INNER JOIN {$p}societe s ON s.rowid=c.fk_soc AND s.entity=o.entity LEFT JOIN {$p}mjlfinancement_activity ac ON ac.rowid=o.fk_mjl_activity AND ac.entity=o.entity AND ac.fk_project=c.fk_project AND ac.fk_convention=c.rowid LEFT JOIN {$p}projet_task t ON t.rowid=o.fk_activity AND t.entity=o.entity AND t.fk_projet=c.fk_project WHERE o.rowid={$a}.object_id AND o.entity={$a}.entity AND (o.fk_project IS NULL OR o.fk_project=0 OR o.fk_project=c.fk_project) AND (o.fk_mjl_activity IS NULL OR o.fk_mjl_activity=0 OR ac.rowid IS NOT NULL) AND (o.fk_activity IS NULL OR o.fk_activity=0 OR t.rowid IS NOT NULL))";
-	$valid['mjlfinancement_expense'] = "EXISTS (SELECT 1 FROM {$p}mjlfinancement_expense o INNER JOIN {$p}mjlfinancement_convention c ON c.rowid=o.fk_convention AND c.entity=o.entity AND c.fk_project=o.fk_project INNER JOIN {$p}projet pr ON pr.rowid=o.fk_project AND pr.entity=o.entity AND pr.fk_soc=c.fk_soc INNER JOIN {$p}societe s ON s.rowid=c.fk_soc AND s.entity=o.entity INNER JOIN {$p}mjlfinancement_budget_line bl ON bl.rowid=o.fk_budget_line AND bl.entity=o.entity AND bl.fk_convention=c.rowid AND (bl.fk_project IS NULL OR bl.fk_project=0 OR bl.fk_project=o.fk_project) LEFT JOIN {$p}mjlfinancement_activity ac ON ac.rowid=o.fk_mjl_activity AND ac.entity=o.entity AND ac.fk_project=o.fk_project AND ac.fk_convention=c.rowid WHERE o.rowid={$a}.object_id AND o.entity={$a}.entity AND (o.fk_mjl_activity IS NULL OR o.fk_mjl_activity=0 OR ac.rowid IS NOT NULL))";
+	$valid['mjlfinancement_expense'] = mjl_traceability_expense_target_integrity_sql($a.'.object_id', $a.'.entity');
 	$valid['mjlfinancement_fund_receipt'] = "EXISTS (SELECT 1 FROM {$p}mjlfinancement_fund_receipt o INNER JOIN {$p}mjlfinancement_convention c ON c.rowid=o.fk_convention AND c.entity=o.entity AND c.fk_project=o.fk_project AND c.fk_soc=o.fk_soc INNER JOIN {$p}projet pr ON pr.rowid=o.fk_project AND pr.entity=o.entity AND pr.fk_soc=o.fk_soc INNER JOIN {$p}societe s ON s.rowid=o.fk_soc AND s.entity=o.entity WHERE o.rowid={$a}.object_id AND o.entity={$a}.entity)";
 	$valid['mjlfinancement_report'] = "EXISTS (SELECT 1 FROM {$p}mjlfinancement_report o WHERE o.rowid={$a}.object_id AND o.entity={$a}.entity)";
 

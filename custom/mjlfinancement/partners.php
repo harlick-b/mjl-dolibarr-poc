@@ -87,10 +87,7 @@ function mjl_partners_render_list()
 
 function mjl_partners_render_detail($partnerId)
 {
-	$row = mjl_partners_fetch($partnerId);
-	if (empty($row) || !mjl_legacy_partner_dependent_access($GLOBALS['user'], (int) $row['rowid'])) {
-		accessforbidden();
-	}
+	accessforbidden();
 
 	print mjl_page_header_render(
 		'Partenaire / Programme '.$row['nom'],
@@ -325,7 +322,7 @@ function mjl_partners_list_fragments($filters)
 {
 	global $db, $conf, $user;
 	$from = ' FROM '.$db->prefix().'societe s';
-	$where = ' WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $user);
+	$where = ' WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.' AND 1=0';
 	if (!empty($filters['fail_closed'])) $where .= ' AND 1 = 0';
 	return array('from' => $from, 'where' => $where);
 }

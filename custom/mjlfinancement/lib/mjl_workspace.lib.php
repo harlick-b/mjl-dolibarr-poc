@@ -246,34 +246,20 @@ function mjl_workspace_can_apply_expense_validation(User $targetUser)
 
 function mjl_workspace_metrics(User $targetUser, $filters = null)
 {
-	$capabilities = mjl_workspace_capabilities($targetUser);
-	$loaders = array(
-		'own_activity_drafts' => function () use ($targetUser, $filters) { return mjl_workspace_own_activity_drafts($targetUser, $filters); },
-		'own_expenses_submitted' => function () use ($targetUser, $filters) { return mjl_workspace_own_expense_count($targetUser, array_merge(mjl_expense_pending_verifier_statuses(), mjl_expense_pending_final_validator_statuses()), $filters); },
-		'own_missing_expense_documents' => function () use ($targetUser, $filters) { return mjl_workspace_own_missing_expense_document_count($targetUser, $filters); },
-	);
+	return mjl_workspace_unavailable_metrics();
+}
 
-	if ($capabilities['admin'] || $capabilities['reviewer'] || $capabilities['supervision']) {
-		$loaders['activities_submitted'] = function () use ($targetUser, $filters) { return mjl_workspace_activity_count(mjl_scope_is_final_validator($targetUser) ? MjlActivity::finalReviewStatuses() : MjlActivity::verifierReviewStatuses(), $filters); };
-		$loaders['expenses_submitted'] = function () use ($targetUser, $filters) { return mjl_workspace_expense_review_count($targetUser, $filters); };
-		$loaders['overdue_activities'] = function () use ($filters) { return mjl_workspace_overdue_activity_count($filters); };
-	}
-	if ($capabilities['admin'] || $capabilities['supervision']) {
-		$loaders['reports_available'] = function () { return mjl_workspace_count('mjlfinancement_report'); };
-	}
-	if ($capabilities['admin']) {
-		$loaders['pending_invitations'] = function () { return mjl_workspace_pending_invitation_count(); };
-	}
-
-	$metrics = array(
-		'own_activity_drafts' => 0, 'own_expenses_submitted' => 0, 'own_missing_expense_documents' => 0,
-		'activities_submitted' => 0, 'expenses_submitted' => 0, 'overdue_activities' => 0,
-		'reports_available' => 0, 'pending_invitations' => 0, 'available' => array(),
+function mjl_workspace_unavailable_metrics()
+{
+	$keys = array(
+		'own_activity_drafts', 'own_expenses_submitted', 'own_missing_expense_documents',
+		'activities_submitted', 'expenses_submitted', 'overdue_activities',
+		'reports_available', 'pending_invitations',
 	);
-	foreach ($loaders as $key => $loader) {
-		$result = mjl_workspace_capture($loader);
-		$metrics[$key] = $result['value'];
-		$metrics['available'][$key] = $result['available'];
+	$metrics = array('unavailable' => true, 'available' => array());
+	foreach ($keys as $key) {
+		$metrics[$key] = null;
+		$metrics['available'][$key] = false;
 	}
 	return $metrics;
 }
@@ -461,7 +447,7 @@ function mjl_workspace_dashboard_partner_filter_sql($column, $filters = null)
 		return mjl_dashboard_partner_filter_sql($column, $filters);
 	}
 	global $user;
-	return mjl_legacy_partner_dependent_sql_filter($column, $user);
+	return ' AND 1=0';
 }
 
 function mjl_workspace_dashboard_project_filter_sql($column, $filters = null)
