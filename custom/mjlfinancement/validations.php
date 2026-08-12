@@ -22,12 +22,14 @@ $sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = v.fk_
 $sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity';
 $sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = v.fk_user_action';
 $sql .= ' WHERE v.entity = '.((int) $conf->entity);
-$sql .= ' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense cross_e WHERE cross_e.rowid = v.fk_expense AND cross_e.entity <> v.entity)';
-$sql .= ' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_convention cross_c WHERE e.rowid IS NOT NULL AND cross_c.rowid = e.fk_convention AND cross_c.entity <> v.entity)';
-if (!mjl_scope_is_platform_admin($user, (int) $conf->entity)) {
-	$sql .= ' AND e.rowid IS NOT NULL AND c.rowid IS NOT NULL';
-	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
-}
+$sql .= ' AND (';
+$sql .= ' NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense any_e WHERE any_e.rowid = v.fk_expense)';
+$sql .= ' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense ok_e';
+$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention ok_c ON ok_c.rowid = ok_e.fk_convention AND ok_c.entity = ok_e.entity';
+$sql .= ' INNER JOIN '.$db->prefix().'projet ok_p ON ok_p.rowid = ok_e.fk_project AND ok_p.entity = ok_e.entity AND ok_p.rowid = ok_c.fk_project AND ok_p.fk_soc = ok_c.fk_soc';
+$sql .= ' INNER JOIN '.$db->prefix().'societe ok_s ON ok_s.rowid = ok_p.fk_soc AND ok_s.entity = ok_p.entity';
+$sql .= ' WHERE ok_e.rowid = v.fk_expense AND ok_e.entity = v.entity)';
+$sql .= ')';
 $sql .= ' ORDER BY v.action_date DESC, v.rowid DESC LIMIT 200';
 $resql = $db->query($sql);
 if (!$resql) {

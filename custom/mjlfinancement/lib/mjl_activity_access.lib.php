@@ -8,98 +8,63 @@ function mjl_activities_can_open($activity)
 	global $user;
 
 	$row = is_array($activity) ? $activity : (array) $activity;
-	$activityId = mjl_activities_row_id($row);
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_activity', $activityId)) {
-		return false;
-	}
-	if (mjl_workspace_can_access_supervision($user) || mjl_activities_is_readonly_consultation()) {
-		return true;
-	}
-	if (mjl_activities_is_level1_operational()) {
-		return mjl_activities_user_owns_or_responsible($row, $user);
-	}
-	if (mjl_workspace_can_apply_activity_validation($user)) {
-		return mjl_activities_is_review_status_for_user((int) $row['status'], $user) || mjl_activities_user_has_workflow_history($activityId);
-	}
-	return true;
+	return mjl_workspace_can_access_activity($user)
+		&& mjl_activities_has_consistent_active_entity_parents(mjl_activities_row_id($row));
 }
 
 function mjl_activities_can_apply_action($activity, $action)
 {
-	global $user;
-
-	$row = is_array($activity) ? $activity : (array) $activity;
-	$status = (int) $row['status'];
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_activity', mjl_activities_row_id($row))) {
-		return false;
-	}
-	if ($action === 'upload') {
-		if (mjl_activities_is_final_status($status)) return false;
-		if (mjl_workspace_can_access_supervision($user)) {
-			return true;
-		}
-		return mjl_workspace_can_apply_activity_write($user) && mjl_activities_user_owns_or_responsible($row, $user);
-	}
-	if ($action === 'update_execution') {
-		return mjl_workspace_can_apply_activity_write($user)
-			&& mjl_activities_user_owns_or_responsible($row, $user)
-			&& in_array($status, MjlActivity::executionEditableStatuses(), true);
-	}
-	if (in_array($action, array('update', 'submit', 'correct'), true)) {
-		if (!mjl_workspace_can_apply_activity_write($user) || !mjl_activities_user_owns_or_responsible($row, $user)) return false;
-		if ($action === 'update') return in_array($status, MjlActivity::editableStatuses(), true);
-		if ($action === 'submit') return in_array($status, MjlActivity::submitStatuses(), true);
-		return $status === MjlActivity::STATUS_CORRECTION_REQUESTED;
-	}
-	if (in_array($action, array('prevalidate', 'final_validate', 'validate', 'reject', 'request_correction'), true)) {
-		if (!mjl_workspace_can_apply_activity_validation($user) || !mjl_activities_is_review_status_for_user($status, $user)) return false;
-		if (mjl_activities_user_owns_or_responsible($row, $user)) return false;
-		if ($action === 'prevalidate') return mjl_scope_is_verifier($user) && $status === MjlActivity::STATUS_SUBMITTED;
-		if ($action === 'final_validate') return mjl_scope_is_final_validator($user) && $status === MjlActivity::STATUS_PREVALIDATED;
-		if ($action === 'validate') return ($status === MjlActivity::STATUS_SUBMITTED && mjl_scope_is_verifier($user)) || ($status === MjlActivity::STATUS_PREVALIDATED && mjl_scope_is_final_validator($user));
-		return true;
-	}
 	return false;
 }
 
 function mjl_activities_scope_sql($alias)
 {
-	global $db, $user;
+	global $user;
 
-	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
-	if (mjl_workspace_can_access_supervision($user) || mjl_activities_is_readonly_consultation()) {
-		return mjl_scope_partner_sql_filter('c.fk_soc', $user);
+	if (!mjl_workspace_can_access_activity($user)) {
+		return ' AND 1=0';
 	}
-	$scopeFilter = mjl_scope_partner_sql_filter('c.fk_soc', $user);
-	if (mjl_activities_is_level1_operational()) {
-		return $scopeFilter.' AND ('.$a.'.fk_user_creat = '.((int) $user->id).' OR '.$a.'.fk_user_responsible = '.((int) $user->id).')';
-	}
-	if (mjl_workspace_can_apply_activity_validation($user)) {
-		$reviewStatuses = mjl_scope_is_final_validator($user) ? MjlActivity::finalReviewStatuses() : MjlActivity::verifierReviewStatuses();
-		return $scopeFilter.' AND ('.$a.'.status IN ('.implode(',', array_map('intval', $reviewStatuses)).') OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_workflow_action wscope WHERE wscope.entity = '.$a.'.entity AND wscope.object_type = \'mjlfinancement_activity\' AND wscope.object_id = '.$a.'.rowid AND wscope.actor = '.((int) $user->id).'))';
-	}
-	return $scopeFilter;
+	return mjl_activities_integrity_sql($alias);
+}
+
+function mjl_activities_integrity_sql($alias)
+{
+	global $db;
+
+	$a = preg_replace('/[^A-Za-z0-9_]/', '', (string) $alias);
+	if ($a === '') return ' AND 1=0';
+	$sql = ' AND EXISTS (SELECT 1 FROM '.$db->prefix().'projet mjl_activity_project';
+	$sql .= ' INNER JOIN '.$db->prefix().'societe mjl_activity_partner ON mjl_activity_partner.rowid = mjl_activity_project.fk_soc AND mjl_activity_partner.entity = mjl_activity_project.entity';
+	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention mjl_activity_convention ON mjl_activity_convention.rowid = '.$a.'.fk_convention AND mjl_activity_convention.entity = '.$a.'.entity';
+	$sql .= ' AND mjl_activity_convention.fk_project = '.$a.'.fk_project AND mjl_activity_convention.fk_soc = mjl_activity_project.fk_soc';
+	$sql .= ' WHERE mjl_activity_project.rowid = '.$a.'.fk_project AND mjl_activity_project.entity = '.$a.'.entity)';
+	$sql .= ' AND ('.$a.'.fk_task IS NULL OR '.$a.'.fk_task = 0 OR EXISTS (SELECT 1 FROM '.$db->prefix().'projet_task mjl_activity_task';
+	$sql .= ' WHERE mjl_activity_task.rowid = '.$a.'.fk_task AND mjl_activity_task.entity = '.$a.'.entity AND mjl_activity_task.fk_projet = '.$a.'.fk_project))';
+	return $sql;
+}
+
+function mjl_activities_has_consistent_active_entity_parents($activityId)
+{
+	global $db, $conf;
+
+	$activityId = (int) $activityId;
+	if ($activityId <= 0) return false;
+	$sql = 'SELECT a.rowid FROM '.$db->prefix().'mjlfinancement_activity a';
+	$sql .= ' WHERE a.rowid = '.$activityId.' AND a.entity = '.((int) $conf->entity);
+	$sql .= mjl_activities_integrity_sql('a').' LIMIT 1';
+	$resql = $db->query($sql);
+	return $resql && (bool) $db->fetch_object($resql);
 }
 
 function mjl_activities_is_level1_operational()
 {
-	global $user;
-	return mjl_workspace_can_apply_activity_write($user) && !$user->hasRight('mjlfinancement', 'activity', 'validate') && !mjl_workspace_can_access_supervision($user);
+	return false;
 }
 
 function mjl_activities_is_readonly_consultation()
 {
 	global $user;
-	return !mjl_workspace_can_apply_activity_write($user) && !mjl_workspace_can_apply_activity_validation($user);
-}
-
-function mjl_activities_user_has_workflow_history($activityId)
-{
-	global $db, $conf, $user;
-	$sql = 'SELECT rowid FROM '.$db->prefix().'mjlfinancement_workflow_action';
-	$sql .= ' WHERE entity = '.((int) $conf->entity).' AND object_type = \'mjlfinancement_activity\' AND object_id = '.((int) $activityId).' AND actor = '.((int) $user->id).' LIMIT 1';
-	$resql = $db->query($sql);
-	return $resql && (bool) $db->fetch_object($resql);
+	return mjl_workspace_can_access_activity($user);
 }
 
 function mjl_activities_is_final_status($status)
@@ -109,8 +74,7 @@ function mjl_activities_is_final_status($status)
 
 function mjl_activities_user_owns_or_responsible($activity, User $targetUser)
 {
-	$row = is_array($activity) ? $activity : (array) $activity;
-	return (int) $row['fk_user_creat'] === (int) $targetUser->id || (!empty($row['fk_user_responsible']) && (int) $row['fk_user_responsible'] === (int) $targetUser->id);
+	return false;
 }
 
 function mjl_activities_row_id($activity)
@@ -123,12 +87,5 @@ function mjl_activities_row_id($activity)
 
 function mjl_activities_is_review_status_for_user($status, User $targetUser)
 {
-	$status = (int) $status;
-	if (mjl_scope_is_final_validator($targetUser)) {
-		return in_array($status, MjlActivity::finalReviewStatuses(), true);
-	}
-	if (mjl_scope_is_verifier($targetUser)) {
-		return in_array($status, MjlActivity::verifierReviewStatuses(), true);
-	}
 	return false;
 }

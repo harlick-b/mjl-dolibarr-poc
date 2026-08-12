@@ -88,7 +88,7 @@ function mjl_partners_render_list()
 function mjl_partners_render_detail($partnerId)
 {
 	$row = mjl_partners_fetch($partnerId);
-	if (empty($row) || !mjl_scope_can_access_fk_soc($GLOBALS['user'], (int) $row['rowid'])) {
+	if (empty($row) || !mjl_legacy_partner_dependent_access($GLOBALS['user'], (int) $row['rowid'])) {
 		accessforbidden();
 	}
 
@@ -325,7 +325,7 @@ function mjl_partners_list_fragments($filters)
 {
 	global $db, $conf, $user;
 	$from = ' FROM '.$db->prefix().'societe s';
-	$where = ' WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $user);
+	$where = ' WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $user);
 	if (!empty($filters['fail_closed'])) $where .= ' AND 1 = 0';
 	return array('from' => $from, 'where' => $where);
 }
@@ -532,14 +532,7 @@ function mjl_partners_exchange_timeline_rows($partnerId)
 
 function mjl_partners_assigned_user_rows($partnerId)
 {
-	global $db, $conf;
-	$sql = 'SELECT u.login, u.firstname, u.lastname, r.role_code, s.date_start';
-	$sql .= ' FROM '.$db->prefix().'mjlfinancement_user_soc_scope s';
-	$sql .= ' INNER JOIN '.$db->prefix().'user u ON u.rowid = s.fk_user AND u.entity = s.entity';
-	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_user_role r ON r.fk_user = u.rowid AND r.entity = s.entity AND r.is_active = 1';
-	$sql .= ' WHERE s.entity = '.((int) $conf->entity).' AND s.fk_soc = '.((int) $partnerId).' AND s.is_active = 1 AND u.statut = 1';
-	$sql .= ' ORDER BY u.login ASC';
-	return mjl_partners_fetch_all($sql);
+	return array();
 }
 
 function mjl_partners_document_row($row, $downloadType, $typeLabel, $objectRef)

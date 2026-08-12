@@ -116,6 +116,7 @@ class MjlActivity extends CommonObject
 
 	public function create(User $user, $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$activeEntity = mjl_active_entity();
 		if (empty($this->entity)) {
 			$this->entity = $activeEntity;
@@ -141,6 +142,7 @@ class MjlActivity extends CommonObject
 
 	public function update(User $user, $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$id = (int) ($this->id ?: $this->rowid);
 		if ($id <= 0) {
 			$this->error = 'Missing activity id';
@@ -176,11 +178,13 @@ class MjlActivity extends CommonObject
 
 	public function delete(User $user, $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		return $this->deleteCommon($user, $notrigger);
 	}
 
 	public function updateImportantFields(User $user, $fields, $comment, $actorRole = 'AGENT_SAISIE', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$id = (int) ($this->id ?: $this->rowid);
 		if ($id <= 0) {
 			$this->error = 'Missing activity id';
@@ -321,6 +325,7 @@ class MjlActivity extends CommonObject
 
 	public function updateExecution(User $user, $fields, $actorRole = 'AGENT_SAISIE', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$id = (int) ($this->id ?: $this->rowid);
 		if ($id <= 0) {
 			$this->error = 'Missing activity id';
@@ -423,6 +428,7 @@ class MjlActivity extends CommonObject
 
 	public function submit(User $user, $comment = '', $actorRole = 'AGENT', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		return $this->workflowTransition($user, self::submitStatuses(), self::STATUS_SUBMITTED, 'submitted', $comment, $actorRole, array(
 			'required_right' => array('activity', 'write'),
 			'trigger' => 'MJLFINANCEMENT_ACTIVITY_SUBMIT',
@@ -433,6 +439,7 @@ class MjlActivity extends CommonObject
 
 	public function requestCorrection(User $user, $reason, $actorRole = 'SUPERVISEUR_N1', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$reason = trim((string) $reason);
 		if ($reason === '') {
 			$this->error = 'Correction reason is required';
@@ -448,6 +455,7 @@ class MjlActivity extends CommonObject
 
 	public function correct(User $user, $comment, $actorRole = 'AGENT', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$comment = trim((string) $comment);
 		if ($comment === '') {
 			$this->error = 'Correction comment is required';
@@ -462,6 +470,7 @@ class MjlActivity extends CommonObject
 
 	public function validate(User $user, $comment = '', $actorRole = 'SUPERVISEUR_N1', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$current = $this->fetchCurrentForWorkflow((int) ($this->id ?: $this->rowid));
 		if (empty($current)) {
 			return -1;
@@ -474,6 +483,7 @@ class MjlActivity extends CommonObject
 
 	public function prevalidate(User $user, $comment = '', $actorRole = 'AGENT_VERIFICATEUR', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		return $this->workflowTransition($user, self::verifierReviewStatuses(), self::STATUS_PREVALIDATED, 'prevalidated', $comment, $actorRole, array(
 			'required_right' => array('activity', 'validate'),
 			'required_business_role' => 'AGENT_VERIFICATEUR',
@@ -486,6 +496,7 @@ class MjlActivity extends CommonObject
 
 	public function finalValidate(User $user, $comment = '', $actorRole = 'VALIDATEUR_DEFINITIF', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		return $this->workflowTransition($user, self::finalReviewStatuses(), self::STATUS_VALIDATED, 'final_validated', $comment, $actorRole, array(
 			'required_business_role' => 'VALIDATEUR_DEFINITIF',
 			'no_self_review' => true,
@@ -497,6 +508,7 @@ class MjlActivity extends CommonObject
 
 	public function reject(User $user, $reason, $actorRole = 'SUPERVISEUR_N1', $notrigger = 0)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$reason = trim((string) $reason);
 		if ($reason === '') {
 			$this->error = 'Rejection reason is required';
@@ -512,6 +524,7 @@ class MjlActivity extends CommonObject
 
 	private function workflowTransition(User $user, $fromStatuses, $toStatus, $action, $comment, $actorRole, $options)
 	{
+		if (!$this->mjl_activity_transition_mutation_allowed()) return -1;
 		$id = (int) ($this->id ?: $this->rowid);
 		if ($id <= 0) {
 			$this->error = 'Missing activity id';
@@ -604,6 +617,12 @@ class MjlActivity extends CommonObject
 			mjl_email_notify_activity_transition($id, $action, $user, $comment);
 		}
 		return 1;
+	}
+
+	private function mjl_activity_transition_mutation_allowed()
+	{
+		$this->error = 'Les modifications d’activité sont temporairement indisponibles pendant la transition RST-002A.';
+		return false;
 	}
 
 	private function recordWorkflowAction($current, $toStatus, User $user, $actorRole, $actionDate, $action, $comment)
@@ -739,12 +758,12 @@ class MjlActivity extends CommonObject
 		}
 		$fkSoc = null;
 		if ((int) $conventionId > 0) {
-			$fkSoc = mjl_scope_object_fk_soc('mjlfinancement_convention', (int) $conventionId, (int) $entity);
+			$fkSoc = mjl_legacy_partner_reference_unavailable('mjlfinancement_convention', (int) $conventionId, (int) $entity);
 		}
 		if ($fkSoc === null && (int) $projectId > 0) {
-			$fkSoc = mjl_scope_object_fk_soc('mjlfinancement_project', (int) $projectId, (int) $entity);
+			$fkSoc = mjl_legacy_partner_reference_unavailable('mjlfinancement_project', (int) $projectId, (int) $entity);
 		}
-		if ($fkSoc === null || !mjl_scope_can_access_fk_soc((object) array('id' => (int) $responsibleId), (int) $fkSoc, (int) $entity)) {
+		if ($fkSoc === null || !mjl_legacy_partner_dependent_access((object) array('id' => (int) $responsibleId), (int) $fkSoc, (int) $entity)) {
 			$this->error = 'Responsible user is not scoped to the selected Partenaire / Programme';
 			return false;
 		}

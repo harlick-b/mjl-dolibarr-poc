@@ -565,7 +565,7 @@ function mjl_projects_list_result()
 {
 	global $db, $conf, $user;
 	$partnerOptions = array();
-	$resql = $db->query('SELECT s.rowid, s.nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $user).' ORDER BY s.nom ASC, s.rowid ASC');
+	$resql = $db->query('SELECT s.rowid, s.nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $user).' ORDER BY s.nom ASC, s.rowid ASC');
 	if ($resql) while ($row = $db->fetch_object($resql)) $partnerOptions[(int) $row->rowid] = (string) $row->nom;
 	$raw = array();
 	foreach (array('partner', 'status', 'sort', 'page') as $key) $raw[$key] = isset($_GET[$key]) && is_scalar($_GET[$key]) ? (string) $_GET[$key] : '';
@@ -720,14 +720,14 @@ function mjl_projects_convention_rows($projectId)
 {
 	global $db, $conf, $user;
 	if (!$user->hasRight('mjlfinancement', 'convention', 'read')) return array();
-	return mjl_projects_fetch_all('SELECT rowid, ref, title AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).mjl_scope_partner_sql_filter('c.fk_soc', $user).' ORDER BY ref ASC');
+	return mjl_projects_fetch_all('SELECT rowid, ref, title AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user).' ORDER BY ref ASC');
 }
 
 function mjl_projects_fund_receipt_rows($projectId)
 {
 	global $db, $conf, $user;
 	if (!$user->hasRight('mjlfinancement', 'fundreceipt', 'read')) return array();
-	return mjl_projects_fetch_all('SELECT rowid, ref, comment AS label FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).mjl_scope_partner_sql_filter('fr.fk_soc', $user).' ORDER BY ref ASC');
+	return mjl_projects_fetch_all('SELECT rowid, ref, comment AS label FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE entity = '.((int) $conf->entity).' AND fk_project = '.((int) $projectId).mjl_legacy_partner_dependent_sql_filter('fr.fk_soc', $user).' ORDER BY ref ASC');
 }
 
 function mjl_projects_alert_rows($projectId)
@@ -809,7 +809,7 @@ function mjl_projects_can_open($project)
 	global $user;
 	if (mjl_scope_is_platform_admin($user)) return true;
 	if (empty($project['fk_soc']) || (int) $project['fk_soc'] <= 0) return false;
-	return mjl_scope_can_access_fk_soc($user, (int) $project['fk_soc']);
+	return mjl_legacy_partner_dependent_access($user, (int) $project['fk_soc']);
 }
 
 function mjl_projects_can_add_note($project)
@@ -824,13 +824,13 @@ function mjl_projects_scope_sql($alias)
 {
 	global $user;
 	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
-	return mjl_scope_partner_sql_filter($a.'.fk_soc', $user);
+	return mjl_legacy_partner_dependent_sql_filter($a.'.fk_soc', $user);
 }
 
 function mjl_projects_related_scope_sql($column)
 {
 	global $user;
-	return mjl_scope_partner_sql_filter($column, $user);
+	return mjl_legacy_partner_dependent_sql_filter($column, $user);
 }
 
 function mjl_projects_can_manage_projects()
@@ -843,7 +843,7 @@ function mjl_projects_can_use_partner($fkSoc)
 {
 	global $db, $conf, $user;
 	$fkSoc = (int) $fkSoc;
-	if ($fkSoc <= 0 || !mjl_scope_can_access_fk_soc($user, $fkSoc)) return false;
+	if ($fkSoc <= 0 || !mjl_legacy_partner_dependent_access($user, $fkSoc)) return false;
 	$sql = 'SELECT rowid FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkSoc.' AND status = 1';
 	$resql = $db->query($sql);
 	return $resql && (bool) $db->fetch_object($resql);
@@ -852,7 +852,7 @@ function mjl_projects_can_use_partner($fkSoc)
 function mjl_projects_partner_select($selected)
 {
 	global $db, $conf, $user;
-	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $user).' ORDER BY s.nom ASC';
+	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $user).' ORDER BY s.nom ASC';
 	$out = '<select required name="fk_soc"><option value="">Selectionner</option>';
 	foreach (mjl_projects_fetch_all($sql) as $row) {
 		$out .= '<option value="'.((int) $row['rowid']).'"'.((int) $selected === (int) $row['rowid'] ? ' selected' : '').'>'.dol_escape_htmltag($row['nom']).'</option>';

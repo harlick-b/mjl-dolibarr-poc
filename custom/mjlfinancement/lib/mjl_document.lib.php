@@ -109,16 +109,7 @@ function mjl_expense_document_safe_relative_path($path)
 
 function mjl_activity_document_download_rows($activityId)
 {
-	global $conf, $user;
-
-	if ((int) $activityId <= 0 || !$user->hasRight('mjlfinancement', 'activity', 'read')) {
-		return array();
-	}
-	$activity = mjl_activity_document_fetch_activity_for_access((int) $activityId);
-	if (empty($activity) || !mjl_activities_can_open($activity)) {
-		return array();
-	}
-	return mjl_activity_downloadable_document_rows((int) $activityId, (int) $conf->entity);
+	return array();
 }
 
 function mjl_activity_document_fetch_activity_for_access($activityId)
@@ -141,37 +132,7 @@ function mjl_activity_document_fetch_activity_for_access($activityId)
 
 function mjl_activity_document_fetch_download_row($fileId)
 {
-	global $db, $conf, $user;
-
-	if ((int) $fileId <= 0 || !$user->hasRight('mjlfinancement', 'activity', 'read')) {
-		return array();
-	}
-	$sql = 'SELECT f.rowid, f.entity, f.filename, f.filepath, f.fullpath_orig, f.description, f.date_c, f.fk_user_c, f.src_object_type, f.src_object_id,';
-	$sql .= ' a.rowid AS activity_rowid, a.fk_user_creat, a.status';
-	$sql .= ' FROM '.$db->prefix().'ecm_files f';
-	$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = f.src_object_id AND a.entity = f.entity';
-	$sql .= ' WHERE f.rowid = '.((int) $fileId);
-	$sql .= ' AND f.entity = '.((int) $conf->entity);
-	$sql .= " AND f.src_object_type = 'mjlfinancement_activity'";
-	$resql = $db->query($sql);
-	if (!$resql) {
-		return array();
-	}
-	$obj = $db->fetch_object($resql);
-	if (!$obj) {
-		return array();
-	}
-	$row = (array) $obj;
-	$activity = array(
-		'rowid' => (int) $row['activity_rowid'],
-		'entity' => (int) $row['entity'],
-		'fk_user_creat' => (int) $row['fk_user_creat'],
-		'status' => (int) $row['status'],
-	);
-	if (!mjl_activities_can_open($activity)) {
-		return array();
-	}
-	return $row;
+	return array();
 }
 
 function mjl_activity_document_resolve_path($fileRow)
@@ -219,7 +180,7 @@ function mjl_convention_document_download_rows($conventionId)
 		return array();
 	}
 	$convention = mjl_convention_document_fetch_convention_for_access((int) $conventionId);
-	if (empty($convention) || !mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $conventionId)) {
+	if (empty($convention) || !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', (int) $conventionId)) {
 		return array();
 	}
 	return mjl_convention_downloadable_document_rows((int) $conventionId, (int) $conf->entity);
@@ -244,7 +205,7 @@ function mjl_convention_document_fetch_convention_for_access($conventionId)
 		return array();
 	}
 	$row = (array) $obj;
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $row['rowid'])) {
+	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', (int) $row['rowid'])) {
 		return array();
 	}
 	return $row;
@@ -273,7 +234,7 @@ function mjl_convention_document_fetch_download_row($fileId)
 		return array();
 	}
 	$row = (array) $obj;
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $row['convention_rowid'], (int) $conf->entity)) {
+	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', (int) $row['convention_rowid'], (int) $conf->entity)) {
 		return array();
 	}
 	return $row;
@@ -325,7 +286,7 @@ function mjl_fund_receipt_document_download_rows($receiptId)
 	}
 
 	$receipt = mjl_fund_receipt_document_fetch_receipt_for_access((int) $receiptId);
-	if (empty($receipt) || !mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', (int) $receiptId)) {
+	if (empty($receipt) || !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_fund_receipt', (int) $receiptId)) {
 		return array();
 	}
 
@@ -351,7 +312,7 @@ function mjl_fund_receipt_document_fetch_receipt_for_access($receiptId)
 		return array();
 	}
 	$row = (array) $obj;
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', (int) $row['rowid'])) {
+	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_fund_receipt', (int) $row['rowid'])) {
 		return array();
 	}
 	return $row;
@@ -380,7 +341,7 @@ function mjl_fund_receipt_document_fetch_download_row($fileId)
 		return array();
 	}
 	$row = (array) $obj;
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_fund_receipt', (int) $row['receipt_rowid'], (int) $conf->entity)) {
+	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_fund_receipt', (int) $row['receipt_rowid'], (int) $conf->entity)) {
 		return array();
 	}
 	return $row;
@@ -458,6 +419,10 @@ function mjl_document_upload_to_ecm($objectType, $objectId, $entity, $fileField,
 	global $db, $conf, $user;
 
 	$error = '';
+	if ((string) $objectType === 'mjlfinancement_activity') {
+		$error = 'Les documents d’activité sont temporairement indisponibles pendant RST-002A.';
+		return array();
+	}
 	if ((int) $objectId <= 0 || (int) $entity <= 0) {
 		$error = 'Objet documentaire invalide';
 		return array();

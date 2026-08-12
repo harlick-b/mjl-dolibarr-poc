@@ -173,7 +173,7 @@ function mjl_documents_convention_rows($filters)
 	$sql .= ' WHERE c.entity = '.((int) $conf->entity);
 	if ((int) $filters['partner_id'] > 0) $sql .= ' AND c.fk_soc = '.((int) $filters['partner_id']);
 	if ((int) $filters['project_id'] > 0) $sql .= ' AND c.fk_project = '.((int) $filters['project_id']);
-	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
+	$sql .= mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY c.ref ASC';
 	$documents = array();
 	foreach (mjl_documents_fetch_all($sql) as $convention) {
@@ -196,7 +196,7 @@ function mjl_documents_fund_receipt_rows($filters)
 	$sql .= ' WHERE fr.entity = '.((int) $conf->entity);
 	if ((int) $filters['partner_id'] > 0) $sql .= ' AND fr.fk_soc = '.((int) $filters['partner_id']);
 	if ((int) $filters['project_id'] > 0) $sql .= ' AND fr.fk_project = '.((int) $filters['project_id']);
-	$sql .= mjl_scope_partner_sql_filter('fr.fk_soc', $user);
+	$sql .= mjl_legacy_partner_dependent_sql_filter('fr.fk_soc', $user);
 	$sql .= ' ORDER BY fr.ref ASC';
 	$documents = array();
 	foreach (mjl_documents_fetch_all($sql) as $receipt) {
@@ -259,7 +259,7 @@ function mjl_documents_project_select($selected)
 function mjl_documents_partner_select($selected)
 {
 	global $db, $conf, $user;
-	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $user).' ORDER BY s.nom ASC, s.rowid ASC';
+	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $user).' ORDER BY s.nom ASC, s.rowid ASC';
 	$out = '<select name="partner_id"><option value="0">Tous</option>';
 	foreach (mjl_documents_fetch_all($sql) as $row) {
 		$out .= '<option value="'.((int) $row['rowid']).'"'.((int) $selected === (int) $row['rowid'] ? ' selected' : '').'>'.dol_escape_htmltag($row['nom']).'</option>';
@@ -271,7 +271,7 @@ function mjl_documents_project_scope_sql($alias)
 {
 	global $db, $user;
 	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
-	return mjl_scope_partner_sql_filter($a.'.fk_soc', $user);
+	return mjl_legacy_partner_dependent_sql_filter($a.'.fk_soc', $user);
 }
 
 function mjl_documents_fetch_all($sql)

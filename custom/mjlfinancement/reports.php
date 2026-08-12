@@ -440,13 +440,13 @@ function mjl_reports_inaccessible_filters($def, $filters)
 {
 	global $user;
 	$errors = array();
-	if (in_array('fk_soc', $def['filters'], true) && !empty($filters['fk_soc']) && !mjl_scope_can_access_fk_soc($user, (int) $filters['fk_soc'])) {
+	if (in_array('fk_soc', $def['filters'], true) && !empty($filters['fk_soc']) && !mjl_legacy_partner_dependent_access($user, (int) $filters['fk_soc'])) {
 		$errors[] = 'Partenaire / Programme';
 	}
-	if (in_array('project_id', $def['filters'], true) && !empty($filters['project_id']) && !mjl_scope_can_access_object($user, 'project', (int) $filters['project_id'])) {
+	if (in_array('project_id', $def['filters'], true) && !empty($filters['project_id']) && !mjl_legacy_partner_dependent_access($user, 'project', (int) $filters['project_id'])) {
 		$errors[] = 'Projet';
 	}
-	if (in_array('convention_id', $def['filters'], true) && !empty($filters['convention_id']) && !mjl_scope_can_access_object($user, 'mjlfinancement_convention', (int) $filters['convention_id'])) {
+	if (in_array('convention_id', $def['filters'], true) && !empty($filters['convention_id']) && !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', (int) $filters['convention_id'])) {
 		$errors[] = 'Programme';
 	}
 	if (empty($errors) && !empty($filters['fk_soc']) && !empty($filters['project_id']) && !mjl_reports_project_belongs_to_partner((int) $filters['project_id'], (int) $filters['fk_soc'])) {
@@ -936,7 +936,7 @@ function mjl_reports_project_options()
 {
 	global $db, $conf, $user;
 
-	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('fk_soc', $user).' ORDER BY ref';
+	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('fk_soc', $user).' ORDER BY ref';
 	$resql = $db->query($sql);
 	$options = array();
 	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = mjl_reports_target_wording($obj->ref.' - '.$obj->title);
@@ -947,7 +947,7 @@ function mjl_reports_partner_options()
 {
 	global $db, $conf, $user;
 
-	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('rowid', $user).' ORDER BY nom';
+	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('rowid', $user).' ORDER BY nom';
 	$resql = $db->query($sql);
 	$options = array();
 	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = mjl_reports_target_wording($obj->nom);
@@ -958,7 +958,7 @@ function mjl_reports_convention_options()
 {
 	global $db, $conf, $user;
 
-	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('fk_soc', $user).' ORDER BY ref';
+	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('fk_soc', $user).' ORDER BY ref';
 	$resql = $db->query($sql);
 	$options = array();
 	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = mjl_reports_target_wording($obj->ref.' - '.$obj->title);
@@ -1182,7 +1182,7 @@ function mjl_reports_partner_filter_sql($column, $filters)
 	if (!empty($filters['fk_soc'])) {
 		return ' AND '.$column.' = '.((int) $filters['fk_soc']);
 	}
-	return mjl_scope_partner_sql_filter($column, $GLOBALS['user']);
+	return mjl_legacy_partner_dependent_sql_filter($column, $GLOBALS['user']);
 }
 
 function mjl_reports_project_filter_sql($column, $filters)
@@ -1603,7 +1603,7 @@ function mjl_reports_dpaf_rows($filters)
 	$sql .= ' COALESCE((SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_expense e WHERE e.entity = c.entity AND e.fk_convention = c.rowid AND e.status = '.MjlExpense::STATUS_SUBMITTED.'), 0) AS depenses_en_revue';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_convention c';
 	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $user);
+	$sql .= mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user);
 	$sql .= ' ORDER BY c.ref';
 	return mjl_reports_fetch_rows($sql);
 }
@@ -1623,7 +1623,7 @@ function mjl_reports_expense_audit_rows($filters)
 	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention cscope ON cscope.rowid = e.fk_convention AND cscope.entity = e.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = v.fk_user_action';
 	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_scope_partner_sql_filter('cscope.fk_soc', $user);
+	$sql .= mjl_legacy_partner_dependent_sql_filter('cscope.fk_soc', $user);
 	$sql .= ' ORDER BY v.action_date DESC, v.rowid DESC';
 	$rows = mjl_reports_fetch_rows($sql);
 	foreach ($rows as &$row) {
@@ -1652,7 +1652,7 @@ function mjl_reports_workflow_scope_sql($filters = array(), $includeReportAudits
 		}
 		return $scope.')'.$projectFilter;
 	}
-	$scopeIds = mjl_scope_user_soc_ids($user);
+	$scopeIds = mjl_legacy_partner_ids($user);
 	if ($scopeIds === null) {
 		return $projectFilter.($includeReportAudits ? '' : ' AND w.object_type <> \'mjlfinancement_report\'');
 	}

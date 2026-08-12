@@ -16,8 +16,9 @@ may create and destroy isolated test-only fixtures.
 RST-000A was checksum-approved, physically executed, and supplementally
 ratified on 2026-08-10. The shared tenant contains no persistent
 business/sample data and preserves only the native technical administrator.
-RST-001 was approved and executed on 2026-08-10. RST-002A is the next
-independent approval unit; it remains unapproved.
+RST-001 was approved and executed on 2026-08-10. RST-002A was approved and
+executed on 2026-08-12. RST-003 is the next recommended independent approval
+unit; no later unit is authorized by that recommendation.
 
 ## Phase 0: Authoritative Audit and Reset Manifest
 

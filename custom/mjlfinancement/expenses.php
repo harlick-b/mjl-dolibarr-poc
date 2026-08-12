@@ -859,23 +859,23 @@ function mjl_expenses_options($type)
 	global $db, $conf;
 
 	if ($type === 'partner') {
-		$sql = 'SELECT s.rowid, s.nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $GLOBALS['user']).' ORDER BY s.nom, s.rowid';
+		$sql = 'SELECT s.rowid, s.nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $GLOBALS['user']).' ORDER BY s.nom, s.rowid';
 	} elseif ($type === 'project') {
-		$sql = 'SELECT p.rowid, p.ref, p.title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
+		$sql = 'SELECT p.rowid, p.ref, p.title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
 		$sql = 'SELECT c.rowid, c.ref, c.title, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_convention c';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
-		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' AND c.fk_project IS NOT NULL'.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
+		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.' AND c.fk_project IS NOT NULL'.mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} elseif ($type === 'activity') {
 		$sql = 'SELECT a.rowid, a.ref, a.label, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_activity a';
 		$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
-		$sql .= ' WHERE a.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY p.ref, a.ref';
+		$sql .= ' WHERE a.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY p.ref, a.ref';
 	} elseif ($type === 'budget_line') {
 		$sql = 'SELECT bl.rowid, bl.ref, bl.label, p.ref AS project_ref, c.ref AS convention_ref FROM '.$db->prefix().'mjlfinancement_budget_line bl';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project AND p.entity = bl.entity';
 		$sql .= ' INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity AND c.status = '.MjlConvention::STATUS_ACTIVE;
-		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.status = '.MjlBudgetLine::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY p.ref, c.ref, bl.ref';
+		$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.status = '.MjlBudgetLine::STATUS_ACTIVE.mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY p.ref, c.ref, bl.ref';
 	} else {
 		return array();
 	}
@@ -921,10 +921,10 @@ function mjl_expenses_can_use_links($fkProject, $fkConvention, $fkMjlActivity, $
 	if ($fkProject <= 0 || $fkConvention <= 0 || $fkBudgetLine <= 0) {
 		return false;
 	}
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_convention', $fkConvention) || !mjl_scope_can_access_object($user, 'project', $fkProject) || !mjl_scope_can_access_object($user, 'mjlfinancement_budget_line', $fkBudgetLine)) {
+	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', $fkConvention) || !mjl_legacy_partner_dependent_access($user, 'project', $fkProject) || !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_budget_line', $fkBudgetLine)) {
 		return false;
 	}
-	if ($fkMjlActivity > 0 && !mjl_scope_can_access_object($user, 'mjlfinancement_activity', $fkMjlActivity)) {
+	if ($fkMjlActivity > 0 && !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_activity', $fkMjlActivity)) {
 		return false;
 	}
 	$probe = new stdClass();
@@ -938,7 +938,7 @@ function mjl_expenses_can_use_links($fkProject, $fkConvention, $fkMjlActivity, $
 	$sql = 'SELECT c.fk_soc FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.rowid = '.$fkConvention.' AND c.entity = '.((int) $conf->entity);
 	$resql = $db->query($sql);
 	$row = $resql ? $db->fetch_object($resql) : null;
-	return $row && mjl_scope_can_access_fk_soc($user, (int) $row->fk_soc);
+	return $row && mjl_legacy_partner_dependent_access($user, (int) $row->fk_soc);
 }
 
 function mjl_expenses_select($name, $options, $required = 0, $emptyLabel = '', $selected = 0)
@@ -997,7 +997,7 @@ function mjl_expenses_can_apply_action($expense, $action)
 
 	$row = is_array($expense) ? $expense : (array) $expense;
 	$status = (int) $row['status'];
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_expense', (int) $row['rowid'])) {
+	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_expense', (int) $row['rowid'])) {
 		return false;
 	}
 	if ($action === 'upload') {

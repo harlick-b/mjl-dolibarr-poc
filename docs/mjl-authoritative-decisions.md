@@ -74,14 +74,16 @@ MJL-specific code stays outside Dolibarr core. Native third parties, projects,
 users, authentication, ECM, and export capabilities may be reused through safe
 MJL interfaces.
 
-RST-000, RST-000A, and RST-001 are executed. RST-000A's recorded approval-boundary
+RST-000, RST-000A, RST-001, and RST-002A are executed. RST-000A's recorded approval-boundary
 deviation was ratified through supplemental checksum
 `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`.
 It deleted the checksum-approved legacy sample rows/files without migration
 and preserved native administrator `llx_user.rowid=1`. RST-001 enforces one
 effective role and derives `ADMIN_PLATEFORME` from native administrator status
-without granting business workflow access. Every other reset-manifest entry
-remains `PENDING_APPROVAL`.
+without granting business workflow access. RST-002A removes Partner scope from
+runtime authorization, retains its exact empty table until RST-002B, freezes all
+legacy Activity mutations, and exposes only a safe read-only reviewer projection.
+Every later reset-manifest entry remains `PENDING_APPROVAL`.
 
 ## Design Authority
 

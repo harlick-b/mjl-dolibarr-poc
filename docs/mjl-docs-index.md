@@ -27,6 +27,7 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-rst-000a-execution-report.md` | Active RST-000A execution, rollback, and verification evidence; not target-rule authority |
 | `docs/mjl-rst-000a-supplemental-appendix.md` | Approved RST-000A deviation evidence; exact hashes remain private and checksum-bound |
 | `docs/mjl-rst-001-execution-report.md` | Active RST-001 authorization/schema execution and verification evidence; not target-rule authority |
+| `docs/mjl-rst-002a-execution-report.md` | Active RST-002A authorization-containment, rollback, and verification evidence; not target-rule authority |
 | `docs/mjl_fully_revised_implementation_prompts_by_phase.md` | Post-cadrage source package with clean-reset addendum; subordinate to canonical v2 and never executable as one request |
 | `docs/mjl-current-app-functional-map.md` | Current implementation evidence only; superseded wherever it states target behavior |
 | `docs/mjl-current-vs-target-gap-analysis.md` | Active debt summary only; canonical owners decide target behavior |

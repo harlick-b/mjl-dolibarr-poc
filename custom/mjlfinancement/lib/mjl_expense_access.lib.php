@@ -8,7 +8,7 @@ function mjl_expenses_can_open($expense)
 	global $user;
 
 	$row = is_array($expense) ? $expense : (array) $expense;
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_expense', (int) $row['rowid'])) {
+	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_expense', (int) $row['rowid'])) {
 		return false;
 	}
 	if (mjl_workspace_can_access_supervision($user) || mjl_expenses_is_readonly_consultation()) {
@@ -30,9 +30,9 @@ function mjl_expenses_scope_sql($alias)
 
 	$a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
 	if (mjl_workspace_can_access_supervision($user) || mjl_expenses_is_readonly_consultation()) {
-		return mjl_scope_partner_sql_filter('c.fk_soc', $user);
+		return mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user);
 	}
-	$scopeFilter = mjl_scope_partner_sql_filter('c.fk_soc', $user);
+	$scopeFilter = mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user);
 	if (mjl_expenses_is_level1_operational()) {
 		return $scopeFilter.' AND '.$a.'.fk_user_creat = '.((int) $user->id);
 	}

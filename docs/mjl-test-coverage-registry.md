@@ -2,6 +2,13 @@
 
 This is the durable Gate 1 audit and coverage registry for the MJL verification system. Target behavior follows `docs/mjl-authoritative-decisions.md`; current-state evidence that is not yet approved is explicitly classified as characterization.
 
+RST-002A adds a focused disposable authorization gate at
+`tests/e2e/scope-security.spec.js` (6 cases): zero/poison Partner-scope
+invariance, role-only access administration, HTTP and domain Activity mutation
+freeze, safe reviewer projection, corrupt/cross-entity rejection, and the
+Admin-only technical landing. Legacy C1/C2 characterization remains
+non-authoritative until RST-013A/RST-014A.
+
 All recorded suites below predate DEC-026 through DEC-030. Any suite that uses
 the legacy POC seed is historical/current-state evidence only, even when it
 passed. Target acceptance requires minimal disposable fixtures created in an

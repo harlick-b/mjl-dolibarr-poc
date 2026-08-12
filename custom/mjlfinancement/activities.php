@@ -19,7 +19,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_recovery
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_journey.lib.php';
 
 if (!mjl_workspace_can_access_activity($user)) {
-	accessforbidden();
+	mjl_activities_forbidden();
 }
 
 $langs->load('mjlfinancement@mjlfinancement');
@@ -32,13 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		mjl_activities_forbidden('Invalid security token');
 	}
-	if (!mjl_workspace_can_apply_activity_write($user) && in_array($action, array('create', 'update', 'update_execution', 'submit', 'correct'), true)) {
-		mjl_activities_forbidden();
-	}
-	if (!mjl_workspace_can_apply_activity_validation($user) && in_array($action, array('prevalidate', 'final_validate', 'validate', 'reject', 'request_correction'), true)) {
-		mjl_activities_forbidden();
-	}
-	mjl_activities_handle_post($action);
+	mjl_activities_forbidden('Les modifications d’activité sont temporairement indisponibles pendant la transition RST-002A.');
 }
 
 $mjl_activities_page_token = function_exists('newToken') ? newToken() : '';
@@ -131,10 +125,10 @@ function mjl_activities_handle_post($action)
 		$fkConvention = GETPOSTINT('fk_convention');
 		$fkTask = GETPOSTINT('fk_task');
 		$fkResponsible = GETPOSTINT('fk_user_responsible');
-		if ($fkProject > 0 && !mjl_scope_can_access_object($user, 'mjlfinancement_project', $fkProject)) {
+		if ($fkProject > 0 && !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_project', $fkProject)) {
 			mjl_activities_forbidden('Projet hors de votre périmètre');
 		}
-		if ($fkConvention > 0 && !mjl_scope_can_access_object($user, 'mjlfinancement_convention', $fkConvention)) {
+		if ($fkConvention > 0 && !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_convention', $fkConvention)) {
 			mjl_activities_forbidden('Enveloppe hors de votre périmètre');
 		}
 		$errors = array();
@@ -437,33 +431,29 @@ function mjl_activities_render_detail($id)
 {
 	$row = mjl_activities_fetch_detail($id);
 	if (empty($row) || !mjl_activities_can_open($row)) {
-		accessforbidden();
+		mjl_activities_forbidden();
 	}
 
 	$headerOptions = array(
-			'breadcrumb' => array(
-				array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
-				array('label' => $row['ref']),
-			),
-			'description' => mjl_activities_next_action_label($row),
-			'context' => array('label' => 'Statut', 'value' => mjl_activity_status_label($row['status'])),
-		);
-	if (mjl_activities_can_apply_action($row, 'update')) {
-		$headerOptions['primary_action'] = array(
-			'label' => 'Modifier l’activité',
-			'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']).'&action=edit',
-		);
-	}
+		'breadcrumb' => array(
+			array('label' => 'Activités', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),
+			array('label' => $row['ref']),
+		),
+		'description' => 'Consultation temporaire en lecture seule pendant la transition RST-002A.',
+		'context' => array('label' => 'Statut', 'value' => mjl_activity_status_label($row['status'])),
+	);
 	print mjl_page_header_render($row['ref'].' - '.$row['label'], $headerOptions);
-
-	print '<div class="mjl-activity-detail-grid">';
-	mjl_activities_render_summary_card($row);
-	mjl_activities_render_decision_panel($row);
-	print '</div>';
-	mjl_activities_render_execution_panel($row);
-	mjl_activities_render_activity_document_panel($row);
-	mjl_activities_render_document_checklist((int) $row['rowid']);
-	mjl_activities_render_timeline($row);
+	$status = mjl_ui_activity_status($row['status']);
+	$risk = mjl_activity_deadline_alert($row['date_end'], $row['status']) ?: 'Aucune alerte';
+	$items = array(
+		array('label' => 'Statut', 'value' => $status['label'], 'tone' => $status['tone']),
+		array('label' => 'Projet', 'value' => $row['project_ref'].' — '.$row['project_title'], 'tone' => 'info'),
+		array('label' => 'Début prévu', 'value' => mjl_activities_format_date($row['date_start']), 'tone' => 'neutral'),
+		array('label' => 'Fin prévue', 'value' => mjl_activities_format_date($row['date_end']), 'tone' => 'neutral'),
+		array('label' => 'Risque échéance', 'value' => $risk, 'tone' => $risk === 'Aucune alerte' ? 'neutral' : 'danger'),
+		array('label' => 'État de revue', 'value' => mjl_activities_next_action_label($row), 'tone' => 'neutral'),
+	);
+	print mjl_journey_render_summary(array('title' => 'Synthèse de l’activité', 'description' => 'Informations de planification disponibles en lecture seule.', 'items' => $items));
 }
 
 function mjl_activities_render_action_state($row, $action)
@@ -544,65 +534,38 @@ function mjl_activities_create_form()
 function mjl_activities_list()
 {
 	global $db, $conf;
-	$projectOptions = mjl_activities_options('project');
-	$partnerOptions = mjl_activities_options('partner');
-	$projectIds = array_map('intval', array_keys($projectOptions));
-	$partnerIds = array_map('intval', array_keys($partnerOptions));
-	$raw = array();
-	foreach (array('status', 'partner', 'project', 'risk', 'sort', 'page') as $key) {
-		$raw[$key] = isset($_GET[$key]) && is_scalar($_GET[$key]) ? (string) $_GET[$key] : '';
-	}
-	$allowedStatuses = array_map('strval', range(0, 9));
-	$filters = mjl_table_normalize_request($raw, $allowedStatuses, $projectIds, null, 50, $partnerIds);
-	$fragments = mjl_activities_list_fragments($filters);
-	$total = 0;
-	$countAvailable = true;
-	if (!$filters['fail_closed']) {
-		$countSql = 'SELECT COUNT(DISTINCT a.rowid) AS nb'.$fragments['from'].$fragments['where'];
-		$countResult = $db->query($countSql);
-		if ($countResult) {
-			$countRow = $db->fetch_object($countResult);
-			$total = $countRow ? (int) $countRow->nb : 0;
-			$filters = mjl_table_normalize_request($raw, $allowedStatuses, $projectIds, $total, 50, $partnerIds);
-			$fragments = mjl_activities_list_fragments($filters);
-		} else {
-			$countAvailable = false;
-			$total = null;
-			mjl_ui_log_error('database', mjl_activities_error_context('list_count'), $db->lasterror());
-		}
-	}
+	$statusFilter = isset($_GET['status']) && in_array((string) $_GET['status'], array_map('strval', range(0, 9)), true) ? (string) $_GET['status'] : '';
+	$projectFilter = GETPOSTINT('project');
+	$riskFilter = isset($_GET['risk']) && in_array((string) $_GET['risk'], array('all', 'overdue', 'soon', 'none'), true) ? (string) $_GET['risk'] : 'all';
+	$projectOptions = mjl_activities_readonly_project_options();
+	if ($projectFilter > 0 && !isset($projectOptions[$projectFilter])) $projectFilter = -1;
+	$from = ' FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
+	$where = ' WHERE a.entity = '.((int) $conf->entity).mjl_activities_scope_sql('a');
+	if ($statusFilter !== '') $where .= ' AND a.status = '.((int) $statusFilter);
+	if ($projectFilter > 0) $where .= ' AND a.fk_project = '.$projectFilter;
+	if ($projectFilter < 0) $where .= ' AND 1=0';
+	$today = $db->escape(date('Y-m-d'));
+	$soon = $db->escape(date('Y-m-d', strtotime('+7 days')));
+	$open = implode(',', array_map('intval', MjlActivity::openStatuses()));
+	if ($riskFilter === 'overdue') $where .= " AND a.date_end < '".$today."' AND a.status IN (".$open.')';
+	elseif ($riskFilter === 'soon') $where .= " AND a.date_end >= '".$today."' AND a.date_end <= '".$soon."' AND a.status IN (".$open.')';
+	elseif ($riskFilter === 'none') $where .= " AND (a.date_end IS NULL OR a.date_end > '".$soon."' OR a.status NOT IN (".$open.'))';
 	$rows = array();
-	$rowAvailable = true;
-	$hasExtraRow = false;
-	if (!$filters['fail_closed']) {
-		$orderBy = mjl_activities_list_order_sql($filters['sort']);
-		$offset = max(0, ((int) $filters['page'] - 1) * (int) $filters['page_size']);
-		$sql = 'SELECT DISTINCT a.rowid, a.ref, a.label, a.date_start, a.date_end, a.physical_execution_percent, a.execution_status, a.status, p.ref AS project_ref';
-		$sql .= $fragments['from'].$fragments['where'].$orderBy;
-		$sql .= ' LIMIT '.((int) $filters['page_size'] + 1).' OFFSET '.$offset;
-		$resql = $db->query($sql);
-		if (!$resql) {
-			$rowAvailable = false;
-			mjl_ui_log_error('database', mjl_activities_error_context('list_rows'), $db->lasterror());
-		} else {
-			while ($row = $db->fetch_object($resql)) $rows[] = (array) $row;
-			$hasExtraRow = count($rows) > (int) $filters['page_size'];
-			if ($hasExtraRow) array_pop($rows);
-		}
-	}
+	$sql = 'SELECT a.rowid, a.ref, a.label, a.date_start, a.date_end, a.status, p.ref AS project_ref'.$from.$where;
+	$sql .= ' ORDER BY CASE WHEN a.date_end IS NULL THEN 1 ELSE 0 END, a.date_end ASC, a.rowid ASC LIMIT 50';
+	$resql = $db->query($sql);
+	$rowAvailable = (bool) $resql;
+	if ($resql) while ($row = $db->fetch_object($resql)) $rows[] = (array) $row;
 
 	print '<section class="mjl-workspace-section">';
-	print '<div class="mjl-section-heading"><h2>Activités du périmètre</h2><p>Filtrez et priorisez les activités avant d’ouvrir leur détail.</p></div>';
-	mjl_activities_render_list_filters($filters, $partnerOptions, $projectOptions);
-	if (!$countAvailable && $rowAvailable) {
-		print mjl_ui_system_state('partial-error', 'Total indisponible', 'Les activités accessibles restent affichées, mais le total ne peut pas être calculé.');
-	}
+	print '<div class="mjl-section-heading"><h2>Activités</h2><p>Consultation temporaire en lecture seule.</p></div>';
+	mjl_activities_render_readonly_filters($statusFilter, $projectFilter, $riskFilter, $projectOptions);
 	if (!$rowAvailable) {
 		print mjl_ui_system_state('danger', 'Liste indisponible', mjl_ui_safe_error_message('database'), array('href' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php', 'action' => 'Réessayer'));
 	}
-	print '<p class="mjl-scoped-count">Résultats dans votre périmètre : <strong data-mjl-scoped-count>'.($total === null ? 'Indisponible' : (int) $total).'</strong></p>';
-	print '<div class="div-table-responsive-no-min mjl-dashboard-table mjl-operational-table"><table class="noborder centpercent" aria-label="Activités du périmètre">';
-	print '<thead><tr class="liste_titre"><th>Activité</th><th>Statut</th><th>Projet</th><th>Échéance</th><th>Risque</th><th>Exécution</th><th>Prochaine action</th><th>Ouvrir</th></tr></thead><tbody>';
+	print '<p>Résultats : <strong>'.count($rows).'</strong></p>';
+	print '<div class="div-table-responsive-no-min mjl-dashboard-table mjl-operational-table"><table class="noborder centpercent" aria-label="Activités">';
+	print '<thead><tr class="liste_titre"><th>Activité</th><th>Statut</th><th>Projet</th><th>Échéance</th><th>Risque</th><th>État de revue</th><th>Ouvrir</th></tr></thead><tbody>';
 	foreach ($rows as $row) {
 		$href = DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']);
 		print '<tr class="oddeven">';
@@ -611,21 +574,41 @@ function mjl_activities_list()
 		print '<td data-label="Projet">'.dol_escape_htmltag($row['project_ref']).'</td>';
 		print '<td data-label="Échéance">'.dol_escape_htmltag(mjl_activities_format_date($row['date_end'])).'</td>';
 		print '<td data-label="Risque">'.dol_escape_htmltag(mjl_activity_deadline_alert($row['date_end'], $row['status']) ?: 'Aucun').'</td>';
-		print '<td data-label="Exécution">'.dol_escape_htmltag(mjl_activities_execution_summary($row)).'</td>';
-		print '<td data-label="Prochaine action">'.dol_escape_htmltag(mjl_activities_next_action_label($row)).'</td>';
+		print '<td data-label="État de revue">'.dol_escape_htmltag(mjl_activities_next_action_label($row)).'</td>';
 		print '<td data-label="Ouvrir"><a class="mjl-table-link" href="'.dol_escape_htmltag($href).'">Ouvrir</a></td>';
 		print '</tr>';
 	}
 	if (empty($rows)) {
-		$filtered = $filters['fail_closed'] || $filters['status'] !== '' || $filters['partner'] > 0 || $filters['project'] > 0 || $filters['risk'] !== 'all';
+		$filtered = $statusFilter !== '' || $projectFilter !== 0 || $riskFilter !== 'all';
 		$message = $filtered ? 'Aucune activité ne correspond aux filtres appliqués.' : 'Aucune activité dans votre périmètre pour le moment.';
-		print '<tr class="oddeven mjl-table-empty-row"><td colspan="8">'.dol_escape_htmltag($message).'</td></tr>';
+		print '<tr class="oddeven mjl-table-empty-row"><td colspan="7">'.dol_escape_htmltag($message).'</td></tr>';
 	}
 	print '</tbody></table></div>';
-	$hasPrevious = !$filters['fail_closed'] && (int) $filters['page'] > 1;
-	$hasNext = !$filters['fail_closed'] && ($total === null ? $hasExtraRow : ((int) $filters['page'] * (int) $filters['page_size'] < (int) $total));
-	print mjl_table_render_pagination(DOL_URL_ROOT.'/custom/mjlfinancement/activities.php', $filters, $total, $hasPrevious, $hasNext, 'activités');
 	print '</section>';
+}
+
+function mjl_activities_readonly_project_options()
+{
+	global $db, $conf;
+	$options = array();
+	$sql = 'SELECT DISTINCT p.rowid, p.ref FROM '.$db->prefix().'projet p INNER JOIN '.$db->prefix().'mjlfinancement_activity a ON a.fk_project = p.rowid AND a.entity = p.entity';
+	$sql .= ' WHERE p.entity = '.((int) $conf->entity).mjl_activities_integrity_sql('a').' ORDER BY p.ref';
+	$resql = $db->query($sql);
+	if ($resql) while ($obj = $db->fetch_object($resql)) $options[(int) $obj->rowid] = (string) $obj->ref;
+	return $options;
+}
+
+function mjl_activities_render_readonly_filters($status, $project, $risk, array $projects)
+{
+	$statuses = array('' => 'Tous les statuts');
+	foreach (range(0, 9) as $value) $statuses[(string) $value] = mjl_ui_activity_status($value)['label'];
+	$projectOptions = array('' => 'Tous les projets');
+	foreach ($projects as $id => $ref) $projectOptions[(string) $id] = $ref;
+	print mjl_table_render_filter_bar(DOL_URL_ROOT.'/custom/mjlfinancement/activities.php', 'activities', 'activités', array(
+		array('name' => 'status', 'label' => 'Statut', 'value' => (string) $status, 'default' => '', 'options' => $statuses),
+		array('name' => 'project', 'label' => 'Projet', 'value' => $project > 0 ? (string) $project : '', 'default' => '', 'options' => $projectOptions),
+		array('name' => 'risk', 'label' => 'Risque échéance', 'value' => (string) $risk, 'default' => 'all', 'options' => array('all' => 'Tous les risques', 'overdue' => 'Échéance dépassée', 'soon' => 'Échéance proche', 'none' => 'Sans risque d’échéance')),
+	));
 }
 
 function mjl_activities_list_fragments($filters)
@@ -868,32 +851,19 @@ function mjl_activities_options($type)
 	global $db, $conf, $user;
 
 	if ($type === 'partner') {
-		$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $user).' ORDER BY s.nom, s.rowid';
+		$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $user).' ORDER BY s.nom, s.rowid';
 	} elseif ($type === 'project') {
-		$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $user).' ORDER BY p.ref';
+		$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $user).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
 		$sql = 'SELECT c.rowid, c.ref, c.title, c.fk_project, p.ref AS project_ref FROM '.$db->prefix().'mjlfinancement_convention c';
 		$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = c.fk_project AND p.entity = c.entity';
-		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $user).' ORDER BY c.ref';
+		$sql .= ' WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $user).' ORDER BY c.ref';
 	} elseif ($type === 'task') {
 		$sql = 'SELECT t.rowid, t.ref, t.label, t.fk_projet, p.ref AS project_ref FROM '.$db->prefix().'projet_task t';
 		$sql .= ' INNER JOIN '.$db->prefix().'projet p ON p.rowid = t.fk_projet AND p.entity = t.entity';
-		$sql .= ' WHERE t.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $user).' ORDER BY p.ref, t.ref';
+		$sql .= ' WHERE t.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $user).' ORDER BY p.ref, t.ref';
 	} elseif ($type === 'responsible') {
-		$sql = 'SELECT DISTINCT u.rowid, u.login, u.firstname, u.lastname FROM '.$db->prefix().'user u';
-		$scopeIds = mjl_scope_user_soc_ids($user);
-		if ($scopeIds !== null) {
-			$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_user_soc_scope uscope ON uscope.entity = u.entity AND uscope.fk_user = u.rowid AND uscope.is_active = 1';
-		}
-		$sql .= ' WHERE u.entity = '.((int) $conf->entity).' AND u.statut = 1';
-		if ($scopeIds !== null) {
-			$sql .= ' AND (u.rowid = '.((int) $user->id);
-			if (!empty($scopeIds)) {
-				$sql .= ' OR uscope.fk_soc IN ('.implode(',', array_map('intval', $scopeIds)).')';
-			}
-			$sql .= ')';
-		}
-		$sql .= ' ORDER BY u.lastname, u.firstname, u.login';
+		return array();
 	} else {
 		return array();
 	}
@@ -1021,15 +991,10 @@ function mjl_activities_fetch_detail($id)
 {
 	global $db, $conf;
 
-	$sql = 'SELECT a.rowid, a.entity, a.ref, a.label, a.fk_user_creat, a.fk_user_responsible, a.date_creation, a.date_start, a.date_end, a.date_actual_start, a.date_actual_end, a.physical_execution_percent, a.execution_status, a.execution_comment, a.status,';
-	$sql .= ' p.ref AS project_ref, p.title AS project_title, c.ref AS convention_ref, c.title AS convention_title, t.ref AS task_ref, t.label AS task_label, u.login AS creator_login, ru.login AS responsible_login';
+	$sql = 'SELECT a.rowid, a.entity, a.ref, a.label, a.date_start, a.date_end, a.status, p.ref AS project_ref, p.title AS project_title';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
-	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'projet_task t ON t.rowid = a.fk_task AND t.entity = a.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = a.fk_user_creat AND u.entity = a.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user ru ON ru.rowid = a.fk_user_responsible AND ru.entity = a.entity';
-	$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND a.rowid = '.((int) $id);
+	$sql .= ' INNER JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project AND p.entity = a.entity';
+	$sql .= ' WHERE a.entity = '.((int) $conf->entity).' AND a.rowid = '.((int) $id).mjl_activities_integrity_sql('a');
 	$resql = $db->query($sql);
 	if (!$resql) {
 		mjl_ui_log_error('database', mjl_activities_error_context('detail') + array('object_type' => 'activity', 'object_id' => (int) $id), $db->lasterror());

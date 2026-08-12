@@ -18,7 +18,14 @@ npm run audit:production-readiness
 - `npm run test:unit` runs fast Node and PHP contracts without Docker.
 - `npm run test:verify` currently runs legacy schema/sample-data and old-product behavioral checks in one disposable tenant. It is current-state characterization only until RST-013A/RST-014A replace its data setup; it cannot validate target business rules.
 - `npm run test:e2e` runs the twelve blocking capability suites in one disposable tenant.
-- `npm run test:characterization` runs current finance behavior (C1) and pending role-to-route/project/export admissions (C2) that still lack product authority. It is intentionally excluded from `npm test`, but exits nonzero on drift.
+- `npm run test:characterization` retains legacy finance characterization and a
+  structural RST-002A authorization-removal contract. It remains a non-target
+  gate until RST-013A/RST-014A replace legacy runtime fixtures.
+
+The focused RST-002A gate is `tests/e2e/scope-security.spec.js` in a manually
+provisioned disposable tenant. It covers zero-row/poison-row invariance,
+role-only administration, all-role Activity mutation denial, safe reviewer
+reads, cross-entity/corrupt-parent denial, and the Admin technical landing.
 - `npm run test:manual-accessibility` opens the real application in headed Chromium for a signed keyboard, focus, forms/workflow, screen-reader, reflow, and actual 100%/200% browser-zoom review.
 - `npm run audit:production-readiness` runs the non-blocking local readiness diagnostic in its own disposable tenant. It is intentionally excluded from `npm test` and prints an explicit blocked verdict while client/operator confirmations remain unknown.
 

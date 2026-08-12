@@ -111,7 +111,7 @@ function mjl_report_partner_scope_sql($column)
 	if (empty($GLOBALS['user']) || empty($GLOBALS['user']->id)) {
 		return '';
 	}
-	return mjl_scope_partner_sql_filter($column, $GLOBALS['user']);
+	return mjl_legacy_partner_dependent_sql_filter($column, $GLOBALS['user']);
 }
 
 function mjl_report_fetch_row($sql)

@@ -13,15 +13,16 @@ exception request workflows, and gated future modules. Backward compatibility
 is not required. RST-000 and the checksum-approved clean sample-data purge
 RST-000A are complete, including ratification of RST-000A's recorded
 approval-boundary deviation. RST-001 completed the effective-role and native
-Admin invariant.
+Admin invariant. RST-002A retired Partner scopes as authorization inputs while
+retaining the exact empty table and freezing legacy Activity mutations.
 
 ## Current Gaps
 
 | Target | Current state | Gap | Risk | Planned phase |
 | --- | --- | --- | --- | --- |
 | One effective revised role | RST-001 enforces one active role, derives native Admin, rejects native-admin business roles, and excludes Admin from normal business workspace routes; failed new-account compensation is either completed or exposed as an inactive, current-state-discoverable recovery blocker whose audit is attempted but non-authoritative | Invitation/session invalidation details remain owned by RST-008; legacy groups remain non-authoritative compatibility data | Later unapproved account-lifecycle work must preserve the invariant and resolve any explicit recovery blocker | 1 |
-| Agent Activity assignment | Partner scopes plus one responsible user drive access; Agent role changes now fail closed | No primary/additional assignment history or transfer proof | Assignment visibility remains wrong and Agent role changes remain unavailable until the target guard exists | 1-2 |
-| Supervisor/Validator global Activity view | Non-admin queries commonly filter Partner scope | Current filters contradict target review visibility | Missing queues or partial authorization | 1-2 |
+| Agent Activity assignment | RST-002A makes all Agent Activity access and mutations fail closed independently of Partner-scope rows | No primary/additional assignment history or transfer proof | Agent Activity access remains unavailable until RST-002B | 1-2 |
+| Supervisor/Validator global Activity view | RST-002A provides all same-entity, parent-consistent Activities through a minimal read-only projection | Target queues and Phase 2 workflow remain unimplemented | Later work must preserve entity/parent integrity and avoid reviving legacy rich loaders | 1-2 |
 | Validator-only business reference management | RST-001 excludes Admin from normal Partner, Project, Activity, expense, document, reference-data, business-supervision, and mixed-report routes | Validator ownership and target reference structures remain incomplete; the dedicated Admin complete-audit export is missing and the dashboard still links to the denied mixed report route | Later route work could accidentally revive mixed authority or leave Admin without required audit export | 1-2 |
 | Partner to many Projects | Native model supports it, but terminology and selection behavior remain old | Target UX and inactive rules are incomplete | Wrong creation choices | 1-2 |
 | Activity authorized amount | Current Activity has no target amount model | Cannot balance Opérations or preserve proposals | Invalid financial structure | 2 |
@@ -47,5 +48,6 @@ empty.
 
 ## Next Action
 
-Review and explicitly approve RST-002A before retiring Partner authorization
-scopes. RST-001 approval does not approve RST-002A.
+Review RST-003 as the next recommended independent approval unit for Partner,
+Project, and Opération-type reference foundations. RST-002A approval does not
+approve RST-003 or any later unit.

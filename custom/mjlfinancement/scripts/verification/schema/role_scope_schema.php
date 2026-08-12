@@ -83,25 +83,10 @@ if (tableExists('mjlfinancement_user_role')) {
 }
 
 if (tableExists('mjlfinancement_user_soc_scope')) {
-	reportRows(
-		'user_soc_scope_duplicate_active',
-		'SELECT entity, fk_user, fk_soc, COUNT(*) AS active_rows FROM '.$db->prefix().'mjlfinancement_user_soc_scope WHERE is_active = 1 GROUP BY entity, fk_user, fk_soc HAVING COUNT(*) > 1'
-	);
-	reportRows(
-		'user_soc_scope_orphan_user',
-		'SELECT s.rowid, s.entity, s.fk_user, s.fk_soc FROM '.$db->prefix().'mjlfinancement_user_soc_scope s LEFT JOIN '.$db->prefix().'user u ON u.rowid = s.fk_user WHERE u.rowid IS NULL'
-	);
-	reportRows(
-		'user_soc_scope_orphan_soc',
-		'SELECT s.rowid, s.entity, s.fk_user, s.fk_soc FROM '.$db->prefix().'mjlfinancement_user_soc_scope s LEFT JOIN '.$db->prefix().'societe so ON so.rowid = s.fk_soc WHERE so.rowid IS NULL'
-	);
-}
+	if (scalar('SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_user_soc_scope') !== 0) {
+		finding('retained_user_soc_scope_not_empty', 'RST-002A requires exactly zero rows.');
+	}
 
-if (tableExists('mjlfinancement_user_role') && tableExists('mjlfinancement_user_soc_scope')) {
-	reportRows(
-		'active_non_admin_role_without_scope',
-		'SELECT r.entity, r.fk_user, u.login, r.role_code FROM '.$db->prefix().'mjlfinancement_user_role r INNER JOIN '.$db->prefix().'user u ON u.rowid = r.fk_user WHERE r.is_active = 1 AND r.role_code <> \'ADMIN_PLATEFORME\' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_user_soc_scope s WHERE s.entity = r.entity AND s.fk_user = r.fk_user AND s.is_active = 1)'
-	);
 	reportWarningRows(
 		'legacy_lecteur_unresolved',
 		'SELECT DISTINCT u.entity, u.rowid AS fk_user, u.login FROM '.$db->prefix().'user u INNER JOIN '.$db->prefix().'usergroup_user ugu ON ugu.fk_user = u.rowid AND ugu.entity IN (0, u.entity) INNER JOIN '.$db->prefix().'usergroup ug ON ug.rowid = ugu.fk_usergroup AND ug.entity = u.entity WHERE ug.nom = \'MJL POC - Lecteur\' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_user_role r WHERE r.entity = u.entity AND r.fk_user = u.rowid AND r.is_active = 1)'
@@ -109,7 +94,7 @@ if (tableExists('mjlfinancement_user_role') && tableExists('mjlfinancement_user_
 }
 
 if (!$hasFindings) {
-	out('MJL role and scope schema audit: OK');
+	out('MJL role and retained empty scope schema audit: OK');
 }
 
 exit($hasFindings ? 1 : 0);
@@ -222,7 +207,9 @@ function scalar($sql)
 		fail('Unable to fetch scalar: '.$db->lasterror().' SQL='.$sql);
 	}
 	$obj = $db->fetch_object($resql);
-	return $obj ? (int) $obj->nb : 0;
+	if (!$obj) return 0;
+	foreach ($obj as $value) return (int) $value;
+	return 0;
 }
 
 function finding($name, $detail)

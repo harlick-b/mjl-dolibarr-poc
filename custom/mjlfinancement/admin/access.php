@@ -19,7 +19,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = 'Jeton de sécurité invalide.';
 	} elseif ($action === 'invite') {
 		$roleCode = GETPOST('role_code', 'aZ09');
-		$scopeIds = mjl_access_post_scope_ids();
 		$inviteLogin = GETPOST('login', 'alphanohtml');
 		$existingInvitee = mjl_auth_user_by_login($inviteLogin);
 		$recoveringInvitee = $existingInvitee && mjl_access_user_requires_recovery((int) $existingInvitee->id);
@@ -38,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		if ($result[0] < 0) {
 			$error = $result[1];
 		} else {
-			$profile = mjl_scope_assign_access_profile($result[0], $roleCode, $scopeIds, $user, mjl_auth_entity(), 'admin_access', 'Invitation administrateur');
+			$profile = mjl_scope_assign_access_profile($result[0], $roleCode, $user, mjl_auth_entity(), 'admin_access', 'Invitation administrateur');
 			if ($profile[0] < 0) {
 				if (!$existingInvitee && !mjl_access_delete_failed_invitee((int) $result[0], $user)) {
 					mjl_ui_log_error('admin_access', array('route' => 'admin/access', 'action' => 'invite_compensation', 'entity' => mjl_auth_entity(), 'user_id' => (int) $user->id), 'Failed to remove an unprofiled invitee.');
@@ -63,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}
 	} elseif ($action === 'update_profile') {
 		$targetUserId = GETPOSTINT('user_id');
-		$profile = mjl_scope_assign_access_profile($targetUserId, GETPOST('role_code', 'aZ09'), mjl_access_post_scope_ids(), $user, mjl_auth_entity(), 'admin_access', 'Modification administrateur');
+		$profile = mjl_scope_assign_access_profile($targetUserId, GETPOST('role_code', 'aZ09'), $user, mjl_auth_entity(), 'admin_access', 'Modification administrateur');
 		if ($profile[0] < 0) {
 			$error = $profile[1];
 		} else {
@@ -108,7 +107,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $roles = mjl_scope_role_labels();
-$partners = mjl_access_partner_options();
 $users = mjl_access_users();
 
 llxHeader('', 'Gestion des accès MJL');
@@ -118,7 +116,7 @@ print mjl_page_header_render(
 	'Gestion des accès MJL',
 	array(
 		'breadcrumb' => array(array('label' => 'Administration')),
-		'description' => 'Invitez les utilisateurs et gérez leur rôle ainsi que leurs Partenaires / Programmes autorisés.',
+		'description' => 'Invitez les utilisateurs et gérez leur rôle de production.',
 		'context' => array('label' => 'Accès', 'value' => 'Administration'),
 	)
 );
@@ -136,7 +134,6 @@ print '<tr><td><label for="mjl-firstname">Prénom</label></td><td><input id="mjl
 print '<tr><td><label for="mjl-lastname">Nom</label></td><td><input id="mjl-lastname" class="flat minwidth300" name="lastname" required></td></tr>';
 print '<tr><td><label for="mjl-email">Email</label></td><td><input id="mjl-email" class="flat minwidth300" type="email" name="email" required></td></tr>';
 print '<tr><td><label for="mjl-role">Profil de production</label></td><td>'.mjl_access_role_select('role_code', 'AGENT_SAISIE', $roles).'</td></tr>';
-print '<tr><td><label for="mjl-scope">Partenaires / Programmes</label></td><td>'.mjl_access_scope_select($partners, array()).'</td></tr>';
 print '</table>';
 print '<div class="tabsAction"><button class="butAction" type="submit">Envoyer l’invitation</button></div>';
 print '</form>';
@@ -144,15 +141,13 @@ print '</form>';
 print '<br>';
 print load_fiche_titre('Utilisateurs MJL', '', '');
 print '<table class="noborder centpercent">';
-print '<tr class="liste_titre"><th>Utilisateur</th><th>Email</th><th>Statut</th><th>Profil</th><th>Périmètre</th><th>Actions</th></tr>';
+print '<tr class="liste_titre"><th>Utilisateur</th><th>Email</th><th>Statut</th><th>Profil</th><th>Actions</th></tr>';
 foreach ($users as $row) {
-	$currentScopes = mjl_access_user_scope_ids((int) $row['rowid']);
 	print '<tr class="oddeven">';
 	print '<td>'.dol_escape_htmltag($row['login']).'</td>';
 	print '<td>'.dol_escape_htmltag($row['email']).'</td>';
 	print '<td>'.((int) $row['statut'] === 1 ? 'Actif' : 'Inactif').'</td>';
 	print '<td>'.dol_escape_htmltag($row['role_label']).'</td>';
-	print '<td>'.dol_escape_htmltag(mjl_access_scope_summary($currentScopes, $partners, $row['role_code'])).'</td>';
 	print '<td>';
 	print '<form method="post" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
@@ -164,7 +159,6 @@ foreach ($users as $row) {
 	} else {
 		print mjl_access_role_select('role_code', $row['role_code'] !== '' ? $row['role_code'] : 'AGENT_SAISIE', $roles);
 	}
-	print mjl_access_scope_select($partners, $currentScopes);
 	print '<button class="button small" type="submit">Enregistrer</button>';
 	print '</form>';
 	if ((int) $row['statut'] === 1) {
@@ -216,12 +210,6 @@ mjl_navigation_shell_end();
 llxFooter();
 $db->close();
 
-function mjl_access_post_scope_ids()
-{
-	$values = isset($_POST['scope_soc_ids']) && is_array($_POST['scope_soc_ids']) ? $_POST['scope_soc_ids'] : array();
-	return array_values(array_unique(array_map('intval', $values)));
-}
-
 function mjl_access_delete_failed_invitee($userId, User $actor)
 {
 	global $db;
@@ -252,21 +240,6 @@ function mjl_access_recovery_state_sql($userAlias)
 		.' AND NOT EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_invitation recovery_invitation WHERE recovery_invitation.entity = '.$userAlias.'.entity AND recovery_invitation.fk_user = '.$userAlias.'.rowid)';
 }
 
-function mjl_access_partner_options()
-{
-	global $db;
-
-	$options = array();
-	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE entity = '.mjl_auth_entity().' ORDER BY nom';
-	$resql = $db->query($sql);
-	if ($resql) {
-		while ($obj = $db->fetch_object($resql)) {
-			$options[(int) $obj->rowid] = $obj->nom;
-		}
-	}
-	return $options;
-}
-
 function mjl_access_users()
 {
 	global $db;
@@ -289,21 +262,6 @@ function mjl_access_users()
 	return $rows;
 }
 
-function mjl_access_user_scope_ids($userId)
-{
-	global $db;
-
-	$ids = array();
-	$sql = 'SELECT fk_soc FROM '.$db->prefix().'mjlfinancement_user_soc_scope WHERE entity = '.mjl_auth_entity().' AND fk_user = '.((int) $userId).' AND is_active = 1 ORDER BY fk_soc';
-	$resql = $db->query($sql);
-	if ($resql) {
-		while ($obj = $db->fetch_object($resql)) {
-			$ids[] = (int) $obj->fk_soc;
-		}
-	}
-	return $ids;
-}
-
 function mjl_access_role_select($name, $selected, array $roles)
 {
 	$html = '<select name="'.dol_escape_htmltag($name).'" required>';
@@ -312,29 +270,4 @@ function mjl_access_role_select($name, $selected, array $roles)
 	}
 	$html .= '</select>';
 	return $html;
-}
-
-function mjl_access_scope_select(array $partners, array $selected)
-{
-	$html = '<select id="mjl-scope" name="scope_soc_ids[]" multiple size="6">';
-	foreach ($partners as $id => $name) {
-		$html .= '<option value="'.((int) $id).'"'.(in_array((int) $id, $selected, true) ? ' selected' : '').'>'.dol_escape_htmltag($name).'</option>';
-	}
-	$html .= '</select>';
-	return $html;
-}
-
-function mjl_access_scope_summary(array $scopeIds, array $partners, $roleCode)
-{
-	if ($roleCode === 'ADMIN_PLATEFORME') {
-		return 'Tous les périmètres';
-	}
-	if (empty($scopeIds)) {
-		return 'Aucun périmètre actif';
-	}
-	$labels = array();
-	foreach ($scopeIds as $id) {
-		$labels[] = isset($partners[$id]) ? $partners[$id] : '#'.$id;
-	}
-	return implode(', ', $labels);
 }

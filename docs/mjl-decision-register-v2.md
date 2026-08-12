@@ -52,6 +52,7 @@ belong to the subject-specific canonical document referenced in each row.
 | DEC-033 | Execute RST-000A against the local tenant, preserve native administrator row 1, retain no migrated business data, and keep the new bootstrap non-seeding. | EXECUTED | RST-000A execution report | Execution on 2026-08-10 |
 | DEC-034 | Ratify the exact RST-000A out-of-appendix transient role row and 22-file supporting snapshot bound by checksum `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`; authorize no new mutation or later RST unit. | APPROVED | RST-000A supplemental appendix | User decision on 2026-08-10 |
 | DEC-035 | Approve and execute RST-001: enforce one effective MJL role, derive Admin from native Dolibarr administrator status, forbid native-admin business roles, and migrate no deleted assignment. | EXECUTED | Reset manifest and RST-001 execution report | User approval and execution on 2026-08-10 |
+| DEC-036 | Approve and execute RST-002A: remove Partner scope from authorization inputs, retain the exact empty legacy table, freeze legacy Activity mutations, permit only the safe reviewer read projection, and migrate no data. | EXECUTED | Reset manifest and RST-002A execution report | User approval and execution on 2026-08-12 |
 
 ## Deliberately Unspecified
 

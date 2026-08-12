@@ -9,6 +9,11 @@ one native technical administrator is the only preserved account.
 RST-001 now enforces one effective role, derives Admin from native Dolibarr
 administrator status, and excludes Admin from normal business workspace
 routes while retaining access administration and audit access.
+RST-002A removes Partner scope from runtime authorization. The legacy table is
+retained with zero rows; Supervisor and Validator receive a minimal read-only,
+same-entity Activity projection; Agent/Admin Activity access and every legacy
+Activity mutation are frozen. The module index is a temporary Admin-only,
+query-free technical landing.
 
 ## Executive Summary
 
@@ -85,21 +90,17 @@ current-state/code debt, not target behavior.
 
 | Surface | Route/file | Current purpose | Current-state notes |
 | --- | --- | --- | --- |
-| Dashboard | `index.php` | Role-aware workspace dashboard with scoped filters, production role sections, alert cards, and Admin-only unresolved-data diagnostics. | The Admin reports card still points to the now-denied mixed report route; a dedicated audit-export destination is missing. |
-| Partenaires / Programmes | `partners.php` | Scoped, paginated partner/programme portfolio plus context and related previews. | Name/risk sorts are allowlisted; related previews are independently counted and limited to 12 rows. |
-| Projects | `projects.php` | Scoped, paginated MJL project list/detail with semantic desktop table, responsive labeled cards, shared list states, explicit open actions, related previews, recoverable create/edit, legacy notes, and contextual comments. | Partner/status/sort filters fail closed to zero results; the normal business route excludes Admin. |
-| Activities | `activities.php` | Activity lifecycle, dedicated create/edit/execution states, guarded verifier/final-validator review states, physical execution, documents, merged workflow/comment timeline, recoverable forms, and a scoped 50-row operational list. | Partner/project/status/risk/sort filters are allowlisted and fail closed; direct create/edit/execution and review routes recheck action availability and object access before loading options, consuming exact recovery, or rendering fields. |
-| Expenses | `expenses.php` | Expense lifecycle with dedicated create/edit states, a scoped semantic desktop table, responsive labeled list cards, shared list states, explicit open actions, supporting evidence, guarded prevalidation/final-validation/rejection/disbursement states, contextual comments, and consequence-aware decisions. | Filters fail closed to zero results; direct create/edit/decision states recheck object access, scope, ownership, role, actor separation, and current status before loading options, consuming exact-action recovery, or rendering fields. |
-| Documents | `documents.php` | Read-only accessible document library. | Uploads remain contextual. |
-| Conventions | `conventions.php` | Governed funding-envelope management and contextual comments. | User-facing terminology still needs alignment. |
-| Budget lines | `budgetlines.php` | Governed budget-line management and contextual comments. | Uses DPAF/Admin wording in places. |
-| Fund receipts | `fundreceipts.php` | Governed received/not-received funding traces with proof documents and contextual comments. | Uses DPAF/Admin wording in places. |
-| Alerts | `alerts.php` | Computed activity/expense/finance alerts with partial-load reporting. | Alerts are computed, not stored; successful sources remain visible if another source fails. |
-| Supervision dashboard | `dpafdashboard.php` | Portfolio supervision dashboard with shared scoped filters, role-specific queues, finance rows, fund rows, and resolvable audit history. | Route filename remains a DPAF-era compatibility name; UI labels use production wording. |
-| Reports/exports | `reports.php` | Legacy mixed business/audit CSV/XLSX report center with typed temporary-file generation before fail-closed audit persistence and delivery. | Admin is denied by the final-Validator supervision guard; the required dedicated complete-audit export is not yet implemented. |
-| Validations | `validations.php` | Entity-scoped expense validation history with safe query-failure presentation. | Non-admins require a resolved assigned Partenaire / Programme; Admin can diagnose unresolved active-entity rows; cross-entity targets and parents remain hidden. |
-| Workflow audit | `workflowactions.php` | Advanced workflow/audit history. | Rows and filter metadata share one predicate: non-admins require resolved assigned scope, Admin can diagnose unresolved/unknown targets, and every role rejects cross-entity targets or required parents. |
-| Exchange logs | `exchangelogs.php` | Advanced exchange-log search/audit surface. | Hidden from primary navigation; normal creation is contextual on object detail pages. |
+| Technical landing | `index.php` | Temporary RST-002A Admin-only landing with static access/audit diagnostic links. | No business metrics, alerts, reports, Activity, finance, document, or readiness queries are executed. |
+| Partenaires / Programmes | `partners.php` | Temporarily unavailable under RST-002A. | RST-003 owns the target reference surface; rich legacy aggregates are not exposed. |
+| Projects | `projects.php` | Temporarily unavailable under RST-002A. | Only safe Project identity inside the reviewer Activity projection remains; RST-003 owns the route reset. |
+| Activities | `activities.php` | Temporary read-only Supervisor/Validator list/detail projection. | Activity, Project, Convention, Partner, and optional Task parents must be entity-consistent; Agent/Admin access and all HTTP/domain/comment/exchange/upload mutations fail closed. |
+| Expenses and legacy finance | `expenses.php`, `conventions.php`, `budgetlines.php`, `fundreceipts.php` | Temporarily unavailable where authorization depended on Partner scope. | Files/schema remain for their owning reset units; no RST-004 deletion is claimed. |
+| Documents | `documents.php`, `documentdownload.php` | Partner-dependent list/upload/download paths fail closed. | Storage and route removal remain owned by RST-010A. |
+| Alerts and supervision | `alerts.php`, `dpafdashboard.php` | Legacy Partner-dependent loaders return unavailable/no data. | RST-011 owns target metrics and alerts. |
+| Reports/exports | `reports.php` | Legacy Partner-dependent generation is denied before output/audit/file creation. | RST-012 owns the target catalog; no complete-audit export is claimed. |
+| Validations | `validations.php` | Admin-only active-entity diagnostic history. | Resolved Expenses require complete parent integrity; unresolved same-entity rows may be diagnosed, while cross-entity/corrupt targets remain hidden. |
+| Workflow audit | `workflowactions.php` | Admin-only active-entity diagnostic history. | Rows and filter metadata share the complete object-specific target predicate. |
+| Exchange logs | `exchangelogs.php` | Admin-only active-entity diagnostic history. | Activity exchange create/update/delete is frozen at the persistence seam; rows and metadata use the same target predicate. |
 | Admin access | `admin/access.php` | Invitation and effective-role administration. | Admin-only; native admins cannot receive business roles and concurrent active roles are rejected by persistence. |
 | Roadmap | `roadmap.php` | Internal roadmap/readiness page. | Hidden unless configured. |
 | Document download | `documentdownload.php` | Guarded ECM file download. | Contextual helper route. |
@@ -107,21 +108,30 @@ current-state/code debt, not target behavior.
 
 ## Current Implemented Capability Evidence
 
-- The Partenaires / Programmes route provides business-role scoped list/detail access,
-  identity summary, portfolio KPIs, related projects, funding envelopes,
-  budgets, activities, expenses, funds, guarded document links, computed
-  alerts and read-only contextual history. Admin is excluded from this normal
-  business route after RST-001.
-- Project create/update inside the MJL workspace exists and records workflow
-  audit rows with production actor-role labels, but still needs runtime
-  verification before a production-readiness claim.
-- Contextual exchanges are implemented for project, activity, expense,
-  convention, budget-line, and fund-receipt detail pages. `exchangelogs.php`
-  remains an advanced read-only audit/search surface.
-- Operational alerts are computed live through
-  `custom/mjlfinancement/lib/mjl_alerts.lib.php`; no alert table is the source
-  of truth. The compatibility `mjl_alerts_for_user()` interface still returns
-  items, while the page uses an explicit items/errors result.
+The retained source still contains substantial legacy implementation debt.
+The following code exists but is not a currently reachable RST-002A
+capability: rich Partner/Project routes and mutations; Activity create/edit,
+execution, review, comments, exchange, upload, and recovery paths; expense and
+finance workflows; document aggregates/downloads whose guard depended on
+Partner scope; live alerts, legacy dashboards, and reports. Their files and
+schema remain only for the reset units that own removal or redesign.
+
+Currently reachable evidence is limited to:
+
+- role-only access-profile administration with no Partner input or scope row;
+- Supervisor/Validator read-only Activity list/detail using complete active-
+  entity parent integrity;
+- an Admin-only query-free technical landing plus active-entity validations,
+  workflow, and exchange diagnostics using one object-specific predicate for
+  rows and filter metadata;
+- explicit failure of Agent/Admin Activity reads and every Activity mutation,
+  including direct class, background/notrigger, exchange spoofing, comment,
+  and upload seams;
+- legacy Partner-dependent routes/loaders failing closed or returning no data,
+  with no authorization decision influenced by retained scope rows.
+
+Dormant implementation details below are historical current-code evidence,
+not reachable product capability under RST-002A:
 - Normal UI status labels are centralized separately from persistence/export
   mappings. Unknown activity or expense values render as neutral
   `Statut non reconnu`; final validation and disbursement remain distinct.

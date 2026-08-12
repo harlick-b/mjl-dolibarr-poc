@@ -53,6 +53,10 @@ class MjlExchangeLog extends CommonObject
 
 	public function create(User $user, $notrigger = 0)
 	{
+		if ((string) $this->object_type === 'mjlfinancement_activity') {
+			$this->error = 'Les échanges d’activité sont temporairement indisponibles pendant RST-002A.';
+			return -1;
+		}
 		return $this->createCommon($user, $notrigger);
 	}
 
@@ -63,12 +67,31 @@ class MjlExchangeLog extends CommonObject
 
 	public function update(User $user, $notrigger = 0)
 	{
+		if ($this->exchangeMutationDenied()) {
+			$this->error = 'Les échanges d’activité sont temporairement indisponibles pendant RST-002A.';
+			return -1;
+		}
 		return $this->updateCommon($user, $notrigger);
 	}
 
 	public function delete(User $user, $notrigger = 0)
 	{
+		if ($this->exchangeMutationDenied()) {
+			$this->error = 'Les échanges d’activité sont temporairement indisponibles pendant RST-002A.';
+			return -1;
+		}
 		return $this->deleteCommon($user, $notrigger);
+	}
+
+	private function exchangeMutationDenied()
+	{
+		global $conf;
+		if ((string) $this->object_type === 'mjlfinancement_activity' || (int) $this->id <= 0) return true;
+		$sql = 'SELECT entity, object_type FROM '.$this->db->prefix().$this->table_element;
+		$sql .= ' WHERE rowid = '.((int) $this->id);
+		$resql = $this->db->query($sql);
+		$row = $resql ? $this->db->fetch_object($resql) : null;
+		return !$row || (int) $row->entity !== (int) $conf->entity || (string) $row->object_type === 'mjlfinancement_activity';
 	}
 
 	private function filterDisabledFields()

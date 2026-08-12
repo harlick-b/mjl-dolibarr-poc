@@ -133,7 +133,31 @@ function mjl_scope_business_role_can_write($userObj, $entity = null)
 	return mjl_scope_is_input_agent($userObj, $entity);
 }
 
-function mjl_scope_assign_access_profile($userId, $roleCode, array $fkSocIds, User $actor, $entity = null, $source = 'manual', $note = '')
+/** RST-002A containment seam: remove under the owning RST-003/004/010A route reset. */
+function mjl_legacy_partner_dependent_sql_filter($column, $userObj = null, $entity = null)
+{
+	return ' AND 1=0';
+}
+
+/** RST-002A containment seam: legacy Partner-dependent object access is unavailable. */
+function mjl_legacy_partner_dependent_access($userObj = null, $objectOrPartner = null, $objectIdOrEntity = null, $entity = null)
+{
+	return false;
+}
+
+/** RST-002A containment seam: legacy Partner lists have no authorization input. */
+function mjl_legacy_partner_ids($userObj = null, $entity = null)
+{
+	return array();
+}
+
+/** RST-002A containment seam: do not resolve a Partner as an authorization result. */
+function mjl_legacy_partner_reference_unavailable($objectType = null, $objectId = null, $entity = null, $depth = 0)
+{
+	return null;
+}
+
+function mjl_scope_assign_access_profile($userId, $roleCode, User $actor, $entity = null, $source = 'manual', $note = '')
 {
 	global $db, $conf;
 
@@ -147,22 +171,6 @@ function mjl_scope_assign_access_profile($userId, $roleCode, array $fkSocIds, Us
 	list($target, $targetError) = mjl_scope_role_assignment_target($userId, $roleCode, $entity);
 	if (!$target) {
 		return array(-1, $targetError);
-	}
-
-	$cleanSocIds = array();
-	foreach ($fkSocIds as $fkSoc) {
-		$fkSoc = (int) $fkSoc;
-		if ($fkSoc <= 0) {
-			continue;
-		}
-		if (mjl_scope_scalar_int('SELECT rowid FROM '.$db->prefix().'societe WHERE rowid = '.$fkSoc.' AND entity = '.$entity) === null) {
-			return array(-1, 'Périmètre partenaire invalide.');
-		}
-		$cleanSocIds[$fkSoc] = $fkSoc;
-	}
-	$cleanSocIds = array_values($cleanSocIds);
-	if ($roleCode !== 'ADMIN_PLATEFORME' && empty($cleanSocIds)) {
-		return array(-1, 'Selectionnez au moins un partenaire ou programme.');
 	}
 
 	$wasPlatformAdmin = mjl_scope_is_platform_admin($target, $entity);
@@ -179,10 +187,6 @@ function mjl_scope_assign_access_profile($userId, $roleCode, array $fkSocIds, Us
 		$db->rollback('mjl access role failed');
 		return array(-1, $db->lasterror());
 	}
-	if (!mjl_scope_replace_scope_rows($userId, $cleanSocIds, (int) $actor->id, $entity, $source, $note)) {
-		$db->rollback('mjl access scope failed');
-		return array(-1, $db->lasterror());
-	}
 	if (!mjl_scope_replace_legacy_group($userId, $roleCode, $entity)) {
 		$db->rollback('mjl access group failed');
 		return array(-1, $db->lasterror());
@@ -191,14 +195,14 @@ function mjl_scope_assign_access_profile($userId, $roleCode, array $fkSocIds, Us
 		$db->rollback('mjl access rights failed');
 		return array(-1, $db->lasterror());
 	}
-	if (!function_exists('mjl_auth_record_event') || mjl_auth_record_event('access_profile_assigned', $userId, (int) $actor->id, 'role='.$roleCode.';scopes='.implode(',', $cleanSocIds).';source='.$source) < 1) {
+	if (!function_exists('mjl_auth_record_event') || mjl_auth_record_event('access_profile_assigned', $userId, (int) $actor->id, 'role='.$roleCode.';source='.$source) < 1) {
 		$db->rollback('mjl access audit failed');
 		return array(-1, 'La journalisation de la modification des accès a échoué.');
 	}
 	if (!$db->commit('mjl access profile')) {
 		return array(-1, $db->lasterror());
 	}
-	return array(1, 'Profil et périmètre enregistres.');
+	return array(1, 'Profil enregistré.');
 }
 
 function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
@@ -231,12 +235,6 @@ function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
 	$sql .= ' WHERE entity = '.$entity.' AND fk_user = '.$userId.' AND is_active = 1';
 	if (!$db->query($sql)) {
 		$db->rollback('mjl deactivate role failed');
-		return array(-1, $db->lasterror());
-	}
-	$sql = 'UPDATE '.$db->prefix().'mjlfinancement_user_soc_scope SET is_active = 0, date_end = COALESCE(date_end, NOW()), fk_user_modif = '.((int) $actor->id);
-	$sql .= ' WHERE entity = '.$entity.' AND fk_user = '.$userId.' AND is_active = 1';
-	if (!$db->query($sql)) {
-		$db->rollback('mjl deactivate scope failed');
 		return array(-1, $db->lasterror());
 	}
 	if (!mjl_scope_replace_role_rights($userId, '', $entity)) {
@@ -296,182 +294,6 @@ function mjl_scope_assign_active_role($userId, $roleCode, $actorId = null, $enti
 		return -1;
 	}
 	return $id;
-}
-
-function mjl_scope_assign_soc_scope($userId, $fkSoc, $actorId = null, $entity = null, $source = 'manual', $note = '', $importKey = null)
-{
-	global $db, $conf;
-
-	$userId = (int) $userId;
-	$fkSoc = (int) $fkSoc;
-	$actorId = $actorId === null ? null : (int) $actorId;
-	$entity = $entity === null ? (int) $conf->entity : (int) $entity;
-	if ($userId <= 0 || $fkSoc <= 0 || $entity <= 0) {
-		return -1;
-	}
-	if (mjl_scope_scalar_int('SELECT rowid FROM '.$db->prefix().'societe WHERE rowid = '.$fkSoc.' AND entity = '.$entity) === null) {
-		return -1;
-	}
-
-	$sql = 'SELECT rowid FROM '.$db->prefix().'mjlfinancement_user_soc_scope';
-	$sql .= ' WHERE entity = '.$entity.' AND fk_user = '.$userId.' AND fk_soc = '.$fkSoc.' AND is_active = 1';
-	$sql .= ' ORDER BY rowid DESC LIMIT 1';
-	$resql = $db->query($sql);
-	if (!$resql) {
-		return -1;
-	}
-	$obj = $db->fetch_object($resql);
-	if ($obj) {
-		return (int) $obj->rowid;
-	}
-
-	$sql = 'INSERT INTO '.$db->prefix().'mjlfinancement_user_soc_scope';
-	$sql .= ' (entity, fk_user, fk_soc, is_active, date_start, source, note, date_creation, fk_user_creat, import_key)';
-	$sql .= ' VALUES ('.$entity.', '.$userId.', '.$fkSoc.', 1, NOW(), '.mjl_scope_sql_string($source).', '.mjl_scope_sql_string($note).', NOW(), '.($actorId === null ? 'NULL' : $actorId).', '.mjl_scope_sql_string($importKey).')';
-	if (!$db->query($sql)) {
-		return -1;
-	}
-	return (int) $db->last_insert_id($db->prefix().'mjlfinancement_user_soc_scope');
-}
-
-function mjl_scope_user_soc_ids($userObj, $entity = null)
-{
-	global $db, $conf;
-
-	// Existing SQL builders rely on null meaning unrestricted platform admin.
-	if (mjl_scope_is_platform_admin($userObj, $entity)) {
-		return null;
-	}
-	if (empty($userObj) || empty($userObj->id)) {
-		return array();
-	}
-	if (!mjl_scope_user_has_active_business_role($userObj, $entity)) {
-		return array();
-	}
-	$entity = $entity === null ? (int) $conf->entity : (int) $entity;
-	if ($entity <= 0) {
-		return array();
-	}
-
-	$sql = 'SELECT DISTINCT fk_soc FROM '.$db->prefix().'mjlfinancement_user_soc_scope';
-	$sql .= ' WHERE entity = '.$entity.' AND fk_user = '.((int) $userObj->id).' AND is_active = 1';
-	$sql .= ' ORDER BY fk_soc';
-	$resql = $db->query($sql);
-	if (!$resql) {
-		return array();
-	}
-	$ids = array();
-	while ($obj = $db->fetch_object($resql)) {
-		$ids[] = (int) $obj->fk_soc;
-	}
-	return $ids;
-}
-
-function mjl_scope_partner_sql_filter($column, $userObj, $entity = null)
-{
-	$column = mjl_scope_sanitized_sql_identifier($column);
-	if ($column === '') {
-		return ' AND 1=0';
-	}
-	$scopeIds = mjl_scope_user_soc_ids($userObj, $entity);
-	if ($scopeIds === null) {
-		return '';
-	}
-	if (empty($scopeIds)) {
-		return ' AND 1=0';
-	}
-	return ' AND '.$column.' IN ('.implode(',', array_map('intval', $scopeIds)).')';
-}
-
-function mjl_scope_programme_sql_filter($column, $userObj, $entity = null)
-{
-	return mjl_scope_partner_sql_filter($column, $userObj, $entity);
-}
-
-function mjl_scope_partner_ids_for_sql($userObj, $entity = null)
-{
-	return mjl_scope_user_soc_ids($userObj, $entity);
-}
-
-function mjl_scope_programme_ids_for_sql($userObj, $entity = null)
-{
-	return mjl_scope_user_soc_ids($userObj, $entity);
-}
-
-function mjl_scope_can_access_fk_soc($userObj, $fkSoc, $entity = null)
-{
-	$fkSoc = (int) $fkSoc;
-	if ($fkSoc <= 0) {
-		return false;
-	}
-	$scopeIds = mjl_scope_user_soc_ids($userObj, $entity);
-	if ($scopeIds === null) {
-		return true;
-	}
-	return in_array($fkSoc, $scopeIds, true);
-}
-
-function mjl_scope_object_fk_soc($objectType, $objectId, $entity = null, $depth = 0)
-{
-	global $db, $conf;
-
-	$objectType = (string) $objectType;
-	$objectId = (int) $objectId;
-	$entity = $entity === null ? (int) $conf->entity : (int) $entity;
-	if ($objectType === '' || $objectId <= 0 || $entity <= 0 || $depth > 4) {
-		return null;
-	}
-
-	if ($objectType === 'mjlfinancement_convention') {
-		return mjl_scope_scalar_int('SELECT fk_soc FROM '.$db->prefix().'mjlfinancement_convention WHERE entity = '.$entity.' AND rowid = '.$objectId);
-	}
-	if ($objectType === 'mjlfinancement_fund_receipt') {
-		return mjl_scope_scalar_int('SELECT fk_soc FROM '.$db->prefix().'mjlfinancement_fund_receipt WHERE entity = '.$entity.' AND rowid = '.$objectId);
-	}
-	if ($objectType === 'mjlfinancement_activity') {
-		return mjl_scope_scalar_int('SELECT c.fk_soc FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity WHERE a.entity = '.$entity.' AND a.rowid = '.$objectId);
-	}
-	if ($objectType === 'mjlfinancement_expense') {
-		return mjl_scope_scalar_int('SELECT c.fk_soc FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity WHERE e.entity = '.$entity.' AND e.rowid = '.$objectId);
-	}
-	if ($objectType === 'mjlfinancement_budget_line') {
-		return mjl_scope_scalar_int('SELECT c.fk_soc FROM '.$db->prefix().'mjlfinancement_budget_line b INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = b.fk_convention AND c.entity = b.entity WHERE b.entity = '.$entity.' AND b.rowid = '.$objectId);
-	}
-	if ($objectType === 'mjlfinancement_validation') {
-		return mjl_scope_scalar_int('SELECT c.fk_soc FROM '.$db->prefix().'mjlfinancement_validation v INNER JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = v.fk_expense AND e.entity = v.entity INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity WHERE v.entity = '.$entity.' AND v.rowid = '.$objectId);
-	}
-	if ($objectType === 'mjlfinancement_project_note') {
-		return mjl_scope_scalar_int('SELECT p.fk_soc FROM '.$db->prefix().'mjlfinancement_project_note n INNER JOIN '.$db->prefix().'projet p ON p.rowid = n.fk_project AND p.entity = n.entity WHERE n.entity = '.$entity.' AND n.rowid = '.$objectId);
-	}
-	if ($objectType === 'mjlfinancement_project') {
-		return mjl_scope_scalar_int('SELECT fk_soc FROM '.$db->prefix().'projet WHERE entity = '.$entity.' AND rowid = '.$objectId);
-	}
-	if ($objectType === 'projet' || $objectType === 'project') {
-		return mjl_scope_scalar_int('SELECT fk_soc FROM '.$db->prefix().'projet WHERE entity = '.$entity.' AND rowid = '.$objectId);
-	}
-	if ($objectType === 'mjlfinancement_workflow_action' || $objectType === 'mjlfinancement_exchange_log') {
-		$table = $objectType === 'mjlfinancement_workflow_action' ? 'mjlfinancement_workflow_action' : 'mjlfinancement_exchange_log';
-		$row = mjl_scope_object_pointer($table, $objectId, $entity);
-		return empty($row) ? null : mjl_scope_object_fk_soc($row['object_type'], (int) $row['object_id'], $entity, $depth + 1);
-	}
-	if ($objectType === 'ecm_files' || $objectType === 'document') {
-		$row = mjl_scope_document_pointer($objectId, $entity);
-		return empty($row) ? null : mjl_scope_object_fk_soc($row['src_object_type'], (int) $row['src_object_id'], $entity, $depth + 1);
-	}
-
-	return null;
-}
-
-function mjl_scope_can_access_object($userObj, $objectType, $objectId, $entity = null)
-{
-	if (mjl_scope_is_platform_admin($userObj, $entity)) {
-		return true;
-	}
-	$fkSoc = mjl_scope_object_fk_soc($objectType, $objectId, $entity);
-	if ($fkSoc === null) {
-		return false;
-	}
-	return mjl_scope_can_access_fk_soc($userObj, $fkSoc, $entity);
 }
 
 function mjl_scope_sanitized_sql_identifier($identifier)
@@ -569,27 +391,6 @@ function mjl_scope_replace_role_rows($userId, $roleCode, $actorId, $entity, $sou
 	$sql .= ' (entity, fk_user, role_code, is_active, date_start, source, note, date_creation, fk_user_creat)';
 	$sql .= ' VALUES ('.((int) $entity).', '.((int) $userId).", '".$db->escape($roleCode)."', 1, NOW(), ".mjl_scope_sql_string($source).', '.mjl_scope_sql_string($note).', NOW(), '.((int) $actorId).')';
 	return (bool) $db->query($sql);
-}
-
-function mjl_scope_replace_scope_rows($userId, array $fkSocIds, $actorId, $entity, $source, $note)
-{
-	global $db;
-
-	$sql = 'UPDATE '.$db->prefix().'mjlfinancement_user_soc_scope';
-	$sql .= ' SET is_active = 0, date_end = COALESCE(date_end, NOW()), fk_user_modif = '.((int) $actorId);
-	$sql .= ' WHERE entity = '.((int) $entity).' AND fk_user = '.((int) $userId).' AND is_active = 1';
-	if (!$db->query($sql)) {
-		return false;
-	}
-	foreach ($fkSocIds as $fkSoc) {
-		$sql = 'INSERT INTO '.$db->prefix().'mjlfinancement_user_soc_scope';
-		$sql .= ' (entity, fk_user, fk_soc, is_active, date_start, source, note, date_creation, fk_user_creat)';
-		$sql .= ' VALUES ('.((int) $entity).', '.((int) $userId).', '.((int) $fkSoc).', 1, NOW(), '.mjl_scope_sql_string($source).', '.mjl_scope_sql_string($note).', NOW(), '.((int) $actorId).')';
-		if (!$db->query($sql)) {
-			return false;
-		}
-	}
-	return true;
 }
 
 function mjl_scope_replace_legacy_group($userId, $roleCode, $entity)

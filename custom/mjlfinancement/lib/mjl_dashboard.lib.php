@@ -106,10 +106,10 @@ function mjl_dashboard_normalize_filters(array $raw, User $targetUser)
 	if ($filters['date_start'] !== '' && $filters['date_end'] !== '' && $filters['date_start'] > $filters['date_end']) {
 		$filters['invalid_reasons'][] = 'Période invalide.';
 	}
-	if ($filters['fk_soc'] > 0 && !mjl_scope_can_access_fk_soc($targetUser, $filters['fk_soc'], (int) $conf->entity)) {
+	if ($filters['fk_soc'] > 0 && !mjl_legacy_partner_dependent_access($targetUser, $filters['fk_soc'], (int) $conf->entity)) {
 		$filters['invalid_reasons'][] = 'Partenaire / Programme hors périmètre.';
 	}
-	if ($filters['fk_project'] > 0 && !mjl_scope_can_access_object($targetUser, 'project', $filters['fk_project'], (int) $conf->entity)) {
+	if ($filters['fk_project'] > 0 && !mjl_legacy_partner_dependent_access($targetUser, 'project', $filters['fk_project'], (int) $conf->entity)) {
 		$filters['invalid_reasons'][] = 'Projet hors périmètre.';
 	}
 	if ($filters['fk_project'] > 0 && $filters['fk_soc'] > 0) {
@@ -175,7 +175,7 @@ function mjl_dashboard_partner_options()
 	global $db, $conf, $user;
 
 	$options = array();
-	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('rowid', $user).' ORDER BY nom';
+	$sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('rowid', $user).' ORDER BY nom';
 	foreach (mjl_dashboard_fetch_rows($sql) as $row) {
 		$options[(int) $row['rowid']] = $row['nom'];
 	}
@@ -190,7 +190,7 @@ function mjl_dashboard_project_options(array $filters)
 	if (!empty($filters['invalid'])) {
 		return $options;
 	}
-	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('fk_soc', $user);
+	$sql = 'SELECT rowid, ref, title FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('fk_soc', $user);
 	if (!empty($filters['fk_soc'])) {
 		$sql .= ' AND fk_soc = '.((int) $filters['fk_soc']);
 	}
@@ -255,7 +255,7 @@ function mjl_dashboard_partner_filter_sql($column, $filters = null)
 
 	$filters = mjl_dashboard_filters_or_default($filters);
 	$sql = mjl_dashboard_invalid_filter_sql($filters);
-	$sql .= mjl_scope_partner_sql_filter($column, $user);
+	$sql .= mjl_legacy_partner_dependent_sql_filter($column, $user);
 	if (!empty($filters['fk_soc'])) {
 		$sql .= ' AND '.mjl_scope_sanitized_sql_identifier($column).' = '.((int) $filters['fk_soc']);
 	}
@@ -401,7 +401,7 @@ function mjl_dashboard_alert_matches_filters(array $alert, array $filters)
 	$objectType = mjl_dashboard_scope_object_type($objectType);
 	$objectId = empty($alert['object_id']) ? 0 : (int) $alert['object_id'];
 	if (!empty($filters['fk_soc'])) {
-		$fkSoc = $objectType !== '' && $objectId > 0 ? mjl_scope_object_fk_soc($objectType, $objectId) : null;
+		$fkSoc = $objectType !== '' && $objectId > 0 ? mjl_legacy_partner_reference_unavailable($objectType, $objectId) : null;
 		if ((int) $fkSoc !== (int) $filters['fk_soc']) {
 			return false;
 		}
@@ -621,7 +621,7 @@ function mjl_dashboard_audit_partner_filter_sql($auditAlias, $filters = null)
 	if (!empty($filters['invalid'])) {
 		return ' AND 1=0';
 	}
-	$scopeIds = mjl_scope_partner_ids_for_sql($user);
+	$scopeIds = mjl_legacy_partner_ids($user);
 	$case = mjl_dashboard_audit_partner_case_sql($auditAlias);
 	$sql = '';
 	if ($scopeIds !== null) {

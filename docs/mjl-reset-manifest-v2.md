@@ -1,15 +1,14 @@
 # MJL Reset Manifest v2
 
-RST-000, RST-000A, and RST-001 were explicitly approved and executed for the
-local tenant on 2026-08-10. RST-000A's discovered approval-boundary deviation
-was explicitly ratified by supplemental checksum. Every other action remains
-unapproved and unexecuted.
+RST-000, RST-000A, RST-001, and RST-002A were explicitly approved and
+executed. RST-002A completed on 2026-08-12 without persistent data mutation;
+every later action remains unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
-- RST-000, RST-000A, and RST-001 are `EXECUTED`; every other action is
+- RST-000, RST-000A, RST-001, and RST-002A are `EXECUTED`; every other action is
   `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
@@ -78,17 +77,25 @@ number does not approve a suffixed unit.
 
 ### RST-002A - Retire Partner authorization scopes
 
-- Status: `PENDING_APPROVAL`
+- Status: `EXECUTED`
 - Current component: Partner-based authorization code and the empty legacy scope table after RST-000A.
 - Proposed action: disable Partner scope as authorization and retain no compatibility mapping.
 - Reason: target Agent visibility is Activity-assignment based.
 - Phase: Phase 1
 - Dependencies: RST-000A, RST-001
 - Exact paths: `custom/mjlfinancement/lib/mjl_scope.lib.php`, `custom/mjlfinancement/lib/mjl_traceability_scope.lib.php`, `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `custom/mjlfinancement/admin/access.php`, `custom/mjlfinancement/scripts/verify_scope_integrity.php`, `custom/mjlfinancement/scripts/verification/scope/access_model.php`, `custom/mjlfinancement/scripts/verification/scope/traceability_targets.php`, `custom/mjlfinancement/scripts/verification/scope/unresolved_scope.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_user_soc_scope.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_user_soc_scope.key.sql`, `tests/characterization/permissions.spec.js`, `tests/e2e/scope-security.spec.js`, `tests/e2e/cases/scope-security.cases.js`.
+- Supplemental approval paths: the user explicitly adopted and hardened
+  `tests/e2e/cases/rst002a-authorization.cases.js`, added the structural contract
+  `tests/unit/rst002a-transition.test.js`, and authorized
+  `custom/mjlfinancement/index.php` as the temporary Admin-only technical landing.
 - Exact tables/data: empty `llx_mjlfinancement_user_soc_scope` definition and every code/query dependency listed below; its former rows are deleted only by RST-000A.
 - Action and data impact: remove Partner scope from authorization inputs; retain the empty table only until RST-002B removes it. No row archive or user mapping is produced.
 - Backup prerequisite: RST-000, the executed RST-000A report, and a code/schema baseline.
 - Rollback/verification: restore prior guards only in an isolated rollback; until RST-002B is complete, affected Agent Activity routes fail closed.
+- Execution evidence: `docs/mjl-rst-002a-execution-report.md`; the shared table
+  remained globally empty, the focused disposable suite passed 6/6, the
+  archived-HEAD rollback rehearsal passed in isolation, and both disposable
+  projects left zero labeled Docker resources.
 - Exhaustive current dependency paths additionally covered by this approval:
   `custom/mjlfinancement/activities.php`,
   `custom/mjlfinancement/alerts.php`,

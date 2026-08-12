@@ -99,7 +99,7 @@ function mjl_budgetlines_handle_post($action)
 	if ($id <= 0 || $budgetLine->fetch($id) <= 0 || (int) $budgetLine->entity !== (int) $conf->entity) {
 		mjl_budgetlines_forbidden('Ligne budgétaire introuvable ou hors de votre périmètre');
 	}
-	if (!mjl_scope_can_access_object($user, 'mjlfinancement_budget_line', $id)) {
+	if (!mjl_legacy_partner_dependent_access($user, 'mjlfinancement_budget_line', $id)) {
 		mjl_budgetlines_forbidden('Ligne budgétaire hors de votre périmètre');
 	}
 
@@ -315,7 +315,7 @@ function mjl_budgetlines_render_list($filters)
 	$from .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = bl.fk_project AND p.entity = bl.entity';
 	$from .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity';
 	$from .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = bl.fk_mjl_activity AND a.entity = bl.entity';
-	$whereSql = ' WHERE '.implode(' AND ', $where).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
+	$whereSql = ' WHERE '.implode(' AND ', $where).mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']);
 	$total = mjl_table_count_or_null($db, 'SELECT COUNT(*) AS nb'.$from.$whereSql);
 	$sql = 'SELECT bl.rowid, bl.ref, bl.label, bl.revised_budget, bl.status, p.ref AS project_ref, c.ref AS convention_ref, a.ref AS activity_ref,';
 	$sql .= ' COALESCE((SELECT SUM('.mjl_finance_submitted_amount_sql('es').') FROM '.$db->prefix().'mjlfinancement_expense es WHERE es.entity = bl.entity AND es.fk_budget_line = bl.rowid), 0) AS submitted_amount,';
@@ -468,7 +468,7 @@ function mjl_budgetlines_fetch_detail($id)
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet_task t ON t.rowid = bl.fk_activity AND t.entity = bl.entity';
 	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = bl.fk_user_creat';
 	$sql .= ' WHERE bl.entity = '.((int) $conf->entity).' AND bl.rowid = '.((int) $id);
-	$sql .= mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']);
+	$sql .= mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']);
 	$query = mjl_finance_source_query($db, $sql, 'budgetlines', 'fetch_detail', $id);
 	$resql = $query['result'];
 	if (!$resql) {
@@ -520,17 +520,17 @@ function mjl_budgetlines_options($type)
 {
 	global $db, $conf;
 	if ($type === 'partner') {
-		$sql = 'SELECT rowid, nom AS label FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_scope_partner_sql_filter('s.rowid', $GLOBALS['user']).' ORDER BY s.nom, s.rowid';
+		$sql = 'SELECT rowid, nom AS label FROM '.$db->prefix().'societe s WHERE s.entity = '.((int) $conf->entity).' AND s.status = 1'.mjl_legacy_partner_dependent_sql_filter('s.rowid', $GLOBALS['user']).' ORDER BY s.nom, s.rowid';
 	} elseif ($type === 'project') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'projet p WHERE p.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY p.ref';
 	} elseif ($type === 'convention') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).' AND c.status = '.MjlConvention::STATUS_ACTIVE.mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} elseif ($type === 'convention_all') {
-		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
+		$sql = 'SELECT rowid, CONCAT(ref, \' - \', title) AS label FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY c.ref';
 	} elseif ($type === 'activity') {
-		$sql = 'SELECT a.rowid, CONCAT(a.ref, \' - \', a.label) AS label FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity WHERE a.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY a.ref';
+		$sql = 'SELECT a.rowid, CONCAT(a.ref, \' - \', a.label) AS label FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity WHERE a.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('c.fk_soc', $GLOBALS['user']).' ORDER BY a.ref';
 	} elseif ($type === 'task') {
-		$sql = 'SELECT t.rowid, CONCAT(t.ref, \' - \', t.label) AS label FROM '.$db->prefix().'projet_task t INNER JOIN '.$db->prefix().'projet p ON p.rowid = t.fk_projet AND p.entity = t.entity WHERE t.entity = '.((int) $conf->entity).mjl_scope_partner_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY t.ref';
+		$sql = 'SELECT t.rowid, CONCAT(t.ref, \' - \', t.label) AS label FROM '.$db->prefix().'projet_task t INNER JOIN '.$db->prefix().'projet p ON p.rowid = t.fk_projet AND p.entity = t.entity WHERE t.entity = '.((int) $conf->entity).mjl_legacy_partner_dependent_sql_filter('p.fk_soc', $GLOBALS['user']).' ORDER BY t.ref';
 	} else {
 		return array();
 	}
@@ -555,12 +555,12 @@ function mjl_budgetlines_can_use_links($fkProject, $fkConvention, $fkMjlActivity
 	$sql = 'SELECT c.rowid, c.fk_soc, c.fk_project FROM '.$db->prefix().'mjlfinancement_convention c WHERE c.entity = '.((int) $conf->entity).' AND c.rowid = '.$fkConvention.' AND c.status = '.MjlConvention::STATUS_ACTIVE;
 	$resql = $db->query($sql);
 	$convention = $resql ? $db->fetch_object($resql) : null;
-	if (!$convention || !mjl_scope_can_access_fk_soc($user, (int) $convention->fk_soc)) return false;
+	if (!$convention || !mjl_legacy_partner_dependent_access($user, (int) $convention->fk_soc)) return false;
 	if ((int) $convention->fk_project > 0 && (int) $convention->fk_project !== $fkProject) return false;
 	$sql = 'SELECT rowid FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND rowid = '.$fkProject.' AND fk_soc = '.((int) $convention->fk_soc);
 	$resql = $db->query($sql);
 	if (!$resql || !$db->fetch_object($resql)) return false;
-	if ($fkMjlActivity > 0 && !mjl_scope_can_access_object($user, 'mjlfinancement_activity', $fkMjlActivity)) return false;
+	if ($fkMjlActivity > 0 && !mjl_legacy_partner_dependent_access($user, 'mjlfinancement_activity', $fkMjlActivity)) return false;
 	if ($fkTask > 0) {
 		$sql = 'SELECT t.rowid FROM '.$db->prefix().'projet_task t WHERE t.entity = '.((int) $conf->entity).' AND t.rowid = '.$fkTask.' AND t.fk_projet = '.$fkProject;
 		$resql = $db->query($sql);

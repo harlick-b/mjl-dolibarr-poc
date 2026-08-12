@@ -94,6 +94,9 @@ function mjl_timeline_create_comment(User $actor, $objectType, $objectId, $messa
 	$objectId = (int) $objectId;
 	$message = trim((string) $message);
 	$subject = trim((string) $subject);
+	if ($objectType === 'mjlfinancement_activity') {
+		return array(-1, 'Les commentaires d’activité sont temporairement indisponibles pendant RST-002A.');
+	}
 	if (!mjl_timeline_can_comment($actor)) {
 		return array(-1, 'Permission commentaire refusee');
 	}
@@ -259,29 +262,10 @@ function mjl_timeline_object_table($objectType)
 
 function mjl_timeline_exchange_scope_filter_sql($alias, User $targetUser)
 {
-	global $db, $conf;
-
-	$a = preg_replace('/[^A-Za-z0-9_]/', '', (string) $alias);
-	if ($a === '') {
-		return ' AND 1=0';
-	}
-	$scopeIds = mjl_scope_user_soc_ids($targetUser);
-	if ($scopeIds === null) {
-		return '';
-	}
-	if (empty($scopeIds)) {
-		return ' AND 1=0';
-	}
-	$ids = implode(',', array_map('intval', $scopeIds));
-	$entity = (int) $conf->entity;
-	return ' AND ('
-		.' EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_activity a INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention AND c.entity = a.entity WHERE '.$a.'.object_type = \'mjlfinancement_activity\' AND '.$a.'.object_id = a.rowid AND a.entity = '.$entity.' AND c.fk_soc IN ('.$ids.'))'
-		.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_expense e INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity WHERE '.$a.'.object_type = \'mjlfinancement_expense\' AND '.$a.'.object_id = e.rowid AND e.entity = '.$entity.' AND c.fk_soc IN ('.$ids.'))'
-		.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_convention c WHERE '.$a.'.object_type = \'mjlfinancement_convention\' AND '.$a.'.object_id = c.rowid AND c.entity = '.$entity.' AND c.fk_soc IN ('.$ids.'))'
-		.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_budget_line bl INNER JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = bl.fk_convention AND c.entity = bl.entity WHERE '.$a.'.object_type = \'mjlfinancement_budget_line\' AND '.$a.'.object_id = bl.rowid AND bl.entity = '.$entity.' AND c.fk_soc IN ('.$ids.'))'
-		.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'mjlfinancement_fund_receipt fr WHERE '.$a.'.object_type = \'mjlfinancement_fund_receipt\' AND '.$a.'.object_id = fr.rowid AND fr.entity = '.$entity.' AND fr.fk_soc IN ('.$ids.'))'
-		.' OR EXISTS (SELECT 1 FROM '.$db->prefix().'projet p WHERE '.$a.'.object_type = \'mjlfinancement_project\' AND '.$a.'.object_id = p.rowid AND p.entity = '.$entity.' AND p.fk_soc IN ('.$ids.'))'
-		.')';
+	global $conf;
+	if (!mjl_scope_is_platform_admin($targetUser, (int) $conf->entity)) return ' AND 1=0';
+	if (!function_exists('mjl_traceability_scope_sql')) return ' AND 1=0';
+	return mjl_traceability_scope_sql($alias, $targetUser, (int) $conf->entity);
 }
 
 function mjl_timeline_format_datetime($value)
