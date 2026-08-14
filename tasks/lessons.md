@@ -134,3 +134,16 @@ debugging discoveries. Do not add one-off observations or generic advice.
   current mandatory actor/entity fields and cleanup native relationship rows.
   Prefer native creation paths for journey fixtures; reserve raw poison rows
   for integrity/visibility cases backed by exact schema knowledge.
+- Dolibarr's `accessforbidden()` can render a denial document without changing
+  an already-successful HTTP status. Public controllers must set status 403
+  explicitly before calling it, and browser tests must assert both the status
+  and denial surface.
+- A route can pass navigation smoke tests while failing after the shell starts
+  because a presentation helper was only transitively available elsewhere.
+  Exercise each newly exposed destination to its primary form/content, and
+  treat PHP fatal-log scans as part of the route gate.
+- Dolibarr may invalidate a deactivated user's session before a custom guard
+  runs and redirect to a 200 login page. Immediate-access-loss tests must prove
+  that no protected workspace rendered and that the response is either an
+  explicit denial or the authenticated session returned to login; status alone
+  is not the security property.

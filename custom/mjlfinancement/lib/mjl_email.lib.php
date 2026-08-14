@@ -5,6 +5,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_presentation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_email_presentation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_audit.lib.php';
 
 function mjl_email_entity()
 {
@@ -73,7 +74,6 @@ function mjl_email_render($template, array $context)
 	$activityRef = mjl_email_plain_text(isset($context['activity_ref']) ? $context['activity_ref'] : '', 80);
 	$activityLabel = mjl_email_plain_text(isset($context['activity_label']) ? $context['activity_label'] : '', 160);
 	$projectRef = mjl_email_plain_text(isset($context['project_ref']) ? $context['project_ref'] : '', 80);
-	$conventionRef = mjl_email_plain_text(isset($context['convention_ref']) ? $context['convention_ref'] : '', 80);
 	$comment = mjl_email_plain_text(isset($context['comment']) ? $context['comment'] : '', 500);
 	$subject = '[MJL Financement] '.$definition['subject'].($activityRef !== '' ? ' : '.$activityRef : '');
 	$title = $definition['title'];
@@ -88,9 +88,6 @@ function mjl_email_render($template, array $context)
 	}
 	if ($projectRef !== '') {
 		$details['Projet'] = $projectRef;
-	}
-	if ($conventionRef !== '') {
-		$details['Enveloppe'] = $conventionRef;
 	}
 	if ($comment !== '') {
 		$details['Commentaire'] = $comment;
@@ -161,6 +158,7 @@ function mjl_email_send(User $recipient, $template, array $context, array $audit
 function mjl_email_record_event($event, User $recipient, array $audit, $template, $extraContext = '')
 {
 	global $db;
+	if ($event !== 'email_send_failed') return;
 
 	$actorId = empty($audit['actor_id']) ? null : (int) $audit['actor_id'];
 	$context = array(
@@ -177,19 +175,21 @@ function mjl_email_record_event($event, User $recipient, array $audit, $template
 		$contextText .= ($contextText === '' ? '' : ';').$extraContext;
 	}
 
-	$sql = 'INSERT INTO '.$db->prefix().'mjlfinancement_access_audit';
-	$sql .= ' (entity, fk_user, fk_actor, event, event_date, context, date_creation, fk_user_creat)';
-	$sql .= ' VALUES (';
-	$sql .= mjl_email_entity();
-	$sql .= ', '.((int) $recipient->id);
-	$sql .= ', '.($actorId ? (int) $actorId : 'NULL');
-	$sql .= ', '.mjl_email_string_sql($event);
-	$sql .= ', '.mjl_email_now_sql();
-	$sql .= ', '.mjl_email_string_sql($contextText);
-	$sql .= ', '.mjl_email_now_sql();
-	$sql .= ', '.($actorId ? (int) $actorId : 'NULL');
-	$sql .= ')';
-	$db->query($sql);
+	$actor = null;
+	if ($actorId) {
+		$actor = new User($db);
+		if ($actor->fetch($actorId) <= 0) $actor = null;
+	}
+	mjl_audit_record_outcome($db, array(
+		'entity' => mjl_email_entity(),
+		'object_type' => isset($audit['object_type']) ? $audit['object_type'] : 'mjlfinancement_email',
+		'object_id' => isset($audit['object_id']) ? (int) $audit['object_id'] : (int) $recipient->id,
+		'object_ref' => isset($audit['object_ref']) ? $audit['object_ref'] : null,
+		'actor' => $actor,
+		'action' => $event,
+		'result' => 'FAILED',
+		'context' => array('detail' => $contextText),
+	));
 }
 
 function mjl_email_context_string(array $context)
@@ -209,6 +209,7 @@ function mjl_email_context_value($value)
 function mjl_email_e2e_enabled()
 {
 	global $db;
+	if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1') return false;
 
 	if (function_exists('mjl_auth_e2e_tokens_enabled')) {
 		return mjl_auth_e2e_tokens_enabled();
@@ -301,7 +302,6 @@ function mjl_email_notify_activity_transition($activityId, $action, User $actor,
 			'activity_ref' => $row['ref'],
 			'activity_label' => $row['label'],
 			'project_ref' => $row['project_ref'],
-			'convention_ref' => $row['convention_ref'],
 			'comment' => $comment,
 			'link' => DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.((int) $row['rowid']),
 		), array(
@@ -322,10 +322,9 @@ function mjl_email_fetch_activity_context($activityId)
 {
 	global $db;
 
-	$sql = 'SELECT a.rowid, a.entity, a.ref, a.label, a.fk_user_creat, p.ref AS project_ref, c.ref AS convention_ref';
+	$sql = 'SELECT a.rowid, a.entity, a.ref, a.label, a.fk_user_creat, p.ref AS project_ref';
 	$sql .= ' FROM '.$db->prefix().'mjlfinancement_activity a';
 	$sql .= ' LEFT JOIN '.$db->prefix().'projet p ON p.rowid = a.fk_project';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = a.fk_convention';
 	$sql .= ' WHERE a.entity = '.mjl_email_entity().' AND a.rowid = '.((int) $activityId);
 	$resql = $db->query($sql);
 	if (!$resql) {
@@ -359,12 +358,9 @@ function mjl_email_activity_validator_recipients($excludeUserId)
 	$sql = 'SELECT DISTINCT u.rowid, LOWER(u.email) AS dedupe_email';
 	$sql .= ' FROM '.$db->prefix().'user u';
 	$sql .= ' WHERE u.statut = 1 AND u.email IS NOT NULL AND u.email <> \'\'';
-	$sql .= ' AND u.entity IN (0, '.mjl_email_entity().')';
+	$sql .= ' AND u.entity = '.mjl_email_entity();
 	$sql .= ' AND u.rowid <> '.((int) $excludeUserId);
-	$sql .= ' AND (';
-	$sql .= ' EXISTS (SELECT 1 FROM '.$db->prefix().'user_rights ur INNER JOIN '.$db->prefix().'rights_def rd ON rd.id = ur.fk_id WHERE ur.fk_user = u.rowid AND ur.entity IN (0, '.mjl_email_entity().') AND rd.module = \'mjlfinancement\' AND rd.perms = \'activity\' AND rd.subperms = \'validate\')';
-	$sql .= ' OR EXISTS (SELECT 1 FROM '.$db->prefix().'usergroup_user ugu INNER JOIN '.$db->prefix().'usergroup_rights ugr ON ugr.fk_usergroup = ugu.fk_usergroup AND ugr.entity IN (0, '.mjl_email_entity().') INNER JOIN '.$db->prefix().'rights_def rdg ON rdg.id = ugr.fk_id WHERE ugu.fk_user = u.rowid AND ugu.entity IN (0, '.mjl_email_entity().') AND rdg.module = \'mjlfinancement\' AND rdg.perms = \'activity\' AND rdg.subperms = \'validate\')';
-	$sql .= ') ORDER BY u.rowid';
+	$sql .= ' AND EXISTS (SELECT 1 FROM '.$db->prefix()."mjlfinancement_user_role r WHERE r.entity=u.entity AND r.fk_user=u.rowid AND r.is_active=1 AND r.role_code IN ('AGENT_VERIFICATEUR','VALIDATEUR_DEFINITIF')) ORDER BY u.rowid";
 	$resql = $db->query($sql);
 	if (!$resql) {
 		return array();

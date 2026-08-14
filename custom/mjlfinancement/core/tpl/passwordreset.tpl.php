@@ -6,9 +6,11 @@ if (empty($conf) || !is_object($conf)) {
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
+header('Cache-Control: no-store, private');
+header('Referrer-Policy: no-referrer');
 
-$token = GETPOST('mjlreset', 'restricthtml');
-$status = mjl_auth_reset_status($token);
+$selector = GETPOST('mjlselector', 'alphanohtml');
+$status = mjl_auth_reset_status($selector);
 $error = empty($_SESSION['mjl_reset_error']) ? '' : $_SESSION['mjl_reset_error'];
 unset($_SESSION['mjl_reset_error']);
 
@@ -30,7 +32,11 @@ top_htmlhead('', 'Réinitialiser le mot de passe', 0, 0, array(), array('/custom
 		<form id="mjl-password-reset" method="post" action="<?php print DOL_URL_ROOT; ?>/user/passwordforgotten.php">
 			<input type="hidden" name="token" value="<?php print newToken(); ?>">
 			<input type="hidden" name="action" value="mjl_validate_password_reset">
-			<input type="hidden" name="mjlreset" value="<?php print dol_escape_htmltag($token); ?>">
+			<input type="hidden" name="mjlselector" value="<?php print dol_escape_htmltag($selector); ?>">
+			<div class="mjl-auth-field">
+				<label for="verifier">Code secret de réinitialisation</label>
+				<input type="password" id="verifier" name="verifier" autocomplete="one-time-code" required>
+			</div>
 			<div class="mjl-auth-field">
 				<label for="newpass1">Nouveau mot de passe</label>
 				<input type="password" id="newpass1" name="newpass1" autocomplete="new-password" autofocus>
@@ -45,6 +51,7 @@ top_htmlhead('', 'Réinitialiser le mot de passe', 0, 0, array(), array('/custom
 				<a class="mjl-auth-link" href="<?php print DOL_URL_ROOT; ?>/index.php">Retour à la connexion</a>
 			</div>
 		</form>
+		<script src="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/js/auth_fragment.js"></script>
 	<?php } ?>
 </main>
 </div>

@@ -10,6 +10,7 @@ services:
     restart: "no"
     environment:
       DOLI_URL_ROOT: ${MJL_BASE_URL}
+      MJL_DISPOSABLE_TEST_TENANT: "1"
     ports: !override
       - target: 80
         published: ${MJL_TEST_PORT}

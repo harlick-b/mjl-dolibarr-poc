@@ -1,42 +1,24 @@
 <?php
 
 require '../../main.inc.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
-if (!mjl_scope_is_platform_admin($user)) {
-	accessforbidden();
-}
-
-$langs->load('mjlfinancement@mjlfinancement');
-
-llxHeader('', 'Administration technique MJL');
+if (!mjl_navigation_policy_allows($user, 'workspace_enter')) { http_response_code(403); accessforbidden(); }
+$role = mjl_scope_effective_role_code($user, (int) $conf->entity);
+$admin = $role === 'ADMIN_PLATEFORME';
+llxHeader('', 'Accueil');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-print mjl_page_header_render(
-	'Administration technique MJL',
-	array(
-		'description' => 'Point d’entrée temporaire RST-002A pour l’administration des accès et les diagnostics autorisés.',
-		'context' => array('label' => 'Accès', 'value' => 'Administration technique'),
-	)
-);
-
-$links = array(
-	array('label' => 'Utilisateurs et accès', 'href' => '/custom/mjlfinancement/admin/access.php'),
-	array('label' => 'Historique des validations', 'href' => '/custom/mjlfinancement/validations.php'),
-	array('label' => 'Historique des actions', 'href' => '/custom/mjlfinancement/workflowactions.php'),
-	array('label' => 'Historique des échanges', 'href' => '/custom/mjlfinancement/exchangelogs.php'),
-);
-print '<section class="mjl-workspace-section">';
-print '<div class="mjl-section-heading"><h2>Outils techniques autorisés</h2><p>Les fonctionnalités métier restent indisponibles pendant la transition RST-002A.</p></div>';
-print '<ul class="mjl-technical-links">';
-foreach ($links as $link) {
-	print '<li><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.dol_escape_htmltag($link['href']).'">'.dol_escape_htmltag($link['label']).'</a></li>';
-}
-print '</ul>';
-print '</section>';
+print mjl_page_header_render('Accueil', array(
+	'breadcrumb' => array(array('label' => 'MJL')),
+	'description' => $admin ? 'Administration technique, gestion des accès et audit.' : 'Références actives pour le suivi des projets.',
+	'context' => array('label' => 'Rôle', 'value' => mjl_scope_role_label($role)),
+));
+print mjl_ui_system_state('empty', $admin ? 'Espace d’administration' : 'Fondation Phase 1', $admin ? 'Utilisez le menu pour gérer les accès ou consulter l’audit.' : 'Les Activités et Opérations seront ouvertes par les phases suivantes.');
 print '</div>';
 mjl_navigation_shell_end();
-
 llxFooter();
 $db->close();

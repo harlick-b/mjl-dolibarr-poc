@@ -4,7 +4,6 @@ CREATE TABLE llx_mjlfinancement_activity (
 	ref VARCHAR(128) NOT NULL,
 	label VARCHAR(255) NOT NULL,
 	fk_project INTEGER NOT NULL,
-	fk_convention INTEGER NOT NULL,
 	fk_task INTEGER DEFAULT NULL,
 	date_start DATE DEFAULT NULL,
 	date_end DATE DEFAULT NULL,

@@ -6,15 +6,15 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('RST-003 exposes target reference routes without enabling their primary navigation early', () => {
+test('RST-003 reference routes remain the approved RST-009A navigation destinations', () => {
   for (const route of ['partners.php', 'projects.php', 'operationtypes.php']) {
     const source = read(`custom/mjlfinancement/${route}`);
     assert.match(source, /mjl_reference_require_read\(\$user\)/);
     assert.doesNotMatch(source, /Partenaires \/ Programmes|scope_soc_ids|mjlfinancement_user_soc_scope/);
   }
   const navigation = read('custom/mjlfinancement/lib/mjl_navigation_registry.lib.php');
-  assert.doesNotMatch(navigation, /operationtypes\.php/);
-  assert.match(navigation, /mjl_navigation_leaf\('administration', 'partners', 'Partenaires \/ Programmes'/);
+	assert.match(navigation, /operationtypes\.php/);
+	assert.match(navigation, /mjl_navigation_leaf\('references', 'partners', 'Partenaires'/);
 });
 
 test('RST-003 reference mutations have no hard-delete interface', () => {

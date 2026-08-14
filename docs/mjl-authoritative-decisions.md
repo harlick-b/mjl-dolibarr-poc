@@ -78,7 +78,11 @@ MJL-specific code stays outside Dolibarr core. Native third parties, projects,
 users, authentication, ECM, and export capabilities may be reused through safe
 MJL interfaces.
 
-RST-000, RST-000A, RST-001, RST-002A, and RST-003 are executed. RST-000A's recorded approval-boundary
+RST-000, RST-000A, RST-001, RST-002A, and RST-003 are executed. RST-007A,
+RST-004, RST-008, and RST-009A are implemented on the shared tenant but remain
+`PENDING_EXCEPTION_RATIFICATION` because the operational `initdb.log` checksum
+changed during activation; see `docs/mjl-phase1-reset-execution-report.md`.
+RST-000A's recorded approval-boundary
 deviation was ratified through supplemental checksum
 `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`.
 It deleted the checksum-approved legacy sample rows/files without migration
@@ -88,8 +92,14 @@ without granting business workflow access. RST-002A removes Partner scope from
 runtime authorization, retains its exact empty table until RST-002B, freezes all
 legacy Activity mutations, and exposes only a safe read-only reviewer projection.
 RST-003 establishes empty guarded Partenaire, Projet, and Type d’Opération
-references with Validator-only mutation and no persistent fixtures. Every
-later reset-manifest entry remains `PENDING_APPROVAL`.
+references with Validator-only mutation and no persistent fixtures. RST-007A
+adds the single append-only transactional audit foundation. RST-004 removes
+the obsolete finance core and the Activity-to-Convention seam. RST-008
+retargets invitation and reset credentials to business roles with public
+selectors, fragment-only verifiers, hashed storage, transactional use, and
+no legacy group or Partner-scope authorization. RST-009A exposes only the
+approved Phase 1 role-projected navigation. Every other reset-manifest entry
+remains `PENDING_APPROVAL`.
 
 ## Design Authority
 

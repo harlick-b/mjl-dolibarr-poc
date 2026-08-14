@@ -2,23 +2,24 @@ const { test, expect } = require('@playwright/test');
 const os = require('os');
 const { verifyDisposableEnvironment } = require('../helpers/verify-disposable-environment');
 const { MJL_REVIEW_WIDTHS } = require('../helpers/responsive-shell');
-const { login, scalar } = require('../helpers/mjl-test-runtime');
+const { login, sql } = require('../helpers/mjl-test-runtime');
 
 const outerTolerance = Number(process.env.MJL_MANUAL_ZOOM_OUTER_TOLERANCE || 16);
 const reviewer = (process.env.MJL_MANUAL_ACCESSIBILITY_REVIEWER || '').trim();
 const assistiveTechnology = (process.env.MJL_MANUAL_ACCESSIBILITY_ASSISTIVE_TECH || '').trim();
 const reviewVerdict = (process.env.MJL_MANUAL_ACCESSIBILITY_VERDICT || '').trim().toLowerCase();
 const reviewNotes = (process.env.MJL_MANUAL_ACCESSIBILITY_NOTES || '').trim();
+const testPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
 const reviewArchetypes = Object.freeze([
   { key: 'auth', label: 'authentification hors session', route: '/index.php', user: null },
-  { key: 'dashboard', label: 'tableau de bord', route: '/custom/mjlfinancement/index.php', user: 'admin.poc' },
-  { key: 'list', label: 'liste de projets', route: '/custom/mjlfinancement/projects.php', user: 'admin.poc' },
-  { key: 'form', label: 'formulaire d’activité', route: '/custom/mjlfinancement/activities.php?action=create', user: 'agent.mjl' },
-  { key: 'workflow', label: 'workflow actionnable', route: null, user: 'superviseur.n1' },
-  { key: 'documents', label: 'Documents', route: '/custom/mjlfinancement/documents.php', user: 'admin.poc' },
-  { key: 'alerts', label: 'alertes', route: '/custom/mjlfinancement/alerts.php', user: 'admin.poc' },
-  { key: 'reports', label: 'rapports', route: '/custom/mjlfinancement/reports.php', user: 'admin.poc' },
-  { key: 'administration', label: 'administration', route: '/custom/mjlfinancement/admin/access.php', user: 'admin.poc' },
+  { key: 'home', label: 'accueil Agent de saisie', route: '/custom/mjlfinancement/index.php', user: 'phase1.a11y.agent' },
+  { key: 'partners', label: 'liste de partenaires', route: '/custom/mjlfinancement/partners.php', user: 'phase1.a11y.agent' },
+  { key: 'projects', label: 'liste de projets', route: '/custom/mjlfinancement/projects.php', user: 'phase1.a11y.agent' },
+  { key: 'operation-types', label: 'types d’opération', route: '/custom/mjlfinancement/operationtypes.php', user: 'phase1.a11y.agent' },
+  { key: 'activities', label: 'projection des activités', route: '/custom/mjlfinancement/activities.php', user: 'phase1.a11y.supervisor' },
+  { key: 'audit-validator', label: 'audit Validateur', route: '/custom/mjlfinancement/workflowactions.php', user: 'phase1.a11y.validator' },
+  { key: 'access-admin', label: 'utilisateurs et accès', route: '/custom/mjlfinancement/admin/access.php', user: 'admin' },
+  { key: 'technical-admin', label: 'administration technique', route: '/admin/modules.php', user: 'admin' },
 ]);
 
 test.describe.configure({ mode: 'serial' });
@@ -28,6 +29,11 @@ test.beforeAll(() => {
   if (!reviewer || !assistiveTechnology || !reviewNotes || !['pass', 'fail'].includes(reviewVerdict)) {
     throw new Error('A signed manual review requires reviewer, assistive technology, non-empty notes, and MJL_MANUAL_ACCESSIBILITY_VERDICT=pass|fail.');
   }
+  sql("DELETE r FROM llx_mjlfinancement_user_role r INNER JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login LIKE 'phase1.a11y.%'; DELETE FROM llx_user WHERE login LIKE 'phase1.a11y.%'; INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.a11y.agent','Accessibilite','Agent','phase1.a11y.agent@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1; SET @agent=LAST_INSERT_ID(); INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@agent,'AGENT_SAISIE',1,NOW(),'manual_accessibility',NOW()); INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.a11y.supervisor','Accessibilite','Superviseur','phase1.a11y.supervisor@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1; SET @supervisor=LAST_INSERT_ID(); INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@supervisor,'AGENT_VERIFICATEUR',1,NOW(),'manual_accessibility',NOW()); INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.a11y.validator','Accessibilite','Validateur','phase1.a11y.validator@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1; SET @validator=LAST_INSERT_ID(); INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@validator,'VALIDATEUR_DEFINITIF',1,NOW(),'manual_accessibility',NOW());");
+});
+
+test.afterAll(() => {
+  sql("DELETE r FROM llx_mjlfinancement_user_role r INNER JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login LIKE 'phase1.a11y.%'; DELETE FROM llx_user WHERE login LIKE 'phase1.a11y.%';");
 });
 
 async function recordCalibration(page, browser, targetWidth, zoomPercent, assertTargetOuterWidth) {
@@ -77,18 +83,15 @@ async function assertNavigationReflow(page, targetWidth, zoomPercent) {
   }
 }
 
-async function openArchetype(page, archetype, workflowExpenseId) {
+async function openArchetype(page, archetype) {
   if (!archetype.user) {
     await page.goto('/user/logout.php').catch(() => {});
     await page.goto(archetype.route);
     return archetype.route;
   }
-  await login(page, archetype.user);
-  const route = archetype.key === 'workflow'
-    ? `/custom/mjlfinancement/expenses.php?action=prevalidate&id=${workflowExpenseId}`
-    : archetype.route;
-  await page.goto(route);
-  return route;
+  await login(page, archetype.user, testPassword);
+  await page.goto(archetype.route);
+  return archetype.route;
 }
 
 async function recordCombination(page, archetype, route, targetWidth, zoomPercent) {
@@ -142,36 +145,23 @@ test('real application keyboard, focus, reflow, and Chromium zoom gate', async (
   console.log('MJL_AUTH_ERROR_ACTION Review the real neutral login error announcement and focus recovery, then resume.');
   await page.pause();
 
-  await login(page, 'agent.mjl');
-  await page.goto('/custom/mjlfinancement/activities.php?action=create');
-  await page.getByRole('button', { name: 'Créer l’activité' }).click();
-  const formError = page.locator('[data-mjl-error-summary][role="alert"]');
-  await expect(formError).toBeVisible();
-  await expect(formError).toBeFocused();
-  console.log('MJL_FORM_ERROR_ACTION Review the real field links, alert announcement, and focus recovery, then resume.');
-  await page.pause();
-
-  const verifierId = scalar("SELECT rowid FROM llx_user WHERE login = 'superviseur.n1' AND entity = 1 LIMIT 1");
-  const workflowExpenseId = scalar(`SELECT e.rowid FROM llx_mjlfinancement_expense e JOIN llx_mjlfinancement_convention c ON c.rowid = e.fk_convention AND c.entity = e.entity JOIN llx_mjlfinancement_user_soc_scope s ON s.entity = e.entity AND s.fk_soc = c.fk_soc AND s.fk_user = ${verifierId} AND s.is_active = 1 WHERE e.entity = 1 AND e.status = 1 AND e.fk_user_creat <> ${verifierId} ORDER BY e.rowid LIMIT 1`);
-  expect(workflowExpenseId, 'deterministic actionable workflow fixture').not.toBe('');
-
   let combinationCount = 0;
   const combinationResults = [];
 
   for (const targetWidth of MJL_REVIEW_WIDTHS) {
-    await login(page, 'admin.poc');
+    await login(page, 'admin', testPassword);
     await page.goto('/custom/mjlfinancement/index.php');
     console.log(`MJL_ZOOM_ACTION Set real browser zoom to 100% (Ctrl+0), resize the browser OUTER width to ${targetWidth}px, then resume.`);
     await page.pause();
     const baseline = await recordCalibration(page, browser, targetWidth, 100, true);
     for (const archetype of reviewArchetypes) {
-      const route = await openArchetype(page, archetype, workflowExpenseId);
+      const route = await openArchetype(page, archetype);
       if (archetype.key !== 'auth') await assertNavigationReflow(page, targetWidth, 100);
       combinationResults.push(await recordCombination(page, archetype, route, targetWidth, 100));
       combinationCount++;
     }
 
-    await login(page, 'admin.poc');
+    await login(page, 'admin', testPassword);
     await page.goto('/custom/mjlfinancement/index.php');
     console.log(`MJL_ZOOM_ACTION Keep the physical browser-window size unchanged from the ${targetWidth}px 100% calibration, set real browser zoom to 200% with browser chrome, then resume.`);
     await page.pause();
@@ -183,7 +173,7 @@ test('real application keyboard, focus, reflow, and Chromium zoom gate', async (
     expect(physicalOuterRatio, `${targetWidth}px physical outer-width preservation`).toBeGreaterThanOrEqual(0.85);
     expect(physicalOuterRatio, `${targetWidth}px physical outer-width preservation`).toBeLessThanOrEqual(1.15);
     for (const archetype of reviewArchetypes) {
-      const route = await openArchetype(page, archetype, workflowExpenseId);
+      const route = await openArchetype(page, archetype);
       if (archetype.key !== 'auth') await assertNavigationReflow(page, targetWidth, 200);
       combinationResults.push(await recordCombination(page, archetype, route, targetWidth, 200));
       combinationCount++;

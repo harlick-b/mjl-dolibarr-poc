@@ -55,7 +55,6 @@ function cleanup() {
     DROP TRIGGER IF EXISTS rst003_project_insert_barrier;
     DROP TRIGGER IF EXISTS rst003_partner_update_barrier;
     SET @users = (SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'rst003.e2e.%');
-    DELETE FROM llx_mjlfinancement_workflow_action WHERE ref LIKE 'WFA-RST003-%';
     DELETE FROM llx_projet WHERE title LIKE '${marker}%';
     DELETE FROM llx_societe_commerciaux WHERE fk_soc IN (SELECT rowid FROM llx_societe WHERE nom LIKE '${marker}%');
     DELETE FROM llx_societe WHERE nom LIKE '${marker}%';

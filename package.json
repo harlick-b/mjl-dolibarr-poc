@@ -5,6 +5,11 @@
     "test:verify": "node tests/runner/run-suite.js verify",
     "test:e2e": "node tests/runner/run-suite.js e2e",
     "test:rst003": "node tests/runner/run-suite.js rst003",
+    "test:rst007a": "node tests/runner/run-suite.js rst007a",
+    "test:rst004": "node tests/runner/run-suite.js rst004",
+    "test:rst008": "node tests/runner/run-suite.js rst008",
+    "test:rst009a": "node tests/runner/run-suite.js rst009a",
+    "test:phase1-reset": "node tests/runner/run-suite.js phase1-reset",
     "test:characterization": "node tests/runner/run-suite.js characterization",
     "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility",
     "audit:production-readiness": "node tests/runner/run-suite.js production-readiness"

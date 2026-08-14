@@ -134,23 +134,7 @@ async function runUnit(signal) {
   }
 }
 
-const verificationScripts = [
-  ['audit_schema_current.php', 'core_schema.php'],
-  ['audit_schema_current.php', 'audit_schema.php'],
-  ['audit_schema_current.php', 'role_scope_schema.php'],
-  ['audit_schema_current.php', 'activity_status_integrity.php'],
-  ['audit_schema_current.php', 'activity_execution_schema.php'],
-  ['audit_schema_current.php', 'expense_workflow_schema.php'],
-  ['audit_schema_current.php', 'relationship_integrity.php'],
-  'verify_sample_data.php',
-  ['verify_scope_integrity.php', 'access_model.php'],
-  ['verify_scope_integrity.php', 'traceability_targets.php'],
-  ['verify_scope_integrity.php', 'unresolved_scope.php'],
-  'verify_activity_workflow.php',
-  'verify_expense_workflow.php',
-  'verify_traceability_exports.php',
-  '/opt/mjl-tests/contracts/container/dashboard_resilience_test.php',
-];
+const verificationScripts = ['verify_phase1_reset.php'];
 
 async function runVerification(plan, signal) {
   for (const entry of verificationScripts) {
@@ -161,7 +145,12 @@ async function runVerification(plan, signal) {
 }
 
 async function runRst003Verification(plan, signal) {
-  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/audit_schema_current.php', 'reference_foundation.php'], { signal });
+	await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/reference_foundation.php'], { signal });
+}
+
+async function runPhase1Verification(plan, signal) {
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_reset.php'], { signal });
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_behavior.php'], { signal });
 }
 
 async function runRst003RollbackRehearsal(plan, signal) {
@@ -195,6 +184,12 @@ async function runPlaywright(plan, target, signal) {
     args.push('--config=playwright.config.js');
   } else if (target === 'rst003') {
     args.push('tests/e2e/partners-projects.spec.js', '--config=playwright.config.js');
+  } else if (target === 'phase1-all') {
+	args.push('tests/e2e/phase1-reset.spec.js', '--config=playwright.config.js');
+  } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
+    args.push('tests/e2e/phase1-reset.spec.js', '--config=playwright.config.js');
+    const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
+    args.push('--grep', `\\[${tags[target]}\\]`);
   } else if (target === 'characterization') {
     args.push('--config=tests/characterization/playwright.config.js');
   } else {
@@ -285,6 +280,14 @@ async function main() {
         await runRst003Verification(plan, controller.signal);
         await runRst003RollbackRehearsal(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
+      }
+      else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(layer)) {
+        await runPhase1Verification(plan, controller.signal);
+		if (mode === 'phase1-reset') {
+			if (layer === 'rst009a') await runPlaywright(plan, 'phase1-all', controller.signal);
+		} else {
+			await runPlaywright(plan, layer, controller.signal);
+		}
       }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);

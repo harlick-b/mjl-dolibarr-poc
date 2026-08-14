@@ -4,8 +4,10 @@ define('NOLOGIN', 1);
 
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
+header('Cache-Control: no-store, private');
+header('Referrer-Policy: no-referrer');
 
-$token = GETPOST('invite', 'restricthtml');
+$selector = GETPOST('selector', 'alphanohtml');
 $action = GETPOST('action', 'aZ09');
 $error = '';
 $done = false;
@@ -14,12 +16,12 @@ if ($action === 'accept') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		$error = 'Le jeton de sécurité est invalide. Veuillez recharger la page.';
 	} else {
-		$error = mjl_auth_accept_invitation($token, GETPOST('newpass1', 'restricthtml'), GETPOST('newpass2', 'restricthtml'));
+		$error = mjl_auth_accept_invitation($selector, GETPOST('verifier', 'restricthtml'), GETPOST('newpass1', 'restricthtml'), GETPOST('newpass2', 'restricthtml'));
 		$done = ($error === '');
 	}
 }
 
-$status = mjl_auth_invitation_status($token);
+$status = mjl_auth_invitation_status($selector);
 
 top_htmlhead('', 'Invitation MJL', 0, 0, array(), array('/custom/mjlfinancement/css/mjl_auth.css.php'), 1, 1);
 ?>
@@ -50,7 +52,11 @@ top_htmlhead('', 'Invitation MJL', 0, 0, array(), array('/custom/mjlfinancement/
 		<form id="mjl-invitation-accept" method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/invitation.php">
 			<input type="hidden" name="token" value="<?php print newToken(); ?>">
 			<input type="hidden" name="action" value="accept">
-			<input type="hidden" name="invite" value="<?php print dol_escape_htmltag($token); ?>">
+			<input type="hidden" name="selector" value="<?php print dol_escape_htmltag($selector); ?>">
+			<div class="mjl-auth-field">
+				<label for="verifier">Code secret de l’invitation</label>
+				<input type="password" id="verifier" name="verifier" autocomplete="one-time-code" required>
+			</div>
 			<div class="mjl-auth-field">
 				<label for="newpass1">Mot de passe</label>
 				<input type="password" id="newpass1" name="newpass1" autocomplete="new-password" autofocus>
@@ -64,6 +70,7 @@ top_htmlhead('', 'Invitation MJL', 0, 0, array(), array('/custom/mjlfinancement/
 				<button type="submit" class="mjl-auth-button">Définir mon mot de passe</button>
 			</div>
 		</form>
+		<script src="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/js/auth_fragment.js"></script>
 	<?php } ?>
 </main>
 </div>

@@ -21,7 +21,7 @@ $html = mjl_page_header_render(
 		'primary_action' => array('label' => 'Modifier', 'href' => '/custom/mjlfinancement/activities.php?action=edit&id=14'),
 		'secondary_actions' => array(
 			array('label' => 'Voir le projet', 'href' => '/custom/mjlfinancement/projects.php?id=7'),
-			array('label' => 'Voir les dépenses', 'href' => '/custom/mjlfinancement/expenses.php?activity_id=14'),
+			array('label' => 'Voir les types', 'href' => '/custom/mjlfinancement/operationtypes.php'),
 		),
 		'context' => array('label' => 'Statut', 'value' => 'À prévalider'),
 	)
@@ -34,7 +34,7 @@ mjl_page_header_test_assert(strpos($html, 'aria-label="Fil d’Ariane"') !== fal
 mjl_page_header_test_assert(strpos($html, 'aria-current="page"') !== false, 'the final breadcrumb identifies the current page');
 mjl_page_header_test_assert(strpos($html, 'mjl-page-header-action-primary') !== false, 'the primary action remains explicit');
 mjl_page_header_test_assert(
-	strpos($html, 'Voir le projet') < strpos($html, 'Voir les dépenses'),
+	strpos($html, 'Voir le projet') < strpos($html, 'Voir les types'),
 	'authorized secondary actions preserve caller order'
 );
 mjl_page_header_test_assert(strpos($html, '<dt>Statut</dt><dd>À prévalider</dd>') !== false, 'status or scope context uses semantic terms');

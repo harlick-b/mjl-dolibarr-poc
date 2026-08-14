@@ -1,0 +1,10 @@
+ALTER TABLE llx_mjlfinancement_audit_event ADD INDEX idx_mjl_audit_entity_date (entity, event_date, rowid);
+ALTER TABLE llx_mjlfinancement_audit_event ADD INDEX idx_mjl_audit_object (entity, object_type, object_id);
+ALTER TABLE llx_mjlfinancement_audit_event ADD INDEX idx_mjl_audit_activity (entity, activity_id);
+ALTER TABLE llx_mjlfinancement_audit_event ADD INDEX idx_mjl_audit_operation (entity, operation_id);
+ALTER TABLE llx_mjlfinancement_audit_event ADD INDEX idx_mjl_audit_actor (entity, actor_id);
+ALTER TABLE llx_mjlfinancement_audit_event ADD INDEX idx_mjl_audit_action (entity, action);
+DROP TRIGGER IF EXISTS llx_mjlfinancement_audit_event_bu;
+CREATE TRIGGER llx_mjlfinancement_audit_event_bu BEFORE UPDATE ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL audit events are append-only';
+DROP TRIGGER IF EXISTS llx_mjlfinancement_audit_event_bd;
+CREATE TRIGGER llx_mjlfinancement_audit_event_bd BEFORE DELETE ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL audit events are append-only';

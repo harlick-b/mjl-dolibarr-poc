@@ -6,6 +6,7 @@ http_response_code(403);
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
 
 global $conf, $db, $user;
 
@@ -22,7 +23,7 @@ if (empty($user) || empty($user->id)) {
 $conf->dol_hide_topmenu = 1;
 $conf->dol_hide_leftmenu = 1;
 
-$canEnterMjl = !empty($user) && !empty($user->id) && mjl_workspace_user_can_enter($user);
+$canEnterMjl = !empty($user) && !empty($user->id) && mjl_navigation_user_can_enter($user);
 
 llxHeader('', 'Accès refusé');
 

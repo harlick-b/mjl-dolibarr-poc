@@ -1,7 +1,7 @@
 <?php
 define('NOLOGIN', 1);
 require '../../../main.inc.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
 header('Content-Type: application/javascript; charset=UTF-8');
 
@@ -12,7 +12,7 @@ if ((empty($user) || empty($user->id)) && !empty($_SESSION['dol_login'])) {
 	}
 }
 
-$enabled = !empty($user) && !empty($user->id) && empty($user->admin) && mjl_workspace_user_can_read($user);
+$enabled = !empty($user) && !empty($user->id) && empty($user->admin) && mjl_navigation_user_can_enter($user);
 ?>
 (function () {
 	'use strict';

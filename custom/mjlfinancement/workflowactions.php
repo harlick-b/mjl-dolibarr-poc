@@ -2,172 +2,42 @@
 
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_integrity.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_traceability_scope.lib.php';
 
-mjl_workspace_require_advanced_traceability_access($user, 'workflowaction');
-
-$langs->load('mjlfinancement@mjlfinancement');
-
-$filters = array(
-	'object_type' => GETPOST('object_type', 'alphanohtml'),
-	'action' => GETPOST('workflow_action', 'alphanohtml'),
-	'actor_role' => GETPOST('actor_role', 'alphanohtml'),
-	'date_start' => GETPOST('date_start', 'alphanohtml'),
-	'date_end' => GETPOST('date_end', 'alphanohtml'),
-);
-
-llxHeader('', 'Historique des actions');
+if (!mjl_navigation_policy_allows($user, 'audit_read')) { http_response_code(403); accessforbidden(); }
+$objectType = GETPOST('object_type', 'alphanohtml');
+$action = GETPOST('audit_action', 'alphanohtml');
+llxHeader('', 'Audit');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-print mjl_page_header_render(
-	'Historique des actions',
-	array(
-		'breadcrumb' => array(array('label' => 'Supervision / Audit')),
-		'description' => 'Recherchez les événements de workflow accessibles à votre rôle et à votre périmètre.',
-		'context' => array('label' => 'Accès', 'value' => 'Lecture avancée'),
-	)
-);
-
-mjl_workflowactions_filter_form($filters);
-mjl_workflowactions_list($filters);
-
+print mjl_page_header_render('Audit', array(
+	'breadcrumb' => array(array('label' => 'Contrôle')),
+	'description' => 'Événements immuables enregistrés pour l’entité active.',
+	'context' => array('label' => 'Accès', 'value' => 'Validateur et Admin'),
+));
+print '<form method="GET"><div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>Objet</th><th>Action</th><th></th></tr><tr class="oddeven">';
+print '<td><input name="object_type" value="'.dol_escape_htmltag($objectType).'"></td><td><input name="audit_action" value="'.dol_escape_htmltag($action).'"></td><td><button class="button" type="submit">Filtrer</button></td></tr></table></div></form><br>';
+$where = array('entity = '.((int) $conf->entity));
+if ($objectType !== '') $where[] = "object_type = '".$db->escape($objectType)."'";
+if ($action !== '') $where[] = "action = '".$db->escape($action)."'";
+$sql = 'SELECT rowid, object_type, object_id, object_ref, action, state_before, state_after, actor_name_snapshot, actor_role_snapshot, event_date, reason, result';
+$sql .= ' FROM '.$db->prefix().'mjlfinancement_audit_event WHERE '.implode(' AND ', $where).' ORDER BY event_date DESC, rowid DESC LIMIT 200';
+$resql = $db->query($sql);
+if (!$resql) {
+	print mjl_ui_system_state('unavailable', 'Audit indisponible', 'Les événements ne peuvent pas être chargés.');
+} elseif ($db->num_rows($resql) === 0) {
+	print mjl_ui_system_state('empty', 'Aucun événement', 'Aucun événement ne correspond aux filtres.');
+} else {
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent"><tr class="liste_titre"><th>ID</th><th>Objet</th><th>Action</th><th>État</th><th>Acteur</th><th>Rôle</th><th>Date</th><th>Résultat</th><th>Motif</th></tr>';
+	while ($row = $db->fetch_object($resql)) {
+		$object = trim($row->object_type.' '.($row->object_ref !== null ? $row->object_ref : $row->object_id));
+		$state = trim((string) $row->state_before).' → '.trim((string) $row->state_after);
+		print '<tr class="oddeven"><td>'.((int) $row->rowid).'</td><td>'.dol_escape_htmltag($object).'</td><td>'.dol_escape_htmltag($row->action).'</td><td>'.dol_escape_htmltag($state).'</td><td>'.dol_escape_htmltag($row->actor_name_snapshot).'</td><td>'.dol_escape_htmltag(mjl_scope_role_label($row->actor_role_snapshot)).'</td><td>'.dol_escape_htmltag($row->event_date).'</td><td>'.dol_escape_htmltag($row->result).'</td><td>'.dol_escape_htmltag($row->reason).'</td></tr>';
+	}
+	print '</table></div>';
+}
 print '</div>';
 mjl_navigation_shell_end();
 llxFooter();
 $db->close();
-
-function mjl_workflowactions_filter_form($filters)
-{
-	print '<form method="GET" action="'.dol_escape_htmltag($_SERVER['PHP_SELF']).'">';
-	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Objet</th><th>Action</th><th>Rôle acteur</th><th>Date de début</th><th>Date de fin</th><th></th></tr>';
-	print '<tr class="oddeven">';
-	print '<td>'.mjl_workflowactions_select('object_type', mjl_workflowactions_distinct_options('object_type'), $filters['object_type'], 'Tous').'</td>';
-	print '<td>'.mjl_workflowactions_select('workflow_action', mjl_workflowactions_distinct_options('action'), $filters['action'], 'Toutes').'</td>';
-	print '<td>'.mjl_workflowactions_select('actor_role', mjl_workflowactions_distinct_options('actor_role'), $filters['actor_role'], 'Tous').'</td>';
-	print '<td><input type="date" name="date_start" value="'.dol_escape_htmltag($filters['date_start']).'"></td>';
-	print '<td><input type="date" name="date_end" value="'.dol_escape_htmltag($filters['date_end']).'"></td>';
-	print '<td><input class="button" type="submit" value="Afficher"></td>';
-	print '</tr></table></div></form><br>';
-}
-
-function mjl_workflowactions_list($filters)
-{
-	global $db, $conf, $user;
-
-	$where = array('w.entity = '.((int) $conf->entity));
-	if ($filters['object_type'] !== '') {
-		$where[] = "w.object_type = '".$db->escape($filters['object_type'])."'";
-	}
-	if ($filters['action'] !== '') {
-		$where[] = "w.action = '".$db->escape($filters['action'])."'";
-	}
-	if ($filters['actor_role'] !== '') {
-		$where[] = "w.actor_role = '".$db->escape($filters['actor_role'])."'";
-	}
-	if ($filters['date_start'] !== '') {
-		$where[] = "w.action_date >= '".$db->escape($filters['date_start'])." 00:00:00'";
-	}
-	if ($filters['date_end'] !== '') {
-		$where[] = "w.action_date <= '".$db->escape($filters['date_end'])." 23:59:59'";
-	}
-
-	$sql = 'SELECT w.ref, w.object_type, w.object_id,';
-	$sql .= ' CASE WHEN w.object_type = \'mjlfinancement_activity\' THEN a.ref WHEN w.object_type = \'mjlfinancement_expense\' THEN e.ref WHEN w.object_type = \'mjlfinancement_convention\' THEN c.ref WHEN w.object_type = \'mjlfinancement_budget_line\' THEN bl.ref WHEN w.object_type = \'mjlfinancement_fund_receipt\' THEN fr.ref ELSE NULL END AS object_ref,';
-	$sql .= ' w.action, w.from_status, w.to_status, u.login, w.actor_role, w.action_date, w.reason, w.comment, w.changes_json';
-	$sql .= ' FROM '.$db->prefix().'mjlfinancement_workflow_action w';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_activity a ON a.rowid = w.object_id AND w.object_type = \'mjlfinancement_activity\' AND a.entity = w.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_expense e ON e.rowid = w.object_id AND w.object_type = \'mjlfinancement_expense\' AND e.entity = w.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_convention c ON c.rowid = w.object_id AND w.object_type = \'mjlfinancement_convention\' AND c.entity = w.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_budget_line bl ON bl.rowid = w.object_id AND w.object_type = \'mjlfinancement_budget_line\' AND bl.entity = w.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_fund_receipt fr ON fr.rowid = w.object_id AND w.object_type = \'mjlfinancement_fund_receipt\' AND fr.entity = w.entity';
-	$sql .= ' LEFT JOIN '.$db->prefix().'user u ON u.rowid = w.actor';
-	$sql .= ' WHERE '.implode(' AND ', $where);
-	$sql .= mjl_traceability_scope_sql('w', $user, (int) $conf->entity);
-	$sql .= ' ORDER BY w.action_date DESC, w.rowid DESC LIMIT 200';
-
-	$resql = $db->query($sql);
-	if (!$resql) {
-		print mjl_ui_system_state('unavailable', 'Historique indisponible', 'L’historique des actions ne peut pas être chargé pour le moment.');
-		mjl_ui_log_error('database', array('route' => 'workflowactions', 'action' => 'list', 'entity' => (int) $conf->entity, 'user_id' => (int) $GLOBALS['user']->id), $db->lasterror());
-		return;
-	}
-
-	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><th>Réf.</th><th>Objet</th><th>ID</th><th>Réf. objet</th><th>Action</th><th>De</th><th>Vers</th><th>Acteur</th><th>Rôle</th><th>Date</th><th>Motif</th><th>Commentaire</th><th>Changements</th></tr>';
-	while ($obj = $db->fetch_object($resql)) {
-		print '<tr class="oddeven">';
-		print '<td>'.dol_escape_htmltag($obj->ref).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_workflowactions_object_type_label($obj->object_type)).'</td>';
-		print '<td>'.((int) $obj->object_id).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->object_ref).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_workflowactions_action_label($obj->action)).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->from_status, $obj->object_type, $obj->action)).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_workflowactions_status_label($obj->to_status, $obj->object_type, $obj->action)).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->login).'</td>';
-		print '<td>'.dol_escape_htmltag(mjl_timeline_presentation_actor_role_label($obj->object_type, $obj->action, $obj->actor_role)).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->action_date).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->reason).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->comment).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->changes_json).'</td>';
-		print '</tr>';
-	}
-	print '</table></div>';
-}
-
-function mjl_workflowactions_object_type_label($objectType)
-{
-	return mjl_timeline_presentation_object_label($objectType);
-}
-
-function mjl_workflowactions_action_label($action)
-{
-	return mjl_timeline_presentation_action_label('', $action);
-}
-
-function mjl_workflowactions_status_label($status, $objectType = '', $action = '')
-{
-	return mjl_timeline_presentation_status_label($objectType, $status, $action);
-}
-
-function mjl_workflowactions_distinct_options($column)
-{
-	global $db, $conf, $user;
-
-	if (!in_array($column, array('object_type', 'action', 'actor_role'), true)) {
-		return array();
-	}
-
-	$sql = 'SELECT DISTINCT w.'.$column.' AS value FROM '.$db->prefix().'mjlfinancement_workflow_action w';
-	$sql .= ' WHERE w.entity = '.((int) $conf->entity).' AND w.'.$column.' IS NOT NULL AND w.'.$column." <> ''";
-	$sql .= mjl_traceability_scope_sql('w', $user, (int) $conf->entity);
-	$sql .= ' ORDER BY w.'.$column;
-	$resql = $db->query($sql);
-	if (!$resql) {
-		return array();
-	}
-
-	$options = array();
-	while ($obj = $db->fetch_object($resql)) {
-		$value = (string) $obj->value;
-		if ($column === 'object_type') $label = mjl_timeline_presentation_object_label($value);
-		elseif ($column === 'action') $label = mjl_timeline_presentation_action_label('', $value);
-		else $label = mjl_timeline_presentation_actor_role_label('', '', $value);
-		$options[$value] = $label;
-	}
-	return $options;
-}
-
-function mjl_workflowactions_select($name, $options, $selected, $emptyLabel)
-{
-	$html = '<select name="'.dol_escape_htmltag($name).'">';
-	$html .= '<option value="">'.dol_escape_htmltag($emptyLabel).'</option>';
-	foreach ($options as $value => $label) {
-		$html .= '<option value="'.dol_escape_htmltag($value).'"'.((string) $selected === (string) $value ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
-	}
-	$html .= '</select>';
-	return $html;
-}

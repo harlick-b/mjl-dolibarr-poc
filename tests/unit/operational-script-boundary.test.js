@@ -16,16 +16,11 @@ test('Apache denies every operational script route before PHP dispatch', () => {
 });
 
 test('operational entrypoints require the shared CLI-only guard', () => {
-  for (const script of [
-    'audit_schema_current.php',
-    'bootstrap_poc.php',
-    'check_production_readiness.php',
-    'disable_native_workspace_modules.php',
-    'verify_activity_workflow.php',
-    'verify_expense_workflow.php',
-    'verify_sample_data.php',
-    'verify_scope_integrity.php',
-    'verify_traceability_exports.php',
+	for (const script of [
+		'bootstrap_poc.php',
+		'disable_native_workspace_modules.php',
+		'rst_phase1_reset.php',
+		'verify_phase1_reset.php',
   ]) {
     const source = fs.readFileSync(
       path.join(repositoryRoot, 'custom/mjlfinancement/scripts', script),
@@ -58,7 +53,7 @@ test('operational module scripts fail closed on the exact preserved administrato
   assert.match(helper, /empty\(\$adminUser->admin\)/);
   assert.match(helper, /empty\(\$adminUser->statut\)/);
 
-  for (const script of ['bootstrap_poc.php', 'disable_native_workspace_modules.php']) {
+	for (const script of ['bootstrap_poc.php', 'disable_native_workspace_modules.php', 'rst_phase1_reset.php']) {
     const source = fs.readFileSync(
       path.join(repositoryRoot, 'custom/mjlfinancement/scripts', script),
       'utf8',

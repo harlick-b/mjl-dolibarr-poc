@@ -26,20 +26,14 @@ function mjl_scope_role_label($roleCode)
 	return isset($labels[$roleCode]) ? $labels[$roleCode] : 'Profil historique non résolu';
 }
 
-function mjl_scope_legacy_group_name_for_role($roleCode)
-{
-	$map = array(
-		'AGENT_SAISIE' => 'MJL POC - Agent',
-		'AGENT_VERIFICATEUR' => 'MJL POC - Superviseur N1',
-		'VALIDATEUR_DEFINITIF' => 'MJL POC - DPAF',
-		'ADMIN_PLATEFORME' => 'MJL POC - Administrateur',
-	);
-	return isset($map[$roleCode]) ? $map[$roleCode] : '';
-}
-
 function mjl_scope_is_valid_role_code($roleCode)
 {
 	return in_array((string) $roleCode, mjl_scope_role_codes(), true);
+}
+
+function mjl_scope_is_valid_business_role_code($roleCode)
+{
+	return in_array((string) $roleCode, array('AGENT_SAISIE', 'AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'), true);
 }
 
 function mjl_scope_active_role_row($userId, $entity = null)
@@ -79,12 +73,19 @@ function mjl_scope_active_role_code($userId, $entity = null)
 
 function mjl_scope_effective_role_code(User $userObj, $entity = null)
 {
+	global $db, $conf;
 	if (empty($userObj->id)) {
 		return '';
 	}
-	if (!empty($userObj->admin)) {
+	$entity = $entity === null ? (int) $conf->entity : (int) $entity;
+	$sql = 'SELECT entity, admin, statut FROM '.$db->prefix().'user WHERE rowid = '.((int) $userObj->id).' LIMIT 1';
+	$resql = $db->query($sql);
+	$current = $resql ? $db->fetch_object($resql) : null;
+	if (!$current || (int) $current->statut !== 1) return '';
+	if (!empty($current->admin)) {
 		return 'ADMIN_PLATEFORME';
 	}
+	if ((int) $current->entity !== $entity) return '';
 	$roleCode = mjl_scope_active_role_code((int) $userObj->id, $entity);
 	return mjl_scope_is_valid_role_code($roleCode) ? $roleCode : '';
 }
@@ -140,7 +141,8 @@ function mjl_scope_assign_access_profile($userId, $roleCode, User $actor, $entit
 	$userId = (int) $userId;
 	$entity = $entity === null ? (int) $conf->entity : (int) $entity;
 	$roleCode = (string) $roleCode;
-	if ($userId <= 0 || $entity <= 0 || !mjl_scope_is_valid_role_code($roleCode)) {
+	if (!mjl_scope_is_platform_admin($actor, $entity)) return array(-1, 'Action interdite.');
+	if ($userId <= 0 || $entity <= 0 || !mjl_scope_is_valid_business_role_code($roleCode)) {
 		return array(-1, 'Profil de production invalide.');
 	}
 
@@ -150,7 +152,7 @@ function mjl_scope_assign_access_profile($userId, $roleCode, User $actor, $entit
 	}
 
 	$wasPlatformAdmin = mjl_scope_is_platform_admin($target, $entity);
-	$willPlatformAdmin = !empty($target->admin) || $roleCode === 'ADMIN_PLATEFORME';
+	$willPlatformAdmin = !empty($target->admin);
 	if ((int) $actor->id === $userId && $wasPlatformAdmin && !$willPlatformAdmin) {
 		return array(-1, 'Vous ne pouvez pas retirer votre propre autorite administrateur.');
 	}
@@ -163,10 +165,6 @@ function mjl_scope_assign_access_profile($userId, $roleCode, User $actor, $entit
 		$db->rollback('mjl access role failed');
 		return array(-1, $db->lasterror());
 	}
-	if (!mjl_scope_replace_legacy_group($userId, $roleCode, $entity)) {
-		$db->rollback('mjl access group failed');
-		return array(-1, $db->lasterror());
-	}
 	if (!mjl_scope_replace_role_rights($userId, $roleCode, $entity)) {
 		$db->rollback('mjl access rights failed');
 		return array(-1, $db->lasterror());
@@ -174,6 +172,16 @@ function mjl_scope_assign_access_profile($userId, $roleCode, User $actor, $entit
 	if (!function_exists('mjl_auth_record_event') || mjl_auth_record_event('access_profile_assigned', $userId, (int) $actor->id, 'role='.$roleCode.';source='.$source) < 1) {
 		$db->rollback('mjl access audit failed');
 		return array(-1, 'La journalisation de la modification des accès a échoué.');
+	}
+	$sql = 'UPDATE '.$db->prefix()."mjlfinancement_invitation SET status='revoked', token_hash=NULL, date_revoked=NOW(), fk_user_revoked=".((int) $actor->id).' WHERE entity='.$entity.' AND fk_user='.$userId." AND status IN ('pending_send','sent') AND role_code <> '".$db->escape($roleCode)."'";
+	if (!$db->query($sql)) {
+		$db->rollback('mjl access credential revocation failed');
+		return array(-1, $db->lasterror());
+	}
+	$sql = 'UPDATE '.$db->prefix()."mjlfinancement_password_reset SET status='revoked', token_hash=NULL, date_consumed=NOW(), fk_user_modif=".((int) $actor->id).' WHERE entity='.$entity.' AND fk_user='.$userId." AND status IN ('pending_send','sent')";
+	if (!$db->query($sql)) {
+		$db->rollback('mjl reset credential revocation failed');
+		return array(-1, $db->lasterror());
 	}
 	if (!$db->commit('mjl access profile')) {
 		return array(-1, $db->lasterror());
@@ -187,6 +195,7 @@ function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
 
 	$userId = (int) $userId;
 	$entity = $entity === null ? (int) $conf->entity : (int) $entity;
+	if (!mjl_scope_is_platform_admin($actor, $entity)) return array(-1, 'Action interdite.');
 	if ($userId <= 0 || $entity <= 0) {
 		return array(-1, 'Utilisateur invalide.');
 	}
@@ -213,6 +222,11 @@ function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
 		$db->rollback('mjl deactivate role failed');
 		return array(-1, $db->lasterror());
 	}
+	if (!$db->query('UPDATE '.$db->prefix()."mjlfinancement_invitation SET status='revoked', token_hash=NULL, date_revoked=NOW(), fk_user_revoked=".((int) $actor->id).' WHERE entity='.$entity.' AND fk_user='.$userId." AND status IN ('pending_send','sent')")
+		|| !$db->query('UPDATE '.$db->prefix()."mjlfinancement_password_reset SET status='revoked', token_hash=NULL, date_consumed=NOW(), fk_user_modif=".((int) $actor->id).' WHERE entity='.$entity.' AND fk_user='.$userId." AND status IN ('pending_send','sent')")) {
+		$db->rollback('mjl deactivate credentials failed');
+		return array(-1, $db->lasterror());
+	}
 	if (!mjl_scope_replace_role_rights($userId, '', $entity)) {
 		$db->rollback('mjl deactivate rights failed');
 		return array(-1, $db->lasterror());
@@ -235,7 +249,7 @@ function mjl_scope_assign_active_role($userId, $roleCode, $actorId = null, $enti
 	$actorId = $actorId === null ? null : (int) $actorId;
 	$entity = $entity === null ? (int) $conf->entity : (int) $entity;
 	$roleCode = (string) $roleCode;
-	if ($userId <= 0 || $entity <= 0 || !mjl_scope_is_valid_role_code($roleCode)) {
+	if ($userId <= 0 || $entity <= 0 || !mjl_scope_is_valid_business_role_code($roleCode)) {
 		return -1;
 	}
 	list($target) = mjl_scope_role_assignment_target($userId, $roleCode, $entity);
@@ -317,12 +331,8 @@ function mjl_scope_role_assignment_target($userId, $roleCode, $entity)
 	if ($target->fetch((int) $userId) <= 0 || (int) $target->entity !== (int) $entity) {
 		return array(null, 'Utilisateur introuvable dans cette entite.');
 	}
-	if (!empty($target->admin) && (string) $roleCode !== 'ADMIN_PLATEFORME') {
+	if (!empty($target->admin)) {
 		return array(null, 'Un administrateur Dolibarr natif ne peut pas recevoir un rôle métier MJL.');
-	}
-	$currentRole = mjl_scope_effective_role_code($target, (int) $entity);
-	if ($currentRole === 'AGENT_SAISIE' && (string) $roleCode !== 'AGENT_SAISIE') {
-		return array(null, 'Le changement de rôle d’un Agent reste bloqué tant que ses affectations d’Activité ne peuvent pas être vérifiées.');
 	}
 	return array($target, '');
 }
@@ -369,66 +379,21 @@ function mjl_scope_replace_role_rows($userId, $roleCode, $actorId, $entity, $sou
 	return (bool) $db->query($sql);
 }
 
-function mjl_scope_replace_legacy_group($userId, $roleCode, $entity)
-{
-	global $db;
-
-	$sql = 'DELETE FROM '.$db->prefix().'usergroup_user WHERE entity = '.((int) $entity).' AND fk_user = '.((int) $userId);
-	$sql .= ' AND fk_usergroup IN (SELECT rowid FROM '.$db->prefix().'usergroup WHERE entity = '.((int) $entity)." AND nom LIKE 'MJL POC - %')";
-	if (!$db->query($sql)) {
-		return false;
-	}
-	$groupName = mjl_scope_legacy_group_name_for_role($roleCode);
-	if ($groupName === '') {
-		return true;
-	}
-	$groupId = mjl_scope_legacy_group_id($groupName, $entity);
-	if ($groupId <= 0) {
-		return true;
-	}
-	$sql = 'INSERT INTO '.$db->prefix().'usergroup_user (entity, fk_user, fk_usergroup)';
-	$sql .= ' VALUES ('.((int) $entity).', '.((int) $userId).', '.$groupId.')';
-	return (bool) $db->query($sql);
-}
-
 function mjl_scope_rights_for_role($roleCode)
 {
 	$rights = array(
 		'AGENT_SAISIE' => array(
-			array('activity', 'read'),
-			array('activity', 'write'),
+			array('reference', 'read'),
 		),
 		'AGENT_VERIFICATEUR' => array(
+			array('reference', 'read'),
 			array('activity', 'read'),
-			array('activity', 'validate'),
-			array('validation', 'read'),
-			array('workflowaction', 'read'),
 		),
 		'VALIDATEUR_DEFINITIF' => array(
-			array('convention', 'read'),
-			array('convention', 'write'),
+			array('reference', 'read'),
+			array('reference', 'write'),
 			array('activity', 'read'),
-			array('activity', 'validate'),
-			array('budgetline', 'read'),
-			array('budgetline', 'write'),
-			array('fundreceipt', 'read'),
-			array('fundreceipt', 'write'),
-			array('validation', 'read'),
-			array('validation', 'write'),
-			array('workflowaction', 'read'),
-			array('workflowaction', 'write'),
-			array('exchangelog', 'read'),
-			array('exchangelog', 'write'),
-			array('report', 'read'),
-			array('export', 'read'),
-			array('export', 'write'),
-		),
-		'ADMIN_PLATEFORME' => array(
-			array('validation', 'read'),
-			array('workflowaction', 'read'),
-			array('exchangelog', 'read'),
-			array('export', 'read'),
-			array('export', 'write'),
+			array('audit', 'read'),
 		),
 	);
 	return isset($rights[$roleCode]) ? $rights[$roleCode] : array();
@@ -463,20 +428,6 @@ function mjl_scope_replace_role_rights($userId, $roleCode, $entity)
 	return true;
 }
 
-function mjl_scope_legacy_group_id($groupName, $entity)
-{
-	global $db;
-
-	$sql = 'SELECT rowid FROM '.$db->prefix().'usergroup';
-	$sql .= ' WHERE entity = '.((int) $entity).' AND nom = '.mjl_scope_sql_string($groupName);
-	$resql = $db->query($sql);
-	if (!$resql) {
-		return 0;
-	}
-	$obj = $db->fetch_object($resql);
-	return $obj ? (int) $obj->rowid : 0;
-}
-
 function mjl_scope_active_platform_admin_count($entity = null, $excludeUserId = 0)
 {
 	global $db, $conf;
@@ -487,8 +438,7 @@ function mjl_scope_active_platform_admin_count($entity = null, $excludeUserId = 
 		return 0;
 	}
 	$sql = 'SELECT COUNT(DISTINCT u.rowid) AS nb FROM '.$db->prefix().'user u';
-	$sql .= ' LEFT JOIN '.$db->prefix()."mjlfinancement_user_role r ON r.entity = u.entity AND r.fk_user = u.rowid AND r.is_active = 1 AND r.role_code = 'ADMIN_PLATEFORME'";
-	$sql .= ' WHERE u.entity = '.$entity.' AND u.statut = 1 AND (u.admin = 1 OR r.rowid IS NOT NULL)';
+	$sql .= ' WHERE u.entity = '.$entity.' AND u.statut = 1 AND u.admin = 1';
 	if ($excludeUserId > 0) {
 		$sql .= ' AND u.rowid <> '.$excludeUserId;
 	}

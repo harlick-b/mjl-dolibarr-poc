@@ -1,7 +1,6 @@
 <?php
 
 require_once __DIR__.'/mjl_presentation.lib.php';
-require_once __DIR__.'/mjl_status_presentation.lib.php';
 require_once __DIR__.'/mjl_feedback.lib.php';
 
 /**
@@ -13,12 +12,12 @@ require_once __DIR__.'/mjl_feedback.lib.php';
 
 function mjl_ui_activity_status($status)
 {
-	return mjl_status_presentation('activity', $status, 'operational');
-}
-
-function mjl_ui_expense_status($status)
-{
-	return mjl_status_presentation('expense', $status, 'operational');
+	$states = array(
+		'0' => array('label' => 'Brouillon', 'tone' => 'neutral'),
+		'1' => array('label' => 'Active', 'tone' => 'success'),
+		'2' => array('label' => 'Terminée', 'tone' => 'neutral'),
+	);
+	return isset($states[(string) $status]) ? $states[(string) $status] : array('label' => 'Statut non reconnu', 'tone' => 'warning');
 }
 
 function mjl_ui_escape($value)

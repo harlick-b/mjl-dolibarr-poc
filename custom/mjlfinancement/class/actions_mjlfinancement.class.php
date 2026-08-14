@@ -2,7 +2,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonhookactions.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_workspace.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 
 class ActionsMjlfinancement extends CommonHookActions
 {
@@ -53,13 +53,13 @@ class ActionsMjlfinancement extends CommonHookActions
 		}
 
 		if ($action === 'mjl_validate_password_reset') {
-			$token = GETPOST('mjlreset', 'restricthtml');
+			$selector = GETPOST('mjlselector', 'alphanohtml');
 			if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 				$_SESSION['mjl_reset_error'] = 'Le jeton de securite est invalide. Veuillez recharger la page.';
-				header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlreset='.urlencode($token));
+				header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlselector='.urlencode($selector));
 				exit;
 			}
-			$error = mjl_auth_consume_password_reset($token, GETPOST('newpass1', 'restricthtml'), GETPOST('newpass2', 'restricthtml'));
+			$error = mjl_auth_consume_password_reset($selector, GETPOST('verifier', 'restricthtml'), GETPOST('newpass1', 'restricthtml'), GETPOST('newpass2', 'restricthtml'));
 			if ($error === '') {
 				unset($_SESSION['dol_login']);
 				$_SESSION['dol_loginmesg'] = 'Votre mot de passe a ete mis a jour. Vous pouvez vous connecter.';
@@ -67,7 +67,7 @@ class ActionsMjlfinancement extends CommonHookActions
 				exit;
 			}
 			$_SESSION['mjl_reset_error'] = $error;
-			header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlreset='.urlencode($token));
+			header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlselector='.urlencode($selector));
 			exit;
 		}
 
@@ -78,7 +78,7 @@ class ActionsMjlfinancement extends CommonHookActions
 	{
 		global $conf, $user;
 
-		if (!empty($user) && !empty($user->id) && mjl_workspace_user_can_read($user) && $this->isMjlWorkspacePath()) {
+		if (!empty($user) && !empty($user->id) && mjl_navigation_user_can_enter($user) && $this->isMjlWorkspacePath()) {
 			$conf->dol_hide_topmenu = 1;
 			$conf->dol_hide_leftmenu = 1;
 		}
@@ -111,9 +111,7 @@ class ActionsMjlfinancement extends CommonHookActions
 		if (($path === '/' || $path === '/index.php') && (empty($user) || empty($user->id))) {
 			return true;
 		}
-		if ($path === '/user/passwordforgotten.php') {
-			return true;
-		}
+		if ($path === '/user/passwordforgotten.php') return false;
 		if (strpos($path, '/custom/mjlfinancement/') !== 0) {
 			return false;
 		}
@@ -124,7 +122,7 @@ class ActionsMjlfinancement extends CommonHookActions
 			}
 		}
 
-		return $path !== '/custom/mjlfinancement/documentdownload.php';
+		return $path !== '/custom/mjlfinancement/documentdownload.php' && $path !== '/custom/mjlfinancement/invitation.php';
 	}
 
 	private function isMjlWorkspacePath()
