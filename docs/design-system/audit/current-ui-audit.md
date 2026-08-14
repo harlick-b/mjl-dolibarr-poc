@@ -52,8 +52,9 @@ and official outputs.
 | --- | --- | --- | --- |
 | Workspace dashboard | Medium | Enriched cards now expose definition, scope, period, freshness, destination, and local source failure; final client KPI wording can still be reviewed. | `custom/mjlfinancement/index.php` |
 | Supervision dashboard | Medium | Production role wording, scoped filters, and audit-row resolution are aligned; route filename remains compatibility debt. | `custom/mjlfinancement/dpafdashboard.php` |
-| Partenaires / Programmes | Partial | Needs current browser review for production scope clarity. | `custom/mjlfinancement/partners.php` |
-| Projects | Medium | Dedicated guarded create/edit states, shared scoped filters/pagination and list states, and responsive operational cards are browser-verified; dense related-detail tables remain separate. | `custom/mjlfinancement/projects.php` |
+| Partenaires | Good | French-first reference list/detail/forms, lifecycle states, safe feedback, and 390-pixel containment are focused-browser verified. | `custom/mjlfinancement/partners.php` |
+| Projets | Good | Guarded reference states expose only the display label for editing; immutable ownership/ref and parent lifecycle behavior are focused-browser verified. | `custom/mjlfinancement/projects.php` |
+| Types d’Opération | Good | Entity-scoped active/inactive reference states use the shared RST-003 presentation and security contract. | `custom/mjlfinancement/operationtypes.php` |
 | Activities | Medium | Dedicated guarded create/edit/execution/contextual-upload and verifier/final-validator decision states plus shared scoped filters/pagination and responsive list cards are browser-verified; short submission/correction comments remain contextual and wording review remains. | `custom/mjlfinancement/activities.php` |
 | Expenses | Medium | Dedicated guarded create/edit/contextual-upload/prevalidation/final-validation/rejection/disbursement states plus shared scoped filters/pagination and responsive operational cards are browser-verified; short submission/correction comments remain contextual and wording review remains. | `custom/mjlfinancement/expenses.php` |
 | Documents | Good | Read-only model is correct; filters and document ergonomics can improve. | `custom/mjlfinancement/documents.php` |

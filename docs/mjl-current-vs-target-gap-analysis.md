@@ -36,7 +36,7 @@ retaining the exact empty table and freezing legacy Activity mutations.
 | Required PDF/XLSX plus supplemental CSV | Current reports are CSV/XLSX finance reports | Required PDF and target catalogs are absent | Mislabelled or incomplete outputs | 3B |
 | Gated document behavior | Guarded documents are already implemented with unapproved business assumptions | Security primitives and business policy are conflated | Premature Phase 4 behavior | 1 and 4 |
 | Gated accounting and official reports | No approved accounting rules or Partner templates exist | Required client inputs are missing | Invented financial/reporting behavior | 5-6 |
-| Empty persistent tenant plus disposable test fixtures | Persistent seed and bootstrap creation paths are removed; target disposable factories do not yet exist | Container-backed legacy journeys cannot yet provide target acceptance | Reintroducing the old seed would make obsolete data authoritative | 1-3C |
+| Empty persistent tenant plus disposable test fixtures | Persistent seed/bootstrap creation paths are removed; RST-003 has a focused disposable reference fixture and gate | Later target phases still need their own disposable factories | Reintroducing the old seed would make obsolete data authoritative | 1-3C |
 | Core integration readiness | Existing readiness docs describe the old product | Target security, restore, performance, and go-live gates are not evaluated | False production claim | 3C |
 
 ## Live Data Risk
@@ -48,6 +48,5 @@ empty.
 
 ## Next Action
 
-Review RST-003 as the next recommended independent approval unit for Partner,
-Project, and Opération-type reference foundations. RST-002A approval does not
-approve RST-003 or any later unit.
+RST-003 is executed. Review only the next independently proposed reset unit;
+RST-003 execution does not approve RST-004 or any later unit.

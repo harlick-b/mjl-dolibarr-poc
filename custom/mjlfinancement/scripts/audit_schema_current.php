@@ -8,6 +8,7 @@ $modules = array(
 	'core_schema.php',
 	'audit_schema.php',
 	'role_scope_schema.php',
+	'reference_foundation.php',
 	'activity_status_integrity.php',
 	'activity_execution_schema.php',
 	'expense_workflow_schema.php',

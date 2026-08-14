@@ -64,6 +64,7 @@ test('maps each public command to explicit durable layers without phase-era targ
   assert.deepEqual(getSuitePlan('unit'), ['unit']);
   assert.deepEqual(getSuitePlan('verify'), ['verify']);
   assert.deepEqual(getSuitePlan('e2e'), ['e2e']);
+  assert.deepEqual(getSuitePlan('rst003'), ['rst003']);
   assert.deepEqual(getSuitePlan('characterization'), ['characterization']);
   assert.deepEqual(getSuitePlan('manual-accessibility'), ['manual-accessibility']);
   assert.deepEqual(getSuitePlan('production-readiness'), ['production-readiness']);

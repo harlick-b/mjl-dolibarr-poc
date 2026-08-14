@@ -1,14 +1,14 @@
 # MJL Reset Manifest v2
 
-RST-000, RST-000A, RST-001, and RST-002A were explicitly approved and
-executed. RST-002A completed on 2026-08-12 without persistent data mutation;
+RST-000, RST-000A, RST-001, RST-002A, and RST-003 were explicitly approved and
+executed. RST-003 completed on 2026-08-13 with an empty reference catalog;
 every later action remains unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
-- RST-000, RST-000A, RST-001, and RST-002A are `EXECUTED`; every other action is
+- RST-000, RST-000A, RST-001, RST-002A, and RST-003 are `EXECUTED`; every other action is
   `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
@@ -150,17 +150,17 @@ number does not approve a suffixed unit.
 
 ### RST-003 - Partner, Project, and Opération-type reference foundation
 
-- Status: `PENDING_APPROVAL`
+- Status: `EXECUTED`
 - Current component: empty native Partner/Project data after RST-000A and no target Opération-type reference.
 - Proposed action: establish empty target reference structures and guarded management behavior.
 - Reason: current Partner/Programme naming and one-project shape conflict with v2.
 - Phase: Phase 1
 - Dependencies: RST-000A, RST-001
-- Exact paths: `custom/mjlfinancement/partners.php`, `custom/mjlfinancement/projects.php`, `custom/mjlfinancement/lib/mjl_project_recovery.lib.php`, `custom/mjlfinancement/lib/mjl_recovery_registry.lib.php`, planned `custom/mjlfinancement/operationtypes.php`, planned `custom/mjlfinancement/class/mjloperationtype.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.key.sql`, `tests/e2e/partners-projects.spec.js`, `tests/e2e/cases/partner-project.cases.js`, `tests/contracts/project_form_security_test.php`.
-- Exact tables/data: empty target-facing use of `llx_societe` and `llx_projet`; planned empty `llx_mjlfinancement_operation_type`. Legacy native rows are deleted only by RST-000A.
+- Exact paths: `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/partners.php`, `custom/mjlfinancement/projects.php`, `custom/mjlfinancement/operationtypes.php`, `custom/mjlfinancement/lib/mjl_reference.lib.php`, `custom/mjlfinancement/lib/mjl_reference_route.lib.php`, `custom/mjlfinancement/class/mjloperationtype.class.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.key.sql`, `custom/mjlfinancement/sql/update_0.12.0.sql`, `custom/mjlfinancement/sql/update_0.12.1.sql`, `custom/mjlfinancement/scripts/audit_schema_current.php`, `custom/mjlfinancement/scripts/verification/schema/reference_foundation.php`, `package.json`, `tests/runner/disposable-run.js`, `tests/runner/run-suite.js`, `tests/e2e/partners-projects.spec.js`, `tests/e2e/cases/partner-project.cases.js`, `tests/unit/rst003-reference-foundation.test.js`, `tests/unit/disposable-run.test.js`, and `tests/unit/design-system-v3-remediation.test.js`.
+- Exact tables/data: empty target-facing use of `llx_societe` and `llx_projet`; implemented empty `llx_mjlfinancement_operation_type`. Legacy native rows are deleted only by RST-000A.
 - Action and data impact: implement stable identifiers, active/inactive behavior, and Validator-only management without creating UNICEF, Coopération Suisse, Project, or Opération-type sample rows. Final values come from later real entry or the post-all-phases dataset specification.
 - Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
-- Rollback/verification: restore prior code/schema and verify empty-state/reference CRUD behavior with disposable test-only fixtures.
+- Rollback/verification: focused schema/browser acceptance and rollback behavior passed in disposable tenants whose containers, network, database volume, and document volume were removed; the shared tenant retained exactly one Admin and zero business/reference/audit rows. See `docs/mjl-rst-003-execution-report.md`.
 
 ### RST-004 - Remove obsolete finance core
 

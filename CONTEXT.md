@@ -7,10 +7,15 @@ application. Target rules live in the canonical v2 documents.
 
 **Partenaire**:
 Organization that agrees and supports Activities through one or more Projects.
+It is created active, may be deactivated but never hard-deleted through MJL,
+and deactivation closes all of its active Projects atomically. Reactivation
+does not reopen those Projects.
 _Avoid_: Partenaire / Programme, Tiers in normal user-facing language, PTF as a generic application entity
 
 **Projet**:
 Stable MJL project belonging to one Partenaire and containing Activities.
+Its internal identity, generated technical reference, and original Partenaire
+are immutable; only its display name and active/inactive lifecycle may change.
 _Avoid_: Programme as a generic entity, native Dolibarr project screen as the normal MJL experience
 
 **Activité**:
@@ -24,6 +29,8 @@ _Avoid_: Expense as the core execution unit
 
 **Type d'Opération**:
 Active or inactive reference classification selected for an Opération.
+It has an entity-scoped immutable identity and cannot be hard-deleted through
+MJL.
 _Avoid_: Invented accounting, budget, or document categories
 
 ## Planning and review

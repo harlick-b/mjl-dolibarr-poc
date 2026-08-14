@@ -60,6 +60,7 @@ function getSuitePlan(mode) {
     unit: ['unit'],
     verify: ['verify'],
     e2e: ['e2e'],
+    rst003: ['rst003'],
     characterization: ['characterization'],
     'manual-accessibility': ['manual-accessibility'],
     'production-readiness': ['production-readiness'],

@@ -160,6 +160,25 @@ async function runVerification(plan, signal) {
   }
 }
 
+async function runRst003Verification(plan, signal) {
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/audit_schema_current.php', 'reference_foundation.php'], { signal });
+}
+
+async function runRst003RollbackRehearsal(plan, signal) {
+  const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
+  const client = ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb', '-e'];
+  let renamed = false;
+  try {
+    await compose(plan, [...client, 'RENAME TABLE llx_mjlfinancement_operation_type TO llx_mjlfinancement_operation_type_rst003_rollback'], { quiet: true, signal });
+    renamed = true;
+    const absent = await compose(plan, [...client, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_operation_type'"], { quiet: true, signal });
+    if (!/\b0\b/.test(absent)) throw new Error('RST-003 rollback rehearsal did not remove the target table boundary.');
+  } finally {
+    if (renamed) await compose(plan, [...client, 'RENAME TABLE llx_mjlfinancement_operation_type_rst003_rollback TO llx_mjlfinancement_operation_type'], { quiet: true, signal });
+  }
+  await runRst003Verification(plan, signal);
+}
+
 async function runProductionReadiness(plan, signal) {
   await compose(plan, [
     'exec',
@@ -174,6 +193,8 @@ async function runPlaywright(plan, target, signal) {
   const args = ['playwright', 'test'];
   if (target === 'e2e') {
     args.push('--config=playwright.config.js');
+  } else if (target === 'rst003') {
+    args.push('tests/e2e/partners-projects.spec.js', '--config=playwright.config.js');
   } else if (target === 'characterization') {
     args.push('--config=tests/characterization/playwright.config.js');
   } else {
@@ -260,6 +281,11 @@ async function main() {
         await provision(plan, controller.signal);
       }
       if (layer === 'verify') await runVerification(plan, controller.signal);
+      else if (layer === 'rst003') {
+        await runRst003Verification(plan, controller.signal);
+        await runRst003RollbackRehearsal(plan, controller.signal);
+        await runPlaywright(plan, layer, controller.signal);
+      }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);
     }

@@ -9,6 +9,7 @@ npm test
 npm run test:unit
 npm run test:verify
 npm run test:e2e
+npm run test:rst003
 npm run test:characterization
 npm run test:manual-accessibility
 npm run audit:production-readiness
@@ -23,6 +24,10 @@ npm run audit:production-readiness
 - `npm run test:e2e` runs twelve retained legacy capability suites in one
   disposable tenant. They are non-gating until RST-013A/RST-014A replace stale
   expectations and removed persistent fixtures.
+- `npm run test:rst003` is the current focused RST-003 gate. It provisions a
+  disposable tenant, verifies the allowlisted empty reference schema, runs the
+  Partner/Project/Type d’Opération browser contract, then removes containers,
+  network, database volume, and document volume.
 - `npm run test:characterization` retains legacy finance characterization and a
   structural RST-002A authorization-removal contract. It remains a non-target
   gate until RST-013A/RST-014A replace legacy runtime fixtures.

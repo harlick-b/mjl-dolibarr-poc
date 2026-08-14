@@ -91,8 +91,9 @@ current-state/code debt, not target behavior.
 | Surface | Route/file | Current purpose | Current-state notes |
 | --- | --- | --- | --- |
 | Technical landing | `index.php` | Temporary RST-002A Admin-only landing with static access/audit diagnostic links. | No business metrics, alerts, reports, Activity, finance, document, or readiness queries are executed. |
-| Partenaires / Programmes | `partners.php` | Temporarily unavailable under RST-002A. | RST-003 owns the target reference surface; rich legacy aggregates are not exposed. |
-| Projects | `projects.php` | Temporarily unavailable under RST-002A. | Only safe Project identity inside the reviewer Activity projection remains; RST-003 owns the route reset. |
+| Partenaires | `partners.php` | French-first list/detail/create/edit/activate/deactivate reference surface. | Business roles read active rows; only the Validateur définitif sees inactive rows or mutates. Deactivation atomically closes active Projects. |
+| Projets | `projects.php` | French-first reference surface using native Projects. | Generated technical reference and original Partenaire are immutable; activation requires an active same-entity Partenaire. |
+| Types d’Opération | `operationtypes.php` | Entity-scoped custom reference list/detail/lifecycle. | Active-only business reads and Validator-only guarded mutation; no hard-delete route. |
 | Activities | `activities.php` | Temporary read-only Supervisor/Validator list/detail projection. | Activity, Project, Convention, Partner, and optional Task parents must be entity-consistent; Agent/Admin access and all HTTP/domain/comment/exchange/upload mutations fail closed. |
 | Expenses and legacy finance | `expenses.php`, `conventions.php`, `budgetlines.php`, `fundreceipts.php` | Temporarily unavailable where authorization depended on Partner scope. | Files/schema remain for their owning reset units; no RST-004 deletion is claimed. |
 | Documents | `documents.php`, `documentdownload.php` | Partner-dependent list/upload/download paths fail closed. | Storage and route removal remain owned by RST-010A. |

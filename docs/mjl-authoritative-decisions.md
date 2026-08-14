@@ -49,6 +49,10 @@ contradiction by choosing an implicit precedence rule.
   must be removed with the tenant. They are not persistent sample data and are
   never business-rule authority.
 - The canonical hierarchy is `Partenaire -> Projet -> Activité -> Opérations`.
+- RST-003 reference records use activation/deactivation, never application
+  hard deletion. A Partenaire deactivation atomically closes its active
+  Projects; reactivation does not reopen them. A Project permanently retains
+  its original Partenaire and generated technical reference.
 - `Programme` is not a generic entity name. It may remain inside a proper name.
 - Each user has one effective MJL role.
 - Stable role codes remain `AGENT_SAISIE`, `AGENT_VERIFICATEUR`,
@@ -74,7 +78,7 @@ MJL-specific code stays outside Dolibarr core. Native third parties, projects,
 users, authentication, ECM, and export capabilities may be reused through safe
 MJL interfaces.
 
-RST-000, RST-000A, RST-001, and RST-002A are executed. RST-000A's recorded approval-boundary
+RST-000, RST-000A, RST-001, RST-002A, and RST-003 are executed. RST-000A's recorded approval-boundary
 deviation was ratified through supplemental checksum
 `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`.
 It deleted the checksum-approved legacy sample rows/files without migration
@@ -83,7 +87,9 @@ effective role and derives `ADMIN_PLATEFORME` from native administrator status
 without granting business workflow access. RST-002A removes Partner scope from
 runtime authorization, retains its exact empty table until RST-002B, freezes all
 legacy Activity mutations, and exposes only a safe read-only reviewer projection.
-Every later reset-manifest entry remains `PENDING_APPROVAL`.
+RST-003 establishes empty guarded Partenaire, Projet, and Type d’Opération
+references with Validator-only mutation and no persistent fixtures. Every
+later reset-manifest entry remains `PENDING_APPROVAL`.
 
 ## Design Authority
 

@@ -53,6 +53,7 @@ belong to the subject-specific canonical document referenced in each row.
 | DEC-034 | Ratify the exact RST-000A out-of-appendix transient role row and 22-file supporting snapshot bound by checksum `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`; authorize no new mutation or later RST unit. | APPROVED | RST-000A supplemental appendix | User decision on 2026-08-10 |
 | DEC-035 | Approve and execute RST-001: enforce one effective MJL role, derive Admin from native Dolibarr administrator status, forbid native-admin business roles, and migrate no deleted assignment. | EXECUTED | Reset manifest and RST-001 execution report | User approval and execution on 2026-08-10 |
 | DEC-036 | Approve and execute RST-002A: remove Partner scope from authorization inputs, retain the exact empty legacy table, freeze legacy Activity mutations, permit only the safe reviewer read projection, and migrate no data. | EXECUTED | Reset manifest and RST-002A execution report | User approval and execution on 2026-08-12 |
+| DEC-037 | Approve and execute RST-003: create the empty Partenaire, Projet, and Type d’Opération reference foundation; use activation rather than hard deletion; cascade Partner deactivation to active Projects without reopening them; and make Project ownership and technical reference immutable. | EXECUTED | Reset manifest and RST-003 execution report | User approval and execution on 2026-08-13 |
 
 ## Deliberately Unspecified
 

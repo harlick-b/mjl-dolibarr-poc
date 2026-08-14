@@ -105,10 +105,10 @@ test('active documentation states the precise Google Fonts privacy boundary', ()
 test('v3 remediation activates the approved auth and interactive-row metrics', () => {
   const authCss = read('custom/mjlfinancement/css/mjl_auth.css.php');
   const appCss = read('custom/mjlfinancement/css/mjl_app.css.php');
-  const projects = read('custom/mjlfinancement/projects.php');
+  const referenceRoutes = read('custom/mjlfinancement/lib/mjl_reference_route.lib.php');
 
   assert.match(authCss, /\.mjl-auth-brand h1\s*\{[^}]*line-height:\s*2rem;/s);
-  assert.match(projects, /<tr class="oddeven mjl-row-interactive">/);
+  assert.match(referenceRoutes, /<tr class="oddeven mjl-row-interactive">/);
 
   const mobileRule = appCss.indexOf('@media (max-width: 768px)');
   const protectedRow = appCss.indexOf('.mjl-operational-table tr.mjl-row-interactive > td', mobileRule);

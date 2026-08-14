@@ -9,6 +9,14 @@ freeze, safe reviewer projection, corrupt/cross-entity rejection, and the
 Admin-only technical landing. Legacy C1/C2 characterization remains
 non-authoritative until RST-013A/RST-014A.
 
+RST-003 adds the focused `npm run test:rst003` disposable gate. Its allowlisted
+schema leaf verifies the empty entity-scoped Type d’Opération catalog and its
+browser suite covers 9 target cases: reference CRUD/lifecycle, multiple
+Projects, immutable Project identity/parent, both parent-child ordering
+outcomes, stale update/lifecycle denial, duplicate labels, one-use submission
+tokens, role/entity/native-route/CSRF/delete denial, escaping, and 390-pixel
+containment. The final run passed 9/9 and removed every disposable resource.
+
 All recorded suites below predate DEC-026 through DEC-030. Any suite that uses
 the legacy POC seed is historical/current-state evidence only, even when it
 passed. Target acceptance requires minimal disposable fixtures created in an
@@ -38,6 +46,7 @@ Recorded disposable results:
 | Command | Result | Tenant evidence |
 | --- | --- | --- |
 | `npm run test:unit` | Passed | No Docker tenant required. |
+| `npm run test:rst003` | Passed: exact allowlisted schema verifier, schema rollback/restore rehearsal, and 9/9 browser cases. | Tenant `mjl-test-20260814t120638-84771-1fbee1d5`, loopback port 44113; containers, network, database volume, and document volume removed. |
 | `npm run test:verify` | Passed in 184.1 seconds | Unique loopback tenant; containers, network, and named volumes removed. |
 | `npm run test:e2e` | Pre-final affected run: 113/113 passed; runner duration 399.2 seconds. The later strengthened inventory is included in the final `npm test` row. | Tenant `mjl-test-20260804t162004-941966-e614149e`, loopback port 46207; containers, network, and named volumes removed. |
 | `npm run test:characterization` | Final C1/C2 evidence: 28/28 passed; runner duration 238.1 seconds including bootstrap. | Tenant `mjl-test-20260805t123629-44505-8ff6b050`, loopback port 33319; containers, network, and named volumes removed. |

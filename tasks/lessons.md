@@ -126,3 +126,11 @@ debugging discoveries. Do not add one-off observations or generic advice.
   behind a compatibility shim does not remove the dependency. Delete both the
   definitions and callers, make each retained seam explicitly fail closed, and
   keep a runtime-wide structural test that rejects replacement-name families.
+- Sequential browser submissions do not prove row-lock serialization. For a
+  concurrency acceptance gate, use disposable-only deterministic barriers that
+  hold the real native mutation inside its transaction, start the competing
+  request while the lock is held, and verify both orderings plus teardown.
+- Direct disposable inserts into native Dolibarr tables must include the exact
+  current mandatory actor/entity fields and cleanup native relationship rows.
+  Prefer native creation paths for journey fixtures; reserve raw poison rows
+  for integrity/visibility cases backed by exact schema knowledge.
