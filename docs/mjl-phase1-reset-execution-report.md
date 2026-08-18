@@ -104,9 +104,13 @@ rechecked.
 The public Phase 1 runner now executes the exact pre-cutover commit in a
 disposable tenant, captures checksummed source, database, schema/trigger/module
 metadata, document manifest, and document archive evidence, validates the
-baseline Compose topology before startup, stops application traffic, and
-rejects bad evidence for the exact expected reason without mutation. It injects
-an interrupted apply and an actual module-activation failure, rehearses both
+baseline Compose topology before startup, proves exactly one active native
+administrator and zero native/custom business rows before evidence capture,
+stops application traffic, and rejects a bad checksum, missing manifest,
+missing checksum, and manifest-referenced missing artifact for the exact
+expected reasons. Each rejection is fingerprinted before restore to prove zero
+mutation. It injects an interrupted apply and an actual module-activation
+failure, rehearses both
 pre-activation and post-activation rollback, recreates and restores the full
 database plus document volume after every schema rollback, compares every
 captured surface (including an exact source-tree fingerprint), activates twice,
@@ -118,56 +122,62 @@ traffic commands bypass the image entrypoint; only the final service restart may
 rewrite `initdb.log`. Rollback output explicitly states that full backup restore
 is still required.
 
-The remediation loop also corrected two runtime defects found by those gates:
+The remediation loop also corrected runtime defects found by those gates:
 authentication email bodies are no longer duplicated into SQL-backed E2E
 constants, and the bootstrap now handles Dolibarr 23's array activation result
-fail-closed while force-initializing only the MJL module.
+fail-closed while force-initializing only the MJL module. Simultaneous
+invitation/reset issuance now returns one successful credential and one neutral
+loser after observed lock contention, with exact terminal-state and audit
+cardinality checks. A disposable two-worker barrier makes every claimed race
+genuinely simultaneous. Browser probes inspect every non-origin request and
+force a cross-origin request to prove that raw, encoded, and base64 verifier
+variants never leave the origin.
 
 Final observed results for the remediation diff:
 
 ```text
 npm run test:unit
-PASS: 9 Node suites, 48 individual tests, and all PHP contracts; 0.4s
+PASS: 9 Node suites, 48 individual tests, and all PHP contracts; 0.5s
 
 git diff --name-only 3b5f767..HEAD -- '*.php' | xargs -r -n1 php -l
-PASS: all 9 changed PHP files; 0.229s
+PASS: all 9 changed PHP files; 0.25s
 
 npm run test:phase1-reset
 PASS: complete cutover/failure/rollback rehearsal, eight schema mutation probes,
 four repeated exact schema/behavior gates, 9 Playwright tests, and disposable
-teardown; project mjl-test-20260818t142723-460728-66b05212, 342.0s
+teardown; project mjl-test-20260818t153537-718052-a0ace1fe, 523.8s
 
 npm run test:rst008
 PASS: 5 focused auth tests with observed GET_LOCK contention, exact one-success
 audit cardinality, new/existing identity rollback, literal verifier non-leakage,
 failed-delivery credential clearing/stale-link denial, and retry; project
-mjl-test-20260818t143316-486142-0d4633b4, 172.1s
+mjl-test-20260818t153217-702831-fefa4245, 185.5s
 
 npm run test:rst009a
 PASS: 2 focused navigation/direct-guard tests, including the native technical
-module destination; project mjl-test-20260818t143619-500452-025cac9d, 142.7s
+module destination; project mjl-test-20260818t154435-752149-705dc4ae, 161.6s
 
 npm run test:e2e
 PASS: all 18 retained browser scenarios; disposable teardown; project
-mjl-test-20260818t143850-508792-7bcfffe3, 235.2s
+mjl-test-20260818t154749-761821-280ad3d1, 267.5s
 
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_reset.php
-PASS: shared-tenant reset verifier; 0.226s
+PASS: shared-tenant reset verifier; 0.25s
 
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_schema_exact.php
-PASS: shared-tenant exact-schema verifier; 0.247s
+PASS: shared-tenant exact-schema verifier; 0.27s
 
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_behavior.php
-PASS: shared-tenant behavior verifier; 0.211s
+PASS: shared-tenant behavior verifier; 0.26s
 
 docker compose exec -T mariadb mariadb -udolidbuser -ppoc_pwd -N -B -e "SELECT VERSION()"
-PASS: 11.8.8-MariaDB-ubu2404; 0.158s
+PASS: 11.8.8-MariaDB-ubu2404; 0.17s
 
 docker compose logs --since 60m --no-color dolibarr | rg -n -i "PHP Fatal|Uncaught|Call to undefined|Parse error"
-PASS: exit 1 with empty output, meaning no matching fatal signature; 7.9s
+PASS: exit 1 with empty output, meaning no matching fatal signature; 2.94s
 
 git diff --check 3b5f767..HEAD
-PASS; 0.007s
+PASS; 0.01s
 ```
 
 Every disposable run reported removal of its application/database containers,
