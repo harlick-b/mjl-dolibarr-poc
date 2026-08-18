@@ -78,10 +78,10 @@ MJL-specific code stays outside Dolibarr core. Native third parties, projects,
 users, authentication, ECM, and export capabilities may be reused through safe
 MJL interfaces.
 
-RST-000, RST-000A, RST-001, RST-002A, and RST-003 are executed. RST-007A,
-RST-004, RST-008, and RST-009A are implemented on the shared tenant but remain
-`EXECUTED_PENDING_RATIFICATION` because the operational `initdb.log` checksum
-changed during activation; see `docs/mjl-phase1-reset-execution-report.md`.
+RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
+and RST-009A are executed. The operational `initdb.log` checksum deviation from
+the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
+RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary
 deviation was ratified through supplemental checksum
 `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`.

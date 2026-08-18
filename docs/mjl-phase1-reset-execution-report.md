@@ -213,8 +213,11 @@ not attempted. No business document was added, removed, or changed.
 This exception prevents a truthful claim that every byte under the document
 volume stayed unchanged; it does not affect business records or documents.
 
+The user explicitly ratified this exact exception on 2026-08-18 through
+DEC-039. The ratification is limited to the hash transition above, confirms
+that no business document changed, and authorizes no RST-010A or later unit.
+
 ## Result
 
-`RST-007A`, `RST-004`, `RST-008`, and `RST-009A` are implemented and verified
-but remain `EXECUTED_PENDING_RATIFICATION` until the user explicitly accepts
-the operational-log checksum deviation above.
+`RST-007A`, `RST-004`, `RST-008`, and `RST-009A` are `EXECUTED`. Their sole
+recorded operational-log checksum deviation is ratified by DEC-039.

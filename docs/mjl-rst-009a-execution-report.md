@@ -1,7 +1,7 @@
 # RST-009A Execution Report
 
-- Status: `EXECUTED_PENDING_RATIFICATION`; implementation is complete, but
-  the combined operational-log checksum deviation awaits explicit approval.
+- Status: `EXECUTED`; the combined operational-log checksum deviation was
+  explicitly ratified by DEC-039 on 2026-08-18.
 
 - Authorization: explicit user approval; execution followed completed RST-004
   and RST-008 gates.

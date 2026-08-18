@@ -169,3 +169,22 @@ test('authentication verifiers are not duplicated into SQL-backed email evidence
     assert.match(concurrency, new RegExp(boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });
+
+test('Phase 1 ratification statuses are consistent and authorize no later unit', () => {
+  const manifest = read('docs/mjl-reset-manifest-v2.md');
+  const decisions = read('docs/mjl-decision-register-v2.md');
+  const authority = read('docs/mjl-authoritative-decisions.md');
+  const section = (id, nextId) => manifest.slice(manifest.indexOf(`### ${id} `), nextId ? manifest.indexOf(`### ${nextId} `) : undefined);
+  for (const [id, nextId] of [['RST-004', 'RST-005'], ['RST-007A', 'RST-007B'], ['RST-008', 'RST-009A'], ['RST-009A', 'RST-009B']]) {
+    assert.match(section(id, nextId), /- Status: `EXECUTED`/);
+  }
+  assert.match(section('RST-010A', 'RST-011'), /- Status: `PENDING_APPROVAL`/);
+  assert.match(decisions, /\| DEC-038 \|[^\n]+\| EXECUTED \|/);
+  assert.match(decisions, /\| DEC-039 \|[^\n]+8f999bca21f305125a240b319dc02bb08228d45e073f14229a91d82e69d77e68[^\n]+6e66f68985cb1eba6fd8fcd3c3a030b84ef77b7f4967b125db78eeab472aaf21[^\n]+authorizes no RST-010A or later unit/);
+  assert.doesNotMatch(authority, /RST-007A,[\s\S]{0,160}EXECUTED_PENDING_RATIFICATION/);
+  for (const id of ['007a', '004', '008', '009a']) {
+    const report = read(`docs/mjl-rst-${id}-execution-report.md`);
+    assert.match(report, /- Status: `EXECUTED`/);
+    assert.match(report, /DEC-039/);
+  }
+});

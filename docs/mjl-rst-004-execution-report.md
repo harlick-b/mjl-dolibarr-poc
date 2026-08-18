@@ -1,7 +1,7 @@
 # RST-004 Execution Report
 
-- Status: `EXECUTED_PENDING_RATIFICATION`; implementation is complete, but
-  the combined operational-log checksum deviation awaits explicit approval.
+- Status: `EXECUTED`; the combined operational-log checksum deviation was
+  explicitly ratified by DEC-039 on 2026-08-18.
 
 - Authorization: explicit user approval received before mutation.
 - Date and target: 2026-08-14, local Docker Compose tenant.

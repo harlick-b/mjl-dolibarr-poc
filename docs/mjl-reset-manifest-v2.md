@@ -2,16 +2,16 @@
 
 RST-000, RST-000A, RST-001, RST-002A, and RST-003 were explicitly approved and
 executed. RST-003 completed on 2026-08-13 with an empty reference catalog;
-RST-007A, RST-004, RST-008, and RST-009A are executed pending evidence
-ratification. All other later actions remain unapproved and unexecuted.
+RST-007A, RST-004, RST-008, and RST-009A are executed; their operational-log
+exception was ratified by DEC-039. All other later actions remain unapproved
+and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
-- RST-000, RST-000A, RST-001, RST-002A, and RST-003 are `EXECUTED`.
-  RST-007A, RST-004, RST-008, and RST-009A are
-  `EXECUTED_PENDING_RATIFICATION`; every other action is `PENDING_APPROVAL`.
+- RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
+  and RST-009A are `EXECUTED`; every other action is `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.
@@ -166,7 +166,7 @@ number does not approve a suffixed unit.
 
 ### RST-004 - Remove obsolete finance core
 
-- Status: `EXECUTED_PENDING_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
+- Status: `EXECUTED` (implemented 2026-08-14; operational-log checksum deviation ratified by DEC-039 on 2026-08-18)
 - Current component: conventions, budget lines, receipts, Expenses, validations, and finance routes.
 - Proposed action: remove the exact obsolete custom finance surface after RST-000A has emptied its data.
 - Reason: those upstream/payment objects are outside target core scope.
@@ -222,7 +222,7 @@ number does not approve a suffixed unit.
 
 ### RST-007A - Transactional audit foundation
 
-- Status: `EXECUTED_PENDING_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
+- Status: `EXECUTED` (implemented 2026-08-14; operational-log checksum deviation ratified by DEC-039 on 2026-08-18)
 - Current component: five obsolete audit/log mechanisms emptied by RST-000A.
 - Proposed action: add an empty append-only transactional target audit foundation and retire legacy mechanisms.
 - Reason: v2 requires one revision-linked mutation/audit contract.
@@ -250,7 +250,7 @@ number does not approve a suffixed unit.
 
 ### RST-008 - Preserve and retarget invitation/account lifecycle
 
-- Status: `EXECUTED_PENDING_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
+- Status: `EXECUTED` (implemented 2026-08-14; operational-log checksum deviation ratified by DEC-039 on 2026-08-18)
 - Current component: secure invitation/reset primitives with obsolete role/scope payload semantics.
 - Proposed action: retain security primitives and replace authorization payload behavior.
 - Reason: invitation-only access remains required but Partner scope does not.
@@ -264,7 +264,7 @@ number does not approve a suffixed unit.
 
 ### RST-009A - Phase 1 navigation reset
 
-- Status: `EXECUTED_PENDING_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
+- Status: `EXECUTED` (implemented 2026-08-14; operational-log checksum deviation ratified by DEC-039 on 2026-08-18)
 - Current component: finance-era routes, menu entries, and terminology.
 - Proposed action: expose only guarded Phase 1 access/reference surfaces.
 - Reason: navigation must not advertise removed or unauthorized business behavior.
