@@ -96,9 +96,10 @@ The post-execution remediation removed the remaining obsolete language-catalog
 keys and restored a runtime vocabulary scan. It also added an independent exact
 schema verifier for engines, columns, generated expressions, index type/order/
 prefix/collation (including MariaDB-created FK indexes), foreign keys and their
-update/delete rules, checks, and the complete Phase 1 trigger set. Six
-representative schema mutations must make that verifier fail before their
-definitions are restored and rechecked.
+update/delete rules, checks, table character sets/collations, and every trigger
+attached to a protected Phase 1 table. Eight representative schema mutations
+must make that verifier fail before their definitions are restored and
+rechecked.
 
 The public Phase 1 runner now executes the exact pre-cutover commit in a
 disposable tenant, captures checksummed source, database, schema/trigger/module
@@ -108,7 +109,11 @@ rejects bad evidence for the exact expected reason without mutation. It injects
 an interrupted apply and an actual module-activation failure, rehearses both
 pre-activation and post-activation rollback, recreates and restores the full
 database plus document volume after every schema rollback, compares every
-captured surface, activates twice, finalizes, and runs the final gates. Stopped-
+captured surface (including an exact source-tree fingerprint), activates twice,
+finalizes, and runs the final gates. Each scenario restores in an unconditional
+cleanup path. Artifact streams contain stdout only, temporary source roots and
+archives are removed, and Phase 1 disposable tenants are torn down regardless
+of `MJL_TEST_RETAIN`. Stopped-
 traffic commands bypass the image entrypoint; only the final service restart may
 rewrite `initdb.log`. Rollback output explicitly states that full backup restore
 is still required.
@@ -122,41 +127,54 @@ Final observed results for the remediation diff:
 
 ```text
 npm run test:unit
-PASS: 9 Node suites and all PHP contracts
+PASS: 9 Node suites, 48 individual tests, and all PHP contracts; 0.4s
+
+git diff --name-only 3b5f767..HEAD -- '*.php' | xargs -r -n1 php -l
+PASS: all 9 changed PHP files; 0.229s
 
 npm run test:phase1-reset
-PASS: complete cutover/failure/rollback rehearsal, six schema mutation probes,
+PASS: complete cutover/failure/rollback rehearsal, eight schema mutation probes,
 four repeated exact schema/behavior gates, 9 Playwright tests, and disposable
-teardown; project mjl-test-20260818t134338-301570-74a72329, 319.4s
+teardown; project mjl-test-20260818t142723-460728-66b05212, 342.0s
 
 npm run test:rst008
 PASS: 5 focused auth tests with observed GET_LOCK contention, exact one-success
 audit cardinality, new/existing identity rollback, literal verifier non-leakage,
 failed-delivery credential clearing/stale-link denial, and retry; project
-mjl-test-20260818t135148-333446-d37104f9, 167.9s
+mjl-test-20260818t143316-486142-0d4633b4, 172.1s
 
 npm run test:rst009a
 PASS: 2 focused navigation/direct-guard tests, including the native technical
-module destination; project mjl-test-20260818t134910-324845-d5d12f89, 148.5s
+module destination; project mjl-test-20260818t143619-500452-025cac9d, 142.7s
 
 npm run test:e2e
 PASS: all 18 retained browser scenarios; disposable teardown; project
-mjl-test-20260818t135444-346606-8a890a87, 221.6s
+mjl-test-20260818t143850-508792-7bcfffe3, 235.2s
 
-php -l <every PHP file changed since 3b5f767>
-PASS: no syntax errors
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_reset.php
+PASS: shared-tenant reset verifier; 0.226s
 
-docker compose exec -T dolibarr php .../verify_phase1_reset.php
-docker compose exec -T dolibarr php .../verify_phase1_schema_exact.php
-docker compose exec -T dolibarr php .../verify_phase1_behavior.php
-PASS: all three current-purpose shared-tenant verifiers
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_schema_exact.php
+PASS: shared-tenant exact-schema verifier; 0.247s
 
-docker compose logs --since 60m --no-color dolibarr | fatal-signature scan
-PASS: no PHP fatal, uncaught, undefined-call, or parse-error signature
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_behavior.php
+PASS: shared-tenant behavior verifier; 0.211s
 
-git diff --check
-PASS
+docker compose exec -T mariadb mariadb -udolidbuser -ppoc_pwd -N -B -e "SELECT VERSION()"
+PASS: 11.8.8-MariaDB-ubu2404; 0.158s
+
+docker compose logs --since 60m --no-color dolibarr | rg -n -i "PHP Fatal|Uncaught|Call to undefined|Parse error"
+PASS: exit 1 with empty output, meaning no matching fatal signature; 7.9s
+
+git diff --check 3b5f767..HEAD
+PASS; 0.007s
 ```
+
+Every disposable run reported removal of its application/database containers,
+database/document/config volumes, and network. The Phase 1 retained-evidence
+inspection also confirmed that `pre-cutover-source` and the temporary
+remediation source archive were absent after completion; only the intended
+checksummed evidence bundle remained.
 
 The human-only signed manual accessibility gate remains not run. Production
 email was not sent; delivery tests used only the disposable marker, explicit
