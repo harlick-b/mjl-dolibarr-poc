@@ -224,6 +224,26 @@ async function runPhase1SchemaMutationRehearsal(plan, signal) {
   }
 }
 
+async function runPhase1FailpointConstantRehearsal(plan, signal) {
+  const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
+  const client = ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb', '-e'];
+  const verifier = ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_reset.php'];
+  const probes = [
+    ['MJL_RST_PHASE1_FAILURE_INJECTION', 0],
+    ['MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION', 7],
+  ];
+  for (const [name, entity] of probes) {
+    await compose(plan, [...client, `INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('${name}','1','chaine',0,'disposable verifier mutation',${entity})`], { quiet: true, signal });
+    try {
+      const output = await expectComposeFailure(plan, verifier, `${name} survival mutation`, { signal });
+      if (!/failure-injection constant remains/i.test(output)) throw new Error(`${name} verifier mutation failed for the wrong reason: ${output.trim()}`);
+    } finally {
+      await compose(plan, [...client, `DELETE FROM llx_const WHERE name='${name}'`], { quiet: true, signal });
+    }
+    await compose(plan, verifier, { quiet: true, signal });
+  }
+}
+
 async function runRst003RollbackRehearsal(plan, signal) {
   const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
   const client = ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb', '-e'];
@@ -317,6 +337,36 @@ function printRetainedRun(plan) {
   ].join('\n'));
 }
 
+function combineFailures(primary, secondary, label) {
+  if (!primary) return secondary;
+  const errors = primary instanceof AggregateError ? [...primary.errors, secondary] : [primary, secondary];
+  const combined = new AggregateError(errors, label);
+  combined.exitCode = primary.exitCode || secondary.exitCode;
+  return combined;
+}
+
+async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMode = mode, environment = process.env, capture = captureDiagnostics, remove = cleanup, retain = printRetainedRun }) {
+  if (!plan || !provisionAttempted) return failure;
+  try {
+    await capture(plan);
+  } catch (diagnosticsError) {
+    failure = combineFailures(failure, diagnosticsError, 'Test execution and diagnostics capture failed.');
+  }
+  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset';
+  try {
+    if (shouldRetain) retain(plan);
+  } finally {
+    if (!shouldRetain) {
+      try {
+        await remove(plan);
+      } catch (cleanupError) {
+        failure = combineFailures(failure, cleanupError, 'Disposable test execution and teardown failed.');
+      }
+    }
+  }
+  return failure;
+}
+
 async function main() {
   const started = Date.now();
   const controller = new AbortController();
@@ -366,6 +416,7 @@ async function main() {
       else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(layer)) {
         await runPhase1Verification(plan, controller.signal);
 		if (mode === 'phase1-reset' && layer === 'rst007a') await runPhase1SchemaMutationRehearsal(plan, controller.signal);
+		if (mode === 'phase1-reset' && layer === 'rst007a') await runPhase1FailpointConstantRehearsal(plan, controller.signal);
 		if (mode === 'phase1-reset') {
 			if (layer === 'rst009a') await runPlaywright(plan, 'phase1-all', controller.signal);
 		} else {
@@ -378,19 +429,7 @@ async function main() {
   } catch (error) {
     failure = error;
   } finally {
-    if (plan && provisionAttempted) {
-      await captureDiagnostics(plan);
-      if (failure && process.env.MJL_TEST_RETAIN === '1' && mode !== 'phase1-reset') {
-        printRetainedRun(plan);
-      } else {
-        try {
-          await cleanup(plan);
-        } catch (cleanupError) {
-          failure = failure || cleanupError;
-          if (failure !== cleanupError) process.stderr.write(`${cleanupError.stack || cleanupError}\n`);
-        }
-      }
-    }
+    failure = await finalizeDisposableRun({ plan, provisionAttempted, failure });
   }
 
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
@@ -401,7 +440,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  process.stderr.write(`${sanitizeOutput(error.stack || error.message, retainedSecrets)}\n`);
-  process.exitCode = error.exitCode || 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    const details = error instanceof AggregateError ? `${error.stack || error.message}\n${error.errors.map((entry) => entry.stack || entry.message).join('\n')}` : (error.stack || error.message);
+    process.stderr.write(`${sanitizeOutput(details, retainedSecrets)}\n`);
+    process.exitCode = error.exitCode || 1;
+  });
+}
+
+module.exports = { combineFailures, finalizeDisposableRun };

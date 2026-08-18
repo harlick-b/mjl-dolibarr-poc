@@ -23,5 +23,8 @@ if (phase1_scalar("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHE
 if (phase1_scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND (TABLE_NAME LIKE '%\\_rst\\_phase1\\_20260814' OR TABLE_NAME LIKE '%\\_rst\\_phase1\\_target\\_20260814')") !== 0) phase1_fail('Phase 1 quarantine/rollback tables remain.');
 foreach (array('mjlfinancement_activity', 'mjlfinancement_audit_event', 'mjlfinancement_invitation', 'mjlfinancement_password_reset', 'mjlfinancement_user_role', 'mjlfinancement_user_soc_scope') as $table) if (phase1_scalar('SELECT COUNT(*) FROM '.$db->prefix().$table) !== 0) phase1_fail('Expected empty table: '.$table);
 if (phase1_scalar('SELECT COUNT(*) FROM '.$db->prefix().'user WHERE rowid<>1') !== 0) phase1_fail('Unexpected users exist.');
-if (phase1_scalar("SELECT COUNT(*) FROM ".$db->prefix()."const WHERE name='MJL_AUTH_E2E_EXPOSE_TOKENS'") !== 0) phase1_fail('E2E token exposure constant remains.');
+$forbiddenTestConstants = array('MJL_AUTH_E2E_EXPOSE_TOKENS', 'MJL_RST_PHASE1_FAILURE_INJECTION', 'MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION');
+$quotedTestConstants = array();
+foreach ($forbiddenTestConstants as $name) $quotedTestConstants[] = "'".$db->escape($name)."'";
+if (phase1_scalar('SELECT COUNT(*) FROM '.$db->prefix().'const WHERE name IN ('.implode(',', $quotedTestConstants).')') !== 0) phase1_fail('Disposable test/failure-injection constant remains in at least one entity.');
 print "RST Phase 1 schema and empty-tenant invariants verified.\n";

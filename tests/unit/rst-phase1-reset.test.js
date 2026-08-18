@@ -75,6 +75,10 @@ test('cutover executor gates destructive modes and rechecks empty quarantines', 
   assert.match(reset, /DROP FOREIGN KEY[^;]+DROP INDEX[^;]+DROP COLUMN/);
 	assert.match(reset, /MJL_RST_PHASE1_FAILURE_INJECTION/);
 	assert.match(reset, /schema_rollback_complete_full_backup_restore_required/);
+  const verifier = read('custom/mjlfinancement/scripts/verify_phase1_reset.php');
+  assert.match(verifier, /MJL_RST_PHASE1_FAILURE_INJECTION/);
+  assert.match(verifier, /MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION/);
+  assert.match(verifier, /name IN/);
 });
 
 test('Phase 1 exact-schema verifier rejects both missing and extra definitions', () => {
@@ -125,10 +129,12 @@ test('Phase 1 runner executes the real baseline cutover, failures, rollbacks, an
   assert.match(commandRunner, /const stderrChunks = \[\]/);
   assert.match(commandRunner, /options\.binary \? stdout/);
   assert.doesNotMatch(commandRunner, /outputChunks/);
-  assert.match(commandRunner, /MJL_TEST_RETAIN === '1' && mode !== 'phase1-reset'/);
+  assert.match(commandRunner, /environment\.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset'/);
   assert.match(runner, /finally \{/);
   assert.match(runner, /sourceTreeFingerprint\(baselineRoot\)/);
   assert.match(runner, /replaceSourceTree\(sourceArchive\)/);
+  assert.match(commandRunner, /runPhase1FailpointConstantRehearsal/);
+  assert.match(commandRunner, /survival mutation/);
 });
 
 test('activation failure injection is disposable, environment, and database gated', () => {
@@ -159,7 +165,7 @@ test('authentication verifiers are not duplicated into SQL-backed email evidence
   assert.match(email, /MJL_EMAIL_E2E_LAST_.*_BODY/);
   assert.ok(email.indexOf('if (mjl_email_e2e_enabled())') < email.indexOf('new CMailFile'), 'disposable outbox branch must return before transport construction');
   const concurrency = read('tests/e2e/auth-concurrency.spec.js');
-  for (const boundary of ['response.text()', 'response.url()', 'thirdPartyEvidence', 'decodeURIComponent', "toString('base64')", 'llx_mjlfinancement_audit_event', 'llx_societe', 'llx_const', "compose', 'logs"]) {
+  for (const boundary of ['response.text()', 'response.url()', 'thirdPartyEvidence', 'decodeURIComponent', "toString('base64')", 'information_schema.COLUMNS', 'DATA_TYPE IN', 'UNION ALL', 'disposable filesystem', "compose', 'logs"]) {
     assert.match(concurrency, new RegExp(boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });

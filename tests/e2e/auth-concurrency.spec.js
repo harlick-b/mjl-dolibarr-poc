@@ -4,6 +4,7 @@ const { execFile, execFileSync } = require('node:child_process');
 const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
+let searchableTextColumns = null;
 
 function sql(statement) {
   return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', statement], { encoding: 'utf8', env: process.env });
@@ -11,8 +12,25 @@ function sql(statement) {
 function scalar(statement) {
   return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', '-N', '-B', 'dolidb', '-e', statement], { encoding: 'utf8', env: process.env }).trim();
 }
+function scalarFromStdin(statement) {
+  return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', '-N', '-B', 'dolidb'], { encoding: 'utf8', env: process.env, input: statement }).trim();
+}
 function sqlLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
+}
+function quotedIdentifier(value) {
+  if (!/^[A-Za-z0-9_$]+$/.test(value)) throw new Error(`Unsafe database identifier: ${value}`);
+  return `\`${value}\``;
+}
+function databasePlaintextHits(variants) {
+  if (searchableTextColumns === null) {
+    searchableTextColumns = scalar("SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND DATA_TYPE IN ('char','varchar','tinytext','text','mediumtext','longtext','enum','set','json') ORDER BY TABLE_NAME,ORDINAL_POSITION")
+      .split('\n').filter(Boolean).map((line) => line.split('\t'));
+  }
+  const predicates = variants.map((variant) => `INSTR(COALESCE(CAST(value AS CHAR),''),${sqlLiteral(variant)}) > 0`).join(' OR ');
+  const scans = searchableTextColumns.map(([table, column]) => `SELECT CONVERT(${quotedIdentifier(column)} USING utf8mb4) COLLATE utf8mb4_bin AS value FROM ${quotedIdentifier(table)}`);
+  if (scans.length === 0) return '0';
+  return scalarFromStdin(`SELECT COUNT(*) FROM (${scans.join(' UNION ALL ')}) AS all_database_text WHERE ${predicates};`);
 }
 async function worker(...args) {
   const { stdout } = await execFileAsync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/auth-parallel-worker.php', ...args], { encoding: 'utf8', env: process.env });
@@ -80,21 +98,14 @@ async function assertNoVerifierLeak(page, link) {
     await page.evaluate(async (url) => { await fetch(url, { mode: 'cors' }); }, thirdPartyUrl);
   } finally {
     await page.unroute(thirdPartyUrl);
-	page.off('request', observeRequest);
+    page.off('request', observeRequest);
   }
   expect(thirdPartyRequests.some((request) => request.url === thirdPartyUrl)).toBe(true);
   const thirdPartyEvidence = JSON.stringify(thirdPartyRequests);
   for (const variant of variants) expect(thirdPartyEvidence).not.toContain(variant);
-  const needles = variants.map(sqlLiteral);
-  const absentFrom = (expression) => needles.map((needle) => `INSTR(${expression},${needle}) > 0`).join(' OR ');
-  const databaseHits = scalar(`SELECT
-    (SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE ${absentFrom("CONCAT_WS('|',object_type,COALESCE(object_ref,''),actor_name_snapshot,actor_role_snapshot,action,COALESCE(previous_values_json,''),COALESCE(new_values_json,''),COALESCE(reason,''),COALESCE(context_json,''))")})
-    + (SELECT COUNT(*) FROM llx_user WHERE ${absentFrom("CONCAT_WS('|',login,COALESCE(email,''),COALESCE(firstname,''),COALESCE(lastname,''),COALESCE(pass_crypted,''))")})
-    + (SELECT COUNT(*) FROM llx_societe WHERE ${absentFrom("CONCAT_WS('|',nom,COALESCE(email,''),COALESCE(note_private,''),COALESCE(note_public,''))")})
-    + (SELECT COUNT(*) FROM llx_const WHERE ${absentFrom("CONCAT_WS('|',name,COALESCE(value,''),COALESCE(note,''))")})
-    + (SELECT COUNT(*) FROM llx_mjlfinancement_invitation WHERE ${absentFrom("CONCAT_WS('|',token_selector,COALESCE(token_hash,''))")})
-    + (SELECT COUNT(*) FROM llx_mjlfinancement_password_reset WHERE ${absentFrom("CONCAT_WS('|',token_selector,COALESCE(token_hash,''))")})`);
-  expect(databaseHits).toBe('0');
+  // Raw auth links are intentionally retained only in the disposable filesystem
+  // outbox; every character-like column in the disposable database is scanned.
+  expect(databasePlaintextHits(variants)).toBe('0');
   const logs = execFileSync('docker', ['compose', 'logs', '--no-color', 'dolibarr', 'mariadb'], { encoding: 'utf8', env: process.env });
   for (const variant of variants) expect(logs).not.toContain(variant);
 }

@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('../runner/disposable-run');
+const { finalizeDisposableRun } = require('../runner/run-suite');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 
@@ -78,6 +79,24 @@ test('provisioning restores web-user ownership only inside disposable document s
   const runner = fs.readFileSync(path.join(repositoryRoot, 'tests/runner/run-suite.js'), 'utf8');
   assert.match(runner, /'chown', '-R', 'www-data:www-data', '\/var\/www\/documents'/);
   assert.doesNotMatch(runner, /chown[^\n]*(?:repositoryRoot|\/var\/www\/html\/custom)/);
+});
+
+test('diagnostics failures cannot bypass teardown and all failures remain inspectable', async () => {
+  const executionError = new Error('execution failed');
+  let cleanupCalled = false;
+  const result = await finalizeDisposableRun({
+    plan: { projectName: 'mjl-test-finalizer' },
+    provisionAttempted: true,
+    failure: executionError,
+    runMode: 'phase1-reset',
+    environment: { MJL_TEST_RETAIN: '1' },
+    capture: async () => { throw new Error('diagnostics failed'); },
+    remove: async () => { cleanupCalled = true; throw new Error('cleanup failed'); },
+    retain: () => { throw new Error('Phase 1 must never retain.'); },
+  });
+  assert.equal(cleanupCalled, true);
+  assert.ok(result instanceof AggregateError);
+  assert.deepEqual(result.errors.map((error) => error.message), ['execution failed', 'diagnostics failed', 'cleanup failed']);
 });
 
 test('every Playwright surface installs the disposable guard with no shared URL fallback', () => {
