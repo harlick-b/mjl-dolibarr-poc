@@ -15,7 +15,8 @@ foreach ($argv as $argument) {
 if ($barrier !== '') {
 	if (!preg_match('/^[a-f0-9]{32}$/', $barrier)) { fwrite(STDERR, "invalid barrier\n"); exit(2); }
 	$barrierDir = DOL_DATA_ROOT.'/mjlfinancement/auth-test-barriers/'.$barrier;
-	if (dol_mkdir($barrierDir) < 0 || file_put_contents($barrierDir.'/participant-'.getmypid(), 'ready') === false) { fwrite(STDERR, "barrier unavailable\n"); exit(2); }
+	if (!is_dir($barrierDir) && dol_mkdir($barrierDir) < 0 && !is_dir($barrierDir)) { fwrite(STDERR, "barrier unavailable\n"); exit(2); }
+	if (file_put_contents($barrierDir.'/participant-'.getmypid(), 'ready') === false) { fwrite(STDERR, "barrier unavailable\n"); exit(2); }
 	$release = $barrierDir.'/released';
 	$deadline = microtime(true) + 10;
 	while (!is_file($release) && microtime(true) < $deadline) {
