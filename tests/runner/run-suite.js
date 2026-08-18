@@ -42,13 +42,11 @@ function runCommand(command, args, options = {}) {
       env: options.env || process.env,
       stdio: options.input !== undefined ? ['pipe', options.quiet ? 'pipe' : 'inherit', options.quiet ? 'pipe' : 'inherit'] : (options.quiet ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit']),
     });
-    const outputChunks = [];
+    const stdoutChunks = [];
+    const stderrChunks = [];
 
-    const append = (chunk) => {
-      outputChunks.push(Buffer.from(chunk));
-    };
-    if (child.stdout) child.stdout.on('data', append);
-    if (child.stderr) child.stderr.on('data', append);
+    if (child.stdout) child.stdout.on('data', (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+    if (child.stderr) child.stderr.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
     if (child.stdin) child.stdin.end(options.input);
 
     const abort = () => child.kill('SIGTERM');
@@ -59,7 +57,9 @@ function runCommand(command, args, options = {}) {
 
     child.once('error', reject);
     child.once('close', (code, signal) => {
-      const output = options.binary ? Buffer.concat(outputChunks) : Buffer.concat(outputChunks).toString('utf8');
+      const stdout = Buffer.concat(stdoutChunks);
+      const stderr = Buffer.concat(stderrChunks);
+      const output = options.binary ? stdout : stdout.toString('utf8');
       if (options.signal) options.signal.removeEventListener('abort', abort);
       if (code === 0) {
         resolve(output);
@@ -67,7 +67,8 @@ function runCommand(command, args, options = {}) {
       }
       const error = new Error(`${command} ${args.join(' ')} failed with ${signal || `exit ${code}`}.`);
       error.exitCode = code;
-      error.output = output;
+      error.output = Buffer.concat([stdout, stderr]).toString('utf8');
+      error.stderr = stderr.toString('utf8');
       reject(error);
     });
   });
@@ -197,9 +198,19 @@ async function runPhase1SchemaMutationRehearsal(plan, signal) {
       restore: "ALTER TABLE llx_mjlfinancement_password_reset DROP INDEX uk_mjl_reset_live_user, MODIFY live_user_id INTEGER AS (CASE WHEN status IN ('pending_send','sent') THEN fk_user ELSE NULL END) PERSISTENT, ADD UNIQUE INDEX uk_mjl_reset_live_user (entity,live_user_id)",
     },
     {
+      label: 'collation mutation',
+      mutate: 'ALTER TABLE llx_mjlfinancement_audit_event MODIFY object_type VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL',
+      restore: 'ALTER TABLE llx_mjlfinancement_audit_event MODIFY object_type VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci NOT NULL',
+    },
+    {
       label: 'trigger mutation',
       mutate: "CREATE OR REPLACE TRIGGER llx_mjlfinancement_audit_event_bu BEFORE UPDATE ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='mutated'",
       restore: "CREATE OR REPLACE TRIGGER llx_mjlfinancement_audit_event_bu BEFORE UPDATE ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='MJL audit events are append-only'",
+    },
+    {
+      label: 'unexpected-trigger mutation',
+      mutate: 'CREATE TRIGGER phase1_unexpected_trigger AFTER INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SET @phase1_unexpected_trigger=1',
+      restore: 'DROP TRIGGER phase1_unexpected_trigger',
     },
   ];
   for (const probe of probes) {
@@ -369,7 +380,7 @@ async function main() {
   } finally {
     if (plan && provisionAttempted) {
       await captureDiagnostics(plan);
-      if (failure && process.env.MJL_TEST_RETAIN === '1') {
+      if (failure && process.env.MJL_TEST_RETAIN === '1' && mode !== 'phase1-reset') {
         printRetainedRun(plan);
       } else {
         try {

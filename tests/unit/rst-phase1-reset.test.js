@@ -82,6 +82,8 @@ test('Phase 1 exact-schema verifier rejects both missing and extra definitions',
   for (const surface of ['engines', 'columns', 'indexes', 'foreign keys', 'checks', 'triggers']) assert.match(verifier, new RegExp(surface, 'i'));
   assert.match(verifier, /\$actual !== \$expected/);
   assert.match(verifier, /INDEX_TYPE/);
+  assert.match(verifier, /CHARACTER_SET_NAME/);
+  assert.match(verifier, /COLLATION_NAME/);
   assert.match(verifier, /UPDATE_RULE/);
   assert.match(verifier, /DELETE_RULE/);
   assert.match(verifier, /GENERATION_EXPRESSION/);
@@ -91,7 +93,7 @@ test('Phase 1 exact-schema verifier rejects both missing and extra definitions',
 
 test('Phase 1 runner rehearses representative schema mutations and restores each one', () => {
   const runner = read('tests/runner/run-suite.js');
-  for (const label of ['engine mutation', 'index mutation', 'foreign-key mutation', 'check mutation', 'generated-column mutation', 'trigger mutation']) {
+  for (const label of ['engine mutation', 'index mutation', 'foreign-key mutation', 'check mutation', 'generated-column mutation', 'collation mutation', 'trigger mutation', 'unexpected-trigger mutation']) {
     assert.match(runner, new RegExp(label));
   }
   assert.match(runner, /expectComposeFailure/);
@@ -101,16 +103,25 @@ test('Phase 1 runner rehearses representative schema mutations and restores each
 
 test('Phase 1 runner executes the real baseline cutover, failures, rollbacks, and repeated activation', () => {
   const runner = read('tests/runner/phase1-cutover-rehearsal.js');
+  const commandRunner = read('tests/runner/run-suite.js');
   assert.match(runner, /dc6f0becbd45c7676cccec2ac42b9374b8e61101/);
   for (const evidence of ['source', 'database', 'schema_metadata', 'documents_manifest', 'documents_archive']) assert.match(runner, new RegExp(`${evidence}: artifact`));
   assert.match(runner, /bad-evidence/);
   assert.match(runner, /after-activity-alter/);
-  assert.match(runner, /activation-failure-restore/);
-  assert.match(runner, /post-activation-restore/);
+  assert.match(runner, /scenario\('activation-failure'/);
+  assert.match(runner, /scenario\('post-activation'/);
   assert.match(runner, /schema\/trigger\/module metadata fingerprint differs/);
   assert.match(runner, /document fingerprint differs/);
-  assert.match(runner, /await compose\(plan, activateArgs\(\), \{ quiet: true, signal \}\);\n  await compose\(plan, activateArgs\(\), \{ quiet: true, signal \}\);/);
+  assert.match(runner, /await atSource\(activateArgs\(\), \{ quiet: true \}\);\n    await atSource\(activateArgs\(\), \{ quiet: true \}\);/);
   assert.match(runner, /resetArgs\('finalize'\)/);
+  assert.match(commandRunner, /const stdoutChunks = \[\]/);
+  assert.match(commandRunner, /const stderrChunks = \[\]/);
+  assert.match(commandRunner, /options\.binary \? stdout/);
+  assert.doesNotMatch(commandRunner, /outputChunks/);
+  assert.match(commandRunner, /MJL_TEST_RETAIN === '1' && mode !== 'phase1-reset'/);
+  assert.match(runner, /finally \{/);
+  assert.match(runner, /sourceTreeFingerprint\(baselineRoot\)/);
+  assert.match(runner, /replaceSourceTree\(sourceArchive\)/);
 });
 
 test('activation failure injection is disposable, environment, and database gated', () => {
@@ -135,8 +146,9 @@ test('authentication verifiers are not duplicated into SQL-backed email evidence
   const email = read('custom/mjlfinancement/lib/mjl_email.lib.php');
   assert.match(email, /empty\(\$context\['auth_link_type'\]\)/);
   assert.match(email, /MJL_EMAIL_E2E_LAST_.*_BODY/);
+  assert.ok(email.indexOf('if (mjl_email_e2e_enabled())') < email.indexOf('new CMailFile'), 'disposable outbox branch must return before transport construction');
   const concurrency = read('tests/e2e/auth-concurrency.spec.js');
-  for (const boundary of ['response.text()', 'llx_mjlfinancement_audit_event', 'llx_societe', 'llx_const', "compose', 'logs"]) {
+  for (const boundary of ['response.text()', 'response.url()', 'decodeURIComponent', "toString('base64')", 'llx_mjlfinancement_audit_event', 'llx_societe', 'llx_const', "compose', 'logs"]) {
     assert.match(concurrency, new RegExp(boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });

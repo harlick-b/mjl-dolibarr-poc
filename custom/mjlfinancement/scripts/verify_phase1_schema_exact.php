@@ -85,6 +85,19 @@ foreach ($columns as $table => $expected) {
 	exact_assert_map($table.' columns', $actual, $expected);
 }
 
+$characterColumns = array(
+	'mjlfinancement_activity' => array('ref','label','execution_status','execution_comment','note_public','note_private','import_key'),
+	'mjlfinancement_audit_event' => array('object_type','object_ref','actor_name_snapshot','actor_role_snapshot','action','previous_values_json','new_values_json','reason','state_before','state_after','result','context_json'),
+	'mjlfinancement_invitation' => array('role_code','status','token_selector','token_hash'),
+	'mjlfinancement_password_reset' => array('status','token_selector','token_hash'),
+);
+$expectedCharacterDefinitions=array();
+foreach ($characterColumns as $table=>$names) foreach ($names as $name) $expectedCharacterDefinitions[$prefix.$table.'.'.$name]='utf8mb4|utf8mb4_uca1400_ai_ci';
+$actualCharacterDefinitions=array();
+$sql="SELECT TABLE_NAME,COLUMN_NAME,CHARACTER_SET_NAME,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('{$prefix}mjlfinancement_activity','{$prefix}mjlfinancement_audit_event','{$prefix}mjlfinancement_invitation','{$prefix}mjlfinancement_password_reset') AND CHARACTER_SET_NAME IS NOT NULL";
+foreach (exact_rows($sql) as $row) $actualCharacterDefinitions[$row['TABLE_NAME'].'.'.$row['COLUMN_NAME']]=$row['CHARACTER_SET_NAME'].'|'.$row['COLLATION_NAME'];
+exact_assert_map('Phase 1 character sets and collations', $actualCharacterDefinitions, $expectedCharacterDefinitions);
+
 $indexes = array(
 	'mjlfinancement_activity' => array('PRIMARY'=>'U:rowid', 'idx_mjlfinancement_activity_entity'=>'N:entity', 'idx_mjlfinancement_activity_fk_project'=>'N:fk_project', 'idx_mjlfinancement_activity_fk_task'=>'N:fk_task', 'idx_mjlfinancement_activity_fk_user_responsible'=>'N:fk_user_responsible', 'uk_mjlfinancement_activity_ref_entity'=>'U:ref,entity'),
 	'mjlfinancement_audit_event' => array('PRIMARY'=>'U:rowid', 'idx_mjl_audit_action'=>'N:entity,action', 'idx_mjl_audit_activity'=>'N:entity,activity_id', 'idx_mjl_audit_actor'=>'N:entity,actor_id', 'idx_mjl_audit_entity_date'=>'N:entity,event_date,rowid', 'idx_mjl_audit_object'=>'N:entity,object_type,object_id', 'idx_mjl_audit_operation'=>'N:entity,operation_id'),
@@ -147,7 +160,7 @@ $expectedTriggers=array(
 	$prefix.'mjlfinancement_reset_bu'=>'BEFORE UPDATE:'.$prefix.'mjlfinancement_password_reset:BEGIN DECLARE target_entity INTEGER DEFAULT -1; SELECT entity INTO target_entity FROM '.$prefix.'user WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.token_selector<>OLD.token_selector THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid reset mutation\'; END IF; END',
 );
 $actualTriggers=array();
-$sql="SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME LIKE '".$db->escape($prefix.'mjlfinancement\\_%')."'";
+$sql="SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE IN ('{$prefix}mjlfinancement_audit_event','{$prefix}mjlfinancement_user_role','{$prefix}mjlfinancement_invitation','{$prefix}mjlfinancement_password_reset','{$prefix}user')";
 foreach (exact_rows($sql) as $row) $actualTriggers[$row['TRIGGER_NAME']]=$row['ACTION_TIMING'].' '.$row['EVENT_MANIPULATION'].':'.$row['EVENT_OBJECT_TABLE'].':'.exact_normalize($row['ACTION_STATEMENT']);
 foreach ($expectedTriggers as $name=>$definition) $expectedTriggers[$name]=exact_normalize($definition);
 foreach ($actualTriggers as $name=>$definition) $actualTriggers[$name]=exact_normalize($definition);
