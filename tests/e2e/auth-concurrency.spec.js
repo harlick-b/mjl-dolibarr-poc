@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const crypto = require('node:crypto');
 const { execFile, execFileSync } = require('node:child_process');
 const { promisify } = require('node:util');
 
@@ -26,7 +27,8 @@ async function expectLockContention() {
   throw new Error('Concurrent auth workers never produced an observed GET_LOCK waiter.');
 }
 async function concurrentWorkers(first, second) {
-  const pending = [worker(...first), worker(...second)];
+  const barrier = `--barrier=${crypto.randomBytes(16).toString('hex')}`;
+  const pending = [worker(...first, barrier), worker(...second, barrier)];
   await expectLockContention();
   return Promise.all(pending);
 }

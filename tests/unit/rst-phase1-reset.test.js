@@ -144,9 +144,10 @@ test('activation failure injection is disposable, environment, and database gate
 
 test('RST-008 E2E covers parallel identity, issue, consume, audit, and partial-delivery failures', () => {
   const concurrency = read('tests/e2e/auth-concurrency.spec.js');
-  for (const evidence of ['same-login', 'same@example.test', 'Promise.all', 'PROCESSLIST', 'GET_LOCK', 'audit failure', 'partial test delivery', 'send_failed:NULL', 'third-party.invalid', "action='invitation_sent'", "action='password_reset_sent'"]) {
+  for (const evidence of ['same-login', 'same@example.test', 'Promise.all', 'PROCESSLIST', 'GET_LOCK', '--barrier=', 'audit failure', 'partial test delivery', 'send_failed:NULL', 'third-party.invalid', "action='invitation_sent'", "action='password_reset_sent'"]) {
     assert.match(concurrency, new RegExp(evidence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+  assert.match(read('tests/fixtures/auth-parallel-worker.php'), /auth-test-barriers/);
   const auth = read('custom/mjlfinancement/lib/mjl_auth.lib.php');
   assert.match(auth, /currentInvitationId > \$beforeInvitationId/);
   assert.match(auth, /currentResetId > \$beforeResetId/);
