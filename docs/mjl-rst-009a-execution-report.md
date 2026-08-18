@@ -1,6 +1,6 @@
 # RST-009A Execution Report
 
-- Status: `PENDING_EXCEPTION_RATIFICATION`; implementation is complete, but
+- Status: `EXECUTED_PENDING_RATIFICATION`; implementation is complete, but
   the combined operational-log checksum deviation awaits explicit approval.
 
 - Authorization: explicit user approval; execution followed completed RST-004

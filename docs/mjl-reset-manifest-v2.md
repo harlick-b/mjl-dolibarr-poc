@@ -164,7 +164,7 @@ number does not approve a suffixed unit.
 
 ### RST-004 - Remove obsolete finance core
 
-- Status: `PENDING_EXCEPTION_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
+- Status: `EXECUTED_PENDING_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
 - Current component: conventions, budget lines, receipts, Expenses, validations, and finance routes.
 - Proposed action: remove the exact obsolete custom finance surface after RST-000A has emptied its data.
 - Reason: those upstream/payment objects are outside target core scope.
@@ -220,7 +220,7 @@ number does not approve a suffixed unit.
 
 ### RST-007A - Transactional audit foundation
 
-- Status: `PENDING_EXCEPTION_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
+- Status: `EXECUTED_PENDING_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
 - Current component: five obsolete audit/log mechanisms emptied by RST-000A.
 - Proposed action: add an empty append-only transactional target audit foundation and retire legacy mechanisms.
 - Reason: v2 requires one revision-linked mutation/audit contract.
@@ -248,7 +248,7 @@ number does not approve a suffixed unit.
 
 ### RST-008 - Preserve and retarget invitation/account lifecycle
 
-- Status: `PENDING_EXCEPTION_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
+- Status: `EXECUTED_PENDING_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
 - Current component: secure invitation/reset primitives with obsolete role/scope payload semantics.
 - Proposed action: retain security primitives and replace authorization payload behavior.
 - Reason: invitation-only access remains required but Partner scope does not.
@@ -262,7 +262,7 @@ number does not approve a suffixed unit.
 
 ### RST-009A - Phase 1 navigation reset
 
-- Status: `PENDING_EXCEPTION_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
+- Status: `EXECUTED_PENDING_RATIFICATION` (implemented 2026-08-14; operational-log checksum deviation awaits explicit ratification)
 - Current component: finance-era routes, menu entries, and terminology.
 - Proposed action: expose only guarded Phase 1 access/reference surfaces.
 - Reason: navigation must not advertise removed or unauthorized business behavior.

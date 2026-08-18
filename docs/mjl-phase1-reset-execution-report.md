@@ -90,6 +90,52 @@ retargeted to the Phase 1 surfaces. Production email was not tested or sent;
 auth delivery used the immutable disposable-tenant marker plus the explicit
 test constant.
 
+## Remediation verification (2026-08-18)
+
+The post-execution remediation removed the remaining obsolete language-catalog
+keys and restored a runtime vocabulary scan. It also added an independent exact
+schema verifier for columns, generated expressions, indexes (including
+MariaDB-created FK indexes), foreign keys, checks, and audit triggers. Five
+representative schema mutations must make that verifier fail before their
+definitions are restored and rechecked.
+
+The public Phase 1 runner now executes the exact pre-cutover commit in a
+disposable tenant, captures checksummed source, database, schema/trigger/module
+metadata, and document evidence, stops application traffic, rejects bad
+evidence without mutation, injects an interrupted apply, rehearses both
+pre-activation and post-activation rollback, performs a byte-identical full
+database restore after every schema rollback, activates twice, finalizes, and
+runs the final gates. Rollback output explicitly states that full backup restore
+is still required.
+
+Final observed results for the remediation diff:
+
+```text
+npm run test:unit
+PASS: 9 Node suites and all PHP contracts
+
+npm run test:phase1-reset
+PASS: complete cutover/failure/rollback rehearsal, five schema mutation probes,
+four repeated exact schema/behavior gates, 9 Playwright tests, disposable
+teardown; project mjl-test-20260818t123819-111290-8e8aaefe, 327.6s
+
+npm run test:rst008
+PASS: 5 focused auth tests with observed GET_LOCK contention, audit rollback,
+failed-delivery credential clearing/stale-link denial, and retry; 182.6s
+
+npm run test:rst009a
+PASS: 2 focused navigation/direct-guard tests, including the native technical
+module destination; 122.4s
+
+npm run test:e2e
+PASS: all 18 retained browser scenarios; disposable teardown; project
+mjl-test-20260818t123346-93181-492532b2, 261.1s
+```
+
+The human-only signed manual accessibility gate remains not run. Production
+email was not sent; delivery tests used only the disposable marker, explicit
+test constants, and isolated outboxes.
+
 ## Document-checksum exception
 
 The literal all-document checksum invariant did not hold. Seven retained
@@ -109,5 +155,5 @@ volume stayed unchanged; it does not affect business records or documents.
 ## Result
 
 `RST-007A`, `RST-004`, `RST-008`, and `RST-009A` are implemented and verified
-but remain `PENDING_EXCEPTION_RATIFICATION` until the user explicitly accepts
+but remain `EXECUTED_PENDING_RATIFICATION` until the user explicitly accepts
 the operational-log checksum deviation above.

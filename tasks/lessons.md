@@ -147,3 +147,12 @@ debugging discoveries. Do not add one-off observations or generic advice.
   that no protected workspace rendered and that the response is either an
   explicit denial or the authenticated session returned to login; status alone
   is not the security property.
+- Static inspection of a destructive executor is not execution evidence. A
+  reset gate must start from the exact pre-cutover commit, capture checksummed
+  source/database/schema/document evidence, stop traffic, exercise each
+  interruption and activation window, perform the rollback, restore the full
+  database into a freshly recreated schema, and compare a canonical dump.
+- Explicitly passing a Playwright file does not override a restrictive
+  `testMatch` allowlist. Every new E2E file must be added to discovery and the
+  focused gate must assert the expected executed-test count before its result
+  is accepted.

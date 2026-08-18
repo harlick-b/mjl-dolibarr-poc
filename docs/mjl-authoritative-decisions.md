@@ -80,7 +80,7 @@ MJL interfaces.
 
 RST-000, RST-000A, RST-001, RST-002A, and RST-003 are executed. RST-007A,
 RST-004, RST-008, and RST-009A are implemented on the shared tenant but remain
-`PENDING_EXCEPTION_RATIFICATION` because the operational `initdb.log` checksum
+`EXECUTED_PENDING_RATIFICATION` because the operational `initdb.log` checksum
 changed during activation; see `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary
 deviation was ratified through supplemental checksum

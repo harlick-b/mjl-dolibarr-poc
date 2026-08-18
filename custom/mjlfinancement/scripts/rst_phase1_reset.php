@@ -9,11 +9,13 @@ $mode = '';
 $confirm = '';
 $evidenceManifest = '';
 $evidenceSha256 = '';
+$failurePoint = '';
 foreach (array_slice($argv, 1) as $argument) {
 	if (strpos($argument, '--mode=') === 0) $mode = substr($argument, 7);
 	if (strpos($argument, '--confirm=') === 0) $confirm = substr($argument, 10);
 	if (strpos($argument, '--evidence-manifest=') === 0) $evidenceManifest = substr($argument, 20);
 	if (strpos($argument, '--evidence-sha256=') === 0) $evidenceSha256 = substr($argument, 18);
+	if (strpos($argument, '--failure-point=') === 0) $failurePoint = substr($argument, 16);
 }
 
 $authorization = 'RST-007A,RST-004,RST-008,RST-009A';
@@ -42,7 +44,7 @@ function rst_require_cutover_evidence($manifest, $expectedHash) {
 	if ($manifest === '' || !is_file($manifest) || !preg_match('/^[a-f0-9]{64}$/', $expectedHash)) rst_fail('A checksummed cutover evidence manifest is required.');
 	if (!hash_equals($expectedHash, hash_file('sha256', $manifest))) rst_fail('Cutover evidence manifest checksum mismatch.');
 	$evidence = json_decode(file_get_contents($manifest), true);
-	foreach (array('source', 'database', 'documents_manifest') as $key) {
+	foreach (array('source', 'database', 'schema_metadata', 'documents_manifest') as $key) {
 		$artifact = is_array($evidence) && isset($evidence[$key]) && is_array($evidence[$key]) ? $evidence[$key] : array();
 		$path = isset($artifact['path']) ? (string) $artifact['path'] : '';
 		$sha256 = isset($artifact['sha256']) ? (string) $artifact['sha256'] : '';
@@ -53,6 +55,7 @@ function rst_require_cutover_evidence($manifest, $expectedHash) {
 
 try { mjl_load_preserved_native_admin($db); } catch (RuntimeException $exception) { rst_fail($exception->getMessage()); }
 if (!in_array($mode, array('preflight', 'apply', 'finalize', 'rollback'), true)) rst_fail('Use --mode=preflight|apply|finalize|rollback.');
+if ($failurePoint !== '' && ($mode !== 'apply' || $failurePoint !== 'after-activity-alter' || getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1' || getDolGlobalString('MJL_RST_PHASE1_FAILURE_INJECTION') !== '1')) rst_fail('Failure injection is restricted to an explicitly armed disposable tenant.');
 if ($mode !== 'preflight' && $confirm !== $authorization) rst_fail('Exact phase authorization confirmation is required.');
 if ($mode !== 'preflight') rst_require_cutover_evidence($evidenceManifest, $evidenceSha256);
 
@@ -77,6 +80,7 @@ if ($mode === 'apply') {
 	if (rst_column_exists('mjlfinancement_activity', 'fk_convention')) {
 		rst_query('ALTER TABLE '.$activity.' DROP FOREIGN KEY fk_mjlfinancement_activity_convention, DROP INDEX idx_mjlfinancement_activity_fk_convention, DROP COLUMN fk_convention');
 	}
+	if ($failurePoint === 'after-activity-alter') rst_fail('Injected disposable failure after Activity alteration.');
 	$renames = array();
 	foreach ($legacy as $table) $renames[] = $db->prefix().$table.' TO '.$db->prefix().$table.$suffix;
 	rst_query('RENAME TABLE '.implode(', ', $renames));
@@ -127,4 +131,5 @@ if ($mode === 'apply') {
 	foreach ($legacy as $table) rst_query('DROP TABLE '.$db->prefix().$table.$suffix);
 }
 
-print json_encode(array('mode' => $mode, 'authorization' => $authorization, 'counts' => $counts, 'status' => 'complete'), JSON_PRETTY_PRINT).PHP_EOL;
+$status = $mode === 'rollback' ? 'schema_rollback_complete_full_backup_restore_required' : 'complete';
+print json_encode(array('mode' => $mode, 'authorization' => $authorization, 'counts' => $counts, 'status' => $status), JSON_PRETTY_PRINT).PHP_EOL;

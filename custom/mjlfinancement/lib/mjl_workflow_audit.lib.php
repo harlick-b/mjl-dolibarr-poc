@@ -31,13 +31,7 @@ function mjl_workflow_audit_insert($objectType, $objectId, $entity, $statusLabel
 
 function mjl_workflow_audit_actor_role_code($actorRole)
 {
-	$map = array(
-		'AGENT' => 'AGENT_SAISIE',
-		'SUPERVISEUR_N1' => 'AGENT_VERIFICATEUR',
-		'SUPERVISEUR_N2' => 'AGENT_VERIFICATEUR',
-		'DPAF' => 'VALIDATEUR_DEFINITIF',
-		'ADMIN' => 'ADMIN_PLATEFORME',
-	);
 	$actorRole = (string) $actorRole;
-	return isset($map[$actorRole]) ? $map[$actorRole] : $actorRole;
+	$allowed = array('AGENT_SAISIE', 'AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF', 'ADMIN_PLATEFORME');
+	return in_array($actorRole, $allowed, true) ? $actorRole : 'SYSTEM';
 }

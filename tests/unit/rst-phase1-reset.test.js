@@ -51,6 +51,7 @@ test('RST-008 makes invitations business-role-only and selector based', () => {
   assert.match(auth, /hash_hmac\('sha256'/);
   assert.doesNotMatch(auth, /mjlfinancement_access_audit/);
   assert.doesNotMatch(auth, /function mjl_auth_groups/);
+	assert.match(auth, /MJL_AUTH_E2E_FAIL_AUTH_OUTBOX/);
 });
 
 test('RST-009A registry contains only approved Phase 1 destinations', () => {
@@ -72,4 +73,43 @@ test('cutover executor gates destructive modes and rechecks empty quarantines', 
   assert.match(reset, /hash_file\('sha256'/);
   assert.match(reset, /Quarantine table is not empty/);
   assert.match(reset, /DROP FOREIGN KEY[^;]+DROP INDEX[^;]+DROP COLUMN/);
+	assert.match(reset, /MJL_RST_PHASE1_FAILURE_INJECTION/);
+	assert.match(reset, /schema_rollback_complete_full_backup_restore_required/);
+});
+
+test('Phase 1 exact-schema verifier rejects both missing and extra definitions', () => {
+  const verifier = read('custom/mjlfinancement/scripts/verify_phase1_schema_exact.php');
+  for (const surface of ['columns', 'indexes', 'foreign keys', 'checks', 'triggers']) assert.match(verifier, new RegExp(surface, 'i'));
+  assert.match(verifier, /\$actual !== \$expected/);
+  assert.match(verifier, /GENERATION_EXPRESSION/);
+  assert.match(verifier, /CHECK_CLAUSE/);
+  assert.match(verifier, /ACTION_STATEMENT/);
+});
+
+test('Phase 1 runner rehearses representative schema mutations and restores each one', () => {
+  const runner = read('tests/runner/run-suite.js');
+  for (const label of ['index mutation', 'foreign-key mutation', 'check mutation', 'generated-column mutation', 'trigger mutation']) {
+    assert.match(runner, new RegExp(label));
+  }
+  assert.match(runner, /expectComposeFailure/);
+  assert.match(runner, /finally \{/);
+  assert.match(runner, /probe\.restore/);
+});
+
+test('Phase 1 runner executes the real baseline cutover, failures, rollbacks, and repeated activation', () => {
+  const runner = read('tests/runner/run-suite.js');
+  assert.match(runner, /dc6f0becbd45c7676cccec2ac42b9374b8e61101/);
+  for (const evidence of ['source', 'database', 'schema_metadata', 'documents_manifest']) assert.match(runner, new RegExp(`${evidence}: artifact`));
+  assert.match(runner, /Bad evidence mutated the database/);
+  assert.match(runner, /after-activity-alter/);
+  assert.match(runner, /Full backup restore did not reproduce/);
+  assert.match(runner, /await activateCurrent\(\);\n  await activateCurrent\(\);/);
+  assert.match(runner, /resetArgs\('finalize'\)/);
+});
+
+test('RST-008 E2E covers parallel identity, issue, consume, audit, and partial-delivery failures', () => {
+  const concurrency = read('tests/e2e/auth-concurrency.spec.js');
+  for (const evidence of ['same-login', 'same@example.test', 'Promise.all', 'PROCESSLIST', 'GET_LOCK', 'audit failure', 'partial test delivery', 'send_failed:NULL']) {
+    assert.match(concurrency, new RegExp(evidence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
 });

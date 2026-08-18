@@ -223,31 +223,6 @@ function mjl_form_id_prefix($prefix)
 	return $prefix === '' ? 'mjl-field-' : $prefix;
 }
 
-function mjl_form_translate_domain_error($message)
-{
-	$map = array(
-		'Activity physical execution percent must be between 0 and 100' => array('physical_execution_percent' => 'Le taux d’exécution doit être compris entre 0 et 100.'),
-		'Physical execution percentage must be numeric' => array('physical_execution_percent' => 'Le taux d’exécution doit être un nombre.'),
-		'Physical execution percentage must be between 0 and 100' => array('physical_execution_percent' => 'Le taux d’exécution doit être compris entre 0 et 100.'),
-		'Invalid activity execution status' => array('execution_status' => 'Le statut d’exécution sélectionné n’est pas reconnu.'),
-		'Completed execution with a percentage other than 100 requires an execution comment' => array('execution_comment' => 'Un commentaire est obligatoire lorsqu’une activité exécutée n’est pas renseignée à 100 %.'),
-		'Not-started execution with progress greater than 0 requires an execution comment' => array('execution_comment' => 'Un commentaire est obligatoire lorsqu’une activité planifiée comporte déjà un avancement.'),
-		'Responsible user must be active in the active entity' => array('fk_user_responsible' => 'Le responsable sélectionné n’est pas disponible.'),
-		'Responsible user is not scoped to the selected Partenaire / Programme' => array('fk_user_responsible' => 'Le responsable sélectionné n’appartient pas au périmètre du projet.'),
-		'Activity end date cannot be before start date' => array('date_end' => 'La date de fin doit être postérieure ou égale à la date de début.'),
-		'Update comment is required' => array('comment' => 'Le motif de modification est obligatoire.'),
-		'Correction reason is required' => array('comment' => 'Le motif de correction est obligatoire.'),
-		'Correction comment is required' => array('comment' => 'Le commentaire de correction est obligatoire.'),
-		'Rejection reason is required' => array('comment' => 'Le motif de rejet est obligatoire.'),
-		'Beneficiary is required before disbursement' => array('beneficiary_name' => 'Le bénéficiaire est obligatoire.'),
-		'Disbursement date is required' => array('disbursement_date' => 'La date de décaissement est obligatoire.'),
-		'Expense amount must be greater than zero' => array('amount' => 'Le montant doit être supérieur à zéro.'),
-		'Expense stage amount exceeds authorized amount' => array('amount' => 'Le montant dépasse le montant autorisé à cette étape.'),
-		'Expense amount exceeds available budget line balance' => array('final_validated_amount' => 'Le montant dépasse le solde disponible de la ligne budgétaire.'),
-	);
-	return isset($map[(string) $message]) ? $map[(string) $message] : array();
-}
-
 function mjl_form_escape($value)
 {
 	return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

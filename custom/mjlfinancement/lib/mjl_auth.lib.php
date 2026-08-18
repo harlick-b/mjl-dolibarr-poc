@@ -109,6 +109,14 @@ function mjl_auth_release_named_lock($name)
 	if ($name !== '') $db->query('SELECT RELEASE_LOCK('.mjl_auth_string_sql($name).')');
 }
 
+function mjl_auth_disposable_lock_barrier()
+{
+	global $db;
+	if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1') return;
+	$seconds = (int) getDolGlobalString('MJL_AUTH_E2E_LOCK_HOLD_SECONDS');
+	if ($seconds > 0 && $seconds <= 2) $db->query('SELECT SLEEP('.$seconds.')');
+}
+
 function mjl_auth_identity_locks($login, $email)
 {
 	$identities = array(
@@ -158,6 +166,7 @@ function mjl_auth_issue_invitation(array $input, User $actor)
 	if (getDolGlobalString('MJL_AUTH_FINGERPRINT_KEY') === '') return array('', 'Configuration de sécurité indisponible.', 0);
 	$locks = mjl_auth_identity_locks($data['login'], $data['email']);
 	if (empty($locks)) return array('', 'Une invitation concurrente est déjà en cours.', 0);
+	mjl_auth_disposable_lock_barrier();
 	$target = null;
 	$link = '';
 	try {
@@ -199,7 +208,7 @@ function mjl_auth_issue_invitation(array $input, User $actor)
 			$db->rollback('mjl invitation delivery failed');
 			return array('', 'Le résultat de l’envoi n’a pas pu être enregistré.', (int) $target->id);
 		}
-		return array(mjl_auth_e2e_tokens_enabled() ? $link : '', $mail[0] > 0 ? '' : 'Échec de l’envoi.', (int) $target->id);
+		return array($status === 'sent' && mjl_auth_e2e_tokens_enabled() ? $link : '', $mail[0] > 0 ? '' : 'Échec de l’envoi.', (int) $target->id);
 	} catch (RuntimeException $exception) {
 		$db->rollback('mjl issue invitation failed');
 		return array('', $exception->getMessage(), $target ? (int) $target->id : 0);
@@ -234,6 +243,7 @@ function mjl_auth_accept_invitation($selector, $verifier, $password, $passwordCo
 	if ($password !== $passwordConfirm || dol_strlen($password) < 10) return 'Les mots de passe doivent correspondre et contenir au moins 10 caractères.';
 	$lock = mjl_auth_named_lock('accept_'.$selector, 5);
 	if ($lock === '') return 'Cette invitation est déjà en cours de traitement.';
+	mjl_auth_disposable_lock_barrier();
 	try {
 		$db->begin('mjl accept invitation');
 		$row = mjl_auth_fetch_invitation_by_selector($selector, true);
@@ -294,6 +304,7 @@ function mjl_auth_create_password_reset($email, $actorUserId = null)
 	$role = mjl_scope_effective_role_code($target, mjl_auth_entity());
 	if ($role === '' || (!in_array($role, mjl_auth_business_role_codes(), true) && $role !== 'ADMIN_PLATEFORME')) return null;
 	$lock = mjl_auth_named_lock('reset_'.$target->id, 5); if ($lock === '') return null;
+	mjl_auth_disposable_lock_barrier();
 	try {
 		$db->begin('mjl request reset');
 		if (!$db->query('UPDATE '.$db->prefix()."mjlfinancement_password_reset SET status='revoked', token_hash=NULL, date_consumed=".mjl_auth_now_sql().' WHERE entity='.mjl_auth_entity().' AND fk_user='.((int) $target->id)." AND status IN ('pending_send','sent')")) throw new RuntimeException();
@@ -308,7 +319,7 @@ function mjl_auth_create_password_reset($email, $actorUserId = null)
 		$status = $mail[0] > 0 ? 'sent' : 'send_failed';
 		$sql = 'UPDATE '.$db->prefix().'mjlfinancement_password_reset SET status='.mjl_auth_string_sql($status).($status === 'send_failed' ? ',token_hash=NULL,date_consumed='.mjl_auth_now_sql() : '').' WHERE rowid='.$id." AND status='pending_send'";
 		if (!$db->query($sql) || mjl_auth_record_event($status === 'sent' ? 'password_reset_sent' : 'password_reset_send_failed', (int) $target->id, $actorUserId, array('reset_id' => $id)) < 1 || !$db->commit('mjl reset delivery')) { $db->rollback(); return null; }
-		return mjl_auth_e2e_tokens_enabled() ? $link : null;
+		return $status === 'sent' && mjl_auth_e2e_tokens_enabled() ? $link : null;
 	} catch (RuntimeException $exception) { $db->rollback(); return null; }
 	finally { mjl_auth_release_named_lock($lock); }
 }
@@ -332,6 +343,7 @@ function mjl_auth_consume_password_reset($selector, $verifier, $password, $passw
 	global $db;
 	if ($password !== $passwordConfirm || dol_strlen($password) < 10) return 'Les mots de passe doivent correspondre et contenir au moins 10 caractères.';
 	$lock = mjl_auth_named_lock('consume_'.$selector, 5); if ($lock === '') return 'Ce lien est déjà en cours de traitement.';
+	mjl_auth_disposable_lock_barrier();
 	try {
 		$db->begin('mjl consume reset');
 		$row = mjl_auth_fetch_reset_by_selector($selector, true);
@@ -349,6 +361,7 @@ function mjl_auth_consume_password_reset($selector, $verifier, $password, $passw
 function mjl_auth_write_test_outbox($type, $userId, $link)
 {
 	if (!mjl_auth_e2e_tokens_enabled()) return false;
+	if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && getDolGlobalString('MJL_AUTH_E2E_FAIL_AUTH_OUTBOX') === '1') return false;
 	$dir = DOL_DATA_ROOT.'/mjlfinancement/auth-test-outbox';
 	if (!is_dir($dir)) dol_mkdir($dir);
 	if (!is_writable($dir)) return false;
