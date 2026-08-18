@@ -49,7 +49,16 @@ async function assertNoVerifierLeak(request, link) {
     expect(serverUrl.search).not.toContain(variant);
     expect(decodeURIComponent(serverUrl.search)).not.toContain(variant);
   }
-  const response = await request.get(serverPath, { maxRedirects: 0 });
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await request.get(serverPath, { maxRedirects: 0 });
+      break;
+    } catch (error) {
+      if (attempt === 2 || !/socket hang up|ECONNRESET/i.test(error.message)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
   const responseBody = await response.text();
   const responseUrl = response.url();
   for (const variant of variants) {
