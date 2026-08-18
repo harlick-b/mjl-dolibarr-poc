@@ -26,6 +26,19 @@ function exact_assert_map($label, array $actual, array $expected) {
 }
 
 $prefix = $db->prefix();
+$expectedEngines = array(
+	'mjlfinancement_activity' => 'InnoDB',
+	'mjlfinancement_audit_event' => 'InnoDB',
+	'mjlfinancement_invitation' => 'InnoDB',
+	'mjlfinancement_password_reset' => 'InnoDB',
+);
+$actualEngines = array();
+$engineTables = array(); foreach (array_keys($expectedEngines) as $table) $engineTables[] = "'".$db->escape($prefix.$table)."'";
+foreach (exact_rows('SELECT TABLE_NAME,ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('.implode(',', $engineTables).')') as $row) {
+	$actualEngines[substr($row['TABLE_NAME'], strlen($prefix))] = $row['ENGINE'];
+}
+exact_assert_map('Phase 1 table engines', $actualEngines, $expectedEngines);
+
 $columns = array(
 	'mjlfinancement_activity' => array(
 		'rowid'=>'int(11)|NO||auto_increment|', 'entity'=>'int(11)|NO|1||', 'ref'=>'varchar(128)|NO|||', 'label'=>'varchar(255)|NO|||',
@@ -79,23 +92,32 @@ $indexes = array(
 	'mjlfinancement_password_reset' => array('PRIMARY'=>'U:rowid', 'fk_mjl_reset_target_user'=>'N:fk_user', 'idx_mjl_reset_status'=>'N:entity,status', 'idx_mjl_reset_user'=>'N:entity,fk_user', 'uk_mjl_reset_hash'=>'U:entity,token_hash', 'uk_mjl_reset_live_user'=>'U:entity,live_user_id', 'uk_mjl_reset_selector'=>'U:entity,token_selector'),
 );
 foreach ($indexes as $table => $expected) {
+	foreach ($expected as $name => $definition) {
+		list($unique, $columnList) = explode(':', $definition, 2);
+		$parts = array(); foreach (explode(',', $columnList) as $column) $parts[] = 'A:0:'.$column;
+		$expected[$name] = $unique.'|BTREE|'.implode(',', $parts);
+	}
 	$groups = array();
-	$sql = "SELECT INDEX_NAME,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($prefix.$table)."' ORDER BY INDEX_NAME,SEQ_IN_INDEX";
-	foreach (exact_rows($sql) as $row) { $name=$row['INDEX_NAME']; if (!isset($groups[$name])) $groups[$name]=array('unique'=>(int)$row['NON_UNIQUE']===0,'columns'=>array()); $groups[$name]['columns'][]=$row['COLUMN_NAME']; }
-	$actual=array(); foreach ($groups as $name=>$definition) $actual[$name]=($definition['unique']?'U:':'N:').implode(',', $definition['columns']);
+	$sql = "SELECT INDEX_NAME,NON_UNIQUE,INDEX_TYPE,COLUMN_NAME,COLLATION,COALESCE(SUB_PART,0) AS SUB_PART,SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($prefix.$table)."' ORDER BY INDEX_NAME,SEQ_IN_INDEX";
+	foreach (exact_rows($sql) as $row) {
+		$name=$row['INDEX_NAME'];
+		if (!isset($groups[$name])) $groups[$name]=array('unique'=>(int)$row['NON_UNIQUE']===0,'type'=>$row['INDEX_TYPE'],'columns'=>array());
+		$groups[$name]['columns'][]=$row['COLLATION'].':'.$row['SUB_PART'].':'.$row['COLUMN_NAME'];
+	}
+	$actual=array(); foreach ($groups as $name=>$definition) $actual[$name]=($definition['unique']?'U':'N').'|'.$definition['type'].'|'.implode(',', $definition['columns']);
 	exact_assert_map($table.' indexes', $actual, $expected);
 }
 
 $expectedFks = array(
-	'fk_mjlfinancement_activity_project'=>$prefix.'mjlfinancement_activity:fk_project>'.$prefix.'projet:rowid',
-	'fk_mjlfinancement_activity_responsible'=>$prefix.'mjlfinancement_activity:fk_user_responsible>'.$prefix.'user:rowid',
-	'fk_mjlfinancement_activity_task'=>$prefix.'mjlfinancement_activity:fk_task>'.$prefix.'projet_task:rowid',
-	'fk_mjl_invitation_target_user'=>$prefix.'mjlfinancement_invitation:fk_user>'.$prefix.'user:rowid',
-	'fk_mjl_reset_target_user'=>$prefix.'mjlfinancement_password_reset:fk_user>'.$prefix.'user:rowid',
+	'fk_mjlfinancement_activity_project'=>$prefix.'mjlfinancement_activity:fk_project>'.$prefix.'projet:rowid|RESTRICT|RESTRICT',
+	'fk_mjlfinancement_activity_responsible'=>$prefix.'mjlfinancement_activity:fk_user_responsible>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
+	'fk_mjlfinancement_activity_task'=>$prefix.'mjlfinancement_activity:fk_task>'.$prefix.'projet_task:rowid|RESTRICT|RESTRICT',
+	'fk_mjl_invitation_target_user'=>$prefix.'mjlfinancement_invitation:fk_user>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
+	'fk_mjl_reset_target_user'=>$prefix.'mjlfinancement_password_reset:fk_user>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
 );
 $actualFks=array();
-$sql="SELECT CONSTRAINT_NAME,TABLE_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME IN ('{$prefix}mjlfinancement_activity','{$prefix}mjlfinancement_invitation','{$prefix}mjlfinancement_password_reset') AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY CONSTRAINT_NAME,ORDINAL_POSITION";
-foreach (exact_rows($sql) as $row) $actualFks[$row['CONSTRAINT_NAME']]=$row['TABLE_NAME'].':'.$row['COLUMN_NAME'].'>'.$row['REFERENCED_TABLE_NAME'].':'.$row['REFERENCED_COLUMN_NAME'];
+$sql="SELECT k.CONSTRAINT_NAME,k.TABLE_NAME,k.COLUMN_NAME,k.REFERENCED_TABLE_NAME,k.REFERENCED_COLUMN_NAME,r.UPDATE_RULE,r.DELETE_RULE FROM information_schema.KEY_COLUMN_USAGE k INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS r ON r.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA AND r.CONSTRAINT_NAME=k.CONSTRAINT_NAME WHERE k.CONSTRAINT_SCHEMA=DATABASE() AND k.TABLE_NAME IN ('{$prefix}mjlfinancement_activity','{$prefix}mjlfinancement_invitation','{$prefix}mjlfinancement_password_reset') AND k.REFERENCED_TABLE_NAME IS NOT NULL ORDER BY k.CONSTRAINT_NAME,k.ORDINAL_POSITION";
+foreach (exact_rows($sql) as $row) $actualFks[$row['CONSTRAINT_NAME']]=$row['TABLE_NAME'].':'.$row['COLUMN_NAME'].'>'.$row['REFERENCED_TABLE_NAME'].':'.$row['REFERENCED_COLUMN_NAME'].'|'.$row['UPDATE_RULE'].'|'.$row['DELETE_RULE'];
 exact_assert_map('Phase 1 foreign keys', $actualFks, $expectedFks);
 
 $expectedChecks=array(
@@ -116,12 +138,19 @@ exact_assert_map('Phase 1 checks', $actualChecks, $expectedChecks);
 $expectedTriggers=array(
 	$prefix.'mjlfinancement_audit_event_bd'=>'BEFORE DELETE:'.$prefix.'mjlfinancement_audit_event:signal sqlstate \'45000\' set message_text = \'MJL audit events are append-only\'',
 	$prefix.'mjlfinancement_audit_event_bu'=>'BEFORE UPDATE:'.$prefix.'mjlfinancement_audit_event:signal sqlstate \'45000\' set message_text = \'MJL audit events are append-only\'',
+	$prefix.'mjlfinancement_user_role_bi'=>'BEFORE INSERT:'.$prefix.'mjlfinancement_user_role:BEGIN DECLARE target_admin INTEGER DEFAULT 0; DECLARE target_entity INTEGER DEFAULT -1; IF NEW.role_code NOT IN (\'AGENT_SAISIE\', \'AGENT_VERIFICATEUR\', \'VALIDATEUR_DEFINITIF\') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL business role\'; END IF; SELECT admin, entity INTO target_admin, target_entity FROM '.$prefix.'user WHERE rowid = NEW.fk_user; IF target_entity <> NEW.entity OR (NEW.is_active = 1 AND target_admin = 1) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL role target\'; END IF; END',
+	$prefix.'mjlfinancement_user_role_bu'=>'BEFORE UPDATE:'.$prefix.'mjlfinancement_user_role:BEGIN DECLARE target_admin INTEGER DEFAULT 0; DECLARE target_entity INTEGER DEFAULT -1; IF NEW.role_code NOT IN (\'AGENT_SAISIE\', \'AGENT_VERIFICATEUR\', \'VALIDATEUR_DEFINITIF\') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL business role\'; END IF; SELECT admin, entity INTO target_admin, target_entity FROM '.$prefix.'user WHERE rowid = NEW.fk_user; IF target_entity <> NEW.entity OR (NEW.is_active = 1 AND target_admin = 1) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL role target\'; END IF; END',
+	$prefix.'mjlfinancement_user_admin_bu'=>'BEFORE UPDATE:'.$prefix.'user:BEGIN IF NEW.admin = 1 AND OLD.admin <> 1 AND EXISTS (SELECT 1 FROM '.$prefix.'mjlfinancement_user_role WHERE fk_user = NEW.rowid AND is_active = 1 AND role_code IN (\'AGENT_SAISIE\', \'AGENT_VERIFICATEUR\', \'VALIDATEUR_DEFINITIF\')) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'MJL business-role user cannot become native admin\'; END IF; END',
+	$prefix.'mjlfinancement_invitation_bi'=>'BEFORE INSERT:'.$prefix.'mjlfinancement_invitation:BEGIN DECLARE target_admin INTEGER DEFAULT 1; DECLARE target_entity INTEGER DEFAULT -1; SELECT admin, entity INTO target_admin, target_entity FROM '.$prefix.'user WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR target_admin=1 THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid invitation target\'; END IF; END',
+	$prefix.'mjlfinancement_invitation_bu'=>'BEFORE UPDATE:'.$prefix.'mjlfinancement_invitation:BEGIN DECLARE target_admin INTEGER DEFAULT 1; DECLARE target_entity INTEGER DEFAULT -1; SELECT admin, entity INTO target_admin, target_entity FROM '.$prefix.'user WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR target_admin=1 OR NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.token_selector<>OLD.token_selector THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid invitation mutation\'; END IF; END',
+	$prefix.'mjlfinancement_reset_bi'=>'BEFORE INSERT:'.$prefix.'mjlfinancement_password_reset:BEGIN DECLARE target_entity INTEGER DEFAULT -1; SELECT entity INTO target_entity FROM '.$prefix.'user WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid reset target\'; END IF; END',
+	$prefix.'mjlfinancement_reset_bu'=>'BEFORE UPDATE:'.$prefix.'mjlfinancement_password_reset:BEGIN DECLARE target_entity INTEGER DEFAULT -1; SELECT entity INTO target_entity FROM '.$prefix.'user WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.token_selector<>OLD.token_selector THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid reset mutation\'; END IF; END',
 );
 $actualTriggers=array();
-$sql="SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='".$db->escape($prefix.'mjlfinancement_audit_event')."'";
+$sql="SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME LIKE '".$db->escape($prefix.'mjlfinancement\\_%')."'";
 foreach (exact_rows($sql) as $row) $actualTriggers[$row['TRIGGER_NAME']]=$row['ACTION_TIMING'].' '.$row['EVENT_MANIPULATION'].':'.$row['EVENT_OBJECT_TABLE'].':'.exact_normalize($row['ACTION_STATEMENT']);
 foreach ($expectedTriggers as $name=>$definition) $expectedTriggers[$name]=exact_normalize($definition);
 foreach ($actualTriggers as $name=>$definition) $actualTriggers[$name]=exact_normalize($definition);
-exact_assert_map('audit triggers', $actualTriggers, $expectedTriggers);
+exact_assert_map('Phase 1 triggers', $actualTriggers, $expectedTriggers);
 
 print "RST Phase 1 exact schema definitions verified.\n";

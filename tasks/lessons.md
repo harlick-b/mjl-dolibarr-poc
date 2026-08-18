@@ -156,3 +156,12 @@ debugging discoveries. Do not add one-off observations or generic advice.
   `testMatch` allowlist. Every new E2E file must be added to discovery and the
   focused gate must assert the expected executed-test count before its result
   is accepted.
+- Dolibarr 23's `activateModule()` returns an array with an `errors` member;
+  comparing that result numerically can report failed activation as success.
+  Treat a non-empty error array as failure, keep native activation idempotent,
+  and force initialization only for the custom module that needs current SQL.
+- A Compose one-off service normally runs the image entrypoint before its
+  command. For stopped-traffic recovery rehearsals, share only the isolated
+  generated configuration volume and override the entrypoint explicitly;
+  otherwise even rejected evidence can mutate operational files such as
+  `initdb.log` before the guarded script begins.

@@ -35,28 +35,56 @@ test('Phase 1 language catalogs expose only current module vocabulary', () => {
 });
 
 test('maintained runtime has no obsolete finance or legacy-role vocabulary', () => {
-  const containmentAllowlist = new Set([
-    'custom/mjlfinancement/scripts/rst_phase1_reset.php',
-    'custom/mjlfinancement/scripts/verify_phase1_reset.php',
-    'custom/mjlfinancement/js/native_guard.js.php',
-    'custom/mjlfinancement/lib/mjl_native_modules.lib.php',
-  ]);
-  const forbidden = /MJL(?:Convention|BudgetLine|FundReceipt|Expense|WorkflowAction|ExchangeLog|Report|PTFBailleur)|Partenaire\s*\/\s*Programme|SUPERVISEUR_N[12]|\bDPAF\b|Expense amount|budget line|mjlfinancement_(?:convention|budget_line|fund_receipt|expense|validation|workflow_action|exchange_log|report|access_audit)/i;
+  const containmentAllowances = new Map(Object.entries({
+    'custom/mjlfinancement/scripts/rst_phase1_reset.php': {
+      reason: 'the approved executor must name each legacy table that it quarantines or rejects',
+      tokens: {
+        mjlfinancement_convention: 2,
+        mjlfinancement_budget_line: 1,
+        mjlfinancement_fund_receipt: 1,
+        mjlfinancement_expense: 1,
+        mjlfinancement_validation: 1,
+        mjlfinancement_workflow_action: 1,
+        mjlfinancement_exchange_log: 1,
+        mjlfinancement_report: 1,
+        mjlfinancement_access_audit: 1,
+      },
+    },
+    'custom/mjlfinancement/scripts/verify_phase1_reset.php': {
+      reason: 'the containment verifier must prove each deleted legacy table is absent',
+      tokens: {
+        mjlfinancement_convention: 1,
+        mjlfinancement_budget_line: 1,
+        mjlfinancement_fund_receipt: 1,
+        mjlfinancement_expense: 1,
+        mjlfinancement_validation: 1,
+        mjlfinancement_workflow_action: 1,
+        mjlfinancement_exchange_log: 1,
+        mjlfinancement_report: 1,
+        mjlfinancement_access_audit: 1,
+      },
+    },
+  }));
+  const observed = new Map();
+  const forbidden = /MJL(?:Convention|BudgetLine|FundReceipt|Expense|WorkflowAction|ExchangeLog|Report|PTFBailleur)|Partenaire\s*\/\s*Programme|SUPERVISEUR_N[12]|\bDPAF\b|Expense amount|budget line|mjlfinancement_(?:convention|budget_line|fund_receipt|expense|validation|workflow_action|exchange_log|report|access_audit)/gi;
 
   for (const relative of runtimeFiles('custom/mjlfinancement')) {
-    if (relative.includes('/langs/') || containmentAllowlist.has(relative)) continue;
-    assert.doesNotMatch(fs.readFileSync(path.join(root, relative), 'utf8'), forbidden, relative);
+    if (relative.includes('/langs/')) continue;
+    const matches = [...fs.readFileSync(path.join(root, relative), 'utf8').matchAll(forbidden)];
+    for (const match of matches) {
+      const token = match[0].toLowerCase();
+      const allowance = containmentAllowances.get(relative);
+      assert.ok(allowance, `${relative}: uncontained obsolete token ${match[0]}`);
+      assert.ok(allowance.reason.length > 20, `${relative}: containment reason is missing`);
+      assert.ok(Object.hasOwn(allowance.tokens, token), `${relative}: unexpected obsolete token ${match[0]}`);
+      const key = `${relative}:${token}`;
+      observed.set(key, (observed.get(key) || 0) + 1);
+    }
   }
-});
 
-test('obsolete-vocabulary exceptions stay limited to named containment files', () => {
-  const unit = fs.readFileSync(__filename, 'utf8');
-  for (const reasonedBoundary of [
-    'scripts/rst_phase1_reset.php',
-    'scripts/verify_phase1_reset.php',
-    'js/native_guard.js.php',
-    'lib/mjl_native_modules.lib.php',
-  ]) {
-    assert.match(unit, new RegExp(reasonedBoundary.replaceAll('.', '\\.')), reasonedBoundary);
+  for (const [relative, allowance] of containmentAllowances) {
+    for (const [token, count] of Object.entries(allowance.tokens)) {
+      assert.equal(observed.get(`${relative}:${token}`) || 0, count, `${relative}: exact allowance for ${token}`);
+    }
   }
 });

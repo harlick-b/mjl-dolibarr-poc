@@ -23,6 +23,7 @@ test('creates a unique loopback run plan with stable scoped resource names', () 
       port: plan.port,
       databaseVolume: plan.databaseVolume,
       documentVolume: plan.documentVolume,
+      configVolume: plan.configVolume,
     },
     {
       projectName: 'mjl-test-20260803t123456-4321-a1b2c3d4',
@@ -30,6 +31,7 @@ test('creates a unique loopback run plan with stable scoped resource names', () 
       port: 18123,
       databaseVolume: 'mjl-test-20260803t123456-4321-a1b2c3d4_mjl_test_db',
       documentVolume: 'mjl-test-20260803t123456-4321-a1b2c3d4_mjl_test_docs',
+      configVolume: 'mjl-test-20260803t123456-4321-a1b2c3d4_mjl_test_conf',
     },
   );
   assert.match(plan.composeFile, /tests\/fixtures\/disposable-compose\.override\.yml$/);

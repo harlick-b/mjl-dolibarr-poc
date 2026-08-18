@@ -20,6 +20,9 @@ services:
       - type: volume
         source: mjl_test_docs
         target: /var/www/documents
+      - type: volume
+        source: mjl_test_conf
+        target: /var/www/html/conf
       - type: bind
         source: ${MJL_REPOSITORY_ROOT}/custom
         target: /var/www/html/custom
@@ -32,7 +35,12 @@ services:
         source: ${MJL_REPOSITORY_ROOT}/tests
         target: /opt/mjl-tests
         read_only: true
+      - type: bind
+        source: ${MJL_EVIDENCE_ROOT}
+        target: /opt/mjl-evidence
+        read_only: true
 
 volumes:
   mjl_test_db:
   mjl_test_docs:
+  mjl_test_conf:

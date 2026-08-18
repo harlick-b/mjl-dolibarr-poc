@@ -35,8 +35,10 @@ function createRunPlan(options = {}) {
     repositoryRoot,
     composeFile: path.join(repositoryRoot, 'tests/fixtures/disposable-compose.override.yml'),
     artifactRoot,
+    evidenceRoot: artifactRoot,
     databaseVolume: `${projectName}_mjl_test_db`,
     documentVolume: `${projectName}_mjl_test_docs`,
+    configVolume: `${projectName}_mjl_test_conf`,
   });
 }
 

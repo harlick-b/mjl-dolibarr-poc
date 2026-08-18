@@ -11,6 +11,7 @@ function verifyDisposableEnvironment(options = {}) {
     baseUrl: env.MJL_BASE_URL,
     port: Number(env.MJL_TEST_PORT),
     repositoryRoot,
+    evidenceRoot: path.resolve(env.MJL_EVIDENCE_ROOT),
   };
   const resolved = options.resolvedConfig || JSON.parse(execFileSync(
     'docker',

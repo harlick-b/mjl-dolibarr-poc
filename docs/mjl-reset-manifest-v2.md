@@ -2,14 +2,16 @@
 
 RST-000, RST-000A, RST-001, RST-002A, and RST-003 were explicitly approved and
 executed. RST-003 completed on 2026-08-13 with an empty reference catalog;
-every later action remains unapproved and unexecuted.
+RST-007A, RST-004, RST-008, and RST-009A are executed pending evidence
+ratification. All other later actions remain unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
-- RST-000, RST-000A, RST-001, RST-002A, and RST-003 are `EXECUTED`; every other action is
-  `PENDING_APPROVAL`.
+- RST-000, RST-000A, RST-001, RST-002A, and RST-003 are `EXECUTED`.
+  RST-007A, RST-004, RST-008, and RST-009A are
+  `EXECUTED_PENDING_RATIFICATION`; every other action is `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.

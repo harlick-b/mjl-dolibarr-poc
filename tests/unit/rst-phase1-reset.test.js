@@ -79,8 +79,11 @@ test('cutover executor gates destructive modes and rechecks empty quarantines', 
 
 test('Phase 1 exact-schema verifier rejects both missing and extra definitions', () => {
   const verifier = read('custom/mjlfinancement/scripts/verify_phase1_schema_exact.php');
-  for (const surface of ['columns', 'indexes', 'foreign keys', 'checks', 'triggers']) assert.match(verifier, new RegExp(surface, 'i'));
+  for (const surface of ['engines', 'columns', 'indexes', 'foreign keys', 'checks', 'triggers']) assert.match(verifier, new RegExp(surface, 'i'));
   assert.match(verifier, /\$actual !== \$expected/);
+  assert.match(verifier, /INDEX_TYPE/);
+  assert.match(verifier, /UPDATE_RULE/);
+  assert.match(verifier, /DELETE_RULE/);
   assert.match(verifier, /GENERATION_EXPRESSION/);
   assert.match(verifier, /CHECK_CLAUSE/);
   assert.match(verifier, /ACTION_STATEMENT/);
@@ -88,7 +91,7 @@ test('Phase 1 exact-schema verifier rejects both missing and extra definitions',
 
 test('Phase 1 runner rehearses representative schema mutations and restores each one', () => {
   const runner = read('tests/runner/run-suite.js');
-  for (const label of ['index mutation', 'foreign-key mutation', 'check mutation', 'generated-column mutation', 'trigger mutation']) {
+  for (const label of ['engine mutation', 'index mutation', 'foreign-key mutation', 'check mutation', 'generated-column mutation', 'trigger mutation']) {
     assert.match(runner, new RegExp(label));
   }
   assert.match(runner, /expectComposeFailure/);
@@ -97,19 +100,43 @@ test('Phase 1 runner rehearses representative schema mutations and restores each
 });
 
 test('Phase 1 runner executes the real baseline cutover, failures, rollbacks, and repeated activation', () => {
-  const runner = read('tests/runner/run-suite.js');
+  const runner = read('tests/runner/phase1-cutover-rehearsal.js');
   assert.match(runner, /dc6f0becbd45c7676cccec2ac42b9374b8e61101/);
-  for (const evidence of ['source', 'database', 'schema_metadata', 'documents_manifest']) assert.match(runner, new RegExp(`${evidence}: artifact`));
-  assert.match(runner, /Bad evidence mutated the database/);
+  for (const evidence of ['source', 'database', 'schema_metadata', 'documents_manifest', 'documents_archive']) assert.match(runner, new RegExp(`${evidence}: artifact`));
+  assert.match(runner, /bad-evidence/);
   assert.match(runner, /after-activity-alter/);
-  assert.match(runner, /Full backup restore did not reproduce/);
-  assert.match(runner, /await activateCurrent\(\);\n  await activateCurrent\(\);/);
+  assert.match(runner, /activation-failure-restore/);
+  assert.match(runner, /post-activation-restore/);
+  assert.match(runner, /schema\/trigger\/module metadata fingerprint differs/);
+  assert.match(runner, /document fingerprint differs/);
+  assert.match(runner, /await compose\(plan, activateArgs\(\), \{ quiet: true, signal \}\);\n  await compose\(plan, activateArgs\(\), \{ quiet: true, signal \}\);/);
   assert.match(runner, /resetArgs\('finalize'\)/);
+});
+
+test('activation failure injection is disposable, environment, and database gated', () => {
+  const module = read('custom/mjlfinancement/core/modules/modMjlFinancement.class.php');
+  for (const gate of ['MJL_DISPOSABLE_TEST_TENANT', 'MJL_RST_PHASE1_INJECT_ACTIVATION_FAILURE', 'MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION']) {
+    assert.match(module, new RegExp(gate));
+  }
+  const bootstrap = read('custom/mjlfinancement/scripts/bootstrap_poc.php');
+  assert.match(bootstrap, /is_array\(\$result\).*\$result\['errors'\]/);
+  assert.match(bootstrap, /\$activationFailed/);
+  assert.match(bootstrap, /\$module === 'modMjlFinancement' \? 1 : 0/);
 });
 
 test('RST-008 E2E covers parallel identity, issue, consume, audit, and partial-delivery failures', () => {
   const concurrency = read('tests/e2e/auth-concurrency.spec.js');
   for (const evidence of ['same-login', 'same@example.test', 'Promise.all', 'PROCESSLIST', 'GET_LOCK', 'audit failure', 'partial test delivery', 'send_failed:NULL']) {
     assert.match(concurrency, new RegExp(evidence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
+test('authentication verifiers are not duplicated into SQL-backed email evidence', () => {
+  const email = read('custom/mjlfinancement/lib/mjl_email.lib.php');
+  assert.match(email, /empty\(\$context\['auth_link_type'\]\)/);
+  assert.match(email, /MJL_EMAIL_E2E_LAST_.*_BODY/);
+  const concurrency = read('tests/e2e/auth-concurrency.spec.js');
+  for (const boundary of ['response.text()', 'llx_mjlfinancement_audit_event', 'llx_societe', 'llx_const', "compose', 'logs"]) {
+    assert.match(concurrency, new RegExp(boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });

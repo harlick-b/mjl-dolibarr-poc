@@ -39,8 +39,12 @@ $modules = array(
 );
 
 foreach ($modules as $module) {
-	$result = activateModule($module, 1, 1);
-	if ($result < 0) {
+	// Native dependencies use Dolibarr's idempotent path. Only the custom module
+	// is force-initialized so an already-enabled tenant receives its current SQL.
+	$forceCustomInitialization = $module === 'modMjlFinancement' ? 1 : 0;
+	$result = activateModule($module, 1, $forceCustomInitialization);
+	$activationFailed = is_array($result) ? !empty($result['errors']) : $result < 0;
+	if ($activationFailed) {
 		mjl_bootstrap_fail('Failed to activate '.$module.'.');
 	}
 	mjl_bootstrap_out('Activated '.$module.'.');

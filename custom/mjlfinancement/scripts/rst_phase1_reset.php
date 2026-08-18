@@ -44,7 +44,7 @@ function rst_require_cutover_evidence($manifest, $expectedHash) {
 	if ($manifest === '' || !is_file($manifest) || !preg_match('/^[a-f0-9]{64}$/', $expectedHash)) rst_fail('A checksummed cutover evidence manifest is required.');
 	if (!hash_equals($expectedHash, hash_file('sha256', $manifest))) rst_fail('Cutover evidence manifest checksum mismatch.');
 	$evidence = json_decode(file_get_contents($manifest), true);
-	foreach (array('source', 'database', 'schema_metadata', 'documents_manifest') as $key) {
+	foreach (array('source', 'database', 'schema_metadata', 'documents_manifest', 'documents_archive') as $key) {
 		$artifact = is_array($evidence) && isset($evidence[$key]) && is_array($evidence[$key]) ? $evidence[$key] : array();
 		$path = isset($artifact['path']) ? (string) $artifact['path'] : '';
 		$sha256 = isset($artifact['sha256']) ? (string) $artifact['sha256'] : '';

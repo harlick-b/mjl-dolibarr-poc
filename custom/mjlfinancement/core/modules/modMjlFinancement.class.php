@@ -93,12 +93,26 @@ class modMjlFinancement extends DolibarrModules
 		if ($result < 0) {
 			return -1;
 		}
+		if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
+			&& getenv('MJL_RST_PHASE1_INJECT_ACTIVATION_FAILURE') === '1'
+			&& $this->disposableActivationFailureIsArmed()) {
+			return -1;
+		}
 		if ($this->ensureRoleInvariantTriggers() < 0) {
 			return -1;
 		}
 		if ($this->ensureAuthStateConstraints() < 0 || $this->ensureAuthInvariantTriggers() < 0 || $this->ensureAuthFingerprintKey() < 0) return -1;
 		$this->remove($options);
 		return $this->_init(array(), $options);
+	}
+
+	private function disposableActivationFailureIsArmed()
+	{
+		$sql = "SELECT value FROM ".$this->db->prefix()."const WHERE name='MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION'";
+		$sql .= ' AND entity IN (0, 1) ORDER BY entity DESC, rowid DESC LIMIT 1';
+		$resql = $this->db->query($sql);
+		$row = $resql ? $this->db->fetch_object($resql) : null;
+		return $row && (string) $row->value === '1';
 	}
 
 	private function ensureRoleInvariantTriggers()

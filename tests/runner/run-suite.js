@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 const fs = require('node:fs');
-const crypto = require('node:crypto');
 const net = require('node:net');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const { assertCleanupComplete, assertDisposableConfig } = require('./disposable-policy');
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('./disposable-run');
+const { runPhase1CutoverRehearsal: runPhase1Cutover } = require('./phase1-cutover-rehearsal');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 const mode = process.argv[2] || 'all';
@@ -59,7 +59,7 @@ function runCommand(command, args, options = {}) {
 
     child.once('error', reject);
     child.once('close', (code, signal) => {
-      const output = Buffer.concat(outputChunks).toString('utf8');
+      const output = options.binary ? Buffer.concat(outputChunks) : Buffer.concat(outputChunks).toString('utf8');
       if (options.signal) options.signal.removeEventListener('abort', abort);
       if (code === 0) {
         resolve(output);
@@ -81,6 +81,7 @@ function composeEnvironment(plan, sourceRoot = repositoryRoot) {
     MJL_BASE_URL: plan.baseUrl,
     MJL_TEST_PORT: String(plan.port),
     MJL_REPOSITORY_ROOT: sourceRoot,
+    MJL_EVIDENCE_ROOT: plan.evidenceRoot,
     MJL_PLAYWRIGHT_OUTPUT_DIR: path.join(plan.artifactRoot, 'playwright'),
   };
 }
@@ -90,99 +91,6 @@ async function compose(plan, args, options = {}) {
     ...options,
     env: composeEnvironment(plan, options.sourceRoot),
   });
-}
-
-function sha256File(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-}
-
-async function databaseDump(plan, signal) {
-  const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
-  return compose(plan, ['exec', '-T', 'mariadb', 'mariadb-dump', '-udolidbuser', `-p${password}`, '--skip-comments', '--skip-extended-insert', '--order-by-primary', 'dolidb'], { quiet: true, signal });
-}
-
-async function runPhase1CutoverRehearsal(plan, signal) {
-  const baselineCommit = 'dc6f0becbd45c7676cccec2ac42b9374b8e61101';
-  const baselineRoot = path.join(plan.artifactRoot, 'pre-cutover-source');
-  const sourceArchive = path.join(plan.artifactRoot, 'pre-cutover-source.tar');
-  fs.mkdirSync(baselineRoot, { recursive: true });
-  await runCommand('git', ['archive', '--format=tar', `--output=${sourceArchive}`, baselineCommit], { signal });
-  await runCommand('tar', ['-xf', sourceArchive, '-C', baselineRoot], { signal });
-
-  await compose(plan, ['up', '-d'], { sourceRoot: baselineRoot, signal });
-  await waitUntilReady(plan, signal);
-  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'], { sourceRoot: baselineRoot, quiet: true, signal });
-
-  const baselineDump = path.join(plan.artifactRoot, 'pre-cutover-database.sql');
-  const metadata = path.join(plan.artifactRoot, 'pre-cutover-schema-metadata.txt');
-  const documentsManifest = path.join(plan.artifactRoot, 'pre-cutover-documents.txt');
-  fs.writeFileSync(baselineDump, await databaseDump(plan, signal), { mode: 0o600 });
-  const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
-  const metadataSql = "SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COALESCE(COLUMN_DEFAULT,'<NULL>'),EXTRA,GENERATION_EXPRESSION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME,ORDINAL_POSITION; SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() ORDER BY TRIGGER_NAME; SELECT name,value,entity FROM llx_const WHERE name LIKE 'MAIN_MODULE_%' OR name LIKE 'MJL_%' ORDER BY name,entity";
-  fs.writeFileSync(metadata, await compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', metadataSql], { sourceRoot: baselineRoot, quiet: true, signal }), { mode: 0o600 });
-  fs.writeFileSync(documentsManifest, await compose(plan, ['exec', '-T', 'dolibarr', 'find', '/var/www/documents', '-type', 'f', '-printf', '%P\t%s\n'], { sourceRoot: baselineRoot, quiet: true, signal }), { mode: 0o600 });
-
-  await compose(plan, ['exec', '-T', 'dolibarr', 'mkdir', '-p', '/var/www/documents/rst-phase1-evidence'], { sourceRoot: baselineRoot, quiet: true, signal });
-  const evidenceFiles = [sourceArchive, baselineDump, metadata, documentsManifest];
-  for (const file of evidenceFiles) await compose(plan, ['cp', file, `dolibarr:/var/www/documents/rst-phase1-evidence/${path.basename(file)}`], { sourceRoot: baselineRoot, quiet: true, signal });
-  const artifact = (file) => ({ path: `/var/www/documents/rst-phase1-evidence/${path.basename(file)}`, sha256: sha256File(file) });
-  const manifestData = {
-    baseline_commit: baselineCommit,
-    source: artifact(sourceArchive),
-    database: artifact(baselineDump),
-    schema_metadata: artifact(metadata),
-    documents_manifest: artifact(documentsManifest),
-  };
-  const evidenceManifest = path.join(plan.artifactRoot, 'cutover-evidence.json');
-  fs.writeFileSync(evidenceManifest, `${JSON.stringify(manifestData, null, 2)}\n`, { mode: 0o600 });
-  await compose(plan, ['cp', evidenceManifest, 'dolibarr:/var/www/documents/rst-phase1-evidence/cutover-evidence.json'], { sourceRoot: baselineRoot, quiet: true, signal });
-  await compose(plan, ['cp', baselineDump, 'mariadb:/tmp/rst-phase1-baseline.sql'], { sourceRoot: baselineRoot, quiet: true, signal });
-  await compose(plan, ['stop', 'dolibarr'], { sourceRoot: baselineRoot, signal });
-
-  const manifestPath = '/var/www/documents/rst-phase1-evidence/cutover-evidence.json';
-  const manifestHash = sha256File(evidenceManifest);
-  const authorization = 'RST-007A,RST-004,RST-008,RST-009A';
-  const resetArgs = (modeName, extra = [], environment = []) => ['run', '--rm', '--no-deps', ...environment.flatMap((value) => ['-e', value]), '-e', 'MJL_RST_PHASE1_TRAFFIC_STOPPED=1', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst_phase1_reset.php', `--mode=${modeName}`, `--confirm=${authorization}`, `--evidence-manifest=${manifestPath}`, `--evidence-sha256=${manifestHash}`, ...extra];
-  const sql = async (statement) => compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb', '-e', statement], { quiet: true, signal });
-  const restoreBaseline = async () => {
-    const rootPassword = process.env.MYSQL_ROOT_PASSWORD || 'poc_root_pwd';
-    await compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '-uroot', `-p${rootPassword}`, '-e', "DROP DATABASE dolidb; CREATE DATABASE dolidb CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci; GRANT ALL PRIVILEGES ON dolidb.* TO 'dolidbuser'@'%'; FLUSH PRIVILEGES"], { quiet: true, signal });
-    await compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb'], { input: fs.readFileSync(baselineDump), quiet: true, signal });
-    const restored = await databaseDump(plan, signal);
-    if (crypto.createHash('sha256').update(restored).digest('hex') !== sha256File(baselineDump)) {
-      fs.writeFileSync(path.join(plan.artifactRoot, 'restore-mismatch.sql'), restored, { mode: 0o600 });
-      throw new Error('Full backup restore did not reproduce the pre-cutover database exactly.');
-    }
-  };
-  const activateCurrent = async () => compose(plan, ['run', '--rm', '--no-deps', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'], { quiet: true, signal });
-
-  await expectComposeFailure(plan, ['run', '--rm', '--no-deps', '-e', 'MJL_RST_PHASE1_TRAFFIC_STOPPED=1', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst_phase1_reset.php', '--mode=apply', `--confirm=${authorization}`, `--evidence-manifest=${manifestPath}`, `--evidence-sha256=${'0'.repeat(64)}`], 'bad evidence', { signal });
-  const afterBadEvidence = await databaseDump(plan, signal);
-  if (crypto.createHash('sha256').update(afterBadEvidence).digest('hex') !== sha256File(baselineDump)) {
-    fs.writeFileSync(path.join(plan.artifactRoot, 'bad-evidence-mismatch.sql'), afterBadEvidence, { mode: 0o600 });
-    throw new Error('Bad evidence mutated the database.');
-  }
-
-  await sql("INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('MJL_RST_PHASE1_FAILURE_INJECTION','1','chaine',0,'disposable rehearsal',0) ON DUPLICATE KEY UPDATE value='1'");
-  await expectComposeFailure(plan, resetArgs('apply', ['--failure-point=after-activity-alter'], ['MJL_DISPOSABLE_TEST_TENANT=1']), 'interrupted apply', { signal });
-  await compose(plan, resetArgs('rollback'), { signal });
-  await restoreBaseline();
-
-  await compose(plan, resetArgs('apply'), { quiet: true, signal });
-  await compose(plan, resetArgs('rollback'), { signal });
-  await restoreBaseline();
-
-  await compose(plan, resetArgs('apply'), { quiet: true, signal });
-  await activateCurrent();
-  await compose(plan, resetArgs('rollback'), { signal });
-  await restoreBaseline();
-
-  await compose(plan, resetArgs('apply'), { quiet: true, signal });
-  await activateCurrent();
-  await activateCurrent();
-  await compose(plan, resetArgs('finalize'), { quiet: true, signal });
-  await compose(plan, ['up', '-d', '--force-recreate', 'dolibarr'], { signal });
-  await waitUntilReady(plan, signal);
 }
 
 async function expectComposeFailure(plan, args, label, options = {}) {
@@ -264,14 +172,19 @@ async function runPhase1SchemaMutationRehearsal(plan, signal) {
   const verifier = ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_schema_exact.php'];
   const probes = [
     {
+      label: 'engine mutation',
+      mutate: 'ALTER TABLE llx_mjlfinancement_audit_event ENGINE=Aria',
+      restore: 'ALTER TABLE llx_mjlfinancement_audit_event ENGINE=InnoDB',
+    },
+    {
       label: 'index mutation',
-      mutate: 'ALTER TABLE llx_mjlfinancement_invitation DROP INDEX idx_mjl_invitation_status',
-      restore: 'ALTER TABLE llx_mjlfinancement_invitation ADD INDEX idx_mjl_invitation_status (entity,status)',
+      mutate: 'ALTER TABLE llx_mjlfinancement_invitation DROP INDEX idx_mjl_invitation_status, ADD INDEX idx_mjl_invitation_status (entity,status(8))',
+      restore: 'ALTER TABLE llx_mjlfinancement_invitation DROP INDEX idx_mjl_invitation_status, ADD INDEX idx_mjl_invitation_status (entity,status)',
     },
     {
       label: 'foreign-key mutation',
       mutate: 'ALTER TABLE llx_mjlfinancement_password_reset DROP FOREIGN KEY fk_mjl_reset_target_user',
-      restore: 'ALTER TABLE llx_mjlfinancement_password_reset ADD CONSTRAINT fk_mjl_reset_target_user FOREIGN KEY (fk_user) REFERENCES llx_user(rowid)',
+      restore: 'ALTER TABLE llx_mjlfinancement_password_reset ADD CONSTRAINT fk_mjl_reset_target_user FOREIGN KEY (fk_user) REFERENCES llx_user(rowid) ON DELETE RESTRICT ON UPDATE RESTRICT',
     },
     {
       label: 'check mutation',
@@ -387,6 +300,7 @@ function printRetainedRun(plan) {
     `  URL: ${plan.baseUrl}`,
     `  database volume: ${plan.databaseVolume}`,
     `  document volume: ${plan.documentVolume}`,
+    `  config volume: ${plan.configVolume}`,
     `  cleanup: COMPOSE_PROJECT_NAME=${plan.projectName} COMPOSE_FILE=${composeFiles} docker compose down -v --remove-orphans`,
     '',
   ].join('\n'));
@@ -420,7 +334,16 @@ async function main() {
       }
       if (!provisionAttempted) {
         provisionAttempted = true;
-        if (mode === 'phase1-reset') await runPhase1CutoverRehearsal(plan, controller.signal);
+        if (mode === 'phase1-reset') await runPhase1Cutover({
+          plan,
+          signal: controller.signal,
+          repositoryRoot,
+          runCommand,
+          compose,
+          waitUntilReady,
+          expectComposeFailure,
+          assertDisposableConfig,
+        });
         else await provision(plan, controller.signal);
       }
       if (layer === 'verify') await runVerification(plan, controller.signal);

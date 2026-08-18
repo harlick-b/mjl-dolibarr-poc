@@ -258,7 +258,11 @@ function mjl_email_write_test_outbox($template, User $recipient, array $rendered
 	}
 
 	mjl_email_store_e2e_const('MJL_EMAIL_E2E_LAST_'.strtoupper((string) $template).'_SUBJECT', $rendered['subject']);
-	mjl_email_store_e2e_const('MJL_EMAIL_E2E_LAST_'.strtoupper((string) $template).'_BODY', $rendered['body']);
+	// Authentication bodies contain a fragment verifier. Keep that credential
+	// solely in the disposable file outbox instead of duplicating it in SQL.
+	if (empty($context['auth_link_type'])) {
+		mjl_email_store_e2e_const('MJL_EMAIL_E2E_LAST_'.strtoupper((string) $template).'_BODY', $rendered['body']);
+	}
 	mjl_email_store_e2e_const('MJL_EMAIL_E2E_LAST_'.strtoupper((string) $template).'_TO', $recipient->email);
 
 	if (isset($context['auth_link_type']) && isset($context['link']) && function_exists('mjl_auth_write_test_outbox')) {

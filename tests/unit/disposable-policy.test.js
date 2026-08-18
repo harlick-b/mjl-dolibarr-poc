@@ -8,6 +8,7 @@ const expected = {
   baseUrl: 'http://127.0.0.1:18123',
   port: 18123,
   repositoryRoot: '/workspace/mjl',
+  evidenceRoot: '/workspace/mjl/test-results/runs/test-evidence',
 };
 
 function validConfig() {
@@ -24,6 +25,7 @@ function validConfig() {
         ports: [{ target: 80, published: String(expected.port), protocol: 'tcp', host_ip: '127.0.0.1' }],
         volumes: [
           { type: 'volume', source: 'mjl_test_docs', target: '/var/www/documents' },
+          { type: 'volume', source: 'mjl_test_conf', target: '/var/www/html/conf' },
           { type: 'bind', source: '/workspace/mjl/custom', target: '/var/www/html/custom', read_only: true },
           {
             type: 'bind',
@@ -32,12 +34,14 @@ function validConfig() {
             read_only: true,
           },
           { type: 'bind', source: '/workspace/mjl/tests', target: '/opt/mjl-tests', read_only: true },
+          { type: 'bind', source: expected.evidenceRoot, target: '/opt/mjl-evidence', read_only: true },
         ],
       },
     },
     volumes: {
       mjl_test_db: { name: `${expected.projectName}_mjl_test_db` },
       mjl_test_docs: { name: `${expected.projectName}_mjl_test_docs` },
+      mjl_test_conf: { name: `${expected.projectName}_mjl_test_conf` },
     },
     networks: {
       default: { name: `${expected.projectName}_default` },

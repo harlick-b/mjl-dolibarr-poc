@@ -10,6 +10,9 @@ function sql(statement) {
 function scalar(statement) {
   return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', '-N', '-B', 'dolidb', '-e', statement], { encoding: 'utf8', env: process.env }).trim();
 }
+function sqlLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
 async function worker(...args) {
   const { stdout } = await execFileAsync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/auth-parallel-worker.php', ...args], { encoding: 'utf8', env: process.env });
   return JSON.parse(stdout.trim());
@@ -31,8 +34,31 @@ function tokenParts(link) {
   const url = new URL(link, 'http://example.test');
   return [url.searchParams.get('selector') || url.searchParams.get('mjlselector'), url.hash.slice('#verifier='.length)];
 }
+function assertNeutralLoser(result, selector, verifier) {
+  expect(result).toMatch(/invalide|expir|cours de traitement/i);
+  expect(result).not.toContain(selector);
+  expect(result).not.toContain(verifier);
+  expect(result).not.toMatch(/SQLSTATE|SELECT |INSERT |UPDATE |DELETE |MariaDB/i);
+}
+async function assertNoVerifierLeak(request, link) {
+  const [serverPath, verifier = ''] = link.split('#verifier=');
+  expect(verifier).not.toBe('');
+  const response = await request.get(serverPath, { maxRedirects: 0 });
+  expect(await response.text()).not.toContain(verifier);
+  const raw = sqlLiteral(verifier);
+  const databaseHits = scalar(`SELECT
+    (SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE INSTR(CONCAT_WS('|',object_type,COALESCE(object_ref,''),actor_name_snapshot,actor_role_snapshot,action,COALESCE(previous_values_json,''),COALESCE(new_values_json,''),COALESCE(reason,''),COALESCE(context_json,'')),${raw}) > 0)
+    + (SELECT COUNT(*) FROM llx_user WHERE INSTR(CONCAT_WS('|',login,COALESCE(email,''),COALESCE(firstname,''),COALESCE(lastname,''),COALESCE(pass_crypted,'')),${raw}) > 0)
+    + (SELECT COUNT(*) FROM llx_societe WHERE INSTR(CONCAT_WS('|',nom,COALESCE(email,''),COALESCE(note_private,''),COALESCE(note_public,'')),${raw}) > 0)
+    + (SELECT COUNT(*) FROM llx_const WHERE INSTR(CONCAT_WS('|',name,COALESCE(value,''),COALESCE(note,'')),${raw}) > 0)
+    + (SELECT COUNT(*) FROM llx_mjlfinancement_invitation WHERE INSTR(CONCAT_WS('|',token_selector,COALESCE(token_hash,'')),${raw}) > 0)
+    + (SELECT COUNT(*) FROM llx_mjlfinancement_password_reset WHERE INSTR(CONCAT_WS('|',token_selector,COALESCE(token_hash,'')),${raw}) > 0)`);
+  expect(databaseHits).toBe('0');
+  const logs = execFileSync('docker', ['compose', 'logs', '--no-color', 'dolibarr', 'mariadb'], { encoding: 'utf8', env: process.env });
+  expect(logs).not.toContain(verifier);
+}
 function cleanup() {
-  sql("SET @ids=(SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'phase1.parallel.%'); DELETE FROM llx_mjlfinancement_password_reset WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_mjlfinancement_invitation WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_user_rights WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_mjlfinancement_user_role WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_user WHERE FIND_IN_SET(rowid,COALESCE(@ids,'')); DELETE FROM llx_const WHERE name IN ('MJL_AUTH_E2E_FAIL_AUTH_OUTBOX','MJL_AUTH_E2E_LOCK_HOLD_SECONDS') AND entity=1;");
+  sql("SET @ids=(SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'phase1.parallel.%'); DELETE FROM llx_mjlfinancement_password_reset WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_mjlfinancement_invitation WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_user_rights WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_mjlfinancement_user_role WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_user WHERE FIND_IN_SET(rowid,COALESCE(@ids,'')); DELETE FROM llx_const WHERE name IN ('MJL_AUTH_E2E_EXPOSE_TOKENS','MJL_AUTH_E2E_FAIL_AUTH_OUTBOX','MJL_AUTH_E2E_LOCK_HOLD_SECONDS') AND entity=1;");
 }
 
 test.beforeAll(() => {
@@ -58,16 +84,21 @@ test('[RST-008] parallel identity collisions leave one user and one live invitat
   expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.email='phase1.parallel.same@example.test' AND i.status IN ('pending_send','sent')")).toBe('1');
 });
 
-test('[RST-008] parallel invitation and reset consumption is single-use', async () => {
+test('[RST-008] parallel invitation and reset consumption is single-use', async ({ request }) => {
   const issued = await worker('issue', 'phase1.parallel.lifecycle', 'phase1.parallel.lifecycle@example.test');
   expect(issued[0]).toContain('#verifier=');
+  await assertNoVerifierLeak(request, issued[0]);
   const invitation = tokenParts(issued[0]);
+  const userId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.lifecycle'");
+  const acceptedAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_accepted' AND object_id=${userId}`));
   const accepted = await concurrentWorkers(
     ['accept', invitation[0], invitation[1], 'Parallel-password-1!'],
     ['accept', invitation[0], invitation[1], 'Parallel-password-2!'],
   );
   expect(accepted.filter((result) => result[0] === '')).toHaveLength(1);
+  assertNeutralLoser(accepted.find((result) => result[0] !== '')[0], invitation[0], invitation[1]);
   expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_invitation WHERE token_selector='" + invitation[0] + "'")).toBe('accepted:NULL');
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_accepted' AND object_id=${userId}`)) - acceptedAuditBefore).toBe(1);
 
   const resets = await concurrentWorkers(
     ['reset', 'phase1.parallel.lifecycle@example.test'],
@@ -77,21 +108,37 @@ test('[RST-008] parallel invitation and reset consumption is single-use', async 
   const liveSelector = scalar("SELECT r.token_selector FROM llx_mjlfinancement_password_reset r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.parallel.lifecycle' AND r.status='sent'");
   const liveLink = resets.flat().find((link) => typeof link === 'string' && link.includes(liveSelector));
   expect(liveLink).toBeTruthy();
+  await assertNoVerifierLeak(request, liveLink);
   const reset = tokenParts(liveLink);
+  const completedAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_completed' AND object_id=${userId}`));
   const consumed = await concurrentWorkers(
     ['consume', reset[0], reset[1], 'Parallel-reset-1!'],
     ['consume', reset[0], reset[1], 'Parallel-reset-2!'],
   );
   expect(consumed.filter((result) => result[0] === '')).toHaveLength(1);
+  assertNeutralLoser(consumed.find((result) => result[0] !== '')[0], reset[0], reset[1]);
   expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset WHERE token_selector='" + reset[0] + "'")).toBe('consumed:NULL');
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_completed' AND object_id=${userId}`)) - completedAuditBefore).toBe(1);
 });
 
-test('[RST-008] audit failure rolls back identity creation', async () => {
+test('[RST-008] audit failure rolls back new and existing identity mutations', async () => {
+  const existing = await worker('issue', 'phase1.parallel.audit-existing', 'phase1.parallel.audit-old@example.test');
+  expect(existing[0]).toContain('#verifier=');
+  const existingId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.audit-existing'");
+  const snapshot = () => scalar(`SELECT CONCAT_WS('|',u.login,u.email,u.firstname,u.lastname,u.statut,u.admin,COALESCE(u.pass_crypted,''),
+    (SELECT GROUP_CONCAT(CONCAT(role_code,':',is_active) ORDER BY rowid) FROM llx_mjlfinancement_user_role WHERE entity=1 AND fk_user=u.rowid),
+    (SELECT GROUP_CONCAT(fk_id ORDER BY fk_id) FROM llx_user_rights WHERE entity=1 AND fk_user=u.rowid),
+    (SELECT GROUP_CONCAT(CONCAT(status,':',COALESCE(token_hash,'NULL')) ORDER BY rowid) FROM llx_mjlfinancement_invitation WHERE entity=1 AND fk_user=u.rowid),
+    (SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE object_type='mjlfinancement_user' AND object_id=u.rowid)) FROM llx_user u WHERE u.rowid=${existingId}`);
+  const before = snapshot();
   sql("CREATE TRIGGER llx_mjlfinancement_audit_event_fail_insert BEFORE INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected audit failure'");
   try {
     const result = await worker('issue', 'phase1.parallel.audit-fail', 'phase1.parallel.audit-fail@example.test');
     expect(result[0]).toBe('');
     expect(scalar("SELECT COUNT(*) FROM llx_user WHERE login='phase1.parallel.audit-fail'")).toBe('0');
+    const existingResult = await worker('issue', 'phase1.parallel.audit-existing', 'phase1.parallel.audit-new@example.test');
+    expect(existingResult[0]).toBe('');
+    expect(snapshot()).toBe(before);
   } finally {
     sql('DROP TRIGGER IF EXISTS llx_mjlfinancement_audit_event_fail_insert');
   }
@@ -102,7 +149,9 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
   try {
     const failed = await worker('issue', 'phase1.parallel.delivery', 'phase1.parallel.delivery@example.test');
     expect(failed[0]).toBe('');
+    const deliveryUserId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.delivery'");
     expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='phase1.parallel.delivery' ORDER BY i.rowid DESC LIMIT 1")).toBe('send_failed:NULL');
+    expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_send_failed' AND object_id=${deliveryUserId}`)).toBe('1');
     const rawOutboxLink = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-invitation.json'], { encoding: 'utf8', env: process.env })).link;
     const stale = tokenParts(rawOutboxLink);
     expect((await worker('accept', stale[0], stale[1], 'Never-accepted-1!'))[0]).toContain('invalide ou expirée');
@@ -111,17 +160,27 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
   }
   const retried = await worker('issue', 'phase1.parallel.delivery', 'phase1.parallel.delivery@example.test');
   expect(retried[0]).toContain('#verifier=');
+  const deliveryUserId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.delivery'");
+  expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_sent' AND object_id=${deliveryUserId}`)).toBe('1');
 
+  const resetIdentity = await worker('issue', 'phase1.parallel.reset-delivery', 'phase1.parallel.reset-delivery@example.test');
+  const resetInvitation = tokenParts(resetIdentity[0]);
+  expect((await worker('accept', resetInvitation[0], resetInvitation[1], 'Reset-delivery-1!'))[0]).toBe('');
+  const resetUserId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.reset-delivery'");
+  const failedResetAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_send_failed' AND object_id=${resetUserId}`));
   sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_E2E_FAIL_AUTH_OUTBOX',1,'1','chaine',0,'injected partial reset delivery') ON DUPLICATE KEY UPDATE value='1'");
   try {
-    const failedReset = await worker('reset', 'phase1.parallel.lifecycle@example.test');
+    const failedReset = await worker('reset', 'phase1.parallel.reset-delivery@example.test');
     expect(failedReset[0]).toBeNull();
-    expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.parallel.lifecycle' ORDER BY r.rowid DESC LIMIT 1")).toBe('send_failed:NULL');
+    expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.parallel.reset-delivery' ORDER BY r.rowid DESC LIMIT 1")).toBe('send_failed:NULL');
+    expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_send_failed' AND object_id=${resetUserId}`)) - failedResetAuditBefore).toBe(1);
     const rawResetLink = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-password_reset.json'], { encoding: 'utf8', env: process.env })).link;
     const staleReset = tokenParts(rawResetLink);
     expect((await worker('consume', staleReset[0], staleReset[1], 'Never-reset-1!'))[0]).toContain('invalide ou expiré');
   } finally {
     sql("DELETE FROM llx_const WHERE name='MJL_AUTH_E2E_FAIL_AUTH_OUTBOX' AND entity=1");
   }
-  expect((await worker('reset', 'phase1.parallel.lifecycle@example.test'))[0]).toContain('#verifier=');
+  const sentResetAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_sent' AND object_id=${resetUserId}`));
+  expect((await worker('reset', 'phase1.parallel.reset-delivery@example.test'))[0]).toContain('#verifier=');
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_sent' AND object_id=${resetUserId}`)) - sentResetAuditBefore).toBe(1);
 });

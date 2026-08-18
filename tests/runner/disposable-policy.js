@@ -96,6 +96,7 @@ function assertDisposableConfig(config, expected) {
 
   assertNamedStorage(config, mariadb, '/var/lib/mysql', 'mjl_test_db', expected);
   assertNamedStorage(config, dolibarr, '/var/www/documents', 'mjl_test_docs', expected);
+  assertNamedStorage(config, dolibarr, '/var/www/html/conf', 'mjl_test_conf', expected);
   assertReadOnlyBind(dolibarr, '/var/www/html/custom', path.join(expected.repositoryRoot, 'custom'));
   assertReadOnlyBind(
     dolibarr,
@@ -103,12 +104,14 @@ function assertDisposableConfig(config, expected) {
     path.join(expected.repositoryRoot, 'custom/mjlfinancement/deployment/apache-native-guard.conf'),
   );
   assertReadOnlyBind(dolibarr, '/opt/mjl-tests', path.join(expected.repositoryRoot, 'tests'));
+  assertReadOnlyBind(dolibarr, '/opt/mjl-evidence', expected.evidenceRoot);
 
   const repositoryData = path.join(expected.repositoryRoot, 'data');
   const allowedBinds = new Set([
     path.resolve(path.join(expected.repositoryRoot, 'custom')),
     path.resolve(path.join(expected.repositoryRoot, 'custom/mjlfinancement/deployment/apache-native-guard.conf')),
     path.resolve(path.join(expected.repositoryRoot, 'tests')),
+    path.resolve(expected.evidenceRoot),
   ]);
   for (const service of Object.values(config.services || {})) {
     for (const mount of service.volumes || []) {
@@ -145,6 +148,7 @@ function assertDisposableConfig(config, expected) {
     port: Number(expected.port),
     databaseVolume: `${expected.projectName}_mjl_test_db`,
     documentVolume: `${expected.projectName}_mjl_test_docs`,
+    configVolume: `${expected.projectName}_mjl_test_conf`,
   });
 }
 

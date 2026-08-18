@@ -94,19 +94,29 @@ test constant.
 
 The post-execution remediation removed the remaining obsolete language-catalog
 keys and restored a runtime vocabulary scan. It also added an independent exact
-schema verifier for columns, generated expressions, indexes (including
-MariaDB-created FK indexes), foreign keys, checks, and audit triggers. Five
+schema verifier for engines, columns, generated expressions, index type/order/
+prefix/collation (including MariaDB-created FK indexes), foreign keys and their
+update/delete rules, checks, and the complete Phase 1 trigger set. Six
 representative schema mutations must make that verifier fail before their
 definitions are restored and rechecked.
 
 The public Phase 1 runner now executes the exact pre-cutover commit in a
 disposable tenant, captures checksummed source, database, schema/trigger/module
-metadata, and document evidence, stops application traffic, rejects bad
-evidence without mutation, injects an interrupted apply, rehearses both
-pre-activation and post-activation rollback, performs a byte-identical full
-database restore after every schema rollback, activates twice, finalizes, and
-runs the final gates. Rollback output explicitly states that full backup restore
+metadata, document manifest, and document archive evidence, validates the
+baseline Compose topology before startup, stops application traffic, and
+rejects bad evidence for the exact expected reason without mutation. It injects
+an interrupted apply and an actual module-activation failure, rehearses both
+pre-activation and post-activation rollback, recreates and restores the full
+database plus document volume after every schema rollback, compares every
+captured surface, activates twice, finalizes, and runs the final gates. Stopped-
+traffic commands bypass the image entrypoint; only the final service restart may
+rewrite `initdb.log`. Rollback output explicitly states that full backup restore
 is still required.
+
+The remediation loop also corrected two runtime defects found by those gates:
+authentication email bodies are no longer duplicated into SQL-backed E2E
+constants, and the bootstrap now handles Dolibarr 23's array activation result
+fail-closed while force-initializing only the MJL module.
 
 Final observed results for the remediation diff:
 
@@ -115,21 +125,37 @@ npm run test:unit
 PASS: 9 Node suites and all PHP contracts
 
 npm run test:phase1-reset
-PASS: complete cutover/failure/rollback rehearsal, five schema mutation probes,
-four repeated exact schema/behavior gates, 9 Playwright tests, disposable
-teardown; project mjl-test-20260818t123819-111290-8e8aaefe, 327.6s
+PASS: complete cutover/failure/rollback rehearsal, six schema mutation probes,
+four repeated exact schema/behavior gates, 9 Playwright tests, and disposable
+teardown; project mjl-test-20260818t134338-301570-74a72329, 319.4s
 
 npm run test:rst008
-PASS: 5 focused auth tests with observed GET_LOCK contention, audit rollback,
-failed-delivery credential clearing/stale-link denial, and retry; 182.6s
+PASS: 5 focused auth tests with observed GET_LOCK contention, exact one-success
+audit cardinality, new/existing identity rollback, literal verifier non-leakage,
+failed-delivery credential clearing/stale-link denial, and retry; project
+mjl-test-20260818t135148-333446-d37104f9, 167.9s
 
 npm run test:rst009a
 PASS: 2 focused navigation/direct-guard tests, including the native technical
-module destination; 122.4s
+module destination; project mjl-test-20260818t134910-324845-d5d12f89, 148.5s
 
 npm run test:e2e
 PASS: all 18 retained browser scenarios; disposable teardown; project
-mjl-test-20260818t123346-93181-492532b2, 261.1s
+mjl-test-20260818t135444-346606-8a890a87, 221.6s
+
+php -l <every PHP file changed since 3b5f767>
+PASS: no syntax errors
+
+docker compose exec -T dolibarr php .../verify_phase1_reset.php
+docker compose exec -T dolibarr php .../verify_phase1_schema_exact.php
+docker compose exec -T dolibarr php .../verify_phase1_behavior.php
+PASS: all three current-purpose shared-tenant verifiers
+
+docker compose logs --since 60m --no-color dolibarr | fatal-signature scan
+PASS: no PHP fatal, uncaught, undefined-call, or parse-error signature
+
+git diff --check
+PASS
 ```
 
 The human-only signed manual accessibility gate remains not run. Production
