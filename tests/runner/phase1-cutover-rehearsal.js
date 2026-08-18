@@ -72,6 +72,20 @@ async function runPhase1CutoverRehearsal(context) {
     ].join('; ');
     const captureMetadata = () => atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', metadataSql], { quiet: true });
     const captureDocumentsManifest = async (sourceRoot) => sortedLines(await compose(plan, ['run', '--rm', '--no-deps', '--entrypoint=find', 'dolibarr', '/var/www/documents', '-type', 'f', '-exec', 'sha256sum', '{}', '+'], { sourceRoot, quiet: true, signal }));
+    const assertPreCaptureBaseline = async () => {
+      const adminCounts = (await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', "SELECT COUNT(*),SUM(rowid=1 AND entity=0 AND login='admin' AND admin=1 AND statut=1),SUM(admin=1) FROM llx_user"], { quiet: true })).trim();
+      if (adminCounts !== '1\t1\t1') throw new Error(`Pre-capture administrator invariant failed: ${adminCounts}`);
+      const nativeBusinessCounts = (await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', 'SELECT (SELECT COUNT(*) FROM llx_societe),(SELECT COUNT(*) FROM llx_projet),(SELECT COUNT(*) FROM llx_ecm_files)'], { quiet: true })).trim();
+      if (nativeBusinessCounts !== '0\t0\t0') throw new Error(`Pre-capture native business state is not empty: ${nativeBusinessCounts}`);
+      const customTables = (await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'llx\\_mjlfinancement\\_%' ORDER BY TABLE_NAME"], { quiet: true })).trim().split('\n').filter(Boolean);
+      for (const table of customTables) {
+        if (!/^llx_mjlfinancement_[a-z0-9_]+$/.test(table)) throw new Error(`Unexpected custom table name in baseline: ${table}`);
+        const count = (await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', `SELECT COUNT(*) FROM ${table}`], { quiet: true })).trim();
+        if (count !== '0') throw new Error(`Pre-capture custom business table is not empty: ${table}=${count}`);
+      }
+    };
+
+    await assertPreCaptureBaseline();
 
     fs.writeFileSync(baselineDump, await databaseDump(), { mode: 0o600 });
     fs.writeFileSync(metadata, await captureMetadata(), { mode: 0o600 });
@@ -97,6 +111,7 @@ async function runPhase1CutoverRehearsal(context) {
       if (!/fetch failed|aborted|timeout/i.test(error.message)) throw error;
     }
     await replaceSourceTree(remediationArchive);
+    const remediationSourceFingerprint = sourceTreeFingerprint(baselineRoot);
 
     const manifestPath = '/opt/mjl-evidence/cutover-evidence.json';
     const manifestHash = sha256File(evidenceManifest);
@@ -110,6 +125,12 @@ async function runPhase1CutoverRehearsal(context) {
     const mustFailWith = async (args, label, pattern) => {
       const output = await expectComposeFailure(plan, args, label, { sourceRoot: baselineRoot, signal });
       if (!pattern.test(output)) throw new Error(`${label} failed for the wrong reason: ${output.trim()}`);
+    };
+    const assertRejectedWithoutMutation = async (label) => {
+      if (sha256(await databaseDump()) !== sha256File(baselineDump)) throw new Error(`${label}: rejected preflight mutated the database.`);
+      if (sha256(await captureMetadata()) !== sha256File(metadata)) throw new Error(`${label}: rejected preflight mutated schema or module metadata.`);
+      if (sha256(await captureDocumentsManifest(baselineRoot)) !== sha256File(documentsManifest)) throw new Error(`${label}: rejected preflight mutated documents.`);
+      if (sourceTreeFingerprint(baselineRoot) !== remediationSourceFingerprint) throw new Error(`${label}: rejected preflight mutated deployed source.`);
     };
     const assertBaselineState = async (label) => {
       const restoredDump = await databaseDump();
@@ -142,6 +163,27 @@ async function runPhase1CutoverRehearsal(context) {
 
     await scenario('bad-evidence', async () => {
       await mustFailWith(['run', '--rm', '--no-deps', '-e', 'MJL_RST_PHASE1_TRAFFIC_STOPPED=1', '--entrypoint=php', 'dolibarr', '/var/www/html/custom/mjlfinancement/scripts/rst_phase1_reset.php', '--mode=apply', `--confirm=${AUTHORIZATION}`, `--evidence-manifest=${manifestPath}`, `--evidence-sha256=${'0'.repeat(64)}`], 'bad evidence', /evidence manifest checksum mismatch/i);
+      await assertRejectedWithoutMutation('bad evidence');
+    });
+    await scenario('missing-evidence-manifest', async () => {
+      await mustFailWith(['run', '--rm', '--no-deps', '-e', 'MJL_RST_PHASE1_TRAFFIC_STOPPED=1', '--entrypoint=php', 'dolibarr', '/var/www/html/custom/mjlfinancement/scripts/rst_phase1_reset.php', '--mode=apply', `--confirm=${AUTHORIZATION}`, `--evidence-sha256=${manifestHash}`], 'missing evidence manifest', /checksummed cutover evidence manifest is required/i);
+      await assertRejectedWithoutMutation('missing evidence manifest');
+    });
+    await scenario('missing-evidence-checksum', async () => {
+      await mustFailWith(['run', '--rm', '--no-deps', '-e', 'MJL_RST_PHASE1_TRAFFIC_STOPPED=1', '--entrypoint=php', 'dolibarr', '/var/www/html/custom/mjlfinancement/scripts/rst_phase1_reset.php', '--mode=apply', `--confirm=${AUTHORIZATION}`, `--evidence-manifest=${manifestPath}`], 'missing evidence checksum', /checksummed cutover evidence manifest is required/i);
+      await assertRejectedWithoutMutation('missing evidence checksum');
+    });
+    await scenario('missing-evidence-artifact', async () => {
+      const originalManifest = fs.readFileSync(evidenceManifest);
+      try {
+        const missingArtifactManifest = JSON.parse(originalManifest.toString('utf8'));
+        missingArtifactManifest.source.path = '/opt/mjl-evidence/intentionally-missing-source.tar';
+        fs.writeFileSync(evidenceManifest, `${JSON.stringify(missingArtifactManifest, null, 2)}\n`, { mode: 0o600 });
+        await mustFailWith(resetArgs('apply').map((argument) => argument.startsWith('--evidence-sha256=') ? `--evidence-sha256=${sha256File(evidenceManifest)}` : argument), 'missing evidence artifact', /missing readable source artifact metadata/i);
+        await assertRejectedWithoutMutation('missing evidence artifact');
+      } finally {
+        fs.writeFileSync(evidenceManifest, originalManifest, { mode: 0o600 });
+      }
     });
     await scenario('interrupted-apply', async () => {
       await sql("INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('MJL_RST_PHASE1_FAILURE_INJECTION','1','chaine',0,'disposable rehearsal',0) ON DUPLICATE KEY UPDATE value='1'");

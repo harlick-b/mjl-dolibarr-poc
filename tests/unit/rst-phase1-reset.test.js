@@ -107,6 +107,13 @@ test('Phase 1 runner executes the real baseline cutover, failures, rollbacks, an
   assert.match(runner, /dc6f0becbd45c7676cccec2ac42b9374b8e61101/);
   for (const evidence of ['source', 'database', 'schema_metadata', 'documents_manifest', 'documents_archive']) assert.match(runner, new RegExp(`${evidence}: artifact`));
   assert.match(runner, /bad-evidence/);
+  assert.match(runner, /missing-evidence-manifest/);
+  assert.match(runner, /missing-evidence-checksum/);
+  assert.match(runner, /missing-evidence-artifact/);
+  assert.match(runner, /assertRejectedWithoutMutation/);
+  assert.match(runner, /assertPreCaptureBaseline/);
+  assert.match(runner, /Pre-capture administrator invariant failed/);
+  assert.match(runner, /Pre-capture custom business table is not empty/);
   assert.match(runner, /after-activity-alter/);
   assert.match(runner, /scenario\('activation-failure'/);
   assert.match(runner, /scenario\('post-activation'/);
@@ -137,9 +144,12 @@ test('activation failure injection is disposable, environment, and database gate
 
 test('RST-008 E2E covers parallel identity, issue, consume, audit, and partial-delivery failures', () => {
   const concurrency = read('tests/e2e/auth-concurrency.spec.js');
-  for (const evidence of ['same-login', 'same@example.test', 'Promise.all', 'PROCESSLIST', 'GET_LOCK', 'audit failure', 'partial test delivery', 'send_failed:NULL']) {
+  for (const evidence of ['same-login', 'same@example.test', 'Promise.all', 'PROCESSLIST', 'GET_LOCK', 'audit failure', 'partial test delivery', 'send_failed:NULL', 'third-party.invalid', "action='invitation_sent'", "action='password_reset_sent'"]) {
     assert.match(concurrency, new RegExp(evidence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+  const auth = read('custom/mjlfinancement/lib/mjl_auth.lib.php');
+  assert.match(auth, /currentInvitationId > \$beforeInvitationId/);
+  assert.match(auth, /currentResetId > \$beforeResetId/);
 });
 
 test('authentication verifiers are not duplicated into SQL-backed email evidence', () => {
@@ -148,7 +158,7 @@ test('authentication verifiers are not duplicated into SQL-backed email evidence
   assert.match(email, /MJL_EMAIL_E2E_LAST_.*_BODY/);
   assert.ok(email.indexOf('if (mjl_email_e2e_enabled())') < email.indexOf('new CMailFile'), 'disposable outbox branch must return before transport construction');
   const concurrency = read('tests/e2e/auth-concurrency.spec.js');
-  for (const boundary of ['response.text()', 'response.url()', 'decodeURIComponent', "toString('base64')", 'llx_mjlfinancement_audit_event', 'llx_societe', 'llx_const', "compose', 'logs"]) {
+  for (const boundary of ['response.text()', 'response.url()', 'thirdPartyEvidence', 'decodeURIComponent', "toString('base64')", 'llx_mjlfinancement_audit_event', 'llx_societe', 'llx_const', "compose', 'logs"]) {
     assert.match(concurrency, new RegExp(boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });

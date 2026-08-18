@@ -109,6 +109,17 @@ function mjl_auth_release_named_lock($name)
 	if ($name !== '') $db->query('SELECT RELEASE_LOCK('.mjl_auth_string_sql($name).')');
 }
 
+function mjl_auth_live_credential_max_id($table, array $userIds)
+{
+	global $db;
+	if (!in_array($table, array('mjlfinancement_invitation', 'mjlfinancement_password_reset'), true)) return -1;
+	$userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+	if (empty($userIds)) return 0;
+	$resql = $db->query('SELECT COALESCE(MAX(rowid),0) AS rowid FROM '.$db->prefix().$table.' WHERE entity='.mjl_auth_entity().' AND fk_user IN ('.implode(',', $userIds).") AND status IN ('pending_send','sent')");
+	$row = $resql ? $db->fetch_object($resql) : null;
+	return $row ? (int) $row->rowid : -1;
+}
+
 function mjl_auth_disposable_lock_barrier()
 {
 	global $db;
@@ -164,12 +175,23 @@ function mjl_auth_issue_invitation(array $input, User $actor)
 	list($data, $error) = mjl_auth_validate_identity_input($input);
 	if ($data === false || !mjl_scope_is_platform_admin($actor, mjl_auth_entity())) return array('', $error !== '' ? $error : 'Action interdite.', 0);
 	if (getDolGlobalString('MJL_AUTH_FINGERPRINT_KEY') === '') return array('', 'Configuration de sécurité indisponible.', 0);
+	$beforeLogin = mjl_auth_user_by_login($data['login']);
+	$beforeEmail = mjl_auth_user_by_email($data['email']);
+	$beforeIds = array_values(array_unique(array_filter(array($beforeLogin ? (int) $beforeLogin->id : 0, $beforeEmail ? (int) $beforeEmail->id : 0))));
+	$beforeInvitationId = mjl_auth_live_credential_max_id('mjlfinancement_invitation', $beforeIds);
+	if ($beforeInvitationId < 0) return array('', 'Configuration de sécurité indisponible.', 0);
 	$locks = mjl_auth_identity_locks($data['login'], $data['email']);
 	if (empty($locks)) return array('', 'Une invitation concurrente est déjà en cours.', 0);
 	mjl_auth_disposable_lock_barrier();
 	$target = null;
 	$link = '';
 	try {
+		$currentLogin = mjl_auth_user_by_login($data['login']);
+		$currentEmail = mjl_auth_user_by_email($data['email']);
+		$currentIds = array_values(array_unique(array_filter(array($currentLogin ? (int) $currentLogin->id : 0, $currentEmail ? (int) $currentEmail->id : 0))));
+		$currentInvitationId = mjl_auth_live_credential_max_id('mjlfinancement_invitation', $currentIds);
+		if ($currentInvitationId < 0) throw new RuntimeException('Configuration de sécurité indisponible.');
+		if ((empty($beforeIds) && !empty($currentIds)) || $currentInvitationId > $beforeInvitationId) throw new RuntimeException('Une invitation concurrente est déjà en cours.');
 		$db->begin('mjl issue invitation');
 		$byLogin = mjl_auth_user_by_login($data['login']);
 		$byEmail = mjl_auth_user_by_email($data['email']);
@@ -303,9 +325,13 @@ function mjl_auth_create_password_reset($email, $actorUserId = null)
 	}
 	$role = mjl_scope_effective_role_code($target, mjl_auth_entity());
 	if ($role === '' || (!in_array($role, mjl_auth_business_role_codes(), true) && $role !== 'ADMIN_PLATEFORME')) return null;
+	$beforeResetId = mjl_auth_live_credential_max_id('mjlfinancement_password_reset', array((int) $target->id));
+	if ($beforeResetId < 0) return null;
 	$lock = mjl_auth_named_lock('reset_'.$target->id, 5); if ($lock === '') return null;
 	mjl_auth_disposable_lock_barrier();
 	try {
+		$currentResetId = mjl_auth_live_credential_max_id('mjlfinancement_password_reset', array((int) $target->id));
+		if ($currentResetId < 0 || $currentResetId > $beforeResetId) return null;
 		$db->begin('mjl request reset');
 		if (!$db->query('UPDATE '.$db->prefix()."mjlfinancement_password_reset SET status='revoked', token_hash=NULL, date_consumed=".mjl_auth_now_sql().' WHERE entity='.mjl_auth_entity().' AND fk_user='.((int) $target->id)." AND status IN ('pending_send','sent')")) throw new RuntimeException();
 		list($selector, $verifier) = mjl_auth_token_pair();

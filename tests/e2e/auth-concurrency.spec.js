@@ -35,16 +35,21 @@ function tokenParts(link) {
   return [url.searchParams.get('selector') || url.searchParams.get('mjlselector'), url.hash.slice('#verifier='.length)];
 }
 function assertNeutralLoser(result, selector, verifier) {
-  expect(result).toMatch(/invalide|expir|cours de traitement/i);
+	expect(result).toMatch(/invalide|expir|concurrente|en cours/i);
   expect(result).not.toContain(selector);
   expect(result).not.toContain(verifier);
   expect(result).not.toMatch(/SQLSTATE|SELECT |INSERT |UPDATE |DELETE |MariaDB/i);
 }
-async function assertNoVerifierLeak(request, link) {
+async function assertNoVerifierLeak(page, link) {
   const [serverPath, verifier = ''] = link.split('#verifier=');
   expect(verifier).not.toBe('');
   const variants = [...new Set([verifier, encodeURIComponent(verifier), Buffer.from(verifier, 'utf8').toString('base64')])];
   const serverUrl = new URL(serverPath, process.env.MJL_BASE_URL);
+  const thirdPartyRequests = [];
+  const observeRequest = (request) => {
+    if (new URL(request.url()).origin !== serverUrl.origin) thirdPartyRequests.push({ url: request.url(), headers: request.headers(), postData: request.postData() });
+  };
+  page.on('request', observeRequest);
   for (const variant of variants) {
     expect(serverUrl.search).not.toContain(variant);
     expect(decodeURIComponent(serverUrl.search)).not.toContain(variant);
@@ -52,7 +57,7 @@ async function assertNoVerifierLeak(request, link) {
   let response;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      response = await request.get(serverPath, { maxRedirects: 0 });
+      response = await page.goto(`${serverUrl.href}#verifier=${verifier}`, { waitUntil: 'domcontentloaded' });
       break;
     } catch (error) {
       if (attempt === 2 || !/socket hang up|ECONNRESET/i.test(error.message)) throw error;
@@ -65,6 +70,19 @@ async function assertNoVerifierLeak(request, link) {
     expect(responseBody).not.toContain(variant);
     expect(responseUrl).not.toContain(variant);
   }
+  const thirdPartyUrl = `http://third-party.invalid/mjl-auth-probe-${Date.now()}`;
+  await page.route(thirdPartyUrl, async (route) => {
+    await route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' }, body: '' });
+  });
+  try {
+    await page.evaluate(async (url) => { await fetch(url, { mode: 'cors' }); }, thirdPartyUrl);
+  } finally {
+    await page.unroute(thirdPartyUrl);
+	page.off('request', observeRequest);
+  }
+  expect(thirdPartyRequests.some((request) => request.url === thirdPartyUrl)).toBe(true);
+  const thirdPartyEvidence = JSON.stringify(thirdPartyRequests);
+  for (const variant of variants) expect(thirdPartyEvidence).not.toContain(variant);
   const needles = variants.map(sqlLiteral);
   const absentFrom = (expression) => needles.map((needle) => `INSTR(${expression},${needle}) > 0`).join(' OR ');
   const databaseHits = scalar(`SELECT
@@ -89,28 +107,40 @@ test.beforeAll(() => {
 });
 test.afterAll(cleanup);
 
-test('[RST-008] parallel identity collisions leave one user and one live invitation', async ({ request }) => {
+test('[RST-008] parallel identity collisions leave one user and one live invitation', async ({ page }) => {
   const loginCollision = await concurrentWorkers(
     ['issue', 'phase1.parallel.same-login', 'phase1.parallel.a@example.test'],
     ['issue', 'phase1.parallel.same-login', 'phase1.parallel.b@example.test'],
   );
-  for (const link of loginCollision.flat()) if (typeof link === 'string' && link.includes('#verifier=')) await assertNoVerifierLeak(request, link);
+  const loginWinners = loginCollision.filter((result) => typeof result[0] === 'string' && result[0].includes('#verifier='));
+  expect(loginWinners).toHaveLength(1);
+  const loginLoser = loginCollision.find((result) => result !== loginWinners[0]);
+  const loginToken = tokenParts(loginWinners[0][0]);
+  assertNeutralLoser(JSON.stringify(loginLoser), loginToken[0], loginToken[1]);
+  await assertNoVerifierLeak(page, loginWinners[0][0]);
   expect(scalar("SELECT COUNT(*) FROM llx_user WHERE login='phase1.parallel.same-login'" )).toBe('1');
-  expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='phase1.parallel.same-login' AND i.status IN ('pending_send','sent')")).toBe('1');
+  expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='phase1.parallel.same-login' AND i.status='sent'")).toBe('1');
+  expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_audit_event a JOIN llx_user u ON u.rowid=a.object_id WHERE a.action='invitation_sent' AND u.login='phase1.parallel.same-login'")).toBe('1');
 
   const emailCollision = await concurrentWorkers(
     ['issue', 'phase1.parallel.email-a', 'phase1.parallel.same@example.test'],
     ['issue', 'phase1.parallel.email-b', 'phase1.parallel.same@example.test'],
   );
-  for (const link of emailCollision.flat()) if (typeof link === 'string' && link.includes('#verifier=')) await assertNoVerifierLeak(request, link);
+  const emailWinners = emailCollision.filter((result) => typeof result[0] === 'string' && result[0].includes('#verifier='));
+  expect(emailWinners).toHaveLength(1);
+  const emailLoser = emailCollision.find((result) => result !== emailWinners[0]);
+  const emailToken = tokenParts(emailWinners[0][0]);
+  assertNeutralLoser(JSON.stringify(emailLoser), emailToken[0], emailToken[1]);
+  await assertNoVerifierLeak(page, emailWinners[0][0]);
   expect(scalar("SELECT COUNT(*) FROM llx_user WHERE email='phase1.parallel.same@example.test'" )).toBe('1');
-  expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.email='phase1.parallel.same@example.test' AND i.status IN ('pending_send','sent')")).toBe('1');
+  expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.email='phase1.parallel.same@example.test' AND i.status='sent'")).toBe('1');
+  expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_audit_event a JOIN llx_user u ON u.rowid=a.object_id WHERE a.action='invitation_sent' AND u.email='phase1.parallel.same@example.test'")).toBe('1');
 });
 
-test('[RST-008] parallel invitation and reset consumption is single-use', async ({ request }) => {
+test('[RST-008] parallel invitation and reset consumption is single-use', async ({ page }) => {
   const issued = await worker('issue', 'phase1.parallel.lifecycle', 'phase1.parallel.lifecycle@example.test');
   expect(issued[0]).toContain('#verifier=');
-  await assertNoVerifierLeak(request, issued[0]);
+  await assertNoVerifierLeak(page, issued[0]);
   const invitation = tokenParts(issued[0]);
   const userId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.lifecycle'");
   const acceptedAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_accepted' AND object_id=${userId}`));
@@ -123,12 +153,17 @@ test('[RST-008] parallel invitation and reset consumption is single-use', async 
   expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_invitation WHERE token_selector='" + invitation[0] + "'")).toBe('accepted:NULL');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_accepted' AND object_id=${userId}`)) - acceptedAuditBefore).toBe(1);
 
+  const sentAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_sent' AND object_id=${userId}`));
   const resets = await concurrentWorkers(
     ['reset', 'phase1.parallel.lifecycle@example.test'],
     ['reset', 'phase1.parallel.lifecycle@example.test'],
   );
-  for (const link of resets.flat()) if (typeof link === 'string' && link.includes('#verifier=')) await assertNoVerifierLeak(request, link);
+  const resetWinners = resets.filter((result) => typeof result[0] === 'string' && result[0].includes('#verifier='));
+  expect(resetWinners).toHaveLength(1);
+  expect(resets.filter((result) => result[0] === null)).toHaveLength(1);
+  await assertNoVerifierLeak(page, resetWinners[0][0]);
   expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_password_reset r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.parallel.lifecycle' AND r.status='sent'")).toBe('1');
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_sent' AND object_id=${userId}`)) - sentAuditBefore).toBe(1);
   const liveSelector = scalar("SELECT r.token_selector FROM llx_mjlfinancement_password_reset r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.parallel.lifecycle' AND r.status='sent'");
   const liveLink = resets.flat().find((link) => typeof link === 'string' && link.includes(liveSelector));
   expect(liveLink).toBeTruthy();
@@ -144,10 +179,10 @@ test('[RST-008] parallel invitation and reset consumption is single-use', async 
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_completed' AND object_id=${userId}`)) - completedAuditBefore).toBe(1);
 });
 
-test('[RST-008] audit failure rolls back new and existing identity mutations', async ({ request }) => {
+test('[RST-008] audit failure rolls back new and existing identity mutations', async ({ page }) => {
   const existing = await worker('issue', 'phase1.parallel.audit-existing', 'phase1.parallel.audit-old@example.test');
   expect(existing[0]).toContain('#verifier=');
-  await assertNoVerifierLeak(request, existing[0]);
+  await assertNoVerifierLeak(page, existing[0]);
   const existingId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.audit-existing'");
   const snapshot = () => scalar(`SELECT CONCAT_WS('|',u.login,u.email,u.firstname,u.lastname,u.statut,u.admin,COALESCE(u.pass_crypted,''),
     (SELECT GROUP_CONCAT(CONCAT(role_code,':',is_active) ORDER BY rowid) FROM llx_mjlfinancement_user_role WHERE entity=1 AND fk_user=u.rowid),
@@ -168,7 +203,7 @@ test('[RST-008] audit failure rolls back new and existing identity mutations', a
   }
 });
 
-test('[RST-008] partial test delivery clears credentials and retry succeeds', async ({ request }) => {
+test('[RST-008] partial test delivery clears credentials and retry succeeds', async ({ page }) => {
   sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_E2E_FAIL_AUTH_OUTBOX',1,'1','chaine',0,'injected partial delivery') ON DUPLICATE KEY UPDATE value='1'");
   try {
     const failed = await worker('issue', 'phase1.parallel.delivery', 'phase1.parallel.delivery@example.test');
@@ -177,7 +212,7 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
     expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='phase1.parallel.delivery' ORDER BY i.rowid DESC LIMIT 1")).toBe('send_failed:NULL');
     expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_send_failed' AND object_id=${deliveryUserId}`)).toBe('1');
     const rawOutboxLink = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-invitation.json'], { encoding: 'utf8', env: process.env })).link;
-    await assertNoVerifierLeak(request, rawOutboxLink);
+    await assertNoVerifierLeak(page, rawOutboxLink);
     const stale = tokenParts(rawOutboxLink);
     expect((await worker('accept', stale[0], stale[1], 'Never-accepted-1!'))[0]).toContain('invalide ou expirée');
   } finally {
@@ -185,12 +220,12 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
   }
   const retried = await worker('issue', 'phase1.parallel.delivery', 'phase1.parallel.delivery@example.test');
   expect(retried[0]).toContain('#verifier=');
-  await assertNoVerifierLeak(request, retried[0]);
+  await assertNoVerifierLeak(page, retried[0]);
   const deliveryUserId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.delivery'");
   expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_sent' AND object_id=${deliveryUserId}`)).toBe('1');
 
   const resetIdentity = await worker('issue', 'phase1.parallel.reset-delivery', 'phase1.parallel.reset-delivery@example.test');
-  await assertNoVerifierLeak(request, resetIdentity[0]);
+  await assertNoVerifierLeak(page, resetIdentity[0]);
   const resetInvitation = tokenParts(resetIdentity[0]);
   expect((await worker('accept', resetInvitation[0], resetInvitation[1], 'Reset-delivery-1!'))[0]).toBe('');
   const resetUserId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.reset-delivery'");
@@ -202,7 +237,7 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
     expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.parallel.reset-delivery' ORDER BY r.rowid DESC LIMIT 1")).toBe('send_failed:NULL');
     expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_send_failed' AND object_id=${resetUserId}`)) - failedResetAuditBefore).toBe(1);
     const rawResetLink = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-password_reset.json'], { encoding: 'utf8', env: process.env })).link;
-    await assertNoVerifierLeak(request, rawResetLink);
+    await assertNoVerifierLeak(page, rawResetLink);
     const staleReset = tokenParts(rawResetLink);
     expect((await worker('consume', staleReset[0], staleReset[1], 'Never-reset-1!'))[0]).toContain('invalide ou expiré');
   } finally {
@@ -211,6 +246,6 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
   const sentResetAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_sent' AND object_id=${resetUserId}`));
   const retriedReset = await worker('reset', 'phase1.parallel.reset-delivery@example.test');
   expect(retriedReset[0]).toContain('#verifier=');
-  await assertNoVerifierLeak(request, retriedReset[0]);
+  await assertNoVerifierLeak(page, retriedReset[0]);
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_sent' AND object_id=${resetUserId}`)) - sentResetAuditBefore).toBe(1);
 });
