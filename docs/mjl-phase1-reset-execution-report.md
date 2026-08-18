@@ -131,53 +131,60 @@ loser after observed lock contention, with exact terminal-state and audit
 cardinality checks. A disposable two-worker barrier makes every claimed race
 genuinely simultaneous. Browser probes inspect every non-origin request and
 force a cross-origin request to prove that raw, encoded, and base64 verifier
-variants never leave the origin.
+variants never leave the origin. The same variants are checked against a
+runtime inventory of every character-like column in the disposable database;
+only the disposable filesystem outbox is permitted to retain a raw auth link.
+Two additional mutation probes prove that surviving apply and activation
+failpoint constants are rejected in entity 0 and a nondefault entity. An
+injected diagnostics-plus-cleanup unit failure proves diagnostics cannot bypass
+teardown and that execution, diagnostics, and cleanup errors remain inspectable.
 
 Final observed results for the remediation diff:
 
 ```text
 npm run test:unit
-PASS: 9 Node suites, 48 individual tests, and all PHP contracts; 0.5s
+PASS: 9 Node suites, 49 individual tests, and all PHP contracts; 0.4s
 
 git diff --name-only 3b5f767..HEAD -- '*.php' | xargs -r -n1 php -l
-PASS: all 9 changed PHP files; 0.25s
+PASS: all 10 changed PHP files; 0.26s
 
 npm run test:phase1-reset
 PASS: complete cutover/failure/rollback rehearsal, eight schema mutation probes,
-four repeated exact schema/behavior gates, 9 Playwright tests, and disposable
-teardown; project mjl-test-20260818t153537-718052-a0ace1fe, 523.8s
+two failpoint-constant mutation probes, four repeated exact schema/behavior
+gates, 9 Playwright tests, and disposable teardown; project
+mjl-test-20260818t160913-833247-819dd62c, 498.3s
 
 npm run test:rst008
 PASS: 5 focused auth tests with observed GET_LOCK contention, exact one-success
 audit cardinality, new/existing identity rollback, literal verifier non-leakage,
 failed-delivery credential clearing/stale-link denial, and retry; project
-mjl-test-20260818t153217-702831-fefa4245, 185.5s
+mjl-test-20260818t160526-817701-e307609f, 198.0s
 
 npm run test:rst009a
 PASS: 2 focused navigation/direct-guard tests, including the native technical
-module destination; project mjl-test-20260818t154435-752149-705dc4ae, 161.6s
+module destination; project mjl-test-20260818t161740-867015-4a09cb67, 150.4s
 
 npm run test:e2e
 PASS: all 18 retained browser scenarios; disposable teardown; project
-mjl-test-20260818t154749-761821-280ad3d1, 267.5s
+mjl-test-20260818t162020-875713-a9254d54, 249.2s
 
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_reset.php
-PASS: shared-tenant reset verifier; 0.25s
+PASS: shared-tenant reset verifier; 0.23s
 
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_schema_exact.php
-PASS: shared-tenant exact-schema verifier; 0.27s
+PASS: shared-tenant exact-schema verifier; 0.24s
 
 docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/verify_phase1_behavior.php
-PASS: shared-tenant behavior verifier; 0.26s
+PASS: shared-tenant behavior verifier; 0.22s
 
 docker compose exec -T mariadb mariadb -udolidbuser -ppoc_pwd -N -B -e "SELECT VERSION()"
 PASS: 11.8.8-MariaDB-ubu2404; 0.17s
 
 docker compose logs --since 60m --no-color dolibarr | rg -n -i "PHP Fatal|Uncaught|Call to undefined|Parse error"
-PASS: exit 1 with empty output, meaning no matching fatal signature; 2.94s
+PASS: exit 1 with empty output, meaning no matching fatal signature; 2.73s
 
 git diff --check 3b5f767..HEAD
-PASS; 0.01s
+PASS; 0.00s
 ```
 
 Every disposable run reported removal of its application/database containers,
