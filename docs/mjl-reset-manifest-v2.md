@@ -494,7 +494,7 @@ number does not approve a suffixed unit.
 
 ### RST-014A - Phase 1 disposable test-fixture infrastructure
 
-- Status: `PENDING_APPROVAL`
+- Status: `APPROVED_IMPLEMENTATION_IN_REVIEW`
 - Current component: mature disposable Compose/runner isolation and focused
   fixtures already exist, but Phase 1 specs duplicate raw SQL setup and no
   guarded general Phase 1 record-factory interface exists.

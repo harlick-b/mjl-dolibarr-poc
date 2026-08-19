@@ -7,6 +7,7 @@ module.exports = defineConfig({
     'phase1-reset.spec.js',
     'auth-concurrency.spec.js',
     'document-containment.spec.js',
+    'fixture-isolation.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',
@@ -14,6 +15,7 @@ module.exports = defineConfig({
   workers: 1,
   use: {
     baseURL: process.env.MJL_BASE_URL,
-    trace: 'retain-on-failure'
+    trace: 'off',
+    video: 'off'
   }
 });

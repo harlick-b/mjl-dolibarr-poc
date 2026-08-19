@@ -1,0 +1,148 @@
+<?php
+
+declare(strict_types=1);
+
+function evidence_fail(): never
+{
+    file_put_contents('php://stderr', "Database evidence capture failed.\n");
+    exit(2);
+}
+
+function evidence_field(HashContext $hash, string $type, mixed $value): void
+{
+    if ($value === null) {
+        hash_update($hash, $type . ':null\n');
+        return;
+    }
+    $bytes = is_string($value) ? $value : (string) $value;
+    hash_update($hash, $type . ':' . strlen($bytes) . ':');
+    hash_update($hash, $bytes);
+    hash_update($hash, "\n");
+}
+
+function evidence_identifier(string $value): string
+{
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $value)) throw new RuntimeException('Unsafe identifier.');
+    return '`' . $value . '`';
+}
+
+function evidence_tree_digest(string $root): string
+{
+    $hash = hash_init('sha256');
+    $walk = function (string $directory, string $relative = '') use (&$walk, $hash): void {
+        $entries = scandir($directory);
+        if ($entries === false) throw new RuntimeException('Unable to enumerate filesystem evidence.');
+        sort($entries, SORT_STRING);
+        foreach ($entries as $name) {
+            if ($name === '.' || $name === '..') continue;
+            $absolute = $directory . '/' . $name;
+            $path = $relative === '' ? $name : $relative . '/' . $name;
+            $mode = fileperms($absolute);
+            if ($mode === false) throw new RuntimeException('Unable to stat filesystem evidence.');
+            if (is_link($absolute)) {
+                evidence_field($hash, 'link-path', $path);
+                evidence_field($hash, 'link-mode', $mode & 07777);
+                evidence_field($hash, 'link-target', readlink($absolute));
+            } elseif (is_dir($absolute)) {
+                evidence_field($hash, 'dir-path', $path);
+                evidence_field($hash, 'dir-mode', $mode & 07777);
+                $walk($absolute, $path);
+            } elseif (is_file($absolute)) {
+                evidence_field($hash, 'file-path', $path);
+                evidence_field($hash, 'file-mode', $mode & 07777);
+                evidence_field($hash, 'file-size', filesize($absolute));
+                $handle = fopen($absolute, 'rb');
+                if ($handle === false) throw new RuntimeException('Unable to open filesystem evidence.');
+                hash_update_stream($hash, $handle);
+                fclose($handle);
+            } else {
+                throw new RuntimeException('Unsupported filesystem evidence entry.');
+            }
+        }
+    };
+    $walk($root);
+    return hash_final($hash);
+}
+
+try {
+    $input = file_get_contents('php://stdin');
+    if (PHP_SAPI !== 'cli' || (isset($argc) && $argc !== 1) || ($input !== false && $input !== '')) throw new RuntimeException('Unexpected input.');
+    $databaseName = (string) getenv('DOLI_DB_NAME');
+    if ($databaseName !== 'dolidb') throw new RuntimeException('Unexpected database.');
+    $pdo = new PDO(
+        sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', (string) getenv('DOLI_DB_HOST'), $databaseName),
+        (string) getenv('DOLI_DB_USER'),
+        (string) getenv('DOLI_DB_PASSWORD'),
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_STRINGIFY_FETCHES => false]
+    );
+    $pdo->exec('SET TRANSACTION READ ONLY');
+    $pdo->exec('START TRANSACTION WITH CONSISTENT SNAPSHOT');
+    $databaseHash = hash_init('sha256');
+    $adminHash = hash_init('sha256');
+    $ecmHash = hash_init('sha256');
+    $tables = $pdo->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME")->fetchAll(PDO::FETCH_COLUMN);
+    $counts = [];
+    $schema = [];
+    foreach ($tables as $table) {
+        $table = (string) $table;
+        $quoted = evidence_identifier($table);
+        $columnsStatement = $pdo->prepare('SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,GENERATION_EXPRESSION,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? ORDER BY ORDINAL_POSITION');
+        $columnsStatement->execute([$table]);
+        $columns = $columnsStatement->fetchAll();
+        $columnNames = array_map(static fn(array $column): string => (string) $column['COLUMN_NAME'], $columns);
+        $schema[$table] = count($columns);
+        evidence_field($databaseHash, 'table', $table);
+        foreach ($columns as $column) evidence_field($databaseHash, 'column', json_encode($column, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $create = $pdo->query('SHOW CREATE TABLE ' . $quoted)->fetch(PDO::FETCH_NUM);
+        evidence_field($databaseHash, 'create', $create[1] ?? '');
+        $primaryStatement = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME='PRIMARY' ORDER BY SEQ_IN_INDEX");
+        $primaryStatement->execute([$table]);
+        $orderColumns = $primaryStatement->fetchAll(PDO::FETCH_COLUMN) ?: $columnNames;
+        $orderSql = $orderColumns === [] ? '' : ' ORDER BY ' . implode(',', array_map('evidence_identifier', $orderColumns));
+        $rows = $pdo->query('SELECT * FROM ' . $quoted . $orderSql);
+        $count = 0;
+        while ($row = $rows->fetch()) {
+            $count++;
+            foreach ($columnNames as $columnName) evidence_field($databaseHash, 'value', $row[$columnName]);
+        }
+        $counts[$table] = $count;
+    }
+    $admin = $pdo->query('SELECT * FROM llx_user WHERE admin=1 ORDER BY rowid');
+    while ($row = $admin->fetch()) foreach ($row as $name => $value) {
+        evidence_field($adminHash, 'name', $name);
+        evidence_field($adminHash, 'value', $value);
+    }
+    foreach (['llx_ecm_files', 'llx_ecm_directories'] as $table) {
+        $rows = $pdo->query('SELECT * FROM ' . evidence_identifier($table) . ' ORDER BY rowid');
+        while ($row = $rows->fetch()) foreach ($row as $name => $value) {
+            evidence_field($ecmHash, $table . '.name', $name);
+            evidence_field($ecmHash, $table . '.value', $value);
+        }
+    }
+    $disposableControlCount = (int) $pdo->query("SELECT COUNT(*) FROM llx_const WHERE entity=0 AND (name='MJL_DISPOSABLE_FIXTURE_SENTINEL' OR name LIKE 'MJL_TEST_FIXTURE_NAMESPACE_%')")->fetchColumn();
+    $adminCount = (int) $pdo->query('SELECT COUNT(*) FROM llx_user WHERE admin=1')->fetchColumn();
+    $businessCounts = [
+        'users_non_admin' => (int) $pdo->query('SELECT COUNT(*) FROM llx_user WHERE admin=0')->fetchColumn(),
+        'partners' => (int) $pdo->query('SELECT COUNT(*) FROM llx_societe')->fetchColumn(),
+        'projects' => (int) $pdo->query('SELECT COUNT(*) FROM llx_projet')->fetchColumn(),
+        'ecm_files' => (int) $pdo->query('SELECT COUNT(*) FROM llx_ecm_files')->fetchColumn(),
+    ];
+    $pdo->rollBack();
+    echo json_encode([
+        'algorithm' => 'sha256',
+        'version' => 1,
+        'database_sha256' => hash_final($databaseHash),
+        'admin_sha256' => hash_final($adminHash),
+        'ecm_sha256' => hash_final($ecmHash),
+        'documents_sha256' => evidence_tree_digest('/var/www/documents'),
+        'disposable_control_count' => $disposableControlCount,
+        'disposable_file_sentinel_present' => file_exists('/var/www/documents/.mjl-disposable-fixture-sentinel'),
+        'admin_count' => $adminCount,
+        'business_counts' => $businessCounts,
+        'table_counts' => $counts,
+        'schema_column_counts' => $schema,
+    ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+} catch (Throwable $error) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) $pdo->rollBack();
+    evidence_fail();
+}

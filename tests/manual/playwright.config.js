@@ -10,6 +10,7 @@ module.exports = defineConfig({
   use: {
     baseURL: process.env.MJL_BASE_URL,
     viewport: null,
-    trace: 'on',
+    trace: 'off',
+    video: 'off',
   },
 });

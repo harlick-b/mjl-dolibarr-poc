@@ -2,14 +2,16 @@ const { test, expect } = require('@playwright/test');
 const os = require('os');
 const { verifyDisposableEnvironment } = require('../helpers/verify-disposable-environment');
 const { MJL_REVIEW_WIDTHS } = require('../helpers/responsive-shell');
-const { login, sql } = require('../helpers/mjl-test-runtime');
+const { login } = require('../helpers/mjl-test-runtime');
+const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
 
 const outerTolerance = Number(process.env.MJL_MANUAL_ZOOM_OUTER_TOLERANCE || 16);
 const reviewer = (process.env.MJL_MANUAL_ACCESSIBILITY_REVIEWER || '').trim();
 const assistiveTechnology = (process.env.MJL_MANUAL_ACCESSIBILITY_ASSISTIVE_TECH || '').trim();
 const reviewVerdict = (process.env.MJL_MANUAL_ACCESSIBILITY_VERDICT || '').trim().toLowerCase();
 const reviewNotes = (process.env.MJL_MANUAL_ACCESSIBILITY_NOTES || '').trim();
-const testPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
+const testPassword = process.env.MJL_TEST_USER_PASSWORD;
+const adminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
 const reviewArchetypes = Object.freeze([
   { key: 'auth', label: 'authentification hors session', route: '/index.php', user: null },
   { key: 'home', label: 'accueil Agent de saisie', route: '/custom/mjlfinancement/index.php', user: 'phase1.a11y.agent' },
@@ -29,11 +31,15 @@ test.beforeAll(() => {
   if (!reviewer || !assistiveTechnology || !reviewNotes || !['pass', 'fail'].includes(reviewVerdict)) {
     throw new Error('A signed manual review requires reviewer, assistive technology, non-empty notes, and MJL_MANUAL_ACCESSIBILITY_VERDICT=pass|fail.');
   }
-  sql("DELETE r FROM llx_mjlfinancement_user_role r INNER JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login LIKE 'phase1.a11y.%'; DELETE FROM llx_user WHERE login LIKE 'phase1.a11y.%'; INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.a11y.agent','Accessibilite','Agent','phase1.a11y.agent@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1; SET @agent=LAST_INSERT_ID(); INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@agent,'AGENT_SAISIE',1,NOW(),'manual_accessibility',NOW()); INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.a11y.supervisor','Accessibilite','Superviseur','phase1.a11y.supervisor@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1; SET @supervisor=LAST_INSERT_ID(); INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@supervisor,'AGENT_VERIFICATEUR',1,NOW(),'manual_accessibility',NOW()); INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.a11y.validator','Accessibilite','Validateur','phase1.a11y.validator@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1; SET @validator=LAST_INSERT_ID(); INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@validator,'VALIDATEUR_DEFINITIF',1,NOW(),'manual_accessibility',NOW());");
-});
-
-test.afterAll(() => {
-  sql("DELETE r FROM llx_mjlfinancement_user_role r INNER JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login LIKE 'phase1.a11y.%'; DELETE FROM llx_user WHERE login LIKE 'phase1.a11y.%';");
+  createPhase1FixtureSet({
+    namespace: 'phase1.a11y', entity: 1,
+    users: [
+      { key: 'agent', role: 'AGENT_SAISIE' },
+      { key: 'supervisor', role: 'AGENT_VERIFICATEUR' },
+      { key: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+    ],
+    references: { partners: [], projects: [], operationTypes: [] },
+  });
 });
 
 async function recordCalibration(page, browser, targetWidth, zoomPercent, assertTargetOuterWidth) {
@@ -89,7 +95,7 @@ async function openArchetype(page, archetype) {
     await page.goto(archetype.route);
     return archetype.route;
   }
-  await login(page, archetype.user, testPassword);
+  await login(page, archetype.user, archetype.user === 'admin' ? adminPassword : testPassword);
   await page.goto(archetype.route);
   return archetype.route;
 }
@@ -149,7 +155,7 @@ test('real application keyboard, focus, reflow, and Chromium zoom gate', async (
   const combinationResults = [];
 
   for (const targetWidth of MJL_REVIEW_WIDTHS) {
-    await login(page, 'admin', testPassword);
+    await login(page, 'admin', adminPassword);
     await page.goto('/custom/mjlfinancement/index.php');
     console.log(`MJL_ZOOM_ACTION Set real browser zoom to 100% (Ctrl+0), resize the browser OUTER width to ${targetWidth}px, then resume.`);
     await page.pause();
@@ -161,7 +167,7 @@ test('real application keyboard, focus, reflow, and Chromium zoom gate', async (
       combinationCount++;
     }
 
-    await login(page, 'admin', testPassword);
+    await login(page, 'admin', adminPassword);
     await page.goto('/custom/mjlfinancement/index.php');
     console.log(`MJL_ZOOM_ACTION Keep the physical browser-window size unchanged from the ${targetWidth}px 100% calibration, set real browser zoom to 200% with browser chrome, then resume.`);
     await page.pause();

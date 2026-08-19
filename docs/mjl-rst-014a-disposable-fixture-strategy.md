@@ -1,6 +1,14 @@
 # RST-014A Phase 1 Disposable Fixture Strategy
 
-Status: `PROPOSED_PENDING_APPROVAL`.
+Status: `APPROVED_IMPLEMENTATION_IN_REVIEW`.
+
+Approval provenance: the user explicitly approved RST-014A on 2026-08-19.
+Execution discovered that the retained tenant uses Dolibarr's native SHA-256
+password algorithm. A forced `password_hash` value is not verifiable by
+Dolibarr 23 while that global remains active, and changing the global would
+invalidate the preserved Admin credential. The native `dol_hash($password,
+'0')` correction below preserves the approved per-run credential isolation,
+Admin immutability, and native authentication contract.
 
 This unit completes the existing disposable runner with one guarded Phase 1
 record-factory interface. It creates no persistent sample dataset, changes no
@@ -107,8 +115,10 @@ The implementation contract is:
   32-character base64url encoding of 24 cryptographically random bytes,
   exposes it to Playwright only as `MJL_TEST_USER_PASSWORD`, and supplies it to
   the disposable PHP factory only through environment fixed at container
-  creation. PHP loads Dolibarr 23.0.2's `security.lib.php`, stores only
-  `dol_hash($password, 'password_hash')` in `pass_crypted`, and leaves `pass`
+  creation. PHP loads Dolibarr 23.0.2's authenticated CLI bootstrap and stores
+  only `dol_hash($password, '0')` in `pass_crypted`, using the tenant's active
+  native algorithm so Dolibarr can verify the disposable account without
+  changing the preserved Admin's hash or the global algorithm; it leaves `pass`
   and `pass_temp` null. The value/hash is never accepted from factory callers,
   returned, logged, written to evidence, or read/copied from the native Admin.
   Sanitization treats it as a retained secret.

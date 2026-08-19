@@ -27,6 +27,10 @@ function createRunPlan(options = {}) {
   const repositoryRoot = path.resolve(options.repositoryRoot);
   const projectName = `${PROJECT_PREFIX}${timestamp}-${processId}-${randomHex}`;
   const artifactRoot = path.join(repositoryRoot, 'test-results', 'runs', projectName);
+  const sentinel = options.sentinel || crypto.randomBytes(16).toString('hex');
+  const testUserPassword = options.testUserPassword || crypto.randomBytes(24).toString('base64url');
+  if (!/^[a-f0-9]{32}$/.test(sentinel)) throw new Error('The disposable sentinel must be 16 random bytes encoded as lowercase hexadecimal.');
+  if (!/^[A-Za-z0-9_-]{32}$/.test(testUserPassword)) throw new Error('The disposable test credential must be 24 random bytes encoded as unpadded base64url.');
 
   return Object.freeze({
     projectName,
@@ -39,6 +43,8 @@ function createRunPlan(options = {}) {
     databaseVolume: `${projectName}_mjl_test_db`,
     documentVolume: `${projectName}_mjl_test_docs`,
     configVolume: `${projectName}_mjl_test_conf`,
+    sentinel,
+    testUserPassword,
   });
 }
 
@@ -68,6 +74,7 @@ function getSuitePlan(mode) {
     rst008: ['rst008'],
     rst009a: ['rst009a'],
     rst010a: ['rst010a'],
+    rst014a: ['rst014a'],
     'phase1-reset': ['rst007a', 'rst004', 'rst008', 'rst009a', 'rst010a'],
     characterization: ['characterization'],
     'manual-accessibility': ['manual-accessibility'],

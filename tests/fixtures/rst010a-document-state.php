@@ -2,14 +2,13 @@
 
 declare(strict_types=1);
 
-if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1') {
-    fwrite(STDERR, "RST-010A fixtures may run only in a disposable tenant.\n");
-    exit(2);
-}
+require __DIR__ . '/phase1-fixture-preflight.php';
+define('NOLOGIN', 1);
+require_once '/var/www/html/main.inc.php';
 
 $action = $argv[1] ?? '';
-if (!in_array($action, ['setup', 'snapshot', 'cleanup'], true)) {
-    fwrite(STDERR, "Usage: php rst010a-document-state.php setup|snapshot|cleanup\n");
+if (!in_array($action, ['setup', 'snapshot'], true)) {
+    fwrite(STDERR, "Usage: php rst010a-document-state.php setup|snapshot\n");
     exit(2);
 }
 
@@ -33,59 +32,17 @@ $pdo = new PDO(
     ]
 );
 
-function removeFixtureTree(string $path): void
-{
-    if (!file_exists($path) && !is_link($path)) {
-        return;
-    }
-    if (is_link($path) || is_file($path)) {
-        unlink($path);
-        return;
-    }
-    foreach (scandir($path) ?: [] as $name) {
-        if ($name === '.' || $name === '..') {
-            continue;
-        }
-        removeFixtureTree($path . '/' . $name);
-    }
-    rmdir($path);
-}
-
-function cleanupFixture(PDO $pdo, string $fixtureLogin, string $fixtureRefPrefix, string $fixtureRoot): void
-{
-    $pdo->beginTransaction();
-    try {
-        $statement = $pdo->prepare('DELETE FROM llx_ecm_files WHERE ref LIKE ?');
-        $statement->execute([$fixtureRefPrefix . '%']);
-        $pdo->exec("DELETE FROM llx_ecm_directories WHERE label='rst010a_fixture' AND description='Disposable RST-010A containment fixture'");
-        $statement = $pdo->prepare('SELECT rowid FROM llx_user WHERE login = ?');
-        $statement->execute([$fixtureLogin]);
-        $userIds = $statement->fetchAll(PDO::FETCH_COLUMN);
-        if ($userIds !== []) {
-            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-            $pdo->prepare("DELETE FROM llx_mjlfinancement_user_role WHERE fk_user IN ($placeholders)")->execute($userIds);
-            $pdo->prepare("DELETE FROM llx_user WHERE rowid IN ($placeholders)")->execute($userIds);
-        }
-        $pdo->commit();
-    } catch (Throwable $error) {
-        $pdo->rollBack();
-        throw $error;
-    }
-    removeFixtureTree($fixtureRoot);
-}
-
 function createFixture(PDO $pdo, string $fixtureLogin, string $fixtureRefPrefix, string $fixtureRoot): array
 {
-    cleanupFixture($pdo, $fixtureLogin, $fixtureRefPrefix, $fixtureRoot);
-
     $pdo->beginTransaction();
     try {
+        $password = (string) getenv('MJL_TEST_USER_PASSWORD');
+        $passwordHash = dol_hash($password, '0');
         $statement = $pdo->prepare(
-            "INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec)
-             SELECT 1,?,'RST010A','Agent','rst010a.agent@example.test',pass_crypted,1,0,NOW()
-             FROM llx_user WHERE admin=1 ORDER BY rowid LIMIT 1"
+            "INSERT INTO llx_user (entity,login,lastname,firstname,email,pass,pass_crypted,pass_temp,statut,admin,datec)
+             VALUES (1,?,'RST010A','Agent','rst010a.agent@example.test',NULL,?,NULL,1,0,NOW())"
         );
-        $statement->execute([$fixtureLogin]);
+        $statement->execute([$fixtureLogin, $passwordHash]);
         $userId = (int) $pdo->lastInsertId();
         if ($userId <= 0) {
             throw new RuntimeException('The disposable administrator could not seed the authenticated fixture user.');
@@ -224,12 +181,6 @@ function canonical(array $value): string
 
 if ($action === 'setup') {
     echo canonical(createFixture($pdo, $fixtureLogin, $fixtureRefPrefix, $fixtureRoot)), "\n";
-    exit(0);
-}
-
-if ($action === 'cleanup') {
-    cleanupFixture($pdo, $fixtureLogin, $fixtureRefPrefix, $fixtureRoot);
-    echo "{\"cleaned\":true}\n";
     exit(0);
 }
 

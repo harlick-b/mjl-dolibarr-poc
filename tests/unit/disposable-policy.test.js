@@ -9,6 +9,8 @@ const expected = {
   port: 18123,
   repositoryRoot: '/workspace/mjl',
   evidenceRoot: '/workspace/mjl/test-results/runs/test-evidence',
+  sentinel: '0123456789abcdef0123456789abcdef',
+  testUserPassword: '0123456789abcdef0123456789ABCDEF',
 };
 
 function validConfig() {
@@ -17,11 +19,18 @@ function validConfig() {
     services: {
       mariadb: {
         restart: 'no',
+        tmpfs: ['/run/mjl-test:size=1m,mode=0700,noexec,nosuid,nodev'],
         volumes: [{ type: 'volume', source: 'mjl_test_db', target: '/var/lib/mysql' }],
       },
       dolibarr: {
         restart: 'no',
-        environment: { DOLI_URL_ROOT: expected.baseUrl },
+        environment: {
+          DOLI_URL_ROOT: expected.baseUrl,
+          MJL_DISPOSABLE_TEST_TENANT: '1',
+          MJL_DISPOSABLE_PROJECT_NAME: expected.projectName,
+          MJL_DISPOSABLE_RUN_SENTINEL: expected.sentinel,
+          MJL_TEST_USER_PASSWORD: expected.testUserPassword,
+        },
         ports: [{ target: 80, published: String(expected.port), protocol: 'tcp', host_ip: '127.0.0.1' }],
         volumes: [
           { type: 'volume', source: 'mjl_test_docs', target: '/var/www/documents' },
@@ -97,6 +106,17 @@ test('rejects persistent restart policies and undeclared or shared volume names'
   const sharedVolume = validConfig();
   sharedVolume.volumes.mjl_test_docs.name = 'shared_documents';
   assert.throws(() => assertDisposableConfig(sharedVolume, expected), /project-scoped/i);
+});
+
+test('rejects missing immutable identity, credential, or tmpfs controls', () => {
+  for (const key of ['MJL_DISPOSABLE_TEST_TENANT', 'MJL_DISPOSABLE_PROJECT_NAME', 'MJL_DISPOSABLE_RUN_SENTINEL', 'MJL_TEST_USER_PASSWORD']) {
+    const config = validConfig();
+    delete config.services.dolibarr.environment[key];
+    assert.throws(() => assertDisposableConfig(config, expected), /environment|sentinel|password|project/i);
+  }
+  const config = validConfig();
+  config.services.mariadb.tmpfs = [];
+  assert.throws(() => assertDisposableConfig(config, expected), /tmpfs/i);
 });
 
 test('rejects non-loopback publishing, extra repository data mounts, and shared networks', () => {

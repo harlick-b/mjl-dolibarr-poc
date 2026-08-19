@@ -25,6 +25,8 @@ test('creates a unique loopback run plan with stable scoped resource names', () 
       databaseVolume: plan.databaseVolume,
       documentVolume: plan.documentVolume,
       configVolume: plan.configVolume,
+      sentinel: plan.sentinel,
+      testUserPassword: plan.testUserPassword,
     },
     {
       projectName: 'mjl-test-20260803t123456-4321-a1b2c3d4',
@@ -33,9 +35,13 @@ test('creates a unique loopback run plan with stable scoped resource names', () 
       databaseVolume: 'mjl-test-20260803t123456-4321-a1b2c3d4_mjl_test_db',
       documentVolume: 'mjl-test-20260803t123456-4321-a1b2c3d4_mjl_test_docs',
       configVolume: 'mjl-test-20260803t123456-4321-a1b2c3d4_mjl_test_conf',
+      sentinel: plan.sentinel,
+      testUserPassword: plan.testUserPassword,
     },
   );
   assert.match(plan.composeFile, /tests\/fixtures\/disposable-compose\.override\.yml$/);
+  assert.match(plan.sentinel, /^[a-f0-9]{32}$/);
+  assert.match(plan.testUserPassword, /^[A-Za-z0-9_-]{32}$/);
 });
 
 test('rejects the shared app port and invalid repository roots', () => {
@@ -68,6 +74,7 @@ test('maps each public command to explicit durable layers without phase-era targ
   assert.deepEqual(getSuitePlan('verify'), ['verify']);
   assert.deepEqual(getSuitePlan('e2e'), ['e2e']);
   assert.deepEqual(getSuitePlan('rst003'), ['rst003']);
+  assert.deepEqual(getSuitePlan('rst014a'), ['rst014a']);
   assert.deepEqual(getSuitePlan('characterization'), ['characterization']);
   assert.deepEqual(getSuitePlan('manual-accessibility'), ['manual-accessibility']);
   assert.deepEqual(getSuitePlan('production-readiness'), ['production-readiness']);
@@ -97,6 +104,23 @@ test('diagnostics failures cannot bypass teardown and all failures remain inspec
   assert.equal(cleanupCalled, true);
   assert.ok(result instanceof AggregateError);
   assert.deepEqual(result.errors.map((error) => error.message), ['execution failed', 'diagnostics failed', 'cleanup failed']);
+});
+
+test('RST-014A never retains a failed tenant', async () => {
+  let removed = false;
+  let retained = false;
+  await finalizeDisposableRun({
+    plan: { projectName: 'mjl-test-finalizer' },
+    provisionAttempted: true,
+    failure: new Error('expected'),
+    runMode: 'rst014a',
+    environment: { MJL_TEST_RETAIN: '1' },
+    capture: async () => {},
+    remove: async () => { removed = true; },
+    retain: () => { retained = true; },
+  });
+  assert.equal(removed, true);
+  assert.equal(retained, false);
 });
 
 test('every Playwright surface installs the disposable guard with no shared URL fallback', () => {

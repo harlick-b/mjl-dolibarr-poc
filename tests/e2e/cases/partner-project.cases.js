@@ -1,22 +1,12 @@
 const { test, expect } = require('@playwright/test');
-const { execFileSync } = require('node:child_process');
+const { createPhase1FixtureSet } = require('../../helpers/phase1-fixture');
+const { composeExec, sql, scalar } = require('../../helpers/mjl-test-runtime');
 
 const nativeAdminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
+const testPassword = process.env.MJL_TEST_USER_PASSWORD;
 const marker = 'RST003-E2E';
 
 test.describe.configure({ mode: 'serial' });
-
-function composeExec(service, ...args) {
-  return execFileSync('docker', ['compose', 'exec', '-T', service, ...args], { encoding: 'utf8', env: process.env });
-}
-
-function sql(statement) {
-  return composeExec('mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', statement);
-}
-
-function scalar(statement) {
-  return composeExec('mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', '-N', '-B', 'dolidb', '-e', statement).trim();
-}
 
 async function waitForDatabaseSleep() {
   for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -26,7 +16,7 @@ async function waitForDatabaseSleep() {
   throw new Error('Timed out waiting for the deterministic database lock barrier.');
 }
 
-async function login(page, loginName, userPassword = nativeAdminPassword) {
+async function login(page, loginName, userPassword = loginName === 'admin' ? nativeAdminPassword : testPassword) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
@@ -50,45 +40,20 @@ async function createReference(page, route, label, partnerId = '') {
   await expect(page).toHaveURL(new RegExp(`${route}\\.php\\?id=\\d+`));
 }
 
-function cleanup() {
-  sql(`
-    DROP TRIGGER IF EXISTS rst003_project_insert_barrier;
-    DROP TRIGGER IF EXISTS rst003_partner_update_barrier;
-    SET @users = (SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'rst003.e2e.%');
-    DELETE FROM llx_projet WHERE title LIKE '${marker}%';
-    DELETE FROM llx_societe_commerciaux WHERE fk_soc IN (SELECT rowid FROM llx_societe WHERE nom LIKE '${marker}%');
-    DELETE FROM llx_societe WHERE nom LIKE '${marker}%';
-    DELETE FROM llx_mjlfinancement_operation_type WHERE label LIKE '${marker}%';
-    DELETE FROM llx_user_rights WHERE FIND_IN_SET(fk_user, COALESCE(@users, ''));
-    DELETE FROM llx_mjlfinancement_user_role WHERE FIND_IN_SET(fk_user, COALESCE(@users, ''));
-    DELETE FROM llx_user WHERE FIND_IN_SET(rowid, COALESCE(@users, ''));
-  `);
-}
-
 test.beforeAll(() => {
-  cleanup();
-  sql(`
-    INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec)
-      SELECT 1, 'rst003.e2e.validator', 'RST003', 'Validateur', 'rst003.validator@example.test', pass_crypted, 1, 0, NOW() FROM llx_user WHERE admin = 1 ORDER BY rowid LIMIT 1;
-    SET @validator = LAST_INSERT_ID();
-    INSERT INTO llx_mjlfinancement_user_role (entity, fk_user, role_code, is_active, date_start, source, date_creation)
-      VALUES (1, @validator, 'VALIDATEUR_DEFINITIF', 1, NOW(), 'rst003_e2e', NOW());
-    INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec)
-      SELECT 1, 'rst003.e2e.agent', 'RST003', 'Agent', 'rst003.agent@example.test', pass_crypted, 1, 0, NOW() FROM llx_user WHERE admin = 1 ORDER BY rowid LIMIT 1;
-    SET @agent = LAST_INSERT_ID();
-    INSERT INTO llx_mjlfinancement_user_role (entity, fk_user, role_code, is_active, date_start, source, date_creation)
-      VALUES (1, @agent, 'AGENT_SAISIE', 1, NOW(), 'rst003_e2e', NOW());
-    INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec)
-      SELECT 1, 'rst003.e2e.supervisor', 'RST003', 'Superviseur', 'rst003.supervisor@example.test', pass_crypted, 1, 0, NOW() FROM llx_user WHERE admin = 1 ORDER BY rowid LIMIT 1;
-    SET @supervisor = LAST_INSERT_ID();
-    INSERT INTO llx_mjlfinancement_user_role (entity, fk_user, role_code, is_active, date_start, source, date_creation)
-      VALUES (1, @supervisor, 'AGENT_VERIFICATEUR', 1, NOW(), 'rst003_e2e', NOW());
-    INSERT INTO llx_user (entity, login, lastname, firstname, email, pass_crypted, statut, admin, datec)
-      SELECT 1, 'rst003.e2e.norole', 'RST003', 'SansRole', 'rst003.norole@example.test', pass_crypted, 1, 0, NOW() FROM llx_user WHERE admin = 1 ORDER BY rowid LIMIT 1;
-  `);
+  createPhase1FixtureSet({
+    namespace: 'rst003.e2e', entity: 1,
+    users: [
+      { key: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+      { key: 'agent', role: 'AGENT_SAISIE' },
+      { key: 'supervisor', role: 'AGENT_VERIFICATEUR' },
+      { key: 'norole', role: null },
+    ],
+    references: { partners: [], projects: [], operationTypes: [] },
+  });
 });
 
-test.afterAll(() => cleanup());
+test.afterAll(() => sql('DROP TRIGGER IF EXISTS rst003_project_insert_barrier; DROP TRIGGER IF EXISTS rst003_partner_update_barrier;'));
 
 test('Validateur creates all reference types and several Projets under one Partenaire', async ({ page }) => {
   await login(page, 'rst003.e2e.validator');
@@ -334,7 +299,7 @@ test('delete actions, cross-entity objects, missing CSRF, and native routes fail
   await expectDenied(page, `/custom/mjlfinancement/partners.php?id=${crossId}`);
   sql(`INSERT INTO llx_projet (entity,ref,title,fk_soc,fk_statut,datec,fk_user_creat) VALUES (2,'RST003-CROSS-PROJECT','${marker} Cross Project',${crossId},1,NOW(),1)`);
   const crossProject = scalar("SELECT rowid FROM llx_projet WHERE ref='RST003-CROSS-PROJECT'");
-  sql(`INSERT INTO llx_mjlfinancement_operation_type (entity,label,is_active,date_creation,fk_user_creat) SELECT 2,'${marker} Cross Type',1,NOW(),rowid FROM llx_user WHERE admin=1 ORDER BY rowid LIMIT 1`);
+  sql(`INSERT INTO llx_mjlfinancement_operation_type (entity,label,is_active,date_creation,fk_user_creat) SELECT 2,'${marker} Cross Type',1,NOW(),rowid FROM llx_user WHERE login='rst003.e2e.validator'`);
   const crossType = scalar(`SELECT rowid FROM llx_mjlfinancement_operation_type WHERE entity=2 AND label='${marker} Cross Type'`);
   await expectDenied(page, `/custom/mjlfinancement/projects.php?id=${crossProject}`);
   await expectDenied(page, `/custom/mjlfinancement/operationtypes.php?id=${crossType}`);
@@ -342,5 +307,4 @@ test('delete actions, cross-entity objects, missing CSRF, and native routes fail
     const native = await page.goto(route);
     expect(native.status()).toBe(403);
   }
-  sql(`DELETE FROM llx_projet WHERE entity=2 AND ref='RST003-CROSS-PROJECT'; DELETE FROM llx_mjlfinancement_operation_type WHERE entity=2 AND label='${marker} Cross Type'; DELETE FROM llx_societe WHERE entity=2 AND nom='${marker} Cross entity'`);
 });

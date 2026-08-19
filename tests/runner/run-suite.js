@@ -1,24 +1,51 @@
 #!/usr/bin/env node
 
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const net = require('node:net');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const { assertCleanupComplete, assertDisposableConfig } = require('./disposable-policy');
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('./disposable-run');
+const { scanArtifacts, streamTreeDigest } = require('./disposable-evidence');
 const { runPhase1CutoverRehearsal: runPhase1Cutover } = require('./phase1-cutover-rehearsal');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
-const mode = process.argv[2] || 'all';
+const mode = require.main === module ? (process.argv[2] || 'all') : 'unit';
 const layers = getSuitePlan(mode);
 const needsTenant = layers.some((layer) => layer !== 'unit');
 const retainedSecrets = [
-  process.env.MJL_POC_DEFAULT_PASSWORD,
-  process.env.DOLI_ADMIN_PASSWORD,
-  process.env.MYSQL_ROOT_PASSWORD,
-  process.env.MYSQL_PASSWORD,
+  process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!',
+  process.env.DOLI_ADMIN_PASSWORD || 'Admin1234',
+  process.env.MYSQL_ROOT_PASSWORD || 'poc_root_pwd',
+  process.env.MYSQL_PASSWORD || 'poc_pwd',
 ].filter(Boolean);
+
+function bounded(promise, milliseconds, label) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} timed out.`)), milliseconds); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+function hardenArtifactPermissions(root) {
+  if (!fs.existsSync(root)) return;
+  fs.chmodSync(root, 0o700);
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new Error('Artifact trees must not contain symbolic links.');
+      if (entry.isDirectory()) {
+        fs.chmodSync(absolute, 0o700);
+        visit(absolute);
+      } else if (entry.isFile()) fs.chmodSync(absolute, 0o600);
+      else throw new Error('Artifact trees contain an unsupported file type.');
+    }
+  };
+  visit(root);
+}
 
 function allocatePort() {
   return new Promise((resolve, reject) => {
@@ -84,6 +111,8 @@ function composeEnvironment(plan, sourceRoot = repositoryRoot) {
     MJL_REPOSITORY_ROOT: sourceRoot,
     MJL_EVIDENCE_ROOT: plan.evidenceRoot,
     MJL_PLAYWRIGHT_OUTPUT_DIR: path.join(plan.artifactRoot, 'playwright'),
+    MJL_DISPOSABLE_RUN_SENTINEL: plan.sentinel,
+    MJL_TEST_USER_PASSWORD: plan.testUserPassword,
   };
 }
 
@@ -127,6 +156,13 @@ async function provision(plan, signal) {
   await waitUntilReady(plan, signal);
   await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'], { quiet: true, signal });
   await compose(plan, ['exec', '-T', 'dolibarr', 'chown', '-R', 'www-data:www-data', '/var/www/documents'], { quiet: true, signal });
+  await compose(plan, ['exec', '-T', 'mariadb', 'sh', '-ceu', 'umask 077; mkdir -p /run/mjl-test; target=/run/mjl-test/client.cnf; temporary=/run/mjl-test/client.cnf.new; printf "[client]\\nuser=%s\\npassword=%s\\n[client_root]\\nuser=root\\npassword=%s\\n" "$MYSQL_USER" "$MYSQL_PASSWORD" "$MYSQL_ROOT_PASSWORD" > "$temporary"; chmod 0600 "$temporary"; mv "$temporary" "$target"'], { quiet: true, signal });
+  await compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', 'dolidb'], { quiet: true, signal, input: "INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('MJL_DISPOSABLE_FIXTURE_SENTINEL',UUID(),'chaine',0,'disposable fixture attestation',0); UPDATE llx_const SET value='" + plan.sentinel + "' WHERE name='MJL_DISPOSABLE_FIXTURE_SENTINEL' AND entity=0;\n" });
+  await compose(plan, ['exec', '-T', 'dolibarr', 'sh', '-ceu', 'sentinel=/var/www/documents/.mjl-disposable-fixture-sentinel; umask 0222; printf %s "$MJL_DISPOSABLE_RUN_SENTINEL" > "$sentinel"; chown root:root "$sentinel"; chmod 0444 "$sentinel"; test "$(stat -c %u:%a "$sentinel")" = 0:444'], { quiet: true, signal });
+}
+
+async function databaseSql(plan, statement, options = {}) {
+  return compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', ...(options.scalar ? ['-N', '-B'] : []), 'dolidb'], { ...options, input: `${statement}\n` });
 }
 
 function filesIn(directory, predicate) {
@@ -168,8 +204,6 @@ async function runPhase1Verification(plan, signal) {
 }
 
 async function runPhase1SchemaMutationRehearsal(plan, signal) {
-  const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
-  const client = ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb', '-e'];
   const verifier = ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_schema_exact.php'];
   const probes = [
     {
@@ -214,47 +248,43 @@ async function runPhase1SchemaMutationRehearsal(plan, signal) {
     },
   ];
   for (const probe of probes) {
-    await compose(plan, [...client, probe.mutate], { quiet: true, signal });
+    await databaseSql(plan, probe.mutate, { quiet: true, signal });
     try {
       await expectComposeFailure(plan, verifier, probe.label, { signal });
     } finally {
-      await compose(plan, [...client, probe.restore], { quiet: true, signal });
+      await databaseSql(plan, probe.restore, { quiet: true, signal });
     }
     await compose(plan, verifier, { quiet: true, signal });
   }
 }
 
 async function runPhase1FailpointConstantRehearsal(plan, signal) {
-  const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
-  const client = ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb', '-e'];
   const verifier = ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_reset.php'];
   const probes = [
     ['MJL_RST_PHASE1_FAILURE_INJECTION', 0],
     ['MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION', 7],
   ];
   for (const [name, entity] of probes) {
-    await compose(plan, [...client, `INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('${name}','1','chaine',0,'disposable verifier mutation',${entity})`], { quiet: true, signal });
+    await databaseSql(plan, `INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('${name}','1','chaine',0,'disposable verifier mutation',${entity})`, { quiet: true, signal });
     try {
       const output = await expectComposeFailure(plan, verifier, `${name} survival mutation`, { signal });
       if (!/failure-injection constant remains/i.test(output)) throw new Error(`${name} verifier mutation failed for the wrong reason: ${output.trim()}`);
     } finally {
-      await compose(plan, [...client, `DELETE FROM llx_const WHERE name='${name}'`], { quiet: true, signal });
+      await databaseSql(plan, `DELETE FROM llx_const WHERE name='${name}'`, { quiet: true, signal });
     }
     await compose(plan, verifier, { quiet: true, signal });
   }
 }
 
 async function runRst003RollbackRehearsal(plan, signal) {
-  const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
-  const client = ['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb', '-e'];
   let renamed = false;
   try {
-    await compose(plan, [...client, 'RENAME TABLE llx_mjlfinancement_operation_type TO llx_mjlfinancement_operation_type_rst003_rollback'], { quiet: true, signal });
+    await databaseSql(plan, 'RENAME TABLE llx_mjlfinancement_operation_type TO llx_mjlfinancement_operation_type_rst003_rollback', { quiet: true, signal });
     renamed = true;
-    const absent = await compose(plan, [...client, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_operation_type'"], { quiet: true, signal });
+    const absent = await databaseSql(plan, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_operation_type'", { quiet: true, signal, scalar: true });
     if (!/\b0\b/.test(absent)) throw new Error('RST-003 rollback rehearsal did not remove the target table boundary.');
   } finally {
-    if (renamed) await compose(plan, [...client, 'RENAME TABLE llx_mjlfinancement_operation_type_rst003_rollback TO llx_mjlfinancement_operation_type'], { quiet: true, signal });
+    if (renamed) await databaseSql(plan, 'RENAME TABLE llx_mjlfinancement_operation_type_rst003_rollback TO llx_mjlfinancement_operation_type', { quiet: true, signal });
   }
   await runRst003Verification(plan, signal);
 }
@@ -279,6 +309,8 @@ async function runPlaywright(plan, target, signal) {
 	args.push('tests/e2e/phase1-reset.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst010a') {
 	args.push('tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+  } else if (target === 'rst014a') {
+    args.push('tests/e2e/fixture-isolation.spec.js', 'tests/e2e/phase1-reset.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/partners-projects.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
 	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
@@ -308,6 +340,42 @@ async function captureDiagnostics(plan) {
   );
 }
 
+async function captureSharedEvidence(signal) {
+  const source = fs.readFileSync(path.join(repositoryRoot, 'tests/fixtures/database-evidence.php'));
+  const sharedEnvironment = { ...process.env };
+  for (const key of ['COMPOSE_PROJECT_NAME', 'COMPOSE_FILE', 'MJL_BASE_URL', 'MJL_TEST_PORT', 'MJL_DISPOSABLE_RUN_SENTINEL', 'MJL_TEST_USER_PASSWORD']) delete sharedEnvironment[key];
+  const database = JSON.parse(await runCommand('docker', ['compose', '-f', path.join(repositoryRoot, 'docker-compose.yml'), 'exec', '-T', 'dolibarr', 'php'], {
+    quiet: true,
+    input: source,
+    env: sharedEnvironment,
+    signal,
+  }));
+  if (database.disposable_control_count !== 0 || database.disposable_file_sentinel_present) throw new Error('Shared tenant contains disposable fixture controls.');
+  const protectedPaths = ['custom', 'docs', 'tests', 'AGENTS.md', 'CONTEXT.md', 'DESIGN.md', 'README.md', 'docker-compose.yml', 'package.json', 'package-lock.json', 'playwright.config.js'];
+  const sourceHash = crypto.createHash('sha256');
+  for (const relative of protectedPaths) {
+    const absolute = path.join(repositoryRoot, relative);
+    const stat = fs.lstatSync(absolute);
+    sourceHash.update(`${relative}\0${stat.mode & 0o7777}\0`);
+    if (stat.isDirectory()) sourceHash.update(streamTreeDigest(absolute));
+    else sourceHash.update(fs.readFileSync(absolute));
+  }
+  const project = path.basename(repositoryRoot);
+  const filter = `label=com.docker.compose.project=${project}`;
+  const [containers, networks, volumes] = await Promise.all([
+    runCommand('docker', ['ps', '-a', '--filter', filter, '--format', '{{.Names}}'], { quiet: true, signal }),
+    runCommand('docker', ['network', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true, signal }),
+    runCommand('docker', ['volume', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true, signal }),
+  ]);
+  const names = (value) => value.split('\n').map((entry) => entry.trim()).filter(Boolean).sort();
+  return Object.freeze({
+    protected_source_sha256: sourceHash.digest('hex'),
+    documents_sha256: database.documents_sha256,
+    database,
+    resources: { containers: names(containers), networks: names(networks), volumes: names(volumes) },
+  });
+}
+
 async function projectResources(plan) {
   const filter = `label=com.docker.compose.project=${plan.projectName}`;
   const [containers, networks, volumes] = await Promise.all([
@@ -320,8 +388,18 @@ async function projectResources(plan) {
 }
 
 async function cleanup(plan) {
-  await compose(plan, ['down', '-v', '--remove-orphans']);
-  assertCleanupComplete(await projectResources(plan), plan.projectName);
+  let lastFailure;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await compose(plan, ['exec', '-T', 'mariadb', 'sh', '-c', 'rm -f /run/mjl-test/client.cnf'], { quiet: true }).catch(() => {});
+      await bounded(compose(plan, ['down', '-v', '--remove-orphans']), 30000, 'Disposable teardown');
+      assertCleanupComplete(await bounded(projectResources(plan), 10000, 'Disposable resource enumeration'), plan.projectName);
+      return;
+    } catch (error) {
+      lastFailure = error;
+    }
+  }
+  throw lastFailure;
 }
 
 function printRetainedRun(plan) {
@@ -350,11 +428,11 @@ function combineFailures(primary, secondary, label) {
 async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMode = mode, environment = process.env, capture = captureDiagnostics, remove = cleanup, retain = printRetainedRun }) {
   if (!plan || !provisionAttempted) return failure;
   try {
-    await capture(plan);
+    await bounded(capture(plan), 10000, 'Diagnostics capture');
   } catch (diagnosticsError) {
     failure = combineFailures(failure, diagnosticsError, 'Test execution and diagnostics capture failed.');
   }
-  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset';
+  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && !['phase1-reset', 'rst014a'].includes(runMode);
   try {
     if (shouldRetain) retain(plan);
   } finally {
@@ -374,7 +452,7 @@ async function main() {
   const controller = new AbortController();
   let interrupted = null;
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
-    process.once(signal, () => {
+    process.on(signal, () => {
       interrupted = signal;
       controller.abort();
     });
@@ -383,10 +461,12 @@ async function main() {
   let plan = null;
   let provisionAttempted = false;
   let failure = null;
+  let sharedBefore = null;
   try {
+    if (mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
-      fs.mkdirSync(plan.artifactRoot, { recursive: true });
+      fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
       process.stdout.write(`Disposable MJL project: ${plan.projectName}\nURL: ${plan.baseUrl}\n`);
     }
 
@@ -425,6 +505,10 @@ async function main() {
         await runPhase1Verification(plan, controller.signal);
         await runPlaywright(plan, mode === 'phase1-reset' ? 'phase1-all' : layer, controller.signal);
       }
+      else if (layer === 'rst014a') {
+        await runPhase1Verification(plan, controller.signal);
+        await runPlaywright(plan, layer, controller.signal);
+      }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);
     }
@@ -432,6 +516,28 @@ async function main() {
     failure = error;
   } finally {
     failure = await finalizeDisposableRun({ plan, provisionAttempted, failure });
+    if (mode === 'rst014a' && sharedBefore && plan) {
+      try {
+        const sharedAfter = await captureSharedEvidence();
+        if (JSON.stringify(sharedAfter) !== JSON.stringify(sharedBefore)) throw new Error('RST-014A changed shared filesystem, ECM, Admin, audit, schema, or database state.');
+        fs.writeFileSync(path.join(plan.artifactRoot, 'rst014a-shared-evidence.json'), `${JSON.stringify({ before: sharedBefore, after: sharedAfter }, null, 2)}\n`, { mode: 0o600 });
+      } catch (evidenceError) {
+        failure = combineFailures(failure, evidenceError, 'RST-014A shared-state verification failed.');
+      }
+      try {
+        hardenArtifactPermissions(plan.artifactRoot);
+        const secrets = [
+          ...retainedSecrets.map((value) => ({ category: 'configured credential', value })),
+          { category: 'disposable credential', value: plan.testUserPassword },
+          { category: 'disposable sentinel', value: plan.sentinel },
+        ];
+        const hits = scanArtifacts(plan.artifactRoot, secrets);
+        if (hits.length) throw new Error(`Contaminated artifacts were removed: ${hits.map((hit) => `${hit.path} (${hit.category})`).join(', ')}`);
+      } catch (scanError) {
+        try { fs.rmSync(plan.artifactRoot, { recursive: true, force: true }); } catch (_) {}
+        failure = combineFailures(failure, scanError, 'RST-014A artifact verification failed.');
+      }
+    }
   }
 
   const seconds = ((Date.now() - started) / 1000).toFixed(1);

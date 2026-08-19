@@ -28,8 +28,6 @@ function sourceTreeFingerprint(root) {
 
 async function runPhase1CutoverRehearsal(context) {
   const { plan, signal, repositoryRoot, runCommand, compose, waitUntilReady, expectComposeFailure, assertDisposableConfig } = context;
-  const password = process.env.MYSQL_PASSWORD || 'poc_pwd';
-  const rootPassword = process.env.MYSQL_ROOT_PASSWORD || 'poc_root_pwd';
   const baselineRoot = path.join(plan.artifactRoot, 'pre-cutover-source');
   const sourceArchive = path.join(plan.artifactRoot, 'pre-cutover-source.tar');
   const remediationArchive = path.join(plan.artifactRoot, 'remediation-source.tar');
@@ -60,7 +58,9 @@ async function runPhase1CutoverRehearsal(context) {
     await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'], { sourceRoot: baselineRoot, quiet: true, signal });
 
     const atSource = (args, options = {}) => compose(plan, args, { ...options, sourceRoot: baselineRoot, signal });
-    const databaseDump = () => atSource(['exec', '-T', 'mariadb', 'mariadb-dump', '-udolidbuser', `-p${password}`, '--skip-comments', '--skip-extended-insert', '--order-by-primary', 'dolidb'], { quiet: true });
+    await atSource(['exec', '-T', 'mariadb', 'sh', '-ceu', 'umask 077; mkdir -p /run/mjl-test; target=/run/mjl-test/client.cnf; temporary=/run/mjl-test/client.cnf.new; printf "[client]\\nuser=%s\\npassword=%s\\n[client_root]\\nuser=root\\npassword=%s\\n" "$MYSQL_USER" "$MYSQL_PASSWORD" "$MYSQL_ROOT_PASSWORD" > "$temporary"; chmod 0600 "$temporary"; mv "$temporary" "$target"'], { quiet: true });
+    const databaseDump = () => atSource(['exec', '-T', 'mariadb', 'mariadb-dump', '--defaults-extra-file=/run/mjl-test/client.cnf', '--skip-comments', '--skip-extended-insert', '--order-by-primary', 'dolidb'], { quiet: true });
+    const databaseSql = (statement, options = {}) => atSource(['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', ...(options.root ? ['--defaults-group-suffix=_root'] : []), ...(options.scalar ? ['-N', '-B'] : []), ...(options.database === false ? [] : ['dolidb'])], { quiet: true, input: `${statement}\n` });
     const metadataSql = [
       "SELECT TABLE_NAME,ENGINE,TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME",
       "SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COALESCE(COLUMN_DEFAULT,'<NULL>'),EXTRA,GENERATION_EXPRESSION,CHARACTER_SET_NAME,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME,ORDINAL_POSITION",
@@ -70,17 +70,17 @@ async function runPhase1CutoverRehearsal(context) {
       "SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() ORDER BY TRIGGER_NAME",
       "SELECT name,value,entity FROM llx_const WHERE name LIKE 'MAIN_MODULE_%' OR name LIKE 'MJL_%' ORDER BY name,entity",
     ].join('; ');
-    const captureMetadata = () => atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', metadataSql], { quiet: true });
+    const captureMetadata = () => databaseSql(metadataSql, { scalar: true });
     const captureDocumentsManifest = async (sourceRoot) => sortedLines(await compose(plan, ['run', '--rm', '--no-deps', '--entrypoint=find', 'dolibarr', '/var/www/documents', '-type', 'f', '-exec', 'sha256sum', '{}', '+'], { sourceRoot, quiet: true, signal }));
     const assertPreCaptureBaseline = async () => {
-      const adminCounts = (await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', "SELECT COUNT(*),SUM(rowid=1 AND entity=0 AND login='admin' AND admin=1 AND statut=1),SUM(admin=1) FROM llx_user"], { quiet: true })).trim();
+      const adminCounts = (await databaseSql("SELECT COUNT(*),SUM(rowid=1 AND entity=0 AND login='admin' AND admin=1 AND statut=1),SUM(admin=1) FROM llx_user", { scalar: true })).trim();
       if (adminCounts !== '1\t1\t1') throw new Error(`Pre-capture administrator invariant failed: ${adminCounts}`);
-      const nativeBusinessCounts = (await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', 'SELECT (SELECT COUNT(*) FROM llx_societe),(SELECT COUNT(*) FROM llx_projet),(SELECT COUNT(*) FROM llx_ecm_files)'], { quiet: true })).trim();
+      const nativeBusinessCounts = (await databaseSql('SELECT (SELECT COUNT(*) FROM llx_societe),(SELECT COUNT(*) FROM llx_projet),(SELECT COUNT(*) FROM llx_ecm_files)', { scalar: true })).trim();
       if (nativeBusinessCounts !== '0\t0\t0') throw new Error(`Pre-capture native business state is not empty: ${nativeBusinessCounts}`);
-      const customTables = (await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'llx\\_mjlfinancement\\_%' ORDER BY TABLE_NAME"], { quiet: true })).trim().split('\n').filter(Boolean);
+      const customTables = (await databaseSql("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'llx\\_mjlfinancement\\_%' ORDER BY TABLE_NAME", { scalar: true })).trim().split('\n').filter(Boolean);
       for (const table of customTables) {
         if (!/^llx_mjlfinancement_[a-z0-9_]+$/.test(table)) throw new Error(`Unexpected custom table name in baseline: ${table}`);
-        const count = (await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, '-N', '-B', 'dolidb', '-e', `SELECT COUNT(*) FROM ${table}`], { quiet: true })).trim();
+        const count = (await databaseSql(`SELECT COUNT(*) FROM ${table}`, { scalar: true })).trim();
         if (count !== '0') throw new Error(`Pre-capture custom business table is not empty: ${table}=${count}`);
       }
     };
@@ -116,7 +116,7 @@ async function runPhase1CutoverRehearsal(context) {
     const manifestPath = '/opt/mjl-evidence/cutover-evidence.json';
     const manifestHash = sha256File(evidenceManifest);
     const resetArgs = (mode, extra = [], environment = []) => ['run', '--rm', '--no-deps', ...environment.flatMap((value) => ['-e', value]), '-e', 'MJL_RST_PHASE1_TRAFFIC_STOPPED=1', '--entrypoint=php', 'dolibarr', '/var/www/html/custom/mjlfinancement/scripts/rst_phase1_reset.php', `--mode=${mode}`, `--confirm=${AUTHORIZATION}`, `--evidence-manifest=${manifestPath}`, `--evidence-sha256=${manifestHash}`, ...extra];
-    const sql = (statement) => atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb', '-e', statement], { quiet: true });
+    const sql = (statement) => databaseSql(statement);
     const activateArgs = (environment = []) => ['run', '--rm', '--no-deps', ...environment.flatMap((value) => ['-e', value]), '--entrypoint=php', 'dolibarr', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'];
     const mustCompose = async (args, label) => {
       try { return await atSource(args, { quiet: true }); }
@@ -144,8 +144,8 @@ async function runPhase1CutoverRehearsal(context) {
     };
     const restoreBaseline = async (label) => {
       await replaceSourceTree(sourceArchive);
-      await atSource(['exec', '-T', 'mariadb', 'mariadb', '-uroot', `-p${rootPassword}`, '-e', "DROP DATABASE dolidb; CREATE DATABASE dolidb CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci; GRANT ALL PRIVILEGES ON dolidb.* TO 'dolidbuser'@'%'; FLUSH PRIVILEGES"], { quiet: true });
-      await atSource(['exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', `-p${password}`, 'dolidb'], { input: fs.readFileSync(baselineDump), quiet: true });
+      await databaseSql("DROP DATABASE dolidb; CREATE DATABASE dolidb CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci; GRANT ALL PRIVILEGES ON dolidb.* TO 'dolidbuser'@'%'; FLUSH PRIVILEGES", { root: true, database: false });
+      await databaseSql(fs.readFileSync(baselineDump));
       await atSource(['run', '--rm', '--no-deps', '--entrypoint=find', 'dolibarr', '/var/www/documents', '-mindepth', '1', '-delete'], { quiet: true });
       await atSource(['run', '--rm', '--no-deps', '--entrypoint=tar', 'dolibarr', '-C', '/var/www/documents', '-xf', '-'], { input: fs.readFileSync(documentsArchive), quiet: true });
       await assertBaselineState(label);

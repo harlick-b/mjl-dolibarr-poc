@@ -2,18 +2,13 @@ const { test, expect } = require('@playwright/test');
 const crypto = require('node:crypto');
 const { execFile, execFileSync } = require('node:child_process');
 const { promisify } = require('node:util');
+const { sql, scalar } = require('../helpers/mjl-test-runtime');
 
 const execFileAsync = promisify(execFile);
 let searchableTextColumns = null;
 
-function sql(statement) {
-  return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', statement], { encoding: 'utf8', env: process.env });
-}
-function scalar(statement) {
-  return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', '-N', '-B', 'dolidb', '-e', statement], { encoding: 'utf8', env: process.env }).trim();
-}
 function scalarFromStdin(statement) {
-  return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', '-N', '-B', 'dolidb'], { encoding: 'utf8', env: process.env, input: statement }).trim();
+  return scalar(statement);
 }
 function sqlLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
@@ -109,16 +104,10 @@ async function assertNoVerifierLeak(page, link) {
   const logs = execFileSync('docker', ['compose', 'logs', '--no-color', 'dolibarr', 'mariadb'], { encoding: 'utf8', env: process.env });
   for (const variant of variants) expect(logs).not.toContain(variant);
 }
-function cleanup() {
-  sql("SET @ids=(SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'phase1.parallel.%'); DELETE FROM llx_mjlfinancement_password_reset WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_mjlfinancement_invitation WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_user_rights WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_mjlfinancement_user_role WHERE FIND_IN_SET(fk_user,COALESCE(@ids,'')); DELETE FROM llx_user WHERE FIND_IN_SET(rowid,COALESCE(@ids,'')); DELETE FROM llx_const WHERE name IN ('MJL_AUTH_E2E_EXPOSE_TOKENS','MJL_AUTH_E2E_FAIL_AUTH_OUTBOX','MJL_AUTH_E2E_LOCK_HOLD_SECONDS') AND entity=1;");
-}
-
 test.beforeAll(() => {
-  cleanup();
   sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'parallel disposable auth') ON DUPLICATE KEY UPDATE value='1'");
   sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_E2E_LOCK_HOLD_SECONDS',1,'1','chaine',0,'parallel lock observation') ON DUPLICATE KEY UPDATE value='1'");
 });
-test.afterAll(cleanup);
 
 test('[RST-008] parallel identity collisions leave one user and one live invitation', async ({ page }) => {
   const loginCollision = await concurrentWorkers(

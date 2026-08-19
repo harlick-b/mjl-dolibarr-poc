@@ -1,26 +1,17 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('node:child_process');
+const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
+const { sql, scalar } = require('../helpers/mjl-test-runtime');
 
-const password = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
-
-function sql(statement) {
-  return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', statement], { encoding: 'utf8', env: process.env });
-}
-
-function scalar(statement) {
-  return execFileSync('docker', ['compose', 'exec', '-T', 'mariadb', 'mariadb', '-udolidbuser', '-ppoc_pwd', '-N', '-B', 'dolidb', '-e', statement], { encoding: 'utf8', env: process.env }).trim();
-}
+const adminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
+const testPassword = process.env.MJL_TEST_USER_PASSWORD;
 
 function outbox(type) {
   const payload = execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-' + type + '.json'], { encoding: 'utf8', env: process.env });
   return JSON.parse(payload);
 }
 
-function cleanup() {
-  sql("SET @ids=(SELECT GROUP_CONCAT(rowid) FROM llx_user WHERE login LIKE 'phase1.e2e.%'); DELETE FROM llx_mjlfinancement_password_reset WHERE FIND_IN_SET(fk_user, COALESCE(@ids, '')); DELETE FROM llx_mjlfinancement_invitation WHERE FIND_IN_SET(fk_user, COALESCE(@ids, '')); DELETE FROM llx_user_rights WHERE FIND_IN_SET(fk_user, COALESCE(@ids, '')); DELETE FROM llx_mjlfinancement_user_role WHERE FIND_IN_SET(fk_user, COALESCE(@ids, '')); DELETE FROM llx_user WHERE FIND_IN_SET(rowid, COALESCE(@ids, '')); DELETE FROM llx_const WHERE entity=1 AND name='MJL_AUTH_E2E_EXPOSE_TOKENS';");
-}
-
-async function login(page, loginName, loginPassword = password) {
+async function login(page, loginName, loginPassword = loginName === 'admin' ? adminPassword : testPassword) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
@@ -30,23 +21,18 @@ async function login(page, loginName, loginPassword = password) {
 }
 
 test.beforeAll(() => {
-  cleanup();
-  sql([
-    "INSERT INTO llx_const (name,entity,value,type,visible,note) VALUES ('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Phase 1 disposable E2E')",
-    "INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.e2e.agent','Phase1','Agent','phase1.agent@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1",
-    "SET @agent=LAST_INSERT_ID()",
-    "INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@agent,'AGENT_SAISIE',1,NOW(),'phase1_e2e',NOW())",
-    "INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.e2e.supervisor','Phase1','Superviseur','phase1.supervisor@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1",
-    "SET @supervisor=LAST_INSERT_ID()",
-    "INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@supervisor,'AGENT_VERIFICATEUR',1,NOW(),'phase1_e2e',NOW())",
-    "INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.e2e.validator','Phase1','Validateur','phase1.validator@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1",
-    "SET @validator=LAST_INSERT_ID()",
-    "INSERT INTO llx_mjlfinancement_user_role (entity,fk_user,role_code,is_active,date_start,source,date_creation) VALUES (1,@validator,'VALIDATEUR_DEFINITIF',1,NOW(),'phase1_e2e',NOW())",
-    "INSERT INTO llx_user (entity,login,lastname,firstname,email,pass_crypted,statut,admin,datec) SELECT 1,'phase1.e2e.norole','Phase1','SansRole','phase1.norole@example.test',pass_crypted,1,0,NOW() FROM llx_user WHERE rowid=1",
-  ].join('; ') + ';');
+  createPhase1FixtureSet({
+    namespace: 'phase1.e2e', entity: 1,
+    users: [
+      { key: 'agent', role: 'AGENT_SAISIE' },
+      { key: 'supervisor', role: 'AGENT_VERIFICATEUR' },
+      { key: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+      { key: 'norole', role: null },
+    ],
+    references: { partners: [], projects: [], operationTypes: [] },
+  });
+  sql("INSERT INTO llx_const (name,entity,value,type,visible,note) VALUES ('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Phase 1 disposable E2E') ON DUPLICATE KEY UPDATE value='1'");
 });
-
-test.afterAll(() => cleanup());
 
 test('[RST-007A] audit events are immutable and entity-filtered', async ({ page }) => {
   sql("INSERT INTO llx_mjlfinancement_audit_event (entity,object_type,actor_name_snapshot,actor_role_snapshot,event_date,action,result,date_creation) VALUES (1,'phase1_test','Phase 1','SYSTEM',NOW(),'phase1.visible','SUCCESS',NOW()),(2,'phase1_test','Phase 1','SYSTEM',NOW(),'phase1.hidden','SUCCESS',NOW())");

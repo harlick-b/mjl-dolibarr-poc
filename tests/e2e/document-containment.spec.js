@@ -2,13 +2,14 @@ const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('node:child_process');
 
 const adminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
+const testPassword = process.env.MJL_TEST_USER_PASSWORD;
 const fixtureScript = '/opt/mjl-tests/fixtures/rst010a-document-state.php';
 let fixture;
 
 function fixtureAction(action) {
   const output = execFileSync(
     'docker',
-    ['compose', 'exec', '-T', 'dolibarr', 'php', fixtureScript, action],
+    ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', fixtureScript, action],
     { encoding: 'utf8', env: process.env },
   );
   return JSON.parse(output);
@@ -17,17 +18,13 @@ function fixtureAction(action) {
 async function login(page, loginName) {
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
-  await page.getByLabel('Mot de passe').fill(adminPassword);
+  await page.getByLabel('Mot de passe').fill(loginName === 'admin' ? adminPassword : testPassword);
   await page.getByRole('button', { name: 'Connexion' }).click();
   await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 
 test.beforeAll(() => {
   fixture = fixtureAction('setup');
-});
-
-test.afterAll(() => {
-  fixtureAction('cleanup');
 });
 
 test('[RST-010A] every custom and native document probe fails closed without mutating filesystem or ECM state', async ({ browser }) => {

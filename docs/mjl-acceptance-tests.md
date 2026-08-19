@@ -13,6 +13,7 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst008
     npm run test:rst009a
     npm run test:rst010a
+    npm run test:rst014a
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
@@ -23,6 +24,10 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   public-share canaries, exercises anonymous/authenticated GET and POST plus
   traversal, encoded-path, and native delivery probes, and requires exact
   before/after filesystem and all-column ECM manifests.
+- 'test:rst014a' proves the guarded fixture allowlist, global namespace
+  serialization, file/database/project attestation, non-Admin credentials,
+  migrated Phase 1 callers, secret-free artifacts, exact shared-state equality,
+  and complete destruction of its unique tenant even on failure.
 - The browser contract covers the business-role/Admin/role-less navigation matrix, direct guards, removed-route 404s, invitation issuance and acceptance, fragment clearing, hash invalidation, replay behavior, password reset, and login with changed credentials.
 - 'test:rst003' retains the reference-foundation schema/browser gate.
 

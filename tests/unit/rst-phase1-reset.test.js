@@ -129,7 +129,7 @@ test('Phase 1 runner executes the real baseline cutover, failures, rollbacks, an
   assert.match(commandRunner, /const stderrChunks = \[\]/);
   assert.match(commandRunner, /options\.binary \? stdout/);
   assert.doesNotMatch(commandRunner, /outputChunks/);
-  assert.match(commandRunner, /environment\.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset'/);
+  assert.match(commandRunner, /environment\.MJL_TEST_RETAIN === '1' && !\['phase1-reset', 'rst014a'\]\.includes\(runMode\)/);
   assert.match(runner, /finally \{/);
   assert.match(runner, /sourceTreeFingerprint\(baselineRoot\)/);
   assert.match(runner, /replaceSourceTree\(sourceArchive\)/);

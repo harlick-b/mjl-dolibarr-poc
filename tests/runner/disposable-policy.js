@@ -87,6 +87,12 @@ function assertDisposableConfig(config, expected) {
 
   const configuredRoot = dolibarr.environment && dolibarr.environment.DOLI_URL_ROOT;
   invariant(origin(configuredRoot, 'DOLI_URL_ROOT') === expectedOrigin, 'DOLI_URL_ROOT must match MJL_BASE_URL.');
+  const environment = dolibarr.environment || {};
+  invariant(environment.MJL_DISPOSABLE_TEST_TENANT === '1', 'Disposable marker environment is required.');
+  invariant(environment.MJL_DISPOSABLE_PROJECT_NAME === expected.projectName, 'Disposable project environment must match the created project.');
+  invariant(environment.MJL_DISPOSABLE_RUN_SENTINEL === expected.sentinel, 'Disposable sentinel environment must match the run plan.');
+  invariant(environment.MJL_TEST_USER_PASSWORD === expected.testUserPassword, 'Disposable test password must match the runner-created credential.');
+  invariant(Array.isArray(mariadb.tmpfs) && mariadb.tmpfs.length === 1 && String(mariadb.tmpfs[0]) === '/run/mjl-test:size=1m,mode=0700,noexec,nosuid,nodev', 'MariaDB client credentials must use the exact hardened disposable tmpfs.');
 
   const ports = (dolibarr.ports || []).filter((port) => Number(port.target) === 80);
   invariant(ports.length === 1, 'Dolibarr must publish exactly one browser port.');

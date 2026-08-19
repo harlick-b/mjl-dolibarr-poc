@@ -2,16 +2,20 @@ const { execFileSync } = require('node:child_process');
 
 const defaultPassword = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 
-function composeExec(service, args, encoding = null) {
-  return execFileSync('docker', ['compose', 'exec', '-T', service, ...args], encoding ? { encoding } : { stdio: 'pipe' });
+function composeExec(service, args, encoding = null, input = undefined) {
+  return execFileSync('docker', ['compose', 'exec', '-T', service, ...args], {
+    ...(encoding ? { encoding } : {}),
+    input,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
 }
 
 function sql(query) {
-  composeExec('mariadb', ['mariadb', '-udolidbuser', '-ppoc_pwd', 'dolidb', '-e', query]);
+  composeExec('mariadb', ['mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', 'dolidb'], null, `${query}\n`);
 }
 
 function scalar(query) {
-  return composeExec('mariadb', ['mariadb', '-udolidbuser', '-ppoc_pwd', '-N', '-B', 'dolidb', '-e', query], 'utf8').trim();
+  return composeExec('mariadb', ['mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', '-N', '-B', 'dolidb'], 'utf8', `${query}\n`).trim();
 }
 
 async function login(page, username, password = defaultPassword) {
