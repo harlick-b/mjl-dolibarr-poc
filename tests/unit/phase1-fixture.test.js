@@ -84,12 +84,12 @@ test('rejects Unicode edge whitespace in both adapters', () => {
   const php = fs.readFileSync(path.resolve(__dirname, '../fixtures/phase1-fixture.php'), 'utf8');
   assert.match(php, /\\p\{Z\}/);
   const evidenceCalls = mockFactoryExecution(() => { throw new Error('factory must not run'); });
-  for (const whitespace of ['\u00a0', '\u2002', '\u2003']) {
+  for (const whitespace of ['\u00a0', '\u2002', '\u2003', '\ufeff']) {
     const request = validRequest();
     request.references.partners[0].label = `${whitespace}Partenaire`;
     assert.throws(() => createPhase1FixtureSet(request), /edge-trimmed/i);
   }
-  assert.equal(evidenceCalls(), 6);
+  assert.equal(evidenceCalls(), 8);
   test.mock.restoreAll();
 });
 

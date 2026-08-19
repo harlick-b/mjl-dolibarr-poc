@@ -73,7 +73,7 @@ async function directFactory(value, user = 'www-data') {
       if (code === 0) resolve({ stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') });
       else reject(new Error('Concurrent disposable fixture call failed.'));
     });
-    child.stdin.end(JSON.stringify(value));
+    child.stdin.end(typeof value === 'string' ? value : JSON.stringify(value));
   });
 }
 
@@ -93,21 +93,88 @@ test('[RST-014A] concurrent identical, disjoint, and cross-entity namespaces ser
   expect(adminDigest()).toBe(beforeAdmin);
 });
 
-test('[RST-014A] streaming database evidence detects and restores trigger mutations', () => {
-  const before = databaseEvidence().database_sha256;
-  sql("CREATE TRIGGER rst014a_evidence_probe AFTER INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SET @rst014a_evidence_probe=1");
-  try {
-    expect(databaseEvidence().database_sha256).not.toBe(before);
-  } finally {
-    sql('DROP TRIGGER rst014a_evidence_probe');
-  }
-  expect(databaseEvidence().database_sha256).toBe(before);
+test('[RST-014A] streaming evidence detects trigger, database, routine-signature, and sequence mutations', () => {
+  const assertDetectedAndRestored = (mutate, restore) => {
+    const before = databaseEvidence().database_sha256;
+    sql(mutate);
+    try { expect(databaseEvidence().database_sha256).not.toBe(before); }
+    finally { sql(restore); }
+    expect(databaseEvidence().database_sha256).toBe(before);
+  };
+  assertDetectedAndRestored(
+    "CREATE TRIGGER rst014a_evidence_probe AFTER INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SET @rst014a_evidence_probe=1",
+    'DROP TRIGGER rst014a_evidence_probe',
+  );
+  const collation = scalar("SELECT DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='dolidb'");
+  const alternate = collation === 'utf8mb4_bin' ? 'utf8mb4_unicode_ci' : 'utf8mb4_bin';
+  assertDetectedAndRestored(`ALTER DATABASE dolidb COLLATE ${alternate}`, `ALTER DATABASE dolidb COLLATE ${collation}`);
+  assertDetectedAndRestored(
+    'CREATE PROCEDURE rst014a_evidence_routine(IN probe_value INT) SELECT probe_value',
+    'DROP PROCEDURE rst014a_evidence_routine',
+  );
+  assertDetectedAndRestored(
+    'CREATE SEQUENCE rst014a_evidence_sequence START WITH 10',
+    'DROP SEQUENCE rst014a_evidence_sequence',
+  );
 });
 
-async function runLifecycleSignalProbe(signal) {
+test('[RST-014A] direct PHP rejects noncanonical input with independent Admin attestation', async () => {
+  await expect(directFactory(` ${JSON.stringify(request('rst014a-noncanonical'))}`)).rejects.toThrow(/failed/i);
+  const edgeWhitespace = request('rst014a-edge-space');
+  edgeWhitespace.references.partners[0].label = '\ufeffPartenaire';
+  await expect(directFactory(edgeWhitespace)).rejects.toThrow(/failed/i);
+});
+
+test('[RST-014A] post-reservation failure rolls back the complete fixture transaction', () => {
+  const namespace = 'rst014a-rollback';
+  const reservation = require('node:crypto').createHash('sha256').update(namespace).digest('hex');
+  sql("CREATE TRIGGER rst014a_fixture_rollback BEFORE INSERT ON llx_user FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='fixture rollback probe'");
+  try {
+    expect(() => createPhase1FixtureSet(request(namespace))).toThrow(/failed/i);
+  } finally {
+    sql('DROP TRIGGER rst014a_fixture_rollback');
+  }
+  expect(scalar(`SELECT COUNT(*) FROM llx_const WHERE entity=0 AND name='MJL_TEST_FIXTURE_NAMESPACE_${reservation}'`)).toBe('0');
+  expect(scalar("SELECT COUNT(*) FROM llx_user WHERE login LIKE 'rst014a-rollback.%'")).toBe('0');
+});
+
+test('[RST-014A] every permitted role and role-less user stay entity-local', () => {
+  for (const entity of [1, 2]) {
+    const result = createPhase1FixtureSet({
+      namespace: `rst014a-roles-${entity}`, entity,
+      users: [
+        { key: 'agent', role: 'AGENT_SAISIE' },
+        { key: 'supervisor', role: 'AGENT_VERIFICATEUR' },
+        { key: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+        { key: 'norole', role: null },
+      ],
+      references: { partners: [], projects: [], operationTypes: [] },
+    });
+    for (const user of Object.values(result.users)) {
+      expect(scalar(`SELECT entity FROM llx_user WHERE rowid=${user.id}`)).toBe(String(entity));
+    }
+  }
+});
+
+test('[RST-014A] complete factory fails before DB access when the file sentinel is absent', async () => {
+  const canary = '/var/www/documents/rst014a-guard-canary.txt';
+  sql("INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('MJL_RST014A_GUARD_CANARY','unchanged','chaine',0,'synthetic guard canary',0)");
+  execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'sh', '-ceu', `printf unchanged > ${canary}; mv /var/www/documents/.mjl-disposable-fixture-sentinel /var/www/documents/.mjl-disposable-fixture-sentinel.disabled`], { env: process.env });
+  try {
+    await expect(directFactory(request('rst014a-no-sentinel'))).rejects.toThrow(/failed/i);
+    expect(scalar("SELECT value FROM llx_const WHERE entity=0 AND name='MJL_RST014A_GUARD_CANARY'")).toBe('unchanged');
+    expect(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', canary], { env: process.env, encoding: 'utf8' })).toBe('unchanged');
+  } finally {
+    execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'sh', '-ceu', `mv /var/www/documents/.mjl-disposable-fixture-sentinel.disabled /var/www/documents/.mjl-disposable-fixture-sentinel; rm -f ${canary}`], { env: process.env });
+    sql("DELETE FROM llx_const WHERE entity=0 AND name='MJL_RST014A_GUARD_CANARY'");
+  }
+});
+
+async function runLifecycleProbe({ signal = null, outcome = 'signal' }) {
+  const injectedSecret = `lifecycle-${require('node:crypto').randomBytes(16).toString('hex')}`;
   const child = spawn(process.execPath, ['tests/runner/run-suite.js', 'rst014a-lifecycle-probe'], {
     cwd: repositoryRoot,
-    env: { ...process.env, MJL_TEST_RETAIN: '1' },
+    env: { ...process.env, MJL_TEST_RETAIN: '1', MJL_RST014A_PROBE_OUTCOME: outcome, MJL_RST014A_PROBE_FAILURE: outcome, MJL_RST014A_INJECT_SECRET: injectedSecret },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -116,7 +183,8 @@ async function runLifecycleSignalProbe(signal) {
   child.stdout.on('data', (chunk) => { output += chunk; });
   child.stderr.on('data', (chunk) => { output += chunk; });
   const deadline = Date.now() + 90000;
-  while (!output.includes('RST-014A lifecycle probe ready.')) {
+  const needsReady = outcome !== 'setup';
+  while (!/Disposable MJL project: mjl-test-/.test(output) || (needsReady && !output.includes('RST-014A lifecycle probe ready.'))) {
     if (child.exitCode !== null) throw new Error(`Lifecycle probe exited before readiness: ${output}`);
     if (Date.now() > deadline) { child.kill('SIGKILL'); throw new Error('Lifecycle probe readiness timed out.'); }
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -127,10 +195,14 @@ async function runLifecycleSignalProbe(signal) {
     const timer = setTimeout(() => reject(new Error('Lifecycle probe cleanup timed out.')), 130000);
     child.once('close', () => { clearTimeout(timer); resolve(); });
   });
-  child.kill(signal);
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  child.kill(signal);
+  if (signal) {
+    child.kill(signal);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    child.kill(signal);
+  }
   await closed;
+  expect(output).not.toContain(injectedSecret);
+  expect(fs.existsSync(path.join(repositoryRoot, 'test-results', 'runs', project))).toBe(false);
   const filter = `label=com.docker.compose.project=${project}`;
   for (const [kind, args, format] of [
     ['container', ['ps', '-a'], '{{.Names}}'], ['network', ['network', 'ls'], '{{.Name}}'], ['volume', ['volume', 'ls'], '{{.Name}}'],
@@ -143,11 +215,18 @@ async function runLifecycleSignalProbe(signal) {
 for (const signal of ['SIGINT', 'SIGTERM']) {
   test(`[RST-014A] repeated ${signal} runs the real runner teardown`, async () => {
     test.setTimeout(180000);
-    await runLifecycleSignalProbe(signal);
+    await runLifecycleProbe({ signal });
   });
 }
 
-test('[RST-014A] sentinel ownership and mode fail closed before database access', () => {
+for (const outcome of ['success', 'setup', 'test', 'diagnostics-failure', 'diagnostics-timeout']) {
+  test(`[RST-014A] real runner ${outcome} path scans secrets and tears down`, async () => {
+    test.setTimeout(180000);
+    await runLifecycleProbe({ outcome });
+  });
+}
+
+test('[RST-014A] sentinel ownership and mode fail closed before database access', async () => {
   const beforeAdmin = adminDigest();
   const beforeReservations = scalar("SELECT COUNT(*) FROM llx_const WHERE entity=0 AND name LIKE 'MJL_TEST_FIXTURE_NAMESPACE_%'");
   execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'chmod', '0644', '/var/www/documents/.mjl-disposable-fixture-sentinel'], { env: process.env });
@@ -165,9 +244,7 @@ test('[RST-014A] sentinel ownership and mode fail closed before database access'
   } finally {
     execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'chown', 'root:root', '/var/www/documents/.mjl-disposable-fixture-sentinel'], { env: process.env });
   }
-  expect(() => execFileSync('docker', ['compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/phase1-fixture.php'], {
-    env: process.env, input: JSON.stringify(request('rst014a-root-user')), stdio: ['pipe', 'pipe', 'pipe'],
-  })).toThrow();
+  await expect(directFactory(request('rst014a-root-user'), 'root')).rejects.toThrow(/failed/i);
 });
 
 test('[RST-014A] shared-container guard-only preflight cannot enter fixture creation', () => {

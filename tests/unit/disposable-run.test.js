@@ -5,7 +5,8 @@ const path = require('node:path');
 
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('../runner/disposable-run');
 const os = require('node:os');
-const { finalizeDisposableRun, runCommand, verifyArtifacts } = require('../runner/run-suite');
+const net = require('node:net');
+const { finalizeDisposableRun, protectedSourceDigest, runCommand, startSecretRegistry, verifyArtifacts } = require('../runner/run-suite');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 
@@ -45,11 +46,12 @@ test('creates a unique loopback run plan with stable scoped resource names', () 
   assert.match(plan.composeFile, /tests\/fixtures\/disposable-compose\.override\.yml$/);
   assert.match(plan.sentinel, /^[a-f0-9]{32}$/);
   assert.match(plan.testUserPassword, /^[A-Za-z0-9_-]{32}$/);
-  assert.equal(plan.lifecyclePasswords.length, 4);
-  assert.equal(new Set(plan.lifecyclePasswords).size, 4);
+  assert.equal(plan.lifecyclePasswords.length, 3);
+  assert.equal(new Set(plan.lifecyclePasswords).size, 3);
   for (const password of plan.lifecyclePasswords) {
     assert.match(password, /^[A-Z][a-z][0-9]![A-Za-z0-9_-]{32}$/);
   }
+  assert.match(plan.secretRegistryCapability, /^[a-f0-9]{32}$/);
 });
 
 test('rejects the shared app port and invalid repository roots', () => {
@@ -138,12 +140,37 @@ test('never-resolving diagnostics are bounded and cannot bypass teardown', async
     provisionAttempted: true,
     failure: null,
     runMode: 'rst014a',
-    capture: async () => new Promise(() => {}),
+    capture: async (_plan, signal) => new Promise((_, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
+    }),
     remove: async () => { removed = true; },
     diagnosticsTimeoutMs: 10,
   });
   assert.equal(removed, true);
   assert.match(result.message, /diagnostics capture timed out/i);
+});
+
+test('diagnostics acknowledge cancellation before a delayed artifact writer can run', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mjl-late-writer-'));
+  let removed = false;
+  const result = await finalizeDisposableRun({
+    plan: { projectName: 'mjl-test-finalizer', artifactRoot: root },
+    provisionAttempted: true,
+    failure: null,
+    runMode: 'rst014a',
+    diagnosticsTimeoutMs: 10,
+    capture: async (_plan, signal) => new Promise((resolve) => {
+      signal.addEventListener('abort', () => setTimeout(() => {
+        if (!signal.aborted) fs.writeFileSync(path.join(root, 'late.log'), 'secret');
+        resolve();
+      }, 10), { once: true });
+    }),
+    remove: async () => { removed = true; },
+  });
+  assert.equal(removed, true);
+  assert.match(result.message, /timed out/i);
+  assert.equal(fs.existsSync(path.join(root, 'late.log')), false);
+  fs.rmSync(root, { recursive: true, force: true });
 });
 
 test('cancellable subprocess deadlines terminate and await the child', async () => {
@@ -162,6 +189,36 @@ test('every reachable outcome discards a secret-bearing artifact before reportin
     assert.throws(() => verifyArtifacts(root, [{ category: 'injected secret', value: 'dynamic-secret-value' }]), /contaminated artifacts/i);
     assert.equal(fs.existsSync(root), false);
   }
+});
+
+test('protected source evidence encodes root type and rejects top-level symlinks', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mjl-source-root-'));
+  try {
+    fs.writeFileSync(path.join(root, 'entry'), 'same');
+    const fileDigest = protectedSourceDigest(root, ['entry']);
+    fs.rmSync(path.join(root, 'entry'));
+    fs.mkdirSync(path.join(root, 'entry'));
+    fs.writeFileSync(path.join(root, 'entry', 'content'), 'same');
+    assert.notEqual(protectedSourceDigest(root, ['entry']), fileDigest);
+    fs.rmSync(path.join(root, 'entry'), { recursive: true });
+    fs.symlinkSync('/tmp', path.join(root, 'entry'));
+    assert.throws(() => protectedSourceDigest(root, ['entry']), /symbolic link/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('secret registry shutdown destroys a silent partial client within its bound', async () => {
+  const registry = await startSecretRegistry({ secretRegistryCapability: 'a'.repeat(32) });
+  const client = net.createConnection({ host: '127.0.0.1', port: registry.port });
+  await new Promise((resolve, reject) => {
+    client.once('connect', () => { client.write('{"capability":'); resolve(); });
+    client.once('error', reject);
+  });
+  const closed = new Promise((resolve) => client.once('close', resolve));
+  await registry.close();
+  await closed;
+  assert.equal(client.destroyed, true);
 });
 
 test('every Playwright surface installs the disposable guard with no shared URL fallback', () => {

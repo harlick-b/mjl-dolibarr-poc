@@ -29,13 +29,14 @@ async function login(page, username, password = defaultPassword) {
 }
 
 function registerSecret(category, value) {
-  const socketPath = process.env.MJL_SECRET_REGISTRY_SOCKET;
-  if (!socketPath || typeof value !== 'string' || value === '') return Promise.resolve();
+  const port = Number(process.env.MJL_SECRET_REGISTRY_PORT);
+  const capability = process.env.MJL_SECRET_REGISTRY_CAPABILITY;
+  if (!Number.isInteger(port) || !capability || typeof value !== 'string' || value === '') return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const socket = net.createConnection(socketPath);
+    const socket = net.createConnection({ host: '127.0.0.1', port });
     socket.setEncoding('utf8');
     socket.setTimeout(2000);
-    socket.once('connect', () => socket.end(`${JSON.stringify({ category, value })}\n`));
+    socket.once('connect', () => socket.end(`${JSON.stringify({ capability, category, value })}\n`));
     socket.once('close', resolve);
     socket.once('timeout', () => socket.destroy(new Error('Secret registry timed out.')));
     socket.once('error', () => reject(new Error('Secret registry unavailable.')));

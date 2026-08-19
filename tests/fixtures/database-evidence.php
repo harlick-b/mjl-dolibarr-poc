@@ -80,11 +80,14 @@ try {
     $databaseHash = hash_init('sha256');
     $adminHash = hash_init('sha256');
     $ecmHash = hash_init('sha256');
-    $tables = $pdo->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME")->fetchAll(PDO::FETCH_COLUMN);
+    $databaseCreate = $pdo->query('SHOW CREATE DATABASE `dolidb`')->fetch(PDO::FETCH_NUM);
+    evidence_field($databaseHash, 'create-database', $databaseCreate[1] ?? '');
+    $tables = $pdo->query("SELECT TABLE_NAME,TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE IN ('BASE TABLE','SEQUENCE') ORDER BY TABLE_NAME")->fetchAll();
     $counts = [];
     $schema = [];
-    foreach ($tables as $table) {
-        $table = (string) $table;
+    foreach ($tables as $tableDefinition) {
+        $table = (string) $tableDefinition['TABLE_NAME'];
+        $tableType = (string) $tableDefinition['TABLE_TYPE'];
         $quoted = evidence_identifier($table);
         $columnsStatement = $pdo->prepare('SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,GENERATION_EXPRESSION,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? ORDER BY ORDINAL_POSITION');
         $columnsStatement->execute([$table]);
@@ -92,6 +95,7 @@ try {
         $columnNames = array_map(static fn(array $column): string => (string) $column['COLUMN_NAME'], $columns);
         $schema[$table] = count($columns);
         evidence_field($databaseHash, 'table', $table);
+        evidence_field($databaseHash, 'table-type', $tableType);
         foreach ($columns as $column) evidence_field($databaseHash, 'column', json_encode($column, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
         $create = $pdo->query('SHOW CREATE TABLE ' . $quoted)->fetch(PDO::FETCH_NUM);
         evidence_field($databaseHash, 'create', $create[1] ?? '');
@@ -109,12 +113,13 @@ try {
     }
     $schemaObjects = [];
     $objectQueries = [
-        'views' => "SELECT TABLE_NAME,VIEW_DEFINITION,CHECK_OPTION,IS_UPDATABLE,DEFINER,SECURITY_TYPE,CHARACTER_SET_CLIENT,COLLATION_CONNECTION FROM information_schema.VIEWS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME",
-        'triggers' => "SELECT TRIGGER_NAME,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_ORDER,ACTION_CONDITION,ACTION_STATEMENT,ACTION_ORIENTATION,ACTION_TIMING,SQL_MODE,DEFINER,CHARACTER_SET_CLIENT,COLLATION_CONNECTION,DATABASE_COLLATION FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() ORDER BY TRIGGER_NAME",
-        'routines' => "SELECT ROUTINE_NAME,ROUTINE_TYPE,DATA_TYPE,ROUTINE_DEFINITION,IS_DETERMINISTIC,SQL_DATA_ACCESS,SECURITY_TYPE,SQL_MODE,DEFINER,CHARACTER_SET_CLIENT,COLLATION_CONNECTION,DATABASE_COLLATION FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA=DATABASE() ORDER BY ROUTINE_TYPE,ROUTINE_NAME",
-        'events' => "SELECT EVENT_NAME,EVENT_DEFINITION,EVENT_TYPE,EXECUTE_AT,INTERVAL_VALUE,INTERVAL_FIELD,SQL_MODE,STATUS,ON_COMPLETION,DEFINER,CHARACTER_SET_CLIENT,COLLATION_CONNECTION,DATABASE_COLLATION FROM information_schema.EVENTS WHERE EVENT_SCHEMA=DATABASE() ORDER BY EVENT_NAME",
+        'views' => ["SELECT * FROM information_schema.VIEWS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME", 'TABLE_NAME', 'VIEW'],
+        'triggers' => ["SELECT * FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() ORDER BY TRIGGER_NAME", 'TRIGGER_NAME', 'TRIGGER'],
+        'routines' => ["SELECT * FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA=DATABASE() ORDER BY ROUTINE_TYPE,ROUTINE_NAME", 'ROUTINE_NAME', null],
+        'routine_parameters' => ["SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA=DATABASE() ORDER BY SPECIFIC_NAME,ORDINAL_POSITION", null, null],
+        'events' => ["SELECT * FROM information_schema.EVENTS WHERE EVENT_SCHEMA=DATABASE() ORDER BY EVENT_NAME", 'EVENT_NAME', 'EVENT'],
     ];
-    foreach ($objectQueries as $kind => $query) {
+    foreach ($objectQueries as $kind => [$query, $nameField, $showKind]) {
         $objects = $pdo->query($query);
         $count = 0;
         while ($object = $objects->fetch()) {
@@ -123,6 +128,12 @@ try {
             foreach ($object as $name => $value) {
                 evidence_field($databaseHash, 'schema-object-field', $name);
                 evidence_field($databaseHash, 'schema-object-value', $value);
+            }
+            if ($nameField !== null) {
+                $effectiveKind = $kind === 'routines' ? (string) $object['ROUTINE_TYPE'] : (string) $showKind;
+                if (!in_array($effectiveKind, ['VIEW', 'TRIGGER', 'PROCEDURE', 'FUNCTION', 'EVENT'], true)) throw new RuntimeException('Unexpected schema object type.');
+                $created = $pdo->query('SHOW CREATE ' . $effectiveKind . ' ' . evidence_identifier((string) $object[$nameField]))->fetch(PDO::FETCH_NUM);
+                evidence_field($databaseHash, 'schema-object-create', json_encode($created, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             }
         }
         $schemaObjects[$kind] = $count;

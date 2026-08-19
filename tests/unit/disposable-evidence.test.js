@@ -47,10 +47,13 @@ test('streams deterministic path/type/mode/content evidence without a plaintext 
 
 test('database evidence includes every authorized schema-object kind and exact shared baseline fields', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../fixtures/database-evidence.php'), 'utf8');
-  for (const object of ['VIEWS', 'TRIGGERS', 'ROUTINES', 'EVENTS']) {
+  for (const object of ['VIEWS', 'TRIGGERS', 'ROUTINES', 'PARAMETERS', 'EVENTS']) {
     assert.match(source, new RegExp(`information_schema\\.${object}`));
   }
   assert.match(source, /SELECT rowid,entity,login,admin,statut FROM llx_user WHERE admin=1/);
+  assert.match(source, /SHOW CREATE DATABASE/);
+  assert.match(source, /'BASE TABLE','SEQUENCE'/);
+  assert.match(source, /SHOW CREATE ' \./);
   assert.match(source, /'audit_events'/);
   assert.doesNotMatch(source, /file_put_contents\([^)]*(?:\/tmp|manifest\.)/i);
 });

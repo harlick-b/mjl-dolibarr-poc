@@ -239,6 +239,14 @@ and still runs tenant and temporary-directory cleanup.
 An unreadable/corrupt archive or scanner error is itself blocking and discards
 the entire unpromoted artifact set rather than retaining unchecked evidence.
 
+Dynamic test secrets are enrolled before first use through an authenticated
+runner-owned registry bound to an ephemeral loopback TCP port. Its independent
+128-bit per-run capability is inherited only by runner-owned test subprocesses, is
+itself registered as a secret, and never appears in argv or an artifact. The
+registry creates no filesystem path, rejects noncanonical/oversized requests,
+times out silent clients, destroys every accepted socket during bounded
+shutdown, and closes before artifact scanning.
+
 Because the Phase 1 and manual suites enter Admin, fixture, invitation, and
 reset credentials, both Playwright configurations disable automatic trace and
 video capture for these suites; a failure must not first serialize a secret and
@@ -262,7 +270,8 @@ protected source tree is exactly `custom/`, `docs/`, `tests/`, `AGENTS.md`,
 `package-lock.json`, and `playwright.config.js`; nothing inside those paths is
 excluded. Generated evidence remains confined to the separately enumerated
 `test-results/runs/<projectName>/` boundary. The database capture uses one consistent transaction and
-lossless canonical encoding of every schema definition, column, and row in the
+lossless canonical encoding of database defaults and every base table,
+sequence, view, trigger, routine and routine parameter, event, column, and row in the
 complete `dolidb` application database; no application field or row is
 excluded. It includes an all-column fingerprint of the native Admin, including
 authentication/status fields. `tests/fixtures/database-evidence.php` runs in a

@@ -48,8 +48,11 @@ async function worker(...args) {
     child.once('error', () => reject(new Error('Auth worker failed.')));
     child.once('close', (code) => {
       if (code !== 0) return reject(new Error('Auth worker failed.'));
-      try { resolve(JSON.parse(Buffer.concat(stdout).toString('utf8').trim())); }
-      catch (_) { reject(new Error('Auth worker returned an invalid response.')); }
+      try {
+        const result = JSON.parse(Buffer.concat(stdout).toString('utf8').trim());
+        const link = Array.isArray(result) && typeof result[0] === 'string' && result[0].includes('#verifier=') ? result[0] : null;
+        Promise.resolve(link ? registerAuthLink(link) : null).then(() => resolve(result), () => reject(new Error('Auth secret registration failed.')));
+      } catch (_) { reject(new Error('Auth worker returned an invalid response.')); }
     });
     child.stdin.end(canonical);
   });
@@ -68,13 +71,18 @@ async function concurrentWorkers(first, second) {
   await expectLockContention();
   return Promise.all(pending);
 }
-async function tokenParts(link) {
+async function registerAuthLink(link) {
   const url = new URL(link, 'http://example.test');
   const parts = [url.searchParams.get('selector') || url.searchParams.get('mjlselector'), url.hash.slice('#verifier='.length)];
+  if (!parts[0] || !parts[1]) throw new Error('Auth link is incomplete.');
   await registerSecret('auth selector', parts[0]);
   await registerSecret('auth verifier', parts[1]);
   await registerSecret('auth token hash', crypto.createHash('sha256').update(parts[1]).digest('hex'));
   return parts;
+}
+
+async function tokenParts(link) {
+  return registerAuthLink(link);
 }
 function assertNeutralLoser(result, selector, verifier) {
 	expect(result).toMatch(/invalide|expir|concurrente|en cours/i);
@@ -241,8 +249,8 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
     expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='phase1.parallel.delivery' ORDER BY i.rowid DESC LIMIT 1")).toBe('send_failed:NULL');
     expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_send_failed' AND object_id=${deliveryUserId}`)).toBe('1');
     const rawOutboxLink = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-invitation.json'], { encoding: 'utf8', env: process.env })).link;
-    await assertNoVerifierLeak(page, rawOutboxLink);
     const stale = await tokenParts(rawOutboxLink);
+    await assertNoVerifierLeak(page, rawOutboxLink);
     expect((await worker('accept', stale[0], stale[1], stalePassword))[0]).toContain('invalide ou expirée');
   } finally {
     sql("DELETE FROM llx_const WHERE name='MJL_AUTH_E2E_FAIL_AUTH_OUTBOX' AND entity=1");
@@ -266,8 +274,8 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
     expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.parallel.reset-delivery' ORDER BY r.rowid DESC LIMIT 1")).toBe('send_failed:NULL');
     expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_send_failed' AND object_id=${resetUserId}`)) - failedResetAuditBefore).toBe(1);
     const rawResetLink = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-password_reset.json'], { encoding: 'utf8', env: process.env })).link;
-    await assertNoVerifierLeak(page, rawResetLink);
     const staleReset = await tokenParts(rawResetLink);
+    await assertNoVerifierLeak(page, rawResetLink);
     expect((await worker('consume', staleReset[0], staleReset[1], stalePassword))[0]).toContain('invalide ou expiré');
   } finally {
     sql("DELETE FROM llx_const WHERE name='MJL_AUTH_E2E_FAIL_AUTH_OUTBOX' AND entity=1");

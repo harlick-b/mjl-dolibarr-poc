@@ -22,6 +22,7 @@ const retainedSecrets = [
   process.env.MYSQL_PASSWORD || 'poc_pwd',
 ].filter(Boolean);
 const dynamicSecrets = new Map();
+let activeSecretRegistryPort = '';
 
 function registerRunnerSecret(category, value) {
   if (typeof value === 'string' && value !== '') dynamicSecrets.set(value, category);
@@ -39,8 +40,11 @@ function secretEntries() {
 }
 
 async function startSecretRegistry(plan) {
-  const socketPath = plan.secretRegistrySocket;
+  const sockets = new Set();
   const server = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.setTimeout(2000, () => socket.destroy());
+    socket.once('close', () => sockets.delete(socket));
     let input = '';
     socket.setEncoding('utf8');
     socket.on('data', (chunk) => {
@@ -50,7 +54,8 @@ async function startSecretRegistry(plan) {
     socket.on('end', () => {
       try {
         const request = JSON.parse(input.trim());
-        if (Object.keys(request).join(',') !== 'category,value'
+        if (Object.keys(request).join(',') !== 'capability,category,value'
+          || !crypto.timingSafeEqual(Buffer.from(request.capability || ''), Buffer.from(plan.secretRegistryCapability))
           || typeof request.category !== 'string' || !/^[a-z][a-z ]{1,39}$/.test(request.category)
           || typeof request.value !== 'string' || request.value.length < 8 || request.value.length > 512) throw new Error('invalid');
         registerRunnerSecret(request.category, request.value);
@@ -59,14 +64,24 @@ async function startSecretRegistry(plan) {
   });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(socketPath, resolve);
+    server.listen({ host: '127.0.0.1', port: 0 }, resolve);
   });
-  fs.chmodSync(socketPath, 0o600);
+  const address = server.address();
+  activeSecretRegistryPort = String(address.port);
   return {
-    socketPath,
+    port: address.port,
     close: async () => {
-      await new Promise((resolve) => server.close(resolve));
-      fs.rmSync(socketPath, { force: true });
+      for (const socket of sockets) socket.destroy();
+      let timer;
+      try {
+        await Promise.race([
+          new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Secret registry shutdown timed out.')), 2000); }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+      activeSecretRegistryPort = '';
     },
   };
 }
@@ -87,7 +102,7 @@ async function runWithDeadline(operation, milliseconds, label) {
     ]);
   } catch (error) {
     controller.abort();
-    await Promise.race([task.catch(() => {}), new Promise((resolve) => setTimeout(resolve, 2200))]);
+    await task.catch(() => {});
     throw error;
   } finally {
     clearTimeout(timer);
@@ -120,6 +135,21 @@ function verifyArtifacts(root, secrets) {
     try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}
     throw error;
   }
+}
+
+function protectedSourceDigest(root, protectedPaths) {
+  const sourceHash = crypto.createHash('sha256');
+  for (const relative of protectedPaths) {
+    const absolute = path.join(root, relative);
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink()) throw new Error(`Protected source root must not be a symbolic link: ${relative}`);
+    const type = stat.isDirectory() ? 'directory' : (stat.isFile() ? 'file' : 'unsupported');
+    if (type === 'unsupported') throw new Error(`Protected source root has an unsupported type: ${relative}`);
+    sourceHash.update(`${relative}\0${type}\0${stat.mode & 0o7777}\0`);
+    if (type === 'directory') sourceHash.update(streamTreeDigest(absolute));
+    else sourceHash.update(fs.readFileSync(absolute));
+  }
+  return sourceHash.digest('hex');
 }
 
 function allocatePort() {
@@ -219,7 +249,8 @@ function composeEnvironment(plan, sourceRoot = repositoryRoot) {
     MJL_AUTH_PASSWORD_1: plan.lifecyclePasswords[0],
     MJL_AUTH_PASSWORD_2: plan.lifecyclePasswords[1],
     MJL_AUTH_STALE_PASSWORD: plan.lifecyclePasswords[2],
-    MJL_SECRET_REGISTRY_SOCKET: plan.secretRegistrySocket || '',
+    MJL_SECRET_REGISTRY_PORT: activeSecretRegistryPort,
+    MJL_SECRET_REGISTRY_CAPABILITY: plan.secretRegistryCapability,
   };
 }
 
@@ -431,18 +462,21 @@ async function runPlaywright(plan, target, signal) {
 }
 
 async function captureDiagnostics(plan, signal) {
+  if (process.env.MJL_RST014A_DIAGNOSTICS_STUB === 'failure') throw new Error('Injected diagnostics failure.');
   if (process.env.MJL_RST014A_DIAGNOSTICS_STUB === 'never') {
     await new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('Injected diagnostics timeout.')), { once: true }));
   }
   fs.mkdirSync(plan.artifactRoot, { recursive: true });
   const chunks = [];
   for (const args of [['ps', '-a'], ['logs', '--no-color', '--timestamps']]) {
+    if (signal.aborted) throw new Error('Diagnostics capture cancelled.');
     try {
       chunks.push(await compose(plan, args, { quiet: true, signal, timeoutMs: 4000 }));
     } catch (error) {
       chunks.push(error.output || error.message);
     }
   }
+  if (signal.aborted) throw new Error('Diagnostics capture cancelled.');
   fs.writeFileSync(
     path.join(plan.artifactRoot, 'compose.log'),
     sanitizeOutput(chunks.join('\n'), allSecretValues()),
@@ -470,14 +504,6 @@ async function captureSharedEvidence(signal = AbortSignal.timeout(60000)) {
     throw new Error('Shared tenant contains business or sample rows.');
   }
   const protectedPaths = ['custom', 'docs', 'tests', 'AGENTS.md', 'CONTEXT.md', 'DESIGN.md', 'README.md', 'docker-compose.yml', 'package.json', 'package-lock.json', 'playwright.config.js'];
-  const sourceHash = crypto.createHash('sha256');
-  for (const relative of protectedPaths) {
-    const absolute = path.join(repositoryRoot, relative);
-    const stat = fs.lstatSync(absolute);
-    sourceHash.update(`${relative}\0${stat.mode & 0o7777}\0`);
-    if (stat.isDirectory()) sourceHash.update(streamTreeDigest(absolute));
-    else sourceHash.update(fs.readFileSync(absolute));
-  }
   const project = path.basename(repositoryRoot);
   const filter = `label=com.docker.compose.project=${project}`;
   const [containers, networks, volumes] = await Promise.all([
@@ -487,7 +513,7 @@ async function captureSharedEvidence(signal = AbortSignal.timeout(60000)) {
   ]);
   const names = (value) => value.split('\n').map((entry) => entry.trim()).filter(Boolean).sort();
   return Object.freeze({
-    protected_source_sha256: sourceHash.digest('hex'),
+    protected_source_sha256: protectedSourceDigest(repositoryRoot, protectedPaths),
     documents_sha256: database.documents_sha256,
     database,
     resources: { containers: names(containers), networks: names(networks), volumes: names(volumes) },
@@ -551,7 +577,7 @@ async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMod
   } catch (diagnosticsError) {
     failure = combineFailures(failure, diagnosticsError, 'Test execution and diagnostics capture failed.');
   }
-  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset' && runMode !== 'rst014a';
+  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset' && !runMode.startsWith('rst014a');
   try {
     if (shouldRetain) retain(plan);
   } finally {
@@ -589,8 +615,13 @@ async function main() {
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
       registerRunnerSecret('disposable credential', plan.testUserPassword);
       registerRunnerSecret('disposable sentinel', plan.sentinel);
+      registerRunnerSecret('secret registry capability', plan.secretRegistryCapability);
       for (const password of plan.lifecyclePasswords) registerRunnerSecret('lifecycle credential', password);
       secretRegistry = await startSecretRegistry(plan);
+      if (mode === 'rst014a-lifecycle-probe' && process.env.MJL_RST014A_INJECT_SECRET) {
+        registerRunnerSecret('injected lifecycle secret', process.env.MJL_RST014A_INJECT_SECRET);
+        fs.writeFileSync(path.join(plan.artifactRoot, 'injected-secret.log'), process.env.MJL_RST014A_INJECT_SECRET, { mode: 0o600 });
+      }
       process.stdout.write(`Disposable MJL project: ${plan.projectName}\nURL: ${plan.baseUrl}\n`);
     }
 
@@ -620,7 +651,11 @@ async function main() {
         else await provision(plan, controller.signal);
       }
       if (layer === 'rst014a-lifecycle-probe') {
-        if (process.env.MJL_RST014A_PROBE_FAILURE === 'test') throw new Error('Injected lifecycle test failure.');
+        const outcome = process.env.MJL_RST014A_PROBE_OUTCOME || 'signal';
+        if (outcome === 'test') throw new Error('Injected lifecycle test failure.');
+        if (outcome === 'diagnostics-failure') process.env.MJL_RST014A_DIAGNOSTICS_STUB = 'failure';
+        if (outcome === 'diagnostics-timeout') process.env.MJL_RST014A_DIAGNOSTICS_STUB = 'never';
+        if (['success', 'diagnostics-failure', 'diagnostics-timeout'].includes(outcome)) continue;
         await new Promise((resolve) => {
           if (controller.signal.aborted) resolve();
           else controller.signal.addEventListener('abort', resolve, { once: true });
@@ -698,4 +733,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { combineFailures, finalizeDisposableRun, runCommand, verifyArtifacts };
+module.exports = { combineFailures, finalizeDisposableRun, protectedSourceDigest, runCommand, startSecretRegistry, verifyArtifacts };

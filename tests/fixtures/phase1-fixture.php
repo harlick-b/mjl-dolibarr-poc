@@ -37,7 +37,7 @@ function mjl_fixture_label(mixed $value): string
 {
     if (!is_string($value)
         || $value === ''
-        || preg_match('/^[\p{Z}\x{0009}-\x{000D}]|[\p{Z}\x{0009}-\x{000D}]$/u', $value)
+        || preg_match('/^[\p{Z}\x{0009}-\x{000D}\x{FEFF}]|[\p{Z}\x{0009}-\x{000D}\x{FEFF}]$/u', $value)
         || !Normalizer::isNormalized($value, Normalizer::FORM_C)
         || preg_match('/[\x{0000}-\x{001F}\x{007F}-\x{009F}]/u', $value)
         || mb_strlen($value, 'UTF-8') > 112
