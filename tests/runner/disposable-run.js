@@ -29,7 +29,7 @@ function createRunPlan(options = {}) {
   const artifactRoot = path.join(repositoryRoot, 'test-results', 'runs', projectName);
   const sentinel = options.sentinel || crypto.randomBytes(16).toString('hex');
   const testUserPassword = options.testUserPassword || crypto.randomBytes(24).toString('base64url');
-  const lifecyclePasswords = Object.freeze(Array.from({ length: 4 }, () => crypto.randomBytes(24).toString('base64url')));
+  const lifecyclePasswords = Object.freeze(Array.from({ length: 4 }, () => `Aa1!${crypto.randomBytes(24).toString('base64url')}`));
   if (!/^[a-f0-9]{32}$/.test(sentinel)) throw new Error('The disposable sentinel must be 16 random bytes encoded as lowercase hexadecimal.');
   if (!/^[A-Za-z0-9_-]{32}$/.test(testUserPassword)) throw new Error('The disposable test credential must be 24 random bytes encoded as unpadded base64url.');
 

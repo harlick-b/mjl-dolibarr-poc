@@ -47,6 +47,9 @@ test('creates a unique loopback run plan with stable scoped resource names', () 
   assert.match(plan.testUserPassword, /^[A-Za-z0-9_-]{32}$/);
   assert.equal(plan.lifecyclePasswords.length, 4);
   assert.equal(new Set(plan.lifecyclePasswords).size, 4);
+  for (const password of plan.lifecyclePasswords) {
+    assert.match(password, /^[A-Z][a-z][0-9]![A-Za-z0-9_-]{32}$/);
+  }
 });
 
 test('rejects the shared app port and invalid repository roots', () => {
