@@ -1,11 +1,12 @@
 const { test, expect } = require('@playwright/test');
 const crypto = require('node:crypto');
-const { execFile, execFileSync } = require('node:child_process');
-const { promisify } = require('node:util');
-const { sql, scalar } = require('../helpers/mjl-test-runtime');
+const { execFileSync, spawn } = require('node:child_process');
+const { sql, scalar, registerSecret } = require('../helpers/mjl-test-runtime');
 
-const execFileAsync = promisify(execFile);
 let searchableTextColumns = null;
+const parallelPassword1 = process.env.MJL_AUTH_PASSWORD_1;
+const parallelPassword2 = process.env.MJL_AUTH_PASSWORD_2;
+const stalePassword = process.env.MJL_AUTH_STALE_PASSWORD;
 
 function scalarFromStdin(statement) {
   return scalar(statement);
@@ -28,8 +29,30 @@ function databasePlaintextHits(variants) {
   return scalarFromStdin(`SELECT COUNT(*) FROM (${scans.join(' UNION ALL ')}) AS all_database_text WHERE ${predicates};`);
 }
 async function worker(...args) {
-  const { stdout } = await execFileAsync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/auth-parallel-worker.php', ...args], { encoding: 'utf8', env: process.env });
-  return JSON.parse(stdout.trim());
+  const [operation, ...values] = args;
+  const barrierArgument = values.at(-1)?.startsWith('--barrier=') ? values.pop() : '--barrier=';
+  const fields = {
+    issue: ['login', 'email'], accept: ['selector', 'verifier', 'password'], reset: ['email'], consume: ['selector', 'verifier', 'password'],
+  }[operation];
+  if (!fields || fields.length !== values.length) throw new Error('Invalid auth worker request.');
+  const request = { operation };
+  fields.forEach((field, index) => { request[field] = values[index]; });
+  request.barrier = barrierArgument.slice('--barrier='.length);
+  const canonical = JSON.stringify(request);
+  return new Promise((resolve, reject) => {
+    const child = spawn('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/auth-parallel-worker.php'], {
+      env: process.env, stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const stdout = [];
+    child.stdout.on('data', (chunk) => stdout.push(Buffer.from(chunk)));
+    child.once('error', () => reject(new Error('Auth worker failed.')));
+    child.once('close', (code) => {
+      if (code !== 0) return reject(new Error('Auth worker failed.'));
+      try { resolve(JSON.parse(Buffer.concat(stdout).toString('utf8').trim())); }
+      catch (_) { reject(new Error('Auth worker returned an invalid response.')); }
+    });
+    child.stdin.end(canonical);
+  });
 }
 async function expectLockContention() {
   const deadline = Date.now() + 3000;
@@ -45,9 +68,13 @@ async function concurrentWorkers(first, second) {
   await expectLockContention();
   return Promise.all(pending);
 }
-function tokenParts(link) {
+async function tokenParts(link) {
   const url = new URL(link, 'http://example.test');
-  return [url.searchParams.get('selector') || url.searchParams.get('mjlselector'), url.hash.slice('#verifier='.length)];
+  const parts = [url.searchParams.get('selector') || url.searchParams.get('mjlselector'), url.hash.slice('#verifier='.length)];
+  await registerSecret('auth selector', parts[0]);
+  await registerSecret('auth verifier', parts[1]);
+  await registerSecret('auth token hash', crypto.createHash('sha256').update(parts[1]).digest('hex'));
+  return parts;
 }
 function assertNeutralLoser(result, selector, verifier) {
 	expect(result).toMatch(/invalide|expir|concurrente|en cours/i);
@@ -117,7 +144,7 @@ test('[RST-008] parallel identity collisions leave one user and one live invitat
   const loginWinners = loginCollision.filter((result) => typeof result[0] === 'string' && result[0].includes('#verifier='));
   expect(loginWinners).toHaveLength(1);
   const loginLoser = loginCollision.find((result) => result !== loginWinners[0]);
-  const loginToken = tokenParts(loginWinners[0][0]);
+  const loginToken = await tokenParts(loginWinners[0][0]);
   assertNeutralLoser(JSON.stringify(loginLoser), loginToken[0], loginToken[1]);
   await assertNoVerifierLeak(page, loginWinners[0][0]);
   expect(scalar("SELECT COUNT(*) FROM llx_user WHERE login='phase1.parallel.same-login'" )).toBe('1');
@@ -131,7 +158,7 @@ test('[RST-008] parallel identity collisions leave one user and one live invitat
   const emailWinners = emailCollision.filter((result) => typeof result[0] === 'string' && result[0].includes('#verifier='));
   expect(emailWinners).toHaveLength(1);
   const emailLoser = emailCollision.find((result) => result !== emailWinners[0]);
-  const emailToken = tokenParts(emailWinners[0][0]);
+  const emailToken = await tokenParts(emailWinners[0][0]);
   assertNeutralLoser(JSON.stringify(emailLoser), emailToken[0], emailToken[1]);
   await assertNoVerifierLeak(page, emailWinners[0][0]);
   expect(scalar("SELECT COUNT(*) FROM llx_user WHERE email='phase1.parallel.same@example.test'" )).toBe('1');
@@ -143,12 +170,12 @@ test('[RST-008] parallel invitation and reset consumption is single-use', async 
   const issued = await worker('issue', 'phase1.parallel.lifecycle', 'phase1.parallel.lifecycle@example.test');
   expect(issued[0]).toContain('#verifier=');
   await assertNoVerifierLeak(page, issued[0]);
-  const invitation = tokenParts(issued[0]);
+  const invitation = await tokenParts(issued[0]);
   const userId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.lifecycle'");
   const acceptedAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_accepted' AND object_id=${userId}`));
   const accepted = await concurrentWorkers(
-    ['accept', invitation[0], invitation[1], 'Parallel-password-1!'],
-    ['accept', invitation[0], invitation[1], 'Parallel-password-2!'],
+    ['accept', invitation[0], invitation[1], parallelPassword1],
+    ['accept', invitation[0], invitation[1], parallelPassword2],
   );
   expect(accepted.filter((result) => result[0] === '')).toHaveLength(1);
   assertNeutralLoser(accepted.find((result) => result[0] !== '')[0], invitation[0], invitation[1]);
@@ -169,11 +196,11 @@ test('[RST-008] parallel invitation and reset consumption is single-use', async 
   const liveSelector = scalar("SELECT r.token_selector FROM llx_mjlfinancement_password_reset r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.parallel.lifecycle' AND r.status='sent'");
   const liveLink = resets.flat().find((link) => typeof link === 'string' && link.includes(liveSelector));
   expect(liveLink).toBeTruthy();
-  const reset = tokenParts(liveLink);
+  const reset = await tokenParts(liveLink);
   const completedAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_completed' AND object_id=${userId}`));
   const consumed = await concurrentWorkers(
-    ['consume', reset[0], reset[1], 'Parallel-reset-1!'],
-    ['consume', reset[0], reset[1], 'Parallel-reset-2!'],
+    ['consume', reset[0], reset[1], parallelPassword1],
+    ['consume', reset[0], reset[1], parallelPassword2],
   );
   expect(consumed.filter((result) => result[0] === '')).toHaveLength(1);
   assertNeutralLoser(consumed.find((result) => result[0] !== '')[0], reset[0], reset[1]);
@@ -215,8 +242,8 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
     expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='invitation_send_failed' AND object_id=${deliveryUserId}`)).toBe('1');
     const rawOutboxLink = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-invitation.json'], { encoding: 'utf8', env: process.env })).link;
     await assertNoVerifierLeak(page, rawOutboxLink);
-    const stale = tokenParts(rawOutboxLink);
-    expect((await worker('accept', stale[0], stale[1], 'Never-accepted-1!'))[0]).toContain('invalide ou expirée');
+    const stale = await tokenParts(rawOutboxLink);
+    expect((await worker('accept', stale[0], stale[1], stalePassword))[0]).toContain('invalide ou expirée');
   } finally {
     sql("DELETE FROM llx_const WHERE name='MJL_AUTH_E2E_FAIL_AUTH_OUTBOX' AND entity=1");
   }
@@ -228,8 +255,8 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
 
   const resetIdentity = await worker('issue', 'phase1.parallel.reset-delivery', 'phase1.parallel.reset-delivery@example.test');
   await assertNoVerifierLeak(page, resetIdentity[0]);
-  const resetInvitation = tokenParts(resetIdentity[0]);
-  expect((await worker('accept', resetInvitation[0], resetInvitation[1], 'Reset-delivery-1!'))[0]).toBe('');
+  const resetInvitation = await tokenParts(resetIdentity[0]);
+  expect((await worker('accept', resetInvitation[0], resetInvitation[1], parallelPassword1))[0]).toBe('');
   const resetUserId = scalar("SELECT rowid FROM llx_user WHERE login='phase1.parallel.reset-delivery'");
   const failedResetAuditBefore = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_send_failed' AND object_id=${resetUserId}`));
   sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_E2E_FAIL_AUTH_OUTBOX',1,'1','chaine',0,'injected partial reset delivery') ON DUPLICATE KEY UPDATE value='1'");
@@ -240,8 +267,8 @@ test('[RST-008] partial test delivery clears credentials and retry succeeds', as
     expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='password_reset_send_failed' AND object_id=${resetUserId}`)) - failedResetAuditBefore).toBe(1);
     const rawResetLink = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-password_reset.json'], { encoding: 'utf8', env: process.env })).link;
     await assertNoVerifierLeak(page, rawResetLink);
-    const staleReset = tokenParts(rawResetLink);
-    expect((await worker('consume', staleReset[0], staleReset[1], 'Never-reset-1!'))[0]).toContain('invalide ou expiré');
+    const staleReset = await tokenParts(rawResetLink);
+    expect((await worker('consume', staleReset[0], staleReset[1], stalePassword))[0]).toContain('invalide ou expiré');
   } finally {
     sql("DELETE FROM llx_const WHERE name='MJL_AUTH_E2E_FAIL_AUTH_OUTBOX' AND entity=1");
   }

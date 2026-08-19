@@ -4,14 +4,31 @@ define('NOLOGIN', 1);
 require '/var/www/html/main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
 
-$operation = isset($argv[1]) ? $argv[1] : '';
+$raw = file_get_contents('php://stdin', false, null, 0, 8193);
+if (!is_string($raw) || $raw === '' || strlen($raw) > 8192) { fwrite(STDERR, "invalid request\n"); exit(2); }
+try {
+	$request = json_decode($raw, true, 8, JSON_THROW_ON_ERROR);
+} catch (Throwable $error) {
+	fwrite(STDERR, "invalid request\n"); exit(2);
+}
+if (!is_array($request) || json_encode($request, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) !== $raw) { fwrite(STDERR, "invalid request\n"); exit(2); }
+$operation = $request['operation'] ?? '';
+$expected = array(
+	'issue' => array('operation', 'login', 'email', 'barrier'),
+	'accept' => array('operation', 'selector', 'verifier', 'password', 'barrier'),
+	'reset' => array('operation', 'email', 'barrier'),
+	'consume' => array('operation', 'selector', 'verifier', 'password', 'barrier'),
+);
+if (!isset($expected[$operation]) || array_keys($request) !== $expected[$operation]) { fwrite(STDERR, "invalid request\n"); exit(2); }
+$bounded = static function ($value, int $maximum): bool { return is_string($value) && $value !== '' && strlen($value) <= $maximum && !preg_match('/[\x00-\x1f\x7f]/', $value); };
+foreach ($request as $key => $value) {
+	if ($key !== 'operation' && $key !== 'barrier' && !$bounded($value, $key === 'password' ? 128 : 320)) { fwrite(STDERR, "invalid request\n"); exit(2); }
+}
 $admin = new User($db);
 if ($admin->fetch(1) <= 0) { fwrite(STDERR, "admin unavailable\n"); exit(2); }
 
-$barrier = '';
-foreach ($argv as $argument) {
-	if (strpos($argument, '--barrier=') === 0) $barrier = substr($argument, 10);
-}
+$barrier = $request['barrier'];
+if (!is_string($barrier)) { fwrite(STDERR, "invalid barrier\n"); exit(2); }
 if ($barrier !== '') {
 	if (!preg_match('/^[a-f0-9]{32}$/', $barrier)) { fwrite(STDERR, "invalid barrier\n"); exit(2); }
 	$barrierDir = DOL_DATA_ROOT.'/mjlfinancement/auth-test-barriers/'.$barrier;
@@ -29,14 +46,14 @@ if ($barrier !== '') {
 
 if ($operation === 'issue') {
 	$result = mjl_auth_issue_invitation(array(
-		'login' => $argv[2], 'email' => $argv[3], 'firstname' => 'Parallel', 'lastname' => 'Auth', 'role_code' => 'AGENT_SAISIE',
+		'login' => $request['login'], 'email' => $request['email'], 'firstname' => 'Parallel', 'lastname' => 'Auth', 'role_code' => 'AGENT_SAISIE',
 	), $admin);
 } elseif ($operation === 'accept') {
-	$result = array(mjl_auth_accept_invitation($argv[2], $argv[3], $argv[4], $argv[4]));
+	$result = array(mjl_auth_accept_invitation($request['selector'], $request['verifier'], $request['password'], $request['password']));
 } elseif ($operation === 'reset') {
-	$result = array(mjl_auth_create_password_reset($argv[2], 1));
+	$result = array(mjl_auth_create_password_reset($request['email'], 1));
 } elseif ($operation === 'consume') {
-	$result = array(mjl_auth_consume_password_reset($argv[2], $argv[3], $argv[4], $argv[4]));
+	$result = array(mjl_auth_consume_password_reset($request['selector'], $request['verifier'], $request['password'], $request['password']));
 } else {
 	fwrite(STDERR, "unknown operation\n"); exit(2);
 }

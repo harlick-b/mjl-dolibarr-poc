@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('../runner/disposable-run');
-const { finalizeDisposableRun } = require('../runner/run-suite');
+const os = require('node:os');
+const { finalizeDisposableRun, runCommand, verifyArtifacts } = require('../runner/run-suite');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 
@@ -27,6 +28,7 @@ test('creates a unique loopback run plan with stable scoped resource names', () 
       configVolume: plan.configVolume,
       sentinel: plan.sentinel,
       testUserPassword: plan.testUserPassword,
+      lifecyclePasswords: plan.lifecyclePasswords,
     },
     {
       projectName: 'mjl-test-20260803t123456-4321-a1b2c3d4',
@@ -37,11 +39,14 @@ test('creates a unique loopback run plan with stable scoped resource names', () 
       configVolume: 'mjl-test-20260803t123456-4321-a1b2c3d4_mjl_test_conf',
       sentinel: plan.sentinel,
       testUserPassword: plan.testUserPassword,
+      lifecyclePasswords: plan.lifecyclePasswords,
     },
   );
   assert.match(plan.composeFile, /tests\/fixtures\/disposable-compose\.override\.yml$/);
   assert.match(plan.sentinel, /^[a-f0-9]{32}$/);
   assert.match(plan.testUserPassword, /^[A-Za-z0-9_-]{32}$/);
+  assert.equal(plan.lifecyclePasswords.length, 4);
+  assert.equal(new Set(plan.lifecyclePasswords).size, 4);
 });
 
 test('rejects the shared app port and invalid repository roots', () => {
@@ -121,6 +126,39 @@ test('RST-014A never retains a failed tenant', async () => {
   });
   assert.equal(removed, true);
   assert.equal(retained, false);
+});
+
+test('never-resolving diagnostics are bounded and cannot bypass teardown', async () => {
+  let removed = false;
+  const result = await finalizeDisposableRun({
+    plan: { projectName: 'mjl-test-finalizer' },
+    provisionAttempted: true,
+    failure: null,
+    runMode: 'rst014a',
+    capture: async () => new Promise(() => {}),
+    remove: async () => { removed = true; },
+    diagnosticsTimeoutMs: 10,
+  });
+  assert.equal(removed, true);
+  assert.match(result.message, /diagnostics capture timed out/i);
+});
+
+test('cancellable subprocess deadlines terminate and await the child', async () => {
+  const started = Date.now();
+  await assert.rejects(
+    runCommand(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { quiet: true, timeoutMs: 30 }),
+    /timed out/i,
+  );
+  assert.ok(Date.now() - started < 2500);
+});
+
+test('every reachable outcome discards a secret-bearing artifact before reporting', () => {
+  for (const outcome of ['success', 'ordinary-failure', 'setup-failure', 'diagnostics-timeout', 'sigint', 'sigterm']) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `mjl-${outcome}-`));
+    fs.writeFileSync(path.join(root, `${outcome}.log`), 'dynamic-secret-value', { mode: 0o600 });
+    assert.throws(() => verifyArtifacts(root, [{ category: 'injected secret', value: 'dynamic-secret-value' }]), /contaminated artifacts/i);
+    assert.equal(fs.existsSync(root), false);
+  }
 });
 
 test('every Playwright surface installs the disposable guard with no shared URL fallback', () => {

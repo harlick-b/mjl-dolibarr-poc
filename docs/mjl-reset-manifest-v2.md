@@ -494,7 +494,7 @@ number does not approve a suffixed unit.
 
 ### RST-014A - Phase 1 disposable test-fixture infrastructure
 
-- Status: `APPROVED_IMPLEMENTATION_IN_REVIEW`
+- Status: `APPROVED` (implementation under review)
 - Current component: mature disposable Compose/runner isolation and focused
   fixtures already exist, but Phase 1 specs duplicate raw SQL setup and no
   guarded general Phase 1 record-factory interface exists.
@@ -522,6 +522,7 @@ number does not approve a suffixed unit.
   `tests/e2e/phase1-reset.spec.js`, `tests/e2e/auth-concurrency.spec.js`,
   `tests/e2e/cases/partner-project.cases.js`,
   `tests/e2e/document-containment.spec.js`,
+  `tests/fixtures/auth-parallel-worker.php`,
   `tests/fixtures/rst010a-document-state.php`,
   `tests/manual/accessibility-gate.spec.js`,
   `tests/manual/playwright.config.js`, `playwright.config.js`,

@@ -107,6 +107,26 @@ try {
         }
         $counts[$table] = $count;
     }
+    $schemaObjects = [];
+    $objectQueries = [
+        'views' => "SELECT TABLE_NAME,VIEW_DEFINITION,CHECK_OPTION,IS_UPDATABLE,DEFINER,SECURITY_TYPE,CHARACTER_SET_CLIENT,COLLATION_CONNECTION FROM information_schema.VIEWS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME",
+        'triggers' => "SELECT TRIGGER_NAME,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_ORDER,ACTION_CONDITION,ACTION_STATEMENT,ACTION_ORIENTATION,ACTION_TIMING,SQL_MODE,DEFINER,CHARACTER_SET_CLIENT,COLLATION_CONNECTION,DATABASE_COLLATION FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() ORDER BY TRIGGER_NAME",
+        'routines' => "SELECT ROUTINE_NAME,ROUTINE_TYPE,DATA_TYPE,ROUTINE_DEFINITION,IS_DETERMINISTIC,SQL_DATA_ACCESS,SECURITY_TYPE,SQL_MODE,DEFINER,CHARACTER_SET_CLIENT,COLLATION_CONNECTION,DATABASE_COLLATION FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA=DATABASE() ORDER BY ROUTINE_TYPE,ROUTINE_NAME",
+        'events' => "SELECT EVENT_NAME,EVENT_DEFINITION,EVENT_TYPE,EXECUTE_AT,INTERVAL_VALUE,INTERVAL_FIELD,SQL_MODE,STATUS,ON_COMPLETION,DEFINER,CHARACTER_SET_CLIENT,COLLATION_CONNECTION,DATABASE_COLLATION FROM information_schema.EVENTS WHERE EVENT_SCHEMA=DATABASE() ORDER BY EVENT_NAME",
+    ];
+    foreach ($objectQueries as $kind => $query) {
+        $objects = $pdo->query($query);
+        $count = 0;
+        while ($object = $objects->fetch()) {
+            $count++;
+            evidence_field($databaseHash, 'schema-object-kind', $kind);
+            foreach ($object as $name => $value) {
+                evidence_field($databaseHash, 'schema-object-field', $name);
+                evidence_field($databaseHash, 'schema-object-value', $value);
+            }
+        }
+        $schemaObjects[$kind] = $count;
+    }
     $admin = $pdo->query('SELECT * FROM llx_user WHERE admin=1 ORDER BY rowid');
     while ($row = $admin->fetch()) foreach ($row as $name => $value) {
         evidence_field($adminHash, 'name', $name);
@@ -121,11 +141,19 @@ try {
     }
     $disposableControlCount = (int) $pdo->query("SELECT COUNT(*) FROM llx_const WHERE entity=0 AND (name='MJL_DISPOSABLE_FIXTURE_SENTINEL' OR name LIKE 'MJL_TEST_FIXTURE_NAMESPACE_%')")->fetchColumn();
     $adminCount = (int) $pdo->query('SELECT COUNT(*) FROM llx_user WHERE admin=1')->fetchColumn();
+    $adminIdentity = $pdo->query('SELECT rowid,entity,login,admin,statut FROM llx_user WHERE admin=1 ORDER BY rowid')->fetchAll();
     $businessCounts = [
         'users_non_admin' => (int) $pdo->query('SELECT COUNT(*) FROM llx_user WHERE admin=0')->fetchColumn(),
         'partners' => (int) $pdo->query('SELECT COUNT(*) FROM llx_societe')->fetchColumn(),
         'projects' => (int) $pdo->query('SELECT COUNT(*) FROM llx_projet')->fetchColumn(),
         'ecm_files' => (int) $pdo->query('SELECT COUNT(*) FROM llx_ecm_files')->fetchColumn(),
+        'business_roles' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_user_role')->fetchColumn(),
+        'partner_scopes' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_user_soc_scope')->fetchColumn(),
+        'activities' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_activity')->fetchColumn(),
+        'operation_types' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_operation_type')->fetchColumn(),
+        'invitations' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_invitation')->fetchColumn(),
+        'password_resets' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_password_reset')->fetchColumn(),
+        'audit_events' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_audit_event')->fetchColumn(),
     ];
     $pdo->rollBack();
     echo json_encode([
@@ -138,9 +166,11 @@ try {
         'disposable_control_count' => $disposableControlCount,
         'disposable_file_sentinel_present' => file_exists('/var/www/documents/.mjl-disposable-fixture-sentinel'),
         'admin_count' => $adminCount,
+        'admin_identity' => $adminIdentity,
         'business_counts' => $businessCounts,
         'table_counts' => $counts,
         'schema_column_counts' => $schema,
+        'schema_object_counts' => $schemaObjects,
     ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 } catch (Throwable $error) {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) $pdo->rollBack();

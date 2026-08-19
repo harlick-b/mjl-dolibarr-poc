@@ -37,7 +37,7 @@ function mjl_fixture_label(mixed $value): string
 {
     if (!is_string($value)
         || $value === ''
-        || trim($value) !== $value
+        || preg_match('/^[\p{Z}\x{0009}-\x{000D}]|[\p{Z}\x{0009}-\x{000D}]$/u', $value)
         || !Normalizer::isNormalized($value, Normalizer::FORM_C)
         || preg_match('/[\x{0000}-\x{001F}\x{007F}-\x{009F}]/u', $value)
         || mb_strlen($value, 'UTF-8') > 112
@@ -50,15 +50,6 @@ function mjl_fixture_label(mixed $value): string
 function mjl_fixture_digest(string $namespace, string $kind, string $key): string
 {
     return hash('sha256', $namespace . "\0" . $kind . "\0" . $key);
-}
-
-function mjl_fixture_admin_digest(PDO $pdo): string
-{
-    $rows = $pdo->query('SELECT * FROM llx_user WHERE admin=1 ORDER BY rowid')->fetchAll(PDO::FETCH_ASSOC);
-    if (count($rows) !== 1) {
-        throw new RuntimeException('Unexpected native administrator cardinality.');
-    }
-    return hash('sha256', serialize($rows));
 }
 
 try {
@@ -140,8 +131,6 @@ try {
     $sentinelStatement = $pdo->prepare("SELECT value FROM llx_const WHERE entity=0 AND name='MJL_DISPOSABLE_FIXTURE_SENTINEL'");
     $sentinelStatement->execute();
     if (!hash_equals($sentinel, (string) $sentinelStatement->fetchColumn())) throw new RuntimeException('Database sentinel mismatch.');
-    $adminBefore = mjl_fixture_admin_digest($pdo);
-
     $pdo->beginTransaction();
     $reservationName = 'MJL_TEST_FIXTURE_NAMESPACE_' . hash('sha256', $request->namespace);
     $reservation = $pdo->prepare("INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES(?,?,'chaine',0,'Disposable Phase 1 fixture namespace',0)");
@@ -184,7 +173,6 @@ try {
         $insertType->execute([$request->entity, $reference['label'] . ' [' . substr($digest, 0, 12) . ']', $creatorId]);
         $result['operationTypes'][$reference['key']] = (int) $pdo->lastInsertId();
     }
-    if (!hash_equals($adminBefore, mjl_fixture_admin_digest($pdo))) throw new RuntimeException('Native administrator changed.');
     $pdo->commit();
     foreach (['users', 'partners', 'projects', 'operationTypes'] as $collection) $result[$collection] = (object) $result[$collection];
     echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);

@@ -1,4 +1,5 @@
 const { execFileSync } = require('node:child_process');
+const net = require('node:net');
 
 const defaultPassword = process.env.MJL_POC_DEFAULT_PASSWORD || 'MjlPoc2026!!';
 
@@ -27,4 +28,18 @@ async function login(page, username, password = defaultPassword) {
   await page.waitForLoadState('domcontentloaded');
 }
 
-module.exports = { composeExec, login, scalar, sql };
+function registerSecret(category, value) {
+  const socketPath = process.env.MJL_SECRET_REGISTRY_SOCKET;
+  if (!socketPath || typeof value !== 'string' || value === '') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection(socketPath);
+    socket.setEncoding('utf8');
+    socket.setTimeout(2000);
+    socket.once('connect', () => socket.end(`${JSON.stringify({ category, value })}\n`));
+    socket.once('close', resolve);
+    socket.once('timeout', () => socket.destroy(new Error('Secret registry timed out.')));
+    socket.once('error', () => reject(new Error('Secret registry unavailable.')));
+  });
+}
+
+module.exports = { composeExec, login, registerSecret, scalar, sql };

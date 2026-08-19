@@ -1,6 +1,6 @@
 # RST-014A Phase 1 Disposable Fixture Strategy
 
-Status: `APPROVED_IMPLEMENTATION_IN_REVIEW`.
+Status: `APPROVED` (implementation under review).
 
 Approval provenance: the user explicitly approved RST-014A on 2026-08-19.
 Execution discovered that the retained tenant uses Dolibarr's native SHA-256
@@ -9,6 +9,10 @@ Dolibarr 23 while that global remains active, and changing the global would
 invalidate the preserved Admin credential. The native `dol_hash($password,
 '0')` correction below preserves the approved per-run credential isolation,
 Admin immutability, and native authentication contract.
+On 2026-08-19 the user separately approved this native-hash correction,
+authorized `tests/fixtures/auth-parallel-worker.php` inside the exact modify
+boundary for canonical stdin-only secret transport, and authorized the
+post-commit review corrections recorded by this revision.
 
 This unit completes the existing disposable runner with one guarded Phase 1
 record-factory interface. It creates no persistent sample dataset, changes no
@@ -326,6 +330,7 @@ Modify only as required:
 - `tests/e2e/cases/partner-project.cases.js`;
 - `tests/e2e/document-containment.spec.js`;
 - `tests/fixtures/rst010a-document-state.php`;
+- `tests/fixtures/auth-parallel-worker.php`;
 - `tests/manual/accessibility-gate.spec.js`;
 - `tests/manual/playwright.config.js`;
 - `playwright.config.js`;
@@ -346,7 +351,6 @@ for an amended strategy review and separate explicit approval.
 Retain unchanged:
 
 - `tests/helpers/playwright-global-setup.js`;
-- `tests/fixtures/auth-parallel-worker.php`;
 - non-seeding `custom/mjlfinancement/scripts/bootstrap_poc.php`;
 - continued absence of `custom/mjlfinancement/scripts/seed_sample_data.php`,
   `custom/mjlfinancement/lib/mjl_sample_data.lib.php`,

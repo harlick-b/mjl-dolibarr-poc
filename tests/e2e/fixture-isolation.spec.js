@@ -4,12 +4,18 @@ const path = require('node:path');
 const { execFileSync, spawn } = require('node:child_process');
 
 const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
-const { scalar } = require('../helpers/mjl-test-runtime');
+const { scalar, sql } = require('../helpers/mjl-test-runtime');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 
 function adminDigest() {
-  return scalar("SELECT SHA2(CONCAT_WS(0x1f,rowid,entity,login,COALESCE(pass,''),COALESCE(pass_crypted,''),COALESCE(pass_temp,''),admin,statut),256) FROM llx_user WHERE admin=1");
+  return databaseEvidence().admin_sha256;
+}
+
+function databaseEvidence() {
+  return JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/database-evidence.php'], {
+    env: process.env, encoding: 'utf8', input: '', stdio: ['pipe', 'pipe', 'pipe'],
+  }));
 }
 
 function request(namespace = 'rst014a-e2e', entity = 1) {
@@ -50,6 +56,7 @@ test('[RST-014A] namespace replay and cross-entity reuse fail atomically', () =>
 });
 
 async function directFactory(value, user = 'www-data') {
+  const before = adminDigest();
   return new Promise((resolve, reject) => {
     const child = spawn('docker', ['compose', 'exec', '-T', '--user', user, 'dolibarr', 'php', '/opt/mjl-tests/fixtures/phase1-fixture.php'], {
       env: process.env,
@@ -61,6 +68,8 @@ async function directFactory(value, user = 'www-data') {
     child.stderr.on('data', (chunk) => stderr.push(Buffer.from(chunk)));
     child.once('error', reject);
     child.once('close', (code) => {
+      const after = adminDigest();
+      if (after !== before) return reject(new Error('Concurrent fixture changed the native administrator.'));
       if (code === 0) resolve({ stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') });
       else reject(new Error('Concurrent disposable fixture call failed.'));
     });
@@ -83,6 +92,60 @@ test('[RST-014A] concurrent identical, disjoint, and cross-entity namespaces ser
   }
   expect(adminDigest()).toBe(beforeAdmin);
 });
+
+test('[RST-014A] streaming database evidence detects and restores trigger mutations', () => {
+  const before = databaseEvidence().database_sha256;
+  sql("CREATE TRIGGER rst014a_evidence_probe AFTER INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SET @rst014a_evidence_probe=1");
+  try {
+    expect(databaseEvidence().database_sha256).not.toBe(before);
+  } finally {
+    sql('DROP TRIGGER rst014a_evidence_probe');
+  }
+  expect(databaseEvidence().database_sha256).toBe(before);
+});
+
+async function runLifecycleSignalProbe(signal) {
+  const child = spawn(process.execPath, ['tests/runner/run-suite.js', 'rst014a-lifecycle-probe'], {
+    cwd: repositoryRoot,
+    env: { ...process.env, MJL_TEST_RETAIN: '1' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  child.stderr.on('data', (chunk) => { output += chunk; });
+  const deadline = Date.now() + 90000;
+  while (!output.includes('RST-014A lifecycle probe ready.')) {
+    if (child.exitCode !== null) throw new Error(`Lifecycle probe exited before readiness: ${output}`);
+    if (Date.now() > deadline) { child.kill('SIGKILL'); throw new Error('Lifecycle probe readiness timed out.'); }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const project = output.match(/Disposable MJL project: (mjl-test-[^\n]+)/)?.[1];
+  expect(project).toBeTruthy();
+  const closed = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Lifecycle probe cleanup timed out.')), 130000);
+    child.once('close', () => { clearTimeout(timer); resolve(); });
+  });
+  child.kill(signal);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  child.kill(signal);
+  await closed;
+  const filter = `label=com.docker.compose.project=${project}`;
+  for (const [kind, args, format] of [
+    ['container', ['ps', '-a'], '{{.Names}}'], ['network', ['network', 'ls'], '{{.Name}}'], ['volume', ['volume', 'ls'], '{{.Name}}'],
+  ]) {
+    const remaining = execFileSync('docker', [...args, '--filter', filter, '--format', format], { encoding: 'utf8' }).trim();
+    expect(remaining, `${kind} survived ${signal}`).toBe('');
+  }
+}
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  test(`[RST-014A] repeated ${signal} runs the real runner teardown`, async () => {
+    test.setTimeout(180000);
+    await runLifecycleSignalProbe(signal);
+  });
+}
 
 test('[RST-014A] sentinel ownership and mode fail closed before database access', () => {
   const beforeAdmin = adminDigest();

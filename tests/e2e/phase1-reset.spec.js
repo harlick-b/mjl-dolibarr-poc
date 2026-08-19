@@ -1,10 +1,22 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('node:child_process');
+const crypto = require('node:crypto');
 const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
-const { sql, scalar } = require('../helpers/mjl-test-runtime');
+const { sql, scalar, registerSecret } = require('../helpers/mjl-test-runtime');
 
 const adminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
 const testPassword = process.env.MJL_TEST_USER_PASSWORD;
+const invitationPassword = process.env.MJL_AUTH_PASSWORD_1;
+const resetPassword = process.env.MJL_AUTH_PASSWORD_2;
+
+async function registerLinkSecrets(link) {
+  const url = new URL(link, process.env.MJL_BASE_URL);
+  const selector = url.searchParams.get('selector') || url.searchParams.get('mjlselector');
+  const verifier = url.hash.slice('#verifier='.length);
+  await registerSecret('auth selector', selector);
+  await registerSecret('auth verifier', verifier);
+  await registerSecret('auth token hash', crypto.createHash('sha256').update(verifier).digest('hex'));
+}
 
 function outbox(type) {
   const payload = execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-' + type + '.json'], { encoding: 'utf8', env: process.env });
@@ -107,6 +119,7 @@ test('[RST-008] invitation and reset credentials enforce lifecycle invalidation 
   await page.getByRole('button', { name: 'Envoyer l’invitation' }).click();
   await expect(page.locator('body')).toContainText('Invitation envoyée');
   let invitationLink = await page.locator('code').innerText();
+  await registerLinkSecrets(invitationLink);
   expect(invitationLink).toMatch(/\?selector=[a-f0-9]{32}#verifier=/);
   let invitationVerifier = new URL(invitationLink, page.url()).hash.slice('#verifier='.length);
   expect(page.url()).not.toContain(invitationVerifier);
@@ -126,26 +139,27 @@ test('[RST-008] invitation and reset credentials enforce lifecycle invalidation 
   await page.getByLabel('Profil de production').selectOption('AGENT_SAISIE');
   await page.getByRole('button', { name: 'Envoyer l’invitation' }).click();
   invitationLink = await page.locator('code').innerText();
+  await registerLinkSecrets(invitationLink);
   invitationVerifier = new URL(invitationLink, page.url()).hash.slice('#verifier='.length);
 
   await page.goto(invitationLink.replace(invitationVerifier, 'invalid-verifier'));
-  await page.getByLabel('Mot de passe', { exact: true }).fill('Phase1-new-password!');
-  await page.getByLabel('Confirmer le mot de passe').fill('Phase1-new-password!');
+  await page.getByLabel('Mot de passe', { exact: true }).fill(invitationPassword);
+  await page.getByLabel('Confirmer le mot de passe').fill(invitationPassword);
   await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
   await expect(page.locator('body')).toContainText('invalide ou expirée');
 
   await page.goto(invitationLink);
   await expect(page).not.toHaveURL(/#verifier=/);
   await expect(page.getByLabel('Code secret de l’invitation')).toHaveValue(invitationVerifier);
-  await page.getByLabel('Mot de passe', { exact: true }).fill('Phase1-new-password!');
-  await page.getByLabel('Confirmer le mot de passe').fill('Phase1-new-password!');
+  await page.getByLabel('Mot de passe', { exact: true }).fill(invitationPassword);
+  await page.getByLabel('Confirmer le mot de passe').fill(invitationPassword);
   await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
   await expect(page.locator('body')).toContainText('Votre accès est activé');
   expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_invitation i INNER JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='phase1.e2e.invited' ORDER BY i.rowid DESC LIMIT 1")).toBe('accepted:NULL');
 
   await page.goto(invitationLink);
   await expect(page.locator('body')).toContainText('déjà été acceptée');
-  await login(page, 'phase1.e2e.invited', 'Phase1-new-password!');
+  await login(page, 'phase1.e2e.invited', invitationPassword);
 
   await page.goto('/user/logout.php');
   await page.goto('/user/passwordforgotten.php');
@@ -153,24 +167,26 @@ test('[RST-008] invitation and reset credentials enforce lifecycle invalidation 
   await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   await expect(page.locator('body')).toContainText('Si un compte correspond');
   const resetLink = outbox('password_reset').link;
+  await registerLinkSecrets(resetLink);
   expect(resetLink).toMatch(/mjlselector=[a-f0-9]{32}#verifier=/);
   const resetVerifier = new URL(resetLink).hash.slice('#verifier='.length);
   await page.goto(resetLink);
   await expect(page).not.toHaveURL(/#verifier=/);
   await expect(page.getByLabel('Code secret de réinitialisation')).toHaveValue(resetVerifier);
-	await page.getByLabel('Nouveau mot de passe', { exact: true }).fill('Phase1-reset-password!');
-  await page.getByLabel('Confirmer le mot de passe').fill('Phase1-reset-password!');
+	await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(resetPassword);
+  await page.getByLabel('Confirmer le mot de passe').fill(resetPassword);
   await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
   expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset r INNER JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.e2e.invited' ORDER BY r.rowid DESC LIMIT 1")).toBe('consumed:NULL');
   await page.goto(resetLink);
   await expect(page.locator('body')).toContainText('invalide ou expiré');
-  await login(page, 'phase1.e2e.invited', 'Phase1-reset-password!');
+  await login(page, 'phase1.e2e.invited', resetPassword);
 
   await page.goto('/user/logout.php');
   await page.goto('/user/passwordforgotten.php');
   await page.getByLabel('Adresse e-mail').fill('phase1.invited@example.test');
   await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   const expiringResetLink = outbox('password_reset').link;
+  await registerLinkSecrets(expiringResetLink);
   sql("UPDATE llx_mjlfinancement_password_reset r INNER JOIN llx_user u ON u.rowid=r.fk_user SET r.date_expiry=DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE u.login='phase1.e2e.invited' AND r.status='sent'");
   await page.goto(expiringResetLink);
   await expect(page.locator('body')).toContainText('invalide ou expiré');
@@ -179,7 +195,8 @@ test('[RST-008] invitation and reset credentials enforce lifecycle invalidation 
   await page.getByLabel('Adresse e-mail').fill('phase1.invited@example.test');
   await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   const revokedByDeactivationLink = outbox('password_reset').link;
-  await login(page, 'phase1.e2e.invited', 'Phase1-reset-password!');
+  await registerLinkSecrets(revokedByDeactivationLink);
+  await login(page, 'phase1.e2e.invited', resetPassword);
   const adminContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
   await login(adminPage, 'admin');

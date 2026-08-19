@@ -21,13 +21,77 @@ const retainedSecrets = [
   process.env.MYSQL_ROOT_PASSWORD || 'poc_root_pwd',
   process.env.MYSQL_PASSWORD || 'poc_pwd',
 ].filter(Boolean);
+const dynamicSecrets = new Map();
 
-function bounded(promise, milliseconds, label) {
+function registerRunnerSecret(category, value) {
+  if (typeof value === 'string' && value !== '') dynamicSecrets.set(value, category);
+}
+
+function allSecretValues() {
+  return [...retainedSecrets, ...dynamicSecrets.keys()];
+}
+
+function secretEntries() {
+  return [
+    ...retainedSecrets.map((value) => ({ category: 'configured credential', value })),
+    ...[...dynamicSecrets].map(([value, category]) => ({ category, value })),
+  ];
+}
+
+async function startSecretRegistry(plan) {
+  const socketPath = plan.secretRegistrySocket;
+  const server = net.createServer((socket) => {
+    let input = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => {
+      input += chunk;
+      if (Buffer.byteLength(input, 'utf8') > 4096) socket.destroy();
+    });
+    socket.on('end', () => {
+      try {
+        const request = JSON.parse(input.trim());
+        if (Object.keys(request).join(',') !== 'category,value'
+          || typeof request.category !== 'string' || !/^[a-z][a-z ]{1,39}$/.test(request.category)
+          || typeof request.value !== 'string' || request.value.length < 8 || request.value.length > 512) throw new Error('invalid');
+        registerRunnerSecret(request.category, request.value);
+      } catch (_) {}
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, resolve);
+  });
+  fs.chmodSync(socketPath, 0o600);
+  return {
+    socketPath,
+    close: async () => {
+      await new Promise((resolve) => server.close(resolve));
+      fs.rmSync(socketPath, { force: true });
+    },
+  };
+}
+
+async function runWithDeadline(operation, milliseconds, label) {
+  const controller = new AbortController();
   let timer;
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} timed out.`)), milliseconds); }),
-  ]).finally(() => clearTimeout(timer));
+  const task = Promise.resolve().then(() => operation(controller.signal));
+  try {
+    return await Promise.race([
+      task,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`${label} timed out.`));
+        }, milliseconds);
+      }),
+    ]);
+  } catch (error) {
+    controller.abort();
+    await Promise.race([task.catch(() => {}), new Promise((resolve) => setTimeout(resolve, 2200))]);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function hardenArtifactPermissions(root) {
@@ -45,6 +109,17 @@ function hardenArtifactPermissions(root) {
     }
   };
   visit(root);
+}
+
+function verifyArtifacts(root, secrets) {
+  try {
+    hardenArtifactPermissions(root);
+    const hits = scanArtifacts(root, secrets);
+    if (hits.length) throw new Error(`Contaminated artifacts were removed: ${hits.map((hit) => `${hit.path} (${hit.category})`).join(', ')}`);
+  } catch (error) {
+    try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}
+    throw error;
+  }
 }
 
 function allocatePort() {
@@ -67,7 +142,8 @@ function runCommand(command, args, options = {}) {
     const child = spawn(command, args, {
       cwd: options.cwd || repositoryRoot,
       env: options.env || process.env,
-      stdio: options.input !== undefined ? ['pipe', options.quiet ? 'pipe' : 'inherit', options.quiet ? 'pipe' : 'inherit'] : (options.quiet ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit']),
+      detached: process.platform !== 'win32',
+      stdio: options.input !== undefined ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
     });
     const stdoutChunks = [];
     const stderrChunks = [];
@@ -76,23 +152,50 @@ function runCommand(command, args, options = {}) {
     if (child.stderr) child.stderr.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
     if (child.stdin) child.stdin.end(options.input);
 
-    const abort = () => child.kill('SIGTERM');
+    let terminationTimer;
+    let timedOut = false;
+    const terminate = () => {
+      if (child.exitCode !== null || child.signalCode !== null) return;
+      try {
+        if (process.platform !== 'win32') process.kill(-child.pid, 'SIGTERM');
+        else child.kill('SIGTERM');
+      } catch (_) {}
+      terminationTimer = setTimeout(() => {
+        try {
+          if (process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL');
+          else child.kill('SIGKILL');
+        } catch (_) {}
+      }, 2000);
+      terminationTimer.unref();
+    };
+    const abort = () => terminate();
     if (options.signal) {
       if (options.signal.aborted) abort();
       else options.signal.addEventListener('abort', abort, { once: true });
     }
 
     child.once('error', reject);
+    let deadlineTimer;
+    if (options.timeoutMs) {
+      deadlineTimer = setTimeout(() => { timedOut = true; terminate(); }, options.timeoutMs);
+      deadlineTimer.unref();
+    }
     child.once('close', (code, signal) => {
       const stdout = Buffer.concat(stdoutChunks);
       const stderr = Buffer.concat(stderrChunks);
       const output = options.binary ? stdout : stdout.toString('utf8');
       if (options.signal) options.signal.removeEventListener('abort', abort);
+      clearTimeout(deadlineTimer);
+      clearTimeout(terminationTimer);
+      if (!options.quiet) {
+        if (stdout.length) process.stdout.write(sanitizeOutput(stdout.toString('utf8'), allSecretValues()));
+        if (stderr.length) process.stderr.write(sanitizeOutput(stderr.toString('utf8'), allSecretValues()));
+      }
       if (code === 0) {
         resolve(output);
         return;
       }
-      const error = new Error(`${command} ${args.join(' ')} failed with ${signal || `exit ${code}`}.`);
+      const error = new Error(timedOut ? `${command} timed out.` : `${command} failed with ${signal || `exit ${code}`}.`);
       error.exitCode = code;
       error.output = Buffer.concat([stdout, stderr]).toString('utf8');
       error.stderr = stderr.toString('utf8');
@@ -113,6 +216,10 @@ function composeEnvironment(plan, sourceRoot = repositoryRoot) {
     MJL_PLAYWRIGHT_OUTPUT_DIR: path.join(plan.artifactRoot, 'playwright'),
     MJL_DISPOSABLE_RUN_SENTINEL: plan.sentinel,
     MJL_TEST_USER_PASSWORD: plan.testUserPassword,
+    MJL_AUTH_PASSWORD_1: plan.lifecyclePasswords[0],
+    MJL_AUTH_PASSWORD_2: plan.lifecyclePasswords[1],
+    MJL_AUTH_STALE_PASSWORD: plan.lifecyclePasswords[2],
+    MJL_SECRET_REGISTRY_SOCKET: plan.secretRegistrySocket || '',
   };
 }
 
@@ -320,27 +427,30 @@ async function runPlaywright(plan, target, signal) {
   } else {
     args.push('--config=tests/manual/playwright.config.js', '--debug');
   }
-  await runCommand('npx', args, { env: composeEnvironment(plan), signal });
+  await runCommand('npx', args, { env: composeEnvironment(plan), signal, timeoutMs: 15 * 60 * 1000 });
 }
 
-async function captureDiagnostics(plan) {
+async function captureDiagnostics(plan, signal) {
+  if (process.env.MJL_RST014A_DIAGNOSTICS_STUB === 'never') {
+    await new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('Injected diagnostics timeout.')), { once: true }));
+  }
   fs.mkdirSync(plan.artifactRoot, { recursive: true });
   const chunks = [];
   for (const args of [['ps', '-a'], ['logs', '--no-color', '--timestamps']]) {
     try {
-      chunks.push(await compose(plan, args, { quiet: true }));
+      chunks.push(await compose(plan, args, { quiet: true, signal, timeoutMs: 4000 }));
     } catch (error) {
       chunks.push(error.output || error.message);
     }
   }
   fs.writeFileSync(
     path.join(plan.artifactRoot, 'compose.log'),
-    sanitizeOutput(chunks.join('\n'), retainedSecrets),
+    sanitizeOutput(chunks.join('\n'), allSecretValues()),
     { mode: 0o600 },
   );
 }
 
-async function captureSharedEvidence(signal) {
+async function captureSharedEvidence(signal = AbortSignal.timeout(60000)) {
   const source = fs.readFileSync(path.join(repositoryRoot, 'tests/fixtures/database-evidence.php'));
   const sharedEnvironment = { ...process.env };
   for (const key of ['COMPOSE_PROJECT_NAME', 'COMPOSE_FILE', 'MJL_BASE_URL', 'MJL_TEST_PORT', 'MJL_DISPOSABLE_RUN_SENTINEL', 'MJL_TEST_USER_PASSWORD']) delete sharedEnvironment[key];
@@ -349,8 +459,16 @@ async function captureSharedEvidence(signal) {
     input: source,
     env: sharedEnvironment,
     signal,
+    timeoutMs: 30000,
   }));
   if (database.disposable_control_count !== 0 || database.disposable_file_sentinel_present) throw new Error('Shared tenant contains disposable fixture controls.');
+  const expectedAdmin = [{ rowid: 1, entity: 0, login: 'admin', admin: 1, statut: 1 }];
+  if (database.admin_count !== 1 || JSON.stringify(database.admin_identity) !== JSON.stringify(expectedAdmin)) {
+    throw new Error('Shared tenant does not contain the exact preserved native administrator baseline.');
+  }
+  if (Object.values(database.business_counts || {}).some((count) => count !== 0)) {
+    throw new Error('Shared tenant contains business or sample rows.');
+  }
   const protectedPaths = ['custom', 'docs', 'tests', 'AGENTS.md', 'CONTEXT.md', 'DESIGN.md', 'README.md', 'docker-compose.yml', 'package.json', 'package-lock.json', 'playwright.config.js'];
   const sourceHash = crypto.createHash('sha256');
   for (const relative of protectedPaths) {
@@ -363,9 +481,9 @@ async function captureSharedEvidence(signal) {
   const project = path.basename(repositoryRoot);
   const filter = `label=com.docker.compose.project=${project}`;
   const [containers, networks, volumes] = await Promise.all([
-    runCommand('docker', ['ps', '-a', '--filter', filter, '--format', '{{.Names}}'], { quiet: true, signal }),
-    runCommand('docker', ['network', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true, signal }),
-    runCommand('docker', ['volume', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true, signal }),
+    runCommand('docker', ['ps', '-a', '--filter', filter, '--format', '{{.Names}}'], { quiet: true, signal, timeoutMs: 10000 }),
+    runCommand('docker', ['network', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true, signal, timeoutMs: 10000 }),
+    runCommand('docker', ['volume', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true, signal, timeoutMs: 10000 }),
   ]);
   const names = (value) => value.split('\n').map((entry) => entry.trim()).filter(Boolean).sort();
   return Object.freeze({
@@ -376,24 +494,25 @@ async function captureSharedEvidence(signal) {
   });
 }
 
-async function projectResources(plan) {
+async function projectResources(plan, signal) {
   const filter = `label=com.docker.compose.project=${plan.projectName}`;
   const [containers, networks, volumes] = await Promise.all([
-    runCommand('docker', ['ps', '-a', '--filter', filter, '--format', '{{.Names}}'], { quiet: true }),
-    runCommand('docker', ['network', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true }),
-    runCommand('docker', ['volume', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true }),
+    runCommand('docker', ['ps', '-a', '--filter', filter, '--format', '{{.Names}}'], { quiet: true, signal, timeoutMs: 10000 }),
+    runCommand('docker', ['network', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true, signal, timeoutMs: 10000 }),
+    runCommand('docker', ['volume', 'ls', '--filter', filter, '--format', '{{.Name}}'], { quiet: true, signal, timeoutMs: 10000 }),
   ]);
   const lines = (value) => value.split('\n').map((line) => line.trim()).filter(Boolean);
   return { containers: lines(containers), networks: lines(networks), volumes: lines(volumes) };
 }
 
 async function cleanup(plan) {
+  const cleanupSignal = AbortSignal.timeout(120000);
   let lastFailure;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      await compose(plan, ['exec', '-T', 'mariadb', 'sh', '-c', 'rm -f /run/mjl-test/client.cnf'], { quiet: true }).catch(() => {});
-      await bounded(compose(plan, ['down', '-v', '--remove-orphans']), 30000, 'Disposable teardown');
-      assertCleanupComplete(await bounded(projectResources(plan), 10000, 'Disposable resource enumeration'), plan.projectName);
+      await compose(plan, ['exec', '-T', 'mariadb', 'sh', '-c', 'rm -f /run/mjl-test/client.cnf'], { quiet: true, signal: cleanupSignal, timeoutMs: 5000 }).catch(() => {});
+      await compose(plan, ['down', '-v', '--remove-orphans'], { signal: cleanupSignal, timeoutMs: 30000 });
+      assertCleanupComplete(await projectResources(plan, cleanupSignal), plan.projectName);
       return;
     } catch (error) {
       lastFailure = error;
@@ -425,14 +544,14 @@ function combineFailures(primary, secondary, label) {
   return combined;
 }
 
-async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMode = mode, environment = process.env, capture = captureDiagnostics, remove = cleanup, retain = printRetainedRun }) {
+async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMode = mode, environment = process.env, capture = captureDiagnostics, remove = cleanup, retain = printRetainedRun, diagnosticsTimeoutMs = 10000 }) {
   if (!plan || !provisionAttempted) return failure;
   try {
-    await bounded(capture(plan), 10000, 'Diagnostics capture');
+    await runWithDeadline((signal) => capture(plan, signal), diagnosticsTimeoutMs, 'Diagnostics capture');
   } catch (diagnosticsError) {
     failure = combineFailures(failure, diagnosticsError, 'Test execution and diagnostics capture failed.');
   }
-  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && !['phase1-reset', 'rst014a'].includes(runMode);
+  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset' && runMode !== 'rst014a';
   try {
     if (shouldRetain) retain(plan);
   } finally {
@@ -462,11 +581,16 @@ async function main() {
   let provisionAttempted = false;
   let failure = null;
   let sharedBefore = null;
+  let secretRegistry = null;
   try {
     if (mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
+      registerRunnerSecret('disposable credential', plan.testUserPassword);
+      registerRunnerSecret('disposable sentinel', plan.sentinel);
+      for (const password of plan.lifecyclePasswords) registerRunnerSecret('lifecycle credential', password);
+      secretRegistry = await startSecretRegistry(plan);
       process.stdout.write(`Disposable MJL project: ${plan.projectName}\nURL: ${plan.baseUrl}\n`);
     }
 
@@ -477,7 +601,13 @@ async function main() {
       }
       if (!provisionAttempted) {
         provisionAttempted = true;
-        if (mode === 'phase1-reset') await runPhase1Cutover({
+        if (layer === 'rst014a-lifecycle-probe') {
+          const resolved = await compose(plan, ['config', '--format', 'json'], { quiet: true, signal: controller.signal, timeoutMs: 10000 });
+          assertDisposableConfig(JSON.parse(resolved), plan);
+          if (process.env.MJL_RST014A_PROBE_FAILURE === 'setup') throw new Error('Injected lifecycle setup failure.');
+          await compose(plan, ['up', '-d', 'mariadb'], { quiet: true, signal: controller.signal, timeoutMs: 60000 });
+          process.stdout.write('RST-014A lifecycle probe ready.\n');
+        } else if (mode === 'phase1-reset') await runPhase1Cutover({
           plan,
           signal: controller.signal,
           repositoryRoot,
@@ -488,6 +618,14 @@ async function main() {
           assertDisposableConfig,
         });
         else await provision(plan, controller.signal);
+      }
+      if (layer === 'rst014a-lifecycle-probe') {
+        if (process.env.MJL_RST014A_PROBE_FAILURE === 'test') throw new Error('Injected lifecycle test failure.');
+        await new Promise((resolve) => {
+          if (controller.signal.aborted) resolve();
+          else controller.signal.addEventListener('abort', resolve, { once: true });
+        });
+        continue;
       }
       if (layer === 'verify') await runVerification(plan, controller.signal);
       else if (layer === 'rst003') {
@@ -516,6 +654,11 @@ async function main() {
     failure = error;
   } finally {
     failure = await finalizeDisposableRun({ plan, provisionAttempted, failure });
+    if (secretRegistry) {
+      try { await secretRegistry.close(); } catch (registryError) {
+        failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
+      }
+    }
     if (mode === 'rst014a' && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
@@ -525,17 +668,14 @@ async function main() {
         failure = combineFailures(failure, evidenceError, 'RST-014A shared-state verification failed.');
       }
       try {
-        hardenArtifactPermissions(plan.artifactRoot);
-        const secrets = [
-          ...retainedSecrets.map((value) => ({ category: 'configured credential', value })),
-          { category: 'disposable credential', value: plan.testUserPassword },
-          { category: 'disposable sentinel', value: plan.sentinel },
-        ];
-        const hits = scanArtifacts(plan.artifactRoot, secrets);
-        if (hits.length) throw new Error(`Contaminated artifacts were removed: ${hits.map((hit) => `${hit.path} (${hit.category})`).join(', ')}`);
+        verifyArtifacts(plan.artifactRoot, secretEntries());
       } catch (scanError) {
-        try { fs.rmSync(plan.artifactRoot, { recursive: true, force: true }); } catch (_) {}
         failure = combineFailures(failure, scanError, 'RST-014A artifact verification failed.');
+      }
+    }
+    if (mode === 'rst014a-lifecycle-probe' && plan) {
+      try { verifyArtifacts(plan.artifactRoot, secretEntries()); } catch (scanError) {
+        failure = combineFailures(failure, scanError, 'RST-014A lifecycle artifact verification failed.');
       }
     }
   }
@@ -550,10 +690,12 @@ async function main() {
 
 if (require.main === module) {
   main().catch((error) => {
-    const details = error instanceof AggregateError ? `${error.stack || error.message}\n${error.errors.map((entry) => entry.stack || entry.message).join('\n')}` : (error.stack || error.message);
-    process.stderr.write(`${sanitizeOutput(details, retainedSecrets)}\n`);
+    const details = error instanceof AggregateError
+      ? `${error.stack || error.message}\n${error.errors.map((entry) => `${entry.stack || entry.message}${entry.output ? `\n${entry.output}` : ''}`).join('\n')}`
+      : `${error.stack || error.message}${error.output ? `\n${error.output}` : ''}`;
+    process.stderr.write(`${sanitizeOutput(details, allSecretValues())}\n`);
     process.exitCode = error.exitCode || 1;
   });
 }
 
-module.exports = { combineFailures, finalizeDisposableRun };
+module.exports = { combineFailures, finalizeDisposableRun, runCommand, verifyArtifacts };
