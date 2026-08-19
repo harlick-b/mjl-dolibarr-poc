@@ -155,6 +155,11 @@ prospectively and may be optional, required on an Activité, or required on each
 planned Opération.
 _Avoid_: Seeded legacy category, hard-deleted reference value
 
+**Révision de règle documentaire**:
+Immutable numbered statement of one category's label, active state,
+applicability, and requirement rule at a particular effective time.
+_Avoid_: Mutable category configuration, current catalog as historical evidence
+
 **Série documentaire**:
 Stable parent/category evidence thread containing append-only immutable
 versions. Several series may satisfy the same parent/category requirement.
@@ -169,6 +174,11 @@ _Avoid_: Filename-only evidence, mutable review attachment
 Reasoned transition that removes a version from normal current views while
 preserving bytes, metadata, history, and audit.
 _Avoid_: Physical deletion, silent replacement
+
+**Événement de cycle documentaire**:
+Immutable sequenced fact that a document version was published, superseded, or
+withdrawn within its series.
+_Avoid_: Mutable current/withdrawn field, overwritten lifecycle history
 
 **Récupération documentaire historique**:
 Reasoned and separately audited Validator/Admin access to withdrawn or prior

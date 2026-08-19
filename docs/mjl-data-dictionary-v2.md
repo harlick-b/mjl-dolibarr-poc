@@ -136,11 +136,18 @@ audit link. A record is committed only after successful generation.
 
 ## Phase 4 Document Category
 
-Entity-scoped stable identifier, label, active state managed through
-activation/deactivation, applicability to Projet,
-Activité, and Opération, and prospective requirement mode: optional, required
-for an Activité, or required once for each planned Opération. The catalog starts
-empty and is never seeded from legacy values.
+Entity-scoped stable identifier and creation metadata. The identity is never
+hard-deleted. Its current display/rule state is projected from Category Rule
+Revisions. The catalog starts empty and is never seeded from legacy values.
+
+## Phase 4 Category Rule Revision
+
+Append-only monotonic revision containing the stable category identifier,
+revision number, label, active state, complete parent applicability for Projet,
+Activité, and Opération, prospective requirement mode, effective timestamp,
+actor, complete canonical payload, and payload hash. Activation, deactivation,
+label, applicability, and requirement changes append a revision; no revision
+is updated or deleted.
 
 ## Phase 4 Document Series
 
@@ -153,20 +160,39 @@ append-only document versions and never changes parent or entity.
 Series, monotonically increasing version number, uploader identity and role
 snapshot, original display filename, validated media type, byte size, content
 hash, extensionless encrypted-storage locator, wrapped per-file key reference,
-native ECM adapter reference, scan engine/signature metadata, current or
-withdrawn state, withdrawal actor/reason/date, created timestamp, and audit
-reference. Bytes and metadata are immutable after commit. No secret key or raw
+native ECM adapter reference, scan engine/signature metadata, created
+timestamp, and publication audit reference. Bytes and content/storage/scan
+metadata are immutable after commit. No secret key or raw
 preview grant is stored in audit. Exactly one published version maps to one
 entity-matched native ECM row and one immutable extensionless ciphertext file.
 Every retained current, prior, or withdrawn ciphertext version counts toward
 the 10 GiB entity quota.
 
+## Phase 4 Document Lifecycle Event
+
+Append-only event with series, document version, per-series sequence, event
+type (`PUBLISHED`, `SUPERSEDED`, or `WITHDRAWN`), actor, timestamp, mandatory
+withdrawal reason where applicable, expected series version, and audit
+reference. Replacement atomically appends `PUBLISHED` for the new version and
+`SUPERSEDED` for the prior current version. Withdrawal is irreversible. The
+lifecycle event and its immutable audit event commit in the same transaction.
+A unique sequence plus per-series lock or optimistic version yields at most one
+effective current version; concurrent losers receive a retryable conflict. Any
+current-state projection is rebuildable from ordered events and is not an
+authority field on Document Version.
+
 ## Phase 4 Revision Requirement Snapshot
 
 One immutable entry per applicable category requirement for a submitted
-business revision, including requirement mode, target parent/Opération, the
-qualifying document series/version identifiers, and integrity reference. Every
-qualifying uploader is also a Revision Contributor.
+business revision, including stable category identifier, selected Category
+Rule Revision identifier and number, complete canonical rule payload and
+payload hash, target parent/Opération, qualifying document series and version
+identifiers, and snapshot integrity reference. Drafts do not freeze rules.
+Submission atomically selects one committed effective rule revision;
+concurrent rule change either produces one coherent selection or a retryable
+stale-submission conflict. Correction and resubmission create a new immutable
+snapshot using then-current rules. Submitted and later reviews never consult
+the current catalog. Every qualifying uploader is also a Revision Contributor.
 
 ## Phase 4 Quota and Storage Operation
 

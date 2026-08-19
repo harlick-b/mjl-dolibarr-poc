@@ -96,3 +96,10 @@ After correcting their documentation-inventory and Phase 4 precision findings,
 both reviews reported no remaining actionable finding. The three explicitly
 accepted future Phase 4 residual risks remain documented; no Phase 4 runtime
 behavior was introduced.
+
+A later post-commit review found canonical-only ambiguity in the future Phase 4
+Admin scope, category-rule snapshots, and document lifecycle model, plus stale
+current-design route rows. DEC-042 and its correction commit resolve those
+documentation contracts. Those findings did not affect the executed RST-010A
+denial code, hostile probes, filesystem/ECM checksums, containment-only
+rollback, or `RST_010A_CONTAINMENT_COMPLETE` verdict.

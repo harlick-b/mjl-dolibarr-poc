@@ -11,7 +11,7 @@ after the documentation cleanup and does not replace browser verification.
 ## Overall Verdict
 
 The current UI has a real MJL workspace shell, guarded routes, workflow
-screens, dashboards, documents, exports, audit surfaces, and shared
+screens, dashboards, denial-only document routes, audit surfaces, and shared
 presentation contracts for formatting, feedback, statuses, alerts, and
 transactional emails. It still needs less legacy supervision wording, clearer
 contextual timelines/exchanges, and final client review for non-protected copy
@@ -24,8 +24,8 @@ and official outputs.
 - Normal users should not need raw native Dolibarr project/document screens.
 - RST-010A exposes no global document library, upload, or download behavior;
   custom and native document delivery paths are denial-only.
-- Advanced audit and exchange screens exist but should remain contextual or
-  supervision/audit-only.
+- The workflow audit screen exists; the obsolete exchange-log screen is
+  removed.
 - CSV/XLSX exports are the current output formats; PDF/Word reports are outside
   the current authoritative scope.
 - Historical shared journey summaries and document panels are not current
@@ -60,11 +60,13 @@ and official outputs.
 | Expenses | Removed | Obsolete finance and contextual-upload route is absent. | `custom/mjlfinancement/expenses.php` |
 | Documents | Contained | RST-010A exposes no document UI: custom and native delivery routes return HTTP 403 pending the sequenced Phase 4 implementation. | `custom/mjlfinancement/documents.php`, `custom/mjlfinancement/documentdownload.php` |
 | Conventions | Removed | Obsolete finance and document behavior is absent. | `custom/mjlfinancement/conventions.php` |
-| Budget lines | Medium | Shared journey/recovery/pagination/timeline patterns and canonical feedback are present; advanced finance setup must stay guarded. | `custom/mjlfinancement/budgetlines.php` |
+| Budget lines | Removed | Obsolete finance route is absent and returns 404. | `custom/mjlfinancement/budgetlines.php` |
 | Fund receipts | Removed | Obsolete finance and proof-document behavior is absent. | `custom/mjlfinancement/fundreceipts.php` |
-| Reports / exports | Good | The report inventory uses target French wording, explicit Partenaire / Programme filters, POST-token exports, CSV/XLSX filename previews, scoped audit visibility, distinct HTML/export rows, and explicit F CFA money headings. Final donor canevas and permission matrix remain pending. | `custom/mjlfinancement/reports.php` |
-| Validation/audit history | Partial | Should be more contextual inside object detail pages. | `validations.php`, `workflowactions.php` |
-| Exchange logs | Partial | Standalone route should not be primary navigation. | `custom/mjlfinancement/exchangelogs.php` |
+| Reports / exports | Removed | Obsolete report-center route is absent and returns 404; target Phase 3B outputs are not implemented. | `custom/mjlfinancement/reports.php` |
+| Validation history | Removed | Obsolete expense-validation route is absent and returns 404. | `custom/mjlfinancement/validations.php` |
+| Workflow audit | Partial | Current technical audit route should become more contextual in later phases. | `custom/mjlfinancement/workflowactions.php` |
+| Exchange logs | Removed | Obsolete exchange-log route is absent and returns 404. | `custom/mjlfinancement/exchangelogs.php` |
+| Roadmap | Removed | Obsolete internal roadmap route is absent and returns 404. | `custom/mjlfinancement/roadmap.php` |
 | Auth/invitations | Medium | Invitation-only stance and formal accented plain-text templates are aligned; production email/base URL remains pending. | Auth templates, `admin/access.php`, `invitation.php`, `lib/mjl_email.lib.php` |
 
 ## Review Checklist

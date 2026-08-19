@@ -32,6 +32,7 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-rst-010a-containment-strategy.md` | Approved RST-010A containment-only implementation strategy and review evidence; authorizes no document business behavior |
 | `docs/mjl-rst-010a-execution-report.md` | Active RST-010A implementation and preservation evidence; not Phase 4 runtime authority |
 | `docs/adr/0001-phase4-document-ownership-and-delivery.md` | Accepted Phase 4 architecture rationale; canonical v2 documents own the detailed rules |
+| `docs/adr/0002-append-only-document-rules-and-lifecycle.md` | Accepted Phase 4 append-only category-rule/lifecycle rationale; canonical v2 documents own the detailed rules |
 | `docs/mjl_fully_revised_implementation_prompts_by_phase.md` | Post-cadrage source package with clean-reset addendum; subordinate to canonical v2 and never executable as one request |
 | `docs/mjl-current-app-functional-map.md` | Current implementation evidence only; superseded wherever it states target behavior |
 | `docs/mjl-current-vs-target-gap-analysis.md` | Active debt summary only; canonical owners decide target behavior |

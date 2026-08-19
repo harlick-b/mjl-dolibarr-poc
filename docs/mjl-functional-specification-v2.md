@@ -81,7 +81,9 @@ cannot coexist with an active business role.
 The clean local reset preserves exactly one native technical administrator.
 No existing sample user's role assignment is migrated.
 
-The Validator is the business superuser. Admin is technical and audit-only.
+The Validator is the business superuser. Admin is technical and audit-only,
+apart from the narrowly approved Phase 4 read-only document exception within
+the runtime active Dolibarr entity (`$conf->entity`).
 Admin may invite users, assign one role, activate/deactivate accounts, access
 technical administration and complete audit, export audit, and perform
 controlled audited recovery. Admin may not create business decisions, review
@@ -115,7 +117,10 @@ edit, and open-form save access immediately. Historical evidence remains.
 
 Supervisor and Validator view all Activities. Admin receives no normal
 business workflow buttons and accesses business evidence through audit or
-controlled recovery. Partner-based user scope is not target authorization.
+controlled recovery. In Phase 4 only, Admin may browse metadata and use
+guarded download or preview for current documents in the runtime active entity;
+historical access remains controlled recovery. Partner-based user scope is not
+target authorization.
 The Supervisor cannot manage assignments or access complete audit in the first
 release. Agents and Supervisors see only current workflow messages needed for
 their task. The Validator cannot directly modify Agent-entered execution data.
@@ -436,30 +441,53 @@ share, raw native ECM link, public register, bulk document operation, or
 physical delete.
 
 The Validateur définitif manages an entity-scoped category catalog. The
-catalog starts empty, uses activation/deactivation rather than deletion, and
-every configured category applies to all three
-parent types. A category may be optional, required for an Activité, or required
-once for each planned Opération. Requirement changes are prospective. Every
-submitted business revision contains an immutable snapshot of the applicable
-category requirements and the qualifying document-version identifiers used
-for review. Correction and resubmission create a new immutable requirement and
-version snapshot.
+catalog starts empty and every configured category applies to all three parent
+types. A stable category identity is never deleted. Activation, deactivation,
+label, applicability, and requirement changes append a monotonic immutable
+Category Rule Revision containing the label, active state, every parent
+applicability rule, requirement mode, effective timestamp, actor, canonical
+payload, and payload hash. A category may be optional, required for an
+Activité, or required once for each planned Opération. Requirement changes are
+prospective.
+
+Drafts do not freeze category rules. Submission atomically selects exactly one
+committed effective Category Rule Revision per applicable requirement and
+creates an immutable snapshot containing its stable category identifier,
+revision identifier and number, complete canonical payload and payload hash,
+and the qualifying document series and version identifiers used for review.
+Correction and resubmission use the then-current rules and create a new
+immutable snapshot. Submitted, prevalidated, and finalized reviews always use
+the frozen snapshot, never the current catalog view. A concurrent rule change
+either leaves submission with one coherent committed revision or causes a
+retryable stale-submission conflict without a partial snapshot.
 
 Each parent/category combination may contain multiple document series. A
 series receives append-only versions. At least one qualifying current series
-satisfies a requirement. Withdrawal requires a reason and hides
-the version from normal current views without deleting metadata, bytes,
-history, or audit evidence. Replacement means appending a new version, never
-overwriting the old one.
+satisfies a requirement. Immutable content/storage/scan metadata is separate
+from append-only per-series lifecycle events. Publication appends `PUBLISHED`;
+replacement publishes a new version and atomically appends `SUPERSEDED` for the
+prior current version; reasoned withdrawal appends irreversible `WITHDRAWN`.
+No transition deletes metadata, bytes, history, or audit evidence. A
+per-series sequence and lock or optimistic version makes concurrent publish
+and withdrawal operations select one order; a loser receives a retryable
+conflict. The effective current version is a rebuildable lifecycle projection,
+not authoritative mutable version metadata, and at most one version per series
+is current. Each lifecycle event and its audit event commit in the same
+transaction.
 
 Every identity that uploaded a qualifying document version included in a
 submitted revision is a contributor to that revision and cannot prevalidate or
 definitively validate it. The Agent manages evidence for assigned Activités
 and their Opérations. The Validator may add separate evidence everywhere but cannot replace or
-withdraw Agent evidence. The Supervisor is read-only. Admin reads all current
-documents across entities; historical
-recovery is limited to Validator and Admin, requires a reason, and creates a
-separate audit event.
+withdraw Agent evidence. The Supervisor is read-only. Admin may list metadata,
+guardedly download, and guardedly preview current documents only in the runtime
+active Dolibarr entity (`$conf->entity`). Admin may not upload, append, replace,
+withdraw, categorize, review, validate, or use raw/native ECM delivery.
+Historical recovery is limited to Validator and Admin within that same active
+entity, requires a reason, and creates a separate recovery audit event for
+either role. Cross-entity identifiers are denied for every role, including
+Admin. Permitted platform entity switching changes the active scope but never
+provides cross-entity aggregation.
 
 Submission locks the exact qualifying versions used by that revision and all
 evidence is immutable during submitted or prevalidated review. An Activité

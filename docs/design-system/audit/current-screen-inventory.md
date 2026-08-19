@@ -19,18 +19,18 @@ coverage.
 | Expenses | `/custom/mjlfinancement/expenses.php` | Removed obsolete finance route. | Returns 404. | Historical contextual-upload/evidence states are retired. |
 | Documents containment | `/custom/mjlfinancement/documents.php` | Dependency-free French HTTP 403; no document UI or data access. | Denied for every actor and method; not navigation-visible. | Phase 4 is approved but not implemented. |
 | Conventions | `/custom/mjlfinancement/conventions.php` | Removed obsolete finance route. | Returns 404. | Historical document behavior is retired. |
-| Budget lines | `/custom/mjlfinancement/budgetlines.php` | Governed budget-line management with journey summary, exact recovery, pagination, timeline, and canonical finance feedback. | Reference-data/supervision guards remain caller-owned. | Advanced finance setup surface. |
+| Budget lines | `/custom/mjlfinancement/budgetlines.php` | Removed obsolete finance route. | Returns 404. | Historical interaction evidence below is not current behavior. |
 | Fund receipts | `/custom/mjlfinancement/fundreceipts.php` | Removed obsolete finance route. | Returns 404. | Historical proof-document behavior is retired. |
 | Alerts | `/custom/mjlfinancement/alerts.php` | Computed activity/expense alerts. | Activity or expense alert visibility. | Alerts are computed, not stored. |
 | Supervision dashboard | `/custom/mjlfinancement/dpafdashboard.php` | Portfolio supervision metrics, role-specific queues, scoped filters, fund rows, and resolvable audit history. | Supervision access. | Route filename remains DPAF-era compatibility debt; UI labels use production wording. |
-| Reports / exports | `/custom/mjlfinancement/reports.php` | Report center with 16 report keys, GET previews/filters, explicit Partenaire / Programme filtering, CSV/XLSX POST exports, stable filenames, and export audit rows. | Supervision; export requires export write/Admin and a valid Dolibarr token. | Final donor/client canevas and final permission matrix remain pending; generic report audit rows are Admin-only in scoped audit views. |
-| Validation history | `/custom/mjlfinancement/validations.php` | Expense validation history. | Reviewer/supervision/audit helper. | Read-only and not fully contextual. |
+| Reports / exports | `/custom/mjlfinancement/reports.php` | Removed obsolete report-center route. | Returns 404. | Target Phase 3B outputs are not implemented. |
+| Validation history | `/custom/mjlfinancement/validations.php` | Removed obsolete expense-validation route. | Returns 404. | Workflow audit remains a separate current route. |
 | Workflow audit | `/custom/mjlfinancement/workflowactions.php` | Generic workflow audit rows. | Advanced traceability helper. | Advanced technical screen. |
-| Exchange logs | `/custom/mjlfinancement/exchangelogs.php` | Exchange log list/create surface. | Advanced traceability helper. | Should not be primary navigation. |
+| Exchange logs | `/custom/mjlfinancement/exchangelogs.php` | Removed obsolete exchange-log route. | Returns 404. | Append-only audit is the retained current evidence source. |
 | Admin access | `/custom/mjlfinancement/admin/access.php` | Invitations and access administration. | Admin only. | Production email/base URL pending. |
 | Invitation acceptance | `/custom/mjlfinancement/invitation.php` | Public token invitation flow. | Token and CSRF checks. | Outside app shell by design. |
 | Document download containment | `/custom/mjlfinancement/documentdownload.php` | Dependency-free French HTTP 403; no ECM/file lookup or attachment. | Denied for every actor and method. | Native `/ecm/*`, `/document.php`, and `/viewimage.php` are also denied. |
-| Roadmap | `/custom/mjlfinancement/roadmap.php` | Internal roadmap/readiness page. | Admin plus feature flag. | Not a production user feature. |
+| Roadmap | `/custom/mjlfinancement/roadmap.php` | Removed internal roadmap route. | Returns 404. | Roadmap authority is documentation-only. |
 | Login/password pages | Dolibarr auth templates/hooks | Auth and password flows with MJL styling. | Native auth plus MJL hooks. | No public registration should appear. |
 
 ## Historical Phase 3D.2 interaction evidence

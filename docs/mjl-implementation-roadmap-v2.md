@@ -103,10 +103,12 @@ fresh live inventory and a separately reviewed Phase 4 reset/implementation
 unit. Never reuse the legacy POC document implementation.
 
 Deliver the contextual model, permissions, requirement snapshots, immutable
-series/versions, validation and scanning, encrypted storage, native ECM
+series/versions, append-only category-rule revisions and document-lifecycle
+events, validation and scanning, encrypted storage, native ECM
 adapter, guarded downloads, isolated preview origin, lifecycle locks,
 reconciliation, audit, quota/rate limits, and the verification gates defined
-in the canonical v2 documents. Rollback returns to RST-010A containment.
+in the canonical v2 documents. Admin read/recovery is limited to the runtime
+active Dolibarr entity. Rollback returns to RST-010A containment.
 
 Production activation remains blocked on preview-origin TLS, scanner and
 signature operations, encryption-key escrow, encrypted backup restoration,

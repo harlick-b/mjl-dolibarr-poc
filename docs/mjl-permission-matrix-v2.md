@@ -27,8 +27,8 @@ account-administration lifecycle.
 | Current workflow messages | Assigned Activity | Read all | Read all | Complete audit |
 | Complete audit | No | No | Yes | Yes |
 | Technical access administration | No | No | No | Yes |
-| Current supporting documents | Assigned Activity context | Read all | Read all | Read all across entities |
-| Historical/withdrawn document versions | No | No | Yes, reasoned recovery | Yes, reasoned recovery |
+| Current supporting documents | Assigned Activity context | Read all in active entity | Read all in active entity | Read-only in active entity |
+| Historical/withdrawn document versions | No | No | Active-entity reasoned recovery | Active-entity reasoned recovery |
 
 Partner assignment is not an authorization model. The current
 `mjlfinancement_user_soc_scope` behavior is obsolete target behavior.
@@ -58,7 +58,7 @@ Partner assignment is not an authorization model. The current
 | Append a new document version | Assigned Activity/Opération | No | Yes, except replacement of Agent evidence | No |
 | Withdraw current document version | Assigned Activity/Opération, reason required | No | Yes, except Agent evidence | No |
 | Manage document categories | No | No | Yes | Technical import support only |
-| Browse scoped document library | Assigned Activity scope | Read all | Read all | Read all current documents |
+| Browse scoped document library | Assigned Activity scope | Read all in active entity | Read all in active entity | Read current documents in active entity only |
 | Recover historical document version | No | No | Yes, reason required and separately audited | Yes, reason required and separately audited |
 
 ## Separation of Duties
@@ -88,3 +88,12 @@ For one business revision:
 Every route, direct URL, form render, POST, export, and background action must
 enforce the matrix server-side with active Dolibarr entity filtering. UI
 hiding is not authorization. Stale actions fail without changing data.
+
+For this matrix, active entity means the runtime Dolibarr context
+`$conf->entity`, never the entity stored on the administrator's user row.
+Cross-entity identifiers are denied for every role, including Admin. Permitted
+platform entity switching changes the active scope and never authorizes
+cross-entity aggregation. The Phase 4 Admin exception is read-only metadata,
+guarded download/preview of current documents, and reasoned separately audited
+historical recovery. Admin may not upload, append, replace, withdraw,
+categorize, review, validate, or use raw/native ECM delivery.

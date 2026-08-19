@@ -62,7 +62,12 @@ contradiction by choosing an implicit precedence rule.
   with an active MJL business role.
 - Agent visibility is based on current Activity assignment, not Partner scope.
 - Supervisors and Validators can view all Activities.
-- The Validator is the business superuser. Admin is technical and audit-only.
+- The Validator is the business superuser. Admin is technical and audit-only,
+  except for the approved Phase 4 read-only document exception within the
+  runtime active Dolibarr entity (`$conf->entity`). That exception permits
+  scoped metadata browsing, guarded download/preview of current documents, and
+  reasoned separately audited historical recovery; it grants no document or
+  business mutation.
 - Submitted business revisions are immutable and review decisions target one
   exact revision.
 - Missing financial information is never zero.
@@ -72,6 +77,10 @@ contradiction by choosing an implicit precedence rule.
   accepted residual risks, but implementation remains sequenced after Phases 2
   through 3C. Accounting entries and official Partner reports remain gated by
   later client decisions.
+- Phase 4 category rules are append-only immutable revisions. Submitted
+  revisions freeze the complete selected rule payload and qualifying evidence.
+  Document bytes/metadata are immutable and document status is derived from
+  append-only lifecycle events rather than mutable withdrawal fields.
 - Phase 3C is not a production-launch authorization.
 
 ## Implementation Boundary
@@ -106,6 +115,9 @@ The future Phase 4 strategy is approved by DEC-041 but cannot be implemented
 before its roadmap dependencies and a fresh post-Phase-3C live inventory and
 reset-unit review. Every other unexecuted reset-manifest entry remains
 `PENDING_APPROVAL`.
+DEC-042 narrows the future Admin document exception to the runtime active
+Dolibarr entity and fixes the append-only category-rule and document-lifecycle
+contracts. It changes no current RST-010A denial behavior.
 
 ## Design Authority
 

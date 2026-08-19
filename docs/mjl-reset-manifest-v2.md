@@ -357,6 +357,10 @@ number does not approve a suffixed unit.
   and POST, traversal, cross-entity, native ECM, and before/after filesystem and
   ECM checksum checks passed as recorded in
   `docs/mjl-rst-010a-execution-report.md`.
+- Later authority clarification: DEC-042 narrows future Phase 4 Admin document
+  reads/recovery to the runtime active Dolibarr entity and defines append-only
+  category-rule and lifecycle records. It changes no executed RST-010A path,
+  data, checksum, rollback boundary, or denial behavior.
 
 ### RST-011 - Replace dashboards and alerts
 

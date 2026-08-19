@@ -85,18 +85,24 @@ Cancellation never supplies a missing amount and never implies completeness.
 - Revision, validation, execution, request, and completeness states remain
   separate concepts.
 
-## Phase 4 Document Series and Version State
+## Phase 4 Document Series and Lifecycle Events
 
-| State | Allowed next state | Actor | Guard |
+| Effective state/event | Allowed next event | Actor | Guard |
 | --- | --- | --- | --- |
-| Current version | New current version appended | Authorized Agent or Validator | Parent context authorized; workflow unlocked; validation and scan pass |
-| Current version | Withdrawn | Authorized uploader scope or Validator | Mandatory reason; Validator cannot withdraw Agent evidence; no physical delete |
-| Withdrawn | None | None | Immutable historical evidence; reasoned recovery view only |
+| None | `PUBLISHED` | Authorized Agent or Validator | Parent context authorized; workflow unlocked; validation and scan pass |
+| Current version | `PUBLISHED` plus prior-version `SUPERSEDED` | Authorized Agent or Validator | One transaction; expected series version matches |
+| Current version | `WITHDRAWN` | Authorized uploader scope or Validator | Mandatory reason; Validator cannot withdraw Agent evidence; no physical delete |
+| Superseded or withdrawn version | None | None | Immutable historical evidence; reasoned recovery view only |
 
-A series may have many versions but at most one current non-withdrawn version.
-Version numbers are append-only and never reused. Submission snapshots the
-qualifying version identifiers and applicable requirement rules. Snapshot
-versions never change even when a later version is appended or withdrawn.
+A series may have many versions but ordered append-only lifecycle events derive
+at most one current version. Version numbers and per-series event sequences are
+append-only and never reused. The lifecycle event and audit event commit in the
+same transaction. A per-series lock or optimistic version returns a retryable
+conflict to a concurrent loser. Any current-state projection is rebuildable,
+not authoritative version metadata. Submission snapshots the qualifying
+version identifiers and complete selected Category Rule Revision payloads.
+Snapshot versions never change even when a later version or rule is appended,
+superseded, or withdrawn.
 
 Evidence is immutable during submitted or prevalidated review. Activité
 evidence is locked from definitive validation. Post-validation Opération
