@@ -443,10 +443,10 @@ physical delete.
 The Validateur définitif manages an entity-scoped category catalog. The
 catalog starts empty and every configured category applies to all three parent
 types. A stable category identity is never deleted. Activation, deactivation,
-label, applicability, and requirement changes append a monotonic immutable
+label, and requirement changes append a monotonic immutable
 Category Rule Revision containing the label, active state, every parent
-applicability rule, requirement mode, effective timestamp, actor, canonical
-payload, and payload hash. A category may be optional, required for an
+applicability rule fixed to Projet, Activité, and Opération, requirement mode,
+effective timestamp, actor, canonical payload, and payload hash. A category may be optional, required for an
 Activité, or required once for each planned Opération. Requirement changes are
 prospective.
 
@@ -516,7 +516,7 @@ using authenticated streaming encryption with a random data-encryption key
 wrapped by a permanent environment key. The effective key is never logged or
 persisted. Key rotation is not part of the approved first implementation.
 Limits are 10 upload attempts per user per 10 minutes and 10 GiB per Dolibarr
-entity, counting every retained current, prior, or withdrawn ciphertext
+entity, counting every retained current, superseded, or withdrawn ciphertext
 version. Exactly one published document version maps to one entity-matched
 native ECM row and one immutable ciphertext file.
 

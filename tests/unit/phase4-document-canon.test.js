@@ -17,12 +17,16 @@ test('Phase 4 Admin document exception is active-entity-only and non-mutating', 
   const canon = `${authority}\n${specification}\n${permissions}`;
 
   assert.match(decisions, /\| DEC-042 \|[^\n]+runtime active Dolibarr entity[^\n]+\| APPROVED \|/);
-  assert.match(canon, /\$conf->entity/);
-  assert.match(canon, /cross-entity identifiers? (?:are|is) denied/i);
-  assert.match(canon, /Admin[^.]+current document[^.]+active entity/i);
-  assert.match(canon, /Admin[^.]+may not[^.]+upload[^.]+replace[^.]+withdraw/i);
-  assert.match(permissions, /Recover historical document version[^\n]+reason required and separately audited/);
-  assert.doesNotMatch(canon, /Admin (?:reads?|may read|can read)[^.\n]*across entities/i);
+  for (const owner of [authority, specification, permissions]) {
+    assert.match(owner, /runtime active (?:Dolibarr )?entity[^.]*\$conf->entity|\$conf->entity[^.]*runtime active (?:Dolibarr )?entity/i);
+  }
+  assert.match(specification, /Cross-entity identifiers are denied for every role, including\s+Admin/);
+  assert.match(specification, /Admin may list metadata,[^.]+current documents only in the runtime\s+active Dolibarr entity/i);
+  assert.match(specification, /Admin may not upload, append, replace,\s+withdraw, categorize, review, validate/i);
+  assert.match(permissions, /\| Current supporting documents \|[^\n]+\| Read-only in active entity \|/);
+  assert.match(permissions, /\| Recover historical document version \|[^\n]+Yes, reason required and separately audited \| Yes, reason required and separately audited \|/);
+  assert.match(permissions, /never the entity stored on the administrator's user row/i);
+  assert.doesNotMatch(canon, /read[^.\n]*across entities/i);
 });
 
 test('Phase 4 document content and lifecycle are separate immutable records', () => {
@@ -40,12 +44,37 @@ test('Phase 4 document content and lifecycle are separate immutable records', ()
   assert.match(canon, /lifecycle event and[^.]+audit event[^.]+same transaction/i);
   assert.match(canon, /projection[^.]+rebuild/i);
   assert.match(canon, /retryable conflict/i);
+  assert.match(canon, /Replacement atomically appends `PUBLISHED`[^.]+`SUPERSEDED`/i);
+  assert.match(canon, /Withdrawal is irreversible/i);
 
   const versionSection = dictionary.slice(
     dictionary.indexOf('## Phase 4 Document Version'),
     dictionary.indexOf('## Phase 4 Document Lifecycle Event'),
   );
+  for (const field of [
+    'uploader identity and role snapshot',
+    'original display filename',
+    'validated media type',
+    'byte size',
+    'content hash',
+    'encrypted-storage locator',
+    'wrapped per-file key reference',
+    'native ECM adapter reference',
+    'scan engine/signature metadata',
+    'created timestamp',
+  ]) {
+    assert.match(versionSection, new RegExp(field.split(' ').join('\\s+'), 'i'));
+  }
   assert.doesNotMatch(versionSection, /withdrawal actor|withdrawal reason|withdrawal date|withdrawn state/i);
+
+  const lifecycleSection = dictionary.slice(
+    dictionary.indexOf('## Phase 4 Document Lifecycle Event'),
+    dictionary.indexOf('## Phase 4 Revision Requirement Snapshot'),
+  );
+  for (const field of ['document version', 'per-series sequence', 'actor', 'timestamp', 'withdrawal reason', 'expected series version', 'audit reference']) {
+    assert.match(lifecycleSection, new RegExp(field.split(' ').join('\\s+'), 'i'));
+  }
+  assert.match(dictionary, /Every retained current, superseded, or withdrawn ciphertext version counts toward/i);
 });
 
 test('Phase 4 category changes and submission requirements use frozen revisions', () => {
@@ -71,6 +100,8 @@ test('Phase 4 category changes and submission requirements use frozen revisions'
   assert.match(canon, /correction and resubmission[^.]+new\s+immutable\s+snapshot/i);
   assert.match(canon, /qualifying (?:document )?series and version identifiers/i);
   assert.match(canon, /retryable stale-submission/i);
+  assert.match(canon, /every configured category applies to all three\s+parent\s+types/i);
+  assert.doesNotMatch(canon, /applicability changes append/i);
 });
 
 test('current design audits mark removed routes as absent', () => {

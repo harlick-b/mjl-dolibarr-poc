@@ -89,7 +89,7 @@ Every route, direct URL, form render, POST, export, and background action must
 enforce the matrix server-side with active Dolibarr entity filtering. UI
 hiding is not authorization. Stale actions fail without changing data.
 
-For this matrix, active entity means the runtime Dolibarr context
+For this matrix, active entity means the runtime active Dolibarr entity
 `$conf->entity`, never the entity stored on the administrator's user row.
 Cross-entity identifiers are denied for every role, including Admin. Permitted
 platform entity switching changes the active scope and never authorizes

@@ -144,10 +144,10 @@ Revisions. The catalog starts empty and is never seeded from legacy values.
 
 Append-only monotonic revision containing the stable category identifier,
 revision number, label, active state, complete parent applicability for Projet,
-Activité, and Opération, prospective requirement mode, effective timestamp,
-actor, complete canonical payload, and payload hash. Activation, deactivation,
-label, applicability, and requirement changes append a revision; no revision
-is updated or deleted.
+Activité, and Opération with all three fixed as applicable, prospective
+requirement mode, effective timestamp, actor, complete canonical payload, and
+payload hash. Activation, deactivation, label, and requirement changes append
+a revision; no revision is updated or deleted.
 
 ## Phase 4 Document Series
 
@@ -165,7 +165,7 @@ timestamp, and publication audit reference. Bytes and content/storage/scan
 metadata are immutable after commit. No secret key or raw
 preview grant is stored in audit. Exactly one published version maps to one
 entity-matched native ECM row and one immutable extensionless ciphertext file.
-Every retained current, prior, or withdrawn ciphertext version counts toward
+Every retained current, superseded, or withdrawn ciphertext version counts toward
 the 10 GiB entity quota.
 
 ## Phase 4 Document Lifecycle Event
