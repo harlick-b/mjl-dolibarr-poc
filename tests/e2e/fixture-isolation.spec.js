@@ -1,14 +1,12 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFile, execFileSync } = require('node:child_process');
-const { promisify } = require('node:util');
+const { execFileSync, spawn } = require('node:child_process');
 
 const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
 const { scalar } = require('../helpers/mjl-test-runtime');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
-const execFileAsync = promisify(execFile);
 
 function adminDigest() {
   return scalar("SELECT SHA2(CONCAT_WS(0x1f,rowid,entity,login,COALESCE(pass,''),COALESCE(pass_crypted,''),COALESCE(pass_temp,''),admin,statut),256) FROM llx_user WHERE admin=1");
@@ -52,8 +50,21 @@ test('[RST-014A] namespace replay and cross-entity reuse fail atomically', () =>
 });
 
 async function directFactory(value, user = 'www-data') {
-  return execFileAsync('docker', ['compose', 'exec', '-T', '--user', user, 'dolibarr', 'php', '/opt/mjl-tests/fixtures/phase1-fixture.php'], {
-    encoding: 'utf8', env: process.env, input: JSON.stringify(value), maxBuffer: 1024 * 1024,
+  return new Promise((resolve, reject) => {
+    const child = spawn('docker', ['compose', 'exec', '-T', '--user', user, 'dolibarr', 'php', '/opt/mjl-tests/fixtures/phase1-fixture.php'], {
+      env: process.env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const stdout = [];
+    const stderr = [];
+    child.stdout.on('data', (chunk) => stdout.push(Buffer.from(chunk)));
+    child.stderr.on('data', (chunk) => stderr.push(Buffer.from(chunk)));
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code === 0) resolve({ stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') });
+      else reject(new Error('Concurrent disposable fixture call failed.'));
+    });
+    child.stdin.end(JSON.stringify(value));
   });
 }
 
