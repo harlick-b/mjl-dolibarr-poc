@@ -393,16 +393,48 @@ number does not approve a suffixed unit.
 ### RST-013A - Phase 1 test reset
 
 - Status: `PENDING_APPROVAL`
-- Current component: Phase 1 tests encoding old roles, scopes, and finance behavior.
-- Proposed action: classify and replace/remove only the exact named tests with security preservation.
+- Current component: four named tests remain; 13 named legacy finance/auth/scope
+  paths were already deleted by executed commit `3b5f767`; the characterization
+  config and coverage registry still refer to obsolete suites/evidence.
+- Proposed action: preserve the four current-purpose tests, record the 13 prior
+  deletions without reclaiming them, retarget configs/evidence to maintained
+  Phase 1 suites, and consume only the approved RST-014A fixture interface.
 - Reason: old green tests would validate superseded behavior.
 - Phase: Phase 1
-- Dependencies: RST-001, RST-003, RST-004, RST-008, RST-009A
+- Dependencies: executed RST-001, RST-002A, RST-003, RST-004, RST-007A,
+  RST-008, RST-009A, RST-010A, and RST-014A
 - Exact paths: `tests/characterization/finance.spec.js`, `tests/characterization/permissions.spec.js`, `tests/characterization/cases/budget-integrity.cases.js`, `tests/characterization/cases/convention-integrity.cases.js`, `tests/characterization/cases/fund-receipt-integrity.cases.js`, `tests/e2e/access-shell.spec.js`, `tests/e2e/auth-invitations.spec.js`, `tests/e2e/expenses.spec.js`, `tests/e2e/finance.spec.js`, `tests/e2e/partners-projects.spec.js`, `tests/e2e/scope-security.spec.js`, `tests/e2e/cases/auth-lifecycle.cases.js`, `tests/e2e/cases/expense-disbursement.cases.js`, `tests/e2e/cases/expense-workflow.cases.js`, `tests/e2e/cases/partner-project.cases.js`, `tests/e2e/cases/scope-security.cases.js`, `tests/unit/access-audit-fail-closed.test.js`.
-- Exact tables/data: disposable test fixtures inside isolated tenants only.
-- Action and data impact: classify each named test as KEEP/REPLACE/REMOVE in the Phase 1 report; removal is allowed only with a named replacement or obsolete-behavior rationale.
+- Exact supporting paths: `tests/characterization/playwright.config.js`,
+  `tests/e2e/phase1-reset.spec.js`, `tests/runner/run-suite.js`,
+  `tests/runner/disposable-run.js`, `package.json`, `playwright.config.js`,
+  `docs/mjl-acceptance-tests.md`, `docs/mjl-test-coverage-registry.md`,
+  `docs/mjl-reset-manifest-v2.md`, `docs/mjl-implementation-roadmap-v2.md`,
+  `docs/mjl-docs-index.md`, `docs/mjl-authoritative-decisions.md`,
+  `docs/mjl-decision-register-v2.md`,
+  `docs/mjl-rst-013a-test-reset-strategy.md`, and
+  planned `docs/mjl-rst-013a-execution-report.md`.
+- Exact tables/data: RST-014A disposable test fixtures inside isolated tenants
+  plus focused poison `llx_mjlfinancement_user_soc_scope`, deliberately
+  cross-entity/corrupt-parent `llx_mjlfinancement_activity`, and no direct-SQL
+  audit rows; shared database, ECM, documents, and the
+  exact protected source paths enumerated by the strategy are read-only
+  evidence. Plaintext database manifests are never materialized; retained
+  evidence contains only streaming digests, schema summaries, and nonsensitive
+  counts.
+- Action and data impact: preserve the four present paths; record the 13 paths
+  deleted by `3b5f767` with named replacement/obsolete rationale; recreate none.
+  Add current-model dynamic poison-scope, hostile scope-input, Agent direct
+  GET/POST no-side-effect, current Activity class/notrigger, exact safe reviewer
+  projection, and corrupt/cross-entity reviewer-read coverage to a retained
+  path. Prove removed ExchangeLog/timeline/document/Convention seams through
+  maintained absence gates; never recreate them for a dynamic test.
 - Backup prerequisite: baseline commit and diff of each named test.
-- Rollback/verification: restore from the phase commit and run retained security tests.
+- Rollback/verification: restore only RST-013A source/docs; never recreate absent
+  tests or legacy behavior. Run every focused Phase 1 suite, unit, verify,
+  characterization, E2E, shared-state checks, and unconditional teardown proof.
+  Any prior ready verdict becomes `PHASE_1_BLOCKED` until equivalent replacement
+  coverage is separately approved and cleanly reviewed.
+  The exact reviewed contract is `docs/mjl-rst-013a-test-reset-strategy.md`.
 
 ### RST-013B - Phase 2 test reset
 
@@ -463,16 +495,78 @@ number does not approve a suffixed unit.
 ### RST-014A - Phase 1 disposable test-fixture infrastructure
 
 - Status: `PENDING_APPROVAL`
-- Current component: legacy persistent sources removed by RST-000A and no target disposable record factories.
-- Proposed action: implement isolated Phase 1 test-record factories and enforce the continued absence of persistent seed behavior.
+- Current component: mature disposable Compose/runner isolation and focused
+  fixtures already exist, but Phase 1 specs duplicate raw SQL setup and no
+  guarded general Phase 1 record-factory interface exists.
+- Proposed action: add one guarded structured factory for minimal users and
+  Partenaire/Projet/Type d'Opération preconditions; retain existing isolation
+  and enforce the continued absence of persistent seed behavior.
 - Reason: target behavior needs disposable verification without recreating RST-000A data.
 - Phase: Phase 1
-- Dependencies: RST-000A, RST-001, RST-003, RST-004, RST-008
-- Exact paths: the non-seeding replacement for `custom/mjlfinancement/scripts/bootstrap_poc.php`; continued absence of `custom/mjlfinancement/scripts/seed_sample_data.php`, `custom/mjlfinancement/lib/mjl_sample_data.lib.php`, `custom/mjlfinancement/sample_data`, and `mjl_dolibarr_poc_sample_data`; and disposable runner/factory paths approved with RST-013A.
-- Exact tables/data: no persistent rows. Test factories may create only run-scoped Phase 1 accounts and reference records inside the runner's isolated database/entity and volumes.
-- Action and data impact: keep legacy CSVs, placeholders, passwords, and auto-seeding absent; allow tests to create minimal records and require teardown to destroy them. Normal local startup remains empty.
+- Dependencies: executed RST-000A, RST-001, RST-002A, RST-003, RST-004,
+  RST-007A, RST-008, RST-009A, and RST-010A
+- Exact paths: planned `tests/helpers/phase1-fixture.js`,
+  `tests/fixtures/phase1-fixture.php`,
+  `tests/fixtures/phase1-fixture-preflight.php`,
+  `tests/fixtures/database-evidence.php`,
+  `tests/runner/disposable-evidence.js`,
+  `tests/unit/phase1-fixture.test.js`,
+  `tests/unit/disposable-evidence.test.js`, and
+  `tests/e2e/fixture-isolation.spec.js`; modified
+  `tests/fixtures/disposable-compose.override.yml`,
+  `tests/helpers/mjl-test-runtime.js`,
+  `tests/helpers/verify-disposable-environment.js`,
+  `tests/runner/disposable-policy.js`, `tests/runner/disposable-run.js`,
+  `tests/runner/phase1-cutover-rehearsal.js`, `tests/runner/run-suite.js`,
+  `tests/unit/disposable-policy.test.js`, `tests/unit/disposable-run.test.js`,
+  `tests/e2e/phase1-reset.spec.js`, `tests/e2e/auth-concurrency.spec.js`,
+  `tests/e2e/cases/partner-project.cases.js`,
+  `tests/e2e/document-containment.spec.js`,
+  `tests/fixtures/rst010a-document-state.php`,
+  `tests/manual/accessibility-gate.spec.js`,
+  `tests/manual/playwright.config.js`, `playwright.config.js`,
+  `package.json`, `docs/mjl-acceptance-tests.md`,
+  `docs/mjl-test-coverage-registry.md`, `docs/mjl-reset-manifest-v2.md`,
+  `docs/mjl-implementation-roadmap-v2.md`, `docs/mjl-docs-index.md`,
+  `docs/mjl-authoritative-decisions.md`,
+  `docs/mjl-decision-register-v2.md`,
+  `docs/mjl-rst-014a-disposable-fixture-strategy.md`, and planned
+  `docs/mjl-rst-014a-execution-report.md`. Retained/absent invariants are
+  enumerated in the strategy.
+- Exact tables/data: no shared or post-teardown rows. Inside the disposable
+  database only, the runner may create one entity-0 `llx_const` run-sentinel
+  row; each successful factory request may create one entity-0 `llx_const`
+  namespace-reservation row plus its allowlisted `llx_user`,
+  `llx_mjlfinancement_user_role`, `llx_societe`, `llx_projet`, and
+  `llx_mjlfinancement_operation_type` rows. The exact filesystem support writes
+  are `/var/www/documents/.mjl-disposable-fixture-sentinel` in the disposable
+  document volume and `/run/mjl-test/client.cnf` in a dedicated disposable
+  MariaDB tmpfs; the latter is root-owned mode 0600, is created atomically only
+  after topology validation, is unlinked by the finalizer when reachable, and
+  is unconditionally destroyed with the service. Plaintext shared-state
+  manifests are never materialized; retained evidence contains only streaming
+  digests, schema summaries, and
+  nonsensitive counts. The exact protected read-only source paths and generated
+  evidence boundary are enumerated in the strategy. This closed list governs
+  new RST-014A factory/support writes. Pre-existing RST-003, RST-007A, RST-008,
+  RST-009A, RST-010A, and Phase 1 reset suites retain only their already
+  approved disposable mutation/canary/output contracts while being rerun as
+  gates; RST-014A neither owns nor broadens them. No other new fixture/support
+  table, row, file, or volume is authorized.
+- Action and data impact: keep legacy CSVs, placeholders, passwords, and
+  auto-seeding absent; create only allowlisted namespace/entity-scoped records
+  in an isolated tenant; authenticate the factory with a run-specific
+  database/file sentinel; use a runner-owned disposable credential without
+  reading the native Admin hash; return IDs/logins only; tenant teardown
+  destroys them.
 - Backup prerequisite: Git baseline, RST-000, and executed RST-000A.
-- Rollback/verification: restore source files only; verify normal startup creates no sample row, the preserved technical administrator remains, and test-run containers/volumes are removed on success, failure, and interruption.
+- Rollback/verification: remove only the general factory seam and restore
+  caller-specific setup only in hardened non-Admin, safe-SQL, tenant-teardown
+  form; retain credential/sanitizer/scanner/unconditional-cleanup hardening and
+  never restore seeding or selective fixture/audit deletion. Verify normal startup/shared checksums, factory input
+  rejection, transaction rollback, secret-free output, and teardown on success,
+  setup/test/diagnostics failure, SIGINT, and SIGTERM. The exact reviewed
+  contract is `docs/mjl-rst-014a-disposable-fixture-strategy.md`.
 
 ### RST-014B - Phase 2 disposable test fixtures
 

@@ -41,6 +41,11 @@ empty Partner/Project/Opération-type reference structures, stable identifiers,
 and transactional append-only audit. Execute only approved reset IDs. Do not
 implement Activities or persistent sample data.
 
+The remaining Phase 1 units require separate approvals. Execute RST-014A first
+to establish the guarded disposable fixture interface, then RST-013A to consume
+it and reconcile the maintained test inventory. RST-013A approval never
+substitutes for RST-014A approval.
+
 Verdict: `PHASE_1_READY`, `PHASE_1_READY_WITH_NOTES`, or `PHASE_1_BLOCKED`.
 
 ## Phase 2: Activity Planning and Validation
