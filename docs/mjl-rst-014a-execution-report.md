@@ -53,16 +53,16 @@ write-capable factory never reads or copies it.
 - PHP syntax: `phase1-fixture-preflight.php`, `phase1-fixture.php`,
   `database-evidence.php`, `auth-parallel-worker.php`, and modified
   `rst010a-document-state.php` passed `php -l`.
-- Focused tenant `mjl-test-20260819t151641-555951-b51d06fc`: all 27 browser
-  cases passed in 3.2 minutes, including canonical-stdin auth concurrency,
+- Committed-source focused tenant `mjl-test-20260819t152824-611337-0d76641f`
+  at commit `f0c9dd6`: all 27 browser cases passed in 2.9 minutes, including canonical-stdin auth concurrency,
   independent Admin attestation, trigger-digest mutation/restoration, and real
   repeated SIGINT/SIGTERM runner teardown.
 - RST-010A evidence in that tenant remained unchanged across hostile probes:
-  aggregate `e5efbd7f8f82ee947cebd1b201e2a139d1a489074e70911843bbd0baf45e5fbc`,
-  filesystem `f2daac793c19486ca0b66b46d1a51b5d88f1e02ef2ae682f209c29b4a97816f8`,
-  `llx_ecm_files` `03facf205575035f6d1da1d78ddbd66b15b41c523ffab13dfdaf2c05128343b4`,
+  aggregate `6b61342432b80531f1e994811900e125c9b25ffbc3ee1c5ea939bc72cad4c2da`,
+  filesystem `76336c682af319943d25c01042c87df2f7f2c637964eea02ac7ba8d85b7cdf4b`,
+  `llx_ecm_files` `d1f0ef8e9ed5d972af5adfdbbc855175650f9daafaf343463f63582feb3f0bd2`,
   and `llx_ecm_directories`
-  `484db93c3484debdc6ecdab8c4b8b63b8497d0396cfcf6616efa642c6f6c89f4`.
+  `7584307a47007fffa40af817b1467f6394beeea77921c966f5a35a1683043796`.
 - Shared before/after evidence matched exactly: database
   `8a5e5173bcfd09fa2c0e9d02213924727cf7f8a052f8d212d1efc69261d341ed`,
   Admin `8051d600e0740b2a2a9d4a2a85eb2674ffa3742e197e0604f5414e688236d987`,
@@ -74,6 +74,11 @@ write-capable factory never reads or copies it.
 - Dynamic selector/verifier/hash/password redaction and recursive artifact
   scanning passed; the outer tenant and both nested signal-probe tenants left
   no container, network, or volume.
+- Public committed-source gates also passed: `npm run test:verify` in tenant
+  `mjl-test-20260819t153329-637668-5fddf1e7` (including a successful teardown
+  retry after one transient MariaDB stop error), and `npm run test:e2e` with
+  27/27 cases in tenant `mjl-test-20260819t153333-638111-937387e6`. Both left
+  no disposable resource.
 
 Completion requires a clean commit, committed-source `test:rst014a`, public
 unit/verify/E2E gates proportional to the changed surface, and independent
