@@ -68,8 +68,10 @@ contradiction by choosing an implicit precedence rule.
 - Missing financial information is never zero.
 - XOF amounts use integer-safe storage.
 - Operational outputs require PDF and XLSX. Audited CSV remains supplemental.
-- Document management, accounting entries, and official Partner reports remain
-  gated by later client decisions.
+- The Phase 4 contextual document strategy is approved, with three explicitly
+  accepted residual risks, but implementation remains sequenced after Phases 2
+  through 3C. Accounting entries and official Partner reports remain gated by
+  later client decisions.
 - Phase 3C is not a production-launch authorization.
 
 ## Implementation Boundary
@@ -98,8 +100,12 @@ the obsolete finance core and the Activity-to-Convention seam. RST-008
 retargets invitation and reset credentials to business roles with public
 selectors, fragment-only verifiers, hashed storage, transactional use, and
 no legacy group or Partner-scope authorization. RST-009A exposes only the
-approved Phase 1 role-projected navigation. Every other reset-manifest entry
-remains `PENDING_APPROVAL`.
+approved Phase 1 role-projected navigation. RST-010A is executed as
+containment hardening only and authorizes no document-management behavior.
+The future Phase 4 strategy is approved by DEC-041 but cannot be implemented
+before its roadmap dependencies and a fresh post-Phase-3C live inventory and
+reset-unit review. Every other unexecuted reset-manifest entry remains
+`PENDING_APPROVAL`.
 
 ## Design Authority
 

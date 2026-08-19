@@ -44,6 +44,10 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - For Apache `ErrorDocument` pages that should use the authenticated Dolibarr
   session, prefer `NOREDIRECTBYMAINTOLOGIN` over `NOLOGIN`; `NOLOGIN` avoids a
   login redirect but does not hydrate the session user for MJL shell rendering.
+- An Apache authorization `ErrorDocument` runs as an internal subrequest and
+  can return HTTP 403 while its PHP page fatals after a partial Dolibarr
+  bootstrap. For hard-containment denials, prefer a dependency-free error
+  response and inspect fresh server logs in addition to status/body assertions.
 - Native-boundary checks must probe adjacent Dolibarr route families, not only
   named blocker routes; `/admin/*`, native `/user/*`, and dormant module routes
   can render native chrome even when the first blocked routes pass.

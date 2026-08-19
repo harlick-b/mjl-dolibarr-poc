@@ -37,7 +37,7 @@ belong to the subject-specific canonical document referenced in each row.
 | DEC-018 | CSV keeps UTF-8 BOM, semicolon separators, French headers, stable filenames, and audited generation. | APPROVED | Functional specification | Existing safe contract retained by DEC-017 |
 | DEC-019 | Public registration is prohibited. | FORBIDDEN | Scope boundary | Revised post-cadrage package |
 | DEC-020 | PTA negotiation, fund requests, receipt of funds, e-Tresor processing, reconciliation, and external audit are outside core scope. | FORBIDDEN | Scope boundary | Revised post-cadrage package |
-| DEC-021 | Document-management implementation waits for approved document rules. | DEFERRED_CLIENT_INPUT | Scope boundary | Phase 4 gate |
+| DEC-021 | Implement the approved contextual document strategy only in Phase 4 after Phases 2 through 3C provide its parent, revision, assignment, audit, and job interfaces. | APPROVED | Functional specification and roadmap | Explicit Phase 4 approval on 2026-08-19; sequence remains mandatory |
 | DEC-022 | Accounting entries wait for approved accounting rules and real examples. | DEFERRED_CLIENT_INPUT | Scope boundary | Phase 5 gate |
 | DEC-023 | Official Partner reports wait for approved templates and mappings. | DEFERRED_CLIENT_INPUT | Scope boundary | Phase 6 gate |
 | DEC-024 | Phase 3C is not a go-live authorization. | APPROVED | Roadmap | Revised post-cadrage package |
@@ -56,6 +56,8 @@ belong to the subject-specific canonical document referenced in each row.
 | DEC-037 | Approve and execute RST-003: create the empty Partenaire, Projet, and Type d’Opération reference foundation; use activation rather than hard deletion; cascade Partner deactivation to active Projects without reopening them; and make Project ownership and technical reference immutable. | EXECUTED | Reset manifest and RST-003 execution report | User approval and execution on 2026-08-13 |
 | DEC-038 | Approve and execute the evidence-gated sequence RST-007A, RST-004, RST-008, then RST-009A; preserve the empty tenant and one native Admin; introduce one append-only audit, remove obsolete finance, retarget invitation/reset credentials, and expose only Phase 1 navigation. | EXECUTED | Reset manifest and 2026-08-14 per-unit execution reports | Implemented after explicit user authorization; operational `initdb.log` checksum deviation ratified by DEC-039 |
 | DEC-039 | Ratify only the Phase 1 operational `data/documents/initdb.log` checksum change from `8f999bca21f305125a240b319dc02bb08228d45e073f14229a91d82e69d77e68` to `6e66f68985cb1eba6fd8fcd3c3a030b84ef77b7f4967b125db78eeab472aaf21`; no business document changed, and this ratification authorizes no RST-010A or later unit. | APPROVED | Phase 1 reset execution report | Explicit user ratification on 2026-08-18 |
+| DEC-040 | Approve and execute revised RST-010A as containment hardening only: retain the exact dormant ECM seams, expose no document business behavior, close MJL and native delivery paths for authenticated and anonymous GET/POST, preserve all filesystem/ECM data, and permit rollback only to denial-only containment. | EXECUTED | RST-010A containment strategy and execution report | Explicit user approval and verified implementation on 2026-08-19 |
+| DEC-041 | Approve the complete future Phase 4 contextual document strategy, including its role/lifecycle/storage/preview/test gates and the accepted residual risks of one-minute preview authorization staleness, a permanent environment wrapping key without rotation, and browser rendering of scanned originals. | APPROVED | Functional specification, permission matrix, status model, data dictionary, and roadmap | Explicit Phase 4 approval on 2026-08-19; implementation remains sequenced after Phase 3C |
 
 ## Deliberately Unspecified
 
@@ -63,6 +65,6 @@ The following are not decisions and must not be invented:
 
 - final Opération-type values;
 - accounting journals, accounts, budget codes, and posting rules;
-- document categories, retention, replacement, and validation dependencies;
+- document category values and the legally confirmed indefinite-retention policy;
 - Partner template mappings, official-report approval, and signature rules;
 - final go-live inclusion of Phases 4, 5, and 6.

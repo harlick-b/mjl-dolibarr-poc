@@ -170,7 +170,7 @@ test('authentication verifiers are not duplicated into SQL-backed email evidence
   }
 });
 
-test('Phase 1 ratification statuses are consistent and authorize no later unit', () => {
+test('Phase 1 ratification statuses and the executed RST-010A boundary are consistent', () => {
   const manifest = read('docs/mjl-reset-manifest-v2.md');
   const decisions = read('docs/mjl-decision-register-v2.md');
   const authority = read('docs/mjl-authoritative-decisions.md');
@@ -178,9 +178,12 @@ test('Phase 1 ratification statuses are consistent and authorize no later unit',
   for (const [id, nextId] of [['RST-004', 'RST-005'], ['RST-007A', 'RST-007B'], ['RST-008', 'RST-009A'], ['RST-009A', 'RST-009B']]) {
     assert.match(section(id, nextId), /- Status: `EXECUTED`/);
   }
-  assert.match(section('RST-010A', 'RST-011'), /- Status: `PENDING_APPROVAL`/);
+  assert.match(section('RST-010A', 'RST-011'), /- Status: `EXECUTED` on 2026-08-19 after separate explicit approval/);
   assert.match(decisions, /\| DEC-038 \|[^\n]+\| EXECUTED \|/);
   assert.match(decisions, /\| DEC-039 \|[^\n]+8f999bca21f305125a240b319dc02bb08228d45e073f14229a91d82e69d77e68[^\n]+6e66f68985cb1eba6fd8fcd3c3a030b84ef77b7f4967b125db78eeab472aaf21[^\n]+authorizes no RST-010A or later unit/);
+  assert.match(decisions, /\| DEC-040 \|[^\n]+containment hardening only[^\n]+\| EXECUTED \|/);
+  assert.match(decisions, /\| DEC-041 \|[^\n]+future Phase 4 contextual document strategy[^\n]+\| APPROVED \|/);
+  assert.match(authority, /RST-010A is executed as\s+containment hardening only and authorizes no document-management/);
   assert.doesNotMatch(authority, /RST-007A,[\s\S]{0,160}EXECUTED_PENDING_RATIFICATION/);
   for (const id of ['007a', '004', '008', '009a']) {
     const report = read(`docs/mjl-rst-${id}-execution-report.md`);

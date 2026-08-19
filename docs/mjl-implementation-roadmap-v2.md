@@ -96,9 +96,21 @@ Every verdict includes: `This verdict does not authorize production launch.`
 
 ## Phase 4: Documents
 
-Blocked until approved document categories, relationships, permissions,
-versions, replacement, retention, formats, and workflow dependencies exist.
-If inputs are missing, produce only gap analysis and client questions.
+The strategy is approved by DEC-041 but implementation remains blocked by
+sequence until Phases 2 through 3C provide stable Activity, Opération,
+revision, assignment, audit, and job interfaces. After Phase 3C, perform a
+fresh live inventory and a separately reviewed Phase 4 reset/implementation
+unit. Never reuse the legacy POC document implementation.
+
+Deliver the contextual model, permissions, requirement snapshots, immutable
+series/versions, validation and scanning, encrypted storage, native ECM
+adapter, guarded downloads, isolated preview origin, lifecycle locks,
+reconciliation, audit, quota/rate limits, and the verification gates defined
+in the canonical v2 documents. Rollback returns to RST-010A containment.
+
+Production activation remains blocked on preview-origin TLS, scanner and
+signature operations, encryption-key escrow, encrypted backup restoration,
+storage monitoring, and legal retention confirmation.
 
 ## Phase 5: Accounting
 

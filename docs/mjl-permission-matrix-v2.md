@@ -27,6 +27,8 @@ account-administration lifecycle.
 | Current workflow messages | Assigned Activity | Read all | Read all | Complete audit |
 | Complete audit | No | No | Yes | Yes |
 | Technical access administration | No | No | No | Yes |
+| Current supporting documents | Assigned Activity context | Read all | Read all | Read all across entities |
+| Historical/withdrawn document versions | No | No | Yes, reasoned recovery | Yes, reasoned recovery |
 
 Partner assignment is not an authorization model. The current
 `mjlfinancement_user_soc_scope` behavior is obsolete target behavior.
@@ -52,6 +54,12 @@ Partner assignment is not an authorization model. The current
 | Invite and activate/deactivate users | No | No | No | Yes |
 | Change effective role | No | No | No | Yes, assignment guard applies |
 | Controlled technical recovery | No | No | No | Yes, audited |
+| Upload document evidence | Assigned Activity/Opération | No | Yes | No |
+| Append a new document version | Assigned Activity/Opération | No | Yes, except replacement of Agent evidence | No |
+| Withdraw current document version | Assigned Activity/Opération, reason required | No | Yes, except Agent evidence | No |
+| Manage document categories | No | No | Yes | Technical import support only |
+| Browse scoped document library | Assigned Activity scope | Read all | Read all | Read all current documents |
+| Recover historical document version | No | No | Yes, reason required and separately audited | Yes, reason required and separately audited |
 
 ## Separation of Duties
 
@@ -61,6 +69,9 @@ For one business revision:
 - its creator or structural contributor cannot definitively validate it;
 - its prevalidator cannot definitively validate it;
 - later role changes do not remove these restrictions.
+- every uploader of a qualifying document version in the revision is a
+  revision contributor and cannot review that revision;
+- the Validator cannot replace or withdraw evidence uploaded by an Agent.
 
 ## Assignment Rules
 

@@ -22,13 +22,14 @@ and official outputs.
 - The MJL workspace is custom-module based and should remain the primary user
   experience.
 - Normal users should not need raw native Dolibarr project/document screens.
-- Global Documents is read-only; uploads are contextual.
-- Guarded downloads are implemented for key document paths.
+- RST-010A exposes no global document library, upload, or download behavior;
+  custom and native document delivery paths are denial-only.
 - Advanced audit and exchange screens exist but should remain contextual or
   supervision/audit-only.
 - CSV/XLSX exports are the current output formats; PDF/Word reports are outside
   the current authoritative scope.
-- Shared journey summaries, guarded document panels, exact finance recovery,
+- Historical shared journey summaries and document panels are not current
+  document behavior; exact finance recovery,
   resource pagination, contextual timelines, and enriched dashboard-card
   metadata now have catalog definitions. Their callers retain all server
   authorization.
@@ -55,12 +56,12 @@ and official outputs.
 | Partenaires | Good | French-first reference list/detail/forms, lifecycle states, safe feedback, and 390-pixel containment are focused-browser verified. | `custom/mjlfinancement/partners.php` |
 | Projets | Good | Guarded reference states expose only the display label for editing; immutable ownership/ref and parent lifecycle behavior are focused-browser verified. | `custom/mjlfinancement/projects.php` |
 | Types d’Opération | Good | Entity-scoped active/inactive reference states use the shared RST-003 presentation and security contract. | `custom/mjlfinancement/operationtypes.php` |
-| Activities | Medium | Dedicated guarded create/edit/execution/contextual-upload and verifier/final-validator decision states plus shared scoped filters/pagination and responsive list cards are browser-verified; short submission/correction comments remain contextual and wording review remains. | `custom/mjlfinancement/activities.php` |
-| Expenses | Medium | Dedicated guarded create/edit/contextual-upload/prevalidation/final-validation/rejection/disbursement states plus shared scoped filters/pagination and responsive operational cards are browser-verified; short submission/correction comments remain contextual and wording review remains. | `custom/mjlfinancement/expenses.php` |
-| Documents | Good | Read-only model is correct; filters and document ergonomics can improve. | `custom/mjlfinancement/documents.php` |
-| Conventions | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; legacy label and role wording still need target review. | `custom/mjlfinancement/conventions.php` |
+| Activities | Partial | Interim Supervisor/Validator read-only projection has no document behavior; target planning and evidence UI remain future phases. | `custom/mjlfinancement/activities.php` |
+| Expenses | Removed | Obsolete finance and contextual-upload route is absent. | `custom/mjlfinancement/expenses.php` |
+| Documents | Contained | RST-010A exposes no document UI: custom and native delivery routes return HTTP 403 pending the sequenced Phase 4 implementation. | `custom/mjlfinancement/documents.php`, `custom/mjlfinancement/documentdownload.php` |
+| Conventions | Removed | Obsolete finance and document behavior is absent. | `custom/mjlfinancement/conventions.php` |
 | Budget lines | Medium | Shared journey/recovery/pagination/timeline patterns and canonical feedback are present; advanced finance setup must stay guarded. | `custom/mjlfinancement/budgetlines.php` |
-| Fund receipts | Medium | Shared journey/document/recovery/pagination/timeline patterns and canonical feedback are present; final wording remains pending client review. | `custom/mjlfinancement/fundreceipts.php` |
+| Fund receipts | Removed | Obsolete finance and proof-document behavior is absent. | `custom/mjlfinancement/fundreceipts.php` |
 | Reports / exports | Good | The report inventory uses target French wording, explicit Partenaire / Programme filters, POST-token exports, CSV/XLSX filename previews, scoped audit visibility, distinct HTML/export rows, and explicit F CFA money headings. Final donor canevas and permission matrix remain pending. | `custom/mjlfinancement/reports.php` |
 | Validation/audit history | Partial | Should be more contextual inside object detail pages. | `validations.php`, `workflowactions.php` |
 | Exchange logs | Partial | Standalone route should not be primary navigation. | `custom/mjlfinancement/exchangelogs.php` |
@@ -70,7 +71,8 @@ and official outputs.
 
 - Preserve guarded routes and active-entity filtering.
 - Preserve no public registration.
-- Preserve contextual uploads and guarded downloads.
+- Preserve RST-010A denial-only containment until the sequenced Phase 4
+  implementation replaces it; do not restore contextual uploads or downloads.
 - Preserve CSV/XLSX-only scope unless authority changes.
 - Use `docs/mjl-authoritative-decisions.md` for terminology and role decisions.
 

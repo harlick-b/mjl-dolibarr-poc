@@ -20,7 +20,8 @@ MJL-specific code remains under 'custom/mjlfinancement'.
 | Administration technique | Native-Admin link to Dolibarr module administration. |
 | Invitation/reset | Public selector in the query string, secret verifier in the fragment, hash-only storage, same-origin POST redemption, single use, expiry, throttling, CSRF, transaction/audit coupling, and neutral reset-request response. |
 | Finance, reports, validations, exchanges | Routes, classes, loaders, schema, historical update SQL, and obsolete tests removed. |
-| Documents, alerts, old supervision | Retained containment routes return explicit 403 pending their approved target units. |
+| Documents | MJL `documents.php` and `documentdownload.php` return dependency-free HTTP 403 for every actor/method; Apache blocks `/ecm/*`, `/document.php`, and `/viewimage.php`. Native ECM storage remains dormant and unchanged. |
+| Alerts and old supervision | Retained containment routes return explicit 403 pending their approved target units. |
 
 ## Persistent custom tables in the touched boundary
 

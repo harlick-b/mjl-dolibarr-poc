@@ -15,12 +15,12 @@ coverage.
 | Partenaires | `/custom/mjlfinancement/partners.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Active business-role reads; Validator-only mutation and inactive visibility; Admin denied. | Browser-verified at the focused RST-003 seam; primary navigation remains unchanged until RST-009A. |
 | Projets | `/custom/mjlfinancement/projects.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Same role boundary; immutable Partenaire/ref; parent lifecycle guards. | Browser-verified, including 390-pixel containment and concurrency ordering. |
 | Types d’Opération | `/custom/mjlfinancement/operationtypes.php` | Entity-scoped reference list/detail/create/edit/activate/deactivate. | Same role boundary; no hard deletion. | Browser/schema-verified; catalog remains empty in the shared tenant. |
-| Activities | `/custom/mjlfinancement/activities.php` | Activity lifecycle, dedicated create/edit/execution/contextual-upload states, shared scoped filters/pagination, responsive operational list, guarded review-decision states, documents, and timeline. | Direct create/edit/execution, upload, and review-state routes recheck write/read access, active entity, scope, role, ownership, and current workflow state before loading options, consuming recovery, or exposing fields; POST guards remain authoritative. | Short submission/correction comments remain contextual on detail by design. |
-| Expenses | `/custom/mjlfinancement/expenses.php` | Expense lifecycle, dedicated create/edit/contextual-upload states, shared scoped filters/pagination and list states, responsive operational cards, evidence, and review/final-validation/disbursement states. | Direct create/edit/upload and decision-state routes recheck write/read access, active entity, scope, ownership, role, actor separation, and current workflow state before loading options, consuming recovery, or exposing fields; POST guards remain authoritative. | Short submission/correction comments remain contextual on detail by design. |
-| Documents library | `/custom/mjlfinancement/documents.php` | Read-only accessible document list. | Document helper plus object access. | Uploads are contextual only. |
-| Conventions | `/custom/mjlfinancement/conventions.php` | Governed funding-envelope management with journey summary, guarded documents, exact recovery, pagination, timeline, and canonical finance feedback. | Reference-data/supervision guards remain caller-owned. | Legacy label/role wording remains. |
+| Activities | `/custom/mjlfinancement/activities.php` | Interim same-entity Supervisor/Validator read-only projection; no document behavior. | Server-side business-role and entity guards. | Target planning and document behavior remain future phases. |
+| Expenses | `/custom/mjlfinancement/expenses.php` | Removed obsolete finance route. | Returns 404. | Historical contextual-upload/evidence states are retired. |
+| Documents containment | `/custom/mjlfinancement/documents.php` | Dependency-free French HTTP 403; no document UI or data access. | Denied for every actor and method; not navigation-visible. | Phase 4 is approved but not implemented. |
+| Conventions | `/custom/mjlfinancement/conventions.php` | Removed obsolete finance route. | Returns 404. | Historical document behavior is retired. |
 | Budget lines | `/custom/mjlfinancement/budgetlines.php` | Governed budget-line management with journey summary, exact recovery, pagination, timeline, and canonical finance feedback. | Reference-data/supervision guards remain caller-owned. | Advanced finance setup surface. |
-| Fund receipts | `/custom/mjlfinancement/fundreceipts.php` | Fund receipt management with journey summary, guarded proof documents, exact recovery, pagination, timeline, and canonical finance feedback. | Reference-data/supervision guards remain caller-owned. | Final wording remains subject to client review. |
+| Fund receipts | `/custom/mjlfinancement/fundreceipts.php` | Removed obsolete finance route. | Returns 404. | Historical proof-document behavior is retired. |
 | Alerts | `/custom/mjlfinancement/alerts.php` | Computed activity/expense alerts. | Activity or expense alert visibility. | Alerts are computed, not stored. |
 | Supervision dashboard | `/custom/mjlfinancement/dpafdashboard.php` | Portfolio supervision metrics, role-specific queues, scoped filters, fund rows, and resolvable audit history. | Supervision access. | Route filename remains DPAF-era compatibility debt; UI labels use production wording. |
 | Reports / exports | `/custom/mjlfinancement/reports.php` | Report center with 16 report keys, GET previews/filters, explicit Partenaire / Programme filtering, CSV/XLSX POST exports, stable filenames, and export audit rows. | Supervision; export requires export write/Admin and a valid Dolibarr token. | Final donor/client canevas and final permission matrix remain pending; generic report audit rows are Admin-only in scoped audit views. |
@@ -29,11 +29,11 @@ coverage.
 | Exchange logs | `/custom/mjlfinancement/exchangelogs.php` | Exchange log list/create surface. | Advanced traceability helper. | Should not be primary navigation. |
 | Admin access | `/custom/mjlfinancement/admin/access.php` | Invitations and access administration. | Admin only. | Production email/base URL pending. |
 | Invitation acceptance | `/custom/mjlfinancement/invitation.php` | Public token invitation flow. | Token and CSRF checks. | Outside app shell by design. |
-| Document download | `/custom/mjlfinancement/documentdownload.php` | Guarded ECM download route. | Object-specific guards. | Helper route, not navigation. |
+| Document download containment | `/custom/mjlfinancement/documentdownload.php` | Dependency-free French HTTP 403; no ECM/file lookup or attachment. | Denied for every actor and method. | Native `/ecm/*`, `/document.php`, and `/viewimage.php` are also denied. |
 | Roadmap | `/custom/mjlfinancement/roadmap.php` | Internal roadmap/readiness page. | Admin plus feature flag. | Not a production user feature. |
 | Login/password pages | Dolibarr auth templates/hooks | Auth and password flows with MJL styling. | Native auth plus MJL hooks. | No public registration should appear. |
 
-## Phase 3D.2 interaction update
+## Historical Phase 3D.2 interaction evidence
 
 - Projects retain visible `Ouvrir` links and add conditional authorized
   secondary row menus.
@@ -45,15 +45,15 @@ coverage.
 - Finance guards run before fields, options, or exact recovery. Uploads and
   convention deletion remain nonrecoverable; mutations remain POST-only.
 
-## Phase 3D.4 integration evidence
+## Historical Phase 3D.4 integration evidence
 
-The maintained browser inventory covers every one of the sixteen active
+The historical Phase 3D.4 browser inventory covered every one of the then-active
 application screens plus invitation, registration, document-download, roadmap,
 and operational-script helper routes. Each application route asserts its exact
 document title and H1, a unique visible `main` landmark, the MJL shell, safe
 rendering without raw diagnostics, and Admin access. Separate assertions cover
-an authenticated user with no MJL role, global Documents read-only behavior,
-guarded downloads, hidden roadmap, absent public registration, and HTTP denial
+an authenticated user with no MJL role, the former global Documents behavior,
+former guarded downloads, hidden roadmap, absent public registration, and HTTP denial
 of the entire operational-script family. Exact advanced-route admissions stay
 in non-blocking characterization C2 pending the client permission matrix.
 
@@ -77,13 +77,16 @@ two concurrent v3 font-resource checks outside 3D.4. Runner duration was 601.3
 seconds including 20 Node contracts, 7 PHP contracts, full container
 verification, and complete resource cleanup.
 
-The manual gate now names auth, dashboard, list, form, workflow, Documents,
+The historical manual gate named auth, dashboard, list, form, workflow, Documents,
 alerts, reports, and administration archetypes and requires reviewer identity,
 assistive technology, explicit verdict, and real Chromium 100%/200% evidence at
 390/768/980/1024/1366. Every one of the 90 combinations must record its result,
 geometry, visible-focus observation, reviewer, and non-empty notes. It remains
 unsigned, so the integration verdict is
 `BLOCKED_PENDING_MANUAL_ACCESSIBILITY` and does not claim WCAG conformance.
+RST-010A retires the document-library/download portions of that historical
+evidence; current document routes are containment-only and have no UI
+accessibility claim.
 
 The final strengthened-remediation `npm test` passed 31/31 Node contracts,
 7/7 PHP contracts, the complete container-verification layer, and 114/114

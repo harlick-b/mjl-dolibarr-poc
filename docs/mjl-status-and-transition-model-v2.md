@@ -84,3 +84,23 @@ Cancellation never supplies a missing amount and never implies completeness.
 - Date-driven derived-state transitions produce one idempotent event.
 - Revision, validation, execution, request, and completeness states remain
   separate concepts.
+
+## Phase 4 Document Series and Version State
+
+| State | Allowed next state | Actor | Guard |
+| --- | --- | --- | --- |
+| Current version | New current version appended | Authorized Agent or Validator | Parent context authorized; workflow unlocked; validation and scan pass |
+| Current version | Withdrawn | Authorized uploader scope or Validator | Mandatory reason; Validator cannot withdraw Agent evidence; no physical delete |
+| Withdrawn | None | None | Immutable historical evidence; reasoned recovery view only |
+
+A series may have many versions but at most one current non-withdrawn version.
+Version numbers are append-only and never reused. Submission snapshots the
+qualifying version identifiers and applicable requirement rules. Snapshot
+versions never change even when a later version is appended or withdrawn.
+
+Evidence is immutable during submitted or prevalidated review. Activité
+evidence is locked from definitive validation. Post-validation Opération
+evidence remains open until the Opération becomes terminal; an approved
+reopening unlocks only future append operations. It never makes an old version
+mutable. Stale, cross-entity, cross-parent, or locked mutations
+fail without changing files, metadata, ECM linkage, quota, or audit.

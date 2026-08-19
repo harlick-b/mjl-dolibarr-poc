@@ -9,6 +9,7 @@
     "test:rst004": "node tests/runner/run-suite.js rst004",
     "test:rst008": "node tests/runner/run-suite.js rst008",
     "test:rst009a": "node tests/runner/run-suite.js rst009a",
+    "test:rst010a": "node tests/runner/run-suite.js rst010a",
     "test:phase1-reset": "node tests/runner/run-suite.js phase1-reset",
     "test:characterization": "node tests/runner/run-suite.js characterization",
     "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility",

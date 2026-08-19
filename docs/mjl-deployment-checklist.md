@@ -90,8 +90,11 @@ Target decisions come from `docs/mjl-authoritative-decisions.md`.
   workflow in the MJL workspace.
 - Confirm project creation/editing is available inside MJL only for
   Administrateur plateforme and Validateur définitif.
-- Confirm documents are stored in ECM, not publicly exposed, and downloaded
-  through `/custom/mjlfinancement/documentdownload.php`.
+- Until the sequenced Phase 4 implementation is complete, confirm
+  `/custom/mjlfinancement/documents.php`,
+  `/custom/mjlfinancement/documentdownload.php`, `/ecm/*`, `/document.php`,
+  and `/viewimage.php` all remain denied. Do not restore legacy ECM or MJL
+  document delivery.
 - Confirm CSV/XLSX exports are server-filtered and French-labeled.
 - Confirm no PDF/Word report feature is exposed for this phase.
 

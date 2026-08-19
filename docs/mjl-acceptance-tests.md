@@ -12,11 +12,17 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst004
     npm run test:rst008
     npm run test:rst009a
+    npm run test:rst010a
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
 - 'test:verify' provisions an isolated tenant and runs the Phase 1 schema and empty-tenant verifier.
-- 'test:phase1-reset' runs all four focused schema gates and the Phase 1 browser contract in one isolated tenant.
+- 'test:phase1-reset' runs the focused Phase 1 schema gates and browser
+  contracts, including RST-010A, in one isolated tenant.
+- 'test:rst010a' creates disposable same-entity, cross-entity, orphan, and
+  public-share canaries, exercises anonymous/authenticated GET and POST plus
+  traversal, encoded-path, and native delivery probes, and requires exact
+  before/after filesystem and all-column ECM manifests.
 - The browser contract covers the business-role/Admin/role-less navigation matrix, direct guards, removed-route 404s, invitation issuance and acceptance, fragment clearing, hash invalidation, replay behavior, password reset, and login with changed credentials.
 - 'test:rst003' retains the reference-foundation schema/browser gate.
 

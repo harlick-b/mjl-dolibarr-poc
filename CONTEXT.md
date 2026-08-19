@@ -144,6 +144,37 @@ Partner-specific output generated from an approved versioned template and
 preserved as an immutable snapshot.
 _Avoid_: Generic operational export labeled official
 
+**Pièce justificative contextuelle**:
+Supporting evidence attached to exactly one Projet, Activité, or Opération and
+visible only through authorization on that parent.
+_Avoid_: Partner document, public ECM file, unscoped global upload
+
+**Catégorie documentaire**:
+Entity-scoped Validator-managed classification, initially empty, that applies
+prospectively and may be optional, required on an Activité, or required on each
+planned Opération.
+_Avoid_: Seeded legacy category, hard-deleted reference value
+
+**Série documentaire**:
+Stable parent/category evidence thread containing append-only immutable
+versions. Several series may satisfy the same parent/category requirement.
+_Avoid_: Mutable file slot, overwrite-in-place
+
+**Version documentaire qualifiante**:
+Current validated document version selected into an immutable business-revision
+requirement snapshot. Its uploader becomes a revision contributor.
+_Avoid_: Filename-only evidence, mutable review attachment
+
+**Retrait documentaire**:
+Reasoned transition that removes a version from normal current views while
+preserving bytes, metadata, history, and audit.
+_Avoid_: Physical deletion, silent replacement
+
+**Récupération documentaire historique**:
+Reasoned and separately audited Validator/Admin access to withdrawn or prior
+versions.
+_Avoid_: Ordinary browsing of historical bytes, raw ECM access
+
 ## Local data lifecycle
 
 **Administrateur technique conservé**:

@@ -27,7 +27,8 @@ Core scope excludes PTA negotiation, fund requests, receipt of funds, TDR
 approval, Partner authorization messages, e-Tresor payment processing, bank
 reconciliation, and external audit execution.
 
-Document extension points remain, but document behavior waits for Phase 4.
+Document containment remains active until the approved Phase 4 implementation
+reaches its roadmap position after Phases 2 through 3C.
 Accounting waits for approved rules and examples. Official Partner reporting
 waits for approved templates and mappings.
 
@@ -420,6 +421,121 @@ Every phase report records scope, changed files, schema/migration impact,
 destructive actions, permissions, business rules, tests and results, UI
 evidence where applicable, known limitations, deferred decisions, and the
 explicit phase verdict.
+
+## 31. Approved Phase 4 Document Strategy
+
+Phase 4 is approved as a future contextual supporting-evidence module. It may
+start only after Phases 2, 3A, 3B, and 3C supply the parent objects, revisions,
+workflow states, assignments, audit, security, and operational controls it
+depends on. Approval does not authorize implementation out of sequence.
+
+A document attaches to exactly one Projet, Activité, or Opération. The global
+document library is read-only and authorization-scoped; every mutation begins
+from an authorized parent context. There is no Partner attachment, public
+share, raw native ECM link, public register, bulk document operation, or
+physical delete.
+
+The Validateur définitif manages an entity-scoped category catalog. The
+catalog starts empty, uses activation/deactivation rather than deletion, and
+every configured category applies to all three
+parent types. A category may be optional, required for an Activité, or required
+once for each planned Opération. Requirement changes are prospective. Every
+submitted business revision contains an immutable snapshot of the applicable
+category requirements and the qualifying document-version identifiers used
+for review. Correction and resubmission create a new immutable requirement and
+version snapshot.
+
+Each parent/category combination may contain multiple document series. A
+series receives append-only versions. At least one qualifying current series
+satisfies a requirement. Withdrawal requires a reason and hides
+the version from normal current views without deleting metadata, bytes,
+history, or audit evidence. Replacement means appending a new version, never
+overwriting the old one.
+
+Every identity that uploaded a qualifying document version included in a
+submitted revision is a contributor to that revision and cannot prevalidate or
+definitively validate it. The Agent manages evidence for assigned Activités
+and their Opérations. The Validator may add separate evidence everywhere but cannot replace or
+withdraw Agent evidence. The Supervisor is read-only. Admin reads all current
+documents across entities; historical
+recovery is limited to Validator and Admin, requires a reason, and creates a
+separate audit event.
+
+Submission locks the exact qualifying versions used by that revision and all
+evidence is immutable during submitted or prevalidated review. An Activité
+locks its current evidence after definitive validation. Post-validation
+Opération evidence remains open until the Opération becomes terminal; an
+approved reopening unlocks future append-only evidence entry. Historical
+versions remain immutable.
+
+The custom MJL document model is authoritative and sits behind one deep
+contextual interface: callers provide an authorized parent context and a
+document intent, while the module owns validation, permissions, lifecycle,
+storage, quota, ECM linkage, and audit. Scoped reads and one-time preview-grant
+issuance use the same policy seam. Native ECM is an internal adapter, never a
+caller-facing authorization or delivery interface. Accepted uploads are PDF,
+JPEG, and PNG up to 20 MiB.
+Validation checks decoded extension, detected MIME type, file signature,
+structure, image dimensions, and PDF complexity; encrypted PDFs, JavaScript,
+embedded files, launch actions, malformed content, and decompression or
+resource bombs are rejected. A synchronous local malware scan is mandatory.
+Scanner failures and timeouts fail closed, and signatures may be at most 24
+hours old. Plaintext quarantine is outside the web root and failed or rejected
+temporary bytes are removed.
+
+Stored objects are extensionless, outside the web root, and encrypted per file
+using authenticated streaming encryption with a random data-encryption key
+wrapped by a permanent environment key. The effective key is never logged or
+persisted. Key rotation is not part of the approved first implementation.
+Limits are 10 upload attempts per user per 10 minutes and 10 GiB per Dolibarr
+entity, counting every retained current, prior, or withdrawn ciphertext
+version. Exactly one published document version maps to one entity-matched
+native ECM row and one immutable ciphertext file.
+
+The encrypted file is durably staged before a database transaction commits
+custom metadata, the ECM row, immutable audit, and quota effects together.
+The operation remains recoverable through reconciliation for interrupted
+storage work.
+Reservations and a unique-current constraint prevent concurrent quota and
+replacement races. A failed metadata commit removes its unreachable staged
+file; reconciliation detects every orphan, missing file, hash mismatch, and
+cross-entity adapter link.
+
+Downloads are audited, attachment-only, `no-store`, `nosniff`, and authorized
+immediately before streaming bytes. Preview uses a separate HTTPS
+registrable origin with no application cookies. A one-time opaque grant is
+exchanged only by POST for a one-minute `Secure`, `HttpOnly`, host-only,
+`SameSite=Strict` preview cookie, followed by redirect to a token-free URL.
+Preview decrypts only into bounded preview-only tmpfs and supports guarded
+range requests. The origin has no CORS, external resources, token logging, or
+native ECM delivery. The approved first implementation
+accepts that deactivation, assignment removal, replacement, or withdrawal does
+not invalidate an already issued preview cookie for up to one minute. It also
+accepts a permanent environment wrapping
+key without rotation and browser-side original rendering after server-side
+scanning. These residual risks must remain explicit in readiness evidence.
+
+Production remains blocked until the isolated preview origin and TLS,
+scanner/signature operations, key escrow, backup and restore, monitoring, and
+legal retention obligations are implemented and verified.
+
+Phase 4 module tests must cover category activation/versioning, prospective
+requiredness, revision snapshots, contributor separation, lifecycle locks,
+replacement and withdrawal, rate/quota concurrency, audit failure, encryption
+integrity, and filesystem/database compensation. Disposable E2E matrices must
+cover every role, assignment removal, cross-entity and cross-object IDs, stale
+forms, CSRF, concurrent upload/replacement/submission, malicious filenames,
+MIME and polyglot bypasses, EICAR, scanner outage and stale signatures, quota
+exhaustion, encrypted restore, preview exchange/replay/range behavior, and
+reasoned historical recovery.
+
+Completion must prove native ECM remains blocked and no public hash bypasses
+MJL delivery. It must reconcile filesystem, ECM, custom metadata, audit, quota,
+and encrypted-content hashes after success, injected failures, rollback, and
+backup/restore. The future Phase 4 execution report is separate from RST-010A,
+and Phase 4 rollback returns to RST-010A containment, never legacy behavior.
+Upload defenses follow the OWASP defense-in-depth file-upload guidance:
+[OWASP File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html).
 
 ## Phase 3C Non-go-live Boundary
 

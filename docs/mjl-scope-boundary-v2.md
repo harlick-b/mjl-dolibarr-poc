@@ -45,10 +45,18 @@ through 6. Test-only records may exist solely inside disposable test tenants.
 
 ### Phase 4: contextual document management
 
-Implementation is blocked until the client approves categories, entity links,
-required documents, permissions, versions, replacement, cancellation,
-retention, size, formats, and workflow dependencies. Existing guarded storage
-and download code is current-state evidence, not approved Phase 4 behavior.
+The strategy is approved for implementation only at its roadmap position after
+Phases 2 through 3C. It covers contextual supporting evidence on Projet,
+Activité, and Opération; scoped read-only browsing; an empty Validator-managed
+category catalog; revision requirement snapshots; append-only series and
+versions; reasoned withdrawal; workflow locks; guarded attachment download;
+isolated-origin preview; malware and structural validation; encrypted storage;
+quota/rate limits; reconciliation; and complete audit.
+
+It excludes Partner attachments, public shares, public document routes, raw
+native ECM links, bulk document actions, physical deletion, OCR, external
+portals, and speculative category values. Existing containment code is not the
+Phase 4 implementation.
 
 ### Phase 5: accounting entries
 

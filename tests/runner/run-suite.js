@@ -276,7 +276,9 @@ async function runPlaywright(plan, target, signal) {
   } else if (target === 'rst003') {
     args.push('tests/e2e/partners-projects.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase1-all') {
-	args.push('tests/e2e/phase1-reset.spec.js', 'tests/e2e/auth-concurrency.spec.js', '--config=playwright.config.js');
+	args.push('tests/e2e/phase1-reset.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+  } else if (target === 'rst010a') {
+	args.push('tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
 	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
@@ -417,11 +419,11 @@ async function main() {
         await runPhase1Verification(plan, controller.signal);
 		if (mode === 'phase1-reset' && layer === 'rst007a') await runPhase1SchemaMutationRehearsal(plan, controller.signal);
 		if (mode === 'phase1-reset' && layer === 'rst007a') await runPhase1FailpointConstantRehearsal(plan, controller.signal);
-		if (mode === 'phase1-reset') {
-			if (layer === 'rst009a') await runPlaywright(plan, 'phase1-all', controller.signal);
-		} else {
-			await runPlaywright(plan, layer, controller.signal);
-		}
+		if (mode !== 'phase1-reset') await runPlaywright(plan, layer, controller.signal);
+      }
+      else if (layer === 'rst010a') {
+        await runPhase1Verification(plan, controller.signal);
+        await runPlaywright(plan, mode === 'phase1-reset' ? 'phase1-all' : layer, controller.signal);
       }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);

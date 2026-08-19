@@ -134,8 +134,52 @@ Records export identifier, format, generator, generated-at and as-of times,
 filters, relevant scope, successful file metadata or integrity reference, and
 audit link. A record is committed only after successful generation.
 
+## Phase 4 Document Category
+
+Entity-scoped stable identifier, label, active state managed through
+activation/deactivation, applicability to Projet,
+Activité, and Opération, and prospective requirement mode: optional, required
+for an Activité, or required once for each planned Opération. The catalog starts
+empty and is never seeded from legacy values.
+
+## Phase 4 Document Series
+
+Entity, stable identifier, exact parent type and identifier, category,
+creator, created timestamp, and optimistic-lock version. One series contains
+append-only document versions and never changes parent or entity.
+
+## Phase 4 Document Version
+
+Series, monotonically increasing version number, uploader identity and role
+snapshot, original display filename, validated media type, byte size, content
+hash, extensionless encrypted-storage locator, wrapped per-file key reference,
+native ECM adapter reference, scan engine/signature metadata, current or
+withdrawn state, withdrawal actor/reason/date, created timestamp, and audit
+reference. Bytes and metadata are immutable after commit. No secret key or raw
+preview grant is stored in audit. Exactly one published version maps to one
+entity-matched native ECM row and one immutable extensionless ciphertext file.
+Every retained current, prior, or withdrawn ciphertext version counts toward
+the 10 GiB entity quota.
+
+## Phase 4 Revision Requirement Snapshot
+
+One immutable entry per applicable category requirement for a submitted
+business revision, including requirement mode, target parent/Opération, the
+qualifying document series/version identifiers, and integrity reference. Every
+qualifying uploader is also a Revision Contributor.
+
+## Phase 4 Quota and Storage Operation
+
+Entity quota accounting and an idempotent storage-operation record coordinate
+durable encrypted staging followed by one database transaction for custom
+metadata, native ECM adapter linkage, immutable audit, and quota effects. A
+failed transaction removes its unreachable staged file; reconciliation finds
+orphan files, missing files, hash mismatches, and cross-entity links.
+The authoritative metadata is custom MJL data; native ECM is an adapter and
+never an authorization source.
+
 ## Future-module References
 
 Stable object identifiers, revisions, and audit references may later be used
-by approved document, accounting, or official-report modules. No future table,
-category, journal, account, mapping, or approval field is defined in Phase 0.
+by approved accounting or official-report modules. No future accounting
+journal, account, mapping, or official-report approval field is defined here.

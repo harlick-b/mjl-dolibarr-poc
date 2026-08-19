@@ -307,17 +307,56 @@ number does not approve a suffixed unit.
 
 ### RST-010A - Disable unapproved document business behavior
 
-- Status: `PENDING_APPROVAL`
-- Current component: implemented document library and business upload/download journeys.
-- Proposed action: disable unapproved document behavior while retaining guarded security seams.
-- Reason: document business rules are gated to client input in Phase 4.
+- Status: `EXECUTED` on 2026-08-19 after separate explicit approval.
+- Current component: denial-only MJL document routes, enabled native ECM storage,
+  an entity-filtered ECM pointer helper, and incomplete native delivery guards.
+  The former document library, upload/download helpers, audit adapter, lifecycle
+  tests, and exchange-log table are already absent.
+- Proposed action: harden containment without implementing document management:
+  make authenticated and anonymous GET/POST requests fail with HTTP 403, close
+  native ECM delivery bypasses, retain only the enumerated dormant seams, and
+  prove that filesystem and ECM state are byte-for-byte/row-for-row unchanged.
+- Reason: document business behavior remains disabled until the sequenced
+  Phase 4 implementation, while the pre-implementation denial routes returned
+  an anonymous login page with HTTP 200 and native root-level delivery
+  entrypoints were not fully contained.
 - Phase: Phase 1
 - Dependencies: RST-000A, RST-004, RST-009A
-- Exact paths: `custom/mjlfinancement/documents.php`, `custom/mjlfinancement/documentdownload.php`, `custom/mjlfinancement/lib/mjl_document.lib.php`, `custom/mjlfinancement/lib/mjl_document_audit_persistence.lib.php`, `custom/mjlfinancement/deployment/apache-native-guard.conf`, `tests/e2e/documents-audit.spec.js`, `tests/e2e/cases/document-lifecycle.cases.js`.
-- Exact tables/data: Dolibarr ECM metadata referenced by these routes; `data/documents`; `llx_mjlfinancement_exchange_log` document events.
-- Action and data impact: disable current business document creation/navigation while retaining guarded-download and audit primitives as dormant seams; delete no file or ECM row.
-- Backup prerequisite: RST-000 document snapshot and ECM identifier inventory.
-- Rollback/verification: restore route/navigation behavior and compare document snapshot checksums.
+- Exact paths: `custom/mjlfinancement/documents.php`,
+  `custom/mjlfinancement/documentdownload.php`,
+  `custom/mjlfinancement/nativeforbidden.php`,
+  `custom/mjlfinancement/deployment/apache-native-guard.conf`,
+  `custom/mjlfinancement/js/native_guard.js.php`,
+  `custom/mjlfinancement/css/mjl_app.css.php`,
+  `custom/mjlfinancement/lib/mjl_scope.lib.php`,
+  `custom/mjlfinancement/class/actions_mjlfinancement.class.php`,
+  `custom/mjlfinancement/scripts/bootstrap_poc.php`, `package.json`, the
+  disposable runner/configuration under `tests/runner` and `tests/fixtures`, a
+  focused document-containment E2E/contract suite, and removal of
+  `tests/evidence/inter-font-live.js`. The complete inventory and behavior are
+  fixed by `docs/mjl-rst-010a-containment-strategy.md`.
+- Exact tables/data: read-only native `llx_ecm_files` and
+  `llx_ecm_directories`, native ECM module configuration, and the full
+  `data/documents` tree. At review time `llx_ecm_files` has zero rows,
+  `llx_ecm_directories` has one retained legacy metadata row, the obsolete
+  `llx_mjlfinancement_exchange_log` table is absent, and the document tree has
+  eight non-business files. None is an RST-010A mutation target.
+- Action and data impact: change containment code/tests/docs only. Create no
+  persistent row or file; delete, move, rename, expose, restore, or migrate no
+  ECM row or document; add no navigation, rights, upload, download, preview,
+  category, version, retention, replacement, or document-audit behavior.
+- Backup prerequisite: immediately before implementation, capture a NUL-safe
+  path/type/content manifest for the complete document tree and canonical
+  all-column ordered row manifests for both ECM tables, with individual and
+  aggregate SHA-256 digests. Record current state rather than reusing an RST-000
+  or DEC-039 digest.
+- Rollback/verification: rollback may restore only a denial-only containment
+  baseline. It must never restore the former library, guarded-download
+  implementation, document helpers, document audit events, lifecycle tests,
+  navigation, or legacy ECM behavior. Disposable authenticated/anonymous GET
+  and POST, traversal, cross-entity, native ECM, and before/after filesystem and
+  ECM checksum checks passed as recorded in
+  `docs/mjl-rst-010a-execution-report.md`.
 
 ### RST-011 - Replace dashboards and alerts
 
@@ -397,7 +436,7 @@ number does not approve a suffixed unit.
 - Reason: Phase 3B behavior must be tested in Phase 3B rather than deferred to hardening.
 - Phase: Phase 3B
 - Dependencies: RST-009C, RST-011, RST-012, RST-013C
-- Exact paths: `tests/e2e/dashboards-alerts.spec.js`, `tests/e2e/reports-exports.spec.js`, `tests/e2e/cases/report-exports.cases.js`, `tests/e2e/cases/role-dashboards.cases.js`, `tests/e2e/cases/scoped-alerts.cases.js`, `tests/manual/accessibility-gate.spec.js`, `tests/unit/design-system-v3-remediation.test.js`, `tests/unit/design-system-v3.test.js`, `tests/contracts/page_header_test.php`, `tests/contracts/presentation_convergence_test.php`, `tests/contracts/table_presentation_test.php`, `tests/evidence/inter-font-css.js`, `tests/evidence/inter-font-live.js`, `tests/helpers/responsive-shell.js`.
+- Exact paths: `tests/e2e/dashboards-alerts.spec.js`, `tests/e2e/reports-exports.spec.js`, `tests/e2e/cases/report-exports.cases.js`, `tests/e2e/cases/role-dashboards.cases.js`, `tests/e2e/cases/scoped-alerts.cases.js`, `tests/manual/accessibility-gate.spec.js`, `tests/unit/design-system-v3-remediation.test.js`, `tests/unit/design-system-v3.test.js`, `tests/contracts/page_header_test.php`, `tests/contracts/presentation_convergence_test.php`, `tests/contracts/table_presentation_test.php`, `tests/evidence/inter-font-css.js`, `tests/helpers/responsive-shell.js`.
 - Exact tables/data: disposable Phase 3B fixtures and generated report/UI evidence only.
 - Action and data impact: replace dashboard/report assertions without deleting visual accessibility contracts.
 - Backup prerequisite: Phase 3A commit and disposable report-fixture definitions.
