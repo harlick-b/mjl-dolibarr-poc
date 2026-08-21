@@ -1,16 +1,20 @@
 # RST-013A Phase 1 Test Reset Strategy
 
-Status: `APPROVED` on 2026-08-21; implementation and verification are in
-progress. Approval provenance: the user stated `I approve RST-013A` after
+Status: `EXECUTED` on 2026-08-21 after complete committed-source gates and
+clean final Standards, Spec, and Security/Isolation reviews. The Phase 1
+verdict is `PHASE_1_READY_WITH_NOTES` for the deferred signed human
+accessibility gate; Phase 2 remains separately gated. Approval provenance: the
+user stated `I approve RST-013A` after
 RST-014A reached `EXECUTED`. The user separately approved the 2026-08-21
 amendment authorizing exactly one disposable same-entity, matched-parent
 Activity projection-control row with unique canaries, while forbidding any
 SQL fixture resumption and requiring factory-only setup in a serial group.
 
 This unit reconciles the Phase 1 test inventory after earlier approved reset
-commits. It does not retroactively claim prior deletions and cannot execute
-until RST-014A is separately approved, implemented, verified, and reviewed.
-Its other execution dependencies are executed RST-001, RST-002A, RST-003,
+commits. It does not retroactively claim prior deletions. Its execution
+dependency on separately approved, implemented, verified, and reviewed
+RST-014A was satisfied before execution. Its other execution dependencies are
+executed RST-001, RST-002A, RST-003,
 RST-004, RST-007A, RST-008, RST-009A, and RST-010A; any missing, rolled-back,
 or unverified dependency blocks the unit.
 

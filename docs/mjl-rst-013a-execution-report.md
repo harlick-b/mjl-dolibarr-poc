@@ -113,7 +113,7 @@ recorded with the evidence. The focused setup now suppresses that constant only
 for `MJL_TEST_MODE=rst013a`, and each lifecycle child emits its nonsensitive
 project identifier. The affected focused/public reruns and complete reviews are
 required again before status promotion; the reruns below are complete and the
-full-range reviews remain pending.
+full-range reviews were pending at that checkpoint and are closed below.
 
 ## Disposable project manifests
 
