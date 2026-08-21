@@ -129,6 +129,28 @@ write-capable factory never reads or copies it.
   and ECM `1dc830d123a3ca805d66f23e0d80e966dc43f0543fb46b334462b3e14308746b`.
   Schema evidence recorded zero views/routines/parameters/events and nine
   triggers on both sides.
+- Final path-boundary correction at commit `aa8a3bb` derives the diagnostics
+  output solely as `<repository>/test-results/runs/<projectName>`, requires an
+  exact parent identity/path match, and rejects outside or symlinked roots
+  before writing. The complete committed-source matrix then passed:
+  `npm run test:unit` 79/79; `npm run test:rst014a` 37/37 in tenant
+  `mjl-test-20260821t123659-152862-f97543e6` (389.9 seconds);
+  `npm run test:verify` in tenant
+  `mjl-test-20260821t124338-189385-91f3b22e` (190.9 seconds); and
+  `npm run test:e2e` 37/37 in tenant
+  `mjl-test-20260821t124657-198781-94e467f3` (400.3 seconds). All three
+  disposable projects left zero containers, networks, and volumes.
+- The final focused shared evidence again matched exactly: protected source
+  `46501f2a48281fa06cf88efb1cc9a6276d4ca428973929e071c9ce70e8d02921`,
+  document tree `8934c44974ff2e4a1c4d65686bb44d2c3b2da1dec38275b3f4b5b249d14daf3b`,
+  database `b0f2a2b8500826dab6a76d21ef919c5d4be1816cba43b3b3a134370560124857`,
+  Admin `8051d600e0740b2a2a9d4a2a85eb2674ffa3742e197e0604f5414e688236d987`,
+  and ECM `1dc830d123a3ca805d66f23e0d80e966dc43f0543fb46b334462b3e14308746b`.
+  RST-010A aggregate/filesystem/ECM-file/ECM-directory hashes were
+  `f62a1dcb33143edbc3df4f27391613f2500024384df3a5dee8bdf9ce0f9b09b9`,
+  `8f696b7543abcc474b5417cf5ccdc0932bdadd478ceee6dc9f2e21a8a09015f5`,
+  `cadd5951d9cb5487d134cf7937198a231e84b904a64d4c1a238914108d40baa9`,
+  and `57f30d93fafe25b39597696ccacbb261031b9fcceae2e84b303fd28f43beaa64`.
 
 Completion requires a clean commit, committed-source `test:rst014a`, public
 unit/verify/E2E gates proportional to the changed surface, and independent
