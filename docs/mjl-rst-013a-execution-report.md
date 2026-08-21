@@ -1,6 +1,6 @@
 # RST-013A Execution Report
 
-Status: `IMPLEMENTED_PENDING_COMMITTED_GATES_AND_REVIEW`.
+Status: `IMPLEMENTED_REVIEW_FIXES_PENDING_COMMITTED_RERUN`.
 
 Approval provenance: DEC-044 records the user's explicit statement
 `I approve RST-013A` on 2026-08-21, after RST-014A reached `EXECUTED`. The user
@@ -42,7 +42,7 @@ owns removal.
 | `npm run test:rst008` | PASS, 5/5 | 228.2 s; disposable tenant removed |
 | `npm run test:rst009a` | PASS, 2/2 | 174.8 s; disposable tenant removed |
 | `npm run test:rst010a` | PASS, 1/1 | 120.5 s; filesystem and both ECM digests unchanged; disposable tenant removed |
-| `npm run test:phase1-reset` | PASS, 11/11 applicable browser tests | 525.9 s from clean committed source after the post-cutover correction; five schema/invariant/audit rounds passed, the two dedicated RST-013A lifecycle cases were intentionally excluded from this aggregate mode, and all run-owned resources were removed |
+| `npm run test:phase1-reset` | FAIL, then expected dirty-worktree refusal during correction | The first committed-source rehearsal completed cutover/rollback verification but exposed a missing post-cutover RST-014A document sentinel before Playwright setup. The runner then correctly refused to exercise its uncommitted correction. |
 
 The first focused RST-013A red run correctly exposed two probe defects: the
 interim class has no generic `fetch()` and a Playwright worker restart replayed
@@ -102,6 +102,13 @@ audit events, and ECM files. Shared Compose resource inventory was identical.
 | `npm run test:rst014a` | PASS, 38/38 applicable | 437.1 s; factory, isolation, secret, sentinel, failure-path, and teardown coverage passed; two focused RST-013A lifecycle cases intentionally skipped; zero run-owned survivors |
 | `npm run test:e2e` | PASS, 38/38 applicable | 388.6 s; combined public browser surface passed; two focused RST-013A lifecycle cases intentionally skipped; filesystem and native ECM hashes remained unchanged; zero run-owned survivors |
 | `npm run test:verify` | PASS | 139.0 s on the explicit rerun; exit code 0 and zero run-owned survivors. The preceding run completed its assertion layer and cleanup but emitted an ambiguous transient network-removal message, so it was not counted. |
+
+The first final-range review found that focused RST-013A inherited an unrelated
+direct-SQL auth-token exposure constant and that project identifiers were not
+recorded with the evidence. The focused setup now suppresses that constant only
+for `MJL_TEST_MODE=rst013a`, and each lifecycle child emits its nonsensitive
+project identifier. The affected focused/public reruns and complete reviews are
+therefore required again before status promotion.
 
 ## Remaining completion gates
 

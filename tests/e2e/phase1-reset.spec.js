@@ -107,7 +107,9 @@ test.beforeAll(() => {
     COMMIT;
     SET FOREIGN_KEY_CHECKS=1;`);
   }
-  sql("INSERT INTO llx_const (name,entity,value,type,visible,note) VALUES ('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Phase 1 disposable E2E') ON DUPLICATE KEY UPDATE value='1'");
+  if (process.env.MJL_TEST_MODE !== 'rst013a') {
+    sql("INSERT INTO llx_const (name,entity,value,type,visible,note) VALUES ('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Phase 1 disposable E2E') ON DUPLICATE KEY UPDATE value='1'");
+  }
 });
 
 test('[RST-013A] current Activity authorization ignores poisoned legacy scope and preserves exact safe projection', async ({ browser }) => {
@@ -361,6 +363,7 @@ async function runRst013aSignalProbe(signal) {
   expect(preFallbackResources).toEqual({ containers: [], networks: [], volumes: [] });
   expect(fs.existsSync(path.join(repositoryRoot, 'test-results', 'runs', project))).toBe(false);
   expect(postFallbackResources).toEqual({ containers: [], networks: [], volumes: [] });
+  process.stdout.write(`RST-013A ${signal} lifecycle project: ${project}\n`);
 }
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
