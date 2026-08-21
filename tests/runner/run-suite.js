@@ -248,6 +248,7 @@ function composeEnvironment(plan, sourceRoot = repositoryRoot) {
     MJL_REPOSITORY_ROOT: sourceRoot,
     MJL_EVIDENCE_ROOT: plan.evidenceRoot,
     MJL_PLAYWRIGHT_OUTPUT_DIR: path.join(plan.artifactRoot, 'playwright'),
+    MJL_TEST_MODE: mode,
     MJL_DISPOSABLE_RUN_SENTINEL: plan.sentinel,
     MJL_TEST_USER_PASSWORD: plan.testUserPassword,
     MJL_AUTH_PASSWORD_1: plan.lifecyclePasswords[0],
@@ -453,6 +454,8 @@ async function runPlaywright(plan, target, signal) {
 	args.push('tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst014a') {
     args.push('tests/e2e/fixture-isolation.spec.js', 'tests/e2e/phase1-reset.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/partners-projects.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+  } else if (target === 'rst013a') {
+    args.push('tests/e2e/phase1-reset.spec.js', '--config=playwright.config.js', '--grep', '\\[RST-013A\\]');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
 	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
@@ -635,7 +638,9 @@ async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMod
   } catch (diagnosticsError) {
     failure = combineFailures(failure, diagnosticsError, 'Test execution and diagnostics capture failed.');
   }
-  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset' && !runMode.startsWith('rst014a');
+  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset'
+    && !runMode.startsWith('rst013a')
+    && !runMode.startsWith('rst014a');
   try {
     if (shouldRetain) retain(plan);
   } finally {
@@ -670,7 +675,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
@@ -685,10 +690,13 @@ async function main() {
         if (parentRegistry) await registerSecretAt(parentRegistry, category, value);
       }
       secretRegistry = await startSecretRegistry(plan);
-      if (mode === 'rst014a-lifecycle-probe' && process.env.MJL_RST014A_INJECT_SECRET) {
-        registerRunnerSecret('injected lifecycle secret', process.env.MJL_RST014A_INJECT_SECRET);
-        if (parentRegistry) await registerSecretAt(parentRegistry, 'injected lifecycle secret', process.env.MJL_RST014A_INJECT_SECRET);
-        fs.writeFileSync(path.join(plan.artifactRoot, 'injected-secret.log'), process.env.MJL_RST014A_INJECT_SECRET, { mode: 0o600 });
+      const injectedLifecycleSecret = mode === 'rst013a-lifecycle-probe'
+        ? process.env.MJL_RST013A_INJECT_SECRET
+        : process.env.MJL_RST014A_INJECT_SECRET;
+      if ((mode === 'rst013a-lifecycle-probe' || mode === 'rst014a-lifecycle-probe') && injectedLifecycleSecret) {
+        registerRunnerSecret('injected lifecycle secret', injectedLifecycleSecret);
+        if (parentRegistry) await registerSecretAt(parentRegistry, 'injected lifecycle secret', injectedLifecycleSecret);
+        fs.writeFileSync(path.join(plan.artifactRoot, 'injected-secret.log'), injectedLifecycleSecret, { mode: 0o600 });
       }
       process.stdout.write(`Disposable MJL project: ${plan.projectName}\nURL: ${plan.baseUrl}\n`);
     }
@@ -700,12 +708,15 @@ async function main() {
       }
       if (!provisionAttempted) {
         provisionAttempted = true;
-        if (layer === 'rst014a-lifecycle-probe') {
+        if (layer === 'rst013a-lifecycle-probe' || layer === 'rst014a-lifecycle-probe') {
           const resolved = await compose(plan, ['config', '--format', 'json'], { quiet: true, signal: controller.signal, timeoutMs: 10000 });
           assertDisposableConfig(JSON.parse(resolved), plan);
-          if (process.env.MJL_RST014A_PROBE_FAILURE === 'setup') throw new Error('Injected lifecycle setup failure.');
+          const setupFailure = layer === 'rst013a-lifecycle-probe'
+            ? process.env.MJL_RST013A_PROBE_FAILURE
+            : process.env.MJL_RST014A_PROBE_FAILURE;
+          if (setupFailure === 'setup') throw new Error('Injected lifecycle setup failure.');
           await compose(plan, ['up', '-d', 'mariadb'], { quiet: true, signal: controller.signal, timeoutMs: 60000 });
-          process.stdout.write('RST-014A lifecycle probe ready.\n');
+          process.stdout.write(`${layer === 'rst013a-lifecycle-probe' ? 'RST-013A' : 'RST-014A'} lifecycle probe ready.\n`);
         } else if (mode === 'phase1-reset') await runPhase1Cutover({
           plan,
           signal: controller.signal,
@@ -718,8 +729,10 @@ async function main() {
         });
         else await provision(plan, controller.signal);
       }
-      if (layer === 'rst014a-lifecycle-probe') {
-        const outcome = process.env.MJL_RST014A_PROBE_OUTCOME || 'signal';
+      if (layer === 'rst013a-lifecycle-probe' || layer === 'rst014a-lifecycle-probe') {
+        const outcome = (layer === 'rst013a-lifecycle-probe'
+          ? process.env.MJL_RST013A_PROBE_OUTCOME
+          : process.env.MJL_RST014A_PROBE_OUTCOME) || 'signal';
         if (outcome === 'test') throw new Error('Injected lifecycle test failure.');
         if (outcome === 'diagnostics-failure') process.env.MJL_RST014A_DIAGNOSTICS_STUB = 'failure';
         if (outcome === 'diagnostics-timeout') process.env.MJL_RST014A_DIAGNOSTICS_STUB = 'never';
@@ -750,6 +763,10 @@ async function main() {
         await runPhase1Verification(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
       }
+      else if (layer === 'rst013a') {
+        await runPhase1Verification(plan, controller.signal);
+        await runPlaywright(plan, layer, controller.signal);
+      }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);
     }
@@ -762,23 +779,24 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if (mode === 'rst014a' && sharedBefore && plan) {
+    if ((mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
-        if (JSON.stringify(sharedAfter) !== JSON.stringify(sharedBefore)) throw new Error('RST-014A changed shared filesystem, ECM, Admin, audit, schema, or database state.');
-        fs.writeFileSync(path.join(plan.artifactRoot, 'rst014a-shared-evidence.json'), `${JSON.stringify({ before: sharedBefore, after: sharedAfter }, null, 2)}\n`, { mode: 0o600 });
+        const unit = mode.toUpperCase();
+        if (JSON.stringify(sharedAfter) !== JSON.stringify(sharedBefore)) throw new Error(`${unit} changed shared filesystem, ECM, Admin, audit, schema, or database state.`);
+        fs.writeFileSync(path.join(plan.artifactRoot, `${mode}-shared-evidence.json`), `${JSON.stringify({ before: sharedBefore, after: sharedAfter }, null, 2)}\n`, { mode: 0o600 });
       } catch (evidenceError) {
-        failure = combineFailures(failure, evidenceError, 'RST-014A shared-state verification failed.');
+        failure = combineFailures(failure, evidenceError, `${mode.toUpperCase()} shared-state verification failed.`);
       }
       try {
         verifyArtifacts(plan.artifactRoot, secretEntries());
       } catch (scanError) {
-        failure = combineFailures(failure, scanError, 'RST-014A artifact verification failed.');
+        failure = combineFailures(failure, scanError, `${mode.toUpperCase()} artifact verification failed.`);
       }
     }
-    if (mode === 'rst014a-lifecycle-probe' && plan) {
+    if ((mode === 'rst013a-lifecycle-probe' || mode === 'rst014a-lifecycle-probe') && plan) {
       try { verifyArtifacts(plan.artifactRoot, secretEntries()); } catch (scanError) {
-        failure = combineFailures(failure, scanError, 'RST-014A lifecycle artifact verification failed.');
+        failure = combineFailures(failure, scanError, `${mode.toUpperCase()} lifecycle artifact verification failed.`);
       }
     }
   }

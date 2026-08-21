@@ -13,6 +13,7 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst008
     npm run test:rst009a
     npm run test:rst010a
+    npm run test:rst013a
     npm run test:rst014a
     npm run test:phase1-reset
 
@@ -28,12 +29,19 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   serialization, file/database/project attestation, non-Admin credentials,
   migrated Phase 1 callers, secret-free artifacts, exact shared-state equality,
   and complete destruction of its unique tenant even on failure.
+- 'test:rst013a' proves that legacy Partner-scope rows and hostile scope inputs
+  cannot grant Activity access; Agent GET/POST and every current class mutation
+  fail without DB/audit/ECM/document effects; reviewer output is same-entity,
+  parent-matched, and limited to the approved safe fields; repeated SIGINT and
+  SIGTERM destroy the real disposable runner. It also requires exact shared
+  source/database/Admin/ECM/document/resource equality.
 - The browser contract covers the business-role/Admin/role-less navigation matrix, direct guards, removed-route 404s, invitation issuance and acceptance, fragment clearing, hash invalidation, replay behavior, password reset, and login with changed credentials.
 - 'test:rst003' retains the reference-foundation schema/browser gate.
 
 The runner rejects port 8080 and shared binds, creates unique Compose project
 names and volumes, and removes containers, network, database volume, and
-document volume after success or failure.
+document volume after success or failure. RST-013A, RST-014A, and the combined
+Phase 1 reset proof ignore `MJL_TEST_RETAIN`.
 
 ## Shared cutover invariants
 

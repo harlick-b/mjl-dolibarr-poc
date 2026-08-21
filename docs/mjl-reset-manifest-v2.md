@@ -3,16 +3,17 @@
 RST-000, RST-000A, RST-001, RST-002A, and RST-003 were explicitly approved and
 executed. RST-003 completed on 2026-08-13 with an empty reference catalog;
 RST-007A, RST-004, RST-008, and RST-009A are executed; their operational-log
-exception was ratified by DEC-039. RST-010A and RST-014A are executed; all
-other later actions remain unapproved and unexecuted.
+exception was ratified by DEC-039. RST-010A and RST-014A are executed. RST-013A
+is separately approved by DEC-044 and under implementation; it is not executed.
+All other later actions remain unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
 - RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
-  RST-009A, RST-010A, and RST-014A are `EXECUTED`; every other action is
-  `PENDING_APPROVAL`.
+  RST-009A, RST-010A, and RST-014A are `EXECUTED`; RST-013A is `APPROVED` and
+  under implementation; every other action is `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.
@@ -393,11 +394,13 @@ number does not approve a suffixed unit.
 
 ### RST-013A - Phase 1 test reset
 
-- Status: `PENDING_APPROVAL`
-- Current component: four named tests remain; 13 named legacy finance/auth/scope
-  paths were already deleted by executed commit `3b5f767`; the characterization
-  config and coverage registry still refer to obsolete suites/evidence.
-- Proposed action: preserve the four current-purpose tests, record the 13 prior
+- Status: `APPROVED` on 2026-08-21 by DEC-044; implementation and verification
+  are in progress.
+- Current component: the implementation candidate preserves the four named
+  current-purpose paths, records the 13 legacy paths already deleted by
+  `3b5f767`, retargets characterization to `permissions.spec.js`, replaces the
+  stale coverage registry, and adds the approved current-model security cases.
+- Approved action: preserve the four current-purpose tests, record the 13 prior
   deletions without reclaiming them, retarget configs/evidence to maintained
   Phase 1 suites, and consume only the approved RST-014A fixture interface.
 - Reason: old green tests would validate superseded behavior.
@@ -413,11 +416,14 @@ number does not approve a suffixed unit.
   `docs/mjl-docs-index.md`, `docs/mjl-authoritative-decisions.md`,
   `docs/mjl-decision-register-v2.md`,
   `docs/mjl-rst-013a-test-reset-strategy.md`, and
-  planned `docs/mjl-rst-013a-execution-report.md`.
+  `docs/mjl-rst-013a-execution-report.md`.
 - Exact tables/data: RST-014A disposable test fixtures inside isolated tenants
-  plus focused poison `llx_mjlfinancement_user_soc_scope`, deliberately
-  cross-entity/corrupt-parent `llx_mjlfinancement_activity`, and no direct-SQL
-  audit rows; shared database, ECM, documents, and the
+  plus exactly one same-entity/matched-parent Activity projection control with
+  unique current-field canaries, focused poison
+  `llx_mjlfinancement_user_soc_scope`, deliberately cross-entity/corrupt-parent
+  `llx_mjlfinancement_activity`, and no direct-SQL audit rows. Fixture setup is
+  factory-only in a serial group and SQL fixture resumption is forbidden;
+  shared database, ECM, documents, and the
   exact protected source paths enumerated by the strategy are read-only
   evidence. Plaintext database manifests are never materialized; retained
   evidence contains only streaming digests, schema summaries, and nonsensitive

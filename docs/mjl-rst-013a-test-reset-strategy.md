@@ -1,6 +1,11 @@
 # RST-013A Phase 1 Test Reset Strategy
 
-Status: `PROPOSED_PENDING_APPROVAL`.
+Status: `APPROVED` on 2026-08-21; implementation and verification are in
+progress. Approval provenance: the user stated `I approve RST-013A` after
+RST-014A reached `EXECUTED`. The user separately approved the 2026-08-21
+amendment authorizing exactly one disposable same-entity, matched-parent
+Activity projection-control row with unique canaries, while forbidding any
+SQL fixture resumption and requiring factory-only setup in a serial group.
 
 This unit reconciles the Phase 1 test inventory after earlier approved reset
 commits. It does not retroactively claim prior deletions and cannot execute
@@ -86,12 +91,17 @@ obsolete after executed RST-004/RST-010A, not dynamically revived. Their
 continued source, schema, and route absence is proven by the maintained
 `rst004`, `rst010a`, and Phase 1 reset gates.
 
-RST-014A supplies only
-the principals and safe references; focused SQL may create poison/corrupt rows
-and independent before/after evidence. These cases belong in the maintained
+RST-014A supplies only the principals and safe references. Focused SQL may
+create exactly one same-entity, matched-parent Activity positive-control row
+with unique canaries in the current fields, the poison/cross-entity/corrupt-
+parent rows, and independent before/after evidence. The positive-control row
+exists only to prove the exact safe reviewer projection; it authorizes no
+runtime mutation behavior. These cases belong in the maintained
 `tests/e2e/phase1-reset.spec.js`, not a recreated legacy path.
 
-All fixture preconditions use the approved RST-014A interface. Business
+All fixture preconditions use one serial setup, with one approved RST-014A
+factory call per required entity/namespace. SQL-based fixture resumption is
+forbidden. Business
 journeys remain browser/HTTP-driven. Focused SQL remains only for deliberate
 mutation/corruption/concurrency probes and independent evidence reads.
 
@@ -113,7 +123,7 @@ Modify:
 - `docs/mjl-authoritative-decisions.md`;
 - `docs/mjl-decision-register-v2.md`;
 - `docs/mjl-rst-013a-test-reset-strategy.md`;
-- planned `docs/mjl-rst-013a-execution-report.md`.
+- `docs/mjl-rst-013a-execution-report.md`.
 
 RST-014A, not RST-013A, owns fixture-consumer edits to other retained Phase 1
 specs. Any RST-013A implementation need outside this literal list stops the
@@ -123,8 +133,11 @@ Do not recreate any of the 13 absent paths or restore their behavior. Create no
 persistent row or file. Inside the RST-014A disposable tenant only, focused
 RST-013A security probes may add poison rows to
 `llx_mjlfinancement_user_soc_scope`, deliberately cross-entity/corrupt-parent
-rows to `llx_mjlfinancement_activity`. These focused denial probes must leave every audit table unchanged;
-no direct-SQL audit row is authorized. No other direct-SQL test data is authorized. None
+rows to `llx_mjlfinancement_activity`, and exactly one same-entity,
+matched-parent positive-control Activity row with the approved projection and
+unique canaries in the current planning, execution, note, and private fields.
+These focused probes must leave every audit table unchanged; no direct-SQL
+audit row is authorized. No other direct-SQL test data is authorized. None
 is selectively deleted: tenant teardown removes the whole database. The shared
 database, ECM tables, document tree, native administrator, and local startup
 remain unchanged.
