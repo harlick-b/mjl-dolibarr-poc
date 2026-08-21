@@ -29,6 +29,11 @@ function evidence_identifier(string $value): string
 function evidence_tree_digest(string $root): string
 {
     $hash = hash_init('sha256');
+    $rootStat = @lstat($root);
+    if ($rootStat === false || is_link($root) || !is_dir($root)) throw new RuntimeException('Invalid filesystem evidence root.');
+    evidence_field($hash, 'root-path', '.');
+    evidence_field($hash, 'root-type', 'directory');
+    evidence_field($hash, 'root-mode', ((int) $rootStat['mode']) & 07777);
     $walk = function (string $directory, string $relative = '') use (&$walk, $hash): void {
         $entries = scandir($directory);
         if ($entries === false) throw new RuntimeException('Unable to enumerate filesystem evidence.');

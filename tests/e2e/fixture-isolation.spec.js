@@ -4,7 +4,7 @@ const path = require('node:path');
 const { execFileSync, spawn } = require('node:child_process');
 
 const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
-const { scalar, sql } = require('../helpers/mjl-test-runtime');
+const { registerSecret, scalar, sql } = require('../helpers/mjl-test-runtime');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 
@@ -73,7 +73,7 @@ async function directFactory(value, user = 'www-data') {
       if (code === 0) resolve({ stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') });
       else reject(new Error('Concurrent disposable fixture call failed.'));
     });
-    child.stdin.end(typeof value === 'string' ? value : JSON.stringify(value));
+    child.stdin.end(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value));
   });
 }
 
@@ -116,6 +116,13 @@ test('[RST-014A] streaming evidence detects trigger, database, routine-signature
     'CREATE SEQUENCE rst014a_evidence_sequence START WITH 10',
     'DROP SEQUENCE rst014a_evidence_sequence',
   );
+  const documentMode = execFileSync('docker', ['compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'stat', '-c', '%a', '/var/www/documents'], { env: process.env, encoding: 'utf8' }).trim();
+  const alternateDocumentMode = documentMode === '755' ? '750' : '755';
+  const beforeDocuments = databaseEvidence().documents_sha256;
+  execFileSync('docker', ['compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'chmod', alternateDocumentMode, '/var/www/documents'], { env: process.env });
+  try { expect(databaseEvidence().documents_sha256).not.toBe(beforeDocuments); }
+  finally { execFileSync('docker', ['compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'chmod', documentMode, '/var/www/documents'], { env: process.env }); }
+  expect(databaseEvidence().documents_sha256).toBe(beforeDocuments);
 });
 
 test('[RST-014A] direct PHP rejects noncanonical input with independent Admin attestation', async () => {
@@ -123,6 +130,25 @@ test('[RST-014A] direct PHP rejects noncanonical input with independent Admin at
   const edgeWhitespace = request('rst014a-edge-space');
   edgeWhitespace.references.partners[0].label = '\ufeffPartenaire';
   await expect(directFactory(edgeWhitespace)).rejects.toThrow(/failed/i);
+  const canonical = JSON.stringify(request('rst014a-duplicate-member'));
+  await expect(directFactory(canonical.replace('{', '{"namespace":"duplicate",'))).rejects.toThrow(/failed/i);
+  await expect(directFactory(Buffer.from([0xff, 0xfe, 0xfd]))).rejects.toThrow(/failed/i);
+  await expect(directFactory(`${'['.repeat(9)}0${']'.repeat(9)}`)).rejects.toThrow(/failed/i);
+});
+
+test('[RST-014A] exact sentinel content, database value, and special-bit mode fail closed', async () => {
+  const sentinelPath = '/var/www/documents/.mjl-disposable-fixture-sentinel';
+  const expected = process.env.MJL_DISPOSABLE_RUN_SENTINEL;
+  const invoke = (namespace) => directFactory(request(namespace));
+  execFileSync('docker', ['compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'chmod', '2444', sentinelPath], { env: process.env });
+  try { await expect(invoke('rst014a-special-mode')).rejects.toThrow(/failed/i); }
+  finally { execFileSync('docker', ['compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'chmod', '0444', sentinelPath], { env: process.env }); }
+  execFileSync('docker', ['compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'sh', '-ceu', 'printf "%s\\n" "$MJL_DISPOSABLE_RUN_SENTINEL" > /var/www/documents/.mjl-disposable-fixture-sentinel; chmod 0444 /var/www/documents/.mjl-disposable-fixture-sentinel'], { env: process.env });
+  try { await expect(invoke('rst014a-content-space')).rejects.toThrow(/failed/i); }
+  finally { execFileSync('docker', ['compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'sh', '-ceu', 'printf %s "$MJL_DISPOSABLE_RUN_SENTINEL" > /var/www/documents/.mjl-disposable-fixture-sentinel; chmod 0444 /var/www/documents/.mjl-disposable-fixture-sentinel'], { env: process.env }); }
+  sql("UPDATE llx_const SET value='00000000000000000000000000000000' WHERE entity=0 AND name='MJL_DISPOSABLE_FIXTURE_SENTINEL'");
+  try { await expect(invoke('rst014a-db-mismatch')).rejects.toThrow(/failed/i); }
+  finally { sql(`UPDATE llx_const SET value='${expected}' WHERE entity=0 AND name='MJL_DISPOSABLE_FIXTURE_SENTINEL'`); }
 });
 
 test('[RST-014A] post-reservation failure rolls back the complete fixture transaction', () => {
@@ -172,6 +198,7 @@ test('[RST-014A] complete factory fails before DB access when the file sentinel 
 
 async function runLifecycleProbe({ signal = null, outcome = 'signal' }) {
   const injectedSecret = `lifecycle-${require('node:crypto').randomBytes(16).toString('hex')}`;
+  await registerSecret('injected lifecycle secret', injectedSecret);
   const child = spawn(process.execPath, ['tests/runner/run-suite.js', 'rst014a-lifecycle-probe'], {
     cwd: repositoryRoot,
     env: { ...process.env, MJL_TEST_RETAIN: '1', MJL_RST014A_PROBE_OUTCOME: outcome, MJL_RST014A_PROBE_FAILURE: outcome, MJL_RST014A_INJECT_SECRET: injectedSecret },
@@ -202,6 +229,7 @@ async function runLifecycleProbe({ signal = null, outcome = 'signal' }) {
   }
   await closed;
   expect(output).not.toContain(injectedSecret);
+  if (outcome === 'success') process.stdout.write(`${injectedSecret}\n`);
   expect(fs.existsSync(path.join(repositoryRoot, 'test-results', 'runs', project))).toBe(false);
   const filter = `label=com.docker.compose.project=${project}`;
   for (const [kind, args, format] of [

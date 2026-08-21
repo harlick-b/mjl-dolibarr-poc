@@ -10,6 +10,7 @@ const { assertCleanupComplete, assertDisposableConfig } = require('./disposable-
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('./disposable-run');
 const { scanArtifacts, streamTreeDigest } = require('./disposable-evidence');
 const { runPhase1CutoverRehearsal: runPhase1Cutover } = require('./phase1-cutover-rehearsal');
+const { registerSecretAt } = require('../helpers/mjl-test-runtime');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 const mode = require.main === module ? (process.argv[2] || 'all') : 'unit';
@@ -39,7 +40,7 @@ function secretEntries() {
   ];
 }
 
-async function startSecretRegistry(plan) {
+async function startSecretRegistry(plan, enroll = registerRunnerSecret) {
   const sockets = new Set();
   const server = net.createServer((socket) => {
     sockets.add(socket);
@@ -58,8 +59,11 @@ async function startSecretRegistry(plan) {
           || !crypto.timingSafeEqual(Buffer.from(request.capability || ''), Buffer.from(plan.secretRegistryCapability))
           || typeof request.category !== 'string' || !/^[a-z][a-z ]{1,39}$/.test(request.category)
           || typeof request.value !== 'string' || request.value.length < 8 || request.value.length > 512) throw new Error('invalid');
-        registerRunnerSecret(request.category, request.value);
-      } catch (_) {}
+        enroll(request.category, request.value);
+        socket.end('OK\n');
+      } catch (_) {
+        socket.end('ERROR\n');
+      }
     });
   });
   await new Promise((resolve, reject) => {
@@ -461,17 +465,17 @@ async function runPlaywright(plan, target, signal) {
   await runCommand('npx', args, { env: composeEnvironment(plan), signal, timeoutMs: 15 * 60 * 1000 });
 }
 
-async function captureDiagnostics(plan, signal) {
+async function captureDiagnosticsInline(plan, signal, workerSecrets = []) {
   if (process.env.MJL_RST014A_DIAGNOSTICS_STUB === 'failure') throw new Error('Injected diagnostics failure.');
   if (process.env.MJL_RST014A_DIAGNOSTICS_STUB === 'never') {
-    await new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('Injected diagnostics timeout.')), { once: true }));
+    await new Promise(() => {});
   }
   fs.mkdirSync(plan.artifactRoot, { recursive: true });
   const chunks = [];
   for (const args of [['ps', '-a'], ['logs', '--no-color', '--timestamps']]) {
     if (signal.aborted) throw new Error('Diagnostics capture cancelled.');
     try {
-      chunks.push(await compose(plan, args, { quiet: true, signal, timeoutMs: 4000 }));
+      chunks.push(await runCommand('docker', ['compose', ...args], { quiet: true, signal, timeoutMs: 4000 }));
     } catch (error) {
       chunks.push(error.output || error.message);
     }
@@ -479,9 +483,51 @@ async function captureDiagnostics(plan, signal) {
   if (signal.aborted) throw new Error('Diagnostics capture cancelled.');
   fs.writeFileSync(
     path.join(plan.artifactRoot, 'compose.log'),
-    sanitizeOutput(chunks.join('\n'), allSecretValues()),
+    sanitizeOutput(chunks.join('\n'), [
+      ...allSecretValues(),
+      ...workerSecrets,
+      process.env.MJL_DISPOSABLE_RUN_SENTINEL,
+      process.env.MJL_TEST_USER_PASSWORD,
+      process.env.MJL_AUTH_PASSWORD_1,
+      process.env.MJL_AUTH_PASSWORD_2,
+      process.env.MJL_AUTH_STALE_PASSWORD,
+      process.env.MJL_SECRET_REGISTRY_CAPABILITY,
+    ].filter(Boolean)),
     { mode: 0o600 },
   );
+}
+
+async function captureDiagnostics(plan, signal) {
+  const environment = {
+    ...composeEnvironment(plan),
+    MJL_DIAGNOSTICS_WORKER_PROJECT: plan.projectName,
+    MJL_DIAGNOSTICS_WORKER_ARTIFACT_ROOT: plan.artifactRoot,
+  };
+  await runCommand(process.execPath, [__filename, 'diagnostics-worker'], {
+    env: environment,
+    input: JSON.stringify({
+      projectName: plan.projectName,
+      artifactRoot: plan.artifactRoot,
+      secrets: allSecretValues(),
+    }),
+    quiet: true,
+    signal,
+  });
+}
+
+async function diagnosticsWorkerMain() {
+  const raw = fs.readFileSync(0, 'utf8');
+  if (Buffer.byteLength(raw, 'utf8') > 128 * 1024) throw new Error('Diagnostics worker request is oversized.');
+  const request = JSON.parse(raw);
+  if (Object.keys(request).join(',') !== 'projectName,artifactRoot,secrets'
+    || !Array.isArray(request.secrets) || request.secrets.length > 256
+    || request.secrets.some((secret) => typeof secret !== 'string' || secret.length < 1 || secret.length > 512)
+    || JSON.stringify(request) !== raw) throw new Error('Invalid diagnostics worker request.');
+  const { projectName, artifactRoot } = request;
+  if (!/^mjl-test-[a-z0-9-]+$/.test(projectName || '') || !artifactRoot || !path.isAbsolute(artifactRoot)) {
+    throw new Error('Invalid diagnostics worker boundary.');
+  }
+  await captureDiagnosticsInline({ projectName, artifactRoot }, AbortSignal.timeout(30000), request.secrets);
 }
 
 async function captureSharedEvidence(signal = AbortSignal.timeout(60000)) {
@@ -608,18 +654,28 @@ async function main() {
   let failure = null;
   let sharedBefore = null;
   let secretRegistry = null;
+  const parentRegistry = (process.env.MJL_SECRET_REGISTRY_PORT || process.env.MJL_SECRET_REGISTRY_CAPABILITY)
+    ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
+    : null;
   try {
     if (mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
-      registerRunnerSecret('disposable credential', plan.testUserPassword);
-      registerRunnerSecret('disposable sentinel', plan.sentinel);
-      registerRunnerSecret('secret registry capability', plan.secretRegistryCapability);
-      for (const password of plan.lifecyclePasswords) registerRunnerSecret('lifecycle credential', password);
+      const initialSecrets = [
+        ['disposable credential', plan.testUserPassword],
+        ['disposable sentinel', plan.sentinel],
+        ['secret registry capability', plan.secretRegistryCapability],
+        ...plan.lifecyclePasswords.map((password) => ['lifecycle credential', password]),
+      ];
+      for (const [category, value] of initialSecrets) {
+        registerRunnerSecret(category, value);
+        if (parentRegistry) await registerSecretAt(parentRegistry, category, value);
+      }
       secretRegistry = await startSecretRegistry(plan);
       if (mode === 'rst014a-lifecycle-probe' && process.env.MJL_RST014A_INJECT_SECRET) {
         registerRunnerSecret('injected lifecycle secret', process.env.MJL_RST014A_INJECT_SECRET);
+        if (parentRegistry) await registerSecretAt(parentRegistry, 'injected lifecycle secret', process.env.MJL_RST014A_INJECT_SECRET);
         fs.writeFileSync(path.join(plan.artifactRoot, 'injected-secret.log'), process.env.MJL_RST014A_INJECT_SECRET, { mode: 0o600 });
       }
       process.stdout.write(`Disposable MJL project: ${plan.projectName}\nURL: ${plan.baseUrl}\n`);
@@ -724,7 +780,8 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((error) => {
+  const entrypoint = process.argv[2] === 'diagnostics-worker' ? diagnosticsWorkerMain : main;
+  entrypoint().catch((error) => {
     const details = error instanceof AggregateError
       ? `${error.stack || error.message}\n${error.errors.map((entry) => `${entry.stack || entry.message}${entry.output ? `\n${entry.output}` : ''}`).join('\n')}`
       : `${error.stack || error.message}${error.output ? `\n${error.output}` : ''}`;

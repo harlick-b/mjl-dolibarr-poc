@@ -122,6 +122,8 @@ test('maximum-length derived login remains exact and collision-safe', () => {
 test('write-capable source preflights before bootstrap/DB and never copies Admin authentication', () => {
   const root = path.resolve(__dirname, '../..');
   const factory = fs.readFileSync(path.join(root, 'tests/fixtures/phase1-fixture.php'), 'utf8');
+  const preflightSource = fs.readFileSync(path.join(root, 'tests/fixtures/phase1-fixture-preflight.php'), 'utf8');
+  const environmentGuard = fs.readFileSync(path.join(root, 'tests/helpers/verify-disposable-environment.js'), 'utf8');
   const preflight = factory.indexOf("require __DIR__ . '/phase1-fixture-preflight.php'");
   const bootstrap = factory.indexOf("require_once '/var/www/html/main.inc.php'");
   const database = factory.indexOf('new PDO(');
@@ -130,6 +132,10 @@ test('write-capable source preflights before bootstrap/DB and never copies Admin
   assert.doesNotMatch(factory, /SELECT\s+\*\s+FROM\s+llx_user/i);
   assert.doesNotMatch(factory, /\badmin\s*=\s*1/i);
   assert.doesNotMatch(factory, /WHERE\s+admin\s*=\s*1[^;\n]*(?:INSERT|creator|source)/i);
+  assert.match(preflightSource, /\['mode'\]\) & 07777\) !== 0444/);
+  assert.doesNotMatch(preflightSource, /trim\([^)]*file_get_contents/);
+  assert.match(environmentGuard, /0:444:regular file/);
+  assert.match(environmentGuard, /Buffer\.from\(expected\.sentinel\)\.equals\(content\)/);
 });
 
 test('accepts only the exact secret-free result and recursively freezes null-prototype maps', () => {

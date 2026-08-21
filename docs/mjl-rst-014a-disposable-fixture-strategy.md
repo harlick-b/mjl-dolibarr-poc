@@ -215,8 +215,13 @@ RST-014A does not take ownership of or broaden those contracts.
 
 The factory performs no case-local teardown. The unique tenant is the cleanup
 boundary so immutable audit history is never selectively deleted. Diagnostics
-are independently time-bounded to 10 seconds and cannot delay the outermost
-cleanup `finally`. Cleanup ignores `MJL_TEST_RETAIN` in RST-014A/RST-013A proof
+run only in a dedicated killable subprocess, are independently time-bounded to
+10 seconds, and are terminated and awaited before the outermost cleanup
+`finally`; even a diagnostics operation that never observes cancellation cannot
+delay teardown or write a late artifact. The parent supplies its bounded
+in-memory redaction set to that worker only through canonical stdin, never argv
+or an artifact, so diagnostics are sanitized before their first write as well
+as scanned afterward. Cleanup ignores `MJL_TEST_RETAIN` in RST-014A/RST-013A proof
 modes, retries `down -v` three times with bounded calls, and independently
 enumerates the exact project-labelled containers/network and expected volumes
 before returning. Each teardown attempt is capped at 30 seconds and the entire
@@ -244,8 +249,12 @@ runner-owned registry bound to an ephemeral loopback TCP port. Its independent
 128-bit per-run capability is inherited only by runner-owned test subprocesses, is
 itself registered as a secret, and never appears in argv or an artifact. The
 registry creates no filesystem path, rejects noncanonical/oversized requests,
-times out silent clients, destroys every accepted socket during bounded
-shutdown, and closes before artifact scanning.
+returns a fixed success acknowledgment only after enrollment completes, fails
+closed when its coordinates/capability are absent or rejected, times out silent
+clients, destroys every accepted socket during bounded shutdown, and closes
+before artifact scanning. A nested runner enrolls each generated secret with
+both its own registry and its inherited parent registry before first use, so
+the outer redactor/scanner remains authoritative if nested sanitization fails.
 
 Because the Phase 1 and manual suites enter Admin, fixture, invitation, and
 reset credentials, both Playwright configurations disable automatic trace and
@@ -263,7 +272,7 @@ audit history.
 
 Before and after each RST-014A rehearsal, capture the shared tenant's canonical
 all-table schema/data digest, exact native-Admin/business-row counts, ECM
-all-column digest, complete document-tree path/type/content digest, protected
+all-column digest, complete document-tree root/path/type/mode/content digest, protected
 source-tree path/type/mode/content digest, and Compose resource inventory. The
 protected source tree is exactly `custom/`, `docs/`, `tests/`, `AGENTS.md`,
 `CONTEXT.md`, `DESIGN.md`, `README.md`, `docker-compose.yml`, `package.json`,
@@ -393,6 +402,11 @@ Artifact tests inject a secret-bearing file into each reachable success,
 ordinary-failure, setup-failure, diagnostics-timeout, SIGINT, and SIGTERM
 finalization path and prove it is deleted before the sanitized outcome is
 reported or any other artifact is retained.
+Acknowledgment tests prove a registration promise cannot resolve before the
+runner has enrolled the value, and that missing coordinates, a wrong
+capability, and malformed requests all fail closed. A nested-output probe emits
+a registered child secret into the parent capture boundary and proves the outer
+redactor/scanner recognizes it.
 
 Disposable E2E uses distinct namespaces to prove role-less and each permitted
 role can be created in two entities without cross-entity linkage; business reference prerequisites work

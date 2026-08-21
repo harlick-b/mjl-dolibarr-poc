@@ -7,6 +7,7 @@ const { createRunPlan, getSuitePlan, sanitizeOutput } = require('../runner/dispo
 const os = require('node:os');
 const net = require('node:net');
 const { finalizeDisposableRun, protectedSourceDigest, runCommand, startSecretRegistry, verifyArtifacts } = require('../runner/run-suite');
+const { registerSecret, registerSecretAt } = require('../helpers/mjl-test-runtime');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 
@@ -140,9 +141,7 @@ test('never-resolving diagnostics are bounded and cannot bypass teardown', async
     provisionAttempted: true,
     failure: null,
     runMode: 'rst014a',
-    capture: async (_plan, signal) => new Promise((_, reject) => {
-      signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
-    }),
+    capture: async (_plan, signal) => runCommand(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { quiet: true, signal }),
     remove: async () => { removed = true; },
     diagnosticsTimeoutMs: 10,
   });
@@ -219,6 +218,43 @@ test('secret registry shutdown destroys a silent partial client within its bound
   await registry.close();
   await closed;
   assert.equal(client.destroyed, true);
+});
+
+test('secret enrollment resolves only after acknowledged registration and fails closed otherwise', async () => {
+  const enrolled = [];
+  const capability = 'b'.repeat(32);
+  const registry = await startSecretRegistry({ secretRegistryCapability: capability }, (category, value) => enrolled.push([category, value]));
+  try {
+    await registerSecretAt({ port: registry.port, capability }, 'auth selector', 'selector-value');
+    assert.deepEqual(enrolled, [['auth selector', 'selector-value']]);
+    await assert.rejects(
+      registerSecretAt({ port: registry.port, capability: 'c'.repeat(32) }, 'auth verifier', 'verifier-value'),
+      /rejected/i,
+    );
+    const response = await new Promise((resolve, reject) => {
+      const client = net.createConnection({ host: '127.0.0.1', port: registry.port });
+      let output = '';
+      client.setEncoding('utf8');
+      client.once('connect', () => client.end('{"invalid":true}\n'));
+      client.on('data', (chunk) => { output += chunk; });
+      client.once('end', () => resolve(output));
+      client.once('error', reject);
+    });
+    assert.equal(response, 'ERROR\n');
+  } finally {
+    await registry.close();
+  }
+  const previousPort = process.env.MJL_SECRET_REGISTRY_PORT;
+  const previousCapability = process.env.MJL_SECRET_REGISTRY_CAPABILITY;
+  delete process.env.MJL_SECRET_REGISTRY_PORT;
+  delete process.env.MJL_SECRET_REGISTRY_CAPABILITY;
+  try { await assert.rejects(registerSecret('auth selector', 'selector-value'), /unavailable/i); }
+  finally {
+    if (previousPort === undefined) delete process.env.MJL_SECRET_REGISTRY_PORT;
+    else process.env.MJL_SECRET_REGISTRY_PORT = previousPort;
+    if (previousCapability === undefined) delete process.env.MJL_SECRET_REGISTRY_CAPABILITY;
+    else process.env.MJL_SECRET_REGISTRY_CAPABILITY = previousCapability;
+  }
 });
 
 test('every Playwright surface installs the disposable guard with no shared URL fallback', () => {

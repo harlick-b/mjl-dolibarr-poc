@@ -28,19 +28,34 @@ async function login(page, username, password = defaultPassword) {
   await page.waitForLoadState('domcontentloaded');
 }
 
-function registerSecret(category, value) {
-  const port = Number(process.env.MJL_SECRET_REGISTRY_PORT);
-  const capability = process.env.MJL_SECRET_REGISTRY_CAPABILITY;
-  if (!Number.isInteger(port) || !capability || typeof value !== 'string' || value === '') return Promise.resolve();
+function registerSecretAt(registry, category, value) {
+  const port = Number(registry?.port);
+  const capability = registry?.capability;
+  if (typeof value !== 'string' || value === '') return Promise.resolve();
+  if (!Number.isInteger(port) || port < 1 || port > 65535 || !/^[a-f0-9]{32}$/.test(capability || '')) {
+    return Promise.reject(new Error('Secret registry is unavailable.'));
+  }
   return new Promise((resolve, reject) => {
     const socket = net.createConnection({ host: '127.0.0.1', port });
     socket.setEncoding('utf8');
     socket.setTimeout(2000);
+    let response = '';
     socket.once('connect', () => socket.end(`${JSON.stringify({ capability, category, value })}\n`));
-    socket.once('close', resolve);
+    socket.on('data', (chunk) => { response += chunk; });
+    socket.once('end', () => {
+      if (response === 'OK\n') resolve();
+      else reject(new Error('Secret registry rejected the enrollment.'));
+    });
     socket.once('timeout', () => socket.destroy(new Error('Secret registry timed out.')));
     socket.once('error', () => reject(new Error('Secret registry unavailable.')));
   });
 }
 
-module.exports = { composeExec, login, registerSecret, scalar, sql };
+function registerSecret(category, value) {
+  return registerSecretAt({
+    port: process.env.MJL_SECRET_REGISTRY_PORT,
+    capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY,
+  }, category, value);
+}
+
+module.exports = { composeExec, login, registerSecret, registerSecretAt, scalar, sql };

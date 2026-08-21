@@ -54,6 +54,8 @@ test('database evidence includes every authorized schema-object kind and exact s
   assert.match(source, /SHOW CREATE DATABASE/);
   assert.match(source, /'BASE TABLE','SEQUENCE'/);
   assert.match(source, /SHOW CREATE ' \./);
+  assert.match(source, /'root-type'.*'directory'/s);
+  assert.match(source, /'root-mode'/);
   assert.match(source, /'audit_events'/);
   assert.doesNotMatch(source, /file_put_contents\([^)]*(?:\/tmp|manifest\.)/i);
 });

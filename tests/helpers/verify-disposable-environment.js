@@ -20,7 +20,21 @@ function verifyDisposableEnvironment(options = {}) {
     ['compose', 'config', '--format', 'json'],
     { cwd: repositoryRoot, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
   ));
-  return assertDisposableConfig(resolved, expected);
+  const verified = assertDisposableConfig(resolved, expected);
+  if (!options.resolvedConfig) {
+    const sentinelPath = '/var/www/documents/.mjl-disposable-fixture-sentinel';
+    const stat = execFileSync('docker', [
+      'compose', 'exec', '-T', '--user', 'root', '-e', 'LC_ALL=C', 'dolibarr',
+      'stat', '-c', '%u:%a:%F', sentinelPath,
+    ], { cwd: repositoryRoot, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    const content = execFileSync('docker', [
+      'compose', 'exec', '-T', '--user', 'root', 'dolibarr', 'cat', sentinelPath,
+    ], { cwd: repositoryRoot, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    if (stat !== '0:444:regular file' || !Buffer.from(expected.sentinel).equals(content)) {
+      throw new Error('Disposable fixture sentinel runner attestation failed.');
+    }
+  }
+  return verified;
 }
 
 module.exports = { verifyDisposableEnvironment };

@@ -28,8 +28,8 @@ if ($mjlFixtureStat === false
     || is_link($mjlFixtureSentinelPath)
     || !is_file($mjlFixtureSentinelPath)
     || (int) $mjlFixtureStat['uid'] !== 0
-    || (((int) $mjlFixtureStat['mode']) & 0777) !== 0444
-    || !hash_equals($mjlFixtureSentinel, trim((string) @file_get_contents($mjlFixtureSentinelPath)))
+    || (((int) $mjlFixtureStat['mode']) & 07777) !== 0444
+    || !hash_equals($mjlFixtureSentinel, (string) @file_get_contents($mjlFixtureSentinelPath))
 ) {
     mjl_fixture_preflight_fail();
 }

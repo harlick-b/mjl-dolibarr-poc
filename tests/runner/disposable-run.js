@@ -80,6 +80,7 @@ function getSuitePlan(mode) {
     rst010a: ['rst010a'],
     rst014a: ['rst014a'],
     'rst014a-lifecycle-probe': ['rst014a-lifecycle-probe'],
+    'diagnostics-worker': [],
     'phase1-reset': ['rst007a', 'rst004', 'rst008', 'rst009a', 'rst010a'],
     characterization: ['characterization'],
     'manual-accessibility': ['manual-accessibility'],
