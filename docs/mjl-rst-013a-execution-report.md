@@ -1,6 +1,6 @@
 # RST-013A Execution Report
 
-Status: `IMPLEMENTED_COMMITTED_GATES_COMPLETE_PENDING_FINAL_REVIEWS`.
+Status: `EXECUTED`.
 
 Approval provenance: DEC-044 records the user's explicit statement
 `I approve RST-013A` on 2026-08-21, after RST-014A reached `EXECUTED`. The user
@@ -156,21 +156,23 @@ diagnostics/evidence only.
 | `npm run test:rst013a` | PASS, 3/3 | 191.0 s; unrelated auth-token constant absent; both emitted lifecycle projects and parent had zero survivors; final shared evidence matched exactly |
 | `npm run test:e2e` | PASS, 38/38 applicable | 428.3 s; two focused RST-013A lifecycle cases intentionally skipped and already passed above; exit code 0 and zero survivors |
 
-## Remaining completion gates
+## Final review closure and Phase 1 verdict
 
-- independently review the fixed baseline-to-candidate range on Standards,
-  Spec, and Security/Isolation axes;
-- resolve every actionable finding and rerun affected/public gates;
-- only then promote RST-013A to `EXECUTED` and issue the formal Phase 1 verdict.
+The complete fixed range `de67763..4e8ac75` received independent final
+Standards, Spec, and Security/Isolation reviews. Each axis reported zero
+actionable findings after the review-fix reruns and evidence-chronology
+correction. RST-013A is therefore `EXECUTED`.
 
 The signed manual accessibility gate is human-only and has not been run. This
-is an explicit deferred operational note, not an automated pass.
+is the sole explicit deferred operational note, not an automated pass. The
+formal verdict is `PHASE_1_READY_WITH_NOTES`.
 
-No Phase 1 verdict and no Phase 2 authorization is issued by this report state.
+This verdict does not authorize Phase 2 or RST-005. RST-005 remains subject to
+its own strategy review and separate explicit approval.
 
 ## Pre-commit review closure
 
 After the explicit amendment and focused rerun, independent Standards, Spec,
-and Security/Isolation reviews reported zero actionable findings. This closes
-the implementation-candidate review loop only; the fixed committed range must
-still receive its required final reviews after the remaining public gates.
+and Security/Isolation reviews reported zero actionable findings. The later
+committed-source and evidence-provenance review loops also closed with all
+three axes clean, as recorded above.

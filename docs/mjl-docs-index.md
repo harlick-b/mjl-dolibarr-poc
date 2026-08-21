@@ -31,8 +31,8 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-rst-003-execution-report.md` | Active RST-003 reference-foundation execution and verification evidence; not target-rule authority |
 | `docs/mjl-rst-010a-containment-strategy.md` | Approved RST-010A containment-only implementation strategy and review evidence; authorizes no document business behavior |
 | `docs/mjl-rst-010a-execution-report.md` | Active RST-010A implementation and preservation evidence; not Phase 4 runtime authority |
-| `docs/mjl-rst-013a-test-reset-strategy.md` | Approved exact RST-013A strategy; implementation and verification in progress after executed RST-014A |
-| `docs/mjl-rst-013a-execution-report.md` | Active RST-013A implementation candidate and verification evidence; no execution status or Phase 1 verdict yet |
+| `docs/mjl-rst-013a-test-reset-strategy.md` | Executed exact RST-013A strategy and rollback boundary |
+| `docs/mjl-rst-013a-execution-report.md` | Active RST-013A committed-source evidence, clean reviews, and `PHASE_1_READY_WITH_NOTES` verdict |
 | `docs/mjl-rst-014a-disposable-fixture-strategy.md` | Executed exact RST-014A strategy and rollback boundary |
 | `docs/mjl-rst-014a-execution-report.md` | Active RST-014A committed-source verification and clean-review evidence |
 | `docs/adr/0001-phase4-document-ownership-and-delivery.md` | Accepted Phase 4 architecture rationale; canonical v2 documents own the detailed rules |

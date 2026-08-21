@@ -3,8 +3,9 @@
 RST-000, RST-000A, RST-001, RST-002A, and RST-003 were explicitly approved and
 executed. RST-003 completed on 2026-08-13 with an empty reference catalog;
 RST-007A, RST-004, RST-008, and RST-009A are executed; their operational-log
-exception was ratified by DEC-039. RST-010A and RST-014A are executed. RST-013A
-is separately approved by DEC-044 and under implementation; it is not executed.
+exception was ratified by DEC-039. RST-010A, RST-013A, and RST-014A are
+executed. Phase 1 is `PHASE_1_READY_WITH_NOTES`; the signed human accessibility
+gate is deferred and Phase 2 remains separately gated.
 All other later actions remain unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
@@ -12,8 +13,8 @@ number does not approve a suffixed unit.
 ## Safety and Approval Contract
 
 - RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
-  RST-009A, RST-010A, and RST-014A are `EXECUTED`; RST-013A is `APPROVED` and
-  under implementation; every other action is `PENDING_APPROVAL`.
+  RST-009A, RST-010A, RST-013A, and RST-014A are `EXECUTED`; every other action
+  is `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.
@@ -394,9 +395,9 @@ number does not approve a suffixed unit.
 
 ### RST-013A - Phase 1 test reset
 
-- Status: `APPROVED` on 2026-08-21 by DEC-044; implementation and verification
-  are in progress.
-- Current component: the implementation candidate preserves the four named
+- Status: `EXECUTED` on 2026-08-21 by DEC-044 after complete committed-source
+  gates and clean final Standards, Spec, and Security/Isolation reviews.
+- Current component: the executed implementation preserves the four named
   current-purpose paths, records the 13 legacy paths already deleted by
   `3b5f767`, retargets characterization to `permissions.spec.js`, replaces the
   stale coverage registry, and adds the approved current-model security cases.

@@ -43,11 +43,15 @@ implement Activities or persistent sample data.
 
 RST-014A was separately approved on 2026-08-19 and executed after complete
 committed-source verification and independent clean reviews on 2026-08-21.
-RST-013A was separately approved by DEC-044 on 2026-08-21 and is being
-implemented and verified. Its approval does not substitute for its complete
-gate matrix, independent clean reviews, or the completed RST-014A boundary.
+RST-013A was separately approved and executed by DEC-044 on 2026-08-21 after
+its complete committed-source gate matrix and final independent Standards,
+Spec, and Security/Isolation reviews passed. RST-014A and RST-013A retain
+separate rollback and approval boundaries.
 
-Verdict: `PHASE_1_READY`, `PHASE_1_READY_WITH_NOTES`, or `PHASE_1_BLOCKED`.
+Verdict: `PHASE_1_READY_WITH_NOTES` on 2026-08-21. The signed human-only
+accessibility gate remains deferred. This verdict does not authorize Phase 2
+or RST-005, which requires a separately reviewed and explicitly approved
+strategy.
 
 ## Phase 2: Activity Planning and Validation
 
