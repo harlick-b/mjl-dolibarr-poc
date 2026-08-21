@@ -42,7 +42,7 @@ owns removal.
 | `npm run test:rst008` | PASS, 5/5 | 228.2 s; disposable tenant removed |
 | `npm run test:rst009a` | PASS, 2/2 | 174.8 s; disposable tenant removed |
 | `npm run test:rst010a` | PASS, 1/1 | 120.5 s; filesystem and both ECM digests unchanged; disposable tenant removed |
-| `npm run test:phase1-reset` | EXPECTED PRECONDITION REFUSAL | The cutover rehearsal requires a clean committed worktree; rerun is mandatory after the candidate commit |
+| `npm run test:phase1-reset` | FAIL, then expected dirty-worktree refusal during correction | The first committed-source rehearsal completed cutover/rollback verification but exposed a missing post-cutover RST-014A document sentinel before Playwright setup. The runner now reapplies the same disposable fixture controls after cutover; its uncommitted correction was then correctly refused by the clean-source precondition. A clean committed rerun remains mandatory. |
 
 The first focused RST-013A red run correctly exposed two probe defects: the
 interim class has no generic `fetch()` and a Playwright worker restart replayed
@@ -58,6 +58,15 @@ scanner acknowledgement, artifact absence, and zero resources before any
 safety fallback. The fallback independently performs bounded termination,
 three teardown attempts, artifact removal, and survivor enumeration without
 being allowed to satisfy the proof. The amended focused suite passed 3/3.
+
+The first clean committed Phase 1 rehearsal then found an orchestration handoff
+gap rather than a product assertion failure: the cutover restore correctly
+discarded disposable state, including the RST-014A database and filesystem
+sentinels, but the runner entered Playwright setup without recreating those
+controls. The guard failed closed on the absent document sentinel. Normal and
+post-cutover setup now share one fixture-control provisioning function; no
+fixture row, business mutation, or SQL-based fixture resumption was added.
+The failed run removed all of its run-owned resources.
 
 One orchestration-channel interruption terminated three concurrently launched
 focused parent runners before their finalizers. The exact three `mjl-test-*`
