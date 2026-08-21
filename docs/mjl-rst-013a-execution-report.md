@@ -28,7 +28,7 @@ All fixture/business rows exist only in an RST-014A-attested disposable tenant.
 The tests perform no selective fixture or audit deletion; whole-tenant teardown
 owns removal.
 
-## Pre-commit evidence
+## Pre-commit and first committed-run evidence
 
 | Command | Result | Duration / notes |
 | --- | --- | --- |
