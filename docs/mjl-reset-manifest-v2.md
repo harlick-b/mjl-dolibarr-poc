@@ -496,17 +496,17 @@ number does not approve a suffixed unit.
 ### RST-014A - Phase 1 disposable test-fixture infrastructure
 
 - Status: `EXECUTED` (verified and independently reviewed 2026-08-21)
-- Current component: mature disposable Compose/runner isolation and focused
-  fixtures already exist, but Phase 1 specs duplicate raw SQL setup and no
-  guarded general Phase 1 record-factory interface exists.
-- Proposed action: add one guarded structured factory for minimal users and
-  Partenaire/Projet/Type d'Opération preconditions; retain existing isolation
-  and enforce the continued absence of persistent seed behavior.
+- Current component: the executed disposable Compose/runner isolation includes
+  one guarded general Phase 1 record-factory interface; migrated Phase 1 specs
+  consume it instead of duplicating raw SQL principal/reference setup.
+- Executed action: added one guarded structured factory for minimal users and
+  Partenaire/Projet/Type d'Opération preconditions, retained existing
+  isolation, and enforced the continued absence of persistent seed behavior.
 - Reason: target behavior needs disposable verification without recreating RST-000A data.
 - Phase: Phase 1
 - Dependencies: executed RST-000A, RST-001, RST-002A, RST-003, RST-004,
   RST-007A, RST-008, RST-009A, and RST-010A
-- Exact paths: planned `tests/helpers/phase1-fixture.js`,
+- Exact paths: `tests/helpers/phase1-fixture.js`,
   `tests/fixtures/phase1-fixture.php`,
   `tests/fixtures/phase1-fixture-preflight.php`,
   `tests/fixtures/database-evidence.php`,
@@ -532,7 +532,7 @@ number does not approve a suffixed unit.
   `docs/mjl-implementation-roadmap-v2.md`, `docs/mjl-docs-index.md`,
   `docs/mjl-authoritative-decisions.md`,
   `docs/mjl-decision-register-v2.md`,
-  `docs/mjl-rst-014a-disposable-fixture-strategy.md`, and planned
+  `docs/mjl-rst-014a-disposable-fixture-strategy.md`, and
   `docs/mjl-rst-014a-execution-report.md`. Retained/absent invariants are
   enumerated in the strategy.
 - Exact tables/data: no shared or post-teardown rows. Inside the disposable

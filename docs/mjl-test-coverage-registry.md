@@ -13,7 +13,7 @@ RST-002A adds a focused disposable authorization gate at
 invariance, role-only access administration, HTTP and domain Activity mutation
 freeze, safe reviewer projection, corrupt/cross-entity rejection, and the
 Admin-only technical landing. Legacy C1/C2 characterization remains
-non-authoritative until RST-013A/RST-014A.
+non-authoritative until RST-013A is separately approved and executed.
 
 RST-003 adds the focused `npm run test:rst003` disposable gate. Its allowlisted
 schema leaf verifies the empty entity-scoped Type d’Opération catalog and its
