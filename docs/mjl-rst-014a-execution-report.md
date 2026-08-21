@@ -48,8 +48,8 @@ write-capable factory never reads or copies it.
 
 ## Verification to date
 
-- `npm run test:unit`: all 13 current Node test files and retained PHP
-  contracts passed after the review corrections.
+- `npm run test:unit` at commit `51cd00a`: 77/77 Node unit cases and the
+  retained PHP contracts passed after the review corrections.
 - PHP syntax: `phase1-fixture-preflight.php`, `phase1-fixture.php`,
   `database-evidence.php`, `auth-parallel-worker.php`, and modified
   `rst010a-document-state.php` passed `php -l`.
@@ -79,6 +79,31 @@ write-capable factory never reads or copies it.
   retry after one transient MariaDB stop error), and `npm run test:e2e` with
   27/27 cases in tenant `mjl-test-20260819t153333-638111-937387e6`. Both left
   no disposable resource.
+- Final committed-source focused gate at commit `51cd00a` used tenant
+  `mjl-test-20260819t160627-736754-d1ac3f40`: all 36 browser/runtime cases
+  passed in 358.2 seconds. This included direct-PHP Unicode/canonical-input
+  rejection, post-reservation transaction rollback, every permitted role in
+  two entities, absent-sentinel complete-factory denial, schema mutation
+  detection for triggers/database defaults/routine parameters/sequences, and
+  real success/setup/test/diagnostics-failure/diagnostics-timeout/repeated
+  SIGINT/SIGTERM subprocess paths. RST-010A aggregate, filesystem,
+  `llx_ecm_files`, and `llx_ecm_directories` hashes were respectively
+  `b173d2d88a9d57229a0e8058b14c9f662cd2744d30d4a45ab79d9342107602a7`,
+  `90a7de5f775ba0c97d026f33f1de849d8b4ec194e14fa29dfe772d3330c0d5c2`,
+  `a142ddd3acd3057443dc9eb94814c89dadf158aa4fb3e2257466f2683eb01ea2`,
+  and `d0c019f472a95d545c72edbade6b1af5bb45feceda6796ed0fe4a394383412f1`.
+- The final shared before/after evidence matched exactly: protected source
+  `85a4268fd922eeda68b39e5bb3a3496d478480fea1b3c930b137f162e1b9ec27`,
+  database `b0f2a2b8500826dab6a76d21ef919c5d4be1816cba43b3b3a134370560124857`,
+  Admin `8051d600e0740b2a2a9d4a2a85eb2674ffa3742e197e0604f5414e688236d987`,
+  ECM `1dc830d123a3ca805d66f23e0d80e966dc43f0543fb46b334462b3e14308746b`,
+  and documents
+  `9acb96c564a4d9091b9d3f5f9570c96f58648f2f45f9c01fe3a66da28e9f713a`.
+  It recorded zero views, zero routines/parameters/events, and nine triggers;
+  all disposable resources were independently confirmed absent.
+- The final public `npm run test:verify` gate passed at commit `51cd00a` in
+  tenant `mjl-test-20260819t161245-770476-f6c7b83b` in 168.6 seconds and
+  removed every container, network, and volume.
 
 Completion requires a clean commit, committed-source `test:rst014a`, public
 unit/verify/E2E gates proportional to the changed surface, and independent
