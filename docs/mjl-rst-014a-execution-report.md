@@ -1,6 +1,7 @@
 # RST-014A Execution Report
 
-Status: `IMPLEMENTED_PENDING_POST_COMMIT_VERIFICATION_AND_REVIEW`.
+Status: `EXECUTED` (final Standards, Spec, and Security/Isolation reviews clean
+on 2026-08-21).
 
 Approval provenance: the user explicitly approved RST-014A on 2026-08-19 and
 then separately approved the native `dol_hash(..., '0')` correction,
@@ -152,6 +153,7 @@ write-capable factory never reads or copies it.
   `cadd5951d9cb5487d134cf7937198a231e84b904a64d4c1a238914108d40baa9`,
   and `57f30d93fafe25b39597696ccacbb261031b9fcceae2e84b303fd28f43beaa64`.
 
-Completion requires a clean commit, committed-source `test:rst014a`, public
-unit/verify/E2E gates proportional to the changed surface, and independent
-Standards/Spec/security review with zero actionable findings.
+Completion gates are satisfied: the final source and evidence are committed,
+the committed unit/focused/verify/E2E matrix passed, and independent
+Standards, Spec, and Security/Isolation reviews returned zero actionable
+findings. RST-013A remains separately approval-gated.

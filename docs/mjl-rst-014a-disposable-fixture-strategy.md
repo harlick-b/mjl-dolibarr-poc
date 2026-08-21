@@ -1,6 +1,6 @@
 # RST-014A Phase 1 Disposable Fixture Strategy
 
-Status: `APPROVED` (implementation under review).
+Status: `EXECUTED` (verified and independently reviewed on 2026-08-21).
 
 Approval provenance: the user explicitly approved RST-014A on 2026-08-19.
 Execution discovered that the retained tenant uses Dolibarr's native SHA-256

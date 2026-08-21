@@ -90,8 +90,9 @@ users, authentication, ECM, and export capabilities may be reused through safe
 MJL interfaces.
 
 RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
-and RST-009A are executed. RST-014A was separately approved on 2026-08-19 and
-is in post-commit verification/review; this does not approve RST-013A. The operational `initdb.log` checksum deviation from
+RST-009A, RST-010A, and RST-014A are executed. RST-014A passed its complete
+committed-source gate matrix and independent Standards, Spec, and
+Security/Isolation reviews on 2026-08-21; this does not approve RST-013A. The operational `initdb.log` checksum deviation from
 the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
 RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary

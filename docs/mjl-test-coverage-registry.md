@@ -2,11 +2,11 @@
 
 This is the durable Gate 1 audit and coverage registry for the MJL verification system. Target behavior follows `docs/mjl-authoritative-decisions.md`; current-state evidence that is not yet approved is explicitly classified as characterization.
 
-RST-014A was separately approved on 2026-08-19. Its implementation adds the
+RST-014A was separately approved on 2026-08-19 and executed after complete
+committed-source gates and independent clean reviews on 2026-08-21. It adds the
 only general Phase 1 fixture seam, isolated factory/preflight/evidence cases,
-and the `npm run test:rst014a` gate. Post-commit verification/review remains the
-completion boundary; RST-013A and the historical inventory below remain
-unratified until their own approval/execution.
+and the `npm run test:rst014a` gate. RST-013A and the historical inventory below
+remain unratified until their own approval/execution.
 
 RST-002A adds a focused disposable authorization gate at
 `tests/e2e/scope-security.spec.js` (6 cases): zero/poison Partner-scope

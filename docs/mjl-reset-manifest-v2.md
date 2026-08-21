@@ -3,16 +3,16 @@
 RST-000, RST-000A, RST-001, RST-002A, and RST-003 were explicitly approved and
 executed. RST-003 completed on 2026-08-13 with an empty reference catalog;
 RST-007A, RST-004, RST-008, and RST-009A are executed; their operational-log
-exception was ratified by DEC-039. RST-010A is executed. RST-014A is approved
-but not executed; all other later actions remain unapproved and unexecuted.
+exception was ratified by DEC-039. RST-010A and RST-014A are executed; all
+other later actions remain unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
 - RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
-  RST-009A, and RST-010A are `EXECUTED`; RST-014A is `APPROVED` but not
-  executed; every other action is `PENDING_APPROVAL`.
+  RST-009A, RST-010A, and RST-014A are `EXECUTED`; every other action is
+  `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.
@@ -495,7 +495,7 @@ number does not approve a suffixed unit.
 
 ### RST-014A - Phase 1 disposable test-fixture infrastructure
 
-- Status: `APPROVED` (implementation under review)
+- Status: `EXECUTED` (verified and independently reviewed 2026-08-21)
 - Current component: mature disposable Compose/runner isolation and focused
   fixtures already exist, but Phase 1 specs duplicate raw SQL setup and no
   guarded general Phase 1 record-factory interface exists.

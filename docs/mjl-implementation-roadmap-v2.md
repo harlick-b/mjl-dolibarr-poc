@@ -41,10 +41,10 @@ empty Partner/Project/Opération-type reference structures, stable identifiers,
 and transactional append-only audit. Execute only approved reset IDs. Do not
 implement Activities or persistent sample data.
 
-RST-014A was separately approved on 2026-08-19 and its implementation is in
-post-commit verification/review. RST-013A remains pending separate approval and
-cannot execute until RST-014A is recorded executed. RST-013A approval never
-substitutes for RST-014A approval.
+RST-014A was separately approved on 2026-08-19 and executed after complete
+committed-source verification and independent clean reviews on 2026-08-21.
+RST-013A remains pending separate approval; RST-013A approval never
+substitutes for the completed RST-014A boundary.
 
 Verdict: `PHASE_1_READY`, `PHASE_1_READY_WITH_NOTES`, or `PHASE_1_BLOCKED`.
 
