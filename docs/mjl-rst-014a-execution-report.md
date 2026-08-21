@@ -104,6 +104,31 @@ write-capable factory never reads or copies it.
 - The final public `npm run test:verify` gate passed at commit `51cd00a` in
   tenant `mjl-test-20260819t161245-770476-f6c7b83b` in 168.6 seconds and
   removed every container, network, and volume.
+- Final review corrections added acknowledged secret enrollment, inherited
+  parent-runner enrollment, canonical-stdin diagnostics redaction, a killable
+  non-cooperative diagnostics worker, per-call independent sentinel
+  attestation, exact 0444/exact-byte PHP checks, hostile direct-PHP probes, and
+  document-root type/mode hashing. The resulting unit gate passed 78/78 cases.
+- Decisive committed-source `npm run test:rst014a` at commit `95dd7e2` used
+  tenant `mjl-test-20260821t122525-107766-c8bc67ef`: 37/37 browser/runtime
+  cases passed in 403.5 seconds, the deliberate nested secret was emitted only
+  as `[REDACTED]`, diagnostics and retained artifacts scanned cleanly, and
+  independent enumeration found no surviving container, network, or volume.
+  RST-010A aggregate, filesystem, `llx_ecm_files`, and
+  `llx_ecm_directories` hashes were respectively
+  `8a36c1ab6ffc6b729681175a39e1dbc29be1d3d6f929f014c784602f8f63d5a3`,
+  `5b463356b1b0920cb8497414c6f46083ef4c2d20b08a94f4c39635e81f086c27`,
+  `f41a51fc19aeb13f5e13b35972bbc2e4d05e186a879da0fd3ede5d4f6bbbf90e`,
+  and `e184e4d5ff5d43ba7d299035591d374dd6185518364eafb3418458cac7458f6d`.
+- Its shared before/after evidence matched exactly: protected source
+  `24407bc8c36493caa3385ab1af4ae203f8730fb429024514b7abbe7b5840e749`,
+  document tree (including root type/mode)
+  `8934c44974ff2e4a1c4d65686bb44d2c3b2da1dec38275b3f4b5b249d14daf3b`,
+  database `b0f2a2b8500826dab6a76d21ef919c5d4be1816cba43b3b3a134370560124857`,
+  Admin `8051d600e0740b2a2a9d4a2a85eb2674ffa3742e197e0604f5414e688236d987`,
+  and ECM `1dc830d123a3ca805d66f23e0d80e966dc43f0543fb46b334462b3e14308746b`.
+  Schema evidence recorded zero views/routines/parameters/events and nine
+  triggers on both sides.
 
 Completion requires a clean commit, committed-source `test:rst014a`, public
 unit/verify/E2E gates proportional to the changed surface, and independent
