@@ -257,6 +257,43 @@ test('secret enrollment resolves only after acknowledged registration and fails 
   }
 });
 
+test('diagnostics worker rejects outside and symlinked artifact roots before writing', async () => {
+  const projectName = `mjl-test-worker-boundary-${process.pid}`;
+  const runsRoot = path.join(repositoryRoot, 'test-results', 'runs');
+  const expectedRoot = path.join(runsRoot, projectName);
+  const outsideRoot = path.join(os.tmpdir(), `${projectName}-outside`);
+  const workerEnvironment = {
+    ...process.env,
+    MJL_DIAGNOSTICS_WORKER_PROJECT: projectName,
+    MJL_DIAGNOSTICS_WORKER_ARTIFACT_ROOT: outsideRoot,
+  };
+  const request = (artifactRoot) => JSON.stringify({ projectName, artifactRoot, secrets: ['registered-secret'] });
+  await assert.rejects(
+    runCommand(process.execPath, [path.join(repositoryRoot, 'tests/runner/run-suite.js'), 'diagnostics-worker'], {
+      env: workerEnvironment, input: request(outsideRoot), quiet: true,
+    }),
+    /failed/i,
+  );
+  assert.equal(fs.existsSync(outsideRoot), false);
+
+  fs.mkdirSync(runsRoot, { recursive: true });
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), `${projectName}-target-`));
+  fs.symlinkSync(target, expectedRoot);
+  try {
+    await assert.rejects(
+      runCommand(process.execPath, [path.join(repositoryRoot, 'tests/runner/run-suite.js'), 'diagnostics-worker'], {
+        env: { ...workerEnvironment, MJL_DIAGNOSTICS_WORKER_ARTIFACT_ROOT: expectedRoot },
+        input: request(expectedRoot), quiet: true,
+      }),
+      /failed/i,
+    );
+    assert.equal(fs.existsSync(path.join(target, 'compose.log')), false);
+  } finally {
+    fs.rmSync(expectedRoot, { force: true });
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('every Playwright surface installs the disposable guard with no shared URL fallback', () => {
   for (const relative of ['playwright.config.js', 'tests/characterization/playwright.config.js', 'tests/manual/playwright.config.js']) {
     const config = fs.readFileSync(path.join(repositoryRoot, relative), 'utf8');

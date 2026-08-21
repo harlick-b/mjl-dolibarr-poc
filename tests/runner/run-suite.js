@@ -524,7 +524,19 @@ async function diagnosticsWorkerMain() {
     || request.secrets.some((secret) => typeof secret !== 'string' || secret.length < 1 || secret.length > 512)
     || JSON.stringify(request) !== raw) throw new Error('Invalid diagnostics worker request.');
   const { projectName, artifactRoot } = request;
-  if (!/^mjl-test-[a-z0-9-]+$/.test(projectName || '') || !artifactRoot || !path.isAbsolute(artifactRoot)) {
+  const runsRoot = path.join(repositoryRoot, 'test-results', 'runs');
+  const expectedArtifactRoot = path.join(runsRoot, projectName || '');
+  if (!/^mjl-test-[a-z0-9-]+$/.test(projectName || '')
+    || artifactRoot !== expectedArtifactRoot
+    || process.env.MJL_DIAGNOSTICS_WORKER_PROJECT !== projectName
+    || process.env.MJL_DIAGNOSTICS_WORKER_ARTIFACT_ROOT !== artifactRoot) {
+    throw new Error('Invalid diagnostics worker boundary.');
+  }
+  for (const allowedDirectory of [path.join(repositoryRoot, 'test-results'), runsRoot, expectedArtifactRoot]) {
+    const stat = fs.lstatSync(allowedDirectory);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('Invalid diagnostics worker boundary.');
+  }
+  if (fs.realpathSync(runsRoot) !== runsRoot || path.dirname(fs.realpathSync(expectedArtifactRoot)) !== runsRoot) {
     throw new Error('Invalid diagnostics worker boundary.');
   }
   await captureDiagnosticsInline({ projectName, artifactRoot }, AbortSignal.timeout(30000), request.secrets);

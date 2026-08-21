@@ -221,7 +221,11 @@ run only in a dedicated killable subprocess, are independently time-bounded to
 delay teardown or write a late artifact. The parent supplies its bounded
 in-memory redaction set to that worker only through canonical stdin, never argv
 or an artifact, so diagnostics are sanitized before their first write as well
-as scanned afterward. Cleanup ignores `MJL_TEST_RETAIN` in RST-014A/RST-013A proof
+as scanned afterward. The worker derives its sole output directory as
+`<repository>/test-results/runs/<projectName>`, requires it to equal the
+parent-provided identity and path, and rejects symlinked/non-directory
+ancestors before creating or writing anything. Cleanup ignores
+`MJL_TEST_RETAIN` in RST-014A/RST-013A proof
 modes, retries `down -v` three times with bounded calls, and independently
 enumerates the exact project-labelled containers/network and expected volumes
 before returning. Each teardown attempt is capped at 30 seconds and the entire
