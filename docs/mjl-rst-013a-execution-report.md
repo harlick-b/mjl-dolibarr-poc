@@ -42,7 +42,7 @@ owns removal.
 | `npm run test:rst008` | PASS, 5/5 | 228.2 s; disposable tenant removed |
 | `npm run test:rst009a` | PASS, 2/2 | 174.8 s; disposable tenant removed |
 | `npm run test:rst010a` | PASS, 1/1 | 120.5 s; filesystem and both ECM digests unchanged; disposable tenant removed |
-| `npm run test:phase1-reset` | FAIL, then expected dirty-worktree refusal during correction | The first committed-source rehearsal completed cutover/rollback verification but exposed a missing post-cutover RST-014A document sentinel before Playwright setup. The runner now reapplies the same disposable fixture controls after cutover; its uncommitted correction was then correctly refused by the clean-source precondition. A clean committed rerun remains mandatory. |
+| `npm run test:phase1-reset` | PASS, 11/11 applicable browser tests | 525.9 s from clean committed source after the post-cutover correction; five schema/invariant/audit rounds passed, the two dedicated RST-013A lifecycle cases were intentionally excluded from this aggregate mode, and all run-owned resources were removed |
 
 The first focused RST-013A red run correctly exposed two probe defects: the
 interim class has no generic `fetch()` and a Playwright worker restart replayed
@@ -91,11 +91,20 @@ Shared identity remained exactly native Admin row 1 (`entity=0`, `admin=1`,
 Partner scopes, Activities, Opération types, invitations, password resets,
 audit events, and ECM files. Shared Compose resource inventory was identical.
 
+## Post-commit correction evidence
+
+| Command | Result | Duration / notes |
+| --- | --- | --- |
+| `node --check tests/runner/run-suite.js` | PASS | Corrected shared provisioning helper parses successfully |
+| `npm run test:unit` | PASS, 79/79 plus PHP contracts | 0.7 s; loopback socket permission was required for the secret-registry unit cases |
+| `npm run test:phase1-reset` | PASS, 11/11 applicable browser tests | 525.9 s; five cutover/schema/audit rounds passed; two focused lifecycle cases intentionally skipped; zero run-owned survivors |
+| `npm run test:rst013a` | PASS, 3/3 | 194.7 s; exact projection/hostile-scope matrix plus real repeated SIGINT/SIGTERM; zero run-owned survivors |
+| `npm run test:rst014a` | PASS, 38/38 applicable | 437.1 s; factory, isolation, secret, sentinel, failure-path, and teardown coverage passed; two focused RST-013A lifecycle cases intentionally skipped; zero run-owned survivors |
+| `npm run test:e2e` | PASS, 38/38 applicable | 388.6 s; combined public browser surface passed; two focused RST-013A lifecycle cases intentionally skipped; filesystem and native ECM hashes remained unchanged; zero run-owned survivors |
+| `npm run test:verify` | PASS | 139.0 s on the explicit rerun; exit code 0 and zero run-owned survivors. The preceding run completed its assertion layer and cleanup but emitted an ambiguous transient network-removal message, so it was not counted. |
+
 ## Remaining completion gates
 
-- commit the complete candidate;
-- rerun `test:phase1-reset`, `test:rst014a`, and public `test:e2e` from that
-  clean committed source, plus any gate affected by review fixes;
 - independently review the fixed baseline-to-candidate range on Standards,
   Spec, and Security/Isolation axes;
 - resolve every actionable finding and rerun affected/public gates;
