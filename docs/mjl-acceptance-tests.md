@@ -15,6 +15,7 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst010a
     npm run test:rst013a
     npm run test:rst014a
+    npm run test:rst005
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
@@ -35,6 +36,12 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   parent-matched, and limited to the approved safe fields; repeated SIGINT and
   SIGTERM destroy the real disposable runner. It also requires exact shared
   source/database/Admin/ECM/document/resource equality.
+- 'test:rst005' rehearses clean target installation, exact Phase 1-to-target
+  replacement, guarded direct-writer exclusion, crash/restart resumption,
+  duplicate activation, containment-only rollback, finalization, fresh-process
+  libsodium backup restores, role/entity/parent/POST denials, SQL invariants,
+  retained authenticated/anonymous custom and native document GET/POST denial,
+  complete database/filesystem/ECM evidence, and whole-tenant destruction.
 - The browser contract covers the business-role/Admin/role-less navigation matrix, direct guards, removed-route 404s, invitation issuance and acceptance, fragment clearing, hash invalidation, replay behavior, password reset, and login with changed credentials.
 - 'test:rst003' retains the reference-foundation schema/browser gate.
 

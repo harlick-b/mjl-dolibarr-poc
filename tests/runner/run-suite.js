@@ -10,6 +10,7 @@ const { assertCleanupComplete, assertDisposableConfig } = require('./disposable-
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('./disposable-run');
 const { scanArtifacts, streamTreeDigest } = require('./disposable-evidence');
 const { runPhase1CutoverRehearsal: runPhase1Cutover } = require('./phase1-cutover-rehearsal');
+const { runRst005CutoverRehearsal } = require('./rst005-cutover-rehearsal');
 const { registerSecretAt } = require('../helpers/mjl-test-runtime');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
@@ -460,6 +461,8 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/fixture-isolation.spec.js', 'tests/e2e/phase1-reset.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/partners-projects.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst013a') {
     args.push('tests/e2e/phase1-reset.spec.js', '--config=playwright.config.js', '--grep', '\\[RST-013A\\]');
+  } else if (target === 'rst005') {
+    args.push('tests/e2e/rst005-activity-foundation.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
 	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
@@ -643,6 +646,7 @@ async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMod
     failure = combineFailures(failure, diagnosticsError, 'Test execution and diagnostics capture failed.');
   }
   const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset'
+	&& !runMode.startsWith('rst005')
     && !runMode.startsWith('rst013a')
     && !runMode.startsWith('rst014a');
   try {
@@ -679,7 +683,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'rst005' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
@@ -732,6 +736,7 @@ async function main() {
             expectComposeFailure,
             assertDisposableConfig,
           });
+          await runRst005CutoverRehearsal({ plan, signal: controller.signal, repositoryRoot, compose, databaseSql });
           await provisionDisposableFixtureControls(plan, controller.signal);
         }
         else await provision(plan, controller.signal);
@@ -774,6 +779,11 @@ async function main() {
         await runPhase1Verification(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
       }
+      else if (layer === 'rst005') {
+        await runRst005CutoverRehearsal({ plan, signal: controller.signal, repositoryRoot, compose, databaseSql });
+        await runPhase1Verification(plan, controller.signal);
+        await runPlaywright(plan, layer, controller.signal);
+      }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);
     }
@@ -786,7 +796,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'rst005' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

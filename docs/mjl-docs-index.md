@@ -29,6 +29,10 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-rst-001-execution-report.md` | Active RST-001 authorization/schema execution and verification evidence; not target-rule authority |
 | `docs/mjl-rst-002a-execution-report.md` | Active RST-002A authorization-containment, rollback, and verification evidence; not target-rule authority |
 | `docs/mjl-rst-003-execution-report.md` | Active RST-003 reference-foundation execution and verification evidence; not target-rule authority |
+| `docs/mjl-rst-005-activity-foundation-strategy.md` | RST-005 empty Activity foundation, migration, verification, and rollback contract; MariaDB guarded-lock amendment pending separate approval before shared execution |
+| `docs/mjl-rst-005-phase1-activity-schema.sql` | Executable-exact normalized Phase 1 Activity schema oracle for RST-005 preflight and rollback |
+| `docs/mjl-rst-005-target-activity-schema.sql` | Executable-exact target Activity foundation schema, constraints, and dormant triggers for RST-005; SHA-256 `8eb99ee99c6dc748bd368e925e9938ccf086291d264e3812ac6320c8ec06b745` |
+| `docs/mjl-rst-005-execution-report.md` | Active disposable pre-execution evidence only; records no shared execution, target-rule authority, or `EXECUTED` verdict |
 | `docs/mjl-rst-010a-containment-strategy.md` | Approved RST-010A containment-only implementation strategy and review evidence; authorizes no document business behavior |
 | `docs/mjl-rst-010a-execution-report.md` | Active RST-010A implementation and preservation evidence; not Phase 4 runtime authority |
 | `docs/mjl-rst-013a-test-reset-strategy.md` | Executed exact RST-013A strategy and rollback boundary |

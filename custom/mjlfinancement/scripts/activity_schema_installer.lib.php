@@ -1,0 +1,483 @@
+<?php
+
+const RST005_SCHEMA_PHASE1 = 'phase1';
+const RST005_SCHEMA_TARGET = 'target';
+const RST005_SCHEMA_UNKNOWN = 'unknown';
+const RST005_PHASE1_ORACLE_SHA256 = 'db69168768515aa2ea4d46f8e8bb61ce5901bc87ed76df2723c9834ccb0dc7e2';
+const RST005_TARGET_ORACLE_SHA256 = '8eb99ee99c6dc748bd368e925e9938ccf086291d264e3812ac6320c8ec06b745';
+// Phase 1 acquired active_user_id through an ALTER, while a clean install
+// creates that generated column beside is_active.  Column order has no
+// behavioural effect, but both complete physical forms are sealed explicitly;
+// no other retained-schema variation is accepted.
+const RST005_RETAINED_SCHEMA_SHA256_PHASE1 = 'a1bfd62fb82e64da5f554e30caac306eef25549895f5a9674a1785781cb0c008';
+const RST005_RETAINED_SCHEMA_SHA256_CLEAN = 'e2409271a246b152af6da1e7d320826436abb663dcc086f866af0339af395ae6';
+
+function mjl_rst005_prefix(DoliDB $db)
+{
+	$prefix = (string) $db->prefix();
+	if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $prefix)) {
+		throw new RuntimeException('Invalid configured database prefix.');
+	}
+	$derived = array(
+		$prefix.'mjlfinancement_activity',
+		$prefix.'mjlfinancement_activity_rst005_target',
+		$prefix.'mjlfinancement_activity_rst005_phase1_quarantine',
+		$prefix.'mjlfinancement_activity_rst005_phase1_restore',
+		$prefix.'mjlfinancement_activity_rst005_target_failed',
+		$prefix.'mjl_activity_rst005_bi',
+		$prefix.'mjl_activity_rst005_bu',
+		$prefix.'mjl_activity_rst005_bd',
+		$prefix.'mjl_activity_rst005_cutover_guard',
+		'uk_mjl_activity_entity_ref','idx_mjl_activity_entity_project','idx_mjl_activity_entity_partner',
+		'idx_mjl_activity_entity_validation','idx_mjl_activity_project_fk','idx_mjl_activity_partner_fk',
+		'idx_mjl_activity_creator','idx_mjl_activity_modifier','fk_mjl_activity_target_partner',
+		'fk_mjl_activity_target_project','fk_mjl_activity_target_creator','fk_mjl_activity_target_modifier',
+		'chk_mjl_activity_entity_positive','chk_mjl_activity_ref_nonblank','chk_mjl_activity_name_nonblank',
+		'chk_mjl_activity_description_nonblank','chk_mjl_activity_dates','chk_mjl_activity_draft_amount',
+		'chk_mjl_activity_first_amount','chk_mjl_activity_validated_amount','chk_mjl_activity_validation_status',
+		'chk_mjl_activity_cancelled','chk_mjl_activity_version','chk_mjl_activity_responsible_dormant',
+		'chk_mjl_activity_rst005_dormant',
+	);
+	mjl_rst005_validate_derived_identifiers($derived);
+	if (strlen(mjl_rst005_lock_name_from_parts('', $prefix)) > 64) throw new RuntimeException('RST-005 advisory lock name is too long.');
+	return $prefix;
+}
+
+function mjl_rst005_validate_derived_identifiers(array $derived)
+{
+	if (count($derived) !== count(array_unique($derived))) throw new RuntimeException('RST-005 derived database identifiers collide.');
+	foreach ($derived as $identifier) {
+		if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $identifier) || strlen($identifier) > 64) throw new RuntimeException('RST-005 derived database identifier is unsafe or too long.');
+	}
+}
+
+function mjl_rst005_ident($identifier)
+{
+	if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', (string) $identifier) || strlen((string) $identifier) > 64) {
+		throw new RuntimeException('Unsafe RST-005 database identifier.');
+	}
+	return '`'.$identifier.'`';
+}
+
+function mjl_rst005_lock_name_from_parts($database, $prefix)
+{
+	return 'mjl:rst005:'.substr(hash('sha256', (string) $database.':'.(string) $prefix.':RST-005'), 0, 48);
+}
+
+function mjl_rst005_lock_name(DoliDB $db)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$database = (string) mjl_rst005_scalar($db, 'SELECT DATABASE()');
+	// MariaDB lock names are limited to 64 characters. Keep the unit marker
+	// readable while binding the remaining bytes to the exact database/prefix.
+	$name = mjl_rst005_lock_name_from_parts($database, $prefix);
+	if (strlen($name) > 64) throw new RuntimeException('RST-005 advisory lock name is too long.');
+	return $name;
+}
+
+function mjl_rst005_require_retained_table_set(DoliDB $db)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$expected = array_map(function ($suffix) use ($prefix) { return $prefix.'mjlfinancement_'.$suffix; }, array(
+		'activity','audit_event','invitation','operation_type','password_reset','project_note','user_role','user_soc_scope',
+	));
+	sort($expected, SORT_STRING);
+	$quarantine = $prefix.'mjlfinancement_activity_rst005_phase1_quarantine';
+	$actual = array();
+	$sql = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' AND TABLE_NAME LIKE '".$db->escape($prefix)."mjlfinancement\\_%' ORDER BY TABLE_NAME";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect the retained MJL table set.');
+	while ($row = $db->fetch_object($resql)) $actual[] = (string) $row->TABLE_NAME;
+	$reversible = $expected;
+	$reversible[] = $quarantine;
+	sort($reversible, SORT_STRING);
+	if ($actual === $reversible) {
+		if (mjl_rst005_detect_schema($db, $quarantine) !== RST005_SCHEMA_PHASE1) throw new RuntimeException('The retained RST-005 quarantine does not match sealed Phase 1.');
+		mjl_rst005_assert_empty($db, $quarantine);
+		return;
+	}
+	if ($actual !== $expected) throw new RuntimeException('The retained MJL table set is partial or contains an unapproved successor table: actual='.json_encode($actual).' expected='.json_encode($expected));
+}
+
+function mjl_rst005_retained_schema_digest(DoliDB $db)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$tables = array_map(function ($suffix) use ($prefix) { return $prefix.'mjlfinancement_'.$suffix; }, array(
+		'audit_event','invitation','operation_type','password_reset','project_note','user_role','user_soc_scope',
+	));
+	sort($tables, SORT_STRING);
+	$definitions = array();
+	foreach ($tables as $table) {
+		$resql = $db->query('SHOW CREATE TABLE '.mjl_rst005_ident($table));
+		$row = $resql ? $db->fetch_row($resql) : null;
+		if (!$row || !isset($row[1])) throw new RuntimeException('Unable to inspect retained MJL schema: '.$table);
+		$create = preg_replace('/\sAUTO_INCREMENT=\d+\b/i', '', (string) $row[1]);
+		$create = str_replace(array('`'.$prefix, $prefix), array('`llx_', 'llx_'), $create);
+		$definitions[] = 'table|'.str_replace($prefix, 'llx_', $table).'|'.$create;
+	}
+	$sql = "SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT,ACTION_ORIENTATION FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE IN ('".implode("','", array_map(array($db, 'escape'), $tables))."') ORDER BY TRIGGER_NAME";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect retained MJL triggers.');
+	while ($row = $db->fetch_array($resql)) {
+		$values = array($row['TRIGGER_NAME'],$row['ACTION_TIMING'],$row['EVENT_MANIPULATION'],$row['EVENT_OBJECT_TABLE'],$row['ACTION_STATEMENT'],$row['ACTION_ORIENTATION']);
+		$definitions[] = 'trigger|'.str_replace($prefix, 'llx_', implode('|', $values));
+	}
+	return hash('sha256', implode("\n", $definitions)."\n");
+}
+
+function mjl_rst005_require_retained_schema(DoliDB $db)
+{
+	mjl_rst005_require_retained_table_set($db);
+	mjl_rst005_assert_retained_schema_digest($db);
+}
+
+function mjl_rst005_assert_retained_schema_digest(DoliDB $db)
+{
+	$digest = mjl_rst005_retained_schema_digest($db);
+	if (!hash_equals(RST005_RETAINED_SCHEMA_SHA256_PHASE1, $digest) && !hash_equals(RST005_RETAINED_SCHEMA_SHA256_CLEAN, $digest)) throw new RuntimeException('The retained MJL schema does not match either sealed RST-005 physical form: '.$digest);
+}
+
+function mjl_rst005_expected_columns($flavour)
+{
+	if ($flavour === RST005_SCHEMA_PHASE1) {
+		return array('rowid','entity','ref','label','fk_project','fk_task','date_start','date_end','note_public','note_private','date_creation','tms','fk_user_creat','fk_user_modif','import_key','status','fk_user_responsible','date_actual_start','date_actual_end','physical_execution_percent','execution_status','execution_comment');
+	}
+	if ($flavour === RST005_SCHEMA_TARGET) {
+		return array('rowid','entity','ref','fk_partner','fk_project','name','description','date_start','date_end','draft_authorized_amount','first_submitted_amount','latest_validated_amount','validation_status','is_cancelled','version','date_creation','tms','fk_user_creat','fk_user_modif','fk_user_responsible');
+	}
+	return array();
+}
+
+function mjl_rst005_normalize_definition($value)
+{
+	$value = (string) $value;
+	$result = '';
+	$quoted = false;
+	for ($index = 0, $length = strlen($value); $index < $length; $index++) {
+		$character = $value[$index];
+		if ($quoted) {
+			$result .= $character;
+			if ($character === "'" && ($index + 1 >= $length || $value[$index + 1] !== "'")) $quoted = false;
+			elseif ($character === "'" && $index + 1 < $length && $value[$index + 1] === "'") $result .= $value[++$index];
+			elseif ($character === '\\' && $index + 1 < $length) $result .= $value[++$index];
+			continue;
+		}
+		if ($character === "'") {
+			$quoted = true;
+			$result .= $character;
+		} elseif ($character !== '`' && !ctype_space($character)) $result .= strtolower($character);
+	}
+	if ($quoted) throw new RuntimeException('Unterminated quoted literal in RST-005 database definition.');
+	while (strlen($result) > 1 && $result[0] === '(' && substr($result, -1) === ')' && mjl_rst005_outer_parentheses_wrap($result)) $result = substr($result, 1, -1);
+	return $result;
+}
+
+function mjl_rst005_outer_parentheses_wrap($value)
+{
+	$depth = 0;
+	$quoted = false;
+	for ($index = 0, $length = strlen($value); $index < $length; $index++) {
+		$character = $value[$index];
+		if ($character === "'" && ($index === 0 || $value[$index - 1] !== '\\')) $quoted = !$quoted;
+		if ($quoted) continue;
+		if ($character === '(') $depth++;
+		elseif ($character === ')') {
+			$depth--;
+			if ($depth === 0 && $index !== $length - 1) return false;
+			if ($depth < 0) return false;
+		}
+	}
+	return !$quoted && $depth === 0;
+}
+
+function mjl_rst005_column_contract($flavour)
+{
+	if ($flavour === RST005_SCHEMA_PHASE1) return array(
+		'rowid'=>'int(11)|NO||auto_increment|', 'entity'=>'int(11)|NO|1||', 'ref'=>'varchar(128)|NO|||', 'label'=>'varchar(255)|NO|||',
+		'fk_project'=>'int(11)|NO|||', 'fk_task'=>'int(11)|YES|NULL||', 'date_start'=>'date|YES|NULL||', 'date_end'=>'date|YES|NULL||',
+		'note_public'=>'text|YES|NULL||', 'note_private'=>'text|YES|NULL||', 'date_creation'=>'datetime|NO|||',
+		'tms'=>'timestamp|YES|current_timestamp()|on update current_timestamp()|', 'fk_user_creat'=>'int(11)|NO|||', 'fk_user_modif'=>'int(11)|YES|NULL||',
+		'import_key'=>'varchar(14)|YES|NULL||', 'status'=>'int(11)|NO|0||', 'fk_user_responsible'=>'int(11)|YES|NULL||',
+		'date_actual_start'=>'date|YES|NULL||', 'date_actual_end'=>'date|YES|NULL||', 'physical_execution_percent'=>'int(11)|YES|NULL||',
+		'execution_status'=>'varchar(32)|YES|NULL||', 'execution_comment'=>'text|YES|NULL||',
+	);
+	if ($flavour === RST005_SCHEMA_TARGET) return array(
+		'rowid'=>'int(11)|NO||auto_increment|', 'entity'=>'int(11)|NO|||', 'ref'=>'varchar(128)|NO|||', 'fk_partner'=>'int(11)|NO|||',
+		'fk_project'=>'int(11)|NO|||', 'name'=>'varchar(255)|NO|||', 'description'=>'text|NO|||', 'date_start'=>'date|NO|||', 'date_end'=>'date|NO|||',
+		'draft_authorized_amount'=>'bigint(20)|NO|||', 'first_submitted_amount'=>'bigint(20)|YES|NULL||', 'latest_validated_amount'=>'bigint(20)|YES|NULL||',
+		'validation_status'=>"varchar(40)|NO|'DRAFT'||", 'is_cancelled'=>'tinyint(1)|NO|0||', 'version'=>'bigint(20)|NO|1||',
+		'date_creation'=>'datetime|NO|||', 'tms'=>'timestamp|NO|current_timestamp()|on update current_timestamp()|',
+		'fk_user_creat'=>'int(11)|NO|||', 'fk_user_modif'=>'int(11)|YES|NULL||', 'fk_user_responsible'=>'int(11)|YES|NULL||',
+	);
+	return array();
+}
+
+function mjl_rst005_index_contract($flavour)
+{
+	if ($flavour === RST005_SCHEMA_PHASE1) return array(
+		'PRIMARY'=>'U|BTREE|A:0:rowid', 'idx_mjlfinancement_activity_entity'=>'N|BTREE|A:0:entity',
+		'idx_mjlfinancement_activity_fk_project'=>'N|BTREE|A:0:fk_project', 'idx_mjlfinancement_activity_fk_task'=>'N|BTREE|A:0:fk_task',
+		'idx_mjlfinancement_activity_fk_user_responsible'=>'N|BTREE|A:0:fk_user_responsible',
+		'uk_mjlfinancement_activity_ref_entity'=>'U|BTREE|A:0:ref,A:0:entity',
+	);
+	if ($flavour === RST005_SCHEMA_TARGET) return array(
+		'PRIMARY'=>'U|BTREE|A:0:rowid', 'uk_mjl_activity_entity_ref'=>'U|BTREE|A:0:entity,A:0:ref',
+		'idx_mjl_activity_entity_project'=>'N|BTREE|A:0:entity,A:0:fk_project', 'idx_mjl_activity_entity_partner'=>'N|BTREE|A:0:entity,A:0:fk_partner',
+		'idx_mjl_activity_entity_validation'=>'N|BTREE|A:0:entity,A:0:validation_status', 'idx_mjl_activity_project_fk'=>'N|BTREE|A:0:fk_project',
+		'idx_mjl_activity_partner_fk'=>'N|BTREE|A:0:fk_partner', 'idx_mjl_activity_creator'=>'N|BTREE|A:0:fk_user_creat',
+		'idx_mjl_activity_modifier'=>'N|BTREE|A:0:fk_user_modif',
+	);
+	return array();
+}
+
+function mjl_rst005_fk_contract($flavour, $prefix)
+{
+	if ($flavour === RST005_SCHEMA_PHASE1) return array(
+		'fk_mjlfinancement_activity_project'=>'fk_project>'.$prefix.'projet:rowid|RESTRICT|RESTRICT',
+		'fk_mjlfinancement_activity_responsible'=>'fk_user_responsible>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
+		'fk_mjlfinancement_activity_task'=>'fk_task>'.$prefix.'projet_task:rowid|RESTRICT|RESTRICT',
+	);
+	if ($flavour === RST005_SCHEMA_TARGET) return array(
+		'fk_mjl_activity_target_partner'=>'fk_partner>'.$prefix.'societe:rowid|RESTRICT|RESTRICT',
+		'fk_mjl_activity_target_project'=>'fk_project>'.$prefix.'projet:rowid|RESTRICT|RESTRICT',
+		'fk_mjl_activity_target_creator'=>'fk_user_creat>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
+		'fk_mjl_activity_target_modifier'=>'fk_user_modif>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
+	);
+	return array();
+}
+
+function mjl_rst005_check_contract($flavour)
+{
+	if ($flavour === RST005_SCHEMA_PHASE1) return array();
+	if ($flavour !== RST005_SCHEMA_TARGET) return array();
+	return array(
+		'chk_mjl_activity_entity_positive'=>'entity>0', 'chk_mjl_activity_ref_nonblank'=>"refregexp'[^[:space:]]'",
+		'chk_mjl_activity_name_nonblank'=>"nameregexp'[^[:space:]]'", 'chk_mjl_activity_description_nonblank'=>"descriptionregexp'[^[:space:]]'",
+		'chk_mjl_activity_dates'=>'date_end>=date_start', 'chk_mjl_activity_draft_amount'=>'draft_authorized_amount>=0',
+		'chk_mjl_activity_first_amount'=>'first_submitted_amountisnullorfirst_submitted_amount>=0',
+		'chk_mjl_activity_validated_amount'=>'latest_validated_amountisnullorlatest_validated_amount>=0',
+		'chk_mjl_activity_validation_status'=>"validation_statusin('DRAFT','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED','CANCELLED')",
+		'chk_mjl_activity_cancelled'=>"is_cancelledin(0,1)and(is_cancelled=1andvalidation_status='CANCELLED'or is_cancelled=0andvalidation_status<>'CANCELLED')",
+		'chk_mjl_activity_version'=>'version>=1', 'chk_mjl_activity_responsible_dormant'=>'fk_user_responsibleisnull',
+		'chk_mjl_activity_rst005_dormant'=>"validation_status='DRAFT'andis_cancelled=0andfirst_submitted_amountisnullandlatest_validated_amountisnull",
+	);
+}
+
+function mjl_rst005_map_equal(array $actual, array $expected)
+{
+	ksort($actual);
+	ksort($expected);
+	return $actual === $expected;
+}
+
+function mjl_rst005_map_mismatch(array $actual, array $expected)
+{
+	ksort($actual);
+	ksort($expected);
+	foreach (array_unique(array_merge(array_keys($actual), array_keys($expected))) as $name) {
+		$a = array_key_exists($name, $actual) ? $actual[$name] : '<missing>';
+		$e = array_key_exists($name, $expected) ? $expected[$name] : '<unexpected>';
+		if ($a !== $e) return $name.' actual='.json_encode($a).' expected='.json_encode($e);
+	}
+	return 'unknown mismatch';
+}
+
+function mjl_rst005_table_columns(DoliDB $db, $table)
+{
+	$table = (string) $table;
+	$sql = "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' ORDER BY ORDINAL_POSITION";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect Activity schema.');
+	$columns = array();
+	while ($row = $db->fetch_object($resql)) $columns[] = (string) $row->COLUMN_NAME;
+	return $columns;
+}
+
+function mjl_rst005_schema_contract(DoliDB $db, $table, $flavour, $phase1Guard = false)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$expectedColumns = mjl_rst005_column_contract($flavour);
+	if (empty($expectedColumns)) throw new RuntimeException('Unknown RST-005 schema contract.');
+	$engineSql = "SELECT ENGINE,TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' AND TABLE_TYPE='BASE TABLE'";
+	$resql = $db->query($engineSql);
+	$engine = $resql ? $db->fetch_object($resql) : null;
+	if (!$engine || (string) $engine->ENGINE !== 'InnoDB' || (string) $engine->TABLE_COLLATION !== 'utf8mb4_uca1400_ai_ci') throw new RuntimeException('RST-005 Activity engine or collation mismatch.');
+
+	$actualColumns = array();
+	$sql = "SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,GENERATION_EXPRESSION,CHARACTER_SET_NAME,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' ORDER BY ORDINAL_POSITION";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-005 Activity columns.');
+	$characterColumns = array();
+	while ($row = $db->fetch_array($resql)) {
+		$default = $row['COLUMN_DEFAULT'];
+		if ($default === null) $default = $row['IS_NULLABLE'] === 'YES' ? 'NULL' : '';
+		$actualColumns[$row['COLUMN_NAME']] = strtolower($row['COLUMN_TYPE']).'|'.$row['IS_NULLABLE'].'|'.$default.'|'.strtolower($row['EXTRA']).'|'.mjl_rst005_normalize_definition($row['GENERATION_EXPRESSION']);
+		if ($row['CHARACTER_SET_NAME'] !== null) $characterColumns[$row['COLUMN_NAME']] = $row['CHARACTER_SET_NAME'].'|'.$row['COLLATION_NAME'];
+	}
+	if (!mjl_rst005_map_equal($actualColumns, $expectedColumns)) throw new RuntimeException('RST-005 Activity column definitions mismatch: '.mjl_rst005_map_mismatch($actualColumns, $expectedColumns));
+	$expectedCharacter = array();
+	$names = $flavour === RST005_SCHEMA_PHASE1
+		? array('ref','label','note_public','note_private','import_key','execution_status','execution_comment')
+		: array('ref','name','description','validation_status');
+	foreach ($names as $name) $expectedCharacter[$name] = 'utf8mb4|utf8mb4_uca1400_ai_ci';
+	if (!mjl_rst005_map_equal($characterColumns, $expectedCharacter)) throw new RuntimeException('RST-005 Activity character definitions mismatch: '.mjl_rst005_map_mismatch($characterColumns, $expectedCharacter));
+
+	$groups = array();
+	$sql = "SELECT INDEX_NAME,NON_UNIQUE,INDEX_TYPE,COLUMN_NAME,COLLATION,COALESCE(SUB_PART,0) AS SUB_PART FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' ORDER BY INDEX_NAME,SEQ_IN_INDEX";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-005 Activity indexes.');
+	while ($row = $db->fetch_array($resql)) {
+		$name = $row['INDEX_NAME'];
+		if (!isset($groups[$name])) $groups[$name] = array('unique'=>(int) $row['NON_UNIQUE'] === 0, 'type'=>$row['INDEX_TYPE'], 'columns'=>array());
+		$groups[$name]['columns'][] = $row['COLLATION'].':'.$row['SUB_PART'].':'.$row['COLUMN_NAME'];
+	}
+	$actualIndexes = array();
+	foreach ($groups as $name => $definition) $actualIndexes[$name] = ($definition['unique'] ? 'U' : 'N').'|'.$definition['type'].'|'.implode(',', $definition['columns']);
+	$expectedIndexes = mjl_rst005_index_contract($flavour);
+	if (!mjl_rst005_map_equal($actualIndexes, $expectedIndexes)) throw new RuntimeException('RST-005 Activity index definitions mismatch: '.mjl_rst005_map_mismatch($actualIndexes, $expectedIndexes));
+
+	$actualFks = array();
+	$sql = "SELECT k.CONSTRAINT_NAME,k.COLUMN_NAME,k.REFERENCED_TABLE_NAME,k.REFERENCED_COLUMN_NAME,r.UPDATE_RULE,r.DELETE_RULE FROM information_schema.KEY_COLUMN_USAGE k INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS r ON r.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA AND r.CONSTRAINT_NAME=k.CONSTRAINT_NAME WHERE k.CONSTRAINT_SCHEMA=DATABASE() AND k.TABLE_NAME='".$db->escape($table)."' AND k.REFERENCED_TABLE_NAME IS NOT NULL ORDER BY k.CONSTRAINT_NAME,k.ORDINAL_POSITION";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-005 Activity foreign keys.');
+	while ($row = $db->fetch_array($resql)) $actualFks[$row['CONSTRAINT_NAME']] = $row['COLUMN_NAME'].'>'.$row['REFERENCED_TABLE_NAME'].':'.$row['REFERENCED_COLUMN_NAME'].'|'.$row['UPDATE_RULE'].'|'.$row['DELETE_RULE'];
+	$expectedFks = mjl_rst005_fk_contract($flavour, $prefix);
+	if (!mjl_rst005_map_equal($actualFks, $expectedFks)) throw new RuntimeException('RST-005 Activity foreign-key definitions mismatch: '.mjl_rst005_map_mismatch($actualFks, $expectedFks));
+
+	$actualChecks = array();
+	$sql = "SELECT tc.CONSTRAINT_NAME,cc.CHECK_CLAUSE FROM information_schema.TABLE_CONSTRAINTS tc INNER JOIN information_schema.CHECK_CONSTRAINTS cc ON cc.CONSTRAINT_SCHEMA=tc.CONSTRAINT_SCHEMA AND cc.CONSTRAINT_NAME=tc.CONSTRAINT_NAME WHERE tc.CONSTRAINT_SCHEMA=DATABASE() AND tc.TABLE_NAME='".$db->escape($table)."' AND tc.CONSTRAINT_TYPE='CHECK' ORDER BY tc.CONSTRAINT_NAME";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-005 Activity checks.');
+	while ($row = $db->fetch_array($resql)) $actualChecks[$row['CONSTRAINT_NAME']] = mjl_rst005_normalize_definition($row['CHECK_CLAUSE']);
+	$expectedChecks = mjl_rst005_check_contract($flavour);
+	foreach ($expectedChecks as $name => $expression) $expectedChecks[$name] = mjl_rst005_normalize_definition($expression);
+	if (!mjl_rst005_map_equal($actualChecks, $expectedChecks)) throw new RuntimeException('RST-005 Activity check definitions mismatch: '.mjl_rst005_map_mismatch($actualChecks, $expectedChecks));
+
+	$actualTriggers = array();
+	$sql = "SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='".$db->escape($table)."' ORDER BY TRIGGER_NAME";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-005 Activity triggers.');
+	while ($row = $db->fetch_array($resql)) $actualTriggers[$row['TRIGGER_NAME']] = $row['ACTION_TIMING'].' '.$row['EVENT_MANIPULATION'].':'.mjl_rst005_normalize_definition($row['ACTION_STATEMENT']);
+	$expectedTriggers = array();
+	if ($flavour === RST005_SCHEMA_PHASE1 && $phase1Guard) {
+		$expectedTriggers[$prefix.'mjl_activity_rst005_cutover_guard'] = 'BEFORE INSERT:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity cutover containment is active'");
+	}
+	if ($flavour === RST005_SCHEMA_TARGET) {
+		$insertSql = mjl_rst005_insert_trigger_sql($prefix, $table);
+		$body = substr($insertSql, strpos($insertSql, ' FOR EACH ROW ') + strlen(' FOR EACH ROW '));
+		$expectedTriggers[$prefix.'mjl_activity_rst005_bi'] = 'BEFORE INSERT:'.mjl_rst005_normalize_definition($body);
+		$expectedTriggers[$prefix.'mjl_activity_rst005_bu'] = 'BEFORE UPDATE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity mutation is dormant in RST-005'");
+		$expectedTriggers[$prefix.'mjl_activity_rst005_bd'] = 'BEFORE DELETE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity deletion is dormant in RST-005'");
+	}
+	if (!mjl_rst005_map_equal($actualTriggers, $expectedTriggers)) throw new RuntimeException('RST-005 Activity trigger definitions mismatch: '.mjl_rst005_map_mismatch($actualTriggers, $expectedTriggers));
+	// Reaching this point means every physical definition represented by the
+	// sealed SQL oracle matched. Return that oracle identity, never a second
+	// unrelated hash vocabulary.
+	return $flavour === RST005_SCHEMA_PHASE1 ? RST005_PHASE1_ORACLE_SHA256 : RST005_TARGET_ORACLE_SHA256;
+}
+
+function mjl_rst005_cutover_guard_sql($prefix, $table)
+{
+	return 'CREATE TRIGGER '.mjl_rst005_ident($prefix.'mjl_activity_rst005_cutover_guard').' BEFORE INSERT ON '.mjl_rst005_ident($table)." FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity cutover containment is active'";
+}
+
+function mjl_rst005_require_guarded_phase1(DoliDB $db, $table)
+{
+	if (mjl_rst005_table_columns($db, $table) !== mjl_rst005_expected_columns(RST005_SCHEMA_PHASE1)) throw new RuntimeException('Guarded Phase 1 Activity columns do not match.');
+	mjl_rst005_schema_contract($db, $table, RST005_SCHEMA_PHASE1, true);
+	mjl_rst005_assert_empty($db, $table);
+}
+
+function mjl_rst005_detect_schema(DoliDB $db, $table = null)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$table = $table === null ? $prefix.'mjlfinancement_activity' : (string) $table;
+	$columns = mjl_rst005_table_columns($db, $table);
+	if ($columns === mjl_rst005_expected_columns(RST005_SCHEMA_PHASE1)) {
+		try { mjl_rst005_schema_contract($db, $table, RST005_SCHEMA_PHASE1); return RST005_SCHEMA_PHASE1; } catch (RuntimeException $exception) { return RST005_SCHEMA_UNKNOWN; }
+	}
+	if ($columns === mjl_rst005_expected_columns(RST005_SCHEMA_TARGET)) {
+		try { mjl_rst005_schema_contract($db, $table, RST005_SCHEMA_TARGET); return RST005_SCHEMA_TARGET; } catch (RuntimeException $exception) { return RST005_SCHEMA_UNKNOWN; }
+	}
+	return RST005_SCHEMA_UNKNOWN;
+}
+
+function mjl_rst005_scalar(DoliDB $db, $sql)
+{
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('RST-005 database inspection failed.');
+	$row = $db->fetch_row($resql);
+	return $row ? $row[0] : null;
+}
+
+function mjl_rst005_assert_empty(DoliDB $db, $table)
+{
+	$count = (int) mjl_rst005_scalar($db, 'SELECT COUNT(*) FROM '.mjl_rst005_ident($table));
+	if ($count !== 0) throw new RuntimeException('RST-005 requires an empty Activity table.');
+}
+
+function mjl_rst005_insert_trigger_sql($prefix, $table)
+{
+	$trigger = mjl_rst005_ident($prefix.'mjl_activity_rst005_bi');
+	$tableSql = mjl_rst005_ident($table);
+	$societe = mjl_rst005_ident($prefix.'societe');
+	$projet = mjl_rst005_ident($prefix.'projet');
+	$user = mjl_rst005_ident($prefix.'user');
+	return "CREATE TRIGGER {$trigger} BEFORE INSERT ON {$tableSql} FOR EACH ROW BEGIN "
+		."DECLARE partner_entity int(11) DEFAULT -1; DECLARE project_entity int(11) DEFAULT -1; DECLARE project_partner int(11) DEFAULT -1; "
+		."DECLARE creator_entity int(11) DEFAULT -1; DECLARE modifier_entity int(11) DEFAULT -1; DECLARE partner_found int(11) DEFAULT 0; "
+		."DECLARE project_found int(11) DEFAULT 0; DECLARE creator_found int(11) DEFAULT 0; DECLARE modifier_found int(11) DEFAULT 0; "
+		."SELECT COUNT(*),MAX(entity) INTO partner_found,partner_entity FROM {$societe} WHERE rowid=NEW.fk_partner; "
+		."SELECT COUNT(*),MAX(entity),MAX(fk_soc) INTO project_found,project_entity,project_partner FROM {$projet} WHERE rowid=NEW.fk_project; "
+		."SELECT COUNT(*),MAX(entity) INTO creator_found,creator_entity FROM {$user} WHERE rowid=NEW.fk_user_creat; "
+		."IF NEW.fk_user_modif IS NOT NULL THEN SELECT COUNT(*),MAX(entity) INTO modifier_found,modifier_entity FROM {$user} WHERE rowid=NEW.fk_user_modif; END IF; "
+		."IF partner_found<>1 OR project_found<>1 OR creator_found<>1 OR NOT(partner_entity<=>NEW.entity) OR NOT(project_entity<=>NEW.entity) "
+		."OR NOT(project_partner<=>NEW.fk_partner) OR NOT(creator_entity<=>NEW.entity) OR (NEW.fk_user_modif IS NOT NULL AND (modifier_found<>1 OR NOT(modifier_entity<=>NEW.entity))) "
+		."THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Invalid MJL Activity entity relationship'; END IF; END";
+}
+
+function mjl_rst005_install_insert_trigger(DoliDB $db, $table)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$trigger = $prefix.'mjl_activity_rst005_bi';
+	if (!$db->query('DROP TRIGGER IF EXISTS '.mjl_rst005_ident($trigger))) throw new RuntimeException('Unable to reset RST-005 insert trigger.');
+	if (!$db->query(mjl_rst005_insert_trigger_sql($prefix, $table))) throw new RuntimeException('Unable to install RST-005 insert trigger.');
+}
+
+function mjl_rst005_require_target_objects(DoliDB $db, $table = null)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$table = $table === null ? $prefix.'mjlfinancement_activity' : (string) $table;
+	if (mjl_rst005_table_columns($db, $table) !== mjl_rst005_expected_columns(RST005_SCHEMA_TARGET)) throw new RuntimeException('RST-005 target columns do not match.');
+	mjl_rst005_schema_contract($db, $table, RST005_SCHEMA_TARGET);
+	$required = array(
+		'PRIMARY','uk_mjl_activity_entity_ref',
+		'chk_mjl_activity_entity_positive','chk_mjl_activity_ref_nonblank','chk_mjl_activity_name_nonblank',
+		'chk_mjl_activity_description_nonblank','chk_mjl_activity_dates','chk_mjl_activity_draft_amount',
+		'chk_mjl_activity_first_amount','chk_mjl_activity_validated_amount','chk_mjl_activity_validation_status',
+		'chk_mjl_activity_cancelled','chk_mjl_activity_version','chk_mjl_activity_responsible_dormant','chk_mjl_activity_rst005_dormant',
+		'fk_mjl_activity_target_partner','fk_mjl_activity_target_project','fk_mjl_activity_target_creator','fk_mjl_activity_target_modifier',
+	);
+	foreach ($required as $name) {
+		$count = (int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' AND CONSTRAINT_NAME='".$db->escape($name)."'");
+		if ($count !== 1) throw new RuntimeException('Missing RST-005 constraint: '.$name);
+	}
+	if ((int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."'") !== count($required)) throw new RuntimeException('Unexpected RST-005 table constraint.');
+	$indexes = array('PRIMARY','uk_mjl_activity_entity_ref','idx_mjl_activity_entity_project','idx_mjl_activity_entity_partner','idx_mjl_activity_entity_validation','idx_mjl_activity_project_fk','idx_mjl_activity_partner_fk','idx_mjl_activity_creator','idx_mjl_activity_modifier');
+	foreach ($indexes as $index) {
+		$count = (int) mjl_rst005_scalar($db, "SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' AND INDEX_NAME='".$db->escape($index)."'");
+		if ($count !== 1) throw new RuntimeException('Missing RST-005 index: '.$index);
+	}
+	if ((int) mjl_rst005_scalar($db, "SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."'") !== count($indexes)) throw new RuntimeException('Unexpected RST-005 index.');
+	$triggers = array(
+		$prefix.'mjl_activity_rst005_bi' => array('BEFORE','INSERT'),
+		$prefix.'mjl_activity_rst005_bu' => array('BEFORE','UPDATE'),
+		$prefix.'mjl_activity_rst005_bd' => array('BEFORE','DELETE'),
+	);
+	foreach ($triggers as $trigger => $definition) {
+		$count = (int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='".$db->escape($table)."' AND TRIGGER_NAME='".$db->escape($trigger)."' AND ACTION_TIMING='".$definition[0]."' AND EVENT_MANIPULATION='".$definition[1]."'");
+		if ($count !== 1) throw new RuntimeException('Missing RST-005 trigger: '.$trigger);
+	}
+	if ((int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='".$db->escape($table)."'") !== count($triggers)) throw new RuntimeException('Unexpected RST-005 trigger.');
+	return true;
+}

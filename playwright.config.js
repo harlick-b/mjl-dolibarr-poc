@@ -8,6 +8,7 @@ module.exports = defineConfig({
     'auth-concurrency.spec.js',
     'document-containment.spec.js',
     'fixture-isolation.spec.js',
+    'rst005-activity-foundation.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',

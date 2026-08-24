@@ -169,3 +169,16 @@ debugging discoveries. Do not add one-off observations or generic advice.
   generated configuration volume and override the entrypoint explicitly;
   otherwise even rejected evidence can mutate operational files such as
   `initdb.log` before the guarded script begins.
+- MariaDB refuses `RENAME TABLE` while the same session owns explicit
+  `LOCK TABLES`. A cutover that needs both a locked zero-row recheck and atomic
+  rename must close the unlock boundary with a separately verified write-denial
+  guard, model the guarded pre/post-rename states explicitly, and rehearse
+  crash recovery from both.
+- Restarting a disposable container clears tmpfs-backed client configuration.
+  Crash/restart tests must reconstruct the hardened credential file from the
+  container's already-scoped disposable secrets before readiness checks; a
+  missing tmpfs file is not a database recovery failure.
+- MariaDB can advance an `AUTO_INCREMENT` counter for a rejected insert. Tests
+  that demand complete before/after database digest equality should give
+  invalid probes explicit non-allocating technical IDs; row-count equality
+  alone misses allocator drift.

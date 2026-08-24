@@ -3,6 +3,7 @@
 require_once __DIR__.'/cli_guard.php';
 define('NOLOGIN', 1);
 require '/var/www/html/main.inc.php';
+require_once __DIR__.'/activity_schema_installer.lib.php';
 
 function exact_fail($message) { fwrite(STDERR, 'ERROR: '.$message.PHP_EOL); exit(1); }
 function exact_rows($sql) {
@@ -41,13 +42,13 @@ exact_assert_map('Phase 1 table engines', $actualEngines, $expectedEngines);
 
 $columns = array(
 	'mjlfinancement_activity' => array(
-		'rowid'=>'int(11)|NO||auto_increment|', 'entity'=>'int(11)|NO|1||', 'ref'=>'varchar(128)|NO|||', 'label'=>'varchar(255)|NO|||',
-		'fk_project'=>'int(11)|NO|||', 'fk_task'=>'int(11)|YES|NULL||', 'date_start'=>'date|YES|NULL||', 'date_end'=>'date|YES|NULL||',
-		'fk_user_responsible'=>'int(11)|YES|NULL||', 'date_actual_start'=>'date|YES|NULL||', 'date_actual_end'=>'date|YES|NULL||',
-		'physical_execution_percent'=>'int(11)|YES|NULL||', 'execution_status'=>'varchar(32)|YES|NULL||', 'execution_comment'=>'text|YES|NULL||',
-		'note_public'=>'text|YES|NULL||', 'note_private'=>'text|YES|NULL||', 'date_creation'=>'datetime|NO|||',
-		'tms'=>'timestamp|YES|current_timestamp()|on update current_timestamp()|', 'fk_user_creat'=>'int(11)|NO|||', 'fk_user_modif'=>'int(11)|YES|NULL||',
-		'import_key'=>'varchar(14)|YES|NULL||', 'status'=>'int(11)|NO|0||',
+		'rowid'=>'int(11)|NO||auto_increment|', 'entity'=>'int(11)|NO|||', 'ref'=>'varchar(128)|NO|||',
+		'fk_partner'=>'int(11)|NO|||', 'fk_project'=>'int(11)|NO|||', 'name'=>'varchar(255)|NO|||', 'description'=>'text|NO|||',
+		'date_start'=>'date|NO|||', 'date_end'=>'date|NO|||', 'draft_authorized_amount'=>'bigint(20)|NO|||',
+		'first_submitted_amount'=>'bigint(20)|YES|NULL||', 'latest_validated_amount'=>'bigint(20)|YES|NULL||',
+		'validation_status'=>"varchar(40)|NO|'DRAFT'||", 'is_cancelled'=>'tinyint(1)|NO|0||', 'version'=>'bigint(20)|NO|1||',
+		'date_creation'=>'datetime|NO|||', 'tms'=>'timestamp|NO|current_timestamp()|on update current_timestamp()|',
+		'fk_user_creat'=>'int(11)|NO|||', 'fk_user_modif'=>'int(11)|YES|NULL||', 'fk_user_responsible'=>'int(11)|YES|NULL||',
 	),
 	'mjlfinancement_audit_event' => array(
 		'rowid'=>'bigint(20)|NO||auto_increment|', 'entity'=>'int(11)|NO|1||', 'object_type'=>'varchar(64)|NO|||', 'object_id'=>'bigint(20)|YES|NULL||',
@@ -86,7 +87,7 @@ foreach ($columns as $table => $expected) {
 }
 
 $characterColumns = array(
-	'mjlfinancement_activity' => array('ref','label','execution_status','execution_comment','note_public','note_private','import_key'),
+	'mjlfinancement_activity' => array('ref','name','description','validation_status'),
 	'mjlfinancement_audit_event' => array('object_type','object_ref','actor_name_snapshot','actor_role_snapshot','action','previous_values_json','new_values_json','reason','state_before','state_after','result','context_json'),
 	'mjlfinancement_invitation' => array('role_code','status','token_selector','token_hash'),
 	'mjlfinancement_password_reset' => array('status','token_selector','token_hash'),
@@ -99,7 +100,7 @@ foreach (exact_rows($sql) as $row) $actualCharacterDefinitions[$row['TABLE_NAME'
 exact_assert_map('Phase 1 character sets and collations', $actualCharacterDefinitions, $expectedCharacterDefinitions);
 
 $indexes = array(
-	'mjlfinancement_activity' => array('PRIMARY'=>'U:rowid', 'idx_mjlfinancement_activity_entity'=>'N:entity', 'idx_mjlfinancement_activity_fk_project'=>'N:fk_project', 'idx_mjlfinancement_activity_fk_task'=>'N:fk_task', 'idx_mjlfinancement_activity_fk_user_responsible'=>'N:fk_user_responsible', 'uk_mjlfinancement_activity_ref_entity'=>'U:ref,entity'),
+	'mjlfinancement_activity' => array('PRIMARY'=>'U:rowid', 'uk_mjl_activity_entity_ref'=>'U:entity,ref', 'idx_mjl_activity_entity_project'=>'N:entity,fk_project', 'idx_mjl_activity_entity_partner'=>'N:entity,fk_partner', 'idx_mjl_activity_entity_validation'=>'N:entity,validation_status', 'idx_mjl_activity_project_fk'=>'N:fk_project', 'idx_mjl_activity_partner_fk'=>'N:fk_partner', 'idx_mjl_activity_creator'=>'N:fk_user_creat', 'idx_mjl_activity_modifier'=>'N:fk_user_modif'),
 	'mjlfinancement_audit_event' => array('PRIMARY'=>'U:rowid', 'idx_mjl_audit_action'=>'N:entity,action', 'idx_mjl_audit_activity'=>'N:entity,activity_id', 'idx_mjl_audit_actor'=>'N:entity,actor_id', 'idx_mjl_audit_entity_date'=>'N:entity,event_date,rowid', 'idx_mjl_audit_object'=>'N:entity,object_type,object_id', 'idx_mjl_audit_operation'=>'N:entity,operation_id'),
 	'mjlfinancement_invitation' => array('PRIMARY'=>'U:rowid', 'fk_mjl_invitation_target_user'=>'N:fk_user', 'idx_mjl_invitation_status'=>'N:entity,status', 'idx_mjl_invitation_user'=>'N:entity,fk_user', 'uk_mjl_invitation_hash'=>'U:entity,token_hash', 'uk_mjl_invitation_live_user'=>'U:entity,live_user_id', 'uk_mjl_invitation_selector'=>'U:entity,token_selector'),
 	'mjlfinancement_password_reset' => array('PRIMARY'=>'U:rowid', 'fk_mjl_reset_target_user'=>'N:fk_user', 'idx_mjl_reset_status'=>'N:entity,status', 'idx_mjl_reset_user'=>'N:entity,fk_user', 'uk_mjl_reset_hash'=>'U:entity,token_hash', 'uk_mjl_reset_live_user'=>'U:entity,live_user_id', 'uk_mjl_reset_selector'=>'U:entity,token_selector'),
@@ -122,9 +123,10 @@ foreach ($indexes as $table => $expected) {
 }
 
 $expectedFks = array(
-	'fk_mjlfinancement_activity_project'=>$prefix.'mjlfinancement_activity:fk_project>'.$prefix.'projet:rowid|RESTRICT|RESTRICT',
-	'fk_mjlfinancement_activity_responsible'=>$prefix.'mjlfinancement_activity:fk_user_responsible>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
-	'fk_mjlfinancement_activity_task'=>$prefix.'mjlfinancement_activity:fk_task>'.$prefix.'projet_task:rowid|RESTRICT|RESTRICT',
+	'fk_mjl_activity_target_partner'=>$prefix.'mjlfinancement_activity:fk_partner>'.$prefix.'societe:rowid|RESTRICT|RESTRICT',
+	'fk_mjl_activity_target_project'=>$prefix.'mjlfinancement_activity:fk_project>'.$prefix.'projet:rowid|RESTRICT|RESTRICT',
+	'fk_mjl_activity_target_creator'=>$prefix.'mjlfinancement_activity:fk_user_creat>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
+	'fk_mjl_activity_target_modifier'=>$prefix.'mjlfinancement_activity:fk_user_modif>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
 	'fk_mjl_invitation_target_user'=>$prefix.'mjlfinancement_invitation:fk_user>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
 	'fk_mjl_reset_target_user'=>$prefix.'mjlfinancement_password_reset:fk_user>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
 );
@@ -166,4 +168,5 @@ foreach ($expectedTriggers as $name=>$definition) $expectedTriggers[$name]=exact
 foreach ($actualTriggers as $name=>$definition) $actualTriggers[$name]=exact_normalize($definition);
 exact_assert_map('Phase 1 triggers', $actualTriggers, $expectedTriggers);
 
-print "RST Phase 1 exact schema definitions verified.\n";
+mjl_rst005_require_target_objects($db, $prefix.'mjlfinancement_activity');
+print "RST Phase 1 plus RST-005 exact schema definitions verified.\n";

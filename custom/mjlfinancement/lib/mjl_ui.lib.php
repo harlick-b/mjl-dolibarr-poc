@@ -16,6 +16,13 @@ function mjl_ui_activity_status($status)
 		'0' => array('label' => 'Brouillon', 'tone' => 'neutral'),
 		'1' => array('label' => 'Active', 'tone' => 'success'),
 		'2' => array('label' => 'Terminée', 'tone' => 'neutral'),
+		'DRAFT' => array('label' => 'Brouillon', 'tone' => 'neutral'),
+		'SUBMITTED' => array('label' => 'Soumise', 'tone' => 'info'),
+		'RETURNED_SUPERVISOR' => array('label' => 'Retournée par le superviseur', 'tone' => 'warning'),
+		'PREVALIDATED' => array('label' => 'Prévalidée', 'tone' => 'info'),
+		'RETURNED_VALIDATOR' => array('label' => 'Retournée par le validateur', 'tone' => 'warning'),
+		'FINAL_VALIDATED' => array('label' => 'Validée définitivement', 'tone' => 'success'),
+		'CANCELLED' => array('label' => 'Annulée', 'tone' => 'danger'),
 	);
 	return isset($states[(string) $status]) ? $states[(string) $status] : array('label' => 'Statut non reconnu', 'tone' => 'warning');
 }

@@ -4,6 +4,7 @@ require_once __DIR__.'/cli_guard.php';
 define('NOLOGIN', 1);
 require '/var/www/html/main.inc.php';
 require_once __DIR__.'/preserved_admin.lib.php';
+require_once __DIR__.'/activity_schema_installer.lib.php';
 
 $mode = '';
 $confirm = '';
@@ -54,6 +55,7 @@ function rst_require_cutover_evidence($manifest, $expectedHash) {
 }
 
 try { mjl_load_preserved_native_admin($db); } catch (RuntimeException $exception) { rst_fail($exception->getMessage()); }
+if (mjl_rst005_detect_schema($db) === RST005_SCHEMA_TARGET) rst_fail('RST-005 target Activity schema is current; the historical Phase 1 reset cannot reconstruct or roll it back.');
 if (!in_array($mode, array('preflight', 'apply', 'finalize', 'rollback'), true)) rst_fail('Use --mode=preflight|apply|finalize|rollback.');
 if ($failurePoint !== '' && ($mode !== 'apply' || $failurePoint !== 'after-activity-alter' || getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1' || getDolGlobalString('MJL_RST_PHASE1_FAILURE_INJECTION') !== '1')) rst_fail('Failure injection is restricted to an explicitly armed disposable tenant.');
 if ($mode !== 'preflight' && $confirm !== $authorization) rst_fail('Exact phase authorization confirmation is required.');

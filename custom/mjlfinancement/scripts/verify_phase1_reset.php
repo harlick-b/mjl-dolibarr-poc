@@ -4,6 +4,7 @@ require_once __DIR__.'/cli_guard.php';
 define('NOLOGIN', 1);
 require '/var/www/html/main.inc.php';
 require_once __DIR__.'/preserved_admin.lib.php';
+require_once __DIR__.'/activity_schema_installer.lib.php';
 
 function phase1_fail($message) { fwrite(STDERR, 'ERROR: '.$message.PHP_EOL); exit(1); }
 function phase1_scalar($sql) { global $db; $resql = $db->query($sql); if (!$resql) phase1_fail($db->lasterror()); $row = $db->fetch_row($resql); return (int) $row[0]; }
@@ -15,6 +16,7 @@ $absent = array('mjlfinancement_convention', 'mjlfinancement_budget_line', 'mjlf
 foreach ($absent as $table) if (phase1_table($table) !== 0) phase1_fail('Obsolete table remains: '.$table);
 foreach (array('mjlfinancement_activity', 'mjlfinancement_audit_event', 'mjlfinancement_invitation', 'mjlfinancement_password_reset') as $table) if (phase1_table($table) !== 1) phase1_fail('Required table missing: '.$table);
 if (phase1_column('mjlfinancement_activity', 'fk_convention') !== 0) phase1_fail('Activity still depends on Convention.');
+try { mjl_rst005_require_target_objects($db); } catch (RuntimeException $exception) { phase1_fail($exception->getMessage()); }
 foreach (array('mjlfinancement_invitation', 'mjlfinancement_password_reset') as $table) {
 	foreach (array('token_selector', 'token_hash', 'live_user_id') as $column) if (phase1_column($table, $column) !== 1) phase1_fail($table.'.'.$column.' is missing.');
 }

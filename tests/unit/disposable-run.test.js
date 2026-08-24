@@ -85,6 +85,7 @@ test('maps each public command to explicit durable layers without phase-era targ
   assert.deepEqual(getSuitePlan('verify'), ['verify']);
   assert.deepEqual(getSuitePlan('e2e'), ['e2e']);
   assert.deepEqual(getSuitePlan('rst003'), ['rst003']);
+  assert.deepEqual(getSuitePlan('rst005'), ['rst005']);
   assert.deepEqual(getSuitePlan('rst014a'), ['rst014a']);
   assert.deepEqual(getSuitePlan('characterization'), ['characterization']);
   assert.deepEqual(getSuitePlan('manual-accessibility'), ['manual-accessibility']);
@@ -132,6 +133,23 @@ test('RST-014A never retains a failed tenant', async () => {
   });
   assert.equal(removed, true);
   assert.equal(retained, false);
+});
+
+test('RST-005 never retains a failed tenant', async () => {
+  const events = [];
+  const failure = new Error('rst005 failure');
+  const result = await finalizeDisposableRun({
+    plan: { projectName: 'mjl-test-rst005', artifactRoot: '/tmp/mjl-test-rst005' },
+    provisionAttempted: true,
+    failure,
+    runMode: 'rst005',
+    environment: { MJL_TEST_RETAIN: '1' },
+    capture: async () => events.push('capture'),
+    remove: async () => events.push('remove'),
+    retain: () => events.push('retain'),
+  });
+  assert.equal(result, failure);
+  assert.deepEqual(events, ['capture', 'remove']);
 });
 
 test('never-resolving diagnostics are bounded and cannot bypass teardown', async () => {

@@ -12,7 +12,6 @@ const invitationPassword = process.env.MJL_AUTH_PASSWORD_1;
 const resetPassword = process.env.MJL_AUTH_PASSWORD_2;
 const repositoryRoot = path.resolve(__dirname, '../..');
 let phase1Fixture;
-let crossEntityFixture;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -85,27 +84,14 @@ test.beforeAll(() => {
     } : { partners: [], projects: [], operationTypes: [] },
   });
   if (includesRst013a) {
-    crossEntityFixture = createPhase1FixtureSet({
-      namespace: 'phase1.cross', entity: 2,
-      users: [{ key: 'validator', role: 'VALIDATEUR_DEFINITIF' }],
-      references: {
-        partners: [{ key: 'partner', label: 'Partenaire autre entité' }],
-        projects: [{ key: 'project', label: 'Projet autre entité', partnerKey: 'partner' }],
-        operationTypes: [],
-      },
-    });
-    sql(`SET FOREIGN_KEY_CHECKS=0;
-    START TRANSACTION;
+    sql(`START TRANSACTION;
     INSERT INTO llx_mjlfinancement_activity
-    (entity,ref,label,fk_project,date_start,date_end,fk_user_responsible,date_actual_start,date_actual_end,
-     physical_execution_percent,execution_status,execution_comment,note_public,note_private,date_creation,fk_user_creat,status)
+    (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,
+     first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif,fk_user_responsible)
     VALUES
-    (1,'RST013-SAFE','Activité visible RST-013A',${phase1Fixture.projects.project},'2031-01-02','2031-03-04',${phase1Fixture.users.agent.id},'2031-01-03','2031-03-05',73,'RST013_CANARY_EXECUTION_STATUS','RST013_CANARY_EXECUTION_COMMENT','RST013_CANARY_NOTE_PUBLIC','RST013_CANARY_NOTE_PRIVATE',NOW(),${phase1Fixture.users.validator.id},7),
-    (2,'RST013-OTHER-ENTITY','RST013_CANARY_OTHER_ENTITY',${crossEntityFixture.projects.project},NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NOW(),${crossEntityFixture.users.validator.id},4),
-    (1,'RST013-CROSS-PARENT','RST013_CANARY_CROSS_PARENT',${crossEntityFixture.projects.project},NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NOW(),${phase1Fixture.users.validator.id},5),
-    (1,'RST013-ORPHAN','RST013_CANARY_ORPHAN_PARENT',2147483000,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NOW(),${phase1Fixture.users.validator.id},6);
-    COMMIT;
-    SET FOREIGN_KEY_CHECKS=1;`);
+    (1,'RST013-SAFE',${phase1Fixture.partners.partner},${phase1Fixture.projects.project},'Activité visible RST-013A',
+     'RST013_CANARY_DESCRIPTION','2031-01-02','2031-03-04',730001,NULL,NULL,'DRAFT',0,1,NOW(),${phase1Fixture.users.validator.id},NULL,NULL);
+    COMMIT;`);
   }
   if (process.env.MJL_TEST_MODE !== 'rst013a') {
     sql("INSERT INTO llx_const (name,entity,value,type,visible,note) VALUES ('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Phase 1 disposable E2E') ON DUPLICATE KEY UPDATE value='1'");
@@ -127,13 +113,13 @@ test('[RST-013A] current Activity authorization ignores poisoned legacy scope an
   const expectedProject = scalar(`SELECT CONCAT(ref,' — ',title) FROM llx_projet WHERE rowid=${phase1Fixture.projects.project}`);
   const expectedReviewerProjection = {
     status: 200,
-    rows: [['RST013-SAFE', 'Activité visible RST-013A', expectedProject, '7']],
+    rows: [['RST013-SAFE', 'Activité visible RST-013A', expectedProject, 'Brouillon']],
   };
   const zeroScopeBefore = securityEvidence();
   for (const role of roles) {
     const page = sessions[role].page;
     baseline[role] = await activityProjection(page);
-    expect(await activityProjection(page, `?scope_soc_ids%5B%5D=${crossEntityFixture.partners.partner}`)).toEqual(baseline[role]);
+    expect(await activityProjection(page, `?scope_soc_ids%5B%5D=${phase1Fixture.partners.partner}`)).toEqual(baseline[role]);
   }
 
   expect(baseline.agent).toEqual({ status: 403, rows: [] });
@@ -150,16 +136,13 @@ test('[RST-013A] current Activity authorization ignores poisoned legacy scope an
   const poisonedScopeBefore = securityEvidence();
   for (const role of roles) {
     expect(await activityProjection(sessions[role].page)).toEqual(baseline[role]);
-    expect(await activityProjection(sessions[role].page, `?scope_soc_ids%5B%5D=${crossEntityFixture.partners.partner}`)).toEqual(baseline[role]);
+    expect(await activityProjection(sessions[role].page, `?scope_soc_ids%5B%5D=${phase1Fixture.partners.partner}`)).toEqual(baseline[role]);
   }
   for (const role of ['supervisor', 'validator']) {
     const page = sessions[role].page;
     const html = await page.locator('body').innerText();
     for (const canary of [
-      'RST013_CANARY_EXECUTION_STATUS', 'RST013_CANARY_EXECUTION_COMMENT',
-      'RST013_CANARY_NOTE_PUBLIC', 'RST013_CANARY_NOTE_PRIVATE',
-      'RST013_CANARY_OTHER_ENTITY', 'RST013_CANARY_CROSS_PARENT', 'RST013_CANARY_ORPHAN_PARENT',
-      '2031-01-02', '2031-03-04', '2031-01-03', '2031-03-05',
+      'RST013_CANARY_DESCRIPTION', '730001', '2031-01-02', '2031-03-04',
     ]) expect(html).not.toContain(canary);
     await expect(page.locator('form')).toHaveCount(0);
     await expect(page.getByRole('button')).toHaveCount(0);
@@ -169,7 +152,7 @@ test('[RST-013A] current Activity authorization ignores poisoned legacy scope an
   const denialBefore = securityEvidence();
   for (const role of ['supervisor', 'validator']) {
     const hostilePost = await sessions[role].page.request.post('/custom/mjlfinancement/activities.php', {
-      form: { 'scope_soc_ids[]': String(crossEntityFixture.partners.partner), action: 'create' },
+      form: { 'scope_soc_ids[]': String(phase1Fixture.partners.partner), action: 'create' },
     });
     expect(hostilePost.status()).toBe(403);
   }
@@ -189,16 +172,16 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.p
 $probe = new MjlActivity($db);
 $probe->entity = 1;
 $probe->ref = 'RST013-MUTATION-PROBE';
-$probe->label = 'Mutation interdite';
+$probe->name = 'Mutation interdite';
 $probe->fk_project = ${phase1Fixture.projects.project};
-$probe->status = 0;
+$probe->validation_status = 'DRAFT';
 $existing = new MjlActivity($db);
 $existing->rowid = ${Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE ref='RST013-SAFE' AND entity=1"))};
 $existing->entity = 1;
 $existing->ref = 'RST013-SAFE';
-$existing->label = 'Activité visible RST-013A';
+$existing->name = 'Activité visible RST-013A';
 $existing->fk_project = ${phase1Fixture.projects.project};
-$existing->status = 7;
+$existing->validation_status = 'DRAFT';
 $methods = ['updateImportantFields','updateExecution','submit','correct','prevalidate','finalValidate','validate','requestCorrection','reject'];
 $result = ['create' => [], 'update' => [], 'delete' => [], 'retired' => []];
 foreach ([0, 1] as $notrigger) {

@@ -142,16 +142,48 @@ number does not approve a suffixed unit.
 ### RST-002B - Activity-assignment authorization
 
 - Status: `PENDING_APPROVAL`
-- Current component: one responsible Activity user and retained scope-table structure.
-- Proposed action: create empty time-bounded Activity assignments, verify their guards, then remove legacy fields/table without mapping old values.
+- Current component: a verified-empty nullable responsible-user column forced
+  null by `chk_mjl_activity_responsible_dormant`, plus the empty retained scope
+  table; no Activity row or responsible relationship exists. Any nonzero
+  Activity/responsible/scope row is a hard preflight stop, never migration input.
+- Proposed action: create time-bounded Activity assignments and guarded,
+  expected-version, transactionally audited add/remove/transfer/primary commands;
+  verify their guards; then atomically remove the exact dormant responsible-user
+  constraint/column and empty legacy scope table without mapping old values.
+  Atomically replace `llx_mjl_activity_rst005_bu` with the sealed
+  assignment-only `llx_mjl_activity_rst002b_bu` guard.
 - Reason: the target supports primary and additional current Agents with immediate revocation.
 - Phase: Phase 2
-- Dependencies: RST-002A, RST-005
-- Exact paths: `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/class/mjlactivity.class.php`, `custom/mjlfinancement/lib/mjl_activity_access.lib.php`, planned `custom/mjlfinancement/class/mjlactivityassignment.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.key.sql`, `tests/e2e/activities.spec.js`, `tests/e2e/cases/activity-workflow.cases.js`, `tests/e2e/cases/scope-security.cases.js`.
-- Exact tables/data: planned empty `llx_mjlfinancement_activity_assignment`; empty legacy `llx_mjlfinancement_activity.fk_user_responsible`; empty `llx_mjlfinancement_user_soc_scope` table definition.
-- Action and data impact: introduce the assignment structure and remove the empty legacy responsible-user field and scope table through an explicit schema migration. No Activity-to-Agent mapping is authorized.
-- Backup prerequisite: RST-000, executed RST-000A/RST-002A, and a schema baseline.
-- Rollback/verification: rollback restores the empty responsible field and scope-table definitions and reinstates fail-closed legacy guards; no row export is reloaded.
+- Dependencies: RST-002A, RST-005, RST-007A
+- Exact paths: `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/class/mjlactivity.class.php`, `custom/mjlfinancement/lib/mjl_activity_access.lib.php`, `custom/mjlfinancement/lib/mjl_audit.lib.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_activity.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_activity.key.sql`, planned `custom/mjlfinancement/class/mjlactivityassignment.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.key.sql`, planned `custom/mjlfinancement/scripts/rst002b_activity_assignment.php`, planned `custom/mjlfinancement/scripts/verification/schema/activity_assignment.php`, planned `tests/e2e/rst002b-activity-assignment.spec.js`, and planned `tests/unit/rst002b-activity-assignment.test.js`. Shared Phase 2 suites remain reserved for RST-013B.
+- Exact tables/data: planned empty `llx_mjlfinancement_activity_assignment`;
+  exact RST-005 `chk_mjl_activity_responsible_dormant` and empty
+  `llx_mjlfinancement_activity.fk_user_responsible`; empty
+  `llx_mjlfinancement_user_soc_scope` table definition; RST-007A audit events
+  only for authorized disposable assignment commands.
+- Action and data impact: introduce the assignment structure and versioned
+  service, append each assignment mutation and Activity-version change with its
+  audit event in one transaction, and remove the named empty responsible-user
+  check/field and scope table through one explicit migration. No legacy
+  Activity-to-Agent mapping is authorized. RST-006A creation must invoke this
+  service so Activity, creator-as-primary assignment, version, and audit commit
+  atomically.
+  The RST-002B Activity trigger permits only `version = old.version + 1`,
+  `fk_user_modif`, and automatic `tms` changes made by that expected-version
+  assignment service; it rejects changes to entity, reference, creator,
+  creation date, every structural field, amounts, status, cancellation, and all
+  other columns. Its separately reviewed strategy must seal the exact forward
+  and rollback trigger bodies/digests and prove structural/direct-SQL bypasses
+  fail before implementation.
+- Backup prerequisite: RST-000, executed RST-000A/RST-002A/RST-005/RST-007A,
+  exact empty-row proof, and forward/rollback schema digests sealed by the
+  separately reviewed RST-002B strategy.
+- Rollback/verification: after reverse-dependent rollback and only with empty
+  Activity/assignment/audit targets, atomically restore the exact nullable
+  responsible field plus `chk_mjl_activity_responsible_dormant` and the empty
+  scope-table definition, replace `llx_mjl_activity_rst002b_bu` with the exact
+  RST-005 unconditional update denial, reinstate fail-closed assignment guards,
+  and prove the sealed rollback digest. No row export is reloaded.
 
 ### RST-003 - Partner, Project, and Opération-type reference foundation
 
@@ -183,31 +215,96 @@ number does not approve a suffixed unit.
 
 ### RST-005 - Replace the legacy Activity model
 
-- Status: `PENDING_APPROVAL`
-- Current component: mutable legacy Activity schema and workflow linkage.
-- Proposed action: replace the empty legacy Activity structure with target planning, amount, version, and validation-lock fields.
-- Reason: the legacy model cannot represent balanced planning or immutable review.
+- Status: `AMENDMENT_REVIEW_REQUIRED`; DEC-045 approved the original strategy,
+  while the MariaDB guarded-lock correction awaits separate explicit approval
+  before shared execution
+- Current component: an empty interim legacy-shaped Activity table, a
+  Supervisor/Validator-only read projection, fail-closed mutation seams, no
+  Activity navigation, and no workflow-action table.
+- Proposed action: replace only the verified-empty interim table with the exact
+  target Activity foundation, database invariants, entity-scoped read model,
+  and optimistic-lock seam. Keep all business mutation and downstream Phase 2
+  structures dormant.
+- Reason: the legacy model cannot represent target planning safely, while
+  assignments, revisions, review decisions, audit coverage, UI, and reusable
+  fixtures have later separately approved owners.
 - Phase: Phase 2
-- Dependencies: RST-000A, RST-003, RST-004
-- Exact paths: `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/class/mjlactivity.class.php`, `custom/mjlfinancement/lib/mjl_activity_access.lib.php`, `custom/mjlfinancement/lib/mjl_activity_recovery.lib.php`, `custom/mjlfinancement/js/activities.js`, `custom/mjlfinancement/sql/llx_mjlfinancement_activity.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_activity.key.sql`, `custom/mjlfinancement/scripts/verification/schema/activity_status_integrity.php`, `tests/e2e/activities.spec.js`, `tests/e2e/cases/activity-workflow.cases.js`, `tests/e2e/cases/activity-execution.cases.js`.
-- Exact tables/data: empty `llx_mjlfinancement_activity` and `llx_mjlfinancement_workflow_action` structures after RST-000A.
-- Action and data impact: replace legacy convention/task/execution fields with planning, integer-safe amount, version, and validation-lock fields. No Activity, workflow, responsible-user, or historical value is converted.
-- Backup prerequisite: RST-000, executed RST-000A/RST-003/RST-004, and a schema baseline.
-- Rollback/verification: reverse the empty-schema migration and deploy prior code; validate target behavior with disposable fixtures.
+- Dependencies: the formal Phase 1 verdict and retained executed RST-000A,
+  RST-001, RST-002A, RST-003, RST-004, RST-007A, RST-008, RST-009A, RST-010A,
+  RST-013A, and RST-014A
+- Exact paths: the closed create/modify/retain inventory in
+  `docs/mjl-rst-005-activity-foundation-strategy.md`. The formerly listed
+  recovery helper, Activity JavaScript, status-integrity script, and
+  workflow/execution case files are absent and remain absent.
+- Exact schema oracles: `docs/mjl-rst-005-phase1-activity-schema.sql` at
+  SHA-256 `db69168768515aa2ea4d46f8e8bb61ce5901bc87ed76df2723c9834ccb0dc7e2`
+  and `docs/mjl-rst-005-target-activity-schema.sql` at SHA-256
+  `8eb99ee99c6dc748bd368e925e9938ccf086291d264e3812ac6320c8ec06b745`.
+- Exact tables/data: verified-empty `llx_mjlfinancement_activity` only.
+  `llx_mjlfinancement_workflow_action` is absent and remains absent. RST-005
+  creates no persistent business or audit row.
+- Action and data impact: atomically replace the empty interim schema with the
+  exact target Activity foundation. No Activity, workflow, assignment,
+  responsible-user, revision, review, audit, or historical value is converted.
+  Disposable direct-SQL canaries are restricted to the isolated RST-014A
+  tenant and destroyed with it.
+- Backup prerequisite: executed RST-000A/RST-003/RST-004, an exact approved old
+  schema/source digest, zero Activity/downstream rows, and checksummed schema
+  plus full-database backups captured immediately before cutover.
+- Rollback/verification: before downstream execution and only while empty,
+  atomically restore the Phase 1 containment/read-only interim schema. After a
+  dependent unit or target row exists, standalone rollback refuses and leaves
+  the target schema read-only pending reverse-dependency rollback or an
+  explicitly approved full restore. Never restore legacy document, Convention,
+  workflow, execution, email, navigation, or sample behavior. The exact
+  migration, verification, checksum, and rollback contract is
+  `docs/mjl-rst-005-activity-foundation-strategy.md`.
 
-### RST-006A - Opération planning and immutable revisions
+### RST-006A - Opération planning, immutable revisions, and review decisions
 
 - Status: `PENDING_APPROVAL`
-- Current component: absent first-class Opérations, revisions, and contributor structures.
-- Proposed action: add empty target planning and immutable-revision structures.
-- Reason: target balancing and identity-based review require these entities.
+- Current component: absent first-class Opérations, revisions, contributors,
+  and revision-bound Review Decisions.
+- Proposed action: add empty target planning, immutable-revision, contributor,
+  and append-only Review Decision structures plus dedicated Activity creation,
+  structural editing, balanced planning, submission/resubmission, correction,
+  revision-bound review, separation-of-duties, optimistic-lock, and start-freeze
+  transactions. Every mutation appends its RST-007A audit event in the same
+  transaction. Atomically replace RST-005's named dormant-state constraint with
+  a Phase 2-only constraint and replace RST-002B's assignment-only update guard
+  with the full structural/assignment expected-version guard only when all
+  guards and structures activate; retain RST-005's delete-denial trigger.
+  Creation rejects inactive Partner/Project references and invokes RST-002B's
+  creator-primary assignment seam atomically. Revision 1 sets
+  `first_submitted_amount` exactly once; final validation alone projects the
+  current revision amount to `latest_validated_amount` in the same guarded
+  revision/status/decision/audit transaction.
+- Reason: target balancing and identity-based review require these entities;
+  no other reset unit owns the canonical Review Decision record.
 - Phase: Phase 2
-- Dependencies: RST-002B, RST-005
-- Exact paths: planned `custom/mjlfinancement/operations.php`, planned `custom/mjlfinancement/class/mjloperation.class.php`, planned `custom/mjlfinancement/class/mjlactivityrevision.class.php`, planned `custom/mjlfinancement/class/mjlrevisioncontributor.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_revision.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_revision.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_revision_contributor.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_revision_contributor.key.sql`, `custom/mjlfinancement/activities.php`, `tests/e2e/activities.spec.js`, `tests/e2e/cases/activity-workflow.cases.js`.
-- Exact tables/data: planned `llx_mjlfinancement_operation`, `llx_mjlfinancement_activity_revision`, `llx_mjlfinancement_revision_contributor`; no Expense data.
+- Dependencies: RST-002B, RST-005, RST-007A
+- Exact paths: planned `custom/mjlfinancement/operations.php`, planned `custom/mjlfinancement/class/mjloperation.class.php`, planned `custom/mjlfinancement/class/mjlactivityrevision.class.php`, planned `custom/mjlfinancement/class/mjlrevisioncontributor.class.php`, planned `custom/mjlfinancement/class/mjlreviewdecision.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_revision.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_revision.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_revision_contributor.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_revision_contributor.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_review_decision.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_review_decision.key.sql`, `custom/mjlfinancement/activities.php`, planned `tests/e2e/rst006a-activity-planning.spec.js`, and planned `tests/unit/rst006a-activity-planning.test.js`. Shared Phase 2 suites remain reserved for RST-013B.
+- Additional exact Activity/audit paths required by the guarded transaction:
+  `custom/mjlfinancement/class/mjlactivity.class.php`,
+  `custom/mjlfinancement/lib/mjl_audit.lib.php`,
+  `custom/mjlfinancement/sql/llx_mjlfinancement_activity.sql`,
+  `custom/mjlfinancement/sql/llx_mjlfinancement_activity.key.sql`, and planned
+  `custom/mjlfinancement/scripts/rst006a_activity_planning.php`.
+- Exact tables/data: planned `llx_mjlfinancement_operation`,
+  `llx_mjlfinancement_activity_revision`,
+  `llx_mjlfinancement_revision_contributor`, and
+  `llx_mjlfinancement_review_decision`; no Expense data.
 - Action and data impact: add empty target tables; only disposable tests may populate them during implementation. No legacy mapping, spending, or historical revision is fabricated.
-- Backup prerequisite: schema dump before migration and executed RST-000A.
-- Rollback/verification: drop only these new empty persistent tables, restore the pre-migration schema, and destroy disposable fixture rows with their tenant.
+- Backup prerequisite: executed RST-002B/RST-005/RST-007A evidence; exact
+  post-RST-002B Activity, assignment, audit schema/row digests; and checksummed
+  forward/rollback manifests sealed by the separately approved RST-006A
+  strategy before migration.
+- Rollback/verification: after reverse-dependent rollback and only while target
+  persistent tables are empty, drop only the new tables, atomically restore
+  RST-005's exact dormant-state constraint and RST-002B's sealed assignment-only
+  update guard, retain RST-005's delete denial, and destroy disposable fixture
+  rows with their tenant. Never leave mutation enabled without revision/audit
+  guards.
 
 ### RST-006B - Execution exception requests
 
@@ -218,6 +315,12 @@ number does not approve a suffixed unit.
 - Phase: Phase 3A
 - Dependencies: RST-006A, RST-007B
 - Exact paths: planned `custom/mjlfinancement/operationrequests.php`, planned `custom/mjlfinancement/class/mjlcancellationrequest.class.php`, planned `custom/mjlfinancement/class/mjlreopeningrequest.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_cancellation_request.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_cancellation_request.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_reopening_request.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_reopening_request.key.sql`, `tests/e2e/cases/activity-execution.cases.js`.
+- Activity cancellation also owns the guarded replacement of
+  `chk_mjl_activity_rst006a_phase2`; its separately reviewed exact inventory
+  must include `custom/mjlfinancement/class/mjlactivity.class.php`,
+  `custom/mjlfinancement/sql/llx_mjlfinancement_activity.sql`, and
+  `custom/mjlfinancement/sql/llx_mjlfinancement_activity.key.sql` before that
+  status can be enabled.
 - Exact tables/data: planned empty `llx_mjlfinancement_cancellation_request` and `llx_mjlfinancement_reopening_request`; persistent target Opération/Activity tables remain empty during implementation.
 - Action and data impact: add empty request tables and guarded transactional transitions; only disposable tests create requests, and legacy data receives no synthetic request.
 - Backup prerequisite: Phase 3A pre-migration dump.
@@ -231,25 +334,65 @@ number does not approve a suffixed unit.
 - Reason: v2 requires one revision-linked mutation/audit contract.
 - Phase: Phase 1
 - Dependencies: RST-000A, RST-001
-- Exact paths: `custom/mjlfinancement/class/mjlexchangelog.class.php`, `custom/mjlfinancement/class/mjlreport.class.php`, `custom/mjlfinancement/class/mjlvalidation.class.php`, `custom/mjlfinancement/class/mjlworkflowaction.class.php`, `custom/mjlfinancement/lib/mjl_workflow_audit.lib.php`, `custom/mjlfinancement/lib/mjl_timeline.lib.php`, `custom/mjlfinancement/lib/mjl_timeline_result.lib.php`, `custom/mjlfinancement/exchangelogs.php`, `custom/mjlfinancement/workflowactions.php`, planned `custom/mjlfinancement/class/mjlauditevent.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_audit_event.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_audit_event.key.sql`, `tests/unit/access-audit-fail-closed.test.js`.
-- Exact tables/data: `llx_mjlfinancement_workflow_action`, `llx_mjlfinancement_validation`, `llx_mjlfinancement_exchange_log`, `llx_mjlfinancement_access_audit`, `llx_mjlfinancement_report`, planned `llx_mjlfinancement_audit_event`.
+- Exact paths: removed `custom/mjlfinancement/class/mjlexchangelog.class.php`,
+  `custom/mjlfinancement/class/mjlreport.class.php`,
+  `custom/mjlfinancement/class/mjlvalidation.class.php`,
+  `custom/mjlfinancement/class/mjlworkflowaction.class.php`,
+  `custom/mjlfinancement/lib/mjl_timeline.lib.php`,
+  `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, and
+  `custom/mjlfinancement/exchangelogs.php`; retained/retargeted
+  `custom/mjlfinancement/lib/mjl_audit.lib.php`,
+  `custom/mjlfinancement/lib/mjl_workflow_audit.lib.php`,
+  `custom/mjlfinancement/lib/mjl_timeline_result.lib.php`,
+  `custom/mjlfinancement/workflowactions.php`,
+  `custom/mjlfinancement/sql/llx_mjlfinancement_audit_event.sql`,
+  `custom/mjlfinancement/sql/llx_mjlfinancement_audit_event.key.sql`, and
+  `tests/unit/access-audit-fail-closed.test.js`.
+- Exact tables/data: absent `llx_mjlfinancement_workflow_action`,
+  `llx_mjlfinancement_validation`, `llx_mjlfinancement_exchange_log`,
+  `llx_mjlfinancement_access_audit`, and `llx_mjlfinancement_report`; existing
+  empty append-only `llx_mjlfinancement_audit_event`.
 - Action and data impact: introduce an empty append-only target audit table and remove legacy readers/tables only after their consumers are replaced. No old actor snapshot or event is migrated.
 - Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
-- Rollback/verification: drop only the new empty table and restore prior empty legacy structures/code.
+- Rollback/verification: once any dependent unit exists, standalone rollback
+  refuses, retains the append-only audit foundation read-only, and disables
+  dependent mutations pending reverse-dependency rollback or an explicitly
+  approved full-baseline restore. Never independently drop the audit table or
+  recreate retired audit tables, classes, readers, or routes.
 
 ### RST-007B - Revision-linked Activity chronology
 
 - Status: `PENDING_APPROVAL`
-- Current component: legacy Activity timeline readers without immutable revision linkage.
-- Proposed action: switch target chronology to revision-linked audit events.
+- Current component: Activity chronology presentation/readers are absent after
+  RST-007A; the append-only audit foundation exists and is empty in the shared
+  tenant, while Activity revisions are not yet implemented.
+- Proposed action: create a new read-only target chronology projection from the
+  revision-linked audit events already appended atomically by their owning
+  business transactions. Restore no legacy reader or chronology data.
 - Reason: reviewers and users need linear evidence tied to exact revisions.
 - Phase: Phase 2
 - Dependencies: RST-006A, RST-007A
-- Exact paths: `custom/mjlfinancement/lib/mjl_timeline.lib.php`, `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, `custom/mjlfinancement/lib/mjl_timeline_result.lib.php`, `custom/mjlfinancement/activities.php`, planned `custom/mjlfinancement/lib/mjl_audit.lib.php`, `tests/e2e/activities.spec.js`, `tests/e2e/documents-audit.spec.js`.
-- Exact tables/data: planned `llx_mjlfinancement_audit_event`, `llx_mjlfinancement_activity_revision`; empty retired legacy structures from RST-007A.
-- Action and data impact: switch target Activity chronology to revision-linked events; no legacy chronology is retained or rewritten.
+- Exact paths: planned `custom/mjlfinancement/lib/mjl_timeline.lib.php`, planned
+  `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, planned
+  `tests/e2e/rst007b-activity-chronology.spec.js`, and planned
+  `tests/unit/rst007b-activity-chronology.test.js`; retained
+  `custom/mjlfinancement/lib/mjl_timeline_result.lib.php`,
+  `custom/mjlfinancement/activities.php`, and
+  `custom/mjlfinancement/lib/mjl_audit.lib.php`,
+  as current inputs. Shared Activity/document suites remain reserved for
+  RST-013B/RST-013C.
+- Exact tables/data: executed RST-007A
+  `llx_mjlfinancement_audit_event` as retained read-only input and planned
+  `llx_mjlfinancement_activity_revision`; empty retired legacy structures from
+  RST-007A.
+- Action and data impact: create the target Activity chronology projection over
+  revision-linked events; no legacy chronology is retained, restored, or
+  rewritten.
 - Backup prerequisite: Phase 2 dump and RST-007A baseline.
-- Rollback/verification: restore prior timeline readers and the Phase 2 dump.
+- Rollback/verification: disable/remove only the RST-007B chronology projection,
+  retain the RST-007A audit source and RST-006A business state read-only, and
+  verify exact source/schema/data digests. Never restore legacy timeline readers
+  or overwrite audit/business state from a broad Phase 2 dump.
 
 ### RST-008 - Preserve and retarget invitation/account lifecycle
 
@@ -447,30 +590,46 @@ number does not approve a suffixed unit.
 ### RST-013B - Phase 2 test reset
 
 - Status: `PENDING_APPROVAL`
-- Current component: Activity planning/validation tests encoding the legacy model.
-- Proposed action: replace them with Phase 2 revision, assignment, separation, correction, validation, and locking journeys.
+- Current component: the shared Activity planning/validation suite and all six
+  formerly listed legacy paths are absent after RST-013A; only focused
+  RST-002B/RST-005/RST-006A/RST-007B verification exists by this point.
+- Proposed action: create new target Phase 2 revision, assignment, separation,
+  correction, validation, scope-security, and locking journeys from the
+  RST-014B disposable factory. Restore no legacy assertion.
 - Reason: Phase 2 must validate its target behavior before its phase verdict.
 - Phase: Phase 2
-- Dependencies: RST-002B, RST-005, RST-006A, RST-007B
-- Exact paths: `tests/e2e/activities.spec.js`, `tests/e2e/cases/activity-workflow.cases.js`, `tests/contracts/behavior_contracts_test.php`, `custom/mjlfinancement/scripts/verification/schema/activity_status_integrity.php`, `custom/mjlfinancement/scripts/verify_activity_workflow.php`.
+- Dependencies: RST-002B, RST-005, RST-006A, RST-007B, RST-014B
+- Exact paths: planned `tests/e2e/activities.spec.js`, planned `tests/e2e/cases/activity-workflow.cases.js`, planned `tests/e2e/cases/scope-security.cases.js`, planned `tests/contracts/behavior_contracts_test.php`, planned `custom/mjlfinancement/scripts/verification/schema/activity_status_integrity.php`, and planned `custom/mjlfinancement/scripts/verify_activity_workflow.php`.
 - Exact tables/data: disposable test fixtures only.
-- Action and data impact: replace old Activity planning/workflow assertions in Phase 2; production/local business rows are untouched.
+- Action and data impact: add only target Activity planning/workflow assertions
+  in Phase 2; production/local business rows are untouched.
 - Backup prerequisite: baseline/phase commits.
-- Rollback/verification: restore named files and rerun the prior Phase 2 suite.
+- Rollback/verification: remove/disable only the RST-013B-created target suites
+  and retain focused per-unit tests plus every RST-013A absence gate. Never
+  restore a legacy suite, path, assertion, or behavior.
 
 ### RST-013C - Phase 3A test reset
 
 - Status: `PENDING_APPROVAL`
-- Current component: legacy Activity execution/document tests without target request workflows.
-- Proposed action: replace them with spent, lifecycle, cancellation, reopening, derivation, completeness, and concurrency journeys.
+- Current component: the three formerly listed execution/document suite paths
+  are absent after RST-013A; focused Phase 3A unit verification is the only
+  permitted precursor.
+- Proposed action: create new target spent, lifecycle, cancellation, reopening,
+  derivation, completeness, document-audit, and concurrency journeys.
 - Reason: Phase 3A must validate execution and exception behavior before its verdict.
 - Phase: Phase 3A
 - Dependencies: RST-006B, RST-007B, RST-013B
-- Exact paths: `tests/e2e/cases/activity-execution.cases.js`, `tests/e2e/documents-audit.spec.js`, `custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php`.
+- Exact paths: planned `tests/e2e/cases/activity-execution.cases.js`, planned
+  `tests/e2e/documents-audit.spec.js`, and planned
+  `custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php`.
 - Exact tables/data: disposable Phase 3A test fixtures only.
-- Action and data impact: replace execution/request assertions while retaining guarded-document security evidence; local business rows are untouched.
+- Action and data impact: add target execution/request assertions while
+  retaining guarded-document security evidence; local business rows are
+  untouched.
 - Backup prerequisite: baseline and Phase 2 commits.
-- Rollback/verification: restore named files and rerun the prior Phase 3A suite.
+- Rollback/verification: remove/disable only RST-013C-created target suites and
+  retain prior focused/Phase 2 tests and RST-013A absence gates. Never restore
+  legacy execution/document assertions.
 
 ### RST-013D - Phase 3B test reset
 
@@ -584,9 +743,23 @@ number does not approve a suffixed unit.
 - Proposed action: extend isolated factories with the minimum balanced planning, assignment, Opération, revision, and validation records required by Phase 2 tests.
 - Reason: Phase 2 requires evidence without introducing persistent sample data.
 - Phase: Phase 2
-- Dependencies: RST-002B, RST-005, RST-006A, RST-014A
-- Exact paths: Phase 2 files under `tests/fixtures` or `tests/helpers` approved with RST-013B; no path under `custom/mjlfinancement/sample_data`.
-- Exact tables/data: disposable target Activity, assignment, Opération-planning, revision, and contributor rows inside an isolated test tenant only.
+- Dependencies: RST-002B, RST-005, RST-006A, RST-007A, RST-014A
+- Exact paths: planned `tests/helpers/phase2-fixture.js`, planned
+  `tests/fixtures/phase2-fixture.php`, planned
+  `tests/fixtures/phase2-fixture-preflight.php`, planned
+  `tests/unit/phase2-fixture.test.js`, and planned
+  `tests/e2e/phase2-fixture-isolation.spec.js`; modify
+  `tests/runner/disposable-run.js`, `tests/runner/run-suite.js`,
+  `tests/unit/disposable-run.test.js`, `playwright.config.js`, `package.json`,
+  `docs/mjl-acceptance-tests.md`, `docs/mjl-test-coverage-registry.md`,
+  `docs/mjl-reset-manifest-v2.md`, `docs/mjl-implementation-roadmap-v2.md`, and
+  `docs/mjl-docs-index.md`. No path under
+  `custom/mjlfinancement/sample_data` is authorized. RST-014B approval is
+  independent of RST-013B.
+- Exact tables/data: disposable target Activity, assignment, Opération-planning,
+  revision, contributor, Review Decision, and command-created audit-event rows
+  inside an isolated test tenant only. Fixtures that do not need review stop at
+  a pre-review state; no fixture fabricates a decision or audit row directly.
 - Action and data impact: create records per run and destroy them with the tenant; no execution amount, persistent seed, or legacy mapping.
 - Backup prerequisite: Phase 1 commit and disposable-runner configuration snapshot.
 - Rollback/verification: restore fixture helper code and prove tenant teardown removes every record/volume.

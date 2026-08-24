@@ -53,6 +53,12 @@ accessibility gate remains deferred. This verdict does not authorize Phase 2
 or RST-005, which requires a separately reviewed and explicitly approved
 strategy.
 
+RST-005 was separately approved by DEC-045 on 2026-08-24. Disposable
+implementation then proved MariaDB cannot execute `RENAME TABLE` while explicit
+table locks remain held. Its exact temporary insert-guard correction is under
+review; shared Phase 2 cutover remains blocked pending separate explicit
+approval of that amendment and clean final reviews.
+
 ## Phase 2: Activity Planning and Validation
 
 Preconditions: approved Phase 1, effective roles/reference data, and

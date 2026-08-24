@@ -1,6 +1,7 @@
 <?php
 
 include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
 
 class modMjlFinancement extends DolibarrModules
 {
@@ -14,7 +15,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'Suivi des projets financés du MJL';
 		$this->descriptionlong = 'Socle MJL réinitialisé : référentiels natifs, projection des activités, accès sur invitation et audit immuable.';
-		$this->version = '0.16.0';
+		$this->version = '0.17.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(
@@ -89,27 +90,65 @@ class modMjlFinancement extends DolibarrModules
 
 	public function init($options = '')
 	{
-		$result = $this->_load_tables('/mjlfinancement/sql/');
-		if ($result < 0) {
+		$prefix = mjl_rst005_prefix($this->db);
+		$activity = $prefix.'mjlfinancement_activity';
+		$lockName = mjl_rst005_lock_name($this->db);
+		$migrationRequired = false;
+		$cleanInstall = false;
+		if ((int) mjl_rst005_scalar($this->db, "SELECT GET_LOCK('".$this->db->escape($lockName)."',0)") !== 1) return -1;
+		try {
+			$tableCount = (int) mjl_rst005_scalar($this->db, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$this->db->escape($activity)."'");
+			if ($tableCount === 0) {
+				$cleanInstall = true;
+				$customCount = (int) mjl_rst005_scalar($this->db, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE '".$this->db->escape($prefix)."mjlfinancement\\_%'");
+				if ($customCount !== 0) return -1;
+				$result = $this->_load_tables('/mjlfinancement/sql/');
+				if ($result < 0) return -1;
+				mjl_rst005_install_insert_trigger($this->db, $activity);
+				mjl_rst005_require_target_objects($this->db, $activity);
+				mjl_rst005_require_retained_table_set($this->db);
+			} else {
+				mjl_rst005_require_retained_schema($this->db);
+				$schema = mjl_rst005_detect_schema($this->db, $activity);
+				if ($schema === RST005_SCHEMA_PHASE1) $migrationRequired = true;
+				elseif ($schema === RST005_SCHEMA_TARGET) mjl_rst005_require_target_objects($this->db, $activity);
+				else return -1;
+			}
+			if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
+				&& getenv('MJL_RST_PHASE1_INJECT_ACTIVATION_FAILURE') === '1'
+				&& $this->disposableActivationFailureIsArmed()) return -1;
+			if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
+				&& getenv('MJL_RST005_INJECT_ACTIVATION_FAILURE') === '1'
+				&& $this->disposableRst005ActivationFailureIsArmed()) return -1;
+			if ($this->ensureRoleInvariantTriggers() < 0) return -1;
+			if ($this->ensureAuthStateConstraints() < 0 || $this->ensureAuthInvariantTriggers() < 0 || $this->ensureAuthFingerprintKey() < 0) return -1;
+			if ($cleanInstall) mjl_rst005_require_retained_schema($this->db);
+			$this->remove($options);
+			$result = $this->_init(array(), $options);
+			if ($result < 0) return $result;
+			return $migrationRequired ? 'RST005_MIGRATION_REQUIRED' : $result;
+		} catch (Throwable $exception) {
+			dol_syslog('RST-005 module activation refused: '.$exception->getMessage(), LOG_ERR);
+			if (PHP_SAPI === 'cli') fwrite(STDERR, 'RST-005 module activation refused: '.$exception->getMessage().PHP_EOL);
 			return -1;
+		} finally {
+			$this->db->query("SELECT RELEASE_LOCK('".$this->db->escape($lockName)."')");
 		}
-		if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
-			&& getenv('MJL_RST_PHASE1_INJECT_ACTIVATION_FAILURE') === '1'
-			&& $this->disposableActivationFailureIsArmed()) {
-			return -1;
-		}
-		if ($this->ensureRoleInvariantTriggers() < 0) {
-			return -1;
-		}
-		if ($this->ensureAuthStateConstraints() < 0 || $this->ensureAuthInvariantTriggers() < 0 || $this->ensureAuthFingerprintKey() < 0) return -1;
-		$this->remove($options);
-		return $this->_init(array(), $options);
 	}
 
 	private function disposableActivationFailureIsArmed()
 	{
 		$sql = "SELECT value FROM ".$this->db->prefix()."const WHERE name='MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION'";
 		$sql .= ' AND entity IN (0, 1) ORDER BY entity DESC, rowid DESC LIMIT 1';
+		$resql = $this->db->query($sql);
+		$row = $resql ? $this->db->fetch_object($resql) : null;
+		return $row && (string) $row->value === '1';
+	}
+
+	private function disposableRst005ActivationFailureIsArmed()
+	{
+		$sql = "SELECT value FROM ".$this->db->prefix()."const WHERE name='MJL_RST005_ACTIVATION_FAILURE_INJECTION'";
+		$sql .= ' AND entity=0 ORDER BY rowid DESC LIMIT 1';
 		$resql = $this->db->query($sql);
 		$row = $resql ? $this->db->fetch_object($resql) : null;
 		return $row && (string) $row->value === '1';

@@ -12,6 +12,7 @@
     "test:rst010a": "node tests/runner/run-suite.js rst010a",
     "test:rst013a": "node tests/runner/run-suite.js rst013a",
     "test:rst014a": "node tests/runner/run-suite.js rst014a",
+    "test:rst005": "node tests/runner/run-suite.js rst005",
     "test:phase1-reset": "node tests/runner/run-suite.js phase1-reset",
     "test:characterization": "node tests/runner/run-suite.js characterization",
     "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility",

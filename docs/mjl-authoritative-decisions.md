@@ -97,8 +97,14 @@ executed under DEC-044 on 2026-08-21, including its separately approved
 positive-control and serial factory-only amendment; its complete committed-source
 gate matrix and final Standards, Spec, and Security/Isolation reviews are clean.
 The formal Phase 1 verdict is `PHASE_1_READY_WITH_NOTES`: the only deferred note
-is the signed human-only accessibility gate. This verdict does not authorize
-Phase 2 or RST-005. The operational `initdb.log` checksum deviation from
+is the signed human-only accessibility gate. That verdict did not authorize
+Phase 2 or RST-005; RST-005 was subsequently and separately approved for
+implementation by DEC-045 on 2026-08-24, only within
+`docs/mjl-rst-005-activity-foundation-strategy.md`. Disposable implementation
+subsequently proved that MariaDB refuses `RENAME TABLE` while explicit table
+locks remain active. The strategy now records an exact temporary insert-guard
+amendment; shared execution remains unauthorized until that amendment receives
+separate explicit RST-005 approval. The operational `initdb.log` checksum deviation from
 the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
 RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary
