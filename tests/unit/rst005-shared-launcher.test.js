@@ -237,7 +237,9 @@ function disposableComposeConfig(approval) {
       mariadb: {
         image: 'mariadb:11',
         restart: 'no',
-        environment: mariadbEnvironment, networks: { default: null }, tmpfs: ['/run/mjl-test'],
+        environment: mariadbEnvironment,
+        networks: { default: null },
+        tmpfs: ['/run/mjl-test:size=1m,mode=0700,noexec,nosuid,nodev'],
         volumes: [{ type: 'volume', source: 'mjl_test_db', target: '/var/lib/mysql' }],
       },
       dolibarr: {
@@ -260,7 +262,7 @@ function disposableComposeConfig(approval) {
       mjl_test_docs: { name: `${approval.compose_project_name}_mjl_test_docs` },
       mjl_test_conf: { name: `${approval.compose_project_name}_mjl_test_conf` },
     },
-    networks: { default: { name: `${approval.compose_project_name}_default` } },
+    networks: { default: { name: `${approval.compose_project_name}_default`, ipam: {} } },
   };
 }
 
@@ -306,7 +308,7 @@ test('resolved shared topology binds exact images, storage, guard, and mount inv
   });
   const config = {
     name: approval.compose_project_name,
-    networks: { default: { name: `${approval.compose_project_name}_default` } },
+    networks: { default: { name: `${approval.compose_project_name}_default`, ipam: {} } },
     services: {
       mariadb: { image: 'mariadb:11', restart: 'unless-stopped', networks: { default: null }, environment: { MYSQL_DATABASE: 'dolidb', MYSQL_USER: 'dolidbuser', MYSQL_PASSWORD: 'local-test-value', MYSQL_ROOT_PASSWORD: 'local-root-value' }, volumes: [{ type: 'bind', source: path.join(root, 'data/mariadb'), target: '/var/lib/mysql' }] },
       dolibarr: {
