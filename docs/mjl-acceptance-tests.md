@@ -16,6 +16,7 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst013a
     npm run test:rst014a
     npm run test:rst005
+    npm run test:rst005-launcher
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
@@ -42,6 +43,23 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   libsodium backup restores, role/entity/parent/POST denials, SQL invariants,
   retained authenticated/anonymous custom and native document GET/POST denial,
   complete database/filesystem/ECM evidence, and whole-tenant destruction.
+- 'test:rst005-launcher' runs the exact root-owned fixed-name/no-follow launcher against a
+  temporary committed-source snapshot and unique disposable Phase 1 tenant;
+  it proves commit/tree/Compose/traffic/custody binding, encrypted fresh restore,
+  v3 stable/execution identity separation, inherited-flock contention, exact
+  negative substitutions, protected-input replacement, unsafe topology,
+  foreign/alternate networks, database sessions/events, ancestor-path writers,
+  real harness and launcher interruption, active mutation-lifetime `SIGKILL`
+  during apply/recover/rollback with concurrent-launch rejection, operational
+  full-plaintext-restore `SIGKILL` with daemon lifetime and fresh-launch reaping,
+  manifest-before/manifest-target publication crashes and recovery,
+  missing/duplicate/reordered/truncated/corrupt/copied/replayed/contradictory
+  durable packages, secret-canary scanning, immutable create-inspect-start,
+  apply/activate/verify/finalize, containment-only rollback, launcher-owned
+  signal cleanup after resources exist, and a disposable shared-shaped
+  production-mode execute followed by a fresh standalone rollback approval.
+  It proves complete restore/tenant/custody cleanup without addressing the real
+  shared project or shared bind paths.
 - The browser contract covers the business-role/Admin/role-less navigation matrix, direct guards, removed-route 404s, invitation issuance and acceptance, fragment clearing, hash invalidation, replay behavior, password reset, and login with changed credentials.
 - 'test:rst003' retains the reference-foundation schema/browser gate.
 

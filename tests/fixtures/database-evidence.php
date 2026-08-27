@@ -122,6 +122,7 @@ try {
     $restorableSchemaObjectHashes = [];
     $adminHash = hash_init('sha256');
     $ecmHash = hash_init('sha256');
+    $moduleMetadataHash = hash_init('sha256');
     $databaseCreate = $pdo->query('SHOW CREATE DATABASE ' . evidence_identifier($databaseName))->fetch(PDO::FETCH_NUM);
     $createDatabaseSql = (string) ($databaseCreate[1] ?? '');
     if ($restoreEvidence) $createDatabaseSql = str_replace('`' . $databaseName . '`', '`dolidb`', $createDatabaseSql);
@@ -232,6 +233,19 @@ try {
             evidence_field($ecmHash, $table . '.value', $value);
         }
     }
+    $moduleMetadataQueries = [
+        'llx_const' => "SELECT * FROM llx_const WHERE name LIKE 'MAIN_MODULE_MJLFINANCEMENT%' OR name LIKE 'MJL_%' ORDER BY rowid",
+        'llx_rights_def' => "SELECT * FROM llx_rights_def WHERE module='mjlfinancement' ORDER BY id,entity",
+        'llx_menu' => "SELECT * FROM llx_menu WHERE module='mjlfinancement' ORDER BY rowid",
+        'llx_user_rights' => "SELECT ur.* FROM llx_user_rights ur INNER JOIN llx_rights_def rd ON rd.id=ur.fk_id AND rd.entity=ur.entity WHERE rd.module='mjlfinancement' ORDER BY ur.entity,ur.fk_user,ur.fk_id",
+    ];
+    foreach ($moduleMetadataQueries as $table => $query) {
+        $rows = $pdo->query($query);
+        while ($row = $rows->fetch()) foreach ($row as $name => $value) {
+            evidence_field($moduleMetadataHash, $table . '.name', $name);
+            evidence_field($moduleMetadataHash, $table . '.value', $value);
+        }
+    }
     $disposableControlCount = (int) $pdo->query("SELECT COUNT(*) FROM llx_const WHERE entity=0 AND (name='MJL_DISPOSABLE_FIXTURE_SENTINEL' OR name LIKE 'MJL_TEST_FIXTURE_NAMESPACE_%')")->fetchColumn();
     $adminCount = (int) $pdo->query('SELECT COUNT(*) FROM llx_user WHERE admin=1')->fetchColumn();
     $adminIdentity = $pdo->query('SELECT rowid,entity,login,admin,statut FROM llx_user WHERE admin=1 ORDER BY rowid')->fetchAll();
@@ -259,6 +273,7 @@ try {
         'restorable_schema_object_sha256' => $restorableSchemaObjectHashes,
         'admin_sha256' => hash_final($adminHash),
         'ecm_sha256' => hash_final($ecmHash),
+        'module_metadata_sha256' => hash_final($moduleMetadataHash),
         'documents_sha256' => evidence_tree_digest('/var/www/documents'),
         'disposable_control_count' => $disposableControlCount,
         'disposable_file_sentinel_present' => file_exists('/var/www/documents/.mjl-disposable-fixture-sentinel'),

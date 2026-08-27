@@ -2,23 +2,139 @@
 
 ## Status and approval boundary
 
-- Strategy status: `AMENDMENT_REVIEW_REQUIRED`. DEC-045 approved the original
-  strategy on 2026-08-24; disposable implementation then proved MariaDB refuses
-  `RENAME TABLE` while explicit table locks remain held. The exact guarded-lock
-  amendment below requires separate explicit RST-005 approval before shared
-  execution.
+- Strategy status: `CONFIDENCE_HARDENING_IMPLEMENTATION_APPROVED;
+  SHARED_EXECUTION_COMMIT_AND_TREE_APPROVAL_PENDING`. DEC-045 approved the guarded-lock
+  amendment on 2026-08-24, and the user separately confirmed the exact
+  protected launcher test seams. DEC-046 approved implementation of the
+  confidence-hardening amendment on 2026-08-25. Shared execution remains unauthorized until
+  the implementation is committed, final reviews are clean, and the user
+  separately approves both that exact committed SHA and its exact
+  `complete_tree_sha256` protected-tree digest.
 - Reset unit: `RST-005`.
 - Phase: Phase 2.
 - Dependencies: the formal Phase 1 verdict and every retained executed Phase 1
   unit: RST-000A, RST-001, RST-002A, RST-003, RST-004, RST-007A, RST-008,
   RST-009A, RST-010A, RST-013A, and RST-014A.
-- This document is a strategy only. It authorizes no implementation, database
-  mutation, route exposure, navigation, or persistent fixture.
+- This document authorizes only the closed implementation and disposable
+  rehearsal inventory below. It authorizes no shared database mutation, route
+  exposure, navigation, or persistent fixture.
 - The required later, separate, explicit approval naming `RST-005` was received
   on 2026-08-24. Phase 2 approval by itself would not have been sufficient.
-- Approval of the amended RST-005 will authorize only the closed scope in this document.
+- Approval of the amended RST-005 authorizes only the closed scope in this document.
   RST-002B, RST-006A, RST-007B, RST-009B, RST-013B, and RST-014B remain
   separately reviewable and separately approvable units.
+
+## Confidence-hardened operational amendment
+
+The launcher modes are exactly `rehearse`, `execute`, `recover`, and
+`rollback`. `execute` accepts only a separately approved packet binding the
+final commit, complete protected-tree digest, exact shared project/database/
+mounts/Compose topology, runtime identities, operation ID, and containment-only
+recovery policy. `recover` accepts only the original incomplete operation
+package, survives expiry of the execution approval, requires a fresh
+traffic-stop attestation, and can only restore the exact Phase 1 read-only
+Activity containment state. A durable completed report disables `recover`.
+`rollback` remains a separately approved post-completion action and refuses
+after downstream Phase 2 execution or any Activity/downstream row.
+
+All operational records use schema v3. A stable `target_identity_sha256`
+binds the exact profile, repository, Compose project, database, and storage
+identity and therefore owns one cross-operation lock. A separate
+`execution_identity_sha256` binds the operation, commit, protected-tree
+manifest, custody roots, key digest, Compose/environment bytes, runtime, and
+recovery policy. Approval, traffic, authorization, durable records, recovery
+manifests, and reports bind both identities. The real `shared` profile is exact
+for this repository, project `mjl-dolibarr-poc`, database `dolidb`, and its two
+data binds; `disposable_shared_shape` is a distinct `/tmp`-only profile.
+
+The launcher is executed by `/usr/bin/flock --nonblock --no-fork`, verifies
+the inherited descriptor owns an active exclusive flock, and proves an
+independent contender is rejected for the approved stable root-owned `0600`
+target lock. Every mutating container separately holds a stable daemon-side
+mutation lease for its full lifetime, so outer-process `SIGKILL` cannot make an
+orphaned DDL writer appear unlocked to a new launcher. The target lock is held
+from preflight through mutation, recovery/evidence capture, and disposable
+cleanup. Immediately before
+each backup or mutation the launcher rechecks stopped services, exclusive
+network membership, the exact MariaDB container and process list, and a
+filesystem-writer attestation. The approved packet binds the absolute Docker,
+Compose, Git, Node, PHP, MariaDB client/server, daemon, container, and immutable
+image identities. Builds, pulls, changed tag resolutions, unexpected Compose
+capabilities, or target substitutions fail before backup or DDL.
+The PHP identity is measured from the exact immutable operator image; Node and
+the remaining host tools are mounted at the absolute paths recorded in the
+approval. Writable bind and named-volume sources are compared by daemon-side
+mount device/root identity as well as canonical path, so a bind alias cannot
+hide a writer to database or document storage.
+
+Approval, key, traffic, and canonical Compose environment are four distinct
+root-owned `0400` inputs in separate `0700` custody directories and mount
+identities. Their open device/inode/stat identities and bytes are rechecked;
+the shared Compose environment input is exactly zero bytes. Runtime sources are copied
+without following links into a root-owned snapshot.
+The complete snapshot digest is verified before use and rechecked before every
+mutation. Compose is invoked only from snapshot files, with ambient `.env`
+loading disabled by a canonical empty environment file and a mode-specific
+allowlist. Shared mode receives no disposable/test variables. Database
+credentials exist only in the shortest-lived child process. Each one-off is
+created with the approved immutable image ID and `pull=never`, inspected while
+still in `created` state for its exact rootfs, capabilities, security options,
+network, entrypoint, and mounts, and only then started. It is auto-removed on
+exit and a per-run secret canary is rejected from retained artifacts and
+orphaned one-off metadata/logs as well as every captured success/failure stream.
+
+Every evidence manifest, checkpoint, journal entry, and final report is an
+immutable versioned record. It is durably created by exclusive temporary file,
+file `fsync`, atomic rename, and parent-directory `fsync`; existing names are
+never replaced. Records form one exact hash chain bound to the operation ID,
+target, commit/tree, runtime, before-state, backup digests, and prior record.
+The next manifest and checkpoint are persisted before their associated
+mutation. Missing, duplicate, reordered, truncated, copied, replayed,
+contradictory, or corrupt packages fail closed.
+
+Fresh-process recovery independently classifies live database truth as exact
+Phase 1, guarded transitional, target-before-finalization, finalized target, or
+unknown. Exact Phase 1 is reported without mutation; either transitional target
+class is restored to Phase 1 containment. A finalized target is recoverable
+only when the valid durable chain is an incomplete crash prefix with no durable
+completed report; a completed report disables recovery. Before mutation,
+recovery writes a fresh immutable manifest from current protected-table,
+database, document, ECM, Admin, audit, module-metadata, and Compose-resource
+evidence. It accepts only exact sealed partial target-object prefixes and is
+resumable after either recovery-manifest or pre-recovery-checkpoint publication. An
+unknown state requires manual encrypted-backup restoration and is never
+guessed. Recovery preserves RST-010A document denial, the retained Admin,
+audit/module metadata, filesystem, ECM, and all non-Activity data.
+The grammar also accepts a crash after either durable before/target manifest
+but before its following checkpoint; recovery uses the latest valid preceding
+checkpoint when present and otherwise permits only freshly classified exact
+Phase 1 containment.
+
+Disposable verification must kill the launcher with `SIGKILL` after every
+durable checkpoint and mutation boundary and recover from a fresh launcher.
+It also covers source changes during/after snapshot, lock contention, foreign
+Docker/database peers, graceful signals, all recovery-record corruption/replay
+forms, SIGKILL after full plaintext restore and after both manifest
+publications, completed execute followed by separately approved rollback, and
+exact zero-survivor cleanup. The restore database uses tmpfs only, an
+auto-removed immutable container with a daemon-enforced maximum lifetime, and
+fresh-launch exact orphan reaping; no named plaintext database volume exists.
+Recovery artifacts (encrypted backup, separately
+custodied key, snapshot, journals, and evidence) are retained through the
+formal Phase 2 verdict; their destruction requires separate approval.
+
+The root-only packet generator is non-mutating with respect to services and the
+database. It creates the separate custody inputs, CSPRNG backup key, nonsecret
+protected-tree manifest, stable/execution identities, stable target/mutation
+locks, traffic template, and the complete immutable-image Docker plus
+flock-wrapped invocation without printing secrets. Running
+that generator against the real shared profile still requires separate
+authorization.
+
+All pre-amendment launcher results are superseded. Only tests and three clean
+independent reviews against the final clean correction commit are current. Any
+later source or evidence change invalidates the commit/tree pair, digests,
+tests, reviews, and approval packet.
 
 ## Outcome
 
@@ -120,9 +236,9 @@ whitespace, identifier backticks, and a whole-expression outer parenthesis
 pair. Quoted literal bytes and all operators/names remain exact. Column order
 is checked separately. The verifier returns the corresponding sealed source-
 oracle SHA only after this entire independent physical contract matches; it
-does not claim to hash reconstructed oracle bytes. This dual-oracle correction
-is part of the pending amendment and requires separate approval before shared
-execution. Any source-oracle or physical-contract change requires another
+does not claim to hash reconstructed oracle bytes. This approved dual-oracle
+correction is implemented; shared execution remains gated by separate approval
+of the final commit/tree pair. Any source-oracle or physical-contract change requires another
 amended strategy and separate approval.
 Prefix substitution accepts only the configured Dolibarr prefix after a strict
 ASCII identifier check (`^[A-Za-z][A-Za-z0-9_]*$`). Before backup or DDL, the
@@ -141,9 +257,9 @@ target SQL oracle including all keys/checks/triggers under that prefix, verify
 the physical object counts, and drop the entire scratch set. The migration
 state machine itself then runs with the disposable tenant's configured prefix;
 this is the strongest non-mutating prefix proof available without rewriting
-Dolibarr's immutable process-wide prefix configuration. This correction and
-the exact boundary/overlength/multibyte/synthetic-collision helper matrix are
-part of the pending amendment. The table below is a semantic index; the target
+Dolibarr's immutable process-wide prefix configuration. This approved correction
+and the exact boundary/overlength/multibyte/synthetic-collision helper matrix are
+implemented. The table below is a semantic index; the target
 SQL manifest is the physical contract.
 
 | Column | SQL contract | Meaning |
@@ -379,8 +495,8 @@ and audit-event changes and are never caller-supplied independent values.
 - `docs/mjl-implementation-roadmap-v2.md`
 - `docs/mjl-docs-index.md`
 - `CONTEXT.md` (executed-current-state summary only)
-- `tasks/lessons.md` (only durable MariaDB cutover/restart discoveries required
-  by the repository lessons policy)
+- `tasks/lessons.md` (only durable MariaDB cutover/restart and approved
+  confidence-hardening discoveries required by the repository lessons policy)
 
 The three dormant email/presentation/feedback files are modified only to
 remove obsolete old-schema Activity states and messages. RST-006A may later
@@ -390,11 +506,21 @@ introduce revision-aware messages under separate approval.
 
 - `custom/mjlfinancement/scripts/rst005_activity_foundation.php`
 - `custom/mjlfinancement/scripts/activity_schema_installer.lib.php`
+- `custom/mjlfinancement/scripts/rst005_shared_launcher.js`
+- `custom/mjlfinancement/scripts/rst005_shared_launcher.lib.js`
+- `custom/mjlfinancement/scripts/rst005_shared_operation.lib.js`
+- `custom/mjlfinancement/scripts/rst005_shared_packet.js`
+- `custom/mjlfinancement/scripts/rst005_oneoff_bootstrap.php` (root-only,
+  allowlisted, ephemeral shared one-off configuration with temporary runtime
+  data; no persisted or copied database credential)
 - `custom/mjlfinancement/scripts/verification/schema/activity_foundation.php`
 - `custom/mjlfinancement/scripts/oracles/rst005_phase1_activity.sql` (deployed,
   byte-identical copy of the sealed Phase 1 rollback oracle)
 - `tests/runner/rst005-cutover-rehearsal.js`
+- `tests/runner/rst005-shared-launcher-rehearsal.js`
 - `tests/unit/rst005-activity-foundation.test.js`
+- `tests/unit/rst005-shared-launcher.test.js`
+- `tests/unit/rst005-confidence-hardening.test.js`
 - `tests/e2e/rst005-activity-foundation.spec.js`
 - `docs/mjl-rst-005-execution-report.md`
 
@@ -432,13 +558,17 @@ root; it is not a source-path expansion.
 
 MariaDB DDL is not assumed transactional. The migration is a dedicated,
 one-shot, fail-closed script, never an implicit base-SQL/module-init upgrade.
-The reviewed implementation keeps `apply`, `finalize`, and `rollback`
-unconditionally disabled outside an attested RST-014A disposable tenant while
-this amendment is pending. Separate approval does not by itself remove that
-technical stop: a later reviewed, approval-bound shared launcher must first
-enforce the exact approved commit, a clean complete worktree, traffic stop,
-root-owned backup/manifest custody, FD-held hashing, and separate key escrow
-before it may enable any shared mutation.
+The reviewed implementation keeps `apply`, `recover`, `finalize`, and `rollback`
+disabled outside either an attested RST-014A disposable tenant or the exact
+root-owned launcher authorization generated from fixed no-follow custody files.
+The launcher enforces the approved commit, a clean complete protected tree
+including ignored files, exact resolved Compose and tenant identity, stopped
+traffic, root-owned backup/evidence custody, and a separately custodied key
+passed to encryption/decryption only on inherited file descriptors. The full
+live binding is repeated before client setup, each backup, and every mutation.
+This technical path does not itself authorize
+shared execution; the final reviewed committed SHA and exact
+`complete_tree_sha256` remain separately approval-gated.
 
 1. Stop application traffic and record the maintenance boundary.
 2. Capture commit, source-path hashes, module state, exact table/column/index/
@@ -478,7 +608,10 @@ before it may enable any shared mutation.
    remain mandatory for
    before/after drift checks and is never weakened. At least one restore runs in a fresh
    process using the separately custodied key, not an in-memory producer copy.
-   Then destroy restored databases, plaintext streams, transient FD buffers,
+   The isolated database is tmpfs-backed, auto-removed, and bounded by a
+   daemon-side lifetime independent of the launcher; a fresh launcher reaps
+   only the exact approval-nonce resource names after abrupt loss. Then destroy
+   restored databases, plaintext streams, transient FD buffers,
    rehearsal keys, and disposable backup artifacts. The shared ciphertext and
    escrowed key remain separately protected until their joint, separately
    authorized destruction after the rollback window. Existence or decryption
@@ -656,8 +789,8 @@ It must contain canonical before/after SHA-256 digests for:
   `AGENTS.md`, `CONTEXT.md`, `DESIGN.md`, `README.md`, `docker-compose.yml`,
   `package.json`, `package-lock.json`, and `playwright.config.js`, with path,
   type, mode, and content and no exclusions, captured by the external RST-014A
-  evidence boundary and bound to the exact commit presented for separate
-  amendment approval;
+  evidence boundary and bound to the exact committed SHA and exact
+  `complete_tree_sha256` presented for separate execution approval;
 - exact Activity schema, indexes, foreign keys, checks, triggers, and row count;
 - the complete application database: defaults plus every base table, sequence,
   view, trigger, routine/parameter, event, column, and row, with no exclusions;
@@ -685,14 +818,13 @@ The disposable migration contains a compile-time SHA-256 of every dependent file
 `custom/mjlfinancement` except its own orchestrator, and independently compares
 that digest with the evidence manifest at every mutating entry. The orchestrator
 cannot self-hash an embedded digest without a circular fixed-point problem; it
-is not claimed as covered by that internal seal. All mutating modes refuse
-outside the attested disposable boundary. Before shared execution can be
-implemented, the separate root/operator-owned launcher described above must
-close the orchestrator and every non-module protected path with the complete
-source digest and exact Git commit separately approved by the user. A
-caller-supplied manifest or regenerated digest cannot substitute for that
-approval. Any mismatch must stop before backup or DDL. This disabled-until-
-approval source boundary is part of the pending amendment.
+is not claimed as covered by that internal seal. Shared mutation is accepted
+only through the implemented root/operator-owned launcher, which closes the
+orchestrator and every non-module protected path with an immutable root-owned
+runtime snapshot matching the complete protected-tree digest and exact Git
+commit. A caller-supplied manifest or regenerated digest cannot substitute for
+separate approval of the final commit/tree pair. Any mismatch stops before
+backup or DDL; that separate shared-execution approval remains pending.
 
 ## Rollback boundary
 
@@ -738,7 +870,8 @@ RST-005 is complete only when all of the following are true:
    secret scan, and operational-boundary tests pass.
 9. Independent Standards and Spec reviews report no actionable findings.
 10. The execution report records commands, outputs, digests, skipped checks,
-    and the exact committed implementation SHA.
+    and both the exact committed implementation SHA and exact
+    `complete_tree_sha256` protected-tree digest.
 
 ## Reviewed sequence after RST-005
 

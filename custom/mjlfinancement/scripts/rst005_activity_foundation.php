@@ -8,7 +8,7 @@ require_once __DIR__.'/activity_schema_installer.lib.php';
 const RST005_CONFIRMATION = 'RST-005';
 const RST005_LOCK_TIMEOUT = 0;
 const RST005_ROLLBACK_MODE = 'rollback';
-const RST005_DEPENDENT_SOURCE_SHA256 = '838dadbdff94306c112be697c9ede71eeecccf17b1217ef3087db19327f437d6';
+const RST005_DEPENDENT_SOURCE_SHA256 = '07ce3eb45f996d059bd70546a4d781a1fb2ea4f81151cab156371c94cec1686b';
 
 function rst005_fail($message)
 {
@@ -29,20 +29,51 @@ function rst005_table_exists(DoliDB $db, $table)
 function rst005_arguments(array $arguments)
 {
 	$options = array('mode' => '', 'confirm' => '', 'evidence-manifest' => '', 'evidence-sha256' => '', 'failure-point' => '');
+	$seen = array();
 	foreach (array_slice($arguments, 1) as $argument) {
+		$matched = false;
 		foreach ($options as $name => $unused) {
 			$prefix = '--'.$name.'=';
-			if (strpos($argument, $prefix) === 0) $options[$name] = substr($argument, strlen($prefix));
+			if (strpos($argument, $prefix) === 0) {
+				if (isset($seen[$name])) throw new RuntimeException('Duplicate RST-005 argument: --'.$name);
+				$seen[$name] = true;
+				$options[$name] = substr($argument, strlen($prefix));
+				$matched = true;
+				break;
+			}
 		}
+		if (!$matched) throw new RuntimeException('Unknown RST-005 argument.');
 	}
 	return $options;
 }
 
-function rst005_require_disposable_mutation_boundary()
+function rst005_require_shared_launcher_authorization(array $options)
 {
-	if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1' || !preg_match('/^mjl-test-[a-z0-9-]+$/', (string) getenv('MJL_DISPOSABLE_PROJECT_NAME'))) {
-		throw new RuntimeException('RST-005 shared mutation is disabled pending separate approval and an approval-bound execution launcher.');
+	if (getenv('MJL_RST005_SHARED_LAUNCHER') !== '1' || getenv('MJL_DISPOSABLE_TEST_TENANT') === '1') throw new RuntimeException('RST-005 shared launcher authorization is absent.');
+	$path = '/run/mjl-rst005/authorization.json';
+	$stat = @lstat($path);
+	if ($stat === false || is_link($path) || !is_file($path) || (int) $stat['uid'] !== 0 || (((int) $stat['mode']) & 07777) !== 0400 || (int) $stat['nlink'] !== 1 || (int) $stat['size'] < 1 || (int) $stat['size'] > 4096) throw new RuntimeException('RST-005 shared launcher authorization custody is invalid.');
+	$bytes = @file_get_contents($path);
+	$record = is_string($bytes) ? json_decode($bytes, true) : null;
+	$expectedKeys = array('approval_nonce','approval_sha256','approved_commit','complete_tree_sha256','evidence_manifest_sha256','execution_identity_sha256','mode','operation_id','recovery_policy','target_identity_sha256','unit','version');
+	sort($expectedKeys, SORT_STRING);
+	$actualKeys = is_array($record) ? array_keys($record) : array();
+	sort($actualKeys, SORT_STRING);
+	if ($actualKeys !== $expectedKeys || ($record['version'] ?? null) !== 3 || ($record['unit'] ?? '') !== 'RST-005' || ($record['recovery_policy'] ?? '') !== 'containment_only_phase1') throw new RuntimeException('RST-005 shared launcher authorization record is invalid.');
+	foreach (array('approved_commit' => 40, 'complete_tree_sha256' => 64, 'evidence_manifest_sha256' => 64, 'approval_nonce' => 32, 'approval_sha256' => 64, 'operation_id' => 32, 'target_identity_sha256' => 64, 'execution_identity_sha256' => 64) as $field => $length) {
+		if (!is_string($record[$field]) || !preg_match('/^[a-f0-9]{'.$length.'}$/', $record[$field])) throw new RuntimeException('RST-005 shared launcher authorization digest is invalid.');
 	}
+	$modeMatches = hash_equals((string) $record['mode'], (string) $options['mode']);
+	if (!$modeMatches || !hash_equals((string) $record['evidence_manifest_sha256'], (string) $options['evidence-sha256'])) throw new RuntimeException('RST-005 shared launcher authorization does not bind this operation.');
+	return $record;
+}
+
+function rst005_require_disposable_mutation_boundary(array $options)
+{
+	if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1') {
+		return rst005_require_shared_launcher_authorization($options);
+	}
+	if (!preg_match('/^mjl-test-[a-z0-9-]+$/', (string) getenv('MJL_DISPOSABLE_PROJECT_NAME'))) throw new RuntimeException('RST-005 disposable project attestation failed.');
 	$sentinel = (string) getenv('MJL_DISPOSABLE_RUN_SENTINEL');
 	$path = '/var/www/documents/.mjl-disposable-fixture-sentinel';
 	$stat = @lstat($path);
@@ -51,6 +82,7 @@ function rst005_require_disposable_mutation_boundary()
 		|| !hash_equals($sentinel, (string) @file_get_contents($path))) {
 		throw new RuntimeException('RST-005 disposable mutation attestation failed.');
 	}
+	return null;
 }
 
 function rst005_module_tree_sha($root)
@@ -233,10 +265,14 @@ function rst005_require_evidence(DoliDB $db, array $options)
 	foreach (array('backup_schema','backup_full') as $key) {
 		$entry = $data[$key];
 		$path = isset($entry['path']) ? (string) $entry['path'] : '';
-		$allowedRoot = '/tmp/rst005-evidence/';
-		$allowedDirectory = realpath(rtrim($allowedRoot, '/'));
+		$allowedRoots = getenv('MJL_RST005_SHARED_LAUNCHER') === '1' ? array('/run/mjl-rst005/backups/') : array('/tmp/rst005-evidence/', '/run/mjl-rst005/backups/');
+		$allowedDirectory = false;
 		$resolvedPath = realpath($path);
-		if ($allowedDirectory === false || $resolvedPath === false || strpos($resolvedPath, $allowedDirectory.DIRECTORY_SEPARATOR) !== 0 || !is_file($resolvedPath) || !is_readable($resolvedPath) || (fileperms($resolvedPath) & 0777) !== 0600) throw new RuntimeException('RST-005 encrypted backup artifact is missing or outside its protected boundary: '.$key);
+		foreach ($allowedRoots as $allowedRoot) {
+			$candidate = realpath(rtrim($allowedRoot, '/'));
+			if ($candidate !== false && $resolvedPath !== false && strpos($resolvedPath, $candidate.DIRECTORY_SEPARATOR) === 0) { $allowedDirectory = $candidate; break; }
+		}
+		if ($allowedDirectory === false || $resolvedPath === false || !is_file($resolvedPath) || !is_readable($resolvedPath) || (fileperms($resolvedPath) & 0777) !== 0600) throw new RuntimeException('RST-005 encrypted backup artifact is missing or outside its protected boundary: '.$key);
 		if (!hash_equals((string) $entry['sha256'], hash_file('sha256', $resolvedPath))) throw new RuntimeException('RST-005 encrypted backup artifact checksum mismatch: '.$key);
 		if (($entry['encryption'] ?? '') !== 'libsodium-secretstream-xchacha20poly1305' || ($entry['mode'] ?? '') !== '0600') throw new RuntimeException('RST-005 encrypted backup metadata mismatch: '.$key);
 		if (empty($entry['plaintext_sha256']) || !preg_match('/^[a-f0-9]{64}$/', (string) $entry['plaintext_sha256'])) throw new RuntimeException('RST-005 plaintext backup digest is missing: '.$key);
@@ -358,6 +394,63 @@ function rst005_create_target(DoliDB $db, $live, $target, $failurePoint = '')
 	mjl_rst005_assert_empty($db, $target);
 }
 
+function rst005_require_exact_partial_target_prefix(DoliDB $db, $table)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$engine = $db->fetch_object($db->query("SELECT ENGINE,TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' AND TABLE_TYPE='BASE TABLE'"));
+	if (!$engine || (string) $engine->ENGINE !== 'InnoDB' || (string) $engine->TABLE_COLLATION !== 'utf8mb4_uca1400_ai_ci') throw new RuntimeException('Partial target engine/collation is not sealed.');
+	$actualColumns = array();
+	$characters = array();
+	$resql = $db->query("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,GENERATION_EXPRESSION,CHARACTER_SET_NAME,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' ORDER BY ORDINAL_POSITION");
+	while ($row = $db->fetch_array($resql)) {
+		$default = $row['COLUMN_DEFAULT'];
+		if ($default === null) $default = $row['IS_NULLABLE'] === 'YES' ? 'NULL' : '';
+		$actualColumns[$row['COLUMN_NAME']] = strtolower($row['COLUMN_TYPE']).'|'.$row['IS_NULLABLE'].'|'.$default.'|'.strtolower($row['EXTRA']).'|'.mjl_rst005_normalize_definition($row['GENERATION_EXPRESSION']);
+		if ($row['CHARACTER_SET_NAME'] !== null) $characters[$row['COLUMN_NAME']] = $row['CHARACTER_SET_NAME'].'|'.$row['COLLATION_NAME'];
+	}
+	$expectedCharacters = array();
+	foreach (array('ref','name','description','validation_status') as $name) $expectedCharacters[$name] = 'utf8mb4|utf8mb4_uca1400_ai_ci';
+	if (!mjl_rst005_map_equal($actualColumns, mjl_rst005_column_contract(RST005_SCHEMA_TARGET)) || !mjl_rst005_map_equal($characters, $expectedCharacters)) throw new RuntimeException('Partial target column definitions are not sealed.');
+	$actualChecks = array();
+	$resql = $db->query("SELECT tc.CONSTRAINT_NAME,cc.CHECK_CLAUSE FROM information_schema.TABLE_CONSTRAINTS tc INNER JOIN information_schema.CHECK_CONSTRAINTS cc ON cc.CONSTRAINT_SCHEMA=tc.CONSTRAINT_SCHEMA AND cc.CONSTRAINT_NAME=tc.CONSTRAINT_NAME WHERE tc.CONSTRAINT_SCHEMA=DATABASE() AND tc.TABLE_NAME='".$db->escape($table)."' AND tc.CONSTRAINT_TYPE='CHECK' ORDER BY tc.CONSTRAINT_NAME");
+	while ($row = $db->fetch_array($resql)) $actualChecks[$row['CONSTRAINT_NAME']] = mjl_rst005_normalize_definition($row['CHECK_CLAUSE']);
+	$expectedChecks = mjl_rst005_check_contract(RST005_SCHEMA_TARGET);
+	foreach ($expectedChecks as $name => $expression) $expectedChecks[$name] = mjl_rst005_normalize_definition($expression);
+	if (!mjl_rst005_map_equal($actualChecks, $expectedChecks)) throw new RuntimeException('Partial target check definitions are not sealed.');
+	$indexOrder = array('PRIMARY','uk_mjl_activity_entity_ref','idx_mjl_activity_entity_project','idx_mjl_activity_entity_partner','idx_mjl_activity_entity_validation','idx_mjl_activity_project_fk','idx_mjl_activity_partner_fk','idx_mjl_activity_creator','idx_mjl_activity_modifier');
+	$indexGroups = array();
+	$resql = $db->query("SELECT INDEX_NAME,NON_UNIQUE,INDEX_TYPE,COLUMN_NAME,COLLATION,COALESCE(SUB_PART,0) AS SUB_PART FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' ORDER BY INDEX_NAME,SEQ_IN_INDEX");
+	while ($row = $db->fetch_array($resql)) { $name = $row['INDEX_NAME']; if (!isset($indexGroups[$name])) $indexGroups[$name] = array('unique'=>(int) $row['NON_UNIQUE'] === 0,'type'=>$row['INDEX_TYPE'],'columns'=>array()); $indexGroups[$name]['columns'][] = $row['COLLATION'].':'.$row['SUB_PART'].':'.$row['COLUMN_NAME']; }
+	$actualIndexes = array();
+	foreach ($indexGroups as $name => $definition) $actualIndexes[$name] = ($definition['unique'] ? 'U' : 'N').'|'.$definition['type'].'|'.implode(',', $definition['columns']);
+	$expectedIndexes = mjl_rst005_index_contract(RST005_SCHEMA_TARGET);
+	$indexPrefix = array_slice($indexOrder, 0, count($actualIndexes));
+	$expectedIndexPrefix = array_intersect_key($expectedIndexes, array_flip($indexPrefix));
+	if (!mjl_rst005_map_equal($actualIndexes, $expectedIndexPrefix)) throw new RuntimeException('Partial target indexes are not an exact creation prefix.');
+	$foreignKeyOrder = array('fk_mjl_activity_target_partner','fk_mjl_activity_target_project','fk_mjl_activity_target_creator','fk_mjl_activity_target_modifier');
+	$actualFks = array();
+	$resql = $db->query("SELECT k.CONSTRAINT_NAME,k.COLUMN_NAME,k.REFERENCED_TABLE_NAME,k.REFERENCED_COLUMN_NAME,r.UPDATE_RULE,r.DELETE_RULE FROM information_schema.KEY_COLUMN_USAGE k INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS r ON r.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA AND r.CONSTRAINT_NAME=k.CONSTRAINT_NAME WHERE k.CONSTRAINT_SCHEMA=DATABASE() AND k.TABLE_NAME='".$db->escape($table)."' AND k.REFERENCED_TABLE_NAME IS NOT NULL ORDER BY k.CONSTRAINT_NAME,k.ORDINAL_POSITION");
+	while ($row = $db->fetch_array($resql)) $actualFks[$row['CONSTRAINT_NAME']] = $row['COLUMN_NAME'].'>'.$row['REFERENCED_TABLE_NAME'].':'.$row['REFERENCED_COLUMN_NAME'].'|'.$row['UPDATE_RULE'].'|'.$row['DELETE_RULE'];
+	$expectedFkPrefix = array_intersect_key(mjl_rst005_fk_contract(RST005_SCHEMA_TARGET, $prefix), array_flip(array_slice($foreignKeyOrder, 0, count($actualFks))));
+	if (count($actualIndexes) !== count($indexOrder) && !empty($actualFks)) throw new RuntimeException('Partial target foreign keys precede the sealed index prefix.');
+	if (!mjl_rst005_map_equal($actualFks, $expectedFkPrefix)) throw new RuntimeException('Partial target foreign keys are not an exact creation prefix.');
+	$triggerOrder = array($prefix.'mjl_activity_rst005_bu',$prefix.'mjl_activity_rst005_bd',$prefix.'mjl_activity_rst005_bi');
+	$actualTriggers = array();
+	$resql = $db->query("SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='".$db->escape($table)."' ORDER BY TRIGGER_NAME");
+	while ($row = $db->fetch_array($resql)) $actualTriggers[$row['TRIGGER_NAME']] = $row['ACTION_TIMING'].' '.$row['EVENT_MANIPULATION'].':'.mjl_rst005_normalize_definition($row['ACTION_STATEMENT']);
+	$insertSql = mjl_rst005_insert_trigger_sql($prefix, $table);
+	$expectedTriggers = array(
+		$prefix.'mjl_activity_rst005_bu'=>'BEFORE UPDATE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity mutation is dormant in RST-005'"),
+		$prefix.'mjl_activity_rst005_bd'=>'BEFORE DELETE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity deletion is dormant in RST-005'"),
+		$prefix.'mjl_activity_rst005_bi'=>'BEFORE INSERT:'.mjl_rst005_normalize_definition(substr($insertSql, strpos($insertSql, ' FOR EACH ROW ') + strlen(' FOR EACH ROW '))),
+	);
+	if (count($actualFks) !== count($foreignKeyOrder) && !empty($actualTriggers)) throw new RuntimeException('Partial target triggers precede the sealed foreign-key prefix.');
+	$expectedTriggerPrefix = array_intersect_key($expectedTriggers, array_flip(array_slice($triggerOrder, 0, count($actualTriggers))));
+	if (!mjl_rst005_map_equal($actualTriggers, $expectedTriggerPrefix)) throw new RuntimeException('Partial target triggers are not an exact creation prefix.');
+	mjl_rst005_assert_empty($db, $table);
+	return true;
+}
+
 function rst005_create_phase1_restore(DoliDB $db, $restore)
 {
 	$oracle = __DIR__.'/oracles/rst005_phase1_activity.sql';
@@ -381,14 +474,35 @@ function rst005_require_or_normalize_quarantine(DoliDB $db, $quarantine, $prefix
 	}
 }
 
-$options = rst005_arguments($argv);
-if (!in_array($options['mode'], array('preflight','apply','verify','finalize','rollback'), true)) rst005_fail('Use --mode=preflight|apply|verify|finalize|rollback.');
-if ($options['mode'] !== 'preflight' && $options['mode'] !== 'verify' && $options['confirm'] !== RST005_CONFIRMATION) rst005_fail('Exact RST-005 confirmation is required.');
-$evidence = null;
-if (in_array($options['mode'], array('apply','finalize','rollback'), true)) {
+function rst005_require_quarantine_readonly(DoliDB $db, $quarantine)
+{
 	try {
-		rst005_require_disposable_mutation_boundary();
+		rst005_require_phase1($db, $quarantine);
+	} catch (RuntimeException $exception) {
+		mjl_rst005_require_guarded_phase1($db, $quarantine);
+	}
+	mjl_rst005_assert_empty($db, $quarantine);
+}
+
+$options = rst005_arguments($argv);
+if (!in_array($options['mode'], array('preflight','apply','verify','classify','finalize','recover','rollback'), true)) rst005_fail('Use --mode=preflight|apply|verify|classify|finalize|recover|rollback.');
+if (!in_array($options['mode'], array('preflight','verify','classify'), true) && $options['confirm'] !== RST005_CONFIRMATION) rst005_fail('Exact RST-005 confirmation is required.');
+$readOnlyMode = in_array($options['mode'], array('preflight','verify','classify'), true);
+$disposableVerificationFailure = $options['mode'] === 'verify' && $options['failure-point'] === 'during-verification' && getenv('MJL_DISPOSABLE_TEST_TENANT') === '1';
+if ($readOnlyMode && ($options['confirm'] !== '' || $options['evidence-manifest'] !== '' || $options['evidence-sha256'] !== '' || ($options['failure-point'] !== '' && !$disposableVerificationFailure))) rst005_fail('Read-only RST-005 mode received forbidden arguments.');
+if (!$readOnlyMode && ($options['evidence-manifest'] === '' || $options['evidence-sha256'] === '')) rst005_fail('Mutation RST-005 mode requires its exact evidence arguments.');
+if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1' && $options['failure-point'] !== '') rst005_fail('Shared RST-005 mode forbids failure injection.');
+$evidence = null;
+$authorization = null;
+if (in_array($options['mode'], array('apply','finalize','recover','rollback'), true)) {
+	try {
+		$authorization = rst005_require_disposable_mutation_boundary($options);
 		$evidence = rst005_require_evidence($db, $options);
+		if (is_array($authorization)) {
+			foreach (array('operation_id','target_identity_sha256','execution_identity_sha256','approved_commit','complete_tree_sha256','recovery_policy','approval_nonce','approval_sha256') as $field) {
+				if (!isset($evidence[$field]) || !is_string($evidence[$field]) || !hash_equals((string) $authorization[$field], (string) $evidence[$field])) throw new RuntimeException('RST-005 authorization and evidence manifest are contradictory: '.$field);
+			}
+		}
 	} catch (RuntimeException $exception) { rst005_fail($exception->getMessage()); }
 }
 
@@ -401,6 +515,7 @@ try {
 	$quarantine = $prefix.'mjlfinancement_activity_rst005_phase1_quarantine';
 	$restore = $prefix.'mjlfinancement_activity_rst005_phase1_restore';
 	$failed = $prefix.'mjlfinancement_activity_rst005_target_failed';
+	$guard = $prefix.'mjl_activity_rst005_cutover_guard';
 	$lockName = mjl_rst005_lock_name($db);
 	if ((int) mjl_rst005_scalar($db, "SELECT GET_LOCK('".$db->escape($lockName)."',".RST005_LOCK_TIMEOUT.')') !== 1) throw new RuntimeException('RST-005 advisory lock is unavailable.');
 	$state = mjl_rst005_detect_schema($db, $live);
@@ -410,7 +525,39 @@ try {
 		rst005_require_checkpoint($evidence, $requiredCheckpoint);
 	}
 
-	if ($options['mode'] === 'preflight') {
+	if ($options['mode'] === 'classify') {
+		$temporary = array();
+		foreach (array($target,$quarantine,$restore,$failed) as $name) if (rst005_table_exists($db, $name)) $temporary[] = $name;
+		$class = 'unknown';
+		if ($state === RST005_SCHEMA_PHASE1) {
+			try {
+				rst005_require_phase1($db, $live);
+				if (empty($temporary)) $class = 'exact_phase1';
+				elseif (count($temporary) === 1 && $temporary[0] === $target) {
+					rst005_require_exact_partial_target_prefix($db, $target);
+					$class = 'guarded_transitional';
+				}
+			} catch (RuntimeException $exactFailure) {
+				try {
+					mjl_rst005_require_guarded_phase1($db, $live);
+					if (count($temporary) === 1 && $temporary[0] === $target) {
+						rst005_require_exact_partial_target_prefix($db, $target);
+						$class = 'guarded_transitional';
+					}
+				} catch (RuntimeException $guardedFailure) { $class = 'unknown'; }
+			}
+		} elseif ($state === RST005_SCHEMA_TARGET) {
+			try {
+				mjl_rst005_require_target_objects($db, $live);
+				mjl_rst005_assert_empty($db, $live);
+				if (count($temporary) === 1 && $temporary[0] === $quarantine) {
+					rst005_require_quarantine_readonly($db, $quarantine);
+					$class = 'target_pre_finalization';
+				} elseif (empty($temporary)) $class = 'finalized_target';
+			} catch (RuntimeException $targetFailure) { $class = 'unknown'; }
+		}
+		print json_encode(array('mode' => 'classify', 'classification' => $class, 'schema' => $state, 'temporary_tables' => $temporary, 'protected_tables_sha256' => rst005_protected_tables_sha($db)), JSON_PRETTY_PRINT).PHP_EOL;
+	} elseif ($options['mode'] === 'preflight') {
 		rst005_require_phase1($db, $live);
 		mjl_rst005_require_retained_schema($db);
 		rst005_require_no_downstream($db, $prefix);
@@ -430,7 +577,6 @@ try {
 			foreach (array($target,$restore,$failed) as $name) if (rst005_table_exists($db, $name)) throw new RuntimeException('Unknown RST-005 completed migration state: '.$name);
 			print json_encode(array('mode' => 'apply', 'status' => rst005_table_exists($db, $quarantine) ? 'cutover_complete_pending_finalize' : 'already_complete'), JSON_PRETTY_PRINT).PHP_EOL;
 		} else {
-			$guard = $prefix.'mjl_activity_rst005_cutover_guard';
 			$guarded = false;
 			if ($state === RST005_SCHEMA_UNKNOWN && rst005_table_exists($db, $live)) {
 				try { mjl_rst005_require_guarded_phase1($db, $live); $guarded = true; } catch (RuntimeException $unused) { $guarded = false; }
@@ -444,8 +590,7 @@ try {
 					mjl_rst005_require_target_objects($db, $target);
 					mjl_rst005_assert_empty($db, $target);
 				} catch (RuntimeException $partial) {
-					if (mjl_rst005_table_columns($db, $target) !== mjl_rst005_expected_columns(RST005_SCHEMA_TARGET)) throw $partial;
-					mjl_rst005_assert_empty($db, $target);
+					rst005_require_exact_partial_target_prefix($db, $target);
 					rst005_query($db, 'DROP TABLE '.mjl_rst005_ident($target), 'Unable to remove positively identified partial RST-005 target');
 					rst005_create_target($db, $live, $target, $options['failure-point']);
 				}
@@ -500,6 +645,38 @@ try {
 		}
 		foreach (array($target,$restore,$failed) as $name) if (rst005_table_exists($db, $name)) throw new RuntimeException('Unexpected RST-005 temporary table blocks finalization: '.$name);
 		print json_encode(array('mode' => 'finalize', 'status' => 'complete'), JSON_PRETTY_PRINT).PHP_EOL;
+	} elseif ($options['mode'] === 'recover') {
+		rst005_require_no_downstream($db, $prefix);
+		if ($state === RST005_SCHEMA_PHASE1) {
+			mjl_rst005_assert_empty($db, $live);
+			if (rst005_table_exists($db, $target)) {
+				rst005_require_exact_partial_target_prefix($db, $target);
+				rst005_query($db, 'DROP TABLE '.mjl_rst005_ident($target), 'Unable to remove incomplete RST-005 target');
+			}
+			try { rst005_require_phase1($db, $live); }
+			catch (RuntimeException $exactFailure) {
+				mjl_rst005_require_guarded_phase1($db, $live);
+				rst005_query($db, 'DROP TRIGGER '.mjl_rst005_ident($guard), 'Unable to remove incomplete RST-005 guard');
+			}
+			foreach (array($quarantine,$restore,$failed) as $name) if (rst005_table_exists($db, $name)) throw new RuntimeException('Unknown RST-005 Phase 1 recovery state.');
+			rst005_require_phase1($db, $live);
+			print json_encode(array('mode' => 'recover', 'status' => 'phase1_containment_restored'), JSON_PRETTY_PRINT).PHP_EOL;
+		} elseif ($state === RST005_SCHEMA_TARGET) {
+			mjl_rst005_require_target_objects($db, $live);
+			mjl_rst005_assert_empty($db, $live);
+			if (rst005_table_exists($db, $quarantine)) {
+				rst005_require_or_normalize_quarantine($db, $quarantine, $prefix);
+				rst005_query($db, 'RENAME TABLE '.mjl_rst005_ident($live).' TO '.mjl_rst005_ident($failed).', '.mjl_rst005_ident($quarantine).' TO '.mjl_rst005_ident($live), 'Atomic RST-005 recovery rollback failed');
+			} else {
+				foreach (array($target,$restore,$failed) as $name) if (rst005_table_exists($db, $name)) throw new RuntimeException('Unknown finalized RST-005 recovery state.');
+				rst005_create_phase1_restore($db, $restore);
+				rst005_query($db, 'RENAME TABLE '.mjl_rst005_ident($live).' TO '.mjl_rst005_ident($failed).', '.mjl_rst005_ident($restore).' TO '.mjl_rst005_ident($live), 'Atomic finalized RST-005 recovery rollback failed');
+			}
+			rst005_require_phase1($db, $live);
+			mjl_rst005_assert_empty($db, $failed);
+			rst005_query($db, 'DROP TABLE '.mjl_rst005_ident($failed), 'Unable to remove recovered target');
+			print json_encode(array('mode' => 'recover', 'status' => 'phase1_containment_restored'), JSON_PRETTY_PRINT).PHP_EOL;
+		} else throw new RuntimeException('RST-005 recovery refuses unknown database truth.');
 	} else {
 		if ($state === RST005_SCHEMA_PHASE1) {
 			rst005_require_phase1($db, $live);

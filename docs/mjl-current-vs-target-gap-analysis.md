@@ -19,7 +19,8 @@ RST-010A containment hardening is executed. Both MJL endpoints deny without
 bootstrap, native ECM and generic delivery entrypoints are blocked, and
 disposable plus shared filesystem/ECM state checks prove no document mutation.
 DEC-041 approves the target Phase 4 strategy, not its out-of-sequence runtime
-implementation. DEC-045 approved RST-005, whose disposable implementation is
-under final review; MariaDB's guarded-lock amendment still requires separate
-explicit approval before shared execution. Completion of Phase 1 does not
-authorize RST-002B, Phase 4, or other later business work.
+implementation. DEC-045 approved RST-005, including the guarded-lock and
+confidence-hardening implementation amendments now under final review. Shared
+execution remains separately gated by explicit approval naming the committed
+SHA and protected-tree digest. Completion of Phase 1 does not authorize
+RST-002B, Phase 4, or other later business work.

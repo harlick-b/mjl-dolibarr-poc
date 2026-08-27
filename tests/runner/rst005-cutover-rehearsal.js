@@ -209,7 +209,7 @@ async function runRst005CutoverRehearsal(context) {
   const environment = ['MJL_RST005_TRAFFIC_STOPPED=1', 'MJL_DISPOSABLE_TEST_TENANT=1'];
   let sharedMutationRejected = false;
   try { await runPhp(['--mode=apply', ...evidenceArgs], ['MJL_RST005_TRAFFIC_STOPPED=1', 'MJL_DISPOSABLE_TEST_TENANT=0']); }
-  catch (error) { sharedMutationRejected = /shared mutation is disabled pending separate approval/i.test(String(error.output || error.message)); }
+  catch (error) { sharedMutationRejected = /shared launcher authorization is absent/i.test(String(error.output || error.message)); }
   if (!sharedMutationRejected) throw new Error('RST-005 mutating orchestrator accepted a non-disposable caller.');
 
   const restartDatabase = async () => {

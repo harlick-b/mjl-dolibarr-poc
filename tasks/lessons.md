@@ -182,3 +182,30 @@ debugging discoveries. Do not add one-off observations or generic advice.
   that demand complete before/after database digest equality should give
   invalid probes explicit non-allocating technical IDs; row-count equality
   alone misses allocator drift.
+- A launcher cannot determine whether an already-open inherited file descriptor
+  was originally opened through a symlink. For protected operator inputs, open
+  fixed custody names inside the launcher with no-follow semantics, validate
+  canonical root-owned parent custody, and then use inherited descriptors only
+  for onward secret transport.
+- An interrupted synchronous Docker wrapper can leave both its operator
+  container and nested nonce-scoped restore resources alive. Give every such
+  resource an exact derivable name, handle termination through `finally`, remove
+  and retry the exact names, and enumerate containers, networks, volumes, and
+  custody roots before accepting teardown.
+- `docker compose run -T` disables TTY allocation but does not reliably close
+  stdin across a nested Docker-socket launcher. For evidence scripts that read
+  stdin to reject unexpected input, also pass `--interactive=false`; otherwise
+  they can block in `pipe_read` before opening a database connection.
+- An inherited descriptor proves only that a process opened a lock inode, not
+  that it owns an exclusive flock. Verify the descriptor's kernel lock record
+  and an independent nonblocking contention probe. When Docker-daemon children
+  can outlive the launcher, give mutating children a second stable lease that
+  every new launcher checks before trusting the released outer lock.
+- Mutable image validation before `compose run` leaves a tag check/use race.
+  Create one-offs from the approved image ID with pulls disabled, inspect the
+  still-created container's image, rootfs, capabilities, security options,
+  mounts, network, and entrypoint, and only then start it.
+- Durable hash chaining does not imply valid workflow ordering. Validate every
+  record transition against an explicit crash-prefix grammar, make recovery and
+  rollback resumable from their published checkpoints, and reject raw report
+  copies that lack an identical durable record.

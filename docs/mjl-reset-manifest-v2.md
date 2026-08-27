@@ -215,9 +215,13 @@ number does not approve a suffixed unit.
 
 ### RST-005 - Replace the legacy Activity model
 
-- Status: `AMENDMENT_REVIEW_REQUIRED`; DEC-045 approved the original strategy,
-  while the MariaDB guarded-lock correction awaits separate explicit approval
-  before shared execution
+- Status: `CONFIDENCE_HARDENING_IMPLEMENTATION_APPROVED;
+  SHARED_EXECUTION_COMMIT_AND_TREE_APPROVAL_PENDING`; the guarded-lock correction and
+  exact protected launcher seams are approved and implemented; DEC-046's
+  recovery/durability/locking/runtime amendment is approved for implementation,
+  while shared
+  execution awaits clean final reviews and separate approval naming both the
+  exact committed SHA and exact `complete_tree_sha256`
 - Current component: an empty interim legacy-shaped Activity table, a
   Supervisor/Validator-only read projection, fail-closed mutation seams, no
   Activity navigation, and no workflow-action table.

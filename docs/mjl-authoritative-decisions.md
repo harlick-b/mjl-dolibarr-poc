@@ -101,10 +101,18 @@ is the signed human-only accessibility gate. That verdict did not authorize
 Phase 2 or RST-005; RST-005 was subsequently and separately approved for
 implementation by DEC-045 on 2026-08-24, only within
 `docs/mjl-rst-005-activity-foundation-strategy.md`. Disposable implementation
-subsequently proved that MariaDB refuses `RENAME TABLE` while explicit table
-locks remain active. The strategy now records an exact temporary insert-guard
-amendment; shared execution remains unauthorized until that amendment receives
-separate explicit RST-005 approval. The operational `initdb.log` checksum deviation from
+proved that MariaDB refuses `RENAME TABLE` while explicit table locks remain
+active. The user then separately approved the exact temporary insert-guard
+amendment and confirmed the protected launcher test seams. The root-owned
+launcher is implemented and has passed its exact disposable end-to-end
+rehearsal, but those results were superseded by the confidence-hardening
+amendment approved for implementation by DEC-046 on 2026-08-25. The amendment
+adds exact `recover` semantics, durable immutable hash-chained operation
+records, an exclusive target lock, immutable runtime/environment binding, and
+abrupt-loss recovery tests. Shared execution remains unauthorized until those
+corrections pass clean final reviews against the exact correction commit, a
+committed implementation SHA, its exact `complete_tree_sha256` protected-tree
+digest, and separate explicit approval naming both values. The operational `initdb.log` checksum deviation from
 the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
 RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary

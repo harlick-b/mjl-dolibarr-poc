@@ -76,6 +76,8 @@ test('RST-005 operational scripts are CLI-only and migration-state explicit', ()
   assert.match(migration, /mjl_rst005_cutover_guard_sql/);
   assert.match(migration, /after-locked-recheck/);
   assert.match(migration, /after-atomic-rename/);
+  assert.match(migration, /\$disposableVerificationFailure = \$options\['mode'\] === 'verify' && \$options\['failure-point'\] === 'during-verification'/);
+  assert.match(migration, /getenv\('MJL_DISPOSABLE_TEST_TENANT'\) === '1'/);
   assert.match(migration, /activity_rst005_target/);
   assert.match(migration, /activity_rst005_phase1_quarantine/);
   assert.match(migration, /RENAME TABLE/);
@@ -96,7 +98,7 @@ test('RST-005 evidence is encrypted, restore-tested, and source-bound', () => {
   assert.doesNotMatch(runner, /GRANT ALL PRIVILEGES ON/);
   assert.match(runner, /restored-database evidence accepted a non-disposable caller/);
   assert.match(runner, /mutating orchestrator accepted a non-disposable caller/);
-  assert.match(migration, /shared mutation is disabled pending separate approval/);
+  assert.match(migration, /rst005_require_shared_launcher_authorization/);
   assert.match(migration, /mjl-disposable-fixture-sentinel/);
   assert.match(runner, /moduleTreeSha/);
   assert.match(migration, /rst005_module_tree_sha/);
