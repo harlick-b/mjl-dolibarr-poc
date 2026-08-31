@@ -1507,23 +1507,38 @@ async function verifyEncryptedBackups(options) {
 }
 
 async function cleanupIsolatedRestoreResources(names, execute = runCommand, runtimeEnvironment = process.env) {
-  const cleanup = async (...arguments_) => {
+  const maximumAttempts = 300;
+  const convergenceDelayMs = 100;
+  const remove = async (...arguments_) => {
     try { return await execute(...arguments_); } catch (error) {
       if (error && (['access', 'permission'].includes(error.rst005Reason) || ['EACCES', 'EPERM'].includes(error.code))) throw new Error('SECURITY/ACCESS-BLOCKED — DO NOT RETRY: isolated restore cleanup permission denied.');
       if (error && ['missing', 'conflict'].includes(error.rst005Reason)) return null;
       throw error;
     }
   };
+  const observe = async (...arguments_) => {
+    try { return await execute(...arguments_); } catch (error) {
+      if (error && (['access', 'permission'].includes(error.rst005Reason) || ['EACCES', 'EPERM'].includes(error.code))) throw new Error('SECURITY/ACCESS-BLOCKED — DO NOT RETRY: isolated restore observation permission denied.');
+      throw error;
+    }
+  };
   let survivors = [];
-  for (let retry = 0; retry < 3; retry += 1) {
-    for (const container of [names.evidenceContainer, names.databaseContainer]) await cleanup(DOCKER, ['rm', '-f', container], { label: 'Isolated restore container cleanup', env: runtimeEnvironment });
-    await cleanup(DOCKER, ['network', 'rm', names.network], { label: 'Isolated restore network cleanup', env: runtimeEnvironment });
-    for (const volume of [names.databaseVolume, names.documentVolume]) await cleanup(DOCKER, ['volume', 'rm', volume], { label: 'Isolated restore volume cleanup', env: runtimeEnvironment });
+  for (let retry = 0; retry < maximumAttempts; retry += 1) {
+    for (const container of [names.evidenceContainer, names.databaseContainer]) await remove(DOCKER, ['rm', '-f', container], { label: 'Isolated restore container cleanup', env: runtimeEnvironment });
     survivors = [];
-    for (const container of [names.evidenceContainer, names.databaseContainer]) if (((await cleanup(DOCKER, ['ps', '-aq', '--filter', `name=^/${container}$`], { label: 'Container cleanup check', env: runtimeEnvironment })) || Buffer.alloc(0)).toString('utf8').trim()) survivors.push(`container:${container}`);
-    if (((await cleanup(DOCKER, ['network', 'ls', '-q', '--filter', `name=^${names.network}$`], { label: 'Network cleanup check', env: runtimeEnvironment })) || Buffer.alloc(0)).toString('utf8').trim()) survivors.push('network');
-    for (const volume of [names.databaseVolume, names.documentVolume]) if (((await cleanup(DOCKER, ['volume', 'ls', '-q', '--filter', `name=^${volume}$`], { label: 'Volume cleanup check', env: runtimeEnvironment })) || Buffer.alloc(0)).toString('utf8').trim()) survivors.push(`volume:${volume}`);
+    for (const container of [names.evidenceContainer, names.databaseContainer]) if ((await observe(DOCKER, ['ps', '-aq', '--filter', `name=^/${container}$`], { label: 'Container cleanup check', env: runtimeEnvironment })).toString('utf8').trim()) survivors.push(`container:${container}`);
+    if (survivors.length === 0) break;
+    if (retry + 1 < maximumAttempts) await new Promise((resolve) => setTimeout(resolve, convergenceDelayMs));
+  }
+  if (survivors.length > 0) throw new Error(`Isolated restore resources survived cleanup: ${survivors.join(',')}`);
+  for (let retry = 0; retry < maximumAttempts; retry += 1) {
+    await remove(DOCKER, ['network', 'rm', names.network], { label: 'Isolated restore network cleanup', env: runtimeEnvironment });
+    for (const volume of [names.databaseVolume, names.documentVolume]) await remove(DOCKER, ['volume', 'rm', volume], { label: 'Isolated restore volume cleanup', env: runtimeEnvironment });
+    survivors = [];
+    if ((await observe(DOCKER, ['network', 'ls', '-q', '--filter', `name=^${names.network}$`], { label: 'Network cleanup check', env: runtimeEnvironment })).toString('utf8').trim()) survivors.push('network');
+    for (const volume of [names.databaseVolume, names.documentVolume]) if ((await observe(DOCKER, ['volume', 'ls', '-q', '--filter', `name=^${volume}$`], { label: 'Volume cleanup check', env: runtimeEnvironment })).toString('utf8').trim()) survivors.push(`volume:${volume}`);
     if (survivors.length === 0) return true;
+    if (retry + 1 < maximumAttempts) await new Promise((resolve) => setTimeout(resolve, convergenceDelayMs));
   }
   throw new Error(`Isolated restore resources survived cleanup: ${survivors.join(',')}`);
 }

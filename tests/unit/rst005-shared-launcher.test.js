@@ -149,6 +149,28 @@ test('durable operation records are immutable, fsync-backed, and exactly hash ch
   }
 });
 
+test('RST-005 evidence producers byte-encode a retained nullable row identically', () => {
+  const functionSource = (file, name) => {
+    const source = fs.readFileSync(file, 'utf8');
+    const start = source.indexOf(`function ${name}(`);
+    assert.notEqual(start, -1, `missing ${name}`);
+    const bodyStart = source.indexOf('{', start);
+    let depth = 0;
+    for (let index = bodyStart; index < source.length; index += 1) {
+      if (source[index] === '{') depth += 1;
+      if (source[index] === '}') depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+    throw new Error(`unterminated ${name}`);
+  };
+  const migration = functionSource(path.resolve(__dirname, '../../custom/mjlfinancement/scripts/rst005_activity_foundation.php'), 'rst005_evidence_field');
+  const evidence = functionSource(path.resolve(__dirname, '../fixtures/database-evidence.php'), 'evidence_field');
+  const digest = (evidenceFunction) => execFileSync('php', ['-r', `${migration}\n${evidenceFunction}\n$row = ['retained-id', null, 'after-null']; foreach (['rst005_evidence_field', 'evidence_field'] as $function) { $hash = hash_init('sha256'); foreach ($row as $value) $function($hash, 'value', $value); echo hash_final($hash), "\\n"; }`], { encoding: 'utf8' }).trim().split('\n');
+  const expected = crypto.createHash('sha256').update('value:11:retained-id\nvalue:null\nvalue:10:after-null\n').digest('hex');
+  assert.deepEqual(digest(evidence), [expected, expected]);
+  assert.notEqual(digest(evidence.replace('$type . ":null\\n"', "$type . ':null\\\\n'"))[1], expected, 'regression probe must detect the former literal \\n framing');
+});
+
 test('durable operation packages reject missing, reordered, and copied records', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rst005-record-replay-'));
   const copied = fs.mkdtempSync(path.join(os.tmpdir(), 'rst005-record-copy-'));
@@ -606,28 +628,46 @@ test('isolated restore resource names are approval-scoped and injection-safe', (
   assert.throws(() => isolatedRestoreNames('abcdef;docker'));
 });
 
-test('isolated restore cleanup covers ambiguous creates and retries transient removals', async () => {
+test('isolated restore cleanup waits for daemon-side auto-removal convergence', async () => {
   const names = isolatedRestoreNames('abcdef0123456789abcdef0123456789');
-  let generation = 0;
+  let containerGeneration = 0;
+  let dependentGeneration = 0;
+  const stableGeneration = 5;
   const removals = [];
   const execute = async (_command, args) => {
     if (args[0] === 'rm' || (args[0] === 'network' && args[1] === 'rm') || (args[0] === 'volume' && args[1] === 'rm')) {
       removals.push(args.join(' '));
-      if (generation === 0) { const error = new Error('simulated ambiguous/transient Docker response'); error.rst005Reason = 'conflict'; throw error; }
+      const generation = args[0] === 'rm' ? containerGeneration : dependentGeneration;
+      if (generation < stableGeneration) { const error = new Error('simulated removal already in progress'); error.rst005Reason = 'conflict'; throw error; }
       return Buffer.alloc(0);
     }
-    if (args[0] === 'ps') return Buffer.from(generation === 0 ? 'container-id\n' : '');
-    if (args[0] === 'network' && args[1] === 'ls') return Buffer.from(generation === 0 ? 'network-id\n' : '');
+    if (args[0] === 'ps') {
+      const result = Buffer.from(containerGeneration < stableGeneration ? 'container-id\n' : '');
+      if (args.some((entry) => entry.includes(names.databaseContainer))) containerGeneration += 1;
+      return result;
+    }
+    if (args[0] === 'network' && args[1] === 'ls') return Buffer.from(dependentGeneration < stableGeneration ? 'network-id\n' : '');
     if (args[0] === 'volume' && args[1] === 'ls') {
-      const result = Buffer.from(generation === 0 ? 'volume-id\n' : '');
-      if (args.some((entry) => entry.includes(names.documentVolume))) generation += 1;
+      const result = Buffer.from(dependentGeneration < stableGeneration ? 'volume-id\n' : '');
+      if (args.some((entry) => entry.includes(names.documentVolume))) dependentGeneration += 1;
       return result;
     }
     throw new Error(`Unexpected fake Docker command: ${args.join(' ')}`);
   };
   assert.equal(await cleanupIsolatedRestoreResources(names, execute), true);
   for (const name of Object.values(names)) assert.ok(removals.some((commandLine) => commandLine.includes(name)));
-  assert.ok(removals.length >= 8, 'every exact resource should be retried after the transient failure');
+  assert.ok(removals.length >= 8, 'containers and their exact dependent resources should each be retried after transient failures');
+});
+
+test('isolated restore cleanup fails closed when survivor observation fails', async () => {
+  const names = isolatedRestoreNames('abcdef0123456789abcdef0123456789');
+  const execute = async (_command, args) => {
+    if (args[0] === 'rm' || (args[0] === 'network' && args[1] === 'rm') || (args[0] === 'volume' && args[1] === 'rm')) return Buffer.alloc(0);
+    const error = new Error('simulated daemon observation failure');
+    error.rst005Reason = 'missing';
+    throw error;
+  };
+  await assert.rejects(cleanupIsolatedRestoreResources(names, execute), /simulated daemon observation failure/);
 });
 
 test('one-off cleanup retries exact containers after transient Docker failures', async () => {

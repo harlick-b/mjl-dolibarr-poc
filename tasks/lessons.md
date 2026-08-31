@@ -209,3 +209,12 @@ debugging discoveries. Do not add one-off observations or generic advice.
   record transition against an explicit crash-prefix grammar, make recovery and
   rollback resumable from their published checkpoints, and reject raw report
   copies that lack an identical durable record.
+- Independently implemented evidence encoders must share byte-exact framing for
+  nulls and delimiters, and their parity tests need nonempty retained rows with
+  nullable fields. Empty disposable tables can make incompatible encoders
+  appear identical until a shared-shaped backup is restored.
+- Docker `--rm` completion and daemon list visibility are not atomic. Exact-name
+  cleanup needs a bounded convergence window with immediate permission aborts;
+  remove and confirm owner containers before removing their dependent networks
+  or volumes. The test assertion should poll read-only categorical survivor
+  queries while a separate finalizer remains responsible for exact removal.

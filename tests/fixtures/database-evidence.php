@@ -11,7 +11,7 @@ function evidence_fail(): never
 function evidence_field(HashContext $hash, string $type, mixed $value): void
 {
     if ($value === null) {
-        hash_update($hash, $type . ':null\n');
+        hash_update($hash, $type . ":null\n");
         return;
     }
     $bytes = is_string($value) ? $value : (string) $value;

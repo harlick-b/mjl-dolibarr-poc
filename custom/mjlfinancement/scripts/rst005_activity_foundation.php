@@ -8,7 +8,7 @@ require_once __DIR__.'/activity_schema_installer.lib.php';
 const RST005_CONFIRMATION = 'RST-005';
 const RST005_LOCK_TIMEOUT = 0;
 const RST005_ROLLBACK_MODE = 'rollback';
-const RST005_DEPENDENT_SOURCE_SHA256 = '07ce3eb45f996d059bd70546a4d781a1fb2ea4f81151cab156371c94cec1686b';
+const RST005_DEPENDENT_SOURCE_SHA256 = '6dd2e4c3f6a320eb47e100d58a5ef89b28d3348742cce969828e9a162d31f014';
 
 function rst005_fail($message)
 {

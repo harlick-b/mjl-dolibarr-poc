@@ -56,7 +56,8 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   missing/duplicate/reordered/truncated/corrupt/copied/replayed/contradictory
   durable packages, secret-canary scanning, immutable create-inspect-start,
   apply/activate/verify/finalize, containment-only rollback, launcher-owned
-  signal cleanup after resources exist, and a disposable shared-shaped
+  signal cleanup after resources exist with bounded daemon auto-removal
+  convergence and an independent read-only survivor assertion, and a disposable shared-shaped
   production-mode execute followed by a fresh standalone rollback approval.
   It proves complete restore/tenant/custody cleanup without addressing the real
   shared project or shared bind paths.

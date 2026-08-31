@@ -92,6 +92,9 @@ The next manifest and checkpoint are persisted before their associated
 mutation. Missing, duplicate, reordered, truncated, copied, replayed,
 contradictory, or corrupt packages fail closed.
 
+All independent database-evidence producers use the same byte framing,
+including an actual LF byte after the `type:null` marker.
+
 Fresh-process recovery independently classifies live database truth as exact
 Phase 1, guarded transitional, target-before-finalization, finalized target, or
 unknown. Exact Phase 1 is reported without mutation; either transitional target
@@ -119,6 +122,12 @@ publications, completed execute followed by separately approved rollback, and
 exact zero-survivor cleanup. The restore database uses tmpfs only, an
 auto-removed immutable container with a daemon-enforced maximum lifetime, and
 fresh-launch exact orphan reaping; no named plaintext database volume exists.
+Exact-name cleanup first permits at most 300 container removal/observation
+rounds, then at most 300 network/volume removal/observation rounds, with a 100 ms
+delay between rounds for Docker daemon auto-removal to become observable.
+Docker command time is additional. Permission failures still abort
+immediately, and the rehearsal harness polls only read-only survivor queries;
+it cannot delete or conceal a persistent container, network, or volume.
 Recovery artifacts (encrypted backup, separately
 custodied key, snapshot, journals, and evidence) are retained through the
 formal Phase 2 verdict; their destruction requires separate approval.
@@ -133,8 +142,11 @@ authorization.
 
 All pre-amendment launcher results are superseded. Only tests and three clean
 independent reviews against the final clean correction commit are current. Any
-later source or evidence change invalidates the commit/tree pair, digests,
-tests, reviews, and approval packet.
+source or evidence change before shared execution invalidates the commit/tree
+pair, digests, tests, reviews, and approval packet. After a validated durable
+completed report, a later documentation-only closure commit may record that
+executed commit/tree pair as immutable historical provenance; it does not
+authorize reuse of the completed packet.
 
 ## Outcome
 

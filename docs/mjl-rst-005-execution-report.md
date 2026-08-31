@@ -2,9 +2,8 @@
 
 ## Status
 
-`CONFIDENCE_HARDENING_CORRECTIONS_VERIFIED;
-AUTHORIZED_DISPOSABLE_GATES_PASS;
-FINAL_REVIEWS_CLEAN; COMMIT_PENDING;
+`MINIMAL_CORRECTION_CANDIDATE;
+CORRECTION_COMMITTED; COMMITTED_GATES_AND_FINAL_REVIEWS_PENDING;
 SHARED_EXECUTION_UNAUTHORIZED`
 
 RST-005 has not been executed against the shared tenant. The guarded-lock
@@ -48,6 +47,49 @@ The shared tenant remains on the Phase 1 Activity containment schema. This file
 is pre-execution evidence and must not be cited as an `EXECUTED` verdict.
 
 ## Current confidence-hardening verification evidence
+
+### 2026-08-28–31 RST-005 root-cause correction
+
+The retained pre-execution packet was read only through network-isolated,
+disposable Docker resources. Its encrypted backup and key were used only
+inside those resources. Neither the key nor decrypted database was printed,
+exported, or retained outside the disposable verification boundary, and the
+packet was not modified.
+
+The packet-backed reproduction localized closed stage 215 to a byte-level
+evidence mismatch: `tests/fixtures/database-evidence.php` encoded a nullable
+field with the literal two characters `\` and `n`, while the migration-side
+evidence encoder used an actual LF byte. Empty disposable ECM tables had
+previously hidden the divergence. Corrected packet-backed apply reached
+`cutover_complete_pending_finalize` in a network-isolated disposable tenant.
+
+The launcher-interrupt failure was a convergence race, not an isolation
+defect. Docker could continue reporting an auto-removed container or dependent
+network while removal was already in progress. Production cleanup now performs
+at most 300 exact-container removal/observation rounds before at most 300 exact
+network/volume rounds, with a 100 ms delay between rounds; Docker command time
+is additional, and permission failures still abort. The
+test harness independently waits on read-only categorical survivor queries and
+retains its separate exact-resource finalizer, so a persistent survivor still
+fails the scenario. Production survivor observations are strict: any Docker
+observation error aborts instead of being interpreted as resource absence.
+
+The final reduced correction intentionally contains only the LF-byte parity fix
+and bounded Docker cleanup convergence. Its committed-source gates remain
+pending and must run once from the exact correction commit:
+
+- `npm run test:rst005-launcher`;
+- `npm run test:rst005`;
+- `npm run test:verify`;
+- `npm run test:unit`;
+- changed PHP/Node syntax checks and the exact correction-range whitespace check.
+
+No shared execution, shared rollback, shared database/document change, or
+retained-packet mutation occurred. Commit identity, protected-tree digest,
+final reviews, secret scan, and final zero-survivor audit are recorded only
+after those gates complete.
+
+### Superseded 2026-08-27 evidence
 
 The current uncommitted correction tree passed the following on 2026-08-27:
 

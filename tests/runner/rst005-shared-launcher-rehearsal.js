@@ -422,11 +422,18 @@ async function runScenario(scenario) {
         if (error.status !== expectedStatus) throw new Error(`Interrupted launcher exited ${error.status}; expected ${expectedStatus}.`);
       }
       const listed = (args) => command('docker', args, { quiet: true }).trim();
-      if (listed(['ps', '-aq', '--filter', `name=^/${restoreNames.databaseContainer}$`])
-        || listed(['ps', '-aq', '--filter', `name=^/${restoreNames.evidenceContainer}$`])
-        || listed(['network', 'ls', '-q', '--filter', `name=^${restoreNames.network}$`])
-        || listed(['volume', 'ls', '-q', '--filter', `name=^${restoreNames.databaseVolume}$`])
-        || listed(['volume', 'ls', '-q', '--filter', `name=^${restoreNames.documentVolume}$`])) throw new Error('Interrupted launcher left isolated restore resources.');
+      let restoreSurvivors = [];
+      for (let attempt = 0; attempt < 300; attempt += 1) {
+        restoreSurvivors = [];
+        if (listed(['ps', '-aq', '--filter', `name=^/${restoreNames.databaseContainer}$`])) restoreSurvivors.push('database-container');
+        if (listed(['ps', '-aq', '--filter', `name=^/${restoreNames.evidenceContainer}$`])) restoreSurvivors.push('evidence-container');
+        if (listed(['network', 'ls', '-q', '--filter', `name=^${restoreNames.network}$`])) restoreSurvivors.push('network');
+        if (listed(['volume', 'ls', '-q', '--filter', `name=^${restoreNames.databaseVolume}$`])) restoreSurvivors.push('database-volume');
+        if (listed(['volume', 'ls', '-q', '--filter', `name=^${restoreNames.documentVolume}$`])) restoreSurvivors.push('document-volume');
+        if (restoreSurvivors.length === 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (restoreSurvivors.length > 0) throw new Error(`Interrupted launcher left isolated restore resources: ${restoreSurvivors.join(',')}.`);
       const leakedOneOffs = command('docker', ['ps', '-aq', '--filter', `name=${projectName}-rst005-`], { quiet: true }).trim();
       if (leakedOneOffs) throw new Error('Interrupted launcher left a deterministic one-off container.');
       compose(['exec', '-T', 'mariadb', 'sh', '-ceu', 'test ! -e /run/mjl-rst005/client.cnf; test ! -e /run/mjl-rst005/client.cnf.new'], { quiet: true });
