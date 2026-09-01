@@ -18,6 +18,8 @@ const RST002B_RETAINED_SCHEMA_SHA256_CLEAN = 'b77cfe444e368d4f0fd1df2edadb81a0d6
 const RST002B_RETAINED_SCHEMA_SHA256_CLEAN_ALTERNATE = '40c2111960430cdbf804a26bb3e0da172ca65d93fd829a7873c172c80fd620bc';
 const RST002B_PREFIX_RETAINED_SCHEMA_SHA256_PHASE1 = '6eac2f117ec8f99fe6b00b9ba46ddbcc7474ca704d439ae9b7d10d16daaea077';
 const RST002B_PREFIX_RETAINED_SCHEMA_SHA256_CLEAN = '93f039485a012e4b429d46b4a07162f99640c3996850ac9a36ff8fde63935453';
+const RST002B_RETAINED_TABLE_SHA256_PHASE1 = '61a38d78a2d453207a3197e8a17fce4a90b08837bd9ee2d999bc8e621a936ffd';
+const RST002B_RETAINED_TABLE_SHA256_CLEAN = '75eadfa9cf6be10b091cd2cc9239760318cf9ceb20fe97aab6c0b6f070ea32cb';
 
 function mjl_rst005_prefix(DoliDB $db)
 {
@@ -132,7 +134,7 @@ function mjl_rst005_retained_schema_digest(DoliDB $db)
 	return hash('sha256', implode("\n", $definitions)."\n");
 }
 
-function mjl_rst002b_retained_schema_digest(DoliDB $db)
+function mjl_rst002b_retained_schema_digest(DoliDB $db, $includeTriggers = true)
 {
 	$prefix = mjl_rst005_prefix($db);
 	$tables = array_map(function ($suffix) use ($prefix) { return $prefix.'mjlfinancement_'.$suffix; }, array(
@@ -148,12 +150,14 @@ function mjl_rst002b_retained_schema_digest(DoliDB $db)
 		$create = str_replace(array('`'.$prefix, $prefix), array('`llx_', 'llx_'), $create);
 		$definitions[] = 'table|'.str_replace($prefix, 'llx_', $table).'|'.$create;
 	}
-	$sql = "SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT,ACTION_ORIENTATION FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE IN ('".implode("','", array_map(array($db, 'escape'), $tables))."') ORDER BY TRIGGER_NAME";
-	$resql = $db->query($sql);
-	if (!$resql) throw new RuntimeException('Unable to inspect RST-002B retained triggers.');
-	while ($row = $db->fetch_array($resql)) {
-		$values = array($row['TRIGGER_NAME'],$row['ACTION_TIMING'],$row['EVENT_MANIPULATION'],$row['EVENT_OBJECT_TABLE'],$row['ACTION_STATEMENT'],$row['ACTION_ORIENTATION']);
-		$definitions[] = 'trigger|'.str_replace($prefix, 'llx_', implode('|', $values));
+	if ($includeTriggers) {
+		$sql = "SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT,ACTION_ORIENTATION FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE IN ('".implode("','", array_map(array($db, 'escape'), $tables))."') ORDER BY TRIGGER_NAME";
+		$resql = $db->query($sql);
+		if (!$resql) throw new RuntimeException('Unable to inspect RST-002B retained triggers.');
+		while ($row = $db->fetch_array($resql)) {
+			$values = array($row['TRIGGER_NAME'],$row['ACTION_TIMING'],$row['EVENT_MANIPULATION'],$row['EVENT_OBJECT_TABLE'],$row['ACTION_STATEMENT'],$row['ACTION_ORIENTATION']);
+			$definitions[] = 'trigger|'.str_replace($prefix, 'llx_', implode('|', $values));
+		}
 	}
 	return hash('sha256', implode("\n", $definitions)."\n");
 }
@@ -168,8 +172,8 @@ function mjl_rst002b_require_retained_schema(DoliDB $db)
 function mjl_rst002b_require_prefix_retained_schema(DoliDB $db)
 {
 	mjl_rst002b_require_table_set($db);
-	$digest = mjl_rst002b_retained_schema_digest($db);
-	if (!hash_equals(RST002B_PREFIX_RETAINED_SCHEMA_SHA256_PHASE1, $digest) && !hash_equals(RST002B_PREFIX_RETAINED_SCHEMA_SHA256_CLEAN, $digest)) throw new RuntimeException('The retained MJL schema does not match either sealed RST-002B partial-prefix form: '.$digest);
+	$digest = mjl_rst002b_retained_schema_digest($db, false);
+	if (!hash_equals(RST002B_RETAINED_TABLE_SHA256_PHASE1, $digest) && !hash_equals(RST002B_RETAINED_TABLE_SHA256_CLEAN, $digest)) throw new RuntimeException('The retained MJL table schema does not match a sealed RST-002B physical form: '.$digest);
 }
 
 function mjl_rst002b_require_table_set(DoliDB $db)
@@ -530,8 +534,10 @@ function mjl_rst002b_require_assignment_contract(DoliDB $db, $table, $withTrigge
 	$expectedChecks = array('chk_mjl_activity_assignment_entity_positive'=>'entity>0','chk_mjl_activity_assignment_primary'=>'is_primaryin(0,1)','chk_mjl_activity_assignment_reason_nonblank'=>"reasonregexp'[^[:space:]]'",'chk_mjl_activity_assignment_dates'=>'date_endisnullordate_end>=date_start');
 	foreach ($expectedChecks as $name => $expression) $expectedChecks[$name] = mjl_rst005_normalize_definition($expression);
 	if (!mjl_rst005_map_equal($actualChecks, $expectedChecks)) throw new RuntimeException('RST-002B assignment check definitions mismatch: '.mjl_rst005_map_mismatch($actualChecks, $expectedChecks));
-	$expectedTriggers = $withTriggers ? mjl_rst002b_expected_trigger_map(mjl_rst002b_assignment_trigger_statements($db)) : array();
-	if (!mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db, $table), $expectedTriggers)) throw new RuntimeException('RST-002B assignment trigger definitions mismatch.');
+	if ($withTriggers !== 'ignore') {
+		$expectedTriggers = $withTriggers ? mjl_rst002b_expected_trigger_map(mjl_rst002b_assignment_trigger_statements($db)) : array();
+		if (!mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db, $table), $expectedTriggers)) throw new RuntimeException('RST-002B assignment trigger definitions mismatch.');
+	}
 }
 
 function mjl_rst002b_require_target_objects(DoliDB $db)
@@ -606,7 +612,7 @@ function mjl_rst005_table_columns(DoliDB $db, $table)
 	return $columns;
 }
 
-function mjl_rst005_schema_contract(DoliDB $db, $table, $flavour, $phase1Guard = false)
+function mjl_rst005_schema_contract(DoliDB $db, $table, $flavour, $phase1Guard = false, $updateGuard = null)
 {
 	$prefix = mjl_rst005_prefix($db);
 	$expectedColumns = mjl_rst005_column_contract($flavour);
@@ -681,6 +687,7 @@ function mjl_rst005_schema_contract(DoliDB $db, $table, $flavour, $phase1Guard =
 		$expectedTriggers[$prefix.'mjl_activity_rst005_bi'] = 'BEFORE INSERT:'.mjl_rst005_normalize_definition($body);
 		$expectedTriggers[$prefix.'mjl_activity_rst005_bu'] = 'BEFORE UPDATE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity mutation is dormant in RST-005'");
 		$expectedTriggers[$prefix.'mjl_activity_rst005_bd'] = 'BEFORE DELETE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity deletion is dormant in RST-005'");
+		if ($updateGuard === 'none') unset($expectedTriggers[$prefix.'mjl_activity_rst005_bu']);
 	}
 	if ($flavour === RST002B_ACTIVITY_SCHEMA) {
 		$insertSql = mjl_rst005_insert_trigger_sql($prefix, $table);
@@ -690,6 +697,7 @@ function mjl_rst005_schema_contract(DoliDB $db, $table, $flavour, $phase1Guard =
 		$expectedTriggers[$prefix.'mjl_activity_rst005_bi'] = 'BEFORE INSERT:'.mjl_rst005_normalize_definition($insertBody);
 		$expectedTriggers[$prefix.'mjl_activity_rst002b_bu'] = 'BEFORE UPDATE:'.mjl_rst005_normalize_definition($updateBody);
 		$expectedTriggers[$prefix.'mjl_activity_rst005_bd'] = 'BEFORE DELETE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity deletion is dormant in RST-005'");
+		if ($updateGuard === 'none') unset($expectedTriggers[$prefix.'mjl_activity_rst002b_bu']);
 	}
 	if (!mjl_rst005_map_equal($actualTriggers, $expectedTriggers)) throw new RuntimeException('RST-005 Activity trigger definitions mismatch: '.mjl_rst005_map_mismatch($actualTriggers, $expectedTriggers));
 	// Reaching this point means every physical definition represented by the

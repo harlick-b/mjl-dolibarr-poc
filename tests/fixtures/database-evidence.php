@@ -120,6 +120,7 @@ try {
     $restorableDatabaseDefinitionHash = hash_init('sha256');
     $restorableTableHashes = [];
     $restorableSchemaObjectHashes = [];
+    $restorableTriggerHashes = [];
     $adminHash = hash_init('sha256');
     $ecmHash = hash_init('sha256');
     $moduleMetadataHash = hash_init('sha256');
@@ -189,9 +190,11 @@ try {
         $count = 0;
         while ($object = $objects->fetch()) {
             $count++;
+            $restorableTriggerHash = $kind === 'triggers' ? hash_init('sha256') : null;
             evidence_field($databaseHash, 'schema-object-kind', $kind);
             evidence_field($restorableHash, 'schema-object-kind', $kind);
             evidence_field($restorableObjectHash, 'schema-object-kind', $kind);
+            if ($restorableTriggerHash !== null) evidence_field($restorableTriggerHash, 'schema-object-kind', $kind);
             foreach ($object as $name => $value) {
                 evidence_field($databaseHash, 'schema-object-field', $name);
                 evidence_field($databaseHash, 'schema-object-value', $value);
@@ -204,6 +207,10 @@ try {
                     evidence_field($restorableHash, 'schema-object-value', $restorableValue);
                     evidence_field($restorableObjectHash, 'schema-object-field', $name);
                     evidence_field($restorableObjectHash, 'schema-object-value', $restorableValue);
+                    if ($restorableTriggerHash !== null) {
+                        evidence_field($restorableTriggerHash, 'schema-object-field', $name);
+                        evidence_field($restorableTriggerHash, 'schema-object-value', $restorableValue);
+                    }
                 }
             }
             if ($nameField !== null) {
@@ -216,7 +223,9 @@ try {
                 $restorableCreatedJson = json_encode($restorableCreated, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
                 evidence_field($restorableHash, 'schema-object-create', $restorableCreatedJson);
                 evidence_field($restorableObjectHash, 'schema-object-create', $restorableCreatedJson);
+                if ($restorableTriggerHash !== null) evidence_field($restorableTriggerHash, 'schema-object-create', $restorableCreatedJson);
             }
+            if ($restorableTriggerHash !== null) $restorableTriggerHashes[(string) $object['TRIGGER_NAME']] = hash_final($restorableTriggerHash);
         }
         $schemaObjects[$kind] = $count;
         $restorableSchemaObjectHashes[$kind] = hash_final($restorableObjectHash);
@@ -274,6 +283,7 @@ try {
         'restorable_database_definition_sha256' => hash_final($restorableDatabaseDefinitionHash),
         'restorable_table_sha256' => $restorableTableHashes,
         'restorable_schema_object_sha256' => $restorableSchemaObjectHashes,
+        'restorable_trigger_sha256' => $restorableTriggerHashes,
         'admin_sha256' => hash_final($adminHash),
         'ecm_sha256' => hash_final($ecmHash),
         'module_metadata_sha256' => hash_final($moduleMetadataHash),

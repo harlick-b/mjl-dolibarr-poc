@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { protectedTreeEvidence, sanitizedRuntimeEnvironment, SHARED_PROFILE, targetLockPaths, validateCustodyAncestors, verifyInheritedTargetLock } = require('./rst005_shared_launcher.lib');
-const { runRst002bOperation, runRst002bRecover, runRst002bRollback, canonicalJson } = require('./rst002b_shared_operation.lib');
+const { runRst002bOperation, runRst002bRecover, runRst002bRollback, canonicalJson, inspectForwardPrefix } = require('./rst002b_shared_operation.lib');
 
 function invariant(value, message) { if (!value) throw new Error(message); }
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
@@ -52,12 +52,13 @@ async function main() {
   invariant(!isWithin(approval.backup_root, approval.evidence_root) && !isWithin(approval.evidence_root, approval.backup_root), 'Artifact roots must be disjoint.');
   if (approval.mode==='rollback') { validateCustodyAncestors(path.dirname(approval.prior_execution_report.path),0); const prior=readProtected(approval.prior_execution_report.path,65536); const value=parseCanonical(prior,'Prior execution report'); const keys=['approved_commit','complete_tree_sha256','mode','operation_id','previous_sha256','status','unit','version'].sort(); invariant(Object.keys(value).sort().join('\n')===keys.join('\n') && sha256(prior.bytes)===approval.prior_execution_report.sha256 && value.version===1 && value.unit==='RST-002B' && value.mode==='execute' && value.status==='complete' && value.approved_commit===approval.approved_commit && value.complete_tree_sha256===approval.complete_tree_sha256,'Prior execution report binding is invalid.'); }
   const traffic = parseCanonical(initial.traffic,'Traffic-stop'); const trafficKeys=['approval_sha256','exclusive_docker_administration','expires_at','no_direct_database_writers','no_direct_host_writers','operation_id','stopped_at','unit','version'].sort();
-  invariant(Object.keys(traffic).sort().join('\n')===trafficKeys.join('\n') && traffic.version === 1 && traffic.unit === 'RST-002B' && traffic.operation_id === approval.operation_id && traffic.approval_sha256 === sha256(initial.approval.bytes) && traffic.exclusive_docker_administration === true && traffic.no_direct_host_writers === true && traffic.no_direct_database_writers === true && Date.parse(traffic.stopped_at) >= Date.parse(approval.issued_at) && (mode==='recover' || Date.parse(traffic.expires_at) > Date.now()) && Date.parse(traffic.expires_at) <= Date.parse(traffic.stopped_at) + 900000, 'Traffic-stop record is invalid.');
+  invariant(Object.keys(traffic).sort().join('\n')===trafficKeys.join('\n') && traffic.version === 1 && traffic.unit === 'RST-002B' && traffic.operation_id === approval.operation_id && traffic.approval_sha256 === sha256(initial.approval.bytes) && traffic.exclusive_docker_administration === true && traffic.no_direct_host_writers === true && traffic.no_direct_database_writers === true && Date.parse(traffic.stopped_at) >= Date.parse(approval.issued_at) && Date.parse(traffic.expires_at) > Date.now() && Date.parse(traffic.expires_at) <= Date.parse(traffic.stopped_at) + 900000, 'Traffic-stop record is invalid.');
+  if (mode === 'recover') invariant(inspectForwardPrefix(approval.evidence_root, approval) > 0, 'Recovery requires an existing approval-bound durable operation prefix.');
   verifyInheritedTargetLock(approval.target_lock_path); verifyInheritedTargetLock(approval.mutation_lock_path);
-  const assertLiveBinding = async () => {
+  const assertLiveBinding = async (serviceState = 'stopped') => {
     const fresh = { approval: readProtected('/run/mjl-rst002b/approval/record',65536), key: readProtected('/run/mjl-rst002b/key/bytes',32), traffic: readProtected('/run/mjl-rst002b/traffic/record',16384) };
     invariant(sameInput(initial.approval,fresh.approval) && sameInput(initial.key,fresh.key) && sameInput(initial.traffic,fresh.traffic), 'Protected launcher input identity changed.');
-    invariant(mode==='recover' || Date.parse(traffic.expires_at)>Date.now(), 'Traffic-stop authority expired before mutation completion.');
+    invariant(Date.parse(traffic.expires_at)>Date.now(), 'Traffic-stop authority expired before mutation completion.');
     const git = (tail) => execFileSync('/usr/bin/git',['-c',`safe.directory=${approval.repository_root}`,...tail],{cwd:approval.repository_root,encoding:'utf8',env});
     invariant(git(['rev-parse','--verify','HEAD']).trim() === approval.approved_commit && git(['status','--porcelain=v1','--untracked-files=all']) === '', 'Repository binding changed.');
     const tree = protectedTreeEvidence(approval.repository_root); invariant(tree.completeTreeSha256 === approval.complete_tree_sha256 && tree.manifestSha256 === approval.complete_tree_manifest_sha256, 'Protected tree binding changed.');
@@ -65,6 +66,9 @@ async function main() {
     const config = execFileSync('/usr/bin/docker',composeArgs(approval,['config','--format','json']),{cwd:approval.repository_root,env}); invariant(sha256(config) === approval.compose_config_sha256, 'Resolved Compose binding changed.');
     for (const [name,reference] of [['mariadb','mariadb:11'],['dolibarr','dolibarr/dolibarr:23.0.2']]) invariant(JSON.parse(execFileSync('/usr/bin/docker',['image','inspect',reference],{encoding:'utf8',env}))[0].Id === approval.images[name], `${name} image binding changed.`);
     for (const service of ['dolibarr','mariadb']) { const id=execFileSync('/usr/bin/docker',composeArgs(approval,['ps','-a','-q',service]),{cwd:approval.repository_root,encoding:'utf8',env}).trim(); invariant(id===approval.containers[service] && JSON.parse(execFileSync('/usr/bin/docker',['container','inspect',id],{encoding:'utf8',env}))[0].Image===approval.images[service],`${service} container binding changed.`); }
+    const running=execFileSync('/usr/bin/docker',composeArgs(approval,['ps','--status','running','--services']),{cwd:approval.repository_root,encoding:'utf8',env}).trim().split('\n').filter(Boolean).sort();
+    const expected=serviceState==='running' ? [['dolibarr','mariadb']] : serviceState==='completed' ? [['mariadb'],['dolibarr','mariadb']] : [['mariadb']];
+    invariant(expected.some((candidate)=>canonicalJson(running)===canonicalJson(candidate)),'Shared service state changed.');
   };
   const controller = new AbortController(); for (const signal of ['SIGINT','SIGTERM','SIGHUP']) process.once(signal, () => controller.abort(new Error(`RST-002B interrupted by ${signal}.`)));
   await assertLiveBinding(); const options = { approval, key: initial.key.bytes, assertLiveBinding, env, signal: controller.signal };

@@ -17,7 +17,7 @@
     "test:rst002b": "node tests/runner/run-suite.js rst002b",
     "test:rst002b-launcher": "node tests/runner/rst002b-shared-launcher-rehearsal.js",
     "test:phase1-reset": "node tests/runner/run-suite.js phase1-reset",
-    "test:characterization": "node tests/runner/run-suite.js characterization",
+    "test:characterization": "node tests/runner/run-suite.js rst002b",
     "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility",
     "audit:production-readiness": "node tests/runner/run-suite.js production-readiness"
   },

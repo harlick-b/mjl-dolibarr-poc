@@ -71,11 +71,17 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   optimistic locking, transactional audit rollback, concurrency, reciprocal
   role/user guards, entity isolation, direct SQL denial, shared-state equality,
   and whole-tenant destruction.
-- 'test:rst002b-launcher' exercises the dedicated RST-002B immutable evidence
-  chain, recovery-prefix rejection, backup-verifier adaptation, exact-lock,
-  root-custody, and fail-closed packet/launcher seams without touching the
-  shared tenant. Shared execution still requires approval of the exact clean
-  implementation commit and protected-tree digest.
+- 'test:rst002b-launcher' exercises the dedicated RST-002B immutable intent,
+  before, checkpoint, after, and report chain; interrupted-operation recovery;
+  separately bound rollback; protected-record substitution; exact-lock and
+  root-custody source contracts; and an actual pinned-image
+  create-inspect-start-cleanup probe. It does not touch the shared tenant.
+  Shared execution still requires approval of the exact clean implementation
+  commit and protected-tree digest.
+- 'test:characterization' is a compatibility alias to the current
+  `test:rst002b` successor gate. The stale RST-002A characterization source is
+  retained unchanged because it was outside the approved RST-002B path
+  inventory and is no longer selected by the public command.
 - The default browser contract covers retained reference/auth/document/fixture
   behavior plus the current RST-002B role, assignment, revocation, concurrency,
   and direct-guard matrix. Phase 1 predecessor suites remain explicit

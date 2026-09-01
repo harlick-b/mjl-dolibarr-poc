@@ -788,14 +788,22 @@ async function main() {
       }
       else if (layer === 'rst002b') {
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
-        for (const failurePoint of ['assignment-table-created', 'activity-guard-cutover', 'scope-table-removed']) {
+        for (const failurePoint of [
+          'forward-01-assignment-table-created','forward-02-activity-old-guard-dropped','forward-03-activity-column-cutover',
+          'forward-04-activity-target-guard-created','forward-05-scope-table-removed',
+          ...Array.from({length:7},(_,index)=>`forward-trigger-${String(index+1).padStart(2,'0')}`),
+        ]) {
           await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B'], { signal: controller.signal });
           const output = await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B', `--failure-point=${failurePoint}`], `RST-002B ${failurePoint}`, { signal: controller.signal });
           if (!output.includes(`Injected failure after ${failurePoint}`)) throw new Error(`RST-002B ${failurePoint} failed for the wrong reason.`);
           await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B'], { signal: controller.signal });
           await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
         }
-		for (const failurePoint of ['rollback-scope-table-removed','rollback-activity-guard-cutover','rollback-assignment-table-created']) {
+		for (const failurePoint of [
+		  ...Array.from({length:7},(_,index)=>`rollback-trigger-${String(index+1).padStart(2,'0')}`),
+		  'rollback-scope-table-restored','rollback-activity-target-guard-dropped','rollback-activity-column-restored',
+		  'rollback-activity-old-guard-restored','rollback-assignment-table-dropped',
+		]) {
 		  const output = await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B', `--failure-point=${failurePoint}`], `RST-002B ${failurePoint}`, { signal: controller.signal });
 		  if (!output.includes(`Injected failure after ${failurePoint}`)) throw new Error(`RST-002B ${failurePoint} failed for the wrong reason.`);
 		  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B'], { signal: controller.signal });

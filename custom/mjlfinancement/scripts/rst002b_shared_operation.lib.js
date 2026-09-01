@@ -6,6 +6,7 @@ const path = require('node:path');
 const { runCommand, encryptCommandOutput, verifyEncryptedBackups, cleanupNamedContainers } = require('./rst005_shared_operation.lib');
 
 function invariant(value, message) { if (!value) throw new Error(message); }
+function delegated(options, name, fallback, ...args) { return options.testHooks && typeof options.testHooks[name] === 'function' ? options.testHooks[name](...args) : fallback(...args); }
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
@@ -131,44 +132,64 @@ function assertProtectedEvidence(before, after) {
   compareMapExcept(before.business_counts, after.business_counts, new Set(), 'business count');
   compareMapExcept(before.restorable_table_sha256, after.restorable_table_sha256, new Set(['llx_mjlfinancement_activity','llx_mjlfinancement_activity_assignment','llx_mjlfinancement_user_soc_scope']), 'table');
   compareMapExcept(before.restorable_schema_object_sha256, after.restorable_schema_object_sha256, new Set(['triggers']), 'schema-object class');
+  compareMapExcept(before.restorable_trigger_sha256, after.restorable_trigger_sha256, new Set([
+    'llx_mjl_activity_rst005_bu','llx_mjl_activity_rst002b_bu',
+    'llx_mjl_activity_assignment_bi','llx_mjl_activity_assignment_bu','llx_mjl_activity_assignment_bd',
+    'llx_mjlfinancement_user_role_bi','llx_mjlfinancement_user_role_bu','llx_mjlfinancement_user_role_bd',
+    'llx_mjlfinancement_user_admin_bu',
+  ]), 'trigger');
 }
 async function startAndHealthCheck(approval, options) {
   await compose(approval, ['up', '-d', 'dolibarr'], options); const deadline = Date.now() + 120000;
   while (Date.now() < deadline) { try { await compose(approval, ['exec', '-T', 'dolibarr', 'php', '-r', "$body=@file_get_contents('http://127.0.0.1/'); if ($body===false) exit(1);"], options); return; } catch (_) {} await new Promise((resolve) => setTimeout(resolve, 1000)); }
   throw new Error('RST-002B local HTTP health check failed.');
 }
+async function runningServices(approval, options) {
+  return (await compose(approval, ['ps', '--status', 'running', '--services'], options)).toString('utf8').trim().split('\n').filter(Boolean).sort();
+}
+async function requireStoppedServices(approval, options) {
+  const running = await runningServices(approval, options);
+  invariant(canonicalJson(running) === canonicalJson(['mariadb']), 'RST-002B requires Dolibarr stopped and MariaDB running.');
+}
 function validateChainRecord(record, approval, mode, previous) { invariant(record.value.version === 1 && record.value.unit === 'RST-002B' && record.value.operation_id === approval.operation_id && record.value.mode === mode && record.value.previous_sha256 === previous, 'RST-002B durable chain is invalid.'); }
 function inspectForwardPrefix(directory, approval, options = {}) {
-  const names = ['rst002b-00-before.json','rst002b-01-checkpoint.json','rst002b-02-after.json','rst002b-launcher-report.json'];
+  const names = ['rst002b-00-intent.json','rst002b-01-before.json','rst002b-02-checkpoint.json','rst002b-03-after.json','rst002b-launcher-report.json'];
   const present = names.map((name) => recordExists(directory,name));
   for (let index=1; index<present.length; index+=1) invariant(!present[index] || present[index-1], 'RST-002B durable prefix has a gap.');
-  const unexpected = fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => name.startsWith('rst002b-') && !names.includes(name) && name !== 'rst002b-authorization.json') : [];
+  const unexpected = fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => name.startsWith('rst002b-') && !names.includes(name) && !['rst002b-authorization.json','rst002b-runtime-conf.php'].includes(name)) : [];
   invariant(unexpected.length === 0, 'RST-002B durable prefix contains an unexpected record.');
   let previous = null;
-  for (let index=0; index<3 && present[index]; index+=1) { const record = readRecord(directory,names[index],options); validateChainRecord(record,approval,'execute',previous); previous=record.sha256; }
-  if (present[3]) { const report=readRecord(directory,names[3],options); invariant(report.value.version===1 && report.value.unit==='RST-002B' && report.value.operation_id===approval.operation_id && report.value.mode==='execute' && report.value.previous_sha256===previous && report.value.status==='complete' && report.value.approved_commit===approval.approved_commit && report.value.complete_tree_sha256===approval.complete_tree_sha256,'RST-002B final report is invalid.'); }
+  for (let index=0; index<4 && present[index]; index+=1) { const record = readRecord(directory,names[index],options); validateChainRecord(record,approval,'execute',previous); previous=record.sha256; }
+  if (present[4]) { const report=readRecord(directory,names[4],options); invariant(report.value.version===1 && report.value.unit==='RST-002B' && report.value.operation_id===approval.operation_id && report.value.mode==='execute' && report.value.previous_sha256===previous && report.value.status==='complete' && report.value.approved_commit===approval.approved_commit && report.value.complete_tree_sha256===approval.complete_tree_sha256,'RST-002B final report is invalid.'); }
   return present.filter(Boolean).length;
 }
 async function runForward(approval, key, recover, options) {
-  const names = ['rst002b-00-before.json','rst002b-01-checkpoint.json','rst002b-02-after.json','rst002b-launcher-report.json'];
-  inspectForwardPrefix(approval.evidence_root,approval);
+  const names = ['rst002b-00-intent.json','rst002b-01-before.json','rst002b-02-checkpoint.json','rst002b-03-after.json','rst002b-launcher-report.json'];
+  const recordOptions=options.recordOptions||{}; inspectForwardPrefix(approval.evidence_root,approval,recordOptions);
   if (!recover) for (const name of names) invariant(!recordExists(approval.evidence_root, name), 'RST-002B execute evidence already exists.');
+  let intent;
+  if (recordExists(approval.evidence_root,names[0])) { invariant(recover,'RST-002B execute cannot reuse durable evidence.'); intent=readRecord(approval.evidence_root,names[0],recordOptions); validateChainRecord(intent,approval,'execute',null); }
+  else { const value={version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'execute',previous_sha256:null,state:'backup-authorized'}; intent={value,sha256:atomicRecord(approval.evidence_root,names[0],value,recordOptions)}; }
   let before;
-  if (recordExists(approval.evidence_root, names[0])) { invariant(recover, 'RST-002B execute cannot reuse durable evidence.'); before = readRecord(approval.evidence_root, names[0]); validateChainRecord(before, approval, 'execute', null); await verifyRetainedBackups(approval, key, before, options); }
+  if (recordExists(approval.evidence_root, names[1])) { before = readRecord(approval.evidence_root, names[1],recordOptions); validateChainRecord(before, approval, 'execute', intent.sha256); await delegated(options,'verifyRetainedBackups',verifyRetainedBackups,approval,key,before,options); }
   else {
     for (const file of Object.values(backupPaths(approval))) if (fs.existsSync(file)) { invariant(recover && fs.lstatSync(file).isFile(), 'Unexpected RST-002B backup path.'); fs.unlinkSync(file); }
-    const source = await evidence(approval, options); const backups = await createAndVerifyBackups(approval, key, source, options); const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: null, before: source, backups };
-    before = { value, sha256: atomicRecord(approval.evidence_root, names[0], value) };
+    const source = await delegated(options,'evidence',evidence,approval,options); const backups = await delegated(options,'createAndVerifyBackups',createAndVerifyBackups,approval,key,source,options); const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: null, before: source, backups };
+    value.previous_sha256=intent.sha256; before = { value, sha256: atomicRecord(approval.evidence_root, names[1], value,recordOptions) };
   }
   let checkpoint;
-  if (recordExists(approval.evidence_root, names[1])) { checkpoint = readRecord(approval.evidence_root, names[1]); validateChainRecord(checkpoint, approval, 'execute', before.sha256); }
-  else { const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: before.sha256, state: 'mutation-authorized' }; checkpoint = { value, sha256: atomicRecord(approval.evidence_root, names[1], value) }; }
-  if (!recordExists(approval.evidence_root, names[2])) {
-    if (options.assertLiveBinding) await options.assertLiveBinding(); await migration(approval, 'apply', checkpoint.sha256, options); const afterEvidence = await evidence(approval, options); assertProtectedEvidence(before.value.before, afterEvidence);
-    const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: checkpoint.sha256, after: afterEvidence }; atomicRecord(approval.evidence_root, names[2], value);
+  if (recordExists(approval.evidence_root, names[2])) { checkpoint = readRecord(approval.evidence_root, names[2],recordOptions); validateChainRecord(checkpoint, approval, 'execute', before.sha256); }
+  else { const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: before.sha256, state: 'mutation-authorized' }; checkpoint = { value, sha256: atomicRecord(approval.evidence_root, names[2], value,recordOptions) }; }
+  if (!recordExists(approval.evidence_root, names[3])) {
+    if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'apply',checkpoint.sha256,options); const afterEvidence = await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(before.value.before, afterEvidence);
+    const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: checkpoint.sha256, after: afterEvidence }; atomicRecord(approval.evidence_root, names[3], value,recordOptions);
   }
-  const after = readRecord(approval.evidence_root, names[2]); validateChainRecord(after, approval, 'execute', checkpoint.sha256); assertProtectedEvidence(before.value.before, await evidence(approval, options)); await startAndHealthCheck(approval, options);
-  if (!recordExists(approval.evidence_root, names[3])) atomicRecord(approval.evidence_root, names[3], { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: after.sha256, status: 'complete', approved_commit: approval.approved_commit, complete_tree_sha256: approval.complete_tree_sha256 });
+  const after = readRecord(approval.evidence_root, names[3],recordOptions); validateChainRecord(after, approval, 'execute', checkpoint.sha256); assertProtectedEvidence(before.value.before, after.value.after);
+  const services = await delegated(options,'runningServices',runningServices,approval,options);
+  if (canonicalJson(services) === canonicalJson(['mariadb'])) { assertProtectedEvidence(before.value.before, await delegated(options,'evidence',evidence,approval,options)); await delegated(options,'startAndHealthCheck',startAndHealthCheck,approval,options); }
+  else invariant(canonicalJson(services) === canonicalJson(['dolibarr','mariadb']), 'RST-002B completed-prefix service state is invalid.');
+  if (options.assertLiveBinding) await options.assertLiveBinding('running');
+  if (!recordExists(approval.evidence_root, names[4])) atomicRecord(approval.evidence_root, names[4], { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: after.sha256, status: 'complete', approved_commit: approval.approved_commit, complete_tree_sha256: approval.complete_tree_sha256 },recordOptions);
   return Object.freeze({ status: 'complete' });
 }
 async function runRollback(approval, options) {
@@ -176,23 +197,29 @@ async function runRollback(approval, options) {
   const names=['rst002b-rollback-00-before.json','rst002b-rollback-01-checkpoint.json','rst002b-rollback-02-after.json','rst002b-rollback-report.json']; const present=names.map((name)=>recordExists(approval.evidence_root,name));
   for (let index=1;index<present.length;index+=1) invariant(!present[index]||present[index-1],'RST-002B rollback durable prefix has a gap.');
   const unexpected=fs.readdirSync(approval.evidence_root).filter((name)=>name.startsWith('rst002b-')&&!names.includes(name)&&name!=='rst002b-authorization.json'); invariant(unexpected.length===0,'RST-002B rollback durable prefix contains an unexpected record.');
-  let beforeRecord;
-  if (present[0]) { beforeRecord=readRecord(approval.evidence_root,names[0]); validateChainRecord(beforeRecord,approval,'rollback',null); }
-  else { const before=await evidence(approval,options); const value={version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:null,before}; beforeRecord={value,sha256:atomicRecord(approval.evidence_root,names[0],value)}; }
+  const recordOptions=options.recordOptions||{}; let beforeRecord;
+  if (present[0]) { beforeRecord=readRecord(approval.evidence_root,names[0],recordOptions); validateChainRecord(beforeRecord,approval,'rollback',null); }
+  else { const before=await delegated(options,'evidence',evidence,approval,options); const value={version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:null,before}; beforeRecord={value,sha256:atomicRecord(approval.evidence_root,names[0],value,recordOptions)}; }
   let checkpoint;
-  if (present[1]) { checkpoint=readRecord(approval.evidence_root,names[1]); validateChainRecord(checkpoint,approval,'rollback',beforeRecord.sha256); }
-  else { const value={version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:beforeRecord.sha256,state:'rollback-authorized'}; checkpoint={value,sha256:atomicRecord(approval.evidence_root,names[1],value)}; }
-  if (!present[2]) { await migration(approval,'rollback',checkpoint.sha256,options); const after=await evidence(approval,options); assertProtectedEvidence(beforeRecord.value.before,after); atomicRecord(approval.evidence_root,names[2],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:checkpoint.sha256,after}); }
-  const afterRecord=readRecord(approval.evidence_root,names[2]); validateChainRecord(afterRecord,approval,'rollback',checkpoint.sha256); assertProtectedEvidence(beforeRecord.value.before,await evidence(approval,options)); await startAndHealthCheck(approval,options);
-  if (!present[3]) atomicRecord(approval.evidence_root,names[3],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:afterRecord.sha256,status:'complete'});
-  else { const report=readRecord(approval.evidence_root,names[3]); invariant(report.value.version===1&&report.value.unit==='RST-002B'&&report.value.operation_id===approval.operation_id&&report.value.mode==='rollback'&&report.value.previous_sha256===afterRecord.sha256&&report.value.status==='complete','RST-002B rollback report is invalid.'); }
+  if (present[1]) { checkpoint=readRecord(approval.evidence_root,names[1],recordOptions); validateChainRecord(checkpoint,approval,'rollback',beforeRecord.sha256); }
+  else { const value={version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:beforeRecord.sha256,state:'rollback-authorized'}; checkpoint={value,sha256:atomicRecord(approval.evidence_root,names[1],value,recordOptions)}; }
+  if (!present[2]) { if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'rollback',checkpoint.sha256,options); const after=await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(beforeRecord.value.before,after); atomicRecord(approval.evidence_root,names[2],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:checkpoint.sha256,after},recordOptions); }
+  const afterRecord=readRecord(approval.evidence_root,names[2],recordOptions); validateChainRecord(afterRecord,approval,'rollback',checkpoint.sha256); assertProtectedEvidence(beforeRecord.value.before,afterRecord.value.after);
+  const services=await delegated(options,'runningServices',runningServices,approval,options);
+  if (canonicalJson(services)===canonicalJson(['mariadb'])) { assertProtectedEvidence(beforeRecord.value.before,await delegated(options,'evidence',evidence,approval,options)); await delegated(options,'startAndHealthCheck',startAndHealthCheck,approval,options); }
+  else invariant(canonicalJson(services)===canonicalJson(['dolibarr','mariadb']),'RST-002B completed rollback service state is invalid.');
+  if (options.assertLiveBinding) await options.assertLiveBinding('running');
+  if (!present[3]) atomicRecord(approval.evidence_root,names[3],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:afterRecord.sha256,status:'complete'},recordOptions);
+  else { const report=readRecord(approval.evidence_root,names[3],recordOptions); invariant(report.value.version===1&&report.value.unit==='RST-002B'&&report.value.operation_id===approval.operation_id&&report.value.mode==='rollback'&&report.value.previous_sha256===afterRecord.sha256&&report.value.status==='complete','RST-002B rollback report is invalid.'); }
   return Object.freeze({ status: 'complete' });
 }
 async function run(options, mode) {
-  const { approval, key } = options; invariant(Buffer.isBuffer(key) && key.length === 32, 'RST-002B backup key is invalid.'); if (options.assertLiveBinding) await options.assertLiveBinding();
-  const running = (await compose(approval, ['ps', '--status', 'running', '--services'], options)).toString('utf8').trim().split('\n').filter(Boolean).sort(); invariant(running.join(',') === 'mariadb', 'RST-002B requires Dolibarr stopped and MariaDB running.');
+  const { approval, key } = options; invariant(Buffer.isBuffer(key) && key.length === 32, 'RST-002B backup key is invalid.');
+  const completed = mode === 'rollback' ? recordExists(approval.evidence_root,'rst002b-rollback-02-after.json') : mode === 'recover' && recordExists(approval.evidence_root,'rst002b-03-after.json');
+  if (options.assertLiveBinding) await options.assertLiveBinding(completed ? 'completed' : 'stopped');
+  if (!completed) await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options);
   const staleConfig=path.join(approval.evidence_root,'rst002b-runtime-conf.php'); if (fs.existsSync(staleConfig)) clearRuntimeConfig(staleConfig);
-  const result = mode === 'rollback' ? await runRollback(approval, options) : await runForward(approval, key, mode === 'recover', options); if (options.assertLiveBinding) await options.assertLiveBinding(); return result;
+  return mode === 'rollback' ? runRollback(approval, options) : runForward(approval, key, mode === 'recover', options);
 }
 const runRst002bOperation = (options) => run(options, 'execute');
 const runRst002bRecover = (options) => run(options, 'recover');

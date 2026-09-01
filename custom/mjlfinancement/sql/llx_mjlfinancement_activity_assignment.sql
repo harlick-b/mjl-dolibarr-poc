@@ -12,8 +12,18 @@ CREATE TABLE llx_mjlfinancement_activity_assignment (
 	tms TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
 	current_user_id BIGINT(20) AS (CASE WHEN date_end IS NULL THEN fk_user ELSE NULL END) PERSISTENT,
 	current_primary_activity_id BIGINT(20) AS (CASE WHEN date_end IS NULL AND is_primary = 1 THEN fk_activity ELSE NULL END) PERSISTENT,
+	UNIQUE INDEX uk_mjl_activity_assignment_current_user (entity, fk_activity, current_user_id),
+	UNIQUE INDEX uk_mjl_activity_assignment_current_primary (entity, current_primary_activity_id),
+	INDEX idx_mjl_activity_assignment_current_activity (entity, fk_activity, date_end),
+	INDEX idx_mjl_activity_assignment_current_agent (entity, fk_user, date_end),
+	INDEX idx_mjl_activity_assignment_activity_fk (fk_activity),
+	INDEX idx_mjl_activity_assignment_agent_fk (fk_user),
+	INDEX idx_mjl_activity_assignment_assigner (fk_user_assign),
 	CONSTRAINT chk_mjl_activity_assignment_entity_positive CHECK (entity > 0),
 	CONSTRAINT chk_mjl_activity_assignment_primary CHECK (is_primary IN (0, 1)),
 	CONSTRAINT chk_mjl_activity_assignment_reason_nonblank CHECK (reason REGEXP '[^[:space:]]'),
-	CONSTRAINT chk_mjl_activity_assignment_dates CHECK (date_end IS NULL OR date_end >= date_start)
+	CONSTRAINT chk_mjl_activity_assignment_dates CHECK (date_end IS NULL OR date_end >= date_start),
+	CONSTRAINT fk_mjl_activity_assignment_activity FOREIGN KEY (fk_activity) REFERENCES llx_mjlfinancement_activity(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT,
+	CONSTRAINT fk_mjl_activity_assignment_agent FOREIGN KEY (fk_user) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT,
+	CONSTRAINT fk_mjl_activity_assignment_assigner FOREIGN KEY (fk_user_assign) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT
 ) ENGINE=innodb DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;

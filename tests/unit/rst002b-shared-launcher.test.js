@@ -20,11 +20,15 @@ test('RST-002B launcher is dedicated, exact-mode, root-custodied, and fail close
   assert.match(operation, /mariadb-dump/);
   assert.match(operation, /verifyEncryptedBackups/);
   assert.match(operation, /rst002b_activity_assignment\.php/);
-  assert.match(operation, /running\.join\(','\) === 'mariadb'/);
+  assert.match(operation, /requireStoppedServices/);
+  assert.match(launcher, /Recovery requires an existing approval-bound durable operation prefix/);
+  assert.match(launcher, /Traffic-stop authority expired before mutation completion/);
+  assert.match(launcher, /Shared service state changed/);
   assert.match(operation, /inspectForwardPrefix/);
   assert.match(operation, /verifyRetainedBackups/);
   assert.match(operation, /startAndHealthCheck/);
   assert.match(operation, /cleanupNamedContainers/);
+  assert.match(operation, /restorable_trigger_sha256/);
   assert.match(operation, /container','create','--pull=never/);
   assert.match(operation, /immutable one-off identity inspection failed/);
   assert.doesNotMatch(operation, /\['run',\s*'--rm'/);
