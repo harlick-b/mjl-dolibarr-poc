@@ -53,15 +53,15 @@ accessibility gate remains deferred. This verdict does not authorize Phase 2
 or RST-005, which requires a separately reviewed and explicitly approved
 strategy.
 
-RST-005 was separately approved by DEC-045 on 2026-08-24. Its exact temporary
-insert-guard amendment and protected root-launcher seams were subsequently
-approved and implemented. DEC-046 then approved implementation of the
-confidence-hardening operational amendment; all earlier launcher evidence is
-superseded until its recovery, durability, locking, runtime, and crash gates
-pass against the exact correction commit. Shared Phase 2 cutover remains
-blocked pending clean final reviews, the committed implementation SHA, its exact
-`complete_tree_sha256` protected-tree digest, and separate explicit approval
-naming both values.
+RST-005 was separately approved by DEC-045, confidence-hardened by DEC-046,
+and executed under DEC-047 on 2026-09-01 after clean committed-source gates,
+final reviews, and exact approval of commit
+`b9520f5aaf38629d13618034cce546e71637ebab` with protected-tree digest
+`a01bfd02d6e0bff4c1039f5f191233bfa5fe9cbc170c715f640737d75403f40f`.
+The shared tenant now has the verified-empty finalized target Activity
+foundation. RST-002B is the next dependency; RST-006A follows it. Both remain
+separately reviewable and separately approval-gated, and no other Phase 2 unit
+is authorized by RST-005 execution.
 
 ## Phase 2: Activity Planning and Validation
 

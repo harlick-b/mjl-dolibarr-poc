@@ -215,17 +215,14 @@ number does not approve a suffixed unit.
 
 ### RST-005 - Replace the legacy Activity model
 
-- Status: `CONFIDENCE_HARDENING_IMPLEMENTATION_APPROVED;
-  SHARED_EXECUTION_COMMIT_AND_TREE_APPROVAL_PENDING`; the guarded-lock correction and
-  exact protected launcher seams are approved and implemented; DEC-046's
-  recovery/durability/locking/runtime amendment is approved for implementation,
-  while shared
-  execution awaits clean final reviews and separate approval naming both the
-  exact committed SHA and exact `complete_tree_sha256`
-- Current component: an empty interim legacy-shaped Activity table, a
-  Supervisor/Validator-only read projection, fail-closed mutation seams, no
+- Status: `EXECUTED` on 2026-09-01 under DEC-047 at commit
+  `b9520f5aaf38629d13618034cce546e71637ebab` and exact
+  `complete_tree_sha256`
+  `a01bfd02d6e0bff4c1039f5f191233bfa5fe9cbc170c715f640737d75403f40f`.
+- Current component: the verified-empty finalized target Activity foundation,
+  a Supervisor/Validator-only read projection, fail-closed mutation seams, no
   Activity navigation, and no workflow-action table.
-- Proposed action: replace only the verified-empty interim table with the exact
+- Executed action: replaced only the verified-empty interim table with the exact
   target Activity foundation, database invariants, entity-scoped read model,
   and optimistic-lock seam. Keep all business mutation and downstream Phase 2
   structures dormant.

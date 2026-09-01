@@ -2,22 +2,24 @@
 
 ## Status and approval boundary
 
-- Strategy status: `CONFIDENCE_HARDENING_IMPLEMENTATION_APPROVED;
-  SHARED_EXECUTION_COMMIT_AND_TREE_APPROVAL_PENDING`. DEC-045 approved the guarded-lock
+- Strategy status: `EXECUTED`. DEC-045 approved the guarded-lock
   amendment on 2026-08-24, and the user separately confirmed the exact
   protected launcher test seams. DEC-046 approved implementation of the
-  confidence-hardening amendment on 2026-08-25. Shared execution remains unauthorized until
-  the implementation is committed, final reviews are clean, and the user
-  separately approves both that exact committed SHA and its exact
-  `complete_tree_sha256` protected-tree digest.
+  confidence-hardening amendment on 2026-08-25. After clean committed-source
+  gates and reviews, the user separately approved commit
+  `b9520f5aaf38629d13618034cce546e71637ebab` and exact
+  `complete_tree_sha256`
+  `a01bfd02d6e0bff4c1039f5f191233bfa5fe9cbc170c715f640737d75403f40f`.
+  The shared empty-schema cutover completed and was independently verified on
+  2026-09-01; `docs/mjl-rst-005-execution-report.md` owns the evidence.
 - Reset unit: `RST-005`.
 - Phase: Phase 2.
 - Dependencies: the formal Phase 1 verdict and every retained executed Phase 1
   unit: RST-000A, RST-001, RST-002A, RST-003, RST-004, RST-007A, RST-008,
   RST-009A, RST-010A, RST-013A, and RST-014A.
-- This document authorizes only the closed implementation and disposable
-  rehearsal inventory below. It authorizes no shared database mutation, route
-  exposure, navigation, or persistent fixture.
+- This document records the closed implementation and executed shared
+  empty-schema cutover. It authorizes no further shared mutation, rollback,
+  route exposure, navigation, persistent fixture, or artifact destruction.
 - The required later, separate, explicit approval naming `RST-005` was received
   on 2026-08-24. Phase 2 approval by itself would not have been sufficient.
 - Approval of the amended RST-005 authorizes only the closed scope in this document.
@@ -140,10 +142,11 @@ flock-wrapped invocation without printing secrets. Running
 that generator against the real shared profile still requires separate
 authorization.
 
-All pre-amendment launcher results are superseded. Only tests and three clean
-independent reviews against the final clean correction commit are current. Any
-source or evidence change before shared execution invalidates the commit/tree
-pair, digests, tests, reviews, and approval packet. After a validated durable
+All pre-amendment launcher results are superseded. At the pre-execution
+boundary, only tests and three clean independent reviews against the final
+clean correction commit were current. Any source or evidence change before the
+completed shared execution would have invalidated the commit/tree pair,
+digests, tests, reviews, and approval packet. After a validated durable
 completed report, a later documentation-only closure commit may record that
 executed commit/tree pair as immutable historical provenance; it does not
 authorize reuse of the completed packet.
@@ -249,8 +252,8 @@ pair. Quoted literal bytes and all operators/names remain exact. Column order
 is checked separately. The verifier returns the corresponding sealed source-
 oracle SHA only after this entire independent physical contract matches; it
 does not claim to hash reconstructed oracle bytes. This approved dual-oracle
-correction is implemented; shared execution remains gated by separate approval
-of the final commit/tree pair. Any source-oracle or physical-contract change requires another
+correction is implemented; shared execution was separately approved for and
+completed at the exact commit/tree pair recorded above. Any source-oracle or physical-contract change requires another
 amended strategy and separate approval.
 Prefix substitution accepts only the configured Dolibarr prefix after a strict
 ASCII identifier check (`^[A-Za-z][A-Za-z0-9_]*$`). Before backup or DDL, the
@@ -836,7 +839,8 @@ orchestrator and every non-module protected path with an immutable root-owned
 runtime snapshot matching the complete protected-tree digest and exact Git
 commit. A caller-supplied manifest or regenerated digest cannot substitute for
 separate approval of the final commit/tree pair. Any mismatch stops before
-backup or DDL; that separate shared-execution approval remains pending.
+backup or DDL. That approval was obtained under DEC-047 for the recorded
+commit/tree pair; any future pair or packet execution requires fresh approval.
 
 ## Rollback boundary
 
