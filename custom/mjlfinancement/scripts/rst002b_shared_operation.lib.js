@@ -71,7 +71,7 @@ async function pinnedOneOff(approval, name, specification, options = {}) {
   invariant(Array.isArray(inspected.Config.Entrypoint) && inspected.Config.Entrypoint.join(',')==='/usr/local/bin/php','RST-002B immutable one-off entrypoint inspection failed.');
   invariant(canonicalJson(actualMounts)===canonicalJson(expectedMounts),'RST-002B immutable one-off mount inspection failed.');
   invariant(inspected.HostConfig.Tmpfs && inspected.HostConfig.Tmpfs['/tmp']==='rw,noexec,nosuid,nodev,mode=1777' && (mountTargets.has('/var/www/documents') || inspected.HostConfig.Tmpfs['/var/www/documents']==='rw,noexec,nosuid,nodev,mode=0700') && (mountTargets.has('/var/www/html/custom') || inspected.HostConfig.Tmpfs['/var/www/html/custom']==='rw,noexec,nosuid,nodev,mode=0700'),'RST-002B immutable one-off tmpfs inspection failed.');
-  return runCommand('/usr/bin/docker',['start','--attach',created],{env:options.env,signal:options.signal,label:`RST-002B ${specification.kind} container start`});
+  return runCommand('/usr/bin/docker',['start','--attach',created],{env:options.env,signal:options.signal,label:`RST-002B ${specification.kind} container start`,isolatedDiagnostics:approval.target_profile==='disposable_shared_shape'});
 }
 async function evidence(approval, options = {}) {
   const names = oneOffNames(approval); await cleanupNamedContainers([names.evidence], undefined, options.env); let config;
@@ -98,7 +98,8 @@ async function migration(approval, mode, checkpointSha256, options = {}) {
   const authorization = installAuthorization(approval, mode, checkpointSha256); let config;
   try {
     config=await runtimeConfig(approval,options); const wrapper="putenv('MJL_RST002B_SHARED_LAUNCHER=1');require '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php';";
-    return await pinnedOneOff(approval,names.migration,{kind:'migration',mounts:[{source:config,target:'/var/www/html/conf/conf.php',readOnly:true},{source:`${approval.repository_root}/custom`,target:'/var/www/html/custom',readOnly:true},{source:`${approval.repository_root}/data/documents`,target:'/var/www/documents',readOnly:true},{source:authorization,target:'/run/mjl-rst002b/authorization.json',readOnly:true}],command:['-r',wrapper,'--',`--mode=${mode}`,'--confirm=RST-002B']},options);
+    const command=['-r',wrapper,'--',`--mode=${mode}`,'--confirm=RST-002B']; if(approval.failure_point && !options.suppressFailureInjection) command.push(`--failure-point=${approval.failure_point}`);
+    return await pinnedOneOff(approval,names.migration,{kind:'migration',mounts:[{source:config,target:'/var/www/html/conf/conf.php',readOnly:true},{source:`${approval.repository_root}/custom`,target:'/var/www/html/custom',readOnly:true},{source:`${approval.repository_root}/data/documents`,target:'/var/www/documents',readOnly:true},{source:authorization,target:'/run/mjl-rst002b/authorization.json',readOnly:true}],command},options);
   } finally { clearAuthorization(authorization); await cleanupNamedContainers([names.migration], undefined, options.env); clearRuntimeConfig(config); }
 }
 function backupPaths(approval) { return { schema: path.join(approval.backup_root, 'rst002b-schema.secretstream'), full: path.join(approval.backup_root, 'rst002b-full.secretstream') }; }
@@ -141,7 +142,7 @@ function assertProtectedEvidence(before, after) {
 }
 async function startAndHealthCheck(approval, options) {
   await compose(approval, ['up', '-d', 'dolibarr'], options); const deadline = Date.now() + 120000;
-  while (Date.now() < deadline) { try { await compose(approval, ['exec', '-T', 'dolibarr', 'php', '-r', "$body=@file_get_contents('http://127.0.0.1/'); if ($body===false) exit(1);"], options); return; } catch (_) {} await new Promise((resolve) => setTimeout(resolve, 1000)); }
+  while (Date.now() < deadline) { try { await compose(approval, ['exec', '-T', 'dolibarr', '/usr/bin/curl', '--fail', '--silent', '--show-error', '--max-time', '5', '--output', '/dev/null', 'http://127.0.0.1/'], options); return; } catch (_) {} await new Promise((resolve) => setTimeout(resolve, 1000)); }
   throw new Error('RST-002B local HTTP health check failed.');
 }
 async function runningServices(approval, options) {
@@ -181,7 +182,7 @@ async function runForward(approval, key, recover, options) {
   if (recordExists(approval.evidence_root, names[2])) { checkpoint = readRecord(approval.evidence_root, names[2],recordOptions); validateChainRecord(checkpoint, approval, 'execute', before.sha256); }
   else { const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: before.sha256, state: 'mutation-authorized' }; checkpoint = { value, sha256: atomicRecord(approval.evidence_root, names[2], value,recordOptions) }; }
   if (!recordExists(approval.evidence_root, names[3])) {
-    if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'apply',checkpoint.sha256,options); const afterEvidence = await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(before.value.before, afterEvidence);
+    if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'apply',checkpoint.sha256,recover?{...options,suppressFailureInjection:true}:options); const afterEvidence = await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(before.value.before, afterEvidence);
     const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: checkpoint.sha256, after: afterEvidence }; atomicRecord(approval.evidence_root, names[3], value,recordOptions);
   }
   const after = readRecord(approval.evidence_root, names[3],recordOptions); validateChainRecord(after, approval, 'execute', checkpoint.sha256); assertProtectedEvidence(before.value.before, after.value.after);
@@ -203,7 +204,7 @@ async function runRollback(approval, options) {
   let checkpoint;
   if (present[1]) { checkpoint=readRecord(approval.evidence_root,names[1],recordOptions); validateChainRecord(checkpoint,approval,'rollback',beforeRecord.sha256); }
   else { const value={version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:beforeRecord.sha256,state:'rollback-authorized'}; checkpoint={value,sha256:atomicRecord(approval.evidence_root,names[1],value,recordOptions)}; }
-  if (!present[2]) { if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'rollback',checkpoint.sha256,options); const after=await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(beforeRecord.value.before,after); atomicRecord(approval.evidence_root,names[2],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:checkpoint.sha256,after},recordOptions); }
+  if (!present[2]) { if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'rollback',checkpoint.sha256,present[1]?{...options,suppressFailureInjection:true}:options); const after=await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(beforeRecord.value.before,after); atomicRecord(approval.evidence_root,names[2],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:checkpoint.sha256,after},recordOptions); }
   const afterRecord=readRecord(approval.evidence_root,names[2],recordOptions); validateChainRecord(afterRecord,approval,'rollback',checkpoint.sha256); assertProtectedEvidence(beforeRecord.value.before,afterRecord.value.after);
   const services=await delegated(options,'runningServices',runningServices,approval,options);
   if (canonicalJson(services)===canonicalJson(['mariadb'])) { assertProtectedEvidence(beforeRecord.value.before,await delegated(options,'evidence',evidence,approval,options)); await delegated(options,'startAndHealthCheck',startAndHealthCheck,approval,options); }

@@ -29,16 +29,21 @@ function validateCustodyRoot(directory, repositoryRoot) {
   invariant(stat.isDirectory() && !stat.isSymbolicLink() && stat.uid === 0 && (stat.mode & 0o7777) === 0o700, 'Artifact root custody is invalid.');
 }
 function composeArgs(approval, tail) { return ['compose','--env-file','/dev/null','--project-directory',approval.repository_root,...approval.compose_files.flatMap((entry) => ['-f',entry.path]),'-p',approval.compose_project_name,...tail]; }
+let disposableDiagnostics = false;
 function validateApproval(value, mode) {
-  const base = ['approved_commit','backup_key_sha256','backup_root','complete_tree_manifest_sha256','complete_tree_sha256','compose_config_sha256','compose_files','compose_project_name','containers','database_name','evidence_root','expires_at','issued_at','mode','mutation_lock_path','nonce','operation_id','repository_root','target_lock_path','unit','version','images'];
+  const base = ['approved_commit','backup_key_sha256','backup_root','complete_tree_manifest_sha256','complete_tree_sha256','compose_config_sha256','compose_files','compose_project_name','containers','database_name','database_root','document_root','evidence_root','expires_at','issued_at','mode','mutation_lock_path','nonce','operation_id','repository_root','target_lock_path','target_profile','unit','version','images'];
+  if(value && value.target_profile==='disposable_shared_shape' && value.failure_point!==undefined) base.push('failure_point');
   const expected = value.mode === 'rollback' ? [...base,'prior_execution_report'].sort() : base.sort();
   invariant(value && Object.keys(value).sort().join('\n') === expected.join('\n'), 'Approval fields are not exact.');
   invariant(value.version === 1 && value.unit === 'RST-002B' && value.mode === (mode === 'recover' ? 'execute' : mode), 'Approval mode or unit is invalid.');
   invariant(/^[a-f0-9]{40}$/.test(value.approved_commit) && /^[a-f0-9]{64}$/.test(value.complete_tree_sha256) && /^[a-f0-9]{64}$/.test(value.complete_tree_manifest_sha256) && /^[a-f0-9]{64}$/.test(value.compose_config_sha256) && /^[a-f0-9]{64}$/.test(value.backup_key_sha256) && /^[a-f0-9]{32}$/.test(value.operation_id) && /^[a-f0-9]{32}$/.test(value.nonce), 'Approval identities are invalid.');
-  invariant(value.repository_root === '/home/yoann/Documents/Projects/mjl-dolibarr-poc' && value.compose_project_name === 'mjl-dolibarr-poc' && value.database_name === 'dolidb', 'Shared target identity is invalid.');
+  invariant(value.database_name === 'dolidb' && ['shared','disposable_shared_shape'].includes(value.target_profile),'Target profile is invalid.');
+  if(value.target_profile==='shared') invariant(value.repository_root===SHARED_PROFILE.repository_root&&value.compose_project_name===SHARED_PROFILE.compose_project_name&&value.database_root===SHARED_PROFILE.database_root&&value.document_root===SHARED_PROFILE.document_root,'Shared target identity is invalid.');
+  else invariant(/^\/tmp\/rst002b-launcher-[^/]+\/repository$/.test(value.repository_root)&&/^mjl-test-rst002b-shared-shape-[a-z0-9-]+$/.test(value.compose_project_name)&&value.database_root===path.join(value.repository_root,'data/mariadb')&&value.document_root===path.join(value.repository_root,'data/documents'),'Disposable shared-shape target identity is invalid.');
+  if(value.failure_point!==undefined) invariant(value.target_profile==='disposable_shared_shape'&&/^(?:forward-|rollback-)/.test(value.failure_point),'Failure injection is restricted to the disposable shared-shape profile.');
   invariant(Date.parse(value.issued_at) <= Date.now() && (mode === 'recover' || Date.parse(value.expires_at) > Date.now()) && Date.parse(value.expires_at) - Date.parse(value.issued_at) <= 86400000, 'Approval validity is invalid.');
   invariant(Array.isArray(value.compose_files) && value.compose_files.length === 1 && Object.keys(value.compose_files[0]).sort().join(',')==='path,sha256' && value.compose_files[0].path === `${value.repository_root}/docker-compose.yml` && /^[a-f0-9]{64}$/.test(value.compose_files[0].sha256), 'Compose binding is invalid.');
-  const sharedLocks = targetLockPaths({target_profile:'shared',...SHARED_PROFILE}); invariant(value.target_lock_path === sharedLocks.target && value.mutation_lock_path === sharedLocks.mutation, 'Lock binding is invalid.');
+  const sharedLocks = targetLockPaths(value.target_profile==='shared'?{target_profile:'shared',...SHARED_PROFILE}:value); invariant(value.target_lock_path === sharedLocks.target && value.mutation_lock_path === sharedLocks.mutation, 'Lock binding is invalid.');
   invariant(value.images && Object.keys(value.images).sort().join(',')==='dolibarr,mariadb' && /^sha256:[a-f0-9]{64}$/.test(value.images.mariadb) && /^sha256:[a-f0-9]{64}$/.test(value.images.dolibarr), 'Image binding is invalid.');
   invariant(value.containers && Object.keys(value.containers).sort().join(',')==='dolibarr,mariadb' && /^[a-f0-9]{64}$/.test(value.containers.mariadb) && /^[a-f0-9]{64}$/.test(value.containers.dolibarr), 'Container binding is invalid.');
   if (value.mode === 'rollback') invariant(value.prior_execution_report && Object.keys(value.prior_execution_report).sort().join(',')==='path,sha256' && path.isAbsolute(value.prior_execution_report.path) && path.normalize(value.prior_execution_report.path)===value.prior_execution_report.path && /^[a-f0-9]{64}$/.test(value.prior_execution_report.sha256), 'Rollback report binding is invalid.');
@@ -47,7 +52,7 @@ function validateApproval(value, mode) {
 async function main() {
   invariant(typeof process.getuid === 'function' && process.getuid() === 0, 'Root operator required.'); const mode = parseMode(); const env = sanitizedRuntimeEnvironment(process.env, 'shared');
   const initial = { approval: readProtected('/run/mjl-rst002b/approval/record',65536), key: readProtected('/run/mjl-rst002b/key/bytes',32), traffic: readProtected('/run/mjl-rst002b/traffic/record',16384) };
-  invariant(initial.key.bytes.length === 32, 'Backup key length is invalid.'); const approval = validateApproval(parseCanonical(initial.approval,'Approval'), mode); invariant(sha256(initial.key.bytes) === approval.backup_key_sha256, 'Backup key mismatch.');
+  invariant(initial.key.bytes.length === 32, 'Backup key length is invalid.'); const approval = validateApproval(parseCanonical(initial.approval,'Approval'), mode); disposableDiagnostics = approval.target_profile === 'disposable_shared_shape'; invariant(sha256(initial.key.bytes) === approval.backup_key_sha256, 'Backup key mismatch.');
   validateCustodyRoot(approval.backup_root, approval.repository_root); validateCustodyRoot(approval.evidence_root, approval.repository_root);
   invariant(!isWithin(approval.backup_root, approval.evidence_root) && !isWithin(approval.evidence_root, approval.backup_root), 'Artifact roots must be disjoint.');
   if (approval.mode==='rollback') { validateCustodyAncestors(path.dirname(approval.prior_execution_report.path),0); const prior=readProtected(approval.prior_execution_report.path,65536); const value=parseCanonical(prior,'Prior execution report'); const keys=['approved_commit','complete_tree_sha256','mode','operation_id','previous_sha256','status','unit','version'].sort(); invariant(Object.keys(value).sort().join('\n')===keys.join('\n') && sha256(prior.bytes)===approval.prior_execution_report.sha256 && value.version===1 && value.unit==='RST-002B' && value.mode==='execute' && value.status==='complete' && value.approved_commit===approval.approved_commit && value.complete_tree_sha256===approval.complete_tree_sha256,'Prior execution report binding is invalid.'); }
@@ -71,8 +76,10 @@ async function main() {
     invariant(expected.some((candidate)=>canonicalJson(running)===canonicalJson(candidate)),'Shared service state changed.');
   };
   const controller = new AbortController(); for (const signal of ['SIGINT','SIGTERM','SIGHUP']) process.once(signal, () => controller.abort(new Error(`RST-002B interrupted by ${signal}.`)));
-  await assertLiveBinding(); const options = { approval, key: initial.key.bytes, assertLiveBinding, env, signal: controller.signal };
+  const completedPrefix = (mode==='recover' && fs.existsSync(path.join(approval.evidence_root,'rst002b-03-after.json')))
+    || (mode==='rollback' && fs.existsSync(path.join(approval.evidence_root,'rst002b-rollback-02-after.json')));
+  await assertLiveBinding(completedPrefix ? 'completed' : 'stopped'); const options = { approval, key: initial.key.bytes, assertLiveBinding, env, signal: controller.signal };
   const result = mode === 'rollback' ? await runRst002bRollback(options) : mode === 'recover' ? await runRst002bRecover(options) : await runRst002bOperation(options);
   initial.key.bytes.fill(0); process.stdout.write(`${JSON.stringify({status:result.status,mode,commit:approval.approved_commit,complete_tree_sha256:approval.complete_tree_sha256})}\n`);
 }
-main().catch(() => { process.stderr.write('RST-002B shared launcher failed closed.\n'); process.exitCode = 1; });
+main().catch((error) => { process.stderr.write(disposableDiagnostics ? `RST-002B disposable launcher failed closed: ${error.message}\n` : 'RST-002B shared launcher failed closed.\n'); process.exitCode = 1; });

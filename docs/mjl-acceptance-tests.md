@@ -72,10 +72,13 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   role/user guards, entity isolation, direct SQL denial, shared-state equality,
   and whole-tenant destruction.
 - 'test:rst002b-launcher' exercises the dedicated RST-002B immutable intent,
-  before, checkpoint, after, and report chain; interrupted-operation recovery;
-  separately bound rollback; protected-record substitution; exact-lock and
-  root-custody source contracts; and an actual pinned-image
-  create-inspect-start-cleanup probe. It does not touch the shared tenant.
+  before, checkpoint, after, and report chain; then runs the real root-custodied
+  packet and launcher against a temporary committed-source snapshot and unique
+  disposable shared-shaped tenant. It proves real encrypted backup restores,
+  approval/key/traffic substitution rejection, inherited-lock contention, a
+  physical forward-DDL interruption and recovery, a separately approved
+  physical rollback interruption and re-entry, loopback health recovery, and
+  exact restore/one-off resource cleanup. It does not touch the shared tenant.
   Shared execution still requires approval of the exact clean implementation
   commit and protected-tree digest.
 - 'test:characterization' is a compatibility alias to the current
