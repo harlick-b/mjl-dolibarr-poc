@@ -26,7 +26,7 @@ behavior are not current evidence.
 | `npm run test:rst002b` | RST-002B schema/rollback convergence, assignment module, immediate row-level revocation, role guards, audit atomicity, concurrency, and direct SQL denial | Shared before/after evidence; unique disposable tenant; whole-tenant teardown |
 | `npm run test:rst002b-launcher` | Dedicated packet/launcher source contracts and immutable evidence-record rehearsal | Temporary root under the system temp directory; no shared mutation |
 | `npm run test:phase1-reset` | Combined Phase 1 cutover, schema mutation, failure/restore, browser, and containment proof | Shared-source rehearsal plus unique disposable tenant; retention disabled |
-| `npm run test:characterization` | Temporary empty Partner-scope-table source characterization only | Read-only source check in a disposable tenant |
+| `npm run test:characterization` | RST-002B successor characterization for assignment-based authorization and removed Partner scope | Read-only source check in a disposable tenant |
 | `npm run test:manual-accessibility` | Human-run accessibility gate | Not an automated completion substitute |
 
 ## Retained executable suites
@@ -40,7 +40,7 @@ behavior are not current evidence.
 | `tests/e2e/fixture-isolation.spec.js` | RST-014A factory, attestation, namespace, evidence, failure, signal, artifact, and teardown behavior |
 | `tests/e2e/rst005-activity-foundation.spec.js` | RST-005 anonymous/authenticated role matrix, active-entity projection, cross-entity/parent/orphan denials, dormant-state checks, immutable-field denial, and complete evidence equality |
 | `tests/e2e/rst002b-activity-assignment.spec.js` | RST-002B current-assignment role matrix, entity isolation, add/remove/transfer, immediate revocation, stale/concurrent commands, audit rollback, reciprocal role guards, and structural SQL denial |
-| `tests/characterization/permissions.spec.js` | Temporary RST-002A proof that the retained empty scope table is absent from runtime authorization; RST-002B owns removal |
+| `tests/characterization/permissions.spec.js` | RST-002B proof that assignment storage replaced the removed Partner-scope authorization seam |
 | `tests/unit/*.test.js` | Current static reset, schema, security, canonical-document, runner, and presentation contracts |
 | `tests/contracts/*_test.php` | Current PHP behavior, navigation, presentation, and status contracts |
 

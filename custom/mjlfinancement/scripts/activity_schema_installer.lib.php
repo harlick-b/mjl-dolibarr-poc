@@ -4,6 +4,7 @@ const RST005_SCHEMA_PHASE1 = 'phase1';
 const RST005_SCHEMA_TARGET = 'target';
 const RST005_SCHEMA_UNKNOWN = 'unknown';
 const RST002B_SCHEMA_TARGET = 'rst002b_target';
+const RST002B_ACTIVITY_SCHEMA = 'rst002b_activity';
 const RST005_PHASE1_ORACLE_SHA256 = 'db69168768515aa2ea4d46f8e8bb61ce5901bc87ed76df2723c9834ccb0dc7e2';
 const RST005_TARGET_ORACLE_SHA256 = '8eb99ee99c6dc748bd368e925e9938ccf086291d264e3812ac6320c8ec06b745';
 // Phase 1 acquired active_user_id through an ALTER, while a clean install
@@ -12,6 +13,11 @@ const RST005_TARGET_ORACLE_SHA256 = '8eb99ee99c6dc748bd368e925e9938ccf086291d264
 // no other retained-schema variation is accepted.
 const RST005_RETAINED_SCHEMA_SHA256_PHASE1 = 'a1bfd62fb82e64da5f554e30caac306eef25549895f5a9674a1785781cb0c008';
 const RST005_RETAINED_SCHEMA_SHA256_CLEAN = 'e2409271a246b152af6da1e7d320826436abb663dcc086f866af0339af395ae6';
+const RST002B_RETAINED_SCHEMA_SHA256_PHASE1 = 'f41ea1932b79b858fbad0a81ef19704d4f624ab08e5c32424b69c8abf3069c2b';
+const RST002B_RETAINED_SCHEMA_SHA256_CLEAN = 'b77cfe444e368d4f0fd1df2edadb81a0d6265311bcf2b86badfe3e79ae6658e5';
+const RST002B_RETAINED_SCHEMA_SHA256_CLEAN_ALTERNATE = '40c2111960430cdbf804a26bb3e0da172ca65d93fd829a7873c172c80fd620bc';
+const RST002B_PREFIX_RETAINED_SCHEMA_SHA256_PHASE1 = '6eac2f117ec8f99fe6b00b9ba46ddbcc7474ca704d439ae9b7d10d16daaea077';
+const RST002B_PREFIX_RETAINED_SCHEMA_SHA256_CLEAN = '93f039485a012e4b429d46b4a07162f99640c3996850ac9a36ff8fde63935453';
 
 function mjl_rst005_prefix(DoliDB $db)
 {
@@ -126,6 +132,58 @@ function mjl_rst005_retained_schema_digest(DoliDB $db)
 	return hash('sha256', implode("\n", $definitions)."\n");
 }
 
+function mjl_rst002b_retained_schema_digest(DoliDB $db)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$tables = array_map(function ($suffix) use ($prefix) { return $prefix.'mjlfinancement_'.$suffix; }, array(
+		'audit_event','invitation','operation_type','password_reset','project_note','user_role',
+	));
+	sort($tables, SORT_STRING);
+	$definitions = array();
+	foreach ($tables as $table) {
+		$resql = $db->query('SHOW CREATE TABLE '.mjl_rst005_ident($table));
+		$row = $resql ? $db->fetch_row($resql) : null;
+		if (!$row || !isset($row[1])) throw new RuntimeException('Unable to inspect RST-002B retained schema: '.$table);
+		$create = preg_replace('/\sAUTO_INCREMENT=\d+\b/i', '', (string) $row[1]);
+		$create = str_replace(array('`'.$prefix, $prefix), array('`llx_', 'llx_'), $create);
+		$definitions[] = 'table|'.str_replace($prefix, 'llx_', $table).'|'.$create;
+	}
+	$sql = "SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_STATEMENT,ACTION_ORIENTATION FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE IN ('".implode("','", array_map(array($db, 'escape'), $tables))."') ORDER BY TRIGGER_NAME";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-002B retained triggers.');
+	while ($row = $db->fetch_array($resql)) {
+		$values = array($row['TRIGGER_NAME'],$row['ACTION_TIMING'],$row['EVENT_MANIPULATION'],$row['EVENT_OBJECT_TABLE'],$row['ACTION_STATEMENT'],$row['ACTION_ORIENTATION']);
+		$definitions[] = 'trigger|'.str_replace($prefix, 'llx_', implode('|', $values));
+	}
+	return hash('sha256', implode("\n", $definitions)."\n");
+}
+
+function mjl_rst002b_require_retained_schema(DoliDB $db)
+{
+	mjl_rst002b_require_table_set($db);
+	$digest = mjl_rst002b_retained_schema_digest($db);
+	if (!hash_equals(RST002B_RETAINED_SCHEMA_SHA256_PHASE1, $digest) && !hash_equals(RST002B_RETAINED_SCHEMA_SHA256_CLEAN, $digest) && !hash_equals(RST002B_RETAINED_SCHEMA_SHA256_CLEAN_ALTERNATE, $digest)) throw new RuntimeException('The retained MJL schema does not match a sealed RST-002B physical form: '.$digest);
+}
+
+function mjl_rst002b_require_prefix_retained_schema(DoliDB $db)
+{
+	mjl_rst002b_require_table_set($db);
+	$digest = mjl_rst002b_retained_schema_digest($db);
+	if (!hash_equals(RST002B_PREFIX_RETAINED_SCHEMA_SHA256_PHASE1, $digest) && !hash_equals(RST002B_PREFIX_RETAINED_SCHEMA_SHA256_CLEAN, $digest)) throw new RuntimeException('The retained MJL schema does not match either sealed RST-002B partial-prefix form: '.$digest);
+}
+
+function mjl_rst002b_require_table_set(DoliDB $db)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$expected = array_map(function ($suffix) use ($prefix) { return $prefix.'mjlfinancement_'.$suffix; }, array('activity','activity_assignment','audit_event','invitation','operation_type','password_reset','project_note','user_role'));
+	sort($expected, SORT_STRING);
+	$actual = array();
+	$resql = $db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' AND TABLE_NAME LIKE '".$db->escape($prefix)."mjlfinancement\\_%' ORDER BY TABLE_NAME");
+	if (!$resql) throw new RuntimeException('Unable to inspect the RST-002B table set.');
+	while ($row = $db->fetch_object($resql)) $actual[] = (string) $row->TABLE_NAME;
+	if ($actual !== $expected) throw new RuntimeException('The retained RST-002B table set is partial or contains an unapproved successor table.');
+}
+
 function mjl_rst005_require_retained_schema(DoliDB $db)
 {
 	mjl_rst005_require_retained_table_set($db);
@@ -210,6 +268,11 @@ function mjl_rst005_column_contract($flavour)
 		'date_creation'=>'datetime|NO|||', 'tms'=>'timestamp|NO|current_timestamp()|on update current_timestamp()|',
 		'fk_user_creat'=>'int(11)|NO|||', 'fk_user_modif'=>'int(11)|YES|NULL||', 'fk_user_responsible'=>'int(11)|YES|NULL||',
 	);
+	if ($flavour === RST002B_ACTIVITY_SCHEMA) {
+		$contract = mjl_rst005_column_contract(RST005_SCHEMA_TARGET);
+		unset($contract['fk_user_responsible']);
+		return $contract;
+	}
 	return array();
 }
 
@@ -228,6 +291,7 @@ function mjl_rst005_index_contract($flavour)
 		'idx_mjl_activity_partner_fk'=>'N|BTREE|A:0:fk_partner', 'idx_mjl_activity_creator'=>'N|BTREE|A:0:fk_user_creat',
 		'idx_mjl_activity_modifier'=>'N|BTREE|A:0:fk_user_modif',
 	);
+	if ($flavour === RST002B_ACTIVITY_SCHEMA) return mjl_rst005_index_contract(RST005_SCHEMA_TARGET);
 	return array();
 }
 
@@ -244,14 +308,15 @@ function mjl_rst005_fk_contract($flavour, $prefix)
 		'fk_mjl_activity_target_creator'=>'fk_user_creat>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
 		'fk_mjl_activity_target_modifier'=>'fk_user_modif>'.$prefix.'user:rowid|RESTRICT|RESTRICT',
 	);
+	if ($flavour === RST002B_ACTIVITY_SCHEMA) return mjl_rst005_fk_contract(RST005_SCHEMA_TARGET, $prefix);
 	return array();
 }
 
 function mjl_rst005_check_contract($flavour)
 {
 	if ($flavour === RST005_SCHEMA_PHASE1) return array();
-	if ($flavour !== RST005_SCHEMA_TARGET) return array();
-	return array(
+	if ($flavour !== RST005_SCHEMA_TARGET && $flavour !== RST002B_ACTIVITY_SCHEMA) return array();
+	$contract = array(
 		'chk_mjl_activity_entity_positive'=>'entity>0', 'chk_mjl_activity_ref_nonblank'=>"refregexp'[^[:space:]]'",
 		'chk_mjl_activity_name_nonblank'=>"nameregexp'[^[:space:]]'", 'chk_mjl_activity_description_nonblank'=>"descriptionregexp'[^[:space:]]'",
 		'chk_mjl_activity_dates'=>'date_end>=date_start', 'chk_mjl_activity_draft_amount'=>'draft_authorized_amount>=0',
@@ -262,6 +327,8 @@ function mjl_rst005_check_contract($flavour)
 		'chk_mjl_activity_version'=>'version>=1', 'chk_mjl_activity_responsible_dormant'=>'fk_user_responsibleisnull',
 		'chk_mjl_activity_rst005_dormant'=>"validation_status='DRAFT'andis_cancelled=0andfirst_submitted_amountisnullandlatest_validated_amountisnull",
 	);
+	if ($flavour === RST002B_ACTIVITY_SCHEMA) unset($contract['chk_mjl_activity_responsible_dormant']);
+	return $contract;
 }
 
 function mjl_rst005_map_equal(array $actual, array $expected)
@@ -298,7 +365,7 @@ function mjl_rst002b_column_exists(DoliDB $db, $table, $column)
 	return (int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape((string) $table)."' AND COLUMN_NAME='".$db->escape((string) $column)."'") === 1;
 }
 
-function mjl_rst002b_install_assignment_triggers(DoliDB $db)
+function mjl_rst002b_assignment_trigger_statements(DoliDB $db)
 {
 	$prefix = mjl_rst005_prefix($db);
 	$assignment = $prefix.'mjlfinancement_activity_assignment';
@@ -306,26 +373,37 @@ function mjl_rst002b_install_assignment_triggers(DoliDB $db)
 	$user = $prefix.'user';
 	$role = $prefix.'mjlfinancement_user_role';
 	$statements = array(
-		'CREATE OR REPLACE TRIGGER '.$prefix.'mjl_activity_assignment_bi BEFORE INSERT ON '.$assignment.' FOR EACH ROW BEGIN DECLARE activity_ok INTEGER DEFAULT 0; DECLARE agent_ok INTEGER DEFAULT 0; DECLARE assigner_ok INTEGER DEFAULT 0; IF NEW.fk_user_assign IS NULL THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'RST-002B requires an assigning Validator\'; END IF; SELECT COUNT(*) INTO activity_ok FROM '.$activity.' a WHERE a.rowid=NEW.fk_activity AND a.entity=NEW.entity; SELECT COUNT(*) INTO agent_ok FROM '.$user.' u INNER JOIN '.$role.' r ON r.entity=u.entity AND r.fk_user=u.rowid AND r.is_active=1 AND r.role_code=\'AGENT_SAISIE\' WHERE u.rowid=NEW.fk_user AND u.entity=NEW.entity AND u.statut=1 AND u.admin=0; SELECT COUNT(*) INTO assigner_ok FROM '.$user.' u INNER JOIN '.$role.' r ON r.entity=u.entity AND r.fk_user=u.rowid AND r.is_active=1 AND r.role_code=\'VALIDATEUR_DEFINITIF\' WHERE u.rowid=NEW.fk_user_assign AND u.entity=NEW.entity AND u.statut=1 AND u.admin=0; IF activity_ok<>1 OR agent_ok<>1 OR assigner_ok<>1 THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid RST-002B assignment\'; END IF; END',
-		'CREATE OR REPLACE TRIGGER '.$prefix.'mjl_activity_assignment_bu BEFORE UPDATE ON '.$assignment.' FOR EACH ROW BEGIN IF NEW.rowid<>OLD.rowid OR NEW.entity<>OLD.entity OR NEW.fk_activity<>OLD.fk_activity OR NEW.fk_user<>OLD.fk_user OR NEW.is_primary<>OLD.is_primary OR NEW.date_start<>OLD.date_start OR NOT (NEW.fk_user_assign<=>OLD.fk_user_assign) OR NEW.reason<>OLD.reason OR NEW.date_creation<>OLD.date_creation OR OLD.date_end IS NOT NULL OR NEW.date_end IS NULL OR NEW.date_end<OLD.date_start THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'MJL Activity assignment history is immutable\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$prefix.'mjl_activity_assignment_bi BEFORE INSERT ON '.$assignment.' FOR EACH ROW BEGIN DECLARE activity_ok INTEGER DEFAULT 0; DECLARE agent_ok INTEGER DEFAULT 0; DECLARE assigner_ok INTEGER DEFAULT 0; IF NEW.fk_user_assign IS NULL OR NEW.date_end IS NOT NULL THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'RST-002B requires a current assignment by a Validator\'; END IF; SET NEW.date_start=CURRENT_TIMESTAMP; SET NEW.date_creation=CURRENT_TIMESTAMP; SET NEW.tms=CURRENT_TIMESTAMP; SELECT COUNT(*) INTO activity_ok FROM '.$activity.' a WHERE a.rowid=NEW.fk_activity AND a.entity=NEW.entity; SELECT COUNT(*) INTO agent_ok FROM '.$user.' u INNER JOIN '.$role.' r ON r.entity=u.entity AND r.fk_user=u.rowid AND r.is_active=1 AND r.role_code=\'AGENT_SAISIE\' WHERE u.rowid=NEW.fk_user AND u.entity=NEW.entity AND u.statut=1 AND u.admin=0; SELECT COUNT(*) INTO assigner_ok FROM '.$user.' u INNER JOIN '.$role.' r ON r.entity=u.entity AND r.fk_user=u.rowid AND r.is_active=1 AND r.role_code=\'VALIDATEUR_DEFINITIF\' WHERE u.rowid=NEW.fk_user_assign AND u.entity=NEW.entity AND u.statut=1 AND u.admin=0; IF activity_ok<>1 OR agent_ok<>1 OR assigner_ok<>1 THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid RST-002B assignment\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$prefix.'mjl_activity_assignment_bu BEFORE UPDATE ON '.$assignment.' FOR EACH ROW BEGIN IF NEW.rowid<>OLD.rowid OR NEW.entity<>OLD.entity OR NEW.fk_activity<>OLD.fk_activity OR NEW.fk_user<>OLD.fk_user OR NEW.is_primary<>OLD.is_primary OR NEW.date_start<>OLD.date_start OR NOT (NEW.fk_user_assign<=>OLD.fk_user_assign) OR NEW.reason<>OLD.reason OR NEW.date_creation<>OLD.date_creation OR OLD.date_end IS NOT NULL OR NEW.date_end IS NULL THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'MJL Activity assignment history is immutable\'; END IF; SET NEW.date_end=CURRENT_TIMESTAMP; SET NEW.tms=CURRENT_TIMESTAMP; END',
 		'CREATE OR REPLACE TRIGGER '.$prefix.'mjl_activity_assignment_bd BEFORE DELETE ON '.$assignment.' FOR EACH ROW SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'MJL Activity assignments are append-only\'',
 	);
-	foreach ($statements as $sql) if (!$db->query($sql)) throw new RuntimeException('Unable to install RST-002B assignment trigger: '.$db->lasterror());
+	return $statements;
+}
+
+function mjl_rst002b_install_assignment_triggers(DoliDB $db)
+{
+	foreach (mjl_rst002b_assignment_trigger_statements($db) as $sql) if (!$db->query($sql)) throw new RuntimeException('Unable to install RST-002B assignment trigger: '.$db->lasterror());
+}
+
+function mjl_rst002b_activity_update_trigger_sql(DoliDB $db)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$table = $prefix.'mjlfinancement_activity';
+	$immutable = array('rowid','entity','ref','fk_partner','fk_project','name','description','date_start','date_end','draft_authorized_amount','first_submitted_amount','latest_validated_amount','validation_status','is_cancelled','date_creation','fk_user_creat');
+	$guards = array();
+	foreach ($immutable as $column) $guards[] = 'NOT (NEW.'.$column.'<=>OLD.'.$column.')';
+	return 'CREATE OR REPLACE TRIGGER '.$prefix.'mjl_activity_rst002b_bu BEFORE UPDATE ON '.$table.' FOR EACH ROW BEGIN IF NEW.version<>OLD.version+1 OR '.implode(' OR ', $guards).' THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Only RST-002B assignment version updates are permitted\'; END IF; END';
 }
 
 function mjl_rst002b_install_activity_update_trigger(DoliDB $db)
 {
 	$prefix = mjl_rst005_prefix($db);
-	$table = $prefix.'mjlfinancement_activity';
 	$db->query('DROP TRIGGER IF EXISTS '.mjl_rst005_ident($prefix.'mjl_activity_rst005_bu'));
-	$immutable = array('rowid','entity','ref','fk_partner','fk_project','name','description','date_start','date_end','draft_authorized_amount','first_submitted_amount','latest_validated_amount','validation_status','is_cancelled','date_creation','fk_user_creat');
-	$guards = array();
-	foreach ($immutable as $column) $guards[] = 'NOT (NEW.'.$column.'<=>OLD.'.$column.')';
-	$sql = 'CREATE OR REPLACE TRIGGER '.$prefix.'mjl_activity_rst002b_bu BEFORE UPDATE ON '.$table.' FOR EACH ROW BEGIN IF NEW.version<>OLD.version+1 OR '.implode(' OR ', $guards).' THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Only RST-002B assignment version updates are permitted\'; END IF; END';
+	$sql = mjl_rst002b_activity_update_trigger_sql($db);
 	if (!$db->query($sql)) throw new RuntimeException('Unable to install RST-002B Activity guard: '.$db->lasterror());
 }
 
-function mjl_rst002b_install_role_invariant_triggers(DoliDB $db, $assignmentGuards = true)
+function mjl_rst002b_role_invariant_trigger_statements(DoliDB $db, $assignmentGuards = true)
 {
 	$prefix = mjl_rst005_prefix($db);
 	$roleTable = $prefix.'mjlfinancement_user_role';
@@ -333,6 +411,11 @@ function mjl_rst002b_install_role_invariant_triggers(DoliDB $db, $assignmentGuar
 	$assignmentTable = $prefix.'mjlfinancement_activity_assignment';
 	if ($assignmentGuards && !mjl_rst002b_table_exists($db, $assignmentTable)) throw new RuntimeException('RST-002B assignment table is absent.');
 	$businessRoles = "'AGENT_SAISIE', 'AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'";
+	if (!$assignmentGuards) return array(
+		'CREATE OR REPLACE TRIGGER '.$prefix.'mjlfinancement_user_role_bi BEFORE INSERT ON '.$roleTable.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 0; DECLARE target_entity INTEGER DEFAULT -1; IF NEW.role_code NOT IN ('.$businessRoles.') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL business role\'; END IF; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid = NEW.fk_user; IF target_entity <> NEW.entity OR (NEW.is_active = 1 AND target_admin = 1) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL role target\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$prefix.'mjlfinancement_user_role_bu BEFORE UPDATE ON '.$roleTable.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 0; DECLARE target_entity INTEGER DEFAULT -1; IF NEW.role_code NOT IN ('.$businessRoles.') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL business role\'; END IF; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid = NEW.fk_user; IF target_entity <> NEW.entity OR (NEW.is_active = 1 AND target_admin = 1) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL role target\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$prefix.'mjlfinancement_user_admin_bu BEFORE UPDATE ON '.$userTable.' FOR EACH ROW BEGIN IF NEW.admin = 1 AND OLD.admin <> 1 AND EXISTS (SELECT 1 FROM '.$roleTable.' WHERE fk_user = NEW.rowid AND is_active = 1 AND role_code IN ('.$businessRoles.')) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'MJL business-role user cannot become native admin\'; END IF; END',
+	);
 	$roleGuard = $assignmentGuards ? ' IF OLD.role_code=\'AGENT_SAISIE\' AND OLD.is_active=1 AND (NEW.role_code<>\'AGENT_SAISIE\' OR NEW.is_active<>1 OR NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user) AND EXISTS (SELECT 1 FROM '.$assignmentTable.' WHERE entity=OLD.entity AND fk_user=OLD.fk_user AND date_end IS NULL) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Assigned Agent role is immutable\'; END IF;' : '';
 	$userGuard = $assignmentGuards ? ' IF (NEW.statut<>1 OR NEW.admin=1 OR NEW.entity<>OLD.entity) AND EXISTS (SELECT 1 FROM '.$assignmentTable.' WHERE entity=OLD.entity AND fk_user=OLD.rowid AND date_end IS NULL) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Assigned Agent user is immutable\'; END IF;' : '';
 	$deleteGuard = $assignmentGuards ? ' IF OLD.role_code=\'AGENT_SAISIE\' AND OLD.is_active=1 AND EXISTS (SELECT 1 FROM '.$assignmentTable.' WHERE entity=OLD.entity AND fk_user=OLD.fk_user AND date_end IS NULL) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Assigned Agent role cannot be deleted\'; END IF;' : '';
@@ -342,7 +425,13 @@ function mjl_rst002b_install_role_invariant_triggers(DoliDB $db, $assignmentGuar
 		'CREATE OR REPLACE TRIGGER '.$prefix.'mjlfinancement_user_role_bd BEFORE DELETE ON '.$roleTable.' FOR EACH ROW BEGIN'.$deleteGuard.' END',
 		'CREATE OR REPLACE TRIGGER '.$prefix.'mjlfinancement_user_admin_bu BEFORE UPDATE ON '.$userTable.' FOR EACH ROW BEGIN'.$userGuard.' IF NEW.admin=1 AND OLD.admin<>1 AND EXISTS (SELECT 1 FROM '.$roleTable.' WHERE fk_user=NEW.rowid AND is_active=1 AND role_code IN ('.$businessRoles.')) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'MJL business-role user cannot become native admin\'; END IF; END',
 	);
-	foreach ($statements as $sql) if (!$db->query($sql)) throw new RuntimeException('Unable to install MJL role invariant trigger: '.$db->lasterror());
+	return $statements;
+}
+
+function mjl_rst002b_install_role_invariant_triggers(DoliDB $db, $assignmentGuards = true)
+{
+	if (!$assignmentGuards) $db->query('DROP TRIGGER IF EXISTS '.mjl_rst005_ident(mjl_rst005_prefix($db).'mjlfinancement_user_role_bd'));
+	foreach (mjl_rst002b_role_invariant_trigger_statements($db, $assignmentGuards) as $sql) if (!$db->query($sql)) throw new RuntimeException('Unable to install MJL role invariant trigger: '.$db->lasterror());
 }
 
 function mjl_rst002b_detect_schema(DoliDB $db)
@@ -362,16 +451,102 @@ function mjl_rst002b_detect_schema(DoliDB $db)
 	return RST005_SCHEMA_UNKNOWN;
 }
 
+function mjl_rst002b_expected_trigger_map(array $statements)
+{
+	$result = array();
+	foreach ($statements as $sql) {
+		if (!preg_match('/^CREATE OR REPLACE TRIGGER ([A-Za-z][A-Za-z0-9_]*) (BEFORE (?:INSERT|UPDATE|DELETE)) ON [A-Za-z][A-Za-z0-9_]* FOR EACH ROW (.*)$/s', $sql, $match)) throw new RuntimeException('Unable to parse an RST-002B trigger contract.');
+		$result[$match[1]] = $match[2].':'.mjl_rst005_normalize_definition($match[3]);
+	}
+	ksort($result);
+	return $result;
+}
+
+function mjl_rst002b_actual_trigger_map(DoliDB $db, $table)
+{
+	$result = array();
+	$sql = "SELECT TRIGGER_NAME,ACTION_TIMING,EVENT_MANIPULATION,ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='".$db->escape($table)."' ORDER BY TRIGGER_NAME";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-002B trigger definitions.');
+	while ($row = $db->fetch_array($resql)) $result[$row['TRIGGER_NAME']] = $row['ACTION_TIMING'].' '.$row['EVENT_MANIPULATION'].':'.mjl_rst005_normalize_definition($row['ACTION_STATEMENT']);
+	ksort($result);
+	return $result;
+}
+
+function mjl_rst002b_require_assignment_contract(DoliDB $db, $table, $withTriggers = true)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$resql = $db->query("SELECT ENGINE,TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' AND TABLE_TYPE='BASE TABLE'");
+	$engine = $resql ? $db->fetch_object($resql) : null;
+	if (!$engine || (string) $engine->ENGINE !== 'InnoDB' || (string) $engine->TABLE_COLLATION !== 'utf8mb4_uca1400_ai_ci') throw new RuntimeException('RST-002B assignment engine or collation mismatch.');
+
+	$expectedColumns = array(
+		'rowid'=>'bigint(20)|NO||auto_increment|', 'entity'=>'int(11)|NO|||', 'fk_activity'=>'int(11)|NO|||', 'fk_user'=>'int(11)|NO|||',
+		'is_primary'=>'tinyint(1)|NO|0||', 'date_start'=>'datetime|NO|||', 'date_end'=>'datetime|YES|NULL||', 'fk_user_assign'=>'int(11)|YES|NULL||',
+		'reason'=>'text|NO|||', 'date_creation'=>'datetime|NO|||', 'tms'=>'timestamp|NO|current_timestamp()|on update current_timestamp()|',
+		'current_user_id'=>'bigint(20)|YES|NULL|stored generated|casewhendate_endisnullthenfk_userelsenullend',
+		'current_primary_activity_id'=>'bigint(20)|YES|NULL|stored generated|casewhendate_endisnullandis_primary=1thenfk_activityelsenullend',
+	);
+	$actualColumns = array(); $characters = array();
+	$sql = "SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,GENERATION_EXPRESSION,CHARACTER_SET_NAME,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' ORDER BY ORDINAL_POSITION";
+	$resql = $db->query($sql);
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-002B assignment columns.');
+	while ($row = $db->fetch_array($resql)) {
+		$default = $row['COLUMN_DEFAULT'];
+		if ($default === null) $default = $row['IS_NULLABLE'] === 'YES' ? 'NULL' : '';
+		$actualColumns[$row['COLUMN_NAME']] = strtolower($row['COLUMN_TYPE']).'|'.$row['IS_NULLABLE'].'|'.$default.'|'.strtolower($row['EXTRA']).'|'.mjl_rst005_normalize_definition($row['GENERATION_EXPRESSION']);
+		if ($row['CHARACTER_SET_NAME'] !== null) $characters[$row['COLUMN_NAME']] = $row['CHARACTER_SET_NAME'].'|'.$row['COLLATION_NAME'];
+	}
+	if (!mjl_rst005_map_equal($actualColumns, $expectedColumns)) throw new RuntimeException('RST-002B assignment column definitions mismatch: '.mjl_rst005_map_mismatch($actualColumns, $expectedColumns));
+	$expectedCharacters = array('reason'=>'utf8mb4|utf8mb4_uca1400_ai_ci');
+	if (!mjl_rst005_map_equal($characters, $expectedCharacters)) throw new RuntimeException('RST-002B assignment character definitions mismatch.');
+
+	$groups = array();
+	$resql = $db->query("SELECT INDEX_NAME,NON_UNIQUE,INDEX_TYPE,COLUMN_NAME,COLLATION,COALESCE(SUB_PART,0) AS SUB_PART FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."' ORDER BY INDEX_NAME,SEQ_IN_INDEX");
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-002B assignment indexes.');
+	while ($row = $db->fetch_array($resql)) { $name = $row['INDEX_NAME']; if (!isset($groups[$name])) $groups[$name] = array('unique'=>(int) $row['NON_UNIQUE'] === 0,'type'=>$row['INDEX_TYPE'],'columns'=>array()); $groups[$name]['columns'][] = $row['COLLATION'].':'.$row['SUB_PART'].':'.$row['COLUMN_NAME']; }
+	$actualIndexes = array(); foreach ($groups as $name => $definition) $actualIndexes[$name] = ($definition['unique'] ? 'U' : 'N').'|'.$definition['type'].'|'.implode(',', $definition['columns']);
+	$expectedIndexes = array(
+		'PRIMARY'=>'U|BTREE|A:0:rowid', 'uk_mjl_activity_assignment_current_user'=>'U|BTREE|A:0:entity,A:0:fk_activity,A:0:current_user_id',
+		'uk_mjl_activity_assignment_current_primary'=>'U|BTREE|A:0:entity,A:0:current_primary_activity_id',
+		'idx_mjl_activity_assignment_current_activity'=>'N|BTREE|A:0:entity,A:0:fk_activity,A:0:date_end',
+		'idx_mjl_activity_assignment_current_agent'=>'N|BTREE|A:0:entity,A:0:fk_user,A:0:date_end',
+		'idx_mjl_activity_assignment_activity_fk'=>'N|BTREE|A:0:fk_activity', 'idx_mjl_activity_assignment_agent_fk'=>'N|BTREE|A:0:fk_user',
+		'idx_mjl_activity_assignment_assigner'=>'N|BTREE|A:0:fk_user_assign',
+	);
+	if (!mjl_rst005_map_equal($actualIndexes, $expectedIndexes)) throw new RuntimeException('RST-002B assignment index definitions mismatch: '.mjl_rst005_map_mismatch($actualIndexes, $expectedIndexes));
+
+	$actualFks = array();
+	$sql = "SELECT k.CONSTRAINT_NAME,k.COLUMN_NAME,k.REFERENCED_TABLE_NAME,k.REFERENCED_COLUMN_NAME,r.UPDATE_RULE,r.DELETE_RULE FROM information_schema.KEY_COLUMN_USAGE k INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS r ON r.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA AND r.CONSTRAINT_NAME=k.CONSTRAINT_NAME WHERE k.CONSTRAINT_SCHEMA=DATABASE() AND k.TABLE_NAME='".$db->escape($table)."' AND k.REFERENCED_TABLE_NAME IS NOT NULL ORDER BY k.CONSTRAINT_NAME,k.ORDINAL_POSITION";
+	$resql = $db->query($sql); if (!$resql) throw new RuntimeException('Unable to inspect RST-002B assignment foreign keys.');
+	while ($row = $db->fetch_array($resql)) $actualFks[$row['CONSTRAINT_NAME']] = $row['COLUMN_NAME'].'>'.$row['REFERENCED_TABLE_NAME'].':'.$row['REFERENCED_COLUMN_NAME'].'|'.$row['UPDATE_RULE'].'|'.$row['DELETE_RULE'];
+	$expectedFks = array('fk_mjl_activity_assignment_activity'=>'fk_activity>'.$prefix.'mjlfinancement_activity:rowid|RESTRICT|RESTRICT','fk_mjl_activity_assignment_agent'=>'fk_user>'.$prefix.'user:rowid|RESTRICT|RESTRICT','fk_mjl_activity_assignment_assigner'=>'fk_user_assign>'.$prefix.'user:rowid|RESTRICT|RESTRICT');
+	if (!mjl_rst005_map_equal($actualFks, $expectedFks)) throw new RuntimeException('RST-002B assignment foreign-key definitions mismatch: '.mjl_rst005_map_mismatch($actualFks, $expectedFks));
+
+	$actualChecks = array();
+	$resql = $db->query("SELECT tc.CONSTRAINT_NAME,cc.CHECK_CLAUSE FROM information_schema.TABLE_CONSTRAINTS tc INNER JOIN information_schema.CHECK_CONSTRAINTS cc ON cc.CONSTRAINT_SCHEMA=tc.CONSTRAINT_SCHEMA AND cc.CONSTRAINT_NAME=tc.CONSTRAINT_NAME WHERE tc.CONSTRAINT_SCHEMA=DATABASE() AND tc.TABLE_NAME='".$db->escape($table)."' AND tc.CONSTRAINT_TYPE='CHECK' ORDER BY tc.CONSTRAINT_NAME");
+	if (!$resql) throw new RuntimeException('Unable to inspect RST-002B assignment checks.');
+	while ($row = $db->fetch_array($resql)) $actualChecks[$row['CONSTRAINT_NAME']] = mjl_rst005_normalize_definition($row['CHECK_CLAUSE']);
+	$expectedChecks = array('chk_mjl_activity_assignment_entity_positive'=>'entity>0','chk_mjl_activity_assignment_primary'=>'is_primaryin(0,1)','chk_mjl_activity_assignment_reason_nonblank'=>"reasonregexp'[^[:space:]]'",'chk_mjl_activity_assignment_dates'=>'date_endisnullordate_end>=date_start');
+	foreach ($expectedChecks as $name => $expression) $expectedChecks[$name] = mjl_rst005_normalize_definition($expression);
+	if (!mjl_rst005_map_equal($actualChecks, $expectedChecks)) throw new RuntimeException('RST-002B assignment check definitions mismatch: '.mjl_rst005_map_mismatch($actualChecks, $expectedChecks));
+	$expectedTriggers = $withTriggers ? mjl_rst002b_expected_trigger_map(mjl_rst002b_assignment_trigger_statements($db)) : array();
+	if (!mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db, $table), $expectedTriggers)) throw new RuntimeException('RST-002B assignment trigger definitions mismatch.');
+}
+
 function mjl_rst002b_require_target_objects(DoliDB $db)
 {
 	$prefix = mjl_rst005_prefix($db);
 	$activity = $prefix.'mjlfinancement_activity';
 	$assignment = $prefix.'mjlfinancement_activity_assignment';
 	if (mjl_rst002b_detect_schema($db) !== RST002B_SCHEMA_TARGET) throw new RuntimeException('RST-002B target boundary is incomplete.');
+	mjl_rst002b_require_retained_schema($db);
 	$expectedActivity = array('rowid','entity','ref','fk_partner','fk_project','name','description','date_start','date_end','draft_authorized_amount','first_submitted_amount','latest_validated_amount','validation_status','is_cancelled','version','date_creation','tms','fk_user_creat','fk_user_modif');
 	if (mjl_rst005_table_columns($db, $activity) !== $expectedActivity) throw new RuntimeException('RST-002B Activity columns do not match the target.');
 	$expectedAssignment = array('rowid','entity','fk_activity','fk_user','is_primary','date_start','date_end','fk_user_assign','reason','date_creation','tms','current_user_id','current_primary_activity_id');
 	if (mjl_rst005_table_columns($db, $assignment) !== $expectedAssignment) throw new RuntimeException('RST-002B assignment columns do not match the target.');
+	mjl_rst005_schema_contract($db, $activity, RST002B_ACTIVITY_SCHEMA);
+	mjl_rst002b_require_assignment_contract($db, $assignment);
 	$names = function ($sql, $field) use ($db) {
 		$resql = $db->query($sql);
 		if (!$resql) throw new RuntimeException('Unable to inspect an RST-002B schema set.');
@@ -410,6 +585,14 @@ function mjl_rst002b_require_target_objects(DoliDB $db)
 	sort($roleTriggers, SORT_STRING);
 	$actual = $names("SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='".$db->escape($prefix.'mjlfinancement_user_role')."' ORDER BY TRIGGER_NAME", 'TRIGGER_NAME');
 	if ($actual !== $roleTriggers) throw new RuntimeException('RST-002B role trigger set mismatch.');
+	$allRoleExpected = mjl_rst002b_expected_trigger_map(mjl_rst002b_role_invariant_trigger_statements($db, true));
+	$expectedRoleDefinitions = array(); $expectedUserDefinitions = array();
+	foreach ($allRoleExpected as $name => $definition) {
+		if ($name === $prefix.'mjlfinancement_user_admin_bu') $expectedUserDefinitions[$name] = $definition;
+		else $expectedRoleDefinitions[$name] = $definition;
+	}
+	if (!mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db, $prefix.'mjlfinancement_user_role'), $expectedRoleDefinitions)) throw new RuntimeException('RST-002B role trigger definitions mismatch.');
+	if (!mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db, $prefix.'user'), $expectedUserDefinitions)) throw new RuntimeException('RST-002B user trigger definitions mismatch.');
 }
 
 function mjl_rst005_table_columns(DoliDB $db, $table)
@@ -499,11 +682,22 @@ function mjl_rst005_schema_contract(DoliDB $db, $table, $flavour, $phase1Guard =
 		$expectedTriggers[$prefix.'mjl_activity_rst005_bu'] = 'BEFORE UPDATE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity mutation is dormant in RST-005'");
 		$expectedTriggers[$prefix.'mjl_activity_rst005_bd'] = 'BEFORE DELETE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity deletion is dormant in RST-005'");
 	}
+	if ($flavour === RST002B_ACTIVITY_SCHEMA) {
+		$insertSql = mjl_rst005_insert_trigger_sql($prefix, $table);
+		$insertBody = substr($insertSql, strpos($insertSql, ' FOR EACH ROW ') + strlen(' FOR EACH ROW '));
+		$updateSql = mjl_rst002b_activity_update_trigger_sql($db);
+		$updateBody = substr($updateSql, strpos($updateSql, ' FOR EACH ROW ') + strlen(' FOR EACH ROW '));
+		$expectedTriggers[$prefix.'mjl_activity_rst005_bi'] = 'BEFORE INSERT:'.mjl_rst005_normalize_definition($insertBody);
+		$expectedTriggers[$prefix.'mjl_activity_rst002b_bu'] = 'BEFORE UPDATE:'.mjl_rst005_normalize_definition($updateBody);
+		$expectedTriggers[$prefix.'mjl_activity_rst005_bd'] = 'BEFORE DELETE:'.mjl_rst005_normalize_definition("SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity deletion is dormant in RST-005'");
+	}
 	if (!mjl_rst005_map_equal($actualTriggers, $expectedTriggers)) throw new RuntimeException('RST-005 Activity trigger definitions mismatch: '.mjl_rst005_map_mismatch($actualTriggers, $expectedTriggers));
 	// Reaching this point means every physical definition represented by the
 	// sealed SQL oracle matched. Return that oracle identity, never a second
 	// unrelated hash vocabulary.
-	return $flavour === RST005_SCHEMA_PHASE1 ? RST005_PHASE1_ORACLE_SHA256 : RST005_TARGET_ORACLE_SHA256;
+	if ($flavour === RST005_SCHEMA_PHASE1) return RST005_PHASE1_ORACLE_SHA256;
+	if ($flavour === RST005_SCHEMA_TARGET) return RST005_TARGET_ORACLE_SHA256;
+	return RST002B_SCHEMA_TARGET;
 }
 
 function mjl_rst005_cutover_guard_sql($prefix, $table)

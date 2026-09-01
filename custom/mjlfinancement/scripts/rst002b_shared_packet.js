@@ -5,53 +5,48 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { protectedTreeEvidence, sanitizedRuntimeEnvironment, SHARED_PROFILE, targetLockPaths, validateCustodyAncestors } = require('./rst005_shared_launcher.lib');
 const { canonicalJson } = require('./rst002b_shared_operation.lib');
 
 function invariant(value, message) { if (!value) throw new Error(message); }
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
-function protectedTree(root) {
-  const roots = ['custom','docs','tests','AGENTS.md','CONTEXT.md','DESIGN.md','README.md','docker-compose.yml','package.json','package-lock.json','playwright.config.js'];
-  const entries = [];
-  const visit = (relative) => {
-    const absolute = path.join(root, relative); const stat = fs.lstatSync(absolute);
-    invariant(!stat.isSymbolicLink(), `Protected source link refused: ${relative}`);
-    if (stat.isDirectory()) {
-      entries.push({ path: relative, type: 'directory', mode: stat.mode & 0o7777 });
-      for (const name of fs.readdirSync(absolute).sort()) visit(path.join(relative, name));
-    } else { invariant(stat.isFile(), `Protected source type refused: ${relative}`); entries.push({ path: relative, type: 'file', mode: stat.mode & 0o7777, sha256: sha256(fs.readFileSync(absolute)) }); }
-  };
-  for (const relative of roots) visit(relative);
-  return { manifest: { version: 1, unit: 'RST-002B', entries }, sha256: sha256(Buffer.from(`${canonicalJson(entries)}\n`)) };
-}
-function writeProtected(file, bytes) {
-  const descriptor = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o400);
-  try { fs.writeFileSync(descriptor, bytes); fs.fsyncSync(descriptor); fs.fchownSync(descriptor, 0, 0); fs.fchmodSync(descriptor, 0o400); } finally { fs.closeSync(descriptor); }
+function fsyncDirectory(directory) { const descriptor = fs.openSync(directory, fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0)); try { fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); } }
+function protectedDirectory(directory) { fs.mkdirSync(directory, { mode: 0o700 }); fs.chownSync(directory,0,0); fs.chmodSync(directory,0o700); fsyncDirectory(path.dirname(directory)); }
+function protectedFile(file, bytes) { const descriptor = fs.openSync(file, fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_WRONLY|fs.constants.O_NOFOLLOW,0o400); try { fs.writeFileSync(descriptor,bytes); fs.fsyncSync(descriptor); fs.fchownSync(descriptor,0,0); fs.fchmodSync(descriptor,0o400); } finally { fs.closeSync(descriptor); } fsyncDirectory(path.dirname(file)); }
+function protectedExistingFile(file) { invariant(path.isAbsolute(file) && path.normalize(file) === file && fs.realpathSync(file) === file, 'Prior report path is invalid.'); validateCustodyAncestors(path.dirname(file),0); const descriptor=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW); try { const stat=fs.fstatSync(descriptor); invariant(stat.isFile() && stat.uid===0 && stat.nlink===1 && (stat.mode&0o7777)===0o400 && stat.size>0 && stat.size<=65536,'Prior report custody is invalid.'); return fs.readFileSync(descriptor); } finally { fs.closeSync(descriptor); } }
+function parseArguments(argv) {
+  const values = {};
+  for (const argument of argv) { const match = argument.match(/^--(mode|output-root|prior-report)=(.+)$/); invariant(match && values[match[1]] === undefined, 'Packet arguments are invalid.'); values[match[1]] = match[2]; }
+  invariant(['execute','rollback'].includes(values.mode) && path.isAbsolute(values['output-root']) && path.normalize(values['output-root']) === values['output-root'] && !fs.existsSync(values['output-root']), 'Packet target is invalid.');
+  invariant(values.mode === 'rollback' ? path.isAbsolute(values['prior-report'] || '') : values['prior-report'] === undefined, 'Rollback requires one prior report; execute forbids it.'); return values;
 }
 function main() {
-  invariant(typeof process.getuid === 'function' && process.getuid() === 0, 'Root operator required.');
-  invariant(process.argv.length === 3 && process.argv[2].startsWith('--output-root='), 'Use exactly --output-root=/absolute/new/directory.');
-  const outputRoot = process.argv[2].slice(14); const repositoryRoot = process.cwd();
-  invariant(path.isAbsolute(outputRoot) && path.normalize(outputRoot) === outputRoot && !fs.existsSync(outputRoot), 'Output root must be new and absolute.');
-  invariant(execFileSync('/usr/bin/git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: repositoryRoot, encoding: 'utf8' }) === '', 'Repository must be clean.');
-  const commit = execFileSync('/usr/bin/git', ['rev-parse', '--verify', 'HEAD'], { cwd: repositoryRoot, encoding: 'utf8' }).trim();
-  const key = crypto.randomBytes(32); const nonce = crypto.randomBytes(16).toString('hex');
-  const tree = protectedTree(repositoryRoot);
-  const approval = { version: 1, unit: 'RST-002B', mode: 'execute', approved_commit: commit,
-    complete_tree_sha256: tree.sha256, repository_root: repositoryRoot,
-    compose_project_name: 'mjl-dolibarr-poc', database_name: 'dolidb',
-    compose_files: [{ path: path.join(repositoryRoot, 'docker-compose.yml'), sha256: sha256(fs.readFileSync(path.join(repositoryRoot, 'docker-compose.yml'))) }],
-    backup_root: path.join(outputRoot, 'backups'), evidence_root: path.join(outputRoot, 'evidence'),
-    backup_key_sha256: sha256(key), nonce,
-    issued_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600000).toISOString(),
-    docker_runtime: { images: { mariadb: { id: execFileSync('/usr/bin/docker', ['image', 'inspect', '--format', '{{.Id}}', 'mariadb:11'], { encoding: 'utf8' }).trim() }, dolibarr: { id: execFileSync('/usr/bin/docker', ['image', 'inspect', '--format', '{{.Id}}', 'dolibarr/dolibarr:23.0.2'], { encoding: 'utf8' }).trim() } } },
-  };
-  fs.mkdirSync(outputRoot, { mode: 0o700 }); fs.chownSync(outputRoot, 0, 0);
-  for (const name of ['approval','key','traffic','backups','evidence']) { fs.mkdirSync(path.join(outputRoot, name), { mode: 0o700 }); fs.chownSync(path.join(outputRoot, name), 0, 0); }
-  writeProtected(path.join(outputRoot, 'approval/record'), Buffer.from(`${canonicalJson(approval)}\n`));
-  writeProtected(path.join(outputRoot, 'key/bytes'), key);
-  writeProtected(path.join(outputRoot, 'protected-tree-manifest.json'), Buffer.from(`${canonicalJson(tree.manifest)}\n`));
-  writeProtected(path.join(outputRoot, 'traffic/template'), Buffer.from(`${canonicalJson({ version: 1, unit: 'RST-002B', nonce, stopped_at: 'REPLACE', expires_at: 'REPLACE', exclusive_docker_administration: true, no_direct_host_writers: true, no_direct_database_writers: true })}\n`));
-  key.fill(0);
-  process.stdout.write(`${JSON.stringify({ status: 'awaiting-traffic-stop-and-explicit-approval', output_root: outputRoot, approved_commit: commit, complete_tree_sha256: approval.complete_tree_sha256 })}\n`);
+  invariant(typeof process.getuid === 'function' && process.getuid() === 0, 'Root operator required.'); const args = parseArguments(process.argv.slice(2)); const repositoryRoot = process.cwd(); const env = sanitizedRuntimeEnvironment(process.env,'shared');
+  invariant(repositoryRoot === '/home/yoann/Documents/Projects/mjl-dolibarr-poc' && execFileSync('/usr/bin/git',['status','--porcelain=v1','--untracked-files=all'],{cwd:repositoryRoot,encoding:'utf8',env}) === '', 'Repository must be the exact clean shared root.');
+  const commit = execFileSync('/usr/bin/git',['rev-parse','--verify','HEAD'],{cwd:repositoryRoot,encoding:'utf8',env}).trim(); const tree = protectedTreeEvidence(repositoryRoot); const composeFile = path.join(repositoryRoot,'docker-compose.yml');
+  const compose = ['compose','--env-file','/dev/null','--project-directory',repositoryRoot,'-f',composeFile,'-p','mjl-dolibarr-poc']; const config = execFileSync('/usr/bin/docker',[...compose,'config','--format','json'],{cwd:repositoryRoot,env});
+  const containers={}; for (const service of ['dolibarr','mariadb']) { containers[service]=execFileSync('/usr/bin/docker',[...compose,'ps','-a','-q',service],{cwd:repositoryRoot,encoding:'utf8',env}).trim(); invariant(/^[a-f0-9]{64}$/.test(containers[service]),`Shared ${service} container identity is invalid.`); }
+  const plugins = JSON.parse(execFileSync('/usr/bin/docker',['info','--format','{{json .ClientInfo.Plugins}}'],{encoding:'utf8',env})) || [];
+  const composePlugin = plugins.find((plugin) => plugin && plugin.Name === 'compose' && path.isAbsolute(plugin.Path)); invariant(composePlugin, 'Docker Compose plugin is unavailable.');
+  const composePluginPath = fs.realpathSync(composePlugin.Path);
+  const key = crypto.randomBytes(32); const operationId = crypto.randomBytes(16).toString('hex'); const nonce = crypto.randomBytes(16).toString('hex');
+  const sharedLocks = targetLockPaths({target_profile:'shared',...SHARED_PROFILE}); const targetLock = sharedLocks.target; const mutationLock = sharedLocks.mutation; const outputRoot = args['output-root']; const now = new Date();
+  const approval = { version:1,unit:'RST-002B',mode:args.mode,operation_id:operationId,approved_commit:commit,complete_tree_sha256:tree.completeTreeSha256,complete_tree_manifest_sha256:tree.manifestSha256,
+    repository_root:repositoryRoot,compose_project_name:'mjl-dolibarr-poc',database_name:'dolidb',compose_config_sha256:sha256(config),compose_files:[{path:composeFile,sha256:sha256(fs.readFileSync(composeFile))}],containers,
+    backup_root:path.join(outputRoot,'backups'),evidence_root:path.join(outputRoot,'evidence'),backup_key_sha256:sha256(key),nonce,target_lock_path:targetLock,mutation_lock_path:mutationLock,
+    issued_at:now.toISOString(),expires_at:new Date(now.getTime()+3600000).toISOString(),images:{mariadb:JSON.parse(execFileSync('/usr/bin/docker',['image','inspect','mariadb:11'],{encoding:'utf8',env}))[0].Id,dolibarr:JSON.parse(execFileSync('/usr/bin/docker',['image','inspect','dolibarr/dolibarr:23.0.2'],{encoding:'utf8',env}))[0].Id} };
+  if (args.mode === 'rollback') { const report = protectedExistingFile(args['prior-report']); const value=JSON.parse(report.toString('utf8')); const keys=['approved_commit','complete_tree_sha256','mode','operation_id','previous_sha256','status','unit','version'].sort(); invariant(report.toString('utf8')===`${canonicalJson(value)}\n` && Object.keys(value).sort().join('\n')===keys.join('\n') && value.version===1 && value.unit==='RST-002B' && value.mode==='execute' && value.status==='complete' && value.approved_commit===commit && value.complete_tree_sha256===tree.completeTreeSha256,'Prior execution report is invalid.'); approval.prior_execution_report = {path:args['prior-report'],sha256:sha256(report)}; }
+  protectedDirectory(outputRoot); for (const name of ['approval','key','traffic','backups','evidence']) protectedDirectory(path.join(outputRoot,name));
+  for (const lockPath of [targetLock,mutationLock]) { const descriptor = fs.openSync(lockPath,fs.constants.O_CREAT|fs.constants.O_RDWR|fs.constants.O_NOFOLLOW,0o600); try { fs.fchownSync(descriptor,0,0); fs.fchmodSync(descriptor,0o600); fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); } }
+  const approvalBytes = Buffer.from(`${canonicalJson(approval)}\n`); protectedFile(path.join(outputRoot,'approval/record'),approvalBytes); protectedFile(path.join(outputRoot,'key/bytes'),key); protectedFile(path.join(outputRoot,'protected-tree-manifest.json'),Buffer.from(`${canonicalJson(tree.manifest)}\n`));
+  protectedFile(path.join(outputRoot,'traffic/template'),Buffer.from(`${canonicalJson({version:1,unit:'RST-002B',operation_id:operationId,approval_sha256:sha256(approvalBytes),exclusive_docker_administration:'REPLACE_WITH_TRUE',no_direct_host_writers:'REPLACE_WITH_TRUE',no_direct_database_writers:'REPLACE_WITH_TRUE',stopped_at:'REPLACE',expires_at:'REPLACE_WITHIN_15_MINUTES'})}\n`));
+  const invocation = {version:1,unit:'RST-002B',status:'awaiting-traffic-stop-and-explicit-approval',mode:args.mode,
+    argv:['/usr/bin/flock','--nonblock','--no-fork',targetLock,'/usr/bin/flock','--nonblock','--no-fork',mutationLock,'/opt/node','custom/mjlfinancement/scripts/rst002b_shared_launcher.js',`--mode=${args.mode}`],
+    outer_argv:['/usr/bin/docker','run','--rm','--pull=never','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--tmpfs','/tmp:rw,noexec,nosuid,nodev,mode=1777','--tmpfs','/var/www/documents:rw,noexec,nosuid,nodev,mode=0700','--tmpfs','/var/www/html/custom:rw,noexec,nosuid,nodev,mode=0700','--workdir',repositoryRoot,
+      '--volume',`${repositoryRoot}:${repositoryRoot}:ro`,'--volume',`${path.join(outputRoot,'approval')}:/run/mjl-rst002b/approval:ro`,'--volume',`${path.join(outputRoot,'key')}:/run/mjl-rst002b/key:ro`,'--volume',`${path.join(outputRoot,'traffic')}:/run/mjl-rst002b/traffic:ro`,
+      '--volume',`${approval.backup_root}:${approval.backup_root}`,'--volume',`${approval.evidence_root}:${approval.evidence_root}`,...(args.mode==='rollback'?['--volume',`${args['prior-report']}:${args['prior-report']}:ro`]:[]),'--volume',`${targetLock}:${targetLock}`,'--volume',`${mutationLock}:${mutationLock}`,'--volume','/var/run/docker.sock:/var/run/docker.sock','--volume',`${process.execPath}:/opt/node:ro`,'--volume','/usr/bin/git:/usr/bin/git:ro','--volume','/usr/bin/docker:/usr/bin/docker:ro','--volume','/usr/bin/flock:/usr/bin/flock:ro','--volume',`${composePluginPath}:${composePluginPath}:ro`,
+      '--entrypoint','/usr/bin/flock',approval.images.dolibarr,'--nonblock','--no-fork',targetLock,'/usr/bin/flock','--nonblock','--no-fork',mutationLock,'/opt/node','custom/mjlfinancement/scripts/rst002b_shared_launcher.js',`--mode=${args.mode}`]};
+  protectedFile(path.join(outputRoot,'invocation.json'),Buffer.from(`${canonicalJson(invocation)}\n`));
+  key.fill(0); process.stdout.write(`${JSON.stringify({status:'awaiting-traffic-stop-and-explicit-approval',mode:args.mode,output_root:outputRoot,approved_commit:commit,complete_tree_sha256:approval.complete_tree_sha256})}\n`);
 }
-try { main(); } catch (_) { process.stderr.write('RST-002B packet generation failed closed.\n'); process.exitCode = 1; }
+try { main(); } catch (_) { process.stderr.write('RST-002B packet generation failed closed.\n'); process.exitCode=1; }

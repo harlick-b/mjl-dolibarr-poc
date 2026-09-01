@@ -4,15 +4,14 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '../..');
 
-test('RST-002A retains Partner-scope schema but removes it from runtime authorization', () => {
+test('RST-002B removes Partner scope and replaces it with assignment authorization', () => {
   const scopeLibrary = fs.readFileSync(path.join(root, 'custom/mjlfinancement/lib/mjl_scope.lib.php'), 'utf8');
-  const schema = fs.readFileSync(path.join(root, 'custom/mjlfinancement/sql/llx_mjlfinancement_user_soc_scope.sql'), 'utf8');
-  const keys = fs.readFileSync(path.join(root, 'custom/mjlfinancement/sql/llx_mjlfinancement_user_soc_scope.key.sql'), 'utf8');
+  const schema = fs.readFileSync(path.join(root, 'custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.sql'), 'utf8');
+  const keys = fs.readFileSync(path.join(root, 'custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.key.sql'), 'utf8');
 
-  expect(schema).toContain('CREATE TABLE llx_mjlfinancement_user_soc_scope');
-  expect(keys).toContain('idx_mjlfinancement_user_soc_scope_active');
+  expect(schema).toContain('CREATE TABLE llx_mjlfinancement_activity_assignment');
+  expect(keys).toContain('idx_mjl_activity_assignment_current_agent');
   expect(scopeLibrary).not.toContain('mjlfinancement_user_soc_scope');
-  expect(scopeLibrary).not.toContain('function mjl_scope_partner_sql_filter');
-  expect(scopeLibrary).not.toContain('function mjl_scope_can_access_object');
+  expect(scopeLibrary).toContain('function mjl_scope_has_current_activity_assignment');
   expect(scopeLibrary).toContain('function mjl_scope_assign_access_profile($userId, $roleCode, User $actor');
 });

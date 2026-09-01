@@ -166,7 +166,12 @@ function mjl_scope_assign_access_profile($userId, $roleCode, User $actor, $entit
 		$db->rollback('mjl access target changed');
 		return array(-1, 'Utilisateur introuvable dans cette entite.');
 	}
-	if ($roleCode !== 'AGENT_SAISIE' && mjl_scope_has_current_activity_assignment($userId, $entity)) {
+	$hasAssignment = mjl_scope_has_current_activity_assignment($userId, $entity);
+	if ($hasAssignment === null) {
+		$db->rollback('mjl access assignment inspection failed');
+		return array(-1, 'La vérification des affectations a échoué.');
+	}
+	if ($roleCode !== 'AGENT_SAISIE' && $hasAssignment) {
 		$db->rollback('mjl access assignment guard');
 		return array(-1, 'Les affectations d’Activité doivent d’abord être retirées ou transférées.');
 	}
@@ -225,7 +230,12 @@ function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
 		$db->rollback('mjl deactivate target changed');
 		return array(-1, 'Utilisateur introuvable dans cette entite.');
 	}
-	if (mjl_scope_has_current_activity_assignment($userId, $entity)) {
+	$hasAssignment = mjl_scope_has_current_activity_assignment($userId, $entity);
+	if ($hasAssignment === null) {
+		$db->rollback('mjl deactivate assignment inspection failed');
+		return array(-1, 'La vérification des affectations a échoué.');
+	}
+	if ($hasAssignment) {
 		$db->rollback('mjl deactivate assignment guard');
 		return array(-1, 'Les affectations d’Activité doivent d’abord être retirées ou transférées.');
 	}
@@ -277,8 +287,9 @@ function mjl_scope_assign_active_role($userId, $roleCode, $actorId = null, $enti
 
 	$db->begin();
 	$locked = mjl_scope_lock_user_and_active_role($userId, $entity);
-	if (!$locked || (int) $locked['user']['entity'] !== $entity || (int) $locked['user']['admin'] !== 0
-		|| ($roleCode !== 'AGENT_SAISIE' && mjl_scope_has_current_activity_assignment($userId, $entity))) {
+	$hasAssignment = mjl_scope_has_current_activity_assignment($userId, $entity);
+	if ($hasAssignment === null || !$locked || (int) $locked['user']['entity'] !== $entity || (int) $locked['user']['admin'] !== 0
+		|| ($roleCode !== 'AGENT_SAISIE' && $hasAssignment)) {
 		$db->rollback();
 		return -1;
 	}
@@ -427,12 +438,17 @@ function mjl_scope_has_current_activity_assignment($userId, $entity)
 	$table = $db->prefix().'mjlfinancement_activity_assignment';
 	$sql = "SELECT COUNT(*) AS nb FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."'";
 	$resql = $db->query($sql);
-	$row = $resql ? $db->fetch_object($resql) : null;
-	if (!$row || (int) $row->nb !== 1) return false;
+	if (!$resql) return null;
+	$row = $db->fetch_object($resql);
+	if (!$row) return null;
+	if ((int) $row->nb === 0) return false;
+	if ((int) $row->nb !== 1) return null;
 	$sql = 'SELECT COUNT(*) AS nb FROM '.$table.' WHERE entity='.(int) $entity.' AND fk_user='.(int) $userId.' AND date_end IS NULL';
 	$resql = $db->query($sql);
-	$row = $resql ? $db->fetch_object($resql) : null;
-	return $row && (int) $row->nb > 0;
+	if (!$resql) return null;
+	$row = $db->fetch_object($resql);
+	if (!$row) return null;
+	return (int) $row->nb > 0;
 }
 
 function mjl_scope_rights_for_role($roleCode)

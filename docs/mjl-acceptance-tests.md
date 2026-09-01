@@ -66,13 +66,15 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   shared project or shared bind paths.
 - 'test:rst002b' installs the current RST-002B target in one isolated tenant,
   rolls it back to the sealed RST-005 schema, returns forward, and proves
+  forward and reverse known-prefix resumption,
   current-assignment reads, immediate revocation, add/remove/primary-transfer,
   optimistic locking, transactional audit rollback, concurrency, reciprocal
   role/user guards, entity isolation, direct SQL denial, shared-state equality,
   and whole-tenant destruction.
 - 'test:rst002b-launcher' exercises the dedicated RST-002B immutable evidence
-  record and fail-closed packet/launcher seam without touching the shared
-  tenant. Shared execution still requires approval of the exact clean
+  chain, recovery-prefix rejection, backup-verifier adaptation, exact-lock,
+  root-custody, and fail-closed packet/launcher seams without touching the
+  shared tenant. Shared execution still requires approval of the exact clean
   implementation commit and protected-tree digest.
 - The default browser contract covers retained reference/auth/document/fixture
   behavior plus the current RST-002B role, assignment, revocation, concurrency,

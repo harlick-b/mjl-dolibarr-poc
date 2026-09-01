@@ -68,6 +68,9 @@ class MjlActivityAssignment
 			foreach ($current as $row) {
 				if (!$this->eligibleAgent($users, $roles, (int) $row['fk_user'], $entity)) return $this->rollbackOutcome('FAILED');
 			}
+			$primaryCount = 0;
+			foreach ($current as $row) if ((int) $row['is_primary'] === 1) $primaryCount++;
+			if ($primaryCount !== 1) return $this->rollbackOutcome('FAILED');
 
 			$before = $this->auditAssignments($current);
 			$action = '';

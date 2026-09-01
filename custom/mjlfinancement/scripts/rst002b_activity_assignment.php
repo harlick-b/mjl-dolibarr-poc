@@ -22,7 +22,7 @@ function rst002b_arguments(array $argv)
 	return $options;
 }
 
-function rst002b_require_boundary()
+function rst002b_require_boundary($mode)
 {
 	if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1') {
 		if (!preg_match('/^mjl-test-[a-z0-9-]+$/', (string) getenv('MJL_DISPOSABLE_PROJECT_NAME'))) throw new RuntimeException('RST-002B disposable project attestation failed.');
@@ -36,7 +36,13 @@ function rst002b_require_boundary()
 	$stat = @lstat($path);
 	if ($stat === false || is_link($path) || !is_file($path) || (int) $stat['uid'] !== 0 || (((int) $stat['mode']) & 07777) !== 0400 || (int) $stat['nlink'] !== 1) throw new RuntimeException('RST-002B shared authorization custody is invalid.');
 	$record = json_decode((string) @file_get_contents($path), true);
-	if (!is_array($record) || ($record['unit'] ?? '') !== 'RST-002B' || !preg_match('/^[a-f0-9]{40}$/', (string) ($record['approved_commit'] ?? '')) || !preg_match('/^[a-f0-9]{64}$/', (string) ($record['complete_tree_sha256'] ?? ''))) throw new RuntimeException('RST-002B shared authorization record is invalid.');
+	$expected = array('approval_sha256','approved_commit','checkpoint_sha256','complete_tree_sha256','mode','operation_id','unit','version'); sort($expected);
+	$keys = is_array($record) ? array_keys($record) : array(); sort($keys);
+	if ($keys !== $expected) throw new RuntimeException('RST-002B shared authorization fields are invalid.');
+	if (($record['version'] ?? null) !== 1 || ($record['unit'] ?? '') !== 'RST-002B' || ($record['mode'] ?? '') !== $mode
+		|| !preg_match('/^[a-f0-9]{32}$/', (string) ($record['operation_id'] ?? '')) || !preg_match('/^[a-f0-9]{40}$/', (string) ($record['approved_commit'] ?? ''))
+		|| !preg_match('/^[a-f0-9]{64}$/', (string) ($record['complete_tree_sha256'] ?? '')) || !preg_match('/^[a-f0-9]{64}$/', (string) ($record['approval_sha256'] ?? ''))
+		|| !preg_match('/^[a-f0-9]{64}$/', (string) ($record['checkpoint_sha256'] ?? ''))) throw new RuntimeException('RST-002B shared authorization record is invalid.');
 }
 
 function rst002b_sql_statements($path, $prefix)
@@ -57,11 +63,53 @@ function rst002b_state(DoliDB $db, $prefix)
 	$assignmentExists = mjl_rst002b_table_exists($db, $assignment);
 	$scopeExists = mjl_rst002b_table_exists($db, $scope);
 	$oldColumn = mjl_rst002b_column_exists($db, $activity, 'fk_user_responsible');
-	if (!$assignmentExists && $scopeExists && $oldColumn && mjl_rst005_detect_schema($db, $activity) === RST005_SCHEMA_TARGET) return 'RST-005';
-	if ($assignmentExists && $scopeExists && $oldColumn) return 'assignment-table-created';
-	if ($assignmentExists && $scopeExists && !$oldColumn) return 'activity-guard-cutover';
-	if ($assignmentExists && !$scopeExists && !$oldColumn) return mjl_rst002b_detect_schema($db) === RST002B_SCHEMA_TARGET ? 'target' : 'scope-table-removed';
+	try {
+		if (!$assignmentExists && $scopeExists && $oldColumn) {
+			mjl_rst005_require_target_objects($db, $activity);
+			return 'RST-005';
+		}
+		if ($assignmentExists && $scopeExists && $oldColumn) {
+			rst002b_require_custom_table_set($db, $prefix, true);
+			mjl_rst005_assert_retained_schema_digest($db);
+			mjl_rst005_schema_contract($db, $activity, RST005_SCHEMA_TARGET);
+			mjl_rst002b_require_assignment_contract($db, $assignment, false);
+			return 'assignment-table-created';
+		}
+		if ($assignmentExists && $scopeExists && !$oldColumn) {
+			rst002b_require_custom_table_set($db, $prefix, true);
+			mjl_rst005_assert_retained_schema_digest($db);
+			mjl_rst005_schema_contract($db, $activity, RST002B_ACTIVITY_SCHEMA);
+			mjl_rst002b_require_assignment_contract($db, $assignment, false);
+			return 'activity-guard-cutover';
+		}
+		if ($assignmentExists && !$scopeExists && !$oldColumn) {
+			if (mjl_rst002b_detect_schema($db) === RST002B_SCHEMA_TARGET) {
+				mjl_rst002b_require_target_objects($db);
+				return 'target';
+			}
+			mjl_rst002b_require_prefix_retained_schema($db);
+			mjl_rst005_schema_contract($db, $activity, RST002B_ACTIVITY_SCHEMA);
+			mjl_rst002b_require_assignment_contract($db, $assignment, false);
+			return 'scope-table-removed';
+		}
+	} catch (Throwable $exception) {
+		$GLOBALS['rst002b_state_error'] = $exception->getMessage();
+		return 'unknown';
+	}
 	return 'unknown';
+}
+
+function rst002b_require_custom_table_set(DoliDB $db, $prefix, $withScope)
+{
+	$suffixes = array('activity','activity_assignment','audit_event','invitation','operation_type','password_reset','project_note','user_role');
+	if ($withScope) $suffixes[] = 'user_soc_scope';
+	$expected = array_map(function ($suffix) use ($prefix) { return $prefix.'mjlfinancement_'.$suffix; }, $suffixes);
+	sort($expected, SORT_STRING);
+	$actual = array();
+	$resql = $db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' AND TABLE_NAME LIKE '".$db->escape($prefix)."mjlfinancement\\_%' ORDER BY TABLE_NAME");
+	if (!$resql) throw new RuntimeException('Unable to inspect the RST-002B partial table set.');
+	while ($row = $db->fetch_object($resql)) $actual[] = (string) $row->TABLE_NAME;
+	if ($actual !== $expected) throw new RuntimeException('RST-002B partial table set mismatch.');
 }
 
 function rst002b_require_empty_cutover(DoliDB $db, $prefix)
@@ -105,36 +153,47 @@ function rst002b_restore_scope(DoliDB $db, $prefix)
 	) as $clause) rst002b_query($db, 'ALTER TABLE '.mjl_rst005_ident($table).' '.$clause, 'Unable to restore RST-005 scope object');
 }
 
-function rst002b_rollback(DoliDB $db, $prefix)
+function rst002b_rollback(DoliDB $db, $prefix, $failurePoint = '')
 {
-	if (rst002b_state($db, $prefix) !== 'target') throw new RuntimeException('Rollback refused: RST-002B target is not exact.');
+	$activity = $prefix.'mjlfinancement_activity';
+	$state = rst002b_state($db, $prefix);
+	if (!in_array($state, array('target','scope-table-removed','activity-guard-cutover','assignment-table-created','RST-005'), true)) throw new RuntimeException('Rollback refused: RST-002B state is not a sealed reverse prefix.');
 	rst002b_require_empty_cutover($db, $prefix);
 	$downstream = array('operation','activity_revision','review_decision','workflow_action');
 	foreach ($downstream as $suffix) if (mjl_rst002b_table_exists($db, $prefix.'mjlfinancement_'.$suffix)) throw new RuntimeException('Rollback refused: an RST-002B dependent table exists.');
-	rst002b_query($db, 'DROP TABLE '.mjl_rst005_ident($prefix.'mjlfinancement_activity_assignment'), 'Unable to remove empty assignment table');
-	rst002b_query($db, 'DROP TRIGGER IF EXISTS '.mjl_rst005_ident($prefix.'mjl_activity_rst002b_bu'), 'Unable to remove RST-002B Activity guard');
-	$activity = $prefix.'mjlfinancement_activity';
-	rst002b_query($db, 'ALTER TABLE '.mjl_rst005_ident($activity).' ADD COLUMN fk_user_responsible INT(11) DEFAULT NULL AFTER fk_user_modif, ADD CONSTRAINT chk_mjl_activity_responsible_dormant CHECK (fk_user_responsible IS NULL)', 'Unable to restore dormant responsible seam');
-	rst002b_query($db, 'CREATE TRIGGER '.$prefix.'mjl_activity_rst005_bu BEFORE UPDATE ON '.$activity." FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='MJL Activity mutation is dormant in RST-005'", 'Unable to restore RST-005 Activity guard');
-	rst002b_restore_scope($db, $prefix);
-	mjl_rst002b_install_role_invariant_triggers($db, false);
+	if ($state === 'target') {
+		foreach (array('mjl_activity_assignment_bi','mjl_activity_assignment_bu','mjl_activity_assignment_bd') as $trigger) rst002b_query($db, 'DROP TRIGGER '.mjl_rst005_ident($prefix.$trigger), 'Unable to remove an RST-002B assignment guard');
+		mjl_rst002b_install_role_invariant_triggers($db, false);
+		$state = 'scope-table-removed';
+	}
+	if ($failurePoint === 'rollback-scope-table-removed' && $state === 'scope-table-removed') throw new RuntimeException('Injected failure after rollback-scope-table-removed.');
+	if ($state === 'scope-table-removed') { rst002b_restore_scope($db, $prefix); $state = 'activity-guard-cutover'; }
+	if ($failurePoint === 'rollback-activity-guard-cutover' && $state === 'activity-guard-cutover') throw new RuntimeException('Injected failure after rollback-activity-guard-cutover.');
+	if ($state === 'activity-guard-cutover') {
+		rst002b_query($db, 'DROP TRIGGER '.mjl_rst005_ident($prefix.'mjl_activity_rst002b_bu'), 'Unable to remove RST-002B Activity guard');
+		rst002b_query($db, 'ALTER TABLE '.mjl_rst005_ident($activity).' ADD COLUMN fk_user_responsible INT(11) DEFAULT NULL AFTER fk_user_modif, ADD CONSTRAINT chk_mjl_activity_responsible_dormant CHECK (fk_user_responsible IS NULL)', 'Unable to restore dormant responsible seam');
+		rst002b_query($db, 'CREATE TRIGGER '.$prefix.'mjl_activity_rst005_bu BEFORE UPDATE ON '.$activity." FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='MJL Activity mutation is dormant in RST-005'", 'Unable to restore RST-005 Activity guard');
+		$state = 'assignment-table-created';
+	}
+	if ($failurePoint === 'rollback-assignment-table-created' && $state === 'assignment-table-created') throw new RuntimeException('Injected failure after rollback-assignment-table-created.');
+	if ($state === 'assignment-table-created') rst002b_query($db, 'DROP TABLE '.mjl_rst005_ident($prefix.'mjlfinancement_activity_assignment'), 'Unable to remove empty assignment table');
 	mjl_rst005_require_target_objects($db, $activity);
 }
 
 try {
 	$options = rst002b_arguments($argv);
 	if (!in_array($options['mode'], array('apply','verify','rollback'), true) || $options['confirm'] !== 'RST-002B') throw new RuntimeException('Use --mode=apply|verify|rollback --confirm=RST-002B.');
-	rst002b_require_boundary();
+	rst002b_require_boundary($options['mode']);
 	$prefix = mjl_rst005_prefix($db);
 	$lockName = 'mjl:rst002b:'.substr(hash('sha256', (string) mjl_rst005_scalar($db, 'SELECT DATABASE()').':'.$prefix), 0, 46);
 	if ((int) mjl_rst005_scalar($db, "SELECT GET_LOCK('".$db->escape($lockName)."',0)") !== 1) throw new RuntimeException('Unable to acquire the RST-002B target lock.');
 	try {
 		if ($options['mode'] === 'verify') mjl_rst002b_require_target_objects($db);
-		elseif ($options['mode'] === 'rollback') rst002b_rollback($db, $prefix);
+		elseif ($options['mode'] === 'rollback') rst002b_rollback($db, $prefix, $options['failure-point']);
 		else {
 			rst002b_require_empty_cutover($db, $prefix);
 			$state = rst002b_state($db, $prefix);
-			if ($state === 'unknown') throw new RuntimeException('Unknown RST-002B schema state.');
+			if ($state === 'unknown') throw new RuntimeException('Unknown RST-002B schema state: '.($GLOBALS['rst002b_state_error'] ?? 'unclassified physical boundary').'.');
 			if ($state === 'RST-005') { rst002b_create_assignment_table($db, $prefix); $state = 'assignment-table-created'; }
 			if ($options['failure-point'] === 'assignment-table-created') throw new RuntimeException('Injected failure after assignment-table-created.');
 			if ($state === 'assignment-table-created') { rst002b_cutover_activity($db, $prefix); $state = 'activity-guard-cutover'; }

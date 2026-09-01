@@ -32,6 +32,9 @@ test('RST-002B stores immutable entity-scoped current and historical assignments
 
   assert.match(combined, /fk_user_assign[^\n]*DEFAULT NULL/i);
   assert.match(combined, /NEW\.fk_user_assign IS NULL/);
+  assert.match(combined, /NEW\.date_end IS NOT NULL/);
+  assert.match(combined, /SET NEW\.date_start=CURRENT_TIMESTAMP/);
+  assert.match(combined, /SET NEW\.date_end=CURRENT_TIMESTAMP/);
   assert.match(combined, /AGENT_SAISIE/);
   assert.match(combined, /VALIDATEUR_DEFINITIF/);
   assert.match(combined, /ON UPDATE RESTRICT ON DELETE RESTRICT/g);
@@ -49,6 +52,7 @@ test('RST-002B exposes one closed transactional assignment interface', () => {
   }
   assert.match(source, /FOR UPDATE/);
   assert.match(source, /SET TRANSACTION ISOLATION LEVEL READ COMMITTED/);
+  assert.match(source, /\$primaryCount !== 1/);
   assert.match(source, /mjl_audit_append_in_transaction/);
   assert.match(source, /activity_assignment/);
   assert.match(source, /ASSIGNMENT_ADDED/);

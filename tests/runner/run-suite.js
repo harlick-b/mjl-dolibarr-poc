@@ -795,6 +795,20 @@ async function main() {
           await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B'], { signal: controller.signal });
           await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
         }
+		for (const failurePoint of ['rollback-scope-table-removed','rollback-activity-guard-cutover','rollback-assignment-table-created']) {
+		  const output = await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B', `--failure-point=${failurePoint}`], `RST-002B ${failurePoint}`, { signal: controller.signal });
+		  if (!output.includes(`Injected failure after ${failurePoint}`)) throw new Error(`RST-002B ${failurePoint} failed for the wrong reason.`);
+		  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B'], { signal: controller.signal });
+		  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B'], { signal: controller.signal });
+		}
+		await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B'], { signal: controller.signal });
+		await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B', '--failure-point=assignment-table-created'], 'RST-002B malformed-prefix setup', { signal: controller.signal });
+		await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity_assignment DROP CONSTRAINT chk_mjl_activity_assignment_entity_positive, ADD CONSTRAINT chk_mjl_activity_assignment_entity_positive CHECK (entity >= 0)', { signal: controller.signal });
+		const malformedPrefix = await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B'], 'RST-002B malformed prefix', { signal: controller.signal });
+		if (!malformedPrefix.includes('Unknown RST-002B schema state')) throw new Error('RST-002B malformed prefix was not classified as unknown.');
+		await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity_assignment DROP CONSTRAINT chk_mjl_activity_assignment_entity_positive, ADD CONSTRAINT chk_mjl_activity_assignment_entity_positive CHECK (entity > 0)', { signal: controller.signal });
+		await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B'], { signal: controller.signal });
+		await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B'], { signal: controller.signal });
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B'], { signal: controller.signal });
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
