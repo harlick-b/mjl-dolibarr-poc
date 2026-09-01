@@ -92,21 +92,32 @@ function installAuthorization(approval, mode, checkpointSha256) {
   fsyncDirectory(approval.evidence_root); return target;
 }
 function clearAuthorization(target) { if (!target) return; const stat = fs.lstatSync(target); invariant(stat.isFile() && !stat.isSymbolicLink() && stat.uid === 0 && stat.nlink === 1 && (stat.mode & 0o7777) === 0o400, 'RST-002B authorization cleanup custody changed.'); fs.unlinkSync(target); fsyncDirectory(path.dirname(target)); }
+const rehearsalFailurePoints = Object.freeze({
+  apply: Object.freeze(['forward-01-assignment-table-created','forward-02-activity-old-guard-dropped','forward-03-activity-column-cutover','forward-04-activity-target-guard-created','forward-05-scope-table-removed',...Array.from({length:7},(_,index)=>`forward-trigger-${String(index+1).padStart(2,'0')}`)]),
+  rollback: Object.freeze([...Array.from({length:7},(_,index)=>`rollback-trigger-${String(index+1).padStart(2,'0')}`),'rollback-scope-table-restored','rollback-activity-target-guard-dropped','rollback-activity-column-restored','rollback-activity-old-guard-restored','rollback-assignment-table-dropped']),
+});
+function rehearsalFailureStep(approval, mode, options) {
+  if(approval.target_profile!=='disposable_shared_shape'||approval.failure_point!==`every-${mode==='apply'?'forward':'rollback'}-prefix-and-report`) return null;
+  const sequence=rehearsalFailurePoints[mode]; let index=0;
+  for(;index<sequence.length;index+=1) { const name=`rehearsal-${mode}-${String(index+1).padStart(2,'0')}.json`; if(!recordExists(approval.evidence_root,name)) break; const record=readRecord(approval.evidence_root,name,options.recordOptions||{}); invariant(canonicalJson(record.value)===canonicalJson({version:1,unit:'RST-002B',operation_id:approval.operation_id,mode,step:index+1,failure_point:sequence[index]}),'RST-002B rehearsal progress binding changed.'); }
+  const known=new Set(sequence.map((_,position)=>`rehearsal-${mode}-${String(position+1).padStart(2,'0')}.json`)); invariant(fs.readdirSync(approval.evidence_root).filter((name)=>name.startsWith(`rehearsal-${mode}-`)&&!known.has(name)).length===0,'RST-002B rehearsal progress contains an unexpected record.');
+  return index<sequence.length?{index,expected:sequence[index],name:`rehearsal-${mode}-${String(index+1).padStart(2,'0')}.json`}:null;
+}
 async function migration(approval, mode, checkpointSha256, options = {}) {
   const names = oneOffNames(approval); await cleanupNamedContainers([names.migration], undefined, options.env); const authorizationTarget=path.join(approval.evidence_root,'rst002b-authorization.json');
   if (fs.existsSync(authorizationTarget)) clearAuthorization(authorizationTarget);
   const authorization = installAuthorization(approval, mode, checkpointSha256); let config;
   try {
     config=await runtimeConfig(approval,options); const wrapper="putenv('MJL_RST002B_SHARED_LAUNCHER=1');require '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php';";
-    const command=['-r',wrapper,'--',`--mode=${mode}`,'--confirm=RST-002B']; if(approval.failure_point && !options.suppressFailureInjection) command.push(`--failure-point=${approval.failure_point}`);
-    return await pinnedOneOff(approval,names.migration,{kind:'migration',mounts:[{source:config,target:'/var/www/html/conf/conf.php',readOnly:true},{source:`${approval.repository_root}/custom`,target:'/var/www/html/custom',readOnly:true},{source:`${approval.repository_root}/data/documents`,target:'/var/www/documents',readOnly:true},{source:authorization,target:'/run/mjl-rst002b/authorization.json',readOnly:true}],command},options);
+    const step=rehearsalFailureStep(approval,mode,options); const command=['-r',wrapper,'--',`--mode=${mode}`,'--confirm=RST-002B']; const failurePoint=step?step.expected:approval.failure_point; if(failurePoint && !options.suppressFailureInjection && !failurePoint.startsWith('every-')) command.push(`--failure-point=${failurePoint}`);
+    try { return await pinnedOneOff(approval,names.migration,{kind:'migration',mounts:[{source:config,target:'/var/www/html/conf/conf.php',readOnly:true},{source:`${approval.repository_root}/custom`,target:'/var/www/html/custom',readOnly:true},{source:`${approval.repository_root}/data/documents`,target:'/var/www/documents',readOnly:true},{source:authorization,target:'/run/mjl-rst002b/authorization.json',readOnly:true}],command},options); }
+    catch(error) { if(!step||!error.message.includes('ERROR: R2BI Injected failure after')) throw error; atomicRecord(approval.evidence_root,step.name,{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode,step:step.index+1,failure_point:step.expected},options.recordOptions||{}); throw error; }
   } finally { clearAuthorization(authorization); await cleanupNamedContainers([names.migration], undefined, options.env); clearRuntimeConfig(config); }
 }
 function backupPaths(approval) { return { schema: path.join(approval.backup_root, 'rst002b-schema.secretstream'), full: path.join(approval.backup_root, 'rst002b-full.secretstream') }; }
 function backupVerificationApproval(approval) {
   return {
     ...approval,
-    target_profile: 'shared',
     docker_runtime: {
       images: {
         mariadb: { id: approval.images.mariadb },
@@ -182,14 +193,17 @@ async function runForward(approval, key, recover, options) {
   if (recordExists(approval.evidence_root, names[2])) { checkpoint = readRecord(approval.evidence_root, names[2],recordOptions); validateChainRecord(checkpoint, approval, 'execute', before.sha256); }
   else { const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: before.sha256, state: 'mutation-authorized' }; checkpoint = { value, sha256: atomicRecord(approval.evidence_root, names[2], value,recordOptions) }; }
   if (!recordExists(approval.evidence_root, names[3])) {
-    if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'apply',checkpoint.sha256,recover?{...options,suppressFailureInjection:true}:options); const afterEvidence = await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(before.value.before, afterEvidence);
+    const suppressFailureInjection=recover && approval.failure_point!=='every-forward-prefix-and-report';
+    if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'apply',checkpoint.sha256,suppressFailureInjection?{...options,suppressFailureInjection:true}:options); const afterEvidence = await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(before.value.before, afterEvidence);
     const value = { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: checkpoint.sha256, after: afterEvidence }; atomicRecord(approval.evidence_root, names[3], value,recordOptions);
   }
   const after = readRecord(approval.evidence_root, names[3],recordOptions); validateChainRecord(after, approval, 'execute', checkpoint.sha256); assertProtectedEvidence(before.value.before, after.value.after);
   const services = await delegated(options,'runningServices',runningServices,approval,options);
-  if (canonicalJson(services) === canonicalJson(['mariadb'])) { assertProtectedEvidence(before.value.before, await delegated(options,'evidence',evidence,approval,options)); await delegated(options,'startAndHealthCheck',startAndHealthCheck,approval,options); }
+  let startedNow=false;
+  if (canonicalJson(services) === canonicalJson(['mariadb'])) { assertProtectedEvidence(before.value.before, await delegated(options,'evidence',evidence,approval,options)); await delegated(options,'startAndHealthCheck',startAndHealthCheck,approval,options); startedNow=true; }
   else invariant(canonicalJson(services) === canonicalJson(['dolibarr','mariadb']), 'RST-002B completed-prefix service state is invalid.');
   if (options.assertLiveBinding) await options.assertLiveBinding('running');
+  if (startedNow && approval.failure_point==='every-forward-prefix-and-report') throw new Error('Injected failure after forward service restart before report publication.');
   if (!recordExists(approval.evidence_root, names[4])) atomicRecord(approval.evidence_root, names[4], { version: 1, unit: 'RST-002B', operation_id: approval.operation_id, mode: 'execute', previous_sha256: after.sha256, status: 'complete', approved_commit: approval.approved_commit, complete_tree_sha256: approval.complete_tree_sha256 },recordOptions);
   return Object.freeze({ status: 'complete' });
 }
@@ -204,12 +218,15 @@ async function runRollback(approval, options) {
   let checkpoint;
   if (present[1]) { checkpoint=readRecord(approval.evidence_root,names[1],recordOptions); validateChainRecord(checkpoint,approval,'rollback',beforeRecord.sha256); }
   else { const value={version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:beforeRecord.sha256,state:'rollback-authorized'}; checkpoint={value,sha256:atomicRecord(approval.evidence_root,names[1],value,recordOptions)}; }
-  if (!present[2]) { if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'rollback',checkpoint.sha256,present[1]?{...options,suppressFailureInjection:true}:options); const after=await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(beforeRecord.value.before,after); atomicRecord(approval.evidence_root,names[2],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:checkpoint.sha256,after},recordOptions); }
+  const suppressFailureInjection=present[1] && approval.failure_point!=='every-rollback-prefix-and-report';
+  if (!present[2]) { if (options.assertLiveBinding) await options.assertLiveBinding('stopped'); await delegated(options,'requireStoppedServices',requireStoppedServices,approval,options); await delegated(options,'migration',migration,approval,'rollback',checkpoint.sha256,suppressFailureInjection?{...options,suppressFailureInjection:true}:options); const after=await delegated(options,'evidence',evidence,approval,options); assertProtectedEvidence(beforeRecord.value.before,after); atomicRecord(approval.evidence_root,names[2],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:checkpoint.sha256,after},recordOptions); }
   const afterRecord=readRecord(approval.evidence_root,names[2],recordOptions); validateChainRecord(afterRecord,approval,'rollback',checkpoint.sha256); assertProtectedEvidence(beforeRecord.value.before,afterRecord.value.after);
   const services=await delegated(options,'runningServices',runningServices,approval,options);
-  if (canonicalJson(services)===canonicalJson(['mariadb'])) { assertProtectedEvidence(beforeRecord.value.before,await delegated(options,'evidence',evidence,approval,options)); await delegated(options,'startAndHealthCheck',startAndHealthCheck,approval,options); }
+  let startedNow=false;
+  if (canonicalJson(services)===canonicalJson(['mariadb'])) { assertProtectedEvidence(beforeRecord.value.before,await delegated(options,'evidence',evidence,approval,options)); await delegated(options,'startAndHealthCheck',startAndHealthCheck,approval,options); startedNow=true; }
   else invariant(canonicalJson(services)===canonicalJson(['dolibarr','mariadb']),'RST-002B completed rollback service state is invalid.');
   if (options.assertLiveBinding) await options.assertLiveBinding('running');
+  if (startedNow && approval.failure_point==='every-rollback-prefix-and-report') throw new Error('Injected failure after rollback service restart before report publication.');
   if (!present[3]) atomicRecord(approval.evidence_root,names[3],{version:1,unit:'RST-002B',operation_id:approval.operation_id,mode:'rollback',previous_sha256:afterRecord.sha256,status:'complete'},recordOptions);
   else { const report=readRecord(approval.evidence_root,names[3],recordOptions); invariant(report.value.version===1&&report.value.unit==='RST-002B'&&report.value.operation_id===approval.operation_id&&report.value.mode==='rollback'&&report.value.previous_sha256===afterRecord.sha256&&report.value.status==='complete','RST-002B rollback report is invalid.'); }
   return Object.freeze({ status: 'complete' });

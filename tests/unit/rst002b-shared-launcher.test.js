@@ -29,6 +29,7 @@ test('RST-002B launcher is dedicated, exact-mode, root-custodied, and fail close
   assert.match(operation, /startAndHealthCheck/);
   assert.match(operation, /\/usr\/bin\/curl/);
   assert.match(operation, /suppressFailureInjection/);
+  assert.match(operation, /rehearsalFailurePoints/);
   assert.match(operation, /cleanupNamedContainers/);
   assert.match(operation, /restorable_trigger_sha256/);
   assert.match(operation, /container','create','--pull=never/);
@@ -36,6 +37,7 @@ test('RST-002B launcher is dedicated, exact-mode, root-custodied, and fail close
   assert.doesNotMatch(operation, /\['run',\s*'--rm'/);
   assert.match(packet, /--\(mode\|output-root\|prior-report\|profile\|failure-point\)/);
   assert.match(packet, /disposable-shared-shape/);
+  assert.match(packet, /Failure injection requires the disposable shared-shape profile/);
   assert.match(launcher, /disposable_shared_shape/);
   assert.match(packet, /\/tmp\\\/rst002b-launcher-/);
   assert.match(launcher, /\/tmp\\\/rst002b-launcher-/);
@@ -61,9 +63,10 @@ test('RST-002B durable evidence is exclusive, fsync-backed, and hash addressed',
 
 test('RST-002B adapts immutable image bindings to the proven restore verifier contract', () => {
   const approval = backupVerificationApproval({
+    target_profile: 'disposable_shared_shape',
     images: { mariadb: `sha256:${'a'.repeat(64)}`, dolibarr: `sha256:${'b'.repeat(64)}` },
   });
-  assert.equal(approval.target_profile, 'shared');
+  assert.equal(approval.target_profile, 'disposable_shared_shape');
   assert.equal(approval.docker_runtime.images.mariadb.id, `sha256:${'a'.repeat(64)}`);
   assert.equal(approval.docker_runtime.images.dolibarr.id, `sha256:${'b'.repeat(64)}`);
 });

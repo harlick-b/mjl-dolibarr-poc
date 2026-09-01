@@ -25,6 +25,8 @@ function writeProtected(file,bytes) {
   finally { fs.rmSync(temporary,{force:true}); }
 }
 function exactInvocation(outputRoot) { return JSON.parse(dockerRead(path.join(outputRoot,'invocation.json')).toString('utf8')).outer_argv; }
+function rehearsalRecordCount(outputRoot) { return Number(run('/usr/bin/docker',['run','--rm','--pull=never','--volume',`${path.join(outputRoot,'evidence')}:/target:ro`,'--entrypoint','/bin/sh','dolibarr/dolibarr:23.0.2','-ceu',"find /target -maxdepth 1 -type f -name 'rehearsal-*.json' -printf '.\\n' | wc -l"]).trim()); }
+function disposableFailure(error) { return String(error.stderr||error.message||error).trim().split('\n').slice(-2).join(' | ').replace(/[A-Za-z0-9+/=_-]{32,}/g,'[redacted]'); }
 function writeTraffic(outputRoot,approvalBytes,approval,valid=true) {
   const now=new Date(); const record={version:1,unit:'RST-002B',operation_id:approval.operation_id,approval_sha256:valid?digest(approvalBytes):'0'.repeat(64),exclusive_docker_administration:true,no_direct_host_writers:true,no_direct_database_writers:true,stopped_at:now.toISOString(),expires_at:new Date(now.getTime()+15*60*1000).toISOString()};
   writeProtected(path.join(outputRoot,'traffic/record'),Buffer.from(`${canonicalJson(record)}\n`));
@@ -47,7 +49,7 @@ async function freePort() { return new Promise((resolve,reject)=>{ const server=
 async function runRealLauncherScenario() {
   const runRoot=fs.mkdtempSync(path.join(os.tmpdir(),'rst002b-launcher-')); const repository=path.join(runRoot,'repository'); fs.mkdirSync(repository); const port=await freePort(); copySnapshot(repository,port);
   const nonce=crypto.randomBytes(4).toString('hex'); const project=`mjl-test-rst002b-shared-shape-${nonce}`; const compose=['compose','--env-file','/dev/null','--project-directory',repository,'-f',path.join(repository,'docker-compose.yml'),'-p',project]; const env={...process.env,COMPOSE_PROJECT_NAME:project};
-  const executeRoot=path.join(os.tmpdir(),`mjl-rst002b-execute-${nonce}`); const rollbackRoot=path.join(os.tmpdir(),`mjl-rst002b-rollback-${nonce}`); const operatorNames=[]; let approval; let secret;
+  const executeRoot=path.join(os.tmpdir(),`mjl-rst002b-execute-${nonce}`); const rollbackRoot=path.join(os.tmpdir(),`mjl-rst002b-rollback-${nonce}`); const operatorNames=[]; let approval; let rollbackApproval; let secret; let scenarioError;
   const dc=(tail,options={})=>run('/usr/bin/docker',[...compose,...tail],{cwd:repository,env,input:options.input,binary:options.binary});
   try {
     fs.mkdirSync(path.join(repository,'data/mariadb'),{recursive:true}); fs.mkdirSync(path.join(repository,'data/documents'),{recursive:true}); dc(['up','-d']);
@@ -60,21 +62,36 @@ async function runRealLauncherScenario() {
       const args=['run','--rm','--pull=never','--volume','/tmp:/tmp','--volume','/var/run/docker.sock:/var/run/docker.sock','--volume',`${hostNode}:/opt/node:ro`,'--volume','/usr/bin/git:/usr/bin/git:ro','--volume','/usr/bin/docker:/usr/bin/docker:ro','--volume','/usr/bin/flock:/usr/bin/flock:ro','--volume',`${plugin}:${plugin}:ro`,'--workdir',repository,'--env',`COMPOSE_PROJECT_NAME=${project}`,'--env',`MJL_RST002B_HOST_NODE=${hostNode}`,'--entrypoint','/opt/node','dolibarr/dolibarr:23.0.2','custom/mjlfinancement/scripts/rst002b_shared_packet.js',`--mode=${mode}`,`--output-root=${output}`,'--profile=disposable-shared-shape'];
       if(prior) args.push(`--prior-report=${prior}`); if(failure) args.push(`--failure-point=${failure}`); run('/usr/bin/docker',args,{cwd:repository,env});
     };
-    packet('execute',executeRoot,null,'forward-trigger-04'); const approvalBytes=dockerRead(path.join(executeRoot,'approval/record')); approval=JSON.parse(approvalBytes.toString('utf8')); secret=dockerRead(path.join(executeRoot,'key/bytes')); const invocation=exactInvocation(executeRoot);
+    packet('execute',executeRoot,null,'every-forward-prefix-and-report'); const approvalBytes=dockerRead(path.join(executeRoot,'approval/record')); approval=JSON.parse(approvalBytes.toString('utf8')); secret=dockerRead(path.join(executeRoot,'key/bytes')); const invocation=exactInvocation(executeRoot);
     writeTraffic(executeRoot,approvalBytes,approval,false); assert.throws(()=>invoke(invocation,'execute'));
     writeTraffic(executeRoot,approvalBytes,approval,true);
     writeProtected(path.join(executeRoot,'key/bytes'),Buffer.alloc(32,9)); assert.throws(()=>invoke(invocation,'execute')); writeProtected(path.join(executeRoot,'key/bytes'),secret);
     const substitutedApproval={...approval,operation_id:'0'.repeat(32)}; writeProtected(path.join(executeRoot,'approval/record'),Buffer.from(`${canonicalJson(substitutedApproval)}\n`)); assert.throws(()=>invoke(invocation,'execute')); writeProtected(path.join(executeRoot,'approval/record'),approvalBytes);
     const holder=`${project}-lock-holder`; operatorNames.push(holder); run('/usr/bin/docker',['run','-d','--name',holder,'--rm','--volume',`${approval.target_lock_path}:${approval.target_lock_path}`,'--entrypoint','/usr/bin/flock','dolibarr/dolibarr:23.0.2','--exclusive',approval.target_lock_path,'/bin/sleep','30']); assert.throws(()=>invoke(invocation,'execute')); run('/usr/bin/docker',['rm','-f',holder]);
-    assert.throws(()=>invoke(invocation,'execute')); writeTraffic(executeRoot,approvalBytes,approval,true); const recovered=invoke(invocation,'recover'); assert.match(recovered.toString('utf8'),/"status":"complete"/); assert.ok(!recovered.includes(secret));
-    const prior=path.join(executeRoot,'evidence/rst002b-launcher-report.json'); dc(['stop','dolibarr']); packet('rollback',rollbackRoot,prior,'rollback-trigger-04'); const rollbackApprovalBytes=dockerRead(path.join(rollbackRoot,'approval/record')); const rollbackApproval=JSON.parse(rollbackApprovalBytes.toString('utf8')); writeTraffic(rollbackRoot,rollbackApprovalBytes,rollbackApproval,true); const rollbackInvocation=exactInvocation(rollbackRoot); assert.throws(()=>invoke(rollbackInvocation,'rollback')); writeTraffic(rollbackRoot,rollbackApprovalBytes,rollbackApproval,true); assert.match(invoke(rollbackInvocation,'rollback').toString('utf8'),/"status":"complete"/);
+    let forwardFailures=0; let recovered;
+    for(let attempt=0;attempt<14;attempt+=1) { writeTraffic(executeRoot,approvalBytes,approval,true); try { recovered=invoke(invocation,attempt===0?'execute':'recover'); break; } catch(error) { forwardFailures+=1; process.stdout.write(`RST-002B real forward stop ${forwardFailures}/13: ${rehearsalRecordCount(executeRoot)} DDL markers; ${disposableFailure(error)}\n`); if(forwardFailures>13) throw error; } }
+    assert.equal(forwardFailures,13,'real launcher must interrupt after all 12 forward DDL statements and before report publication'); assert.match(recovered.toString('utf8'),/"status":"complete"/); assert.ok(!recovered.includes(secret));
+    const prior=path.join(executeRoot,'evidence/rst002b-launcher-report.json'); dc(['stop','dolibarr']); packet('rollback',rollbackRoot,prior,'every-rollback-prefix-and-report'); const rollbackApprovalBytes=dockerRead(path.join(rollbackRoot,'approval/record')); rollbackApproval=JSON.parse(rollbackApprovalBytes.toString('utf8')); const rollbackInvocation=exactInvocation(rollbackRoot);
+    let rollbackFailures=0; let rolledBack;
+    for(let attempt=0;attempt<14;attempt+=1) { writeTraffic(rollbackRoot,rollbackApprovalBytes,rollbackApproval,true); try { rolledBack=invoke(rollbackInvocation,'rollback'); break; } catch(error) { rollbackFailures+=1; process.stdout.write(`RST-002B real rollback stop ${rollbackFailures}/13: ${rehearsalRecordCount(rollbackRoot)} DDL markers; ${disposableFailure(error)}\n`); if(rollbackFailures>13) throw error; } }
+    assert.equal(rollbackFailures,13,'real launcher must interrupt after all 12 rollback DDL statements and before report publication'); assert.match(rolledBack.toString('utf8'),/"status":"complete"/);
     assertNoOneOffSurvivors([approval,rollbackApproval]);
-  } finally {
-    for(const name of operatorNames) try{run('/usr/bin/docker',['rm','-f',name]);}catch(_){} try{dc(['down','-v','--remove-orphans']);}catch(_){}
-    for(const root of [executeRoot,rollbackRoot,runRoot]) if(fs.existsSync(root)) run('/usr/bin/docker',['run','--rm','--pull=never','--volume',`${root}:${root}`,'--entrypoint','/bin/sh','dolibarr/dolibarr:23.0.2','-ceu',`chown -R ${process.getuid()}:${process.getgid()} '${root}'`]);
-    for(const root of [executeRoot,rollbackRoot,runRoot]) fs.rmSync(root,{recursive:true,force:true});
-    if(approval) for(const lock of [approval.target_lock_path,approval.mutation_lock_path]) if(fs.existsSync(lock)){run('/usr/bin/docker',['run','--rm','--volume',`${lock}:${lock}`,'--entrypoint','/bin/chown','dolibarr/dolibarr:23.0.2',`${process.getuid()}:${process.getgid()}`,lock]);fs.rmSync(lock,{force:true});}
-  }
+  } catch(error) { scenarioError=error; }
+  const cleanupErrors=[]; const attemptCleanup=(action)=>{try{action();}catch(error){cleanupErrors.push(error);}}; const approvals=[approval,rollbackApproval].filter(Boolean);
+  for(const name of operatorNames) attemptCleanup(()=>{if(run('/usr/bin/docker',['ps','-aq','--filter',`name=^/${name}$`]).trim()) run('/usr/bin/docker',['rm','-f',name]);});
+  for(const item of approvals) { const restore=isolatedRestoreNames(item.nonce); for(const name of [`mjl-rst002b-evidence-${item.nonce}`,`mjl-rst002b-migration-${item.nonce}`,restore.databaseContainer,restore.evidenceContainer]) attemptCleanup(()=>{if(run('/usr/bin/docker',['ps','-aq','--filter',`name=^/${name}$`]).trim()) run('/usr/bin/docker',['rm','-f',name]);}); attemptCleanup(()=>{if(run('/usr/bin/docker',['network','ls','-q','--filter',`name=^${restore.network}$`]).trim()) run('/usr/bin/docker',['network','rm',restore.network]);}); for(const volume of [restore.databaseVolume,restore.documentVolume]) attemptCleanup(()=>{if(run('/usr/bin/docker',['volume','ls','-q','--filter',`name=^${volume}$`]).trim()) run('/usr/bin/docker',['volume','rm',volume]);}); }
+  attemptCleanup(()=>dc(['down','-v','--remove-orphans']));
+  for(const root of [executeRoot,rollbackRoot,runRoot]) attemptCleanup(()=>{if(fs.existsSync(root)) run('/usr/bin/docker',['run','--rm','--pull=never','--userns=host','--volume',`${root}:${root}`,'--entrypoint','/bin/sh','dolibarr/dolibarr:23.0.2','-ceu',`chown -R ${process.getuid()}:${process.getgid()} '${root}'`]);});
+  for(const root of [executeRoot,rollbackRoot,runRoot]) attemptCleanup(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const locks=new Set(approvals.flatMap((item)=>[item.target_lock_path,item.mutation_lock_path])); for(const lock of locks) attemptCleanup(()=>{if(fs.existsSync(lock)){run('/usr/bin/docker',['run','--rm','--userns=host','--volume',`${lock}:${lock}`,'--entrypoint','/bin/chown','dolibarr/dolibarr:23.0.2',`${process.getuid()}:${process.getgid()}`,lock]);fs.rmSync(lock,{force:true});}});
+  attemptCleanup(()=>assert.equal(run('/usr/bin/docker',['ps','-aq','--filter',`label=com.docker.compose.project=${project}`]).trim(),''));
+  attemptCleanup(()=>assert.equal(run('/usr/bin/docker',['network','ls','-q','--filter',`label=com.docker.compose.project=${project}`]).trim(),''));
+  attemptCleanup(()=>assert.equal(run('/usr/bin/docker',['volume','ls','-q','--filter',`label=com.docker.compose.project=${project}`]).trim(),''));
+  attemptCleanup(()=>assertNoOneOffSurvivors(approvals));
+  for(const name of operatorNames) attemptCleanup(()=>assert.equal(run('/usr/bin/docker',['ps','-aq','--filter',`name=^/${name}$`]).trim(),''));
+  for(const root of [executeRoot,rollbackRoot,runRoot]) attemptCleanup(()=>assert.equal(fs.existsSync(root),false)); for(const lock of locks) attemptCleanup(()=>assert.equal(fs.existsSync(lock),false));
+  if(scenarioError && cleanupErrors.length===0) throw scenarioError;
+  if(scenarioError || cleanupErrors.length) throw new AggregateError([...(scenarioError?[scenarioError]:[]),...cleanupErrors],'RST-002B real launcher scenario or fail-closed cleanup failed.');
 }
 
 async function main() {

@@ -76,9 +76,10 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   packet and launcher against a temporary committed-source snapshot and unique
   disposable shared-shaped tenant. It proves real encrypted backup restores,
   approval/key/traffic substitution rejection, inherited-lock contention, a
-  physical forward-DDL interruption and recovery, a separately approved
-  physical rollback interruption and re-entry, loopback health recovery, and
-  exact restore/one-off resource cleanup. It does not touch the shared tenant.
+  physical interruption and re-entry after each of the 12 forward and 12
+  rollback DDL statements, both post-restart/pre-report recovery windows,
+  loopback health recovery, and fail-closed exact Compose/restore/one-off/
+  custody/lock cleanup. It does not touch the shared tenant.
   Shared execution still requires approval of the exact clean implementation
   commit and protected-tree digest.
 - 'test:characterization' is a compatibility alias to the current

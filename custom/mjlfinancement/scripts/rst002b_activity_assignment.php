@@ -195,7 +195,7 @@ function rst002b_create_assignment_table(DoliDB $db, $prefix)
 
 function rst002b_fail_after($failurePoint, $expected)
 {
-	if ($failurePoint === $expected) throw new RuntimeException('Injected failure after '.$expected.'.');
+	if ($failurePoint === $expected) throw new RuntimeException('R2BI Injected failure after '.$expected.'.');
 }
 
 function rst002b_restore_scope(DoliDB $db, $prefix)
