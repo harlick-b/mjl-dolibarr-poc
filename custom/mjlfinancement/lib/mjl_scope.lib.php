@@ -161,6 +161,15 @@ function mjl_scope_assign_access_profile($userId, $roleCode, User $actor, $entit
 	}
 
 	$db->begin('mjl access profile');
+	$locked = mjl_scope_lock_user_and_active_role($userId, $entity);
+	if (!$locked || (int) $locked['user']['entity'] !== $entity || (int) $locked['user']['admin'] !== 0) {
+		$db->rollback('mjl access target changed');
+		return array(-1, 'Utilisateur introuvable dans cette entite.');
+	}
+	if ($roleCode !== 'AGENT_SAISIE' && mjl_scope_has_current_activity_assignment($userId, $entity)) {
+		$db->rollback('mjl access assignment guard');
+		return array(-1, 'Les affectations d’Activité doivent d’abord être retirées ou transférées.');
+	}
 	if (!mjl_scope_replace_role_rows($userId, $roleCode, (int) $actor->id, $entity, $source, $note)) {
 		$db->rollback('mjl access role failed');
 		return array(-1, $db->lasterror());
@@ -211,6 +220,15 @@ function mjl_scope_deactivate_access($userId, User $actor, $entity = null)
 	}
 
 	$db->begin('mjl deactivate access');
+	$locked = mjl_scope_lock_user_and_active_role($userId, $entity);
+	if (!$locked || (int) $locked['user']['entity'] !== $entity || (int) $locked['user']['admin'] !== 0) {
+		$db->rollback('mjl deactivate target changed');
+		return array(-1, 'Utilisateur introuvable dans cette entite.');
+	}
+	if (mjl_scope_has_current_activity_assignment($userId, $entity)) {
+		$db->rollback('mjl deactivate assignment guard');
+		return array(-1, 'Les affectations d’Activité doivent d’abord être retirées ou transférées.');
+	}
 	$sql = 'UPDATE '.$db->prefix().'user SET statut = 0 WHERE rowid = '.$userId.' AND entity = '.$entity.' AND admin = 0';
 	if (!$db->query($sql)) {
 		$db->rollback('mjl deactivate user failed');
@@ -258,6 +276,12 @@ function mjl_scope_assign_active_role($userId, $roleCode, $actorId = null, $enti
 	}
 
 	$db->begin();
+	$locked = mjl_scope_lock_user_and_active_role($userId, $entity);
+	if (!$locked || (int) $locked['user']['entity'] !== $entity || (int) $locked['user']['admin'] !== 0
+		|| ($roleCode !== 'AGENT_SAISIE' && mjl_scope_has_current_activity_assignment($userId, $entity))) {
+		$db->rollback();
+		return -1;
+	}
 	$sql = 'UPDATE '.$db->prefix().'mjlfinancement_user_role';
 	$sql .= ' SET is_active = 0, date_end = COALESCE(date_end, NOW())';
 	$sql .= ', fk_user_modif = '.($actorId === null ? 'NULL' : $actorId);
@@ -379,11 +403,44 @@ function mjl_scope_replace_role_rows($userId, $roleCode, $actorId, $entity, $sou
 	return (bool) $db->query($sql);
 }
 
+function mjl_scope_lock_user_and_active_role($userId, $entity)
+{
+	global $db;
+	$userId = (int) $userId;
+	$entity = (int) $entity;
+	$sql = 'SELECT rowid,entity,admin,statut FROM '.$db->prefix().'user WHERE rowid='.$userId.' ORDER BY rowid FOR UPDATE';
+	$resql = $db->query($sql);
+	$userRow = $resql ? $db->fetch_object($resql) : null;
+	if (!$userRow) return array();
+	$sql = 'SELECT rowid,role_code FROM '.$db->prefix().'mjlfinancement_user_role WHERE entity='.$entity.' AND fk_user='.$userId.' AND is_active=1 ORDER BY rowid FOR UPDATE';
+	$resql = $db->query($sql);
+	if (!$resql) return array();
+	$roleRows = array();
+	while ($row = $db->fetch_object($resql)) $roleRows[] = (array) $row;
+	if (count($roleRows) > 1) return array();
+	return array('user' => (array) $userRow, 'role' => empty($roleRows) ? array() : $roleRows[0]);
+}
+
+function mjl_scope_has_current_activity_assignment($userId, $entity)
+{
+	global $db;
+	$table = $db->prefix().'mjlfinancement_activity_assignment';
+	$sql = "SELECT COUNT(*) AS nb FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."'";
+	$resql = $db->query($sql);
+	$row = $resql ? $db->fetch_object($resql) : null;
+	if (!$row || (int) $row->nb !== 1) return false;
+	$sql = 'SELECT COUNT(*) AS nb FROM '.$table.' WHERE entity='.(int) $entity.' AND fk_user='.(int) $userId.' AND date_end IS NULL';
+	$resql = $db->query($sql);
+	$row = $resql ? $db->fetch_object($resql) : null;
+	return $row && (int) $row->nb > 0;
+}
+
 function mjl_scope_rights_for_role($roleCode)
 {
 	$rights = array(
 		'AGENT_SAISIE' => array(
 			array('reference', 'read'),
+			array('activity', 'read'),
 		),
 		'AGENT_VERIFICATEUR' => array(
 			array('reference', 'read'),

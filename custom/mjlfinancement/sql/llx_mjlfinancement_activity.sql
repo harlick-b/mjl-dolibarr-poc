@@ -18,7 +18,6 @@ CREATE TABLE llx_mjlfinancement_activity (
 	tms TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
 	fk_user_creat INT(11) NOT NULL,
 	fk_user_modif INT(11) DEFAULT NULL,
-	fk_user_responsible INT(11) DEFAULT NULL,
 	CONSTRAINT chk_mjl_activity_entity_positive CHECK (entity > 0),
 	CONSTRAINT chk_mjl_activity_ref_nonblank CHECK (ref REGEXP '[^[:space:]]'),
 	CONSTRAINT chk_mjl_activity_name_nonblank CHECK (name REGEXP '[^[:space:]]'),
@@ -30,6 +29,5 @@ CREATE TABLE llx_mjlfinancement_activity (
 	CONSTRAINT chk_mjl_activity_validation_status CHECK (validation_status IN ('DRAFT','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED','CANCELLED')),
 	CONSTRAINT chk_mjl_activity_cancelled CHECK (is_cancelled IN (0,1) AND ((is_cancelled = 1 AND validation_status = 'CANCELLED') OR (is_cancelled = 0 AND validation_status <> 'CANCELLED'))),
 	CONSTRAINT chk_mjl_activity_version CHECK (version >= 1),
-	CONSTRAINT chk_mjl_activity_responsible_dormant CHECK (fk_user_responsible IS NULL),
 	CONSTRAINT chk_mjl_activity_rst005_dormant CHECK (validation_status = 'DRAFT' AND is_cancelled = 0 AND first_submitted_amount IS NULL AND latest_validated_amount IS NULL)
 ) ENGINE=innodb DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;

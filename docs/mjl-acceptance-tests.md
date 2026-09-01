@@ -17,10 +17,13 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst014a
     npm run test:rst005
     npm run test:rst005-launcher
+    npm run test:rst002b
+    npm run test:rst002b-launcher
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
-- 'test:verify' provisions an isolated tenant and runs the Phase 1 schema and empty-tenant verifier.
+- 'test:verify' provisions an isolated tenant and runs the current RST-002B
+  exact-schema and empty-tenant verifier.
 - 'test:phase1-reset' runs the focused Phase 1 schema gates and browser
   contracts, including RST-010A, in one isolated tenant.
 - 'test:rst010a' creates disposable same-entity, cross-entity, orphan, and
@@ -61,7 +64,20 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   production-mode execute followed by a fresh standalone rollback approval.
   It proves complete restore/tenant/custody cleanup without addressing the real
   shared project or shared bind paths.
-- The browser contract covers the business-role/Admin/role-less navigation matrix, direct guards, removed-route 404s, invitation issuance and acceptance, fragment clearing, hash invalidation, replay behavior, password reset, and login with changed credentials.
+- 'test:rst002b' installs the current RST-002B target in one isolated tenant,
+  rolls it back to the sealed RST-005 schema, returns forward, and proves
+  current-assignment reads, immediate revocation, add/remove/primary-transfer,
+  optimistic locking, transactional audit rollback, concurrency, reciprocal
+  role/user guards, entity isolation, direct SQL denial, shared-state equality,
+  and whole-tenant destruction.
+- 'test:rst002b-launcher' exercises the dedicated RST-002B immutable evidence
+  record and fail-closed packet/launcher seam without touching the shared
+  tenant. Shared execution still requires approval of the exact clean
+  implementation commit and protected-tree digest.
+- The default browser contract covers retained reference/auth/document/fixture
+  behavior plus the current RST-002B role, assignment, revocation, concurrency,
+  and direct-guard matrix. Phase 1 predecessor suites remain explicit
+  historical commands rather than default target discovery.
 - 'test:rst003' retains the reference-foundation schema/browser gate.
 
 The runner rejects port 8080 and shared binds, creates unique Compose project

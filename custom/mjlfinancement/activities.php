@@ -14,7 +14,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.p
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
 
-if (!mjl_activity_access_can_read($user, (int) $conf->entity)) {
+if (!mjl_activity_access_can_enter_list($user)) {
 	http_response_code(403);
 	header('Content-Type: text/plain; charset=UTF-8');
 	print 'Forbidden';
@@ -31,7 +31,7 @@ print mjl_page_header_render('Activités', array(
 	'context' => array('label' => 'Accès', 'value' => 'Supervision et validation'),
 ));
 $activityModel = new MjlActivity($db);
-$activities = $activityModel->fetchReadProjection((int) $conf->entity, 200);
+$activities = $activityModel->fetchReadProjection($user, 200);
 if ($activities === false) {
 	http_response_code(503);
 	print mjl_ui_system_state('unavailable', 'Activités indisponibles', 'La consultation ne peut pas être chargée pour le moment.');

@@ -7,33 +7,33 @@ const crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
-test('RST-005 source schema matches the sealed target oracle', () => {
+test('RST-005 sealed target remains the exact RST-002B predecessor and rollback oracle', () => {
   const oracle = read('docs/mjl-rst-005-target-activity-schema.sql');
-  const table = read('custom/mjlfinancement/sql/llx_mjlfinancement_activity.sql');
-  const keys = read('custom/mjlfinancement/sql/llx_mjlfinancement_activity.key.sql');
-  const combined = `${table}\n${keys}`;
+  const migration = read('custom/mjlfinancement/scripts/rst002b_activity_assignment.php');
 
   for (const field of [
     'fk_partner', 'name', 'description', 'draft_authorized_amount',
     'first_submitted_amount', 'latest_validated_amount', 'validation_status',
     'is_cancelled', 'version',
   ]) {
-    assert.match(combined, new RegExp(`\\b${field}\\b`), field);
+    assert.match(oracle, new RegExp(`\\b${field}\\b`), field);
   }
   for (const removed of [
     'fk_task', 'note_public', 'note_private', 'date_actual_start',
     'physical_execution_percent', 'execution_status', 'execution_comment',
   ]) {
-    assert.doesNotMatch(combined, new RegExp(`\\b${removed}\\b`), removed);
+    assert.doesNotMatch(oracle, new RegExp(`\\b${removed}\\b`), removed);
   }
   for (const invariant of [
     'chk_mjl_activity_entity_positive', 'chk_mjl_activity_rst005_dormant',
     'chk_mjl_activity_responsible_dormant', 'llx_mjl_activity_rst005_bi',
     'llx_mjl_activity_rst005_bu', 'llx_mjl_activity_rst005_bd',
   ]) {
-    assert.match(combined, new RegExp(invariant), invariant);
     assert.match(oracle, new RegExp(invariant), invariant);
   }
+  assert.match(migration, /chk_mjl_activity_responsible_dormant/);
+  assert.match(migration, /mjl_activity_rst005_bu/);
+  assert.match(migration, /mjl_rst005_require_target_objects/);
 });
 
 test('RST-005 Activity model exposes dual sealed read projections and denies mutation', () => {
@@ -105,7 +105,7 @@ test('RST-005 evidence is encrypted, restore-tested, and source-bound', () => {
   assert.match(migration, /dependent code may be present/);
 });
 
-test('RST-005 public runner and Playwright discovery are explicit', () => {
+test('RST-005 runner is retained while default discovery targets its RST-002B successor', () => {
   const pkg = JSON.parse(read('package.json'));
   assert.equal(pkg.scripts['test:rst005'], 'node tests/runner/run-suite.js rst005');
   const disposable = read('tests/runner/disposable-run.js');
@@ -113,7 +113,8 @@ test('RST-005 public runner and Playwright discovery are explicit', () => {
   const playwright = read('playwright.config.js');
   assert.match(disposable, /rst005:\s*\['rst005'\]/);
   assert.match(runner, /rst005-activity-foundation\.spec\.js/);
-  assert.match(playwright, /rst005-activity-foundation\.spec\.js/);
+  assert.doesNotMatch(playwright, /rst005-activity-foundation\.spec\.js/);
+  assert.match(playwright, /rst002b-activity-assignment\.spec\.js/);
 });
 
 test('sealed schema hashes referenced by the strategy match their bytes', () => {

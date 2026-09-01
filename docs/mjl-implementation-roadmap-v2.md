@@ -59,9 +59,10 @@ final reviews, and exact approval of commit
 `b9520f5aaf38629d13618034cce546e71637ebab` with protected-tree digest
 `a01bfd02d6e0bff4c1039f5f191233bfa5fe9cbc170c715f640737d75403f40f`.
 The shared tenant now has the verified-empty finalized target Activity
-foundation. RST-002B is the next dependency; RST-006A follows it. Both remain
-separately reviewable and separately approval-gated, and no other Phase 2 unit
-is authorized by RST-005 execution.
+foundation. RST-002B implementation was separately approved at strategy commit
+`7676f1f`; its shared execution remains separately approval-gated. RST-006A
+follows it and remains unapproved. No other Phase 2 unit is authorized by
+RST-005 execution or DEC-048.
 
 ## Phase 2: Activity Planning and Validation
 

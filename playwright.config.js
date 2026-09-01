@@ -4,11 +4,10 @@ module.exports = defineConfig({
   testDir: './tests/e2e',
   testMatch: [
     'partners-projects.spec.js',
-    'phase1-reset.spec.js',
     'auth-concurrency.spec.js',
     'document-containment.spec.js',
     'fixture-isolation.spec.js',
-    'rst005-activity-foundation.spec.js',
+    'rst002b-activity-assignment.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',

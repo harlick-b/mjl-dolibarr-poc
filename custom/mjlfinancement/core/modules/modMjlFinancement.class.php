@@ -15,7 +15,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'Suivi des projets financés du MJL';
 		$this->descriptionlong = 'Socle MJL réinitialisé : référentiels natifs, projection des activités, accès sur invitation et audit immuable.';
-		$this->version = '0.17.0';
+		$this->version = '0.18.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(
@@ -92,7 +92,7 @@ class modMjlFinancement extends DolibarrModules
 	{
 		$prefix = mjl_rst005_prefix($this->db);
 		$activity = $prefix.'mjlfinancement_activity';
-		$lockName = mjl_rst005_lock_name($this->db);
+		$lockName = 'mjl:rst002b:'.substr(hash('sha256', (string) mjl_rst005_scalar($this->db, 'SELECT DATABASE()').':'.$prefix), 0, 46);
 		$migrationRequired = false;
 		$cleanInstall = false;
 		if ((int) mjl_rst005_scalar($this->db, "SELECT GET_LOCK('".$this->db->escape($lockName)."',0)") !== 1) return -1;
@@ -105,14 +105,17 @@ class modMjlFinancement extends DolibarrModules
 				$result = $this->_load_tables('/mjlfinancement/sql/');
 				if ($result < 0) return -1;
 				mjl_rst005_install_insert_trigger($this->db, $activity);
-				mjl_rst005_require_target_objects($this->db, $activity);
-				mjl_rst005_require_retained_table_set($this->db);
+				mjl_rst002b_install_activity_update_trigger($this->db);
+				mjl_rst002b_install_assignment_triggers($this->db);
+				mjl_rst002b_install_role_invariant_triggers($this->db, true);
+				mjl_rst002b_require_target_objects($this->db);
 			} else {
-				mjl_rst005_require_retained_schema($this->db);
-				$schema = mjl_rst005_detect_schema($this->db, $activity);
-				if ($schema === RST005_SCHEMA_PHASE1) $migrationRequired = true;
-				elseif ($schema === RST005_SCHEMA_TARGET) mjl_rst005_require_target_objects($this->db, $activity);
-				else return -1;
+				$schema = mjl_rst002b_detect_schema($this->db);
+				if ($schema === RST002B_SCHEMA_TARGET) mjl_rst002b_require_target_objects($this->db);
+				elseif (mjl_rst005_detect_schema($this->db, $activity) === RST005_SCHEMA_TARGET) {
+					mjl_rst005_require_retained_schema($this->db);
+					$migrationRequired = true;
+				} else return -1;
 			}
 			if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
 				&& getenv('MJL_RST_PHASE1_INJECT_ACTIVATION_FAILURE') === '1'
@@ -120,16 +123,16 @@ class modMjlFinancement extends DolibarrModules
 			if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
 				&& getenv('MJL_RST005_INJECT_ACTIVATION_FAILURE') === '1'
 				&& $this->disposableRst005ActivationFailureIsArmed()) return -1;
-			if ($this->ensureRoleInvariantTriggers() < 0) return -1;
+			if (!$migrationRequired && $this->ensureRoleInvariantTriggers() < 0) return -1;
 			if ($this->ensureAuthStateConstraints() < 0 || $this->ensureAuthInvariantTriggers() < 0 || $this->ensureAuthFingerprintKey() < 0) return -1;
-			if ($cleanInstall) mjl_rst005_require_retained_schema($this->db);
+			if ($cleanInstall) mjl_rst002b_require_target_objects($this->db);
 			$this->remove($options);
 			$result = $this->_init(array(), $options);
 			if ($result < 0) return $result;
-			return $migrationRequired ? 'RST005_MIGRATION_REQUIRED' : $result;
+			return $migrationRequired ? 'RST002B_MIGRATION_REQUIRED' : $result;
 		} catch (Throwable $exception) {
-			dol_syslog('RST-005 module activation refused: '.$exception->getMessage(), LOG_ERR);
-			if (PHP_SAPI === 'cli') fwrite(STDERR, 'RST-005 module activation refused: '.$exception->getMessage().PHP_EOL);
+			dol_syslog('RST-002B module activation refused: '.$exception->getMessage(), LOG_ERR);
+			if (PHP_SAPI === 'cli') fwrite(STDERR, 'RST-002B module activation refused: '.$exception->getMessage().PHP_EOL);
 			return -1;
 		} finally {
 			$this->db->query("SELECT RELEASE_LOCK('".$this->db->escape($lockName)."')");
@@ -156,20 +159,12 @@ class modMjlFinancement extends DolibarrModules
 
 	private function ensureRoleInvariantTriggers()
 	{
-		$roleTable = $this->db->prefix().'mjlfinancement_user_role';
-		$userTable = $this->db->prefix().'user';
-		$businessRoles = "'AGENT_SAISIE', 'AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'";
-		$statements = array(
-			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_user_role_bi BEFORE INSERT ON '.$roleTable.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 0; DECLARE target_entity INTEGER DEFAULT -1; IF NEW.role_code NOT IN ('.$businessRoles.') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL business role\'; END IF; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid = NEW.fk_user; IF target_entity <> NEW.entity OR (NEW.is_active = 1 AND target_admin = 1) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL role target\'; END IF; END',
-			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_user_role_bu BEFORE UPDATE ON '.$roleTable.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 0; DECLARE target_entity INTEGER DEFAULT -1; IF NEW.role_code NOT IN ('.$businessRoles.') THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL business role\'; END IF; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid = NEW.fk_user; IF target_entity <> NEW.entity OR (NEW.is_active = 1 AND target_admin = 1) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Invalid MJL role target\'; END IF; END',
-			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_user_admin_bu BEFORE UPDATE ON '.$userTable.' FOR EACH ROW BEGIN IF NEW.admin = 1 AND OLD.admin <> 1 AND EXISTS (SELECT 1 FROM '.$roleTable.' WHERE fk_user = NEW.rowid AND is_active = 1 AND role_code IN ('.$businessRoles.')) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'MJL business-role user cannot become native admin\'; END IF; END',
-		);
-		foreach ($statements as $sql) {
-			if (!$this->db->query($sql)) {
-				return -1;
-			}
+		try {
+			mjl_rst002b_install_role_invariant_triggers($this->db, mjl_rst002b_table_exists($this->db, mjl_rst002b_assignment_table($this->db)));
+			return 1;
+		} catch (Throwable $exception) {
+			return -1;
 		}
-		return 1;
 	}
 
 	private function ensureAuthInvariantTriggers()

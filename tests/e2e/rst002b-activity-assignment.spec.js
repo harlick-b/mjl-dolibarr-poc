@@ -1,0 +1,193 @@
+const { test, expect } = require('@playwright/test');
+const { spawn } = require('node:child_process');
+const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
+const { composeExec, scalar, sql } = require('../helpers/mjl-test-runtime');
+
+const password = process.env.MJL_TEST_USER_PASSWORD;
+const adminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
+let primary;
+let secondary;
+let activityId;
+
+test.describe.configure({ mode: 'serial' });
+
+async function login(page, loginName, credential = password) {
+  await page.goto('/user/logout.php').catch(() => {});
+  await page.goto('/index.php');
+  await page.getByLabel('Identifiant').fill(loginName);
+  await page.getByLabel('Mot de passe').fill(credential);
+  await page.getByRole('button', { name: 'Connexion' }).click();
+  await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+}
+
+function phpBody(body) {
+  return `<?php define('NOLOGIN',1); require '/var/www/html/main.inc.php'; ${body}`;
+}
+
+function moduleCall({ actor, operation, target, version, reason = 'Motif RST-002B vérifié' }) {
+  const source = phpBody(`
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivityassignment.class.php';
+    $conf->entity=1; $actor=new User($db); if ($actor->fetch(${Number(actor)})<=0) exit(2);
+    $module=new MjlActivityAssignment($db);
+    echo json_encode($module->changeAssignment(${activityId},${Number(version)},$actor,'${operation}',${Number(target)},'${reason.replaceAll("'", "\\'")}'));
+  `);
+  return JSON.parse(composeExec('dolibarr', ['php'], 'utf8', source));
+}
+
+function serverCanRead(userId) {
+  const source = phpBody(`
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_access.lib.php';
+    $conf->entity=1; $reader=new User($db); if ($reader->fetch(${Number(userId)})<=0) exit(2);
+    echo mjl_activity_access_can_read_activity($reader,${activityId}) ? '1' : '0';
+  `);
+  return composeExec('dolibarr', ['php'], 'utf8', source).trim() === '1';
+}
+
+function asyncModuleCall(options) {
+  const source = phpBody(`
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivityassignment.class.php';
+    $conf->entity=1; $actor=new User($db); if ($actor->fetch(${Number(options.actor)})<=0) exit(2);
+    $result=(new MjlActivityAssignment($db))->changeAssignment(${activityId},${Number(options.version)},$actor,'${options.operation}',${Number(options.target)},'Concurrence RST-002B');
+    echo json_encode($result); if (($result['code'] ?? '')==='FAILED') file_put_contents('php://stderr',$db->lasterror());
+  `);
+  return new Promise((resolve, reject) => {
+    const child = spawn('docker', ['compose', 'exec', '-T', 'dolibarr', 'php'], { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    let output = ''; let error = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk) => { output += chunk; });
+    child.stderr.setEncoding('utf8').on('data', (chunk) => { error += chunk; });
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code !== 0) { reject(new Error(error || `php exited ${code}`)); return; }
+      const result = JSON.parse(output); if (error.trim() !== '') result.diagnostic = error.trim(); resolve(result);
+    });
+    child.stdin.end(source);
+  });
+}
+
+test.beforeAll(() => {
+  primary = createPhase1FixtureSet({
+    namespace: 'rst002b.primary', entity: 1,
+    users: [
+      { key: 'agent1', role: 'AGENT_SAISIE' },
+      { key: 'agent2', role: 'AGENT_SAISIE' },
+      { key: 'supervisor', role: 'AGENT_VERIFICATEUR' },
+      { key: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+      { key: 'norole', role: null },
+    ],
+    references: {
+      partners: [{ key: 'partner', label: 'Partenaire RST-002B' }],
+      projects: [{ key: 'project', label: 'Projet RST-002B', partnerKey: 'partner' }],
+      operationTypes: [],
+    },
+  });
+  secondary = createPhase1FixtureSet({
+    namespace: 'rst002b.secondary', entity: 2,
+    users: [{ key: 'agent', role: 'AGENT_SAISIE' }, { key: 'validator', role: 'VALIDATEUR_DEFINITIF' }],
+    references: {
+      partners: [{ key: 'partner', label: 'Partenaire RST-002B entité 2' }],
+      projects: [{ key: 'project', label: 'Projet RST-002B entité 2', partnerKey: 'partner' }],
+      operationTypes: [],
+    },
+  });
+  sql(`INSERT INTO llx_mjlfinancement_activity (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif) VALUES (1,'RST002B-ENTITY-1',${primary.partners.partner},${primary.projects.project},'Activité affectée RST-002B','Description RST-002B','2032-01-01','2032-12-31',100,NULL,NULL,'DRAFT',0,1,NOW(),${primary.users.validator.id},NULL)`);
+  activityId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE entity=1 AND ref='RST002B-ENTITY-1'"));
+  sql(`INSERT INTO llx_mjlfinancement_activity_assignment (entity,fk_activity,fk_user,is_primary,date_start,date_end,fk_user_assign,reason,date_creation) VALUES (1,${activityId},${primary.users.agent1.id},1,NOW(),NULL,${primary.users.validator.id},'Affectation principale initiale',NOW())`);
+  sql(`INSERT INTO llx_mjlfinancement_activity (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif) VALUES (2,'RST002B-ENTITY-2',${secondary.partners.partner},${secondary.projects.project},'RST002B_OTHER_ENTITY','Description autre entité','2032-01-01','2032-12-31',100,NULL,NULL,'DRAFT',0,1,NOW(),${secondary.users.validator.id},NULL)`);
+});
+
+test('Agent rows are current-assignment filtered while reviewers see all and Admin remains excluded', async ({ browser }) => {
+  const cases = [
+    ['rst002b.primary.agent1', password, 200, true],
+    ['rst002b.primary.agent2', password, 200, false],
+    ['rst002b.primary.supervisor', password, 200, true],
+    ['rst002b.primary.validator', password, 200, true],
+    ['rst002b.primary.norole', password, 403, false],
+    ['admin', adminPassword, 403, false],
+  ];
+  for (const [loginName, credential, status, seesActivity] of cases) {
+    const context = await browser.newContext(); const page = await context.newPage();
+    await login(page, loginName, credential);
+    const response = await page.request.get('/custom/mjlfinancement/activities.php');
+    expect(response.status(), loginName).toBe(status);
+    const body = await response.text();
+    expect(body.includes('RST002B-ENTITY-1'), loginName).toBe(seesActivity);
+    expect(body).not.toContain('RST002B_OTHER_ENTITY');
+    const post = await page.request.post('/custom/mjlfinancement/activities.php', { form: { action: 'assign', entity: 2 } });
+    expect(post.status()).toBe(403);
+    await context.close();
+  }
+  expect(serverCanRead(primary.users.agent1.id)).toBe(true);
+  expect(serverCanRead(primary.users.agent2.id)).toBe(false);
+});
+
+test('the module adds, removes, and transfers with one version and audit increment', () => {
+  expect(moduleCall({ actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent2.id, version: 1 })).toEqual({ code: 'OK', version: 2 });
+  expect(moduleCall({ actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent2.id, version: 2 }).code).toBe('CONFLICT');
+  expect(moduleCall({ actor: primary.users.validator.id, operation: 'REMOVE_ADDITIONAL', target: primary.users.agent2.id, version: 1 }).code).toBe('STALE_VERSION');
+  expect(moduleCall({ actor: primary.users.validator.id, operation: 'REMOVE_ADDITIONAL', target: primary.users.agent2.id, version: 2 })).toEqual({ code: 'OK', version: 3 });
+  expect(moduleCall({ actor: primary.users.validator.id, operation: 'TRANSFER_PRIMARY', target: primary.users.agent2.id, version: 3 })).toEqual({ code: 'OK', version: 4 });
+  expect(Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`))).toBe(4);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE entity=1 AND object_type='activity_assignment' AND activity_id=${activityId}`))).toBe(3);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_activity=${activityId} AND date_end IS NULL AND is_primary=1 AND fk_user=${primary.users.agent2.id}`))).toBe(1);
+});
+
+test('removal is effective on the next server authorization check', async ({ browser }) => {
+  expect(serverCanRead(primary.users.agent1.id)).toBe(false);
+  expect(serverCanRead(primary.users.agent2.id)).toBe(true);
+  const context = await browser.newContext(); const page = await context.newPage();
+  await login(page, 'rst002b.primary.agent1');
+  const body = await (await page.request.get('/custom/mjlfinancement/activities.php')).text();
+  expect(body).not.toContain('RST002B-ENTITY-1');
+  await context.close();
+});
+
+test('invalid actors, targets, direct history writes, and assigned-user changes fail closed', () => {
+  const version = Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`));
+  for (const probe of [
+    moduleCall({ actor: primary.users.supervisor.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent1.id, version }),
+    moduleCall({ actor: secondary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent1.id, version }),
+    moduleCall({ actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: secondary.users.agent.id, version }),
+    moduleCall({ actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.supervisor.id, version }),
+  ]) expect(probe.code).toBe('FORBIDDEN');
+  expect(() => sql(`UPDATE llx_mjlfinancement_activity_assignment SET reason='altéré' WHERE entity=1 AND fk_activity=${activityId} AND date_end IS NULL`)).toThrow();
+  expect(() => sql(`DELETE FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_activity=${activityId}`)).toThrow();
+  expect(() => sql(`UPDATE llx_mjlfinancement_activity SET name='altéré',version=version+1 WHERE rowid=${activityId}`)).toThrow();
+  expect(() => sql(`UPDATE llx_user SET statut=0 WHERE rowid=${primary.users.agent2.id}`)).toThrow();
+  expect(() => sql(`UPDATE llx_mjlfinancement_user_role SET role_code='AGENT_VERIFICATEUR' WHERE entity=1 AND fk_user=${primary.users.agent2.id} AND is_active=1`)).toThrow();
+  expect(Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`))).toBe(version);
+});
+
+test('audit insertion failure rolls back assignment and Activity version', () => {
+  const version = Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`));
+  const assignmentCount = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_activity=${activityId}`));
+  sql("CREATE TRIGGER rst002b_test_audit_failure BEFORE INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected audit failure'");
+  try {
+    expect(moduleCall({ actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent1.id, version }).code).toBe('FAILED');
+  } finally {
+    sql('DROP TRIGGER rst002b_test_audit_failure');
+  }
+  expect(Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`))).toBe(version);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_activity=${activityId}`))).toBe(assignmentCount);
+});
+
+test('parallel commands serialize and only one stale snapshot can commit', async () => {
+  for (let cycle = 0; cycle < 8; cycle += 1) {
+    const version = Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`));
+    const calls = await Promise.all([
+      asyncModuleCall({ actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent1.id, version }),
+      asyncModuleCall({ actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent1.id, version }),
+    ]);
+    const diagnostic = `cycle=${cycle};calls=${JSON.stringify(calls)}`;
+    expect(calls.filter((result) => result.code === 'OK'), diagnostic).toHaveLength(1);
+    expect(calls.filter((result) => ['STALE_VERSION', 'CONFLICT'].includes(result.code)), diagnostic).toHaveLength(1);
+    expect(moduleCall({ actor: primary.users.validator.id, operation: 'REMOVE_ADDITIONAL', target: primary.users.agent1.id, version: version + 1 }), diagnostic).toEqual({ code: 'OK', version: version + 2 });
+  }
+});
+
+test('rollback refuses populated RST-002B state without changing it', () => {
+  const version = Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`));
+  const assignments = Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_activity=${activityId}`));
+  expect(() => composeExec('dolibarr', ['php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B'], 'utf8')).toThrow();
+  expect(Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`))).toBe(version);
+  expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_activity=${activityId}`))).toBe(assignments);
+});

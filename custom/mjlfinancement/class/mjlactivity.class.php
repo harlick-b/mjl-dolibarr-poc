@@ -2,6 +2,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_access.lib.php';
 
 /** RST-005 target read model. Every business mutation remains dormant. */
 class MjlActivity extends CommonObject
@@ -34,12 +35,14 @@ class MjlActivity extends CommonObject
 	}
 
 	/** Return the fixed active-entity read-only projection for the sealed schema. */
-	public function fetchReadProjection($entity, $limit = 200)
+	public function fetchReadProjection(User $reader, $limit = 200)
 	{
-		$entity = (int) $entity;
+		global $conf;
+		$entity = (int) $conf->entity;
 		$limit = max(1, min(200, (int) $limit));
+		if (!mjl_activity_access_can_enter_list($reader)) return false;
 		$schema = $this->detectSchema();
-		if ($schema === RST005_SCHEMA_TARGET) {
+		if (mjl_activity_access_assignment_schema_ready() || $schema === RST005_SCHEMA_TARGET) {
 			$columns = 'a.rowid,a.ref,a.name,a.validation_status,p.ref AS project_ref,p.title AS project_title';
 		} elseif ($schema === RST005_SCHEMA_PHASE1) {
 			$columns = 'a.rowid,a.ref,a.label AS name,CAST(a.status AS CHAR) AS validation_status,p.ref AS project_ref,p.title AS project_title';
@@ -48,6 +51,10 @@ class MjlActivity extends CommonObject
 		}
 		$sql = 'SELECT '.$columns.' FROM '.$this->db->prefix().'mjlfinancement_activity a';
 		$sql .= ' INNER JOIN '.$this->db->prefix().'projet p ON p.rowid=a.fk_project AND p.entity=a.entity';
+		if (mjl_scope_is_input_agent($reader, $entity)) {
+			$sql .= ' INNER JOIN '.$this->db->prefix().'mjlfinancement_activity_assignment aa ON aa.entity=a.entity AND aa.fk_activity=a.rowid';
+			$sql .= ' AND aa.fk_user='.((int) $reader->id).' AND aa.date_end IS NULL';
+		}
 		$sql .= ' WHERE a.entity='.$entity.' ORDER BY a.rowid DESC LIMIT '.$limit;
 		$resql = $this->db->query($sql);
 		if (!$resql) return false;

@@ -249,14 +249,17 @@ try {
     $disposableControlCount = (int) $pdo->query("SELECT COUNT(*) FROM llx_const WHERE entity=0 AND (name='MJL_DISPOSABLE_FIXTURE_SENTINEL' OR name LIKE 'MJL_TEST_FIXTURE_NAMESPACE_%')")->fetchColumn();
     $adminCount = (int) $pdo->query('SELECT COUNT(*) FROM llx_user WHERE admin=1')->fetchColumn();
     $adminIdentity = $pdo->query('SELECT rowid,entity,login,admin,statut FROM llx_user WHERE admin=1 ORDER BY rowid')->fetchAll();
+    $partnerScopeExists = (int) $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_user_soc_scope'")->fetchColumn() === 1;
+    $assignmentExists = (int) $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_activity_assignment'")->fetchColumn() === 1;
     $businessCounts = [
         'users_non_admin' => (int) $pdo->query('SELECT COUNT(*) FROM llx_user WHERE admin=0')->fetchColumn(),
         'partners' => (int) $pdo->query('SELECT COUNT(*) FROM llx_societe')->fetchColumn(),
         'projects' => (int) $pdo->query('SELECT COUNT(*) FROM llx_projet')->fetchColumn(),
         'ecm_files' => (int) $pdo->query('SELECT COUNT(*) FROM llx_ecm_files')->fetchColumn(),
         'business_roles' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_user_role')->fetchColumn(),
-        'partner_scopes' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_user_soc_scope')->fetchColumn(),
+        'partner_scopes' => $partnerScopeExists ? (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_user_soc_scope')->fetchColumn() : 0,
         'activities' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_activity')->fetchColumn(),
+        'activity_assignments' => $assignmentExists ? (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment')->fetchColumn() : 0,
         'operation_types' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_operation_type')->fetchColumn(),
         'invitations' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_invitation')->fetchColumn(),
         'password_resets' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_password_reset')->fetchColumn(),

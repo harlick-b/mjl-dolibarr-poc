@@ -2,13 +2,15 @@
 
 ## Status
 
-`PROPOSED; PENDING_EXPLICIT_APPROVAL; NOT_IMPLEMENTED`
+`APPROVED_FOR_IMPLEMENTATION; IMPLEMENTATION_IN_PROGRESS; SHARED_EXECUTION_NOT_AUTHORIZED`
 
-This strategy is separately approvable. It authorizes no repository
-implementation, shared mutation, rollback, persistent fixture, or RST-006A
-work. RST-005 is executed; RST-002B is the next dependency. RST-006A remains
-only the subsequent dependency and cannot be finalized or implemented until
-RST-002B has executed evidence.
+The user approved implementation of this exact strategy and corrected path
+inventory at commit `7676f1f` on 2026-09-01. That approval authorizes repository
+implementation and disposable verification only. It authorizes no shared
+mutation, rollback, persistent fixture, or RST-006A work. RST-005 is executed;
+RST-002B is the next dependency. RST-006A remains only the subsequent
+dependency and cannot be finalized or implemented until RST-002B has executed
+evidence.
 
 ## Confidence result
 
@@ -370,7 +372,7 @@ the formal Phase 2 verdict. Disposal remains separately approval-gated.
 
 ## Remaining human confirmations
 
-Explicit approval of this exact RST-002B strategy and its corrected path
-inventory is required before implementation. Shared execution will later
-require a second approval naming the clean implementation commit and
-protected-tree digest. RST-006A remains unapproved.
+Implementation of this exact RST-002B strategy and corrected path inventory was
+approved at commit `7676f1f`. Shared execution still requires a second approval
+naming the clean implementation commit and protected-tree digest. RST-006A
+remains unapproved.

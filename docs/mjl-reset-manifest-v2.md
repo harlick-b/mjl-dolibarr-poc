@@ -141,7 +141,7 @@ number does not approve a suffixed unit.
 
 ### RST-002B - Activity-assignment authorization
 
-- Status: `PENDING_APPROVAL`
+- Status: `APPROVED_FOR_IMPLEMENTATION`; shared execution remains separately approval-gated
 - Current component: a verified-empty nullable responsible-user column forced
   null by `chk_mjl_activity_responsible_dormant`, plus the empty retained scope
   table; no Activity row or responsible relationship exists. Any nonzero
@@ -155,7 +155,7 @@ number does not approve a suffixed unit.
 - Reason: the target supports primary and additional current Agents with immediate revocation.
 - Phase: Phase 2
 - Dependencies: RST-002A, RST-005, RST-007A
-- Exact paths: `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/class/mjlactivity.class.php`, `custom/mjlfinancement/lib/mjl_activity_access.lib.php`, `custom/mjlfinancement/lib/mjl_audit.lib.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_activity.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_activity.key.sql`, planned `custom/mjlfinancement/class/mjlactivityassignment.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.key.sql`, planned `custom/mjlfinancement/scripts/rst002b_activity_assignment.php`, planned `custom/mjlfinancement/scripts/verification/schema/activity_assignment.php`, planned `tests/e2e/rst002b-activity-assignment.spec.js`, and planned `tests/unit/rst002b-activity-assignment.test.js`. Shared Phase 2 suites remain reserved for RST-013B.
+- Exact paths: the approved corrected inventory in `docs/mjl-rst-002b-activity-assignment-strategy.md` is exhaustive. `custom/mjlfinancement/lib/mjl_audit.lib.php` remains unchanged and supplies the existing transaction-bound append interface. Shared Phase 2 suites remain reserved for RST-013B.
 - Exact tables/data: planned empty `llx_mjlfinancement_activity_assignment`;
   exact RST-005 `chk_mjl_activity_responsible_dormant` and empty
   `llx_mjlfinancement_activity.fk_user_responsible`; empty
