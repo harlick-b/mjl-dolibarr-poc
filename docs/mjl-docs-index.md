@@ -28,6 +28,7 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-rst-000a-supplemental-appendix.md` | Approved RST-000A deviation evidence; exact hashes remain private and checksum-bound |
 | `docs/mjl-rst-001-execution-report.md` | Active RST-001 authorization/schema execution and verification evidence; not target-rule authority |
 | `docs/mjl-rst-002a-execution-report.md` | Active RST-002A authorization-containment, rollback, and verification evidence; not target-rule authority |
+| `docs/mjl-rst-002b-activity-assignment-strategy.md` | Proposed, separately approvable RST-002B assignment/storage/access/migration boundary; not implemented and no shared execution authorized |
 | `docs/mjl-rst-003-execution-report.md` | Active RST-003 reference-foundation execution and verification evidence; not target-rule authority |
 | `docs/mjl-rst-005-activity-foundation-strategy.md` | Executed RST-005 empty Activity foundation, migration, verification, recovery, and separately gated rollback contract |
 | `docs/mjl-rst-005-phase1-activity-schema.sql` | Executable-exact normalized Phase 1 Activity schema oracle for RST-005 preflight and rollback |
