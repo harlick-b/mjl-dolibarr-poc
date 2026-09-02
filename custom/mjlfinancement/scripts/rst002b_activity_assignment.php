@@ -31,18 +31,11 @@ function rst002b_require_boundary($mode)
 		if (!preg_match('/^[a-f0-9]{32}$/', $sentinel) || !is_file($path) || is_link($path) || !hash_equals($sentinel, (string) @file_get_contents($path))) throw new RuntimeException('RST-002B disposable sentinel attestation failed.');
 		return;
 	}
-	if (getenv('MJL_RST002B_SHARED_LAUNCHER') !== '1') throw new RuntimeException('RST-002B shared launcher authorization is absent.');
-	$path = '/run/mjl-rst002b/authorization.json';
-	$stat = @lstat($path);
-	if ($stat === false || is_link($path) || !is_file($path) || (int) $stat['uid'] !== 0 || (((int) $stat['mode']) & 07777) !== 0400 || (int) $stat['nlink'] !== 1) throw new RuntimeException('RST-002B shared authorization custody is invalid.');
-	$record = json_decode((string) @file_get_contents($path), true);
-	$expected = array('approval_sha256','approved_commit','checkpoint_sha256','complete_tree_sha256','mode','operation_id','unit','version'); sort($expected);
-	$keys = is_array($record) ? array_keys($record) : array(); sort($keys);
-	if ($keys !== $expected) throw new RuntimeException('RST-002B shared authorization fields are invalid.');
-	if (($record['version'] ?? null) !== 1 || ($record['unit'] ?? '') !== 'RST-002B' || ($record['mode'] ?? '') !== $mode
-		|| !preg_match('/^[a-f0-9]{32}$/', (string) ($record['operation_id'] ?? '')) || !preg_match('/^[a-f0-9]{40}$/', (string) ($record['approved_commit'] ?? ''))
-		|| !preg_match('/^[a-f0-9]{64}$/', (string) ($record['complete_tree_sha256'] ?? '')) || !preg_match('/^[a-f0-9]{64}$/', (string) ($record['approval_sha256'] ?? ''))
-		|| !preg_match('/^[a-f0-9]{64}$/', (string) ($record['checkpoint_sha256'] ?? ''))) throw new RuntimeException('RST-002B shared authorization record is invalid.');
+	if (getenv('MJL_RST002B_SIMPLE_CUTOVER') === '1') {
+		if ((string) getenv('MJL_RST002B_SIMPLE_PROJECT') !== 'mjl-dolibarr-poc' || !in_array($mode, array('apply', 'verify'), true)) throw new RuntimeException('RST-002B simple cutover attestation failed.');
+		return;
+	}
+	throw new RuntimeException('RST-002B execution boundary is absent.');
 }
 
 function rst002b_sql_statements($path, $prefix)

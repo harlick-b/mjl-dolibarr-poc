@@ -18,7 +18,6 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst005
     npm run test:rst005-launcher
     npm run test:rst002b
-    npm run test:rst002b-launcher
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
@@ -71,17 +70,9 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   optimistic locking, transactional audit rollback, concurrency, reciprocal
   role/user guards, entity isolation, direct SQL denial, shared-state equality,
   and whole-tenant destruction.
-- 'test:rst002b-launcher' exercises the dedicated RST-002B immutable intent,
-  before, checkpoint, after, and report chain; then runs the real root-custodied
-  packet and launcher against a temporary committed-source snapshot and unique
-  disposable shared-shaped tenant. It proves real encrypted backup restores,
-  approval/key/traffic substitution rejection, inherited-lock contention, a
-  physical interruption and re-entry after each of the 12 forward and 12
-  rollback DDL statements, both post-restart/pre-report recovery windows,
-  loopback health recovery, and fail-closed exact Compose/restore/one-off/
-  custody/lock cleanup. It does not touch the shared tenant.
-  Shared execution still requires approval of the exact clean implementation
-  commit and protected-tree digest.
+- `npm run cutover:rst002b-fast -- --confirm=RST-002B-FAST` is the intentionally
+  small local operational command. It is not an automated test and must not be
+  invoked unless the user explicitly requests execution.
 - 'test:characterization' is a compatibility alias to the current
   `test:rst002b` successor gate. The stale RST-002A characterization source is
   retained unchanged because it was outside the approved RST-002B path

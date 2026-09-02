@@ -112,10 +112,10 @@ test('RST-002B migration is CLI-only, known-prefix, empty-state, and rollback gu
   assert.match(migration, /mjl_rst002b_require_target_objects/);
   assert.match(migration, /fk_user_responsible/);
   assert.match(migration, /mjlfinancement_user_soc_scope/);
-  assert.match(migration, /object_type='activity_assignment'/);
-  assert.match(migration, /MJL_DISPOSABLE_TEST_TENANT/);
-  assert.match(migration, /MJL_RST002B_SHARED_LAUNCHER/);
-  assert.match(migration, /Rollback refused/);
+	assert.match(migration, /object_type='activity_assignment'/);
+	assert.match(migration, /MJL_DISPOSABLE_TEST_TENANT/);
+	assert.match(migration, /MJL_RST002B_SIMPLE_CUTOVER/);
+	assert.match(migration, /Rollback refused/);
 });
 
 test('RST-002B focused disposable and Playwright discovery are explicit', () => {
@@ -124,7 +124,7 @@ test('RST-002B focused disposable and Playwright discovery are explicit', () => 
   const runner = read('tests/runner/run-suite.js');
   const playwright = read('playwright.config.js');
   assert.equal(pkg.scripts['test:rst002b'], 'node tests/runner/run-suite.js rst002b');
-  assert.equal(pkg.scripts['test:rst002b-launcher'], 'node tests/runner/rst002b-shared-launcher-rehearsal.js');
+  assert.equal(pkg.scripts['cutover:rst002b-fast'], 'node custom/mjlfinancement/scripts/rst002b_fast_cutover.js');
   assert.match(disposable, /rst002b:\s*\['rst002b'\]/);
   assert.match(runner, /rst002b-activity-assignment\.spec\.js/);
   assert.match(playwright, /rst002b-activity-assignment\.spec\.js/);

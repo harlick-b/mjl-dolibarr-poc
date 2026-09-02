@@ -111,8 +111,10 @@ committed-source gates and clean final reviews at commit
 The user separately approved that exact pair, and the empty shared Activity
 foundation was executed and independently verified on 2026-09-01 under
 DEC-047. Recovery and rollback were not run. RST-002B implementation was
-separately approved at strategy commit `7676f1f` by DEC-048; its shared
-execution remains approval-gated. RST-006A remains separately reviewable and
+separately approved at strategy commit `7676f1f` by DEC-048. DEC-049 supersedes
+only its operational ceremony: this empty local POC uses one fast guarded
+backup/apply/verify/restart command without commit/digest packet machinery.
+The simplification request did not authorize running it. RST-006A remains separately reviewable and
 approval-gated. The operational `initdb.log` checksum deviation from
 the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
 RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.

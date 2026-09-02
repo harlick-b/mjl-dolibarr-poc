@@ -2,7 +2,7 @@
 
 ## Status
 
-`IMPLEMENTED_AND_DISPOSABLE_VERIFIED; SHARED_EXECUTION_NOT_AUTHORIZED`
+`IMPLEMENTED_AND_DISPOSABLE_VERIFIED; FAST_LOCAL_CUTOVER_NOT_EXECUTED`
 
 The user approved implementation of this exact strategy and corrected path
 inventory at commit `7676f1f` on 2026-09-01. That approval authorizes repository
@@ -11,6 +11,20 @@ mutation, rollback, persistent fixture, or RST-006A work. RST-005 is executed;
 RST-002B is the next dependency. RST-006A remains only the subsequent
 dependency and cannot be finalized or implemented until RST-002B has executed
 evidence.
+
+### RST-002B simplicity rule (DEC-049)
+
+For this empty local POC cutover, use the smallest safe operational path. One
+explicit command stops Dolibarr, writes one private local SQL backup, runs the
+existing empty-state-guarded migration, verifies the target, restarts Dolibarr,
+and checks local health. Commit/digest packets, encrypted restore rehearsals,
+immutable evidence chains, root custody, and crash matrices are not required
+for RST-002B and must not block it. This exception applies only to this local,
+business-empty RST-002B cutover; it does not weaken application authorization,
+schema invariants, tenant isolation, or the disposable behavior suite.
+
+The simplification request did not authorize execution. Run the command only
+after the user explicitly says to execute it.
 
 ## Confidence result
 
@@ -200,15 +214,12 @@ Create:
 - `custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.sql`
 - `custom/mjlfinancement/sql/llx_mjlfinancement_activity_assignment.key.sql`
 - `custom/mjlfinancement/scripts/rst002b_activity_assignment.php`
-- `custom/mjlfinancement/scripts/rst002b_shared_operation.lib.js`
-- `custom/mjlfinancement/scripts/rst002b_shared_packet.js`
-- `custom/mjlfinancement/scripts/rst002b_shared_launcher.js`
+- `custom/mjlfinancement/scripts/rst002b_fast_cutover.js`
 - `custom/mjlfinancement/scripts/verification/schema/activity_assignment.php`
 - `tests/e2e/rst002b-activity-assignment.spec.js`
-- `tests/runner/rst002b-shared-launcher-rehearsal.js`
 - `tests/unit/rst002b-activity-assignment.test.js`
-- `tests/unit/rst002b-shared-launcher.test.js`
-- `docs/mjl-rst-002b-execution-report.md` only after shared execution
+- `tests/unit/rst002b-fast-cutover.test.js`
+- `docs/mjl-rst-002b-execution-report.md` only after local cutover execution
 
 Modify:
 
@@ -296,51 +307,22 @@ sealed RST-005 schema and forward return to its own target.
    `git diff --check`, full-feature validation, and final Standards, Spec, and
    Security/Isolation reviews once against the exact clean implementation
    commit. Correct only demonstrated blockers, then repeat only affected gates.
-6. Compute the implementation commit, protected-tree digest, forward/rollback
-   schema digests, and nonsecret manifest. Any protected change invalidates the
-   candidate approval pair.
-7. Request separate explicit approval naming RST-002B and that exact pair
-   before generating a shared packet or stopping traffic.
+6. Keep the cutover operationally small. Do not add packet, digest, custody,
+   restore-rehearsal, or crash-matrix gates for this empty local POC.
+7. Wait for an explicit instruction to execute, then run only
+   `npm run cutover:rst002b-fast -- --confirm=RST-002B-FAST`.
 
-## Shared cutover and recovery boundary
+## Fast local cutover boundary
 
-Shared preflight requires the exact finalized RST-005 schema, no RST-005
-temporary object, zero Activity rows, zero assignment rows/table absence, zero
-Partner-scope rows, null dormant responsible values, the expected audit
-baseline, a clean approved tree, and no foreign writer. A mismatch stops.
-
-The dedicated `rst002b_shared_packet.js`, `rst002b_shared_launcher.js`, and
-`rst002b_shared_operation.lib.js` own root custody, exact approval/commit/tree/
-target binding, stopped-service and fresh traffic checks, one exclusive target
-lock, encrypted streaming backups, independent restore proof, immutable
-before/checkpoint/after evidence, exact migration invocation, and exact-name
-cleanup. They may reuse stable runtime commands, but must not modify,
-generalize, or claim authorization from the completed RST-005 launcher. Their
-focused rehearsal owns substitution, interruption at each DDL prefix,
-restore-integrity, secret-custody, and zero-survivor proof.
-
-After approval, stop only Dolibarr, retain MariaDB, capture encrypted schema
-and full backups, independently restore-test them, and run that exact dedicated
-RST-002B migration. Its ordered known states are: RST-005 baseline; assignment
-table created but dormant; Activity guard/column cut over; obsolete scope table
-removed; verified RST-002B target. Application code authorizes Agent reads or
-assignment commands only at the complete target digest. A recognized partial
-prefix remains fail-closed and may only continue forward with the original
-approved packet; an unknown state stops for new approval. There is no automatic
-rollback or broad restore.
-
-Verify the exact target schema, one native Admin, zero business users/rows,
-unchanged documents/ECM/nonallowlisted database evidence, unchanged audit
-count/digest, backup restore attestation, and zero temporary survivors before
-restarting Dolibarr and checking Compose plus local HTTP.
-
-Rollback is separately approved, reverse-dependency-aware, and allowed only
-before RST-006A or any later dependent unit, with zero Activity, assignment,
-assignment-audit, and Partner-scope rows. It restores the exact RST-005
-responsible column/constraint, empty scope table definition, unconditional
-RST-005 update denial, access containment, and sealed schema digest; it never
-reloads rows or legacy scope data. Backups and evidence remain retained until
-the formal Phase 2 verdict. Disposal remains separately approval-gated.
+The command is fixed to this repository, Compose file, project name, and the
+`dolibarr` and `mariadb` services. Both services must already be running. It
+stops only Dolibarr, creates a mode-0600 full SQL backup under ignored
+`data/backups/`, applies the existing known-prefix migration, runs its verifier,
+restarts Dolibarr, and checks loopback HTTP. Empty-state and schema mismatches
+still stop inside the migration. A failure attempts to restart Dolibarr and
+retains any complete backup; rollback remains a separate deliberate action.
+No rollback entry point is retained: if rollback is later approved, its minimal
+tooling will be implemented for that request.
 
 ## Explicit exclusions
 
@@ -373,6 +355,5 @@ the formal Phase 2 verdict. Disposal remains separately approval-gated.
 ## Remaining human confirmations
 
 Implementation of this exact RST-002B strategy and corrected path inventory was
-approved at commit `7676f1f`. Shared execution still requires a second approval
-naming the clean implementation commit and protected-tree digest. RST-006A
-remains unapproved.
+approved at commit `7676f1f`. The fast cutover remains unexecuted until the user
+explicitly requests it. RST-006A remains unapproved.

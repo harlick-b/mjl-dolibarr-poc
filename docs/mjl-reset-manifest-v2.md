@@ -6,15 +6,16 @@ RST-007A, RST-004, RST-008, and RST-009A are executed; their operational-log
 exception was ratified by DEC-039. RST-010A, RST-013A, and RST-014A are
 executed. Phase 1 is `PHASE_1_READY_WITH_NOTES`; the signed human accessibility
 gate is deferred and Phase 2 remains separately gated.
-All other later actions remain unapproved and unexecuted.
+RST-002B is implemented but its DEC-049 local cutover is unexecuted. All other
+later actions remain unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
 - RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
-  RST-009A, RST-010A, RST-013A, and RST-014A are `EXECUTED`; every other action
-  is `PENDING_APPROVAL`.
+  RST-009A, RST-010A, RST-013A, and RST-014A are `EXECUTED`; RST-002B is
+  `IMPLEMENTED_NOT_EXECUTED`; every other action is `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.
@@ -141,7 +142,7 @@ number does not approve a suffixed unit.
 
 ### RST-002B - Activity-assignment authorization
 
-- Status: `APPROVED_FOR_IMPLEMENTATION`; shared execution remains separately approval-gated
+- Status: `IMPLEMENTED`; DEC-049 fast local execution has not been run
 - Current component: a verified-empty nullable responsible-user column forced
   null by `chk_mjl_activity_responsible_dormant`, plus the empty retained scope
   table; no Activity row or responsible relationship exists. Any nonzero
@@ -175,9 +176,9 @@ number does not approve a suffixed unit.
   other columns. Its separately reviewed strategy must seal the exact forward
   and rollback trigger bodies/digests and prove structural/direct-SQL bypasses
   fail before implementation.
-- Backup prerequisite: RST-000, executed RST-000A/RST-002A/RST-005/RST-007A,
-  exact empty-row proof, and forward/rollback schema digests sealed by the
-  separately reviewed RST-002B strategy.
+- Backup prerequisite: running fixed local services, the migration's exact
+  empty predecessor-state check, and the private SQL backup created by the
+  DEC-049 fast command before applying any DDL.
 - Rollback/verification: after reverse-dependent rollback and only with empty
   Activity/assignment/audit targets, atomically restore the exact nullable
   responsible field plus `chk_mjl_activity_responsible_dormant` and the empty

@@ -60,7 +60,8 @@ final reviews, and exact approval of commit
 `a01bfd02d6e0bff4c1039f5f191233bfa5fe9cbc170c715f640737d75403f40f`.
 The shared tenant now has the verified-empty finalized target Activity
 foundation. RST-002B implementation was separately approved at strategy commit
-`7676f1f`; its shared execution remains separately approval-gated. RST-006A
+`7676f1f`; DEC-049 now makes its unexecuted local cutover a single guarded
+backup/apply/verify/restart command. RST-006A
 follows it and remains unapproved. No other Phase 2 unit is authorized by
 RST-005 execution or DEC-048.
 
