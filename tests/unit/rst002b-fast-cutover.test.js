@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
@@ -19,4 +20,11 @@ test('RST-002B fast cutover rejects anything except its exact confirmation befor
   assert.ifError(result.error);
   assert.equal(result.status, 2);
   assert.equal(result.stderr, 'Use --confirm=RST-002B-FAST or --help.\n');
+});
+
+test('RST-002B fast cutover privately mounts the installed config into migration one-offs', () => {
+  const source = fs.readFileSync(script, 'utf8');
+  assert.match(source, /dc\(\['cp',\s*'dolibarr:\/var\/www\/html\/conf\/conf\.php'/);
+  assert.match(source, /--volume[\s\S]*\/var\/www\/html\/conf\/conf\.php:ro/);
+  assert.match(source, /unlinkSync\(configFile\)[\s\S]*rmdirSync\(configDirectory\)/);
 });
