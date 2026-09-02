@@ -6,7 +6,7 @@ RST-007A, RST-004, RST-008, and RST-009A are executed; their operational-log
 exception was ratified by DEC-039. RST-010A, RST-013A, and RST-014A are
 executed. Phase 1 is `PHASE_1_READY_WITH_NOTES`; the signed human accessibility
 gate is deferred and Phase 2 remains separately gated.
-RST-002B is implemented but its DEC-049 local cutover is unexecuted. All other
+RST-002B was executed under DEC-050 on 2026-09-02. All other
 later actions remain unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
@@ -14,8 +14,8 @@ number does not approve a suffixed unit.
 ## Safety and Approval Contract
 
 - RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
-  RST-009A, RST-010A, RST-013A, and RST-014A are `EXECUTED`; RST-002B is
-  `IMPLEMENTED_NOT_EXECUTED`; every other action is `PENDING_APPROVAL`.
+  RST-009A, RST-010A, RST-013A, RST-014A, and RST-002B are `EXECUTED`; every
+  other action is `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.
@@ -142,30 +142,28 @@ number does not approve a suffixed unit.
 
 ### RST-002B - Activity-assignment authorization
 
-- Status: `IMPLEMENTED`; DEC-049 fast local execution has not been run
-- Current component: a verified-empty nullable responsible-user column forced
-  null by `chk_mjl_activity_responsible_dormant`, plus the empty retained scope
-  table; no Activity row or responsible relationship exists. Any nonzero
-  Activity/responsible/scope row is a hard preflight stop, never migration input.
-- Proposed action: create time-bounded Activity assignments and guarded,
-  expected-version, transactionally audited add/remove/transfer/primary commands;
-  verify their guards; then atomically remove the exact dormant responsible-user
-  constraint/column and empty legacy scope table without mapping old values.
-  Atomically replace `llx_mjl_activity_rst005_bu` with the sealed
-  assignment-only `llx_mjl_activity_rst002b_bu` guard.
+- Status: `EXECUTED` under DEC-050 on 2026-09-02
+- Current component: the verified-empty RST-002B assignment table and guarded
+  Activity target. The dormant responsible-user column/constraint and retained
+  Partner-scope table are absent. No Activity or assignment row exists.
+- Executed action: created storage for time-bounded Activity assignments and
+  guarded, expected-version, transactionally audited add/remove/transfer/primary commands;
+  verified their guards; removed the exact dormant responsible-user
+  constraint/column and empty legacy scope table without mapping old values;
+  and replaced `llx_mjl_activity_rst005_bu` with the sealed assignment-only
+  `llx_mjl_activity_rst002b_bu` guard.
 - Reason: the target supports primary and additional current Agents with immediate revocation.
 - Phase: Phase 2
 - Dependencies: RST-002A, RST-005, RST-007A
 - Exact paths: the approved corrected inventory in `docs/mjl-rst-002b-activity-assignment-strategy.md` is exhaustive. `custom/mjlfinancement/lib/mjl_audit.lib.php` remains unchanged and supplies the existing transaction-bound append interface. Shared Phase 2 suites remain reserved for RST-013B.
-- Exact tables/data: planned empty `llx_mjlfinancement_activity_assignment`;
-  exact RST-005 `chk_mjl_activity_responsible_dormant` and empty
-  `llx_mjlfinancement_activity.fk_user_responsible`; empty
-  `llx_mjlfinancement_user_soc_scope` table definition; RST-007A audit events
-  only for authorized disposable assignment commands.
-- Action and data impact: introduce the assignment structure and versioned
-  service, append each assignment mutation and Activity-version change with its
-  audit event in one transaction, and remove the named empty responsible-user
-  check/field and scope table through one explicit migration. No legacy
+- Exact tables/data: empty `llx_mjlfinancement_activity_assignment`; removed
+  RST-005 `chk_mjl_activity_responsible_dormant`,
+  `llx_mjlfinancement_activity.fk_user_responsible`, and the empty
+  `llx_mjlfinancement_user_soc_scope` table; no shared RST-007A audit event was added.
+- Executed data impact: introduced the assignment structure and versioned
+  service. Each future assignment mutation and Activity-version change appends its
+  audit event in one transaction. The migration removed the named empty
+  responsible-user check/field and scope table. No legacy
   Activity-to-Agent mapping is authorized. RST-006A creation must invoke this
   service so Activity, creator-as-primary assignment, version, and audit commit
   atomically.
@@ -173,9 +171,8 @@ number does not approve a suffixed unit.
   `fk_user_modif`, and automatic `tms` changes made by that expected-version
   assignment service; it rejects changes to entity, reference, creator,
   creation date, every structural field, amounts, status, cancellation, and all
-  other columns. Its separately reviewed strategy must seal the exact forward
-  and rollback trigger bodies/digests and prove structural/direct-SQL bypasses
-  fail before implementation.
+  other columns. The reviewed strategy sealed the exact forward and rollback
+  trigger bodies/digests and proved structural/direct-SQL bypasses fail.
 - Backup prerequisite: running fixed local services, the migration's exact
   empty predecessor-state check, and the private SQL backup created by the
   DEC-049 fast command before applying any DDL.

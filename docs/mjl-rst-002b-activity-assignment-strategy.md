@@ -2,15 +2,14 @@
 
 ## Status
 
-`IMPLEMENTED_AND_DISPOSABLE_VERIFIED; FAST_LOCAL_CUTOVER_NOT_EXECUTED`
+`EXECUTED_AND_VERIFIED`
 
 The user approved implementation of this exact strategy and corrected path
 inventory at commit `7676f1f` on 2026-09-01. That approval authorizes repository
 implementation and disposable verification only. It authorizes no shared
 mutation, rollback, persistent fixture, or RST-006A work. RST-005 is executed;
-RST-002B is the next dependency. RST-006A remains only the subsequent
-dependency and cannot be finalized or implemented until RST-002B has executed
-evidence.
+RST-002B subsequently executed under DEC-050. RST-006A is now the subsequent
+dependency and remains separately reviewable and approval-gated.
 
 ### RST-002B simplicity rule (DEC-049)
 
@@ -23,19 +22,19 @@ for RST-002B and must not block it. This exception applies only to this local,
 business-empty RST-002B cutover; it does not weaken application authorization,
 schema invariants, tenant isolation, or the disposable behavior suite.
 
-The simplification request did not authorize execution. Run the command only
-after the user explicitly says to execute it.
+The user separately authorized execution on 2026-09-02. DEC-050 and the
+execution report record the completed cutover.
 
 ## Confidence result
 
-The proposal is decision-complete for RST-002B if explicitly approved.
+The approved proposal was decision-complete for RST-002B.
 Canonical rules, the executed RST-005 schema, current access code, audit
 transaction interface, role-change code, and reset manifest agree after the
 loophole closures below. The future automatic creator-primary rule is recorded
 only as an RST-006A dependency; RST-002B leaves its nullable physical seam
-database-forced to a Validator identity. Runtime success still depends on clean
-implementation gates and live preflight; an unknown or nonempty shared state
-stops rather than being migrated or guessed.
+database-forced to a Validator identity. The live preflight and final target
+verification passed; an unknown or nonempty state would still stop rather than
+being migrated or guessed.
 
 No new safeguard is included without a material assignment, authorization,
 concurrency, audit, or partial-DDL risk. The plan does not generalize the
@@ -355,5 +354,5 @@ tooling will be implemented for that request.
 ## Remaining human confirmations
 
 Implementation of this exact RST-002B strategy and corrected path inventory was
-approved at commit `7676f1f`. The fast cutover remains unexecuted until the user
-explicitly requests it. RST-006A remains unapproved.
+approved at commit `7676f1f`; the simplified cutover completed under DEC-050 on
+2026-09-02. RST-006A remains unapproved.
