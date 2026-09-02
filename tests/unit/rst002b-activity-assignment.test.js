@@ -64,7 +64,7 @@ test('RST-002B exposes one closed transactional assignment interface', () => {
 test('RST-002B Activity reads are role-projected and assignment-filtered at the server', () => {
   const access = read('custom/mjlfinancement/lib/mjl_activity_access.lib.php');
   const model = read('custom/mjlfinancement/class/mjlactivity.class.php');
-  const route = read('custom/mjlfinancement/activities.php');
+  const route = read('custom/mjlfinancement/activities.php') + read('custom/mjlfinancement/lib/mjl_activity_route.lib.php');
   const scope = read('custom/mjlfinancement/lib/mjl_scope.lib.php');
 
   assert.match(access, /function mjl_activity_access_can_enter_list\(User \$targetUser\)/);

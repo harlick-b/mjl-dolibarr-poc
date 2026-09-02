@@ -112,7 +112,9 @@ primary automatically. Primary is display and coordination metadata only.
 Every assigned Agent may perform authorized edits, corrections, submissions,
 and execution updates, with actions attributed to the actual actor.
 
-Only the Validator changes assignments. Removal revokes direct URL, read,
+Only the Validator changes ordinary assignments. Creator-primary insertion,
+Agent abandonment of an unsubmitted draft, and Validator restoration are the
+closed exceptions. Removal revokes direct URL, read,
 edit, and open-form save access immediately. Historical evidence remains.
 
 Supervisor and Validator view all Activities. Admin receives no normal
@@ -151,6 +153,11 @@ date, and proposed authorized amount. Each Opération has a name, type, and
 authorized amount. Verification displays the Activity amount, Opération sum,
 difference to allocate, blocking errors, and submission action. Submission
 requires at least one Opération.
+
+References use one entity-scoped sequence formatted `ACT-000001`, padded to at
+least six digits and growing beyond six digits. Failed transactions do not
+consume a number; committed references are never reused, including after
+abandonment.
 
 ## 9. Authorized Amounts
 
@@ -193,6 +200,10 @@ its audit event records that revision number.
 Assignment-only changes are audited and may appear in snapshots, but do not
 automatically invalidate a prevalidated financial revision.
 
+Contributors are cumulative across the Activity lineage: creator, every
+submitter, and every identity whose structural change committed remain
+contributors to later revisions even if a later edit reverts their change.
+
 ## 11. Separation of Duties
 
 For one revision, its creator and every structural contributor cannot
@@ -208,23 +219,32 @@ disbursement action. No audited override is designed or authorized.
 Semantic Activity validation states are:
 
 - Brouillon;
+- Abandonnée;
 - Soumise pour prévalidation;
 - Retournée en correction par le Superviseur;
 - Prévalidée, en attente de validation définitive;
 - Retournée en correction par le Validateur définitif;
 - Validée définitivement;
-- Annulée.
+- Annulée (introduced only by the later cancellation workflow).
 
 Main flow is `Brouillon` to `Soumise pour prévalidation` to `Prévalidée, en
 attente de validation définitive` to `Validée définitivement`.
 Supervisor and Validator returns require a reason. Reviewers do not directly
 edit structural data. A returned Activity preserves the origin and reason.
 After a Validator return, the new revision requires new prévalidation.
+`Validée définitivement` is structurally terminal in RST-006A.
+
+An assigned Agent may abandon an unsubmitted draft on any date with a reason
+and expected version. All current assignments end atomically. The Validator
+may restore it only before start, with a reason and one active primary Agent.
+Ordinary assignment changes are forbidden while abandoned.
 
 ## 13. Authorized Amount Revision
 
 Before Activity start, the Validator may request a different proposed amount
-only by returning the Activity with requested amount and reason. An assigned
+only by returning the Activity with requested amount and reason. The requested
+amount is advisory, not an exact mandate or ceiling. Without it, the next
+revision retains the prior total. An assigned
 Agent changes the Activity and Opérations, restores exact balance, submits a
 new revision, obtains new prévalidation, and then final validation. Every
 submitted amount remains historical.

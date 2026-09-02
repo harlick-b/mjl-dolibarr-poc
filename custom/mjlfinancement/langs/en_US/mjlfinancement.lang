@@ -1,3 +1,7 @@
 MJLFinancement=MJL Financing
 ModuleMjlFinancementName=MJL Financing
 ModuleMjlFinancementDesc=MJL financing POC
+MjlActivityPlanning=Activity planning
+MjlActivityAbandoned=Abandoned
+MjlActivityRestore=Restore draft
+MjlActivityRevision=Business revision

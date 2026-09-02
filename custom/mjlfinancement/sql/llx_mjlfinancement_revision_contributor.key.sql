@@ -1,0 +1,2 @@
+ALTER TABLE llx_mjlfinancement_revision_contributor ADD CONSTRAINT fk_mjl_contributor_revision FOREIGN KEY (entity,fk_revision,fk_activity) REFERENCES llx_mjlfinancement_activity_revision(entity,rowid,fk_activity) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_revision_contributor ADD CONSTRAINT fk_mjl_contributor_user FOREIGN KEY (fk_user) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;

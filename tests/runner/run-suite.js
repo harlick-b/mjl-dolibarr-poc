@@ -331,7 +331,7 @@ async function runUnit(signal) {
   }
 }
 
-const verificationScripts = ['verification/schema/activity_assignment.php'];
+const verificationScripts = ['verification/schema/activity_assignment.php', 'verification/schema/activity_planning.php'];
 
 async function runVerification(plan, signal) {
   for (const entry of verificationScripts) {
@@ -449,6 +449,11 @@ async function runProductionReadiness(plan, signal) {
 
 async function runPlaywright(plan, target, signal) {
   const args = ['playwright', 'test'];
+	if (target === 'rst006a') {
+		const specification = fs.readFileSync(path.join(repositoryRoot, 'tests/e2e/rst006a-activity-planning.spec.js'), 'utf8');
+		const discovered = (specification.match(/\ntest\(/g) || []).length;
+		if (discovered !== 8) throw new Error(`RST-006A expected 8 focused browser/command tests; discovered ${discovered}.`);
+	}
   if (target === 'e2e') {
     args.push('--config=playwright.config.js');
   } else if (target === 'rst003') {
@@ -465,6 +470,8 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/rst005-activity-foundation.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst002b') {
     args.push('tests/e2e/rst002b-activity-assignment.spec.js', '--config=playwright.config.js');
+  } else if (target === 'rst006a') {
+    args.push('tests/e2e/rst006a-activity-planning.spec.js', '--config=playwright.config.js');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
 	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
@@ -685,7 +692,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'rst005' || mode === 'rst002b' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
@@ -822,6 +829,21 @@ async function main() {
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
         await runPlaywright(plan, layer, controller.signal);
       }
+      else if (layer === 'rst006a') {
+        await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
+        for (const failurePoint of [
+          'activity_reference_sequence','operation','activity_revision','revision_contributor','review_decision',
+          'operation-keys','activity_revision-keys','revision_contributor-keys','review_decision-keys','activity-pointer',
+        ]) {
+          await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], { signal: controller.signal });
+          const output = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A',`--failure-point=${failurePoint}`], `RST-006A ${failurePoint}`, { signal: controller.signal });
+          const marker = failurePoint === 'activity-pointer' ? 'Injected interruption after Activity pointer' : `Injected interruption after ${failurePoint.replace('-keys',' keys')}`;
+          if (!output.includes(marker)) throw new Error(`RST-006A ${failurePoint} failed for the wrong reason.`);
+          await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+          await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
+        }
+        await runPlaywright(plan, layer, controller.signal);
+      }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);
     }
@@ -834,7 +856,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'rst005' || mode === 'rst002b' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

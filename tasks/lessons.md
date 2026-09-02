@@ -218,3 +218,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   remove and confirm owner containers before removing their dependent networks
   or volumes. The test assertion should poll read-only categorical survivor
   queries while a separate finalizer remains responsible for exact removal.
+- MariaDB `information_schema` ordering follows database collation, while PHP
+  `SORT_STRING` is bytewise. Exact schema detectors must normalize and sort
+  both expected and observed identifier sets in the same runtime before
+  comparing them, and must compare index uniqueness plus ordered columns rather
+  than names alone so same-name weakened indexes cannot pass verification.

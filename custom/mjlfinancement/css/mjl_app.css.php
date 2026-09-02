@@ -1534,6 +1534,27 @@ a.tmenu[href^="/api/"] {
 	}
 }
 
+.mjl-activity-form fieldset {
+	border: 1px solid var(--mjl-color-border-subtle);
+	border-radius: var(--mjl-radius-card);
+	margin: 0 0 var(--mjl-space-5);
+	padding: var(--mjl-space-4);
+}
+
+.mjl-activity-form legend { font-weight: 700; padding: 0 var(--mjl-space-2); }
+.mjl-form-grid { display: grid; gap: var(--mjl-space-3); grid-template-columns: minmax(10rem, 1fr) minmax(16rem, 2fr); }
+.mjl-operation-row { align-items: end; border-bottom: 1px solid var(--mjl-color-border-subtle); display: grid; gap: var(--mjl-space-3); grid-template-columns: 2fr 1.25fr 1fr auto; padding: var(--mjl-space-3) 0; }
+.mjl-operation-row label { display: grid; gap: var(--mjl-space-1); }
+.mjl-activity-totals { display: grid; gap: var(--mjl-space-3); grid-template-columns: repeat(3, 1fr); }
+.mjl-activity-totals div { background: var(--mjl-color-surface-subtle); border-radius: var(--mjl-radius-card); padding: var(--mjl-space-3); }
+.mjl-activity-totals dt { color: var(--mjl-color-text-muted); }
+.mjl-activity-totals dd { font-size: 1.1rem; font-weight: 700; margin: var(--mjl-space-1) 0 0; }
+.mjl-revision-summary { max-height: 32rem; overflow: auto; white-space: pre-wrap; }
+
+@media (max-width: 768px) {
+	.mjl-form-grid, .mjl-operation-row, .mjl-activity-totals { grid-template-columns: 1fr; }
+}
+
 @media (forced-colors: active) {
 	.mjl-module-shell :where(a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
 		outline-color: Highlight;

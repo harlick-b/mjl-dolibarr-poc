@@ -261,9 +261,10 @@ number does not approve a suffixed unit.
 
 ### RST-006A - Opération planning, immutable revisions, and review decisions
 
-- Status: `PENDING_APPROVAL`
-- Current component: absent first-class Opérations, revisions, contributors,
-  and revision-bound Review Decisions.
+- Status: `APPROVED_IMPLEMENTATION` under DEC-051; shared cutover remains pending
+- Current component: source implementation for first-class Opérations,
+  revisions, contributors, and revision-bound Review Decisions; runtime access
+  remains migration-gated on the shared RST-002B predecessor.
 - Proposed action: add empty target planning, immutable-revision, contributor,
   and append-only Review Decision structures plus dedicated Activity creation,
   structural editing, balanced planning, submission/resubmission, correction,
@@ -282,18 +283,38 @@ number does not approve a suffixed unit.
   no other reset unit owns the canonical Review Decision record.
 - Phase: Phase 2
 - Dependencies: RST-002B, RST-005, RST-007A
-- Exact paths: planned `custom/mjlfinancement/operations.php`, planned `custom/mjlfinancement/class/mjloperation.class.php`, planned `custom/mjlfinancement/class/mjlactivityrevision.class.php`, planned `custom/mjlfinancement/class/mjlrevisioncontributor.class.php`, planned `custom/mjlfinancement/class/mjlreviewdecision.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_operation.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_revision.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_activity_revision.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_revision_contributor.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_revision_contributor.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_review_decision.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_review_decision.key.sql`, `custom/mjlfinancement/activities.php`, planned `tests/e2e/rst006a-activity-planning.spec.js`, and planned `tests/unit/rst006a-activity-planning.test.js`. Shared Phase 2 suites remain reserved for RST-013B.
-- Additional exact Activity/audit paths required by the guarded transaction:
+- Exact paths: `custom/mjlfinancement/activities.php`,
   `custom/mjlfinancement/class/mjlactivity.class.php`,
+  `custom/mjlfinancement/class/mjlactivitycommand.class.php`,
+  `custom/mjlfinancement/class/mjlactivityassignment.class.php`,
+  `custom/mjlfinancement/lib/mjl_activity_access.lib.php`,
+  `custom/mjlfinancement/lib/mjl_activity_form.lib.php`,
+  `custom/mjlfinancement/lib/mjl_activity_route.lib.php`,
   `custom/mjlfinancement/lib/mjl_audit.lib.php`,
-  `custom/mjlfinancement/sql/llx_mjlfinancement_activity.sql`,
-  `custom/mjlfinancement/sql/llx_mjlfinancement_activity.key.sql`, and planned
-  `custom/mjlfinancement/scripts/rst006a_activity_planning.php`.
-- Exact tables/data: planned `llx_mjlfinancement_operation`,
+  `custom/mjlfinancement/lib/mjl_form_submission.lib.php`,
+  `custom/mjlfinancement/scripts/rst006a_schema.lib.php`,
+  `custom/mjlfinancement/scripts/rst006a_activity_planning.php`,
+  `custom/mjlfinancement/scripts/verification/schema/activity_planning.php`,
+  the five new table SQL files and four foreign-key key files,
+  `custom/mjlfinancement/js/activities.js`,
+  `custom/mjlfinancement/css/mjl_app.css.php`,
+  `custom/mjlfinancement/langs/fr_FR/mjlfinancement.lang`,
+  `custom/mjlfinancement/langs/en_US/mjlfinancement.lang`,
+  `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`,
+  `package.json`, `playwright.config.js`,
+  `tests/runner/disposable-run.js`, `tests/runner/run-suite.js`,
+  `tests/e2e/rst006a-activity-planning.spec.js`, and
+  `tests/unit/rst006a-activity-planning.test.js`. There is no
+  standalone `operations.php` surface in RST-006A.
+- Exact tables/data: `llx_mjlfinancement_activity_reference_sequence`,
+  `llx_mjlfinancement_operation`,
   `llx_mjlfinancement_activity_revision`,
   `llx_mjlfinancement_revision_contributor`, and
   `llx_mjlfinancement_review_decision`; no Expense data.
-- Action and data impact: add empty target tables; only disposable tests may populate them during implementation. No legacy mapping, spending, or historical revision is fabricated.
+- Action and data impact: the approved source can add empty target tables only
+  through the guarded migration; only disposable tests may populate them
+  during implementation. No legacy mapping, spending, or historical revision
+  is fabricated. The shared migration has not run.
 - Backup prerequisite: executed RST-002B/RST-005/RST-007A evidence; exact
   post-RST-002B Activity, assignment, audit schema/row digests; and checksummed
   forward/rollback manifests sealed by the separately approved RST-006A

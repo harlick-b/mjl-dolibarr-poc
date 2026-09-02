@@ -64,6 +64,16 @@ Reasoned review decision requiring an assigned Agent to change and resubmit
 the Activity.
 _Avoid_: Silent return to draft, reviewer editing
 
+**Abandon d’Activité**:
+Disposition reasoned by an assigned Agent for an unsubmitted draft. It ends
+all current assignments immediately and is distinct from cancellation.
+_Avoid_: Annulation, deletion, post-submission cancellation
+
+**Restauration de brouillon**:
+Validator action before the Activity start that returns an abandoned Activity
+to draft with one selected active primary Agent.
+_Avoid_: Reopening a submitted or definitively validated Activity
+
 ## Assignment and access
 
 **Agent principal**:

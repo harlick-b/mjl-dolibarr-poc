@@ -115,8 +115,9 @@ separately approved at strategy commit `7676f1f` by DEC-048. DEC-049 supersedes
 only its operational ceremony: this empty local POC uses one fast guarded
 backup/apply/verify/restart command without commit/digest packet machinery.
 The user then explicitly authorized and completed that cutover on 2026-09-02
-under DEC-050; the tenant remains empty with one native administrator. RST-006A remains separately reviewable and
-approval-gated. The operational `initdb.log` checksum deviation from
+under DEC-050; the tenant remains empty with one native administrator. RST-006A
+source implementation is approved under DEC-051, but shared cutover and
+execution status remain separately gated. The operational `initdb.log` checksum deviation from
 the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
 RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary

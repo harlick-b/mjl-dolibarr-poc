@@ -110,6 +110,12 @@ function mjl_form_submission_normalize_context($context)
 		'action' => $context['action'],
 		'object_id' => (int) $context['object_id'],
 	);
+	foreach (array('revision_id', 'version') as $optional) {
+		if (array_key_exists($optional, (array) $context)) {
+			if (!is_int($context[$optional]) && (!is_string($context[$optional]) || preg_match('/^(0|[1-9][0-9]*)$/', $context[$optional]) !== 1)) return null;
+			$normalized[$optional] = (int) $context[$optional];
+		}
+	}
 	if ($normalized['user_id'] <= 0 || $normalized['entity'] <= 0 || $normalized['route'] === '' || $normalized['form'] === '' || $normalized['action'] === '' || $normalized['object_id'] < 0) return null;
 	return $normalized;
 }

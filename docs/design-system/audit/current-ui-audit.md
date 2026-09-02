@@ -56,7 +56,7 @@ and official outputs.
 | Partenaires | Good | French-first reference list/detail/forms, lifecycle states, safe feedback, and 390-pixel containment are focused-browser verified. | `custom/mjlfinancement/partners.php` |
 | Projets | Good | Guarded reference states expose only the display label for editing; immutable ownership/ref and parent lifecycle behavior are focused-browser verified. | `custom/mjlfinancement/projects.php` |
 | Types d’Opération | Good | Entity-scoped active/inactive reference states use the shared RST-003 presentation and security contract. | `custom/mjlfinancement/operationtypes.php` |
-| Activities | Partial | Interim Supervisor/Validator read-only projection has no document behavior; target planning and evidence UI remain future phases. | `custom/mjlfinancement/activities.php` |
+| Activities | Implemented, pending gates | Four-section server-rendered planning form, Activity-scoped dynamic Opérations, textual balance, detail/review states, responsive layouts, and no-JavaScript submission are present. Signed keyboard/screen-reader/zoom/reflow/forced-color/reduced-motion evidence remains pending. | `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/lib/mjl_activity_route.lib.php`, `custom/mjlfinancement/js/activities.js` |
 | Expenses | Removed | Obsolete finance and contextual-upload route is absent. | `custom/mjlfinancement/expenses.php` |
 | Documents | Contained | RST-010A exposes no document UI: custom and native delivery routes return HTTP 403 pending the sequenced Phase 4 implementation. | `custom/mjlfinancement/documents.php`, `custom/mjlfinancement/documentdownload.php` |
 | Conventions | Removed | Obsolete finance and document behavior is absent. | `custom/mjlfinancement/conventions.php` |

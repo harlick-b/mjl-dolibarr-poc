@@ -2,6 +2,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_audit.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
 
 /**
  * Deep RST-002B assignment module.
@@ -61,6 +62,7 @@ class MjlActivityAssignment
 			$activity = $this->lockActivity($entity, $activityId);
 			if ($activity === false) return $this->rollbackOutcome('FAILED');
 			if (!$activity) return $this->rollbackOutcome('NOT_FOUND');
+			if ($activity['validation_status'] === 'ABANDONED') return $this->rollbackOutcome('CONFLICT');
 			$current = $this->loadAssignments($entity, $activityId, true);
 			if ($current === false) return $this->rollbackOutcome('FAILED');
 			if ($this->assignmentIdentity($snapshot) !== $this->assignmentIdentity($current)) return $this->rollbackOutcome('STALE_VERSION');
@@ -133,7 +135,11 @@ class MjlActivityAssignment
 
 	private function hasCompleteTargetSchema()
 	{
-		try { mjl_rst002b_require_target_objects($this->db); return true; }
+		try {
+			if (mjl_rst006a_detect_schema($this->db) === RST006A_SCHEMA_TARGET) mjl_rst006a_require_target($this->db);
+			else mjl_rst002b_require_target_objects($this->db);
+			return true;
+		}
 		catch (Throwable $exception) { return false; }
 	}
 
@@ -175,7 +181,7 @@ class MjlActivityAssignment
 
 	private function lockActivity($entity, $activityId)
 	{
-		$sql = 'SELECT rowid,ref,version FROM '.$this->db->prefix().'mjlfinancement_activity WHERE entity='.$entity.' AND rowid='.$activityId.' FOR UPDATE';
+		$sql = 'SELECT rowid,ref,version,validation_status FROM '.$this->db->prefix().'mjlfinancement_activity WHERE entity='.$entity.' AND rowid='.$activityId.' FOR UPDATE';
 		$resql = $this->db->query($sql);
 		if (!$resql) return false;
 		$row = $this->db->fetch_object($resql);

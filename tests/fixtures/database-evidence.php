@@ -260,6 +260,13 @@ try {
     $adminIdentity = $pdo->query('SELECT rowid,entity,login,admin,statut FROM llx_user WHERE admin=1 ORDER BY rowid')->fetchAll();
     $partnerScopeExists = (int) $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_user_soc_scope'")->fetchColumn() === 1;
     $assignmentExists = (int) $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_activity_assignment'")->fetchColumn() === 1;
+	$planningTables = ['activity_reference_sequence', 'operation', 'activity_revision', 'revision_contributor', 'review_decision'];
+	$planningCounts = [];
+	foreach ($planningTables as $suffix) {
+		$table = 'llx_mjlfinancement_'.$suffix;
+		$exists = (int) $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=".$pdo->quote($table))->fetchColumn() === 1;
+		$planningCounts[$suffix] = $exists ? (int) $pdo->query('SELECT COUNT(*) FROM '.$table)->fetchColumn() : 0;
+	}
     $businessCounts = [
         'users_non_admin' => (int) $pdo->query('SELECT COUNT(*) FROM llx_user WHERE admin=0')->fetchColumn(),
         'partners' => (int) $pdo->query('SELECT COUNT(*) FROM llx_societe')->fetchColumn(),
@@ -269,6 +276,11 @@ try {
         'partner_scopes' => $partnerScopeExists ? (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_user_soc_scope')->fetchColumn() : 0,
         'activities' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_activity')->fetchColumn(),
         'activity_assignments' => $assignmentExists ? (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment')->fetchColumn() : 0,
+		'activity_reference_sequences' => $planningCounts['activity_reference_sequence'],
+		'operations' => $planningCounts['operation'],
+		'activity_revisions' => $planningCounts['activity_revision'],
+		'revision_contributors' => $planningCounts['revision_contributor'],
+		'review_decisions' => $planningCounts['review_decision'],
         'operation_types' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_operation_type')->fetchColumn(),
         'invitations' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_invitation')->fetchColumn(),
         'password_resets' => (int) $pdo->query('SELECT COUNT(*) FROM llx_mjlfinancement_password_reset')->fetchColumn(),

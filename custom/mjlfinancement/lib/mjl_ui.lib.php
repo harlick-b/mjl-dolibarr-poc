@@ -17,6 +17,7 @@ function mjl_ui_activity_status($status)
 		'1' => array('label' => 'Active', 'tone' => 'success'),
 		'2' => array('label' => 'Terminée', 'tone' => 'neutral'),
 		'DRAFT' => array('label' => 'Brouillon', 'tone' => 'neutral'),
+		'ABANDONED' => array('label' => 'Abandonnée', 'tone' => 'warning'),
 		'SUBMITTED' => array('label' => 'Soumise', 'tone' => 'info'),
 		'RETURNED_SUPERVISOR' => array('label' => 'Retournée par le superviseur', 'tone' => 'warning'),
 		'PREVALIDATED' => array('label' => 'Prévalidée', 'tone' => 'info'),
@@ -43,7 +44,7 @@ function mjl_ui_system_state($type, $title, $message, $options = array())
 {
 	$allowed = array('info', 'success', 'warning', 'danger', 'unavailable', 'initial-empty', 'filtered-empty', 'permission', 'loading', 'partial-error');
 	$type = in_array((string) $type, $allowed, true) ? (string) $type : 'info';
-	$role = in_array($type, array('danger', 'unavailable', 'permission', 'partial-error'), true) ? 'alert' : 'status';
+	$role = in_array($type, array('warning', 'danger', 'unavailable', 'permission', 'partial-error'), true) ? 'alert' : 'status';
 	$html = '<div class="mjl-system-state mjl-system-state-'.$type.'" role="'.$role.'"';
 	if ($type === 'loading') {
 		$html .= ' aria-live="polite" aria-busy="true"';

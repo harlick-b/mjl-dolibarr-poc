@@ -34,13 +34,21 @@ function mjl_audit_sanitize_value($value)
 	return $clean;
 }
 
-function mjl_audit_json($value)
+function mjl_audit_encode_json($value, &$ok)
 {
+	$ok = true;
 	if ($value === null || $value === array()) {
 		return null;
 	}
 	$json = json_encode(mjl_audit_sanitize_value($value), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-	return $json === false ? null : $json;
+	$ok = $json !== false && json_last_error() === JSON_ERROR_NONE;
+	return $ok ? $json : null;
+}
+
+function mjl_audit_json($value)
+{
+	$ok = false;
+	return mjl_audit_encode_json($value, $ok);
 }
 
 function mjl_audit_actor_snapshot($actor)
@@ -110,6 +118,11 @@ function mjl_audit_insert(DoliDB $db, array $event)
 	list($actorId, $actorName, $actorRole) = mjl_audit_actor_snapshot($actor);
 	if (!empty($event['actor_name_snapshot'])) $actorName = (string) $event['actor_name_snapshot'];
 	if (!empty($event['actor_role_snapshot'])) $actorRole = (string) $event['actor_role_snapshot'];
+	$previousOk = $newOk = $contextOk = false;
+	$previousJson = mjl_audit_encode_json(isset($event['previous_values']) ? $event['previous_values'] : null, $previousOk);
+	$newJson = mjl_audit_encode_json(isset($event['new_values']) ? $event['new_values'] : null, $newOk);
+	$contextJson = mjl_audit_encode_json(isset($event['context']) ? $event['context'] : null, $contextOk);
+	if (!$previousOk || !$newOk || !$contextOk) return -1;
 	$columns = array(
 		'entity' => $entity,
 		'object_type' => $objectType,
@@ -123,14 +136,14 @@ function mjl_audit_insert(DoliDB $db, array $event)
 		'actor_role_snapshot' => $actorRole,
 		'event_date' => $db->idate(dol_now()),
 		'action' => $action,
-		'previous_values_json' => mjl_audit_json(isset($event['previous_values']) ? $event['previous_values'] : null),
-		'new_values_json' => mjl_audit_json(isset($event['new_values']) ? $event['new_values'] : null),
+		'previous_values_json' => $previousJson,
+		'new_values_json' => $newJson,
 		'reason' => isset($event['reason']) ? mjl_audit_sanitize_value((string) $event['reason']) : null,
 		'state_before' => isset($event['state_before']) ? mjl_audit_sanitize_value((string) $event['state_before']) : null,
 		'state_after' => isset($event['state_after']) ? mjl_audit_sanitize_value((string) $event['state_after']) : null,
 		'target_version' => isset($event['target_version']) ? $event['target_version'] : null,
 		'result' => $result,
-		'context_json' => mjl_audit_json(isset($event['context']) ? $event['context'] : null),
+		'context_json' => $contextJson,
 		'date_creation' => $db->idate(dol_now()),
 	);
 	$names = array_keys($columns);

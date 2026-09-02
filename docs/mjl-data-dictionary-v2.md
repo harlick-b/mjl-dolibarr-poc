@@ -66,6 +66,9 @@ input and is not defined here.
 
 Execution state and financial completeness are derived, not freely edited.
 
+Activity references come from an entity-scoped monotonic sequence and use
+`ACT-` plus at least six decimal digits.
+
 ## Opération
 
 | Field | Required | Meaning |
@@ -81,7 +84,9 @@ Execution state and financial completeness are derived, not freely edited.
 | Version | Yes | Optimistic-lock value |
 | Created/updated metadata | Yes | Actor and timestamps |
 
-An Opération is not hard-deleted after first Activity submission.
+An Opération is never physically deleted. Before revision 1, removal creates
+an immutable remover/timestamp tombstone excluded from balances and snapshots.
+After revision 1, removal waits for RST-006B cancellation.
 
 ## Activity Assignment
 

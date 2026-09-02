@@ -2,6 +2,7 @@
 
 include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
 
 class modMjlFinancement extends DolibarrModules
 {
@@ -15,7 +16,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'Suivi des projets financés du MJL';
 		$this->descriptionlong = 'Socle MJL réinitialisé : référentiels natifs, projection des activités, accès sur invitation et audit immuable.';
-		$this->version = '0.18.0';
+		$this->version = '0.19.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(
@@ -104,16 +105,15 @@ class modMjlFinancement extends DolibarrModules
 				if ($customCount !== 0) return -1;
 				$result = $this->_load_tables('/mjlfinancement/sql/');
 				if ($result < 0) return -1;
-				mjl_rst005_install_insert_trigger($this->db, $activity);
-				mjl_rst002b_install_activity_update_trigger($this->db);
 				mjl_rst002b_install_assignment_triggers($this->db);
 				mjl_rst002b_install_role_invariant_triggers($this->db, true);
-				mjl_rst002b_require_target_objects($this->db);
+				mjl_rst006a_install_target($this->db);
+				mjl_rst006a_require_target($this->db);
 			} else {
-				$schema = mjl_rst002b_detect_schema($this->db);
-				if ($schema === RST002B_SCHEMA_TARGET) mjl_rst002b_require_target_objects($this->db);
-				elseif (mjl_rst005_detect_schema($this->db, $activity) === RST005_SCHEMA_TARGET) {
-					mjl_rst005_require_retained_schema($this->db);
+				$schema = mjl_rst006a_detect_schema($this->db);
+				if ($schema === RST006A_SCHEMA_TARGET) mjl_rst006a_require_target($this->db);
+				elseif ($schema === RST006A_SCHEMA_PREDECESSOR) {
+					mjl_rst002b_require_target_objects($this->db);
 					$migrationRequired = true;
 				} else return -1;
 			}
@@ -125,11 +125,11 @@ class modMjlFinancement extends DolibarrModules
 				&& $this->disposableRst005ActivationFailureIsArmed()) return -1;
 			if (!$migrationRequired && $this->ensureRoleInvariantTriggers() < 0) return -1;
 			if ($this->ensureAuthStateConstraints() < 0 || $this->ensureAuthInvariantTriggers() < 0 || $this->ensureAuthFingerprintKey() < 0) return -1;
-			if ($cleanInstall) mjl_rst002b_require_target_objects($this->db);
+			if ($cleanInstall) mjl_rst006a_require_target($this->db);
 			$this->remove($options);
 			$result = $this->_init(array(), $options);
 			if ($result < 0) return $result;
-			return $migrationRequired ? 'RST002B_MIGRATION_REQUIRED' : $result;
+			return $migrationRequired ? 'RST006A_MIGRATION_REQUIRED' : $result;
 		} catch (Throwable $exception) {
 			dol_syslog('RST-002B module activation refused: '.$exception->getMessage(), LOG_ERR);
 			if (PHP_SAPI === 'cli') fwrite(STDERR, 'RST-002B module activation refused: '.$exception->getMessage().PHP_EOL);

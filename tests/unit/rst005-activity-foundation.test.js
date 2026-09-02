@@ -48,15 +48,15 @@ test('RST-005 Activity model exposes dual sealed read projections and denies mut
   assert.match(model, /public function delete[\s\S]*return -1;/);
 });
 
-test('RST-005 route and dormant presentation expose read containment only', () => {
-  const route = read('custom/mjlfinancement/activities.php');
+test('RST-005 route delegates to the separately approved guarded RST-006A successor', () => {
+  const route = read('custom/mjlfinancement/activities.php') + read('custom/mjlfinancement/lib/mjl_activity_route.lib.php');
   const feedback = read('custom/mjlfinancement/lib/mjl_feedback.lib.php');
   const email = read('custom/mjlfinancement/lib/mjl_email.lib.php');
   const templates = read('custom/mjlfinancement/lib/mjl_email_presentation.lib.php');
-  assert.match(route, /REQUEST_METHOD[^\n]*POST/);
-  assert.match(route, /http_response_code\(403\)/);
-  assert.match(route, /MjlActivity/);
-  assert.doesNotMatch(route, /INSERT|UPDATE|DELETE/i);
+  assert.match(route, /REQUEST_METHOD/);
+	assert.match(route, /http_response_code\(403\)/);
+	assert.match(route, /MjlActivity/);
+	assert.match(route, /mjl_form_submission_consume/);
   assert.doesNotMatch(feedback, /activity\.(?:created|comment_added|saved)/);
   assert.doesNotMatch(email, /mjl_email_notify_activity_transition/);
   assert.doesNotMatch(templates, /activity_(?:submitted|correction_requested|prevalidated|validated|rejected)/);

@@ -1,0 +1,23 @@
+CREATE TABLE llx_mjlfinancement_activity_revision (
+	rowid BIGINT(20) AUTO_INCREMENT PRIMARY KEY,
+	entity INT(11) NOT NULL,
+	fk_activity INT(11) NOT NULL,
+	revision_number BIGINT(20) NOT NULL,
+	activity_version BIGINT(20) NOT NULL,
+	schema_version INT(11) DEFAULT 1 NOT NULL,
+	snapshot_json LONGTEXT NOT NULL,
+	structural_hash CHAR(64) NOT NULL,
+	integrity_hash CHAR(64) NOT NULL,
+	proposed_amount BIGINT(20) NOT NULL,
+	fk_submitter INT(11) NOT NULL,
+	submitter_name_snapshot VARCHAR(255) NOT NULL,
+	submitter_role_snapshot VARCHAR(40) NOT NULL,
+	date_submitted DATETIME NOT NULL,
+	UNIQUE INDEX uk_mjl_revision_entity_rowid_activity (entity,rowid,fk_activity),
+	UNIQUE INDEX uk_mjl_revision_number (entity,fk_activity,revision_number),
+	CONSTRAINT chk_mjl_revision_entity CHECK (entity > 0),
+	CONSTRAINT chk_mjl_revision_numbers CHECK (revision_number > 0 AND activity_version > 0 AND schema_version=1),
+	CONSTRAINT chk_mjl_revision_hashes CHECK (structural_hash REGEXP '^[0-9a-f]{64}$' AND integrity_hash REGEXP '^[0-9a-f]{64}$'),
+	CONSTRAINT chk_mjl_revision_amount CHECK (proposed_amount > 0),
+	CONSTRAINT chk_mjl_revision_snapshot CHECK (JSON_VALID(snapshot_json))
+) ENGINE=innodb DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

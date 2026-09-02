@@ -18,6 +18,7 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst005
     npm run test:rst005-launcher
     npm run test:rst002b
+    npm run test:rst006a
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
@@ -70,6 +71,12 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   optimistic locking, transactional audit rollback, concurrency, reciprocal
   role/user guards, entity isolation, direct SQL denial, shared-state equality,
   and whole-tenant destruction.
+- 'test:rst006a' provisions the complete RST-006A target in an isolated tenant
+  and exercises the aggregate command, guarded Activity route, canonical
+  reference allocation, automatic primary assignment, balance and immutable
+  revision creation, identity separation, terminal final validation, strict
+  input, French form structure, and route-owned JavaScript. It does not cut
+  over the shared tenant.
 - `npm run cutover:rst002b-fast -- --confirm=RST-002B-FAST` is the intentionally
   small local operational command. It is not an automated test and must not be
   invoked unless the user explicitly requests execution.

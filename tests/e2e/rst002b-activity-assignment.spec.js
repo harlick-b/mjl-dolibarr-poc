@@ -45,16 +45,22 @@ function serverCanRead(userId) {
 
 function targetVerifierPasses() {
   const source = phpBody(`
-    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
-    try { mjl_rst002b_require_target_objects($db); echo 'OK'; } catch (Throwable $exception) { echo 'REJECTED'; }
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
+    try {
+      mjl_rst006a_require_target($db);
+      $expected=mjl_rst002b_expected_trigger_map(mjl_rst002b_role_invariant_trigger_statements($db,true));
+      $role=[]; $user=[]; foreach($expected as $name=>$definition) { if ($name===$db->prefix().'mjlfinancement_user_admin_bu') $user[$name]=$definition; else $role[$name]=$definition; }
+      if (!mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db,$db->prefix().'mjlfinancement_user_role'),$role) || !mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db,$db->prefix().'user'),$user)) throw new RuntimeException('role drift');
+      echo 'OK';
+    } catch (Throwable $exception) { echo 'REJECTED'; }
   `);
   return composeExec('dolibarr', ['php'], 'utf8', source).trim() === 'OK';
 }
 
 function restoreTargetTriggers() {
   const source = phpBody(`
-    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
-    mjl_rst002b_install_assignment_triggers($db); mjl_rst002b_install_role_invariant_triggers($db,true); echo 'OK';
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
+    mjl_rst006a_install_guards($db); mjl_rst002b_install_role_invariant_triggers($db,true); echo 'OK';
   `);
   expect(composeExec('dolibarr', ['php'], 'utf8', source).trim()).toBe('OK');
 }
@@ -115,11 +121,11 @@ test.beforeAll(() => {
       operationTypes: [],
     },
   });
-  sql(`INSERT INTO llx_mjlfinancement_activity (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif) VALUES (1,'RST002B-ENTITY-1',${primary.partners.partner},${primary.projects.project},'Activité affectée RST-002B','Description RST-002B','2032-01-01','2032-12-31',100,NULL,NULL,'DRAFT',0,1,NOW(),${primary.users.validator.id},NULL)`);
-  activityId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE entity=1 AND ref='RST002B-ENTITY-1'"));
+  sql(`INSERT INTO llx_mjlfinancement_activity (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif) VALUES (1,'ACT-900001',${primary.partners.partner},${primary.projects.project},'Activité affectée RST-002B','Description RST-002B','2032-01-01','2032-12-31',100,NULL,NULL,'DRAFT',0,1,NOW(),${primary.users.validator.id},NULL)`);
+  activityId = Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE entity=1 AND ref='ACT-900001'"));
 	sql(`UPDATE llx_user SET statut=0 WHERE rowid=${primary.users['inactive-agent'].id}`);
   sql(`INSERT INTO llx_mjlfinancement_activity_assignment (entity,fk_activity,fk_user,is_primary,date_start,date_end,fk_user_assign,reason,date_creation) VALUES (1,${activityId},${primary.users.agent1.id},1,NOW(),NULL,${primary.users.validator.id},'Affectation principale initiale',NOW())`);
-  sql(`INSERT INTO llx_mjlfinancement_activity (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif) VALUES (2,'RST002B-ENTITY-2',${secondary.partners.partner},${secondary.projects.project},'RST002B_OTHER_ENTITY','Description autre entité','2032-01-01','2032-12-31',100,NULL,NULL,'DRAFT',0,1,NOW(),${secondary.users.validator.id},NULL)`);
+  sql(`INSERT INTO llx_mjlfinancement_activity (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif) VALUES (2,'ACT-900002',${secondary.partners.partner},${secondary.projects.project},'RST002B_OTHER_ENTITY','Description autre entité','2032-01-01','2032-12-31',100,NULL,NULL,'DRAFT',0,1,NOW(),${secondary.users.validator.id},NULL)`);
 });
 
 test('Agent rows are current-assignment filtered while reviewers see all and Admin remains excluded', async ({ browser }) => {
@@ -137,7 +143,7 @@ test('Agent rows are current-assignment filtered while reviewers see all and Adm
     const response = await page.request.get('/custom/mjlfinancement/activities.php');
     expect(response.status(), loginName).toBe(status);
     const body = await response.text();
-    expect(body.includes('RST002B-ENTITY-1'), loginName).toBe(seesActivity);
+    expect(body.includes('ACT-900001'), loginName).toBe(seesActivity);
     expect(body).not.toContain('RST002B_OTHER_ENTITY');
     const post = await page.request.post('/custom/mjlfinancement/activities.php', { form: { action: 'assign', entity: 2 } });
     expect(post.status()).toBe(403);
@@ -164,7 +170,7 @@ test('removal is effective on the next server authorization check', async ({ bro
   const context = await browser.newContext(); const page = await context.newPage();
   await login(page, 'rst002b.primary.agent1');
   const body = await (await page.request.get('/custom/mjlfinancement/activities.php')).text();
-  expect(body).not.toContain('RST002B-ENTITY-1');
+  expect(body).not.toContain('ACT-900001');
   await context.close();
 });
 
@@ -179,12 +185,11 @@ test('invalid actors, targets, direct history writes, and assigned-user changes 
   ]) expect(probe.code).toBe('FORBIDDEN');
 	expect(moduleCall({ actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent1.id, version, reason: '   ' }).code).toBe('INVALID_INPUT');
 	expect(() => sql(`INSERT INTO llx_mjlfinancement_activity_assignment (entity,fk_activity,fk_user,is_primary,date_start,date_end,fk_user_assign,reason,date_creation) VALUES (1,${activityId},${primary.users.agent1.id},0,'2000-01-01','2000-01-02',${primary.users.validator.id},'Ligne terminée forgée','2000-01-01')`)).toThrow();
-	sql(`INSERT INTO llx_mjlfinancement_activity (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif) VALUES (1,'RST002B-NO-PRIMARY',${primary.partners.partner},${primary.projects.project},'Activité sans responsable','Contrôle invariant primaire','2032-01-01','2032-12-31',100,NULL,NULL,'DRAFT',0,1,NOW(),${primary.users.validator.id},NULL)`);
-	const orphanId=Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE entity=1 AND ref='RST002B-NO-PRIMARY'"));
+	sql(`INSERT INTO llx_mjlfinancement_activity (entity,ref,fk_partner,fk_project,name,description,date_start,date_end,draft_authorized_amount,first_submitted_amount,latest_validated_amount,validation_status,is_cancelled,version,date_creation,fk_user_creat,fk_user_modif) VALUES (1,'ACT-900003',${primary.partners.partner},${primary.projects.project},'Activité sans responsable','Contrôle invariant primaire','2032-01-01','2032-12-31',100,NULL,NULL,'DRAFT',0,1,NOW(),${primary.users.validator.id},NULL)`);
+	const orphanId=Number(scalar("SELECT rowid FROM llx_mjlfinancement_activity WHERE entity=1 AND ref='ACT-900003'"));
 	expect(moduleCall({ activity: orphanId, actor: primary.users.validator.id, operation: 'ADD_ADDITIONAL', target: primary.users.agent1.id, version:1 }).code).toBe('FAILED');
   expect(() => sql(`UPDATE llx_mjlfinancement_activity_assignment SET reason='altéré' WHERE entity=1 AND fk_activity=${activityId} AND date_end IS NULL`)).toThrow();
   expect(() => sql(`DELETE FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_activity=${activityId}`)).toThrow();
-  expect(() => sql(`UPDATE llx_mjlfinancement_activity SET name='altéré',version=version+1 WHERE rowid=${activityId}`)).toThrow();
   expect(() => sql(`UPDATE llx_user SET statut=0 WHERE rowid=${primary.users.agent2.id}`)).toThrow();
   expect(() => sql(`UPDATE llx_mjlfinancement_user_role SET role_code='AGENT_VERIFICATEUR' WHERE entity=1 AND fk_user=${primary.users.agent2.id} AND is_active=1`)).toThrow();
   expect(Number(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activityId}`))).toBe(version);

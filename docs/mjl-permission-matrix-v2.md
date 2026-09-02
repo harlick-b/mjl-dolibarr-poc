@@ -38,6 +38,8 @@ Partner assignment is not an authorization model. The current
 | Action | Agent | Supervisor | Validator | Admin |
 | --- | --- | --- | --- | --- |
 | Create Activity | Yes | No | No | No |
+| Abandon unsubmitted assigned draft | Yes, reason required | No | No | No |
+| Restore abandoned draft | No | No | Yes, before start and with selected primary Agent | No |
 | Edit authorized Activity structure | If currently assigned | No | No direct edit | No |
 | Add/edit/remove draft Opérations | If currently assigned and structurally editable | No | No | No |
 | Submit or resubmit revision | If currently assigned | No | No | No |
@@ -78,7 +80,8 @@ For one business revision:
 - The creator becomes the primary Agent automatically.
 - Primary assignment is coordination metadata, not exclusive permission.
 - Every current Agent assignment grants the same authorized edit and submit rights.
-- Only the Validator changes assignments.
+- Only the Validator changes ordinary assignments. Creator-primary insertion,
+  Agent abandonment, and Validator restoration are the closed exceptions.
 - Removing an Agent revokes read and write access immediately, including open-form saves.
 - Historical assignments and actions remain in audit.
 - An Agent cannot change role while current assignments remain.

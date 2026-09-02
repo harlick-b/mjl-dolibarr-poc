@@ -8,6 +8,10 @@ const allowedCatalogKeys = [
   'MJLFinancement',
   'ModuleMjlFinancementName',
   'ModuleMjlFinancementDesc',
+  'MjlActivityPlanning',
+  'MjlActivityAbandoned',
+  'MjlActivityRestore',
+  'MjlActivityRevision',
 ];
 
 function catalogKeys(relative) {
@@ -27,7 +31,7 @@ function runtimeFiles(relative, files = []) {
   return files;
 }
 
-test('Phase 1 language catalogs expose only current module vocabulary', () => {
+test('language catalogs expose only current module vocabulary', () => {
   for (const locale of ['fr_FR', 'en_US']) {
     const relative = `custom/mjlfinancement/langs/${locale}/mjlfinancement.lang`;
     assert.deepEqual(catalogKeys(relative), allowedCatalogKeys, relative);

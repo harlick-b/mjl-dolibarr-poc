@@ -61,8 +61,8 @@ final reviews, and exact approval of commit
 The shared tenant now has the verified-empty finalized target Activity
 foundation. RST-002B implementation was separately approved at strategy commit
 `7676f1f`, and its DEC-049 fast local cutover completed under DEC-050 on
-2026-09-02. RST-006A
-follows it and remains unapproved. No other Phase 2 unit is authorized by
+2026-09-02. RST-006A source implementation is approved under DEC-051; shared
+cutover and execution remain pending. No other Phase 2 unit is authorized by
 RST-005 execution or DEC-048.
 
 ## Phase 2: Activity Planning and Validation

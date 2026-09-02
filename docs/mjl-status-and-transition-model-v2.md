@@ -5,17 +5,24 @@
 | State | Allowed next state | Actor | Guard |
 | --- | --- | --- | --- |
 | Brouillon | Soumise pour prévalidation | Assigned Agent | At least one Opération; exact budget balance; before start |
+| Brouillon | Abandonnée | Assigned Agent | No submitted revision; reason and expected version; any date; end all assignments |
+| Abandonnée | Brouillon | Validator | Before start; no current assignments; reason; selected active primary Agent |
 | Soumise pour prévalidation | Prévalidée | Supervisor | Current unchanged revision; not a contributor |
 | Soumise pour prévalidation | Retournée en correction par le Superviseur | Supervisor | Current revision; mandatory reason; structural correction still possible |
 | Retournée en correction par le Superviseur | Soumise pour prévalidation | Assigned Agent | New immutable revision; exact balance; before start |
 | Prévalidée | Validée définitivement | Validator | Same current revision; not contributor or prevalidator |
 | Prévalidée | Retournée en correction par le Validateur définitif | Validator | Mandatory reason; structural correction still possible |
 | Retournée en correction par le Validateur définitif | Soumise pour prévalidation | Assigned Agent | New revision and complete review cycle |
-| Any submitted/validated state | Annulée | Validator decision | Approved current-version cancellation request |
+| Validée définitivement | None in RST-006A | None | Structurally terminal |
 
 An unchanged submitted revision may finish review after the start date. A
 required structural correction at or after start cannot transition to an
 editable state; cancellation and recreation are required.
+
+Every returned Activity must contain a structural change before resubmission.
+A Supervisor return preserves the prior total. A Validator return preserves it
+unless an advisory requested amount was recorded; in that case any positive,
+exactly balanced total is accepted.
 
 ## Opération Execution State
 

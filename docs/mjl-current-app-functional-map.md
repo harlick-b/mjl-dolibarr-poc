@@ -14,7 +14,7 @@ MJL-specific code remains under 'custom/mjlfinancement'.
 | --- | --- |
 | Accueil | Role-projected static Phase 1 landing; no finance aggregates. |
 | Partenaires, Projets, Types d’Opération | Same-entity business-role reads; Validator-only activation/deactivation and mutation. |
-| Activities | Retained same-entity Supervisor/Validator read-only projection; no Convention foreign key and no mutation interface. It is intentionally absent from Phase 1 navigation. |
+| Activities | RST-006A source implements the entity-scoped list/create/detail/edit/review aggregate, Activity-scoped Opérations, assignments, abandonment/restoration, immutable revisions, and exact-revision review. Shared cutover remains pending and the route stays absent from navigation until RST-009B. |
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |
 | Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. |
 | Administration technique | Native-Admin link to Dolibarr module administration. |

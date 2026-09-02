@@ -18,7 +18,7 @@ const reviewArchetypes = Object.freeze([
   { key: 'partners', label: 'liste de partenaires', route: '/custom/mjlfinancement/partners.php', user: 'phase1.a11y.agent' },
   { key: 'projects', label: 'liste de projets', route: '/custom/mjlfinancement/projects.php', user: 'phase1.a11y.agent' },
   { key: 'operation-types', label: 'types d’opération', route: '/custom/mjlfinancement/operationtypes.php', user: 'phase1.a11y.agent' },
-  { key: 'activities', label: 'projection des activités', route: '/custom/mjlfinancement/activities.php', user: 'phase1.a11y.supervisor' },
+  { key: 'activities', label: 'création et planification d’Activité', route: '/custom/mjlfinancement/activities.php?action=create', user: 'phase1.a11y.agent' },
   { key: 'audit-validator', label: 'audit Validateur', route: '/custom/mjlfinancement/workflowactions.php', user: 'phase1.a11y.validator' },
   { key: 'access-admin', label: 'utilisateurs et accès', route: '/custom/mjlfinancement/admin/access.php', user: 'admin' },
   { key: 'technical-admin', label: 'administration technique', route: '/admin/modules.php', user: 'admin' },
@@ -103,7 +103,7 @@ async function openArchetype(page, archetype) {
 async function recordCombination(page, archetype, route, targetWidth, zoomPercent) {
   await page.keyboard.press('Tab');
   await expect(page.locator(':focus')).toBeVisible();
-  console.log(`MJL_ACCESSIBILITY_ACTION Review geometry, keyboard order, visible focus, announcements, and non-color meaning for ${archetype.label}; leave a visible focus target, then resume.`);
+  console.log(`MJL_ACCESSIBILITY_ACTION Review geometry, keyboard order, visible focus, announcements, forced colors, reduced motion, and non-color meaning for ${archetype.label}; leave a visible focus target, then resume.`);
   await page.pause();
   const evidence = await page.evaluate(() => {
     const focus = document.activeElement;

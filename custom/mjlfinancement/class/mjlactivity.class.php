@@ -23,6 +23,9 @@ class MjlActivity extends CommonObject
 		'date_start' => array('type' => 'date', 'label' => 'DateStart', 'notnull' => 1, 'visible' => 1),
 		'date_end' => array('type' => 'date', 'label' => 'DateEnd', 'notnull' => 1, 'visible' => 1),
 		'draft_authorized_amount' => array('type' => 'integer', 'label' => 'AuthorizedAmount', 'notnull' => 1, 'visible' => 0),
+		'first_submitted_amount' => array('type' => 'integer', 'label' => 'FirstSubmittedAmount', 'notnull' => 0, 'visible' => 0),
+		'latest_validated_amount' => array('type' => 'integer', 'label' => 'LatestValidatedAmount', 'notnull' => 0, 'visible' => 0),
+		'fk_current_revision' => array('type' => 'integer', 'label' => 'CurrentRevision', 'notnull' => 0, 'visible' => 0),
 		'validation_status' => array('type' => 'varchar(40)', 'label' => 'Status', 'notnull' => 1, 'visible' => 1),
 		'version' => array('type' => 'integer', 'label' => 'Version', 'notnull' => 1, 'visible' => 0),
 	);

@@ -1,0 +1,3 @@
+ALTER TABLE llx_mjlfinancement_review_decision ADD CONSTRAINT fk_mjl_decision_revision FOREIGN KEY (entity,fk_revision,fk_activity) REFERENCES llx_mjlfinancement_activity_revision(entity,rowid,fk_activity) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_review_decision ADD CONSTRAINT fk_mjl_decision_actor FOREIGN KEY (fk_actor) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_review_decision ADD CONSTRAINT fk_mjl_decision_prevalidation FOREIGN KEY (fk_prevalidation_decision) REFERENCES llx_mjlfinancement_review_decision(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;
