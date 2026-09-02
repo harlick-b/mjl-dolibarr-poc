@@ -101,6 +101,7 @@ test('RST-002B role and user changes reciprocally guard current assignments', ()
 
 test('RST-002B migration is CLI-only, known-prefix, empty-state, and rollback guarded', () => {
   const migration = read('custom/mjlfinancement/scripts/rst002b_activity_assignment.php');
+  const installer = read('custom/mjlfinancement/scripts/activity_schema_installer.lib.php');
   const verifier = read('custom/mjlfinancement/scripts/verification/schema/activity_assignment.php');
   assert.match(migration, /cli_guard\.php/);
   assert.match(verifier, /cli_guard\.php/);
@@ -114,8 +115,10 @@ test('RST-002B migration is CLI-only, known-prefix, empty-state, and rollback gu
   assert.match(migration, /mjlfinancement_user_soc_scope/);
 	assert.match(migration, /object_type='activity_assignment'/);
 	assert.match(migration, /MJL_DISPOSABLE_TEST_TENANT/);
-	assert.match(migration, /MJL_RST002B_SIMPLE_CUTOVER/);
-	assert.match(migration, /Rollback refused/);
+  assert.match(migration, /MJL_RST002B_SIMPLE_CUTOVER/);
+  assert.match(installer, /RST002B_RETAINED_SCHEMA_SHA256_SHARED_PHASE1/);
+  assert.match(installer, /51da8861922ed40282149e96586a595bdde2f94ac5a40053a013c4146315e530/);
+  assert.match(migration, /Rollback refused/);
 });
 
 test('RST-002B focused disposable and Playwright discovery are explicit', () => {

@@ -16,6 +16,9 @@ const RST005_RETAINED_SCHEMA_SHA256_CLEAN = 'e2409271a246b152af6da1e7d320826436a
 const RST002B_RETAINED_SCHEMA_SHA256_PHASE1 = 'f41ea1932b79b858fbad0a81ef19704d4f624ab08e5c32424b69c8abf3069c2b';
 const RST002B_RETAINED_SCHEMA_SHA256_CLEAN = 'b77cfe444e368d4f0fd1df2edadb81a0d6265311bcf2b86badfe3e79ae6658e5';
 const RST002B_RETAINED_SCHEMA_SHA256_CLEAN_ALTERNATE = '40c2111960430cdbf804a26bb3e0da172ca65d93fd829a7873c172c80fd620bc';
+// Exact executed shared RST-005 Phase-1 table form plus the verified RST-002B
+// role triggers. The table-only digest remains RST002B_RETAINED_TABLE_SHA256_PHASE1.
+const RST002B_RETAINED_SCHEMA_SHA256_SHARED_PHASE1 = '51da8861922ed40282149e96586a595bdde2f94ac5a40053a013c4146315e530';
 const RST002B_PREFIX_RETAINED_SCHEMA_SHA256_PHASE1 = '6eac2f117ec8f99fe6b00b9ba46ddbcc7474ca704d439ae9b7d10d16daaea077';
 const RST002B_PREFIX_RETAINED_SCHEMA_SHA256_CLEAN = '93f039485a012e4b429d46b4a07162f99640c3996850ac9a36ff8fde63935453';
 const RST002B_RETAINED_TABLE_SHA256_PHASE1 = '61a38d78a2d453207a3197e8a17fce4a90b08837bd9ee2d999bc8e621a936ffd';
@@ -166,7 +169,7 @@ function mjl_rst002b_require_retained_schema(DoliDB $db)
 {
 	mjl_rst002b_require_table_set($db);
 	$digest = mjl_rst002b_retained_schema_digest($db);
-	if (!hash_equals(RST002B_RETAINED_SCHEMA_SHA256_PHASE1, $digest) && !hash_equals(RST002B_RETAINED_SCHEMA_SHA256_CLEAN, $digest) && !hash_equals(RST002B_RETAINED_SCHEMA_SHA256_CLEAN_ALTERNATE, $digest)) throw new RuntimeException('The retained MJL schema does not match a sealed RST-002B physical form: '.$digest);
+	if (!hash_equals(RST002B_RETAINED_SCHEMA_SHA256_PHASE1, $digest) && !hash_equals(RST002B_RETAINED_SCHEMA_SHA256_CLEAN, $digest) && !hash_equals(RST002B_RETAINED_SCHEMA_SHA256_CLEAN_ALTERNATE, $digest) && !hash_equals(RST002B_RETAINED_SCHEMA_SHA256_SHARED_PHASE1, $digest)) throw new RuntimeException('The retained MJL schema does not match a sealed RST-002B physical form: '.$digest);
 }
 
 function mjl_rst002b_require_prefix_retained_schema(DoliDB $db)
