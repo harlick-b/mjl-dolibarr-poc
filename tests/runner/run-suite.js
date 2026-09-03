@@ -313,6 +313,10 @@ async function databaseSql(plan, statement, options = {}) {
   return compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', ...(options.scalar ? ['-N', '-B'] : []), 'dolidb'], { ...options, input: `${statement}\n` });
 }
 
+async function rst006aStructuralCounts(plan, signal) {
+  return (await databaseSql(plan, "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()),':',(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()),':',(SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE()),':',(SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE()),':',(SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE()))", { scalar: true, signal })).trim();
+}
+
 function filesIn(directory, predicate) {
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory)
@@ -891,6 +895,16 @@ async function main() {
 		  if (!assignmentRefusal.includes('unknown predecessor state')) throw new Error('RST-006A malformed assignment forward prefix was not refused before mutation.');
 		  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity_assignment DROP INDEX idx_rst006a_unexpected_assignment', { signal: controller.signal });
 		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], { signal: controller.signal });
+		  await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A','--failure-point=forward-020'], 'RST-006A retained-trigger setup', { signal: controller.signal });
+		  await databaseSql(plan, 'DROP TRIGGER llx_mjl_activity_rst005_bd', { signal: controller.signal });
+		  const missingTriggerBefore = await rst006aStructuralCounts(plan, controller.signal);
+		  const missingTriggerRefusal = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], 'RST-006A missing retained trigger', { signal: controller.signal });
+		  if (!missingTriggerRefusal.includes('unknown predecessor state') || await rst006aStructuralCounts(plan, controller.signal) !== missingTriggerBefore) throw new Error('RST-006A missing retained trigger was not refused before mutation.');
+		  await databaseSql(plan, "CREATE TRIGGER llx_mjl_activity_rst005_bd BEFORE DELETE ON llx_mjlfinancement_activity FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity deletion is dormant in RST-005'", { signal: controller.signal });
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+
 		  await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A','--failure-point=rollback-001'], 'RST-006A Activity rollback-prefix setup', { signal: controller.signal });
 		  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity ADD INDEX idx_rst006a_unexpected_rollback (name)', { signal: controller.signal });
 		  const rollbackRefusal = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], 'RST-006A malformed Activity rollback prefix', { signal: controller.signal });
@@ -900,6 +914,20 @@ async function main() {
 		  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity DROP INDEX idx_rst006a_unexpected_rollback', { signal: controller.signal });
 		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], { signal: controller.signal });
 		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+
+		  for (const missingBase of [
+		    { label:'index', drop:'ALTER TABLE llx_mjlfinancement_activity DROP INDEX idx_mjl_activity_entity_validation', restore:'ALTER TABLE llx_mjlfinancement_activity ADD INDEX idx_mjl_activity_entity_validation (entity,validation_status)' },
+		    { label:'foreign key', drop:'ALTER TABLE llx_mjlfinancement_activity DROP FOREIGN KEY fk_mjl_activity_target_modifier', restore:'ALTER TABLE llx_mjlfinancement_activity ADD CONSTRAINT fk_mjl_activity_target_modifier FOREIGN KEY (fk_user_modif) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT' },
+		  ]) {
+		    await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A','--failure-point=rollback-001'], `RST-006A missing base ${missingBase.label} setup`, { signal: controller.signal });
+		    await databaseSql(plan, missingBase.drop, { signal: controller.signal });
+		    const beforeRefusal = await rst006aStructuralCounts(plan, controller.signal);
+		    const refusal = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], `RST-006A missing base ${missingBase.label}`, { signal: controller.signal });
+		    if (!refusal.includes('Rollback requires the exact target or a known rollback prefix') || await rst006aStructuralCounts(plan, controller.signal) !== beforeRefusal) throw new Error(`RST-006A missing base ${missingBase.label} was not refused before mutation.`);
+		    await databaseSql(plan, missingBase.restore, { signal: controller.signal });
+		    await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], { signal: controller.signal });
+		    await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+		  }
 		}
 		const malformedPrefixes = selectedDdlPoint ? [] : [
 		  { label: 'table-options', mutate: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence ENGINE=MyISAM', recover: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence ENGINE=InnoDB' },

@@ -7,7 +7,7 @@ This file is current-state evidence only. It does not override
 
 The local tenant contains exactly one preserved native technical
 administrator and no persistent business, invitation, reset, role, scope, or
-audit rows. Module version 0.16.0 depends on native Third Parties and Projects.
+audit rows. Module version 0.19.0 depends on native Third Parties and Projects.
 MJL-specific code remains under 'custom/mjlfinancement'.
 
 | Surface | Current behavior |

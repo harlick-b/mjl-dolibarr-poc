@@ -115,6 +115,8 @@ function readJournal(commit) {
   invariant(sha256File(journal.backup_path) === journal.backup_sha256 && sha256File(configPath) === journal.config_sha256, 'Active cutover journal backup or configuration checksum is corrupt.');
   invariant(/^[a-f0-9]{64}$/.test(journal.empty_evidence_sha256) && emptyEvidenceDigest() === journal.empty_evidence_sha256, 'Active cutover empty-tenant evidence has drifted.');
   invariant(/^forward-(?:0(?:0[0-9]|[1-3][0-9])|04[0-3])$/.test(journal.detected_ddl_prefix), 'Active cutover journal records an unknown DDL prefix.');
+  const actualPrefix = migration('prefix');
+  if (actualPrefix === 'forward-000') invariant(schemaDigest() === journal.predecessor_schema_sha256, 'Active cutover predecessor schema digest has drifted.');
   return journal;
 }
 function updateJournal(journal, state) {

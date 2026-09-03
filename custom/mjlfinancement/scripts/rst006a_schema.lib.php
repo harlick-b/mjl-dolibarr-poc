@@ -208,6 +208,11 @@ function mjl_rst006a_prefix_triggers_valid(DoliDB $db)
 		try{$actual=mjl_rst002b_actual_trigger_map($db,$table);}catch(Throwable$exception){return false;}
 		foreach($actual as$name=>$definition)if(!isset($definitions[$name])||!in_array($definition,$definitions[$name],true))return false;
 	}
+	$retained=array(
+		'CREATE TRIGGER '.$p."mjl_activity_rst005_bd BEFORE DELETE ON {$p}mjlfinancement_activity FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MJL Activity deletion is dormant in RST-005'",
+	);
+	foreach(mjl_rst002b_assignment_trigger_statements($db)as$sql)if(strpos($sql,' BEFORE INSERT ')===false)$retained[]=$sql;
+	foreach($retained as$sql)if(!mjl_rst006a_trigger_equals($db,$sql))return false;
 	return true;
 }
 
@@ -535,7 +540,7 @@ function mjl_rst006a_is_known_rollback_prefix(DoliDB $db)
 		if(!mjl_rst006a_object_exists($db,'constraint',$activity,'chk_mjl_activity_validation_status'))unset($contract['checks']['chk_mjl_activity_validation_status']);
 		elseif(mjl_rst006a_check_equals($db,$activity,'chk_mjl_activity_validation_status',"validation_status IN ('DRAFT','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED','CANCELLED')"))$contract['checks']['chk_mjl_activity_validation_status']=mjl_rst005_check_contract(RST002B_ACTIVITY_SCHEMA)['chk_mjl_activity_validation_status'];
 		if(mjl_rst006a_object_exists($db,'constraint',$activity,'chk_mjl_activity_rst005_dormant'))$contract['checks']['chk_mjl_activity_rst005_dormant']=mjl_rst005_check_contract(RST002B_ACTIVITY_SCHEMA)['chk_mjl_activity_rst005_dormant'];
-		mjl_rst006a_require_new_table_contract($db,'activity-rollback',$contract,$activity,true);
+		mjl_rst006a_require_new_table_contract($db,'activity-rollback',$contract,$activity,false);
 	} catch(Throwable$exception){return false;}
 	if(!mjl_rst006a_prefix_triggers_valid($db))return false;
 	$seenPending = false;

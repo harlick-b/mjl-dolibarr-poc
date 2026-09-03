@@ -12,6 +12,7 @@ const sourceRoot = path.resolve(__dirname, '../..');
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mjl-rst006a-wrapper-'));
 const project = path.basename(temporaryRoot).toLowerCase();
 const compose = ['compose', '--env-file', '/dev/null', '--project-directory', temporaryRoot, '-f', path.join(temporaryRoot, 'docker-compose.yml'), '-p', project];
+const wrapperTranscripts = [];
 
 function run(executable, args, options = {}) {
   const result = spawnSync(executable, args, { cwd: options.cwd || temporaryRoot, encoding: 'utf8', env: options.env || process.env, input: options.input, stdio: options.stdio || ['pipe','pipe','pipe'] });
@@ -22,7 +23,10 @@ function run(executable, args, options = {}) {
   return result.stdout || '';
 }
 function dc(args, options) { return run('/usr/bin/docker', [...compose, ...args], options); }
-function wrapper(options = {}) { return run(process.execPath, ['custom/mjlfinancement/scripts/rst006a_fast_cutover.js','--confirm=RST-006A-FAST'], { ...options, label: options.label || 'RST-006A wrapper' }); }
+function wrapper(options = {}) {
+  try { const output=run(process.execPath, ['custom/mjlfinancement/scripts/rst006a_fast_cutover.js','--confirm=RST-006A-FAST'], { ...options, label: options.label || 'RST-006A wrapper' });wrapperTranscripts.push(output);return output; }
+  catch(error){wrapperTranscripts.push(error.output || error.message || '');throw error;}
+}
 function assert(condition, message) { if (!condition) throw new Error(message); }
 async function freePort() { return new Promise((resolve, reject) => { const server=net.createServer();server.once('error',reject);server.listen(0,'127.0.0.1',()=>{const port=server.address().port;server.close((error)=>error?reject(error):resolve(port));}); }); }
 async function ready(port) { const deadline=Date.now()+360000;while(Date.now()<deadline){try{const response=await fetch(`http://127.0.0.1:${port}/`,{signal:AbortSignal.timeout(2500)});if(response.status<500)return;}catch(_){}await new Promise((resolve)=>setTimeout(resolve,2000));}throw new Error('Wrapper rehearsal tenant did not become ready.'); }
@@ -34,6 +38,13 @@ async function waitForUnlocked(lock) {
 function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
 function activePaths(custody) { return { journal:path.join(custody,'rst006a-active-journal.json'), config:path.join(custody,'.rst006a-active-conf.php') }; }
 function completionFiles(custody) { return fs.readdirSync(custody).filter((name)=>/^rst006a-cutover-[a-f0-9]{64}\.json$/.test(name)); }
+function filesRecursively(directory) {
+  return fs.readdirSync(directory,{withFileTypes:true}).flatMap((entry)=>{const target=path.join(directory,entry.name);return entry.isDirectory()?filesRecursively(target):[target];});
+}
+function assertNoKnownSecrets(custody) {
+  const candidates=[...wrapperTranscripts.map((value)=>Buffer.from(String(value))),...filesRecursively(custody).filter((file)=>fs.lstatSync(file).isFile()).map((file)=>fs.readFileSync(file))];
+  for(const secret of ['poc_root_pwd','poc_pwd','Admin1234','MjlPoc2026!!'])assert(!candidates.some((bytes)=>bytes.includes(Buffer.from(secret))),`Wrapper output or custody artifact exposed known secret ${secret}.`);
+}
 async function resetToPredecessor(custody, port) {
   const prep=path.join(custody,'predecessor-conf.php');
   dc(['cp','dolibarr:/var/www/html/conf/conf.php',prep]);fs.chmodSync(prep,0o600);
@@ -88,6 +99,13 @@ async function main() {
     try{wrapper({env:{...process.env,MJL_RST006A_REHEARSAL_INTERRUPT:point}});}catch(error){interrupted=error.status!==0;}
     assert(interrupted,`Wrapper did not interrupt at ${point}.`);
     await waitForUnlocked(lock);
+    if(point==='partial-ddl'){
+      const journalBytes=fs.readFileSync(active.journal);fs.unlinkSync(active.journal);
+      refused=false;try{wrapper();}catch(error){refused=/unjournaled non-predecessor schema|remains stopped/i.test(error.output);}
+      assert(refused,'Wrapper did not refuse a known partial schema whose active journal was missing.');
+      assert(JSON.stringify(serviceSet())===JSON.stringify(['mariadb']),'Missing-journal partial schema did not remain stopped.');
+      fs.writeFileSync(active.journal,journalBytes,{mode:0o600});fs.chmodSync(active.journal,0o600);
+    }
     const resumed=wrapper();assert(resumed.includes('RST-006A cutover complete.'),`Wrapper did not resume ${point}.`);
     assert(JSON.stringify(serviceSet())===JSON.stringify(['dolibarr','mariadb']),`Wrapper did not restore services after ${point}.`);
     assert(completionFiles(custody).length===before+1,`Wrapper did not seal one completion record after ${point}.`);
@@ -115,6 +133,7 @@ async function main() {
   assert(JSON.stringify(serviceSet())===JSON.stringify(['mariadb']),'Unknown schema state did not remain stopped.');
   dc(['exec','-T','mariadb','sh','-ceu','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mariadb -uroot "$MYSQL_DATABASE" -e "ALTER TABLE llx_mjlfinancement_activity DROP INDEX idx_rst006a_rehearsal_unknown"']);
   if(fs.existsSync(active.config))fs.unlinkSync(active.config);dc(['start','dolibarr']);await ready(port);
+  assertNoKnownSecrets(custody);
   process.stdout.write('RST-006A fast-wrapper shared-shaped rehearsal passed.\n');
 }
 
