@@ -1,5 +1,9 @@
 const { test, expect } = require('@playwright/test');
+const crypto = require('crypto');
+const fs = require('fs');
 const os = require('os');
+const path = require('path');
+const childProcess = require('child_process');
 const { verifyDisposableEnvironment } = require('../helpers/verify-disposable-environment');
 const { MJL_REVIEW_WIDTHS } = require('../helpers/responsive-shell');
 const { login } = require('../helpers/mjl-test-runtime');
@@ -10,15 +14,24 @@ const reviewer = (process.env.MJL_MANUAL_ACCESSIBILITY_REVIEWER || '').trim();
 const assistiveTechnology = (process.env.MJL_MANUAL_ACCESSIBILITY_ASSISTIVE_TECH || '').trim();
 const reviewVerdict = (process.env.MJL_MANUAL_ACCESSIBILITY_VERDICT || '').trim().toLowerCase();
 const reviewNotes = (process.env.MJL_MANUAL_ACCESSIBILITY_NOTES || '').trim();
+const keyboardFindings = (process.env.MJL_MANUAL_ACCESSIBILITY_KEYBOARD_FINDINGS || '').trim();
+const screenReaderFindings = (process.env.MJL_MANUAL_ACCESSIBILITY_SCREEN_READER_FINDINGS || '').trim();
+const frenchReview = (process.env.MJL_MANUAL_ACCESSIBILITY_FRENCH_REVIEW || '').trim().toLowerCase();
 const testPassword = process.env.MJL_TEST_USER_PASSWORD;
 const adminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
+let activityDraftId = 0;
+let activityReviewId = 0;
 const reviewArchetypes = Object.freeze([
   { key: 'auth', label: 'authentification hors session', route: '/index.php', user: null },
   { key: 'home', label: 'accueil Agent de saisie', route: '/custom/mjlfinancement/index.php', user: 'phase1.a11y.agent' },
   { key: 'partners', label: 'liste de partenaires', route: '/custom/mjlfinancement/partners.php', user: 'phase1.a11y.agent' },
   { key: 'projects', label: 'liste de projets', route: '/custom/mjlfinancement/projects.php', user: 'phase1.a11y.agent' },
   { key: 'operation-types', label: 'types d’opération', route: '/custom/mjlfinancement/operationtypes.php', user: 'phase1.a11y.agent' },
-  { key: 'activities', label: 'création et planification d’Activité', route: '/custom/mjlfinancement/activities.php?action=create', user: 'phase1.a11y.agent' },
+  { key: 'activity-list', label: 'liste des Activités', route: '/custom/mjlfinancement/activities.php', user: 'rst006a.a11y.agent' },
+  { key: 'activity-create', label: 'création d’Activité', route: '/custom/mjlfinancement/activities.php?action=create', user: 'rst006a.a11y.agent' },
+  { key: 'activity-detail', label: 'détail d’Activité', route: () => `/custom/mjlfinancement/activities.php?id=${activityDraftId}`, user: 'rst006a.a11y.agent' },
+  { key: 'activity-edit', label: 'modification d’Activité', route: () => `/custom/mjlfinancement/activities.php?id=${activityDraftId}&action=edit`, user: 'rst006a.a11y.agent' },
+  { key: 'activity-review', label: 'examen d’une révision d’Activité', route: () => `/custom/mjlfinancement/activities.php?id=${activityReviewId}&action=review`, user: 'rst006a.a11y.supervisor' },
   { key: 'audit-validator', label: 'audit Validateur', route: '/custom/mjlfinancement/workflowactions.php', user: 'phase1.a11y.validator' },
   { key: 'access-admin', label: 'utilisateurs et accès', route: '/custom/mjlfinancement/admin/access.php', user: 'admin' },
   { key: 'technical-admin', label: 'administration technique', route: '/admin/modules.php', user: 'admin' },
@@ -28,8 +41,8 @@ test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(() => {
   verifyDisposableEnvironment();
-  if (!reviewer || !assistiveTechnology || !reviewNotes || !['pass', 'fail'].includes(reviewVerdict)) {
-    throw new Error('A signed manual review requires reviewer, assistive technology, non-empty notes, and MJL_MANUAL_ACCESSIBILITY_VERDICT=pass|fail.');
+  if (!reviewer || !assistiveTechnology || !reviewNotes || !keyboardFindings || !screenReaderFindings || frenchReview !== 'pass' || !['pass', 'fail'].includes(reviewVerdict)) {
+    throw new Error('A signed manual review requires reviewer, assistive technology, keyboard and screen-reader findings, French review=pass, notes, and verdict=pass|fail.');
   }
   createPhase1FixtureSet({
     namespace: 'phase1.a11y', entity: 1,
@@ -40,6 +53,21 @@ test.beforeAll(() => {
     ],
     references: { partners: [], projects: [], operationTypes: [] },
   });
+  const planningFixture = createPhase1FixtureSet({
+    namespace: 'rst006a.a11y', entity: 1,
+    users: [{ key: 'agent', role: 'AGENT_SAISIE' }, { key: 'supervisor', role: 'AGENT_VERIFICATEUR' }, { key: 'validator', role: 'VALIDATEUR_DEFINITIF' }],
+    references: {
+      partners: [{ key: 'partner', label: 'Partenaire accessibilité' }],
+      projects: [{ key: 'project', label: 'Projet accessibilité', partnerKey: 'partner' }],
+      operationTypes: [{ key: 'type', label: 'Type accessibilité' }],
+    },
+  });
+  const structure = `array('partner_id'=>'${planningFixture.partners.partner}','project_id'=>'${planningFixture.projects.project}','name'=>'Activité accessibilité','description'=>'Vérification manuelle complète','date_start'=>'2032-01-01','date_end'=>'2032-12-31','authorized_amount'=>'1000','operations'=>array(array('client_key'=>'accessibility-operation','name'=>'Opération accessible','type_id'=>'${planningFixture.operationTypes.type}','authorized_amount'=>'1000')))`;
+  const commandSource = `<?php define('NOLOGIN',1);require '/var/www/html/main.inc.php';require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivitycommand.class.php';$conf->entity=1;$actor=new User($db);$actor->fetch(${planningFixture.users.agent.id});$command=new MjlActivityCommand($db);echo json_encode(array('draft'=>$command->createDraft(${structure},$actor),'review'=>$command->createAndSubmit(${structure},$actor)));`;
+  const result = JSON.parse(childProcess.execFileSync('docker', ['compose','exec','-T','dolibarr','php'], { encoding: 'utf8', env: process.env, input: commandSource, stdio: ['pipe','pipe','pipe'] }));
+  activityDraftId = Number(result.draft?.activity_id || 0);
+  activityReviewId = Number(result.review?.activity_id || 0);
+  if (!activityDraftId || !activityReviewId || result.draft.code !== 'OK' || result.review.code !== 'OK') throw new Error('RST-006A manual fixture creation failed.');
 });
 
 async function recordCalibration(page, browser, targetWidth, zoomPercent, assertTargetOuterWidth) {
@@ -90,14 +118,15 @@ async function assertNavigationReflow(page, targetWidth, zoomPercent) {
 }
 
 async function openArchetype(page, archetype) {
+  const targetRoute = typeof archetype.route === 'function' ? archetype.route() : archetype.route;
   if (!archetype.user) {
     await page.goto('/user/logout.php').catch(() => {});
-    await page.goto(archetype.route);
-    return archetype.route;
+    await page.goto(targetRoute);
+    return targetRoute;
   }
   await login(page, archetype.user, archetype.user === 'admin' ? adminPassword : testPassword);
-  await page.goto(archetype.route);
-  return archetype.route;
+  await page.goto(targetRoute);
+  return targetRoute;
 }
 
 async function recordCombination(page, archetype, route, targetWidth, zoomPercent) {
@@ -120,6 +149,14 @@ async function recordCombination(page, archetype, route, targetWidth, zoomPercen
       focusVisible: Boolean(focus && focus.matches(':focus-visible')),
     };
   });
+  let forcedColors = false;
+  let reducedMotion = false;
+  if (archetype.key.startsWith('activity-')) {
+    await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+    forcedColors = await page.evaluate(() => window.matchMedia('(forced-colors: active)').matches);
+    reducedMotion = await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    await page.emulateMedia({ forcedColors: 'none', reducedMotion: 'no-preference' });
+  }
   const result = {
     archetype: archetype.key,
     label: archetype.label,
@@ -130,12 +167,21 @@ async function recordCombination(page, archetype, route, targetWidth, zoomPercen
     result: reviewVerdict,
     reviewer,
     assistiveTechnology,
+    keyboardFindings,
+    screenReaderFindings,
+    frenchReview,
     notes: reviewNotes,
+    forcedColors,
+    reducedMotion,
     ...evidence,
   };
   console.log(`MJL_ACCESSIBILITY_COMBINATION ${JSON.stringify(result)}`);
   expect(result.overflow, `${archetype.key} ${targetWidth}px ${zoomPercent}% overflow`).toBe(false);
   expect(result.focusVisible, `${archetype.key} ${targetWidth}px ${zoomPercent}% visible focus`).toBe(true);
+  if (archetype.key.startsWith('activity-')) {
+    expect(result.forcedColors, `${archetype.key} forced-colors`).toBe(true);
+    expect(result.reducedMotion, `${archetype.key} reduced-motion`).toBe(true);
+  }
   return result;
 }
 
@@ -186,7 +232,8 @@ test('real application keyboard, focus, reflow, and Chromium zoom gate', async (
     }
   }
 
-  expect(combinationCount).toBe(90);
+  expect(reviewArchetypes).toHaveLength(13);
+  expect(combinationCount).toBe(130);
 
   const evidence = {
     status: reviewVerdict === 'pass' ? 'signed_pass' : 'signed_fail',
@@ -194,12 +241,26 @@ test('real application keyboard, focus, reflow, and Chromium zoom gate', async (
     reviewedAt: new Date().toISOString(),
     browser: browser.version(),
     assistiveTechnology,
+    keyboardFindings,
+    screenReaderFindings,
+    frenchReview,
     notes: reviewNotes,
     archetypes: reviewArchetypes.map(({ key, label }) => ({ key, label })),
     zoomWidths: MJL_REVIEW_WIDTHS,
     zoomLevels: [100, 200],
     combinations: combinationResults,
   };
-  console.log(`MJL_MANUAL_ACCESSIBILITY_EVIDENCE ${JSON.stringify(evidence)}`);
+  const canonical = `${JSON.stringify(evidence)}\n`;
+  const payloadSha256 = crypto.createHash('sha256').update(canonical).digest('hex');
+  const signedArtifact = { version: 1, unit: 'RST-006A', reviewer, payload_sha256: payloadSha256, evidence };
+  if (!process.env.MJL_EVIDENCE_ROOT) throw new Error('Private accessibility evidence root is missing.');
+  const evidenceRoot = path.resolve(process.env.MJL_EVIDENCE_ROOT);
+  fs.mkdirSync(evidenceRoot, { recursive: true, mode: 0o700 });
+  const rootStat = fs.lstatSync(evidenceRoot);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || (rootStat.mode & 0o777) !== 0o700) throw new Error('Private accessibility evidence root custody is invalid.');
+  const evidencePath = path.join(evidenceRoot, `rst006a-manual-accessibility-${payloadSha256}.json`);
+  fs.writeFileSync(evidencePath, `${JSON.stringify(signedArtifact, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+  expect(fs.statSync(evidencePath).mode & 0o777).toBe(0o600);
+  console.log(`MJL_MANUAL_ACCESSIBILITY_ARTIFACT ${JSON.stringify({ evidencePath, payloadSha256, reviewer })}`);
   expect(reviewVerdict, 'Le verdict humain signé doit être pass pour franchir le gate.').toBe('pass');
 });

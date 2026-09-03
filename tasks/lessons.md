@@ -223,3 +223,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   both expected and observed identifier sets in the same runtime before
   comparing them, and must compare index uniqueness plus ordered columns rather
   than names alone so same-name weakened indexes cannot pass verification.
+- A resumable DDL matrix cannot claim a distinct checkpoint after a no-op such
+  as `DROP ... IF EXISTS` on an object that never existed. Every injected
+  boundary needs an observable structural effect, and prefix classification
+  must compare full definitions (options, columns, indexes, foreign keys,
+  checks, and triggers), not only object names or counts.

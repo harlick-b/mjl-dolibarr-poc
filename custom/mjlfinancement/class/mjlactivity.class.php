@@ -37,12 +37,14 @@ class MjlActivity extends CommonObject
 		return mjl_rst005_detect_schema($this->db);
 	}
 
-	/** Return the fixed active-entity read-only projection for the sealed schema. */
-	public function fetchReadProjection(User $reader, $limit = 200)
+	/** Return the filtered active-entity read-only projection for one list page. */
+	public function fetchReadProjection(User $reader, array $filters, $limit, $offset)
 	{
 		global $conf;
 		$entity = (int) $conf->entity;
-		$limit = max(1, min(200, (int) $limit));
+		$limit = (int) $limit;
+		$offset = (int) $offset;
+		if ($limit < 1 || $limit > 51 || $offset < 0) return false;
 		if (!mjl_activity_access_can_enter_list($reader)) return false;
 		$schema = $this->detectSchema();
 		if (mjl_activity_access_assignment_schema_ready() || $schema === RST005_SCHEMA_TARGET) {
@@ -58,7 +60,15 @@ class MjlActivity extends CommonObject
 			$sql .= ' INNER JOIN '.$this->db->prefix().'mjlfinancement_activity_assignment aa ON aa.entity=a.entity AND aa.fk_activity=a.rowid';
 			$sql .= ' AND aa.fk_user='.((int) $reader->id).' AND aa.date_end IS NULL';
 		}
-		$sql .= ' WHERE a.entity='.$entity.' ORDER BY a.rowid DESC LIMIT '.$limit;
+		$sql .= ' WHERE a.entity='.$entity;
+		if ($filters['status'] !== '') $sql .= " AND a.validation_status='".$this->db->escape($filters['status'])."'";
+		if ($filters['project_id'] !== '') $sql .= ' AND p.rowid='.(int) $filters['project_id'].' AND p.entity='.$entity;
+		if ($filters['q'] !== '') {
+			$literal = str_replace(array('\\', '%', '_'), array('\\\\', '\\%', '\\_'), $filters['q']);
+			$like = "'%".$this->db->escape($literal)."%' ESCAPE '\\\\'";
+			$sql .= ' AND (a.ref LIKE '.$like.' OR a.name LIKE '.$like.' OR p.ref LIKE '.$like.' OR p.title LIKE '.$like.')';
+		}
+		$sql .= ' ORDER BY a.rowid DESC LIMIT '.$limit.' OFFSET '.$offset;
 		$resql = $this->db->query($sql);
 		if (!$resql) return false;
 		$rows = array();

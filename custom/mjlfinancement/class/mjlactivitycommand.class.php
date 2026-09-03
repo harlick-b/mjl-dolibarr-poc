@@ -201,18 +201,41 @@ class MjlActivityCommand
 		try { mjl_rst006a_require_target($this->db); }
 		catch (Throwable $e) { return $this->outcome($e->getMessage() === 'MIGRATION_REQUIRED' ? 'MIGRATION_REQUIRED' : 'FAILED'); }
 		if ($this->entity <= 0 || $this->db->transaction_opened > 0) return $this->outcome('CONFLICT');
-		if (!$this->db->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')) return $this->outcome('FAILED');
-		$this->db->begin('mjl RST-006A aggregate');
+		if (!$this->db->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')) return $this->outcome($this->databaseFailureOutcome());
+		if (!$this->db->begin('mjl RST-006A aggregate')) return $this->outcome($this->databaseFailureOutcome());
 		try {
 			$result = $work();
-			if (!empty($result['_rollback'])) { $this->db->rollback('mjl RST-006A rejected'); unset($result['_rollback']); return $result; }
-			if (!$this->db->commit('mjl RST-006A aggregate')) { $this->db->rollback('mjl RST-006A commit failed'); return $this->outcome('FAILED'); }
+			if (!empty($result['_rollback'])) {
+				$databaseOutcome = $this->databaseFailureOutcome();
+				$this->db->rollback('mjl RST-006A database failure');
+				unset($result['_rollback']);
+				return $databaseOutcome === 'RETRYABLE_CONFLICT' ? $this->outcome($databaseOutcome) : $result;
+			}
+			if (!$this->db->commit('mjl RST-006A aggregate')) {
+				$databaseOutcome = $this->databaseFailureOutcome();
+				$this->db->rollback('mjl RST-006A database failure');
+				return $this->outcome($databaseOutcome);
+			}
 			return $result;
 		} catch (Throwable $e) {
-			$this->db->rollback('mjl RST-006A exception');
-			$message = strtolower($e->getMessage());
-			return $this->outcome(strpos($message, 'deadlock') !== false || strpos($message, 'lock wait timeout') !== false ? 'RETRYABLE_CONFLICT' : 'FAILED');
+			$outcome = $this->databaseFailureOutcome($e);
+			$this->db->rollback('mjl RST-006A database failure');
+			return $this->outcome($outcome);
 		}
+	}
+
+	private function databaseFailureOutcome(Throwable $exception = null)
+	{
+		$codes = array();
+		foreach (array('lasterrno','errno') as $method) if (method_exists($this->db, $method)) {
+			try { $codes[] = (int) $this->db->{$method}(); } catch (Throwable $ignored) {}
+		}
+		foreach (array('lasterrno','errno') as $property) if (isset($this->db->{$property})) $codes[] = (int) $this->db->{$property};
+		$message = strtolower((string) $this->db->lasterror().' '.($exception ? $exception->getMessage() : ''));
+		if (in_array(1205, $codes, true) || in_array(1213, $codes, true)
+			|| preg_match('/(?:^|[^0-9])(1205|1213)(?:[^0-9]|$)/', $message)
+			|| strpos($message, 'deadlock') !== false || strpos($message, 'lock wait timeout') !== false) return 'RETRYABLE_CONFLICT';
+		return 'FAILED';
 	}
 
 	private function lockActor(User $actor, array $extraIds = array())

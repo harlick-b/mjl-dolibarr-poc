@@ -73,10 +73,28 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   and whole-tenant destruction.
 - 'test:rst006a' provisions the complete RST-006A target in an isolated tenant
   and exercises the aggregate command, guarded Activity route, canonical
-  reference allocation, automatic primary assignment, balance and immutable
-  revision creation, identity separation, terminal final validation, strict
-  input, French form structure, and route-owned JavaScript. It does not cut
-  over the shared tenant.
+  reference allocation, automatic primary assignment, balance, immutable
+  revisions, signed-BIGINT and arithmetic-overflow boundaries, inactive
+  reference retention/new-use refusal, start-date freeze, identity separation,
+  return/resubmission, terminal validation, audit rollback, literal search, fixed 50-row pagination with distinct
+  0/1/50/51/101-result cohorts, typed filters,
+  JavaScript-disabled use, CSRF/context replay, request size, role/entity
+  isolation, and HTML escaping. Its fixed named inventory includes real
+  concurrent command races plus MariaDB deadlock and lock-timeout rollback.
+  Before browser execution it proves every one of the 43 forward and 43
+  rollback DDL interruption points, exact forward-prefix convergence, and
+  malformed engine/collation, column, index, foreign-key, CHECK, unexpected
+  object, and trigger refusal. The same command also runs an isolated
+  shared-shaped fast-wrapper rehearsal covering success, exclusive locking,
+  source drift, malformed journals, missing/corrupt backups, four interruption
+  and exact-resume stages, and unknown-state containment. It does not cut over
+  the shared tenant.
+- The RST-006A manual accessibility gate covers thirteen archetypes, including
+  Activity list/create/detail/edit/review, at five widths and real 100%/200%
+  browser zoom: exactly 130 combinations. Activity states also require forced
+  colors and reduced motion evidence. Passing requires named human review,
+  keyboard, screen-reader and French findings, and a private checksummed JSON
+  artifact. No automated run substitutes for that signature.
 - `npm run cutover:rst002b-fast -- --confirm=RST-002B-FAST` is the intentionally
   small local operational command. It is not an automated test and must not be
   invoked unless the user explicitly requests execution.

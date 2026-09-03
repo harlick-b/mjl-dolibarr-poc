@@ -105,6 +105,13 @@ class modMjlFinancement extends DolibarrModules
 				if ($customCount !== 0) return -1;
 				$result = $this->_load_tables('/mjlfinancement/sql/');
 				if ($result < 0) return -1;
+				foreach (array('review_decision','revision_contributor','activity_revision','operation','activity_reference_sequence') as $suffix) {
+					$table=$prefix.'mjlfinancement_'.$suffix;
+					if (mjl_rst002b_table_exists($this->db,$table) && !$this->db->query('DROP TABLE '.$table)) throw new RuntimeException('Unable to normalize the clean RST-006A bootstrap: '.$this->db->lasterror());
+				}
+				foreach (array(mjl_rst005_insert_trigger_sql($prefix,$activity),mjl_rst002b_activity_update_trigger_sql($this->db)) as $sql) {
+					if (!$this->db->query($sql)) throw new RuntimeException('Unable to install the clean Activity predecessor guard: '.$this->db->lasterror());
+				}
 				mjl_rst002b_install_assignment_triggers($this->db);
 				mjl_rst002b_install_role_invariant_triggers($this->db, true);
 				mjl_rst006a_install_target($this->db);

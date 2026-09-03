@@ -117,11 +117,12 @@ conformance, production readiness, or whole-Phase-3D completion.
 - Formal-French residuals on dashboard, activity/expense timelines, and access
   scope summaries were corrected. Non-protected labels, emails, and CSV/XLSX
   output still require client approval: `BLOCKED_PENDING_CLIENT_REVIEW`.
-- The signed accessibility harness now includes auth, dashboard, list, form,
-  workflow, Documents, alert, report, and administration archetypes plus
-  representative screen-reader and real-zoom evidence. It requires a recorded
-  result, geometry, visible-focus observation, reviewer, and non-empty notes for
-  all 90 combinations. No reviewer has signed this run:
+- The signed accessibility harness now includes thirteen current archetypes,
+  including Activity list/create/detail/edit/review, plus representative
+  screen-reader, forced-colors, reduced-motion, and real-zoom evidence. It
+  requires a recorded result, geometry, visible-focus observation, reviewer,
+  keyboard/screen-reader/French findings, and non-empty notes for all 130
+  combinations. No reviewer has signed this run:
   `BLOCKED_PENDING_MANUAL_ACCESSIBILITY`.
 - The final strengthened-remediation run passed the complete local verification
   layer and 114/114 blocking browser cases in a disposable tenant. Separate

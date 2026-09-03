@@ -451,8 +451,34 @@ async function runPlaywright(plan, target, signal) {
   const args = ['playwright', 'test'];
 	if (target === 'rst006a') {
 		const specification = fs.readFileSync(path.join(repositoryRoot, 'tests/e2e/rst006a-activity-planning.spec.js'), 'utf8');
-		const discovered = (specification.match(/\ntest\(/g) || []).length;
-		if (discovered !== 8) throw new Error(`RST-006A expected 8 focused browser/command tests; discovered ${discovered}.`);
+		const scenarioTables = require(path.join(repositoryRoot, 'tests/e2e/cases/rst006a.cases.js'));
+		const literalNames = [...specification.matchAll(/\ntest\('([^']+)'/g)].map((match) => match[1]);
+		const generatedNames = Object.values(scenarioTables).flat().map((scenario) => scenario.name);
+		const discovered = [...literalNames, ...generatedNames].sort();
+		const expected = [
+			'create-and-submit allocates the canonical reference, primary assignment, balance, and immutable revision atomically',
+			'separation of duties and exact revision review produce a terminal final validation',
+			'guarded Activity UI is French-first, assignment-scoped, and uses one route-owned script',
+			'strict decimal and unexpected structures fail without consuming a reference',
+			'signed BIGINT maximum succeeds while arithmetic overflow rolls back without consuming a reference',
+			'deactivated references reject new use without reference allocation but remain valid when unchanged',
+			'start-date freeze forbids structural return while unchanged submitted review can finish',
+			'an assigned Agent abandons an unsubmitted draft and a Validator restores one primary assignment before start',
+			'a returned Activity requires a structural change before resubmission and preserves its total',
+			'audit insertion failure rolls back business data and reference allocation',
+			'contributors remain cumulative and truthfully snapshotted after a prior contributor changes role',
+			'concurrent submit and abandon commands commit one version and one audit event','concurrent Supervisor decisions preserve one exact revision decision','concurrent Validator decisions preserve separation and one terminal choice','real MariaDB lock timeout returns RETRYABLE_CONFLICT and releases all work','real MariaDB deadlock returns RETRYABLE_CONFLICT with complete rollback',
+			'list fixture creates exact pagination cohorts and literal wildcard canaries through aggregate commands',
+			'zero-result cohort renders no rows or pagination','one-result cohort renders one row without pagination','50-result cohort renders the exact cutoff without Next','51-result cohort page 1 renders 50 rows with Next','51-result cohort page 2 renders one row with Previous',
+			'list page 1 renders 50 of 101 Activities','list page 2 renders the middle 50 Activities','list page 3 renders the final Activity',
+			'list rejects an unknown status','list rejects page zero','list rejects an overflowing project identifier','list rejects a search longer than 100 characters',
+			'web stack rejects malformed UTF-8 search bytes','list rejects a leading control character before trimming','list rejects a trailing control character before trimming',
+			'percent is searched as a literal wildcard character','underscore is searched as a literal wildcard character',
+			'unrelated presentation parameters are ignored while filters remain effective','cross-entity Project filters disclose no Project or Activity existence','Activity list and create page remain usable when JavaScript is disabled',
+			'Previous and Next preserve the typed status and Project filters',
+			'no-role, inactive, unassigned, and Admin actors cannot cross Activity access boundaries','oversized and mass-assigned Activity requests fail before mutation','missing CSRF and replayed contextual submissions fail with exact mutation counts','Activity search output escapes stored HTML',
+		].sort();
+		if (JSON.stringify(discovered) !== JSON.stringify(expected)) throw new Error(`RST-006A focused inventory changed: expected ${expected.length}, discovered ${discovered.length}.`);
 	}
   if (target === 'e2e') {
     args.push('--config=playwright.config.js');
@@ -831,18 +857,69 @@ async function main() {
       }
       else if (layer === 'rst006a') {
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
-        for (const failurePoint of [
-          'activity_reference_sequence','operation','activity_revision','revision_contributor','review_decision',
-          'operation-keys','activity_revision-keys','revision_contributor-keys','review_decision-keys','activity-pointer',
-        ]) {
+        const allForwardDdlPoints = Array.from({ length: 43 }, (_, index) => `forward-${String(index + 1).padStart(3, '0')}`);
+        const allRollbackDdlPoints = Array.from({ length: 43 }, (_, index) => `rollback-${String(index + 1).padStart(3, '0')}`);
+        const selectedDdlPoint = process.env.MJL_RST006A_BOUNDARY || '';
+        const postDdlOnly = process.env.MJL_RST006A_POST_DDL_ONLY === '1';
+        if (selectedDdlPoint && postDdlOnly) throw new Error('MJL_RST006A_BOUNDARY and MJL_RST006A_POST_DDL_ONLY cannot be combined.');
+        if (selectedDdlPoint && ![...allForwardDdlPoints, ...allRollbackDdlPoints].includes(selectedDdlPoint)) {
+          throw new Error(`Unknown MJL_RST006A_BOUNDARY: ${selectedDdlPoint}`);
+        }
+        const forwardDdlPoints = postDdlOnly ? [] : selectedDdlPoint ? allForwardDdlPoints.filter((point) => point === selectedDdlPoint) : allForwardDdlPoints;
+        const rollbackDdlPoints = postDdlOnly ? [] : selectedDdlPoint ? allRollbackDdlPoints.filter((point) => point === selectedDdlPoint) : allRollbackDdlPoints;
+        for (const failurePoint of forwardDdlPoints) {
+		  process.stdout.write(`RST-006A boundary ${failurePoint}\n`);
           await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], { signal: controller.signal });
           const output = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A',`--failure-point=${failurePoint}`], `RST-006A ${failurePoint}`, { signal: controller.signal });
-          const marker = failurePoint === 'activity-pointer' ? 'Injected interruption after Activity pointer' : `Injected interruption after ${failurePoint.replace('-keys',' keys')}`;
-          if (!output.includes(marker)) throw new Error(`RST-006A ${failurePoint} failed for the wrong reason.`);
+          if (!output.includes(`Injected interruption after ${failurePoint}`)) throw new Error(`RST-006A ${failurePoint} failed for the wrong reason.`);
           await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
           await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
         }
-        await runPlaywright(plan, layer, controller.signal);
+		for (const failurePoint of rollbackDdlPoints) {
+		  process.stdout.write(`RST-006A boundary ${failurePoint}\n`);
+		  const output = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A',`--failure-point=${failurePoint}`], `RST-006A ${failurePoint}`, { signal: controller.signal });
+		  if (!output.includes(`Injected interruption after ${failurePoint}`)) throw new Error(`RST-006A ${failurePoint} failed for the wrong reason.`);
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], { signal: controller.signal });
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=verify-predecessor'], { signal: controller.signal });
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+		}
+		if (!selectedDdlPoint && !postDdlOnly) {
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], { signal: controller.signal });
+		  await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A','--failure-point=forward-020'], 'RST-006A assignment-prefix setup', { signal: controller.signal });
+		  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity_assignment ADD INDEX idx_rst006a_unexpected_assignment (reason(8))', { signal: controller.signal });
+		  const assignmentRefusal = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], 'RST-006A malformed assignment forward prefix', { signal: controller.signal });
+		  if (!assignmentRefusal.includes('unknown predecessor state')) throw new Error('RST-006A malformed assignment forward prefix was not refused before mutation.');
+		  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity_assignment DROP INDEX idx_rst006a_unexpected_assignment', { signal: controller.signal });
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+		  await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A','--failure-point=rollback-001'], 'RST-006A Activity rollback-prefix setup', { signal: controller.signal });
+		  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity ADD INDEX idx_rst006a_unexpected_rollback (name)', { signal: controller.signal });
+		  const rollbackRefusal = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], 'RST-006A malformed Activity rollback prefix', { signal: controller.signal });
+		  if (!rollbackRefusal.includes('Rollback requires the exact target or a known rollback prefix')) throw new Error('RST-006A malformed Activity rollback prefix failed for the wrong reason.');
+		  const rollbackUntouched = (await databaseSql(plan, "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME='llx_mjl_activity_rst006a_bi'; SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME='llx_mjl_activity_rst006a_bu'; SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_activity' AND INDEX_NAME='idx_rst006a_unexpected_rollback'", { scalar: true, signal: controller.signal })).trim().split(/\s+/);
+		  if (JSON.stringify(rollbackUntouched) !== JSON.stringify(['0','1','1'])) throw new Error('RST-006A malformed Activity rollback prefix mutated the schema before refusal.');
+		  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_activity DROP INDEX idx_rst006a_unexpected_rollback', { signal: controller.signal });
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A'], { signal: controller.signal });
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+		}
+		const malformedPrefixes = selectedDdlPoint ? [] : [
+		  { label: 'table-options', mutate: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence ENGINE=MyISAM', recover: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence ENGINE=InnoDB' },
+		  { label: 'column-definition', mutate: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence MODIFY next_value BIGINT UNSIGNED NOT NULL', recover: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence MODIFY next_value BIGINT NOT NULL' },
+		  { label: 'missing-index', mutate: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence DROP PRIMARY KEY', recover: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence ADD PRIMARY KEY (entity)' },
+		  { label: 'check-body', mutate: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence DROP CONSTRAINT chk_mjl_activity_sequence_next, ADD CONSTRAINT chk_mjl_activity_sequence_next CHECK (next_value>=0)', recover: 'ALTER TABLE llx_mjlfinancement_activity_reference_sequence DROP CONSTRAINT chk_mjl_activity_sequence_next, ADD CONSTRAINT chk_mjl_activity_sequence_next CHECK (next_value>0)' },
+		  { label: 'foreign-key-rule', mutate: 'ALTER TABLE llx_mjlfinancement_operation DROP FOREIGN KEY fk_mjl_operation_modifier; ALTER TABLE llx_mjlfinancement_operation ADD CONSTRAINT fk_mjl_operation_modifier FOREIGN KEY (fk_user_modif) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE CASCADE', recover: 'ALTER TABLE llx_mjlfinancement_operation DROP FOREIGN KEY fk_mjl_operation_modifier; ALTER TABLE llx_mjlfinancement_operation ADD CONSTRAINT fk_mjl_operation_modifier FOREIGN KEY (fk_user_modif) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT' },
+		  { label: 'unexpected-index', mutate: 'ALTER TABLE llx_mjlfinancement_activity ADD INDEX idx_rst006a_unexpected (name)', recover: 'ALTER TABLE llx_mjlfinancement_activity DROP INDEX idx_rst006a_unexpected' },
+		  { label: 'trigger-body', mutate: "DROP TRIGGER llx_mjl_operation_rst006a_bd; CREATE TRIGGER llx_mjl_operation_rst006a_bd BEFORE DELETE ON llx_mjlfinancement_operation FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='weakened'", recover: "DROP TRIGGER llx_mjl_operation_rst006a_bd; CREATE TRIGGER llx_mjl_operation_rst006a_bd BEFORE DELETE ON llx_mjlfinancement_operation FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='MJL Operations are never physically deleted'" },
+		];
+		for (const scenario of malformedPrefixes) {
+		  await databaseSql(plan, scenario.mutate, { signal: controller.signal });
+		  const refusal = await expectComposeFailure(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], `RST-006A malformed ${scenario.label}`, { signal: controller.signal });
+		  if (!refusal.includes('unknown predecessor state')) throw new Error(`RST-006A malformed ${scenario.label} was not refused before mutation.`);
+		  await databaseSql(plan, scenario.recover, { signal: controller.signal });
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
+		}
+		if (!selectedDdlPoint) await runPlaywright(plan, layer, controller.signal);
+		if (!selectedDdlPoint && !postDdlOnly) await runCommand(process.execPath, [path.join(repositoryRoot,'tests/runner/rst006a-fast-cutover-rehearsal.js')], { signal: controller.signal, timeoutMs: 15 * 60 * 1000 });
       }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else await runPlaywright(plan, layer, controller.signal);

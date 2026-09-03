@@ -88,6 +88,12 @@ RST-010A retires the document-library/download portions of that historical
 evidence; current document routes are containment-only and have no UI
 accessibility claim.
 
+The current RST-006A manual gate supersedes that historical count with thirteen
+active archetypes and five Activity states across the same five widths and real
+100%/200% browser zoom, for exactly 130 combinations. It additionally records
+forced-colors and reduced-motion checks for each Activity state and writes a
+private checksummed artifact. It remains unsigned.
+
 The final strengthened-remediation `npm test` passed 31/31 Node contracts,
 7/7 PHP contracts, the complete container-verification layer, and 114/114
 blocking browser cases. It ran in tenant

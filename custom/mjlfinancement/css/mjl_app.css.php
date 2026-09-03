@@ -881,7 +881,8 @@ a.tmenu[href^="/api/"] {
 	gap: var(--mjl-space-1);
 }
 
-.mjl-table-filters select {
+.mjl-table-filters select,
+.mjl-table-filters input {
 	box-sizing: border-box;
 	min-height: 40px;
 	width: 100%;

@@ -19,6 +19,10 @@ function scalar(query) {
   return composeExec('mariadb', ['mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', '-N', '-B', 'dolidb'], 'utf8', `${query}\n`).trim();
 }
 
+function privilegedScalar(query) {
+  return composeExec('mariadb', ['mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', '--defaults-group-suffix=_root', '-N', '-B', 'dolidb'], 'utf8', `${query}\n`).trim();
+}
+
 async function login(page, username, password = defaultPassword) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
@@ -58,4 +62,4 @@ function registerSecret(category, value) {
   }, category, value);
 }
 
-module.exports = { composeExec, login, registerSecret, registerSecretAt, scalar, sql };
+module.exports = { composeExec, login, privilegedScalar, registerSecret, registerSecretAt, scalar, sql };
