@@ -89,8 +89,9 @@ MJL-specific code stays outside Dolibarr core. Native third parties, projects,
 users, authentication, ECM, and export capabilities may be reused through safe
 MJL interfaces.
 
-RST-000, RST-000A, RST-001, RST-002A, RST-002B, RST-003, RST-005, RST-007A, RST-004,
-RST-008, RST-009A, RST-010A, RST-013A, and RST-014A are executed. RST-014A passed its complete
+RST-000, RST-000A, RST-001, RST-002A, RST-002B, RST-003, RST-005, RST-006A,
+RST-007A, RST-007B, RST-004, RST-008, RST-009A, RST-009B, RST-010A,
+RST-013A, RST-013B, RST-014A, and RST-014B are executed. RST-014A passed its complete
 committed-source gate matrix and independent Standards, Spec, and
 Security/Isolation reviews on 2026-08-21. RST-013A was separately approved and
 executed under DEC-044 on 2026-08-21, including its separately approved
@@ -116,8 +117,11 @@ only its operational ceremony: this empty local POC uses one fast guarded
 backup/apply/verify/restart command without commit/digest packet machinery.
 The user then explicitly authorized and completed that cutover on 2026-09-02
 under DEC-050; the tenant remains empty with one native administrator. RST-006A
-source implementation is approved under DEC-051, but shared cutover and
-execution status remain separately gated. The operational `initdb.log` checksum deviation from
+and the lean Phase 2 completion units executed locally under DEC-052 on
+2026-09-04. Planning, Planification navigation, sanitized Activity chronology,
+and disposable Phase 2 acceptance are active. The verdict is
+`PHASE_2_BLOCKED_PENDING_MANUAL_ACCESSIBILITY`; it authorizes neither Phase 3
+nor production. The operational `initdb.log` checksum deviation from
 the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
 RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary

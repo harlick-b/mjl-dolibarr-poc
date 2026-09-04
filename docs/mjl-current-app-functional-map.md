@@ -3,7 +3,7 @@
 This file is current-state evidence only. It does not override
 'docs/mjl-authoritative-decisions.md'.
 
-## Executed Phase 1 state
+## Executed Phase 2 state
 
 The local tenant contains exactly one preserved native technical
 administrator and no persistent business, invitation, reset, role, scope, or
@@ -14,7 +14,8 @@ MJL-specific code remains under 'custom/mjlfinancement'.
 | --- | --- |
 | Accueil | Role-projected static Phase 1 landing; no finance aggregates. |
 | Partenaires, Projets, Types d’Opération | Same-entity business-role reads; Validator-only activation/deactivation and mutation. |
-| Activities | RST-006A source implements the entity-scoped list/create/detail/edit/review aggregate, Activity-scoped Opérations, assignments, abandonment/restoration, immutable revisions, exact-revision review, typed 50-row pagination, and guarded concurrency outcomes. Exact DDL-prefix and malformed-schema gates exist. Shared cutover remains pending and the route stays absent from navigation until RST-009B. |
+| Activities | Active entity-scoped list/create/detail/edit/review aggregate with assignments, immutable revisions, exact-revision review, fixed pagination, and sanitized chronology. |
+| Opérations | Active read-only 50-row planning list; Agent current-assignment scope, Supervisor/Validator active-entity portfolio, Admin denied. |
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |
 | Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. |
 | Administration technique | Native-Admin link to Dolibarr module administration. |
@@ -29,8 +30,10 @@ MJL-specific code remains under 'custom/mjlfinancement'.
 - 'llx_mjlfinancement_invitation'
 - 'llx_mjlfinancement_password_reset'
 - 'llx_mjlfinancement_user_role'
-- 'llx_mjlfinancement_activity' (empty RST-002B predecessor target)
-- 'llx_mjlfinancement_activity_assignment' (empty RST-002B target)
+- 'llx_mjlfinancement_activity' and 'llx_mjlfinancement_activity_assignment' (empty RST-006A target)
+- 'llx_mjlfinancement_operation', 'llx_mjlfinancement_activity_revision',
+  'llx_mjlfinancement_revision_contributor', and
+  'llx_mjlfinancement_review_decision' (empty RST-006A targets)
 - 'llx_mjlfinancement_operation_type' (empty RST-003 reference table)
 
 No legacy group membership participates in MJL authorization. Native Admin

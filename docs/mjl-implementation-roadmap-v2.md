@@ -61,9 +61,9 @@ final reviews, and exact approval of commit
 The shared tenant now has the verified-empty finalized target Activity
 foundation. RST-002B implementation was separately approved at strategy commit
 `7676f1f`, and its DEC-049 fast local cutover completed under DEC-050 on
-2026-09-02. RST-006A source implementation is approved under DEC-051; shared
-cutover and execution remain pending. No other Phase 2 unit is authorized by
-RST-005 execution or DEC-048.
+2026-09-02. RST-006A and the lean Phase 2 completion units executed under
+DEC-052 on 2026-09-04. Automated acceptance is green; the human accessibility
+signature remains pending.
 
 ## Phase 2: Activity Planning and Validation
 
@@ -76,6 +76,9 @@ definitive validation, separation of duties, structural freeze, chronology,
 and optimistic locking. Do not implement execution editing.
 
 Verdict: `PHASE_2_READY`, `PHASE_2_READY_WITH_NOTES`, or `PHASE_2_BLOCKED`.
+
+Current verdict: `PHASE_2_BLOCKED_PENDING_MANUAL_ACCESSIBILITY`. This does not
+authorize Phase 3 or production launch.
 
 ## Phase 3A: Execution and Exception Workflows
 

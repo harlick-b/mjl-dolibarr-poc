@@ -7,6 +7,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.ph
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivity.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivitycommand.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivityassignment.class.php';
@@ -309,6 +310,7 @@ function mjl_activity_render_detail(array $row)
 	if(mjl_scope_is_final_validator($user)&&$row['validation_status']==='ABANDONED'){print '<form method="POST" action="?id='.$id.'">'.mjl_activity_hidden('restore',$id,0,(int)$row['version']).'<label>Agent principal <select name="primary_agent_id" required>'.mjl_activity_agent_options().'</select></label><label>Motif de restauration <textarea name="reason" maxlength="2000" required></textarea></label><button class="button" type="submit">Restaurer le brouillon</button></form>';}
 	if(mjl_scope_is_final_validator($user)&&$row['validation_status']!=='ABANDONED'){print '<h2>Affectations</h2><form method="POST" action="?id='.$id.'">'.mjl_activity_hidden('assignment_change',$id,0,(int)$row['version']).'<label>Opération <select name="assignment_operation"><option value="ADD_ADDITIONAL">Ajouter un Agent</option><option value="REMOVE_ADDITIONAL">Retirer un Agent additionnel</option><option value="TRANSFER_PRIMARY">Transférer le rôle principal</option></select></label><label>Agent <select name="target_agent_id" required>'.mjl_activity_agent_options().'</select></label><label>Motif <textarea name="reason" maxlength="2000" required></textarea></label><button class="button" type="submit">Modifier l’affectation</button></form>';}
 	print '</section>';
+	mjl_activity_render_timeline((int) $row['rowid']);
 }
 
 function mjl_activity_render_review(array $row)
@@ -320,8 +322,9 @@ function mjl_activity_render_review(array $row)
 	$res=$db->query('SELECT stage,decision_type,actor_name_snapshot,reason,requested_amount,date_decision FROM '.$db->prefix().'mjlfinancement_review_decision WHERE entity='.(int)$conf->entity.' AND fk_revision='.(int)$revision['rowid'].' ORDER BY date_decision,rowid');$history=array();if($res)while($decision=$db->fetch_object($res))$history[]=$decision;
 	if(!$history)print '<p>Aucune décision enregistrée.</p>';else{print '<ol class="mjl-review-timeline">';foreach($history as$decision)print '<li><strong>'.dol_escape_htmltag(mjl_ui_activity_status($decision->decision_type)['label']).'</strong> - '.dol_escape_htmltag($decision->actor_name_snapshot).' - '.dol_escape_htmltag($decision->date_decision).($decision->reason?'<br>'.dol_escape_htmltag($decision->reason):'').'</li>';print '</ol>';}
 	$role=mjl_scope_effective_role_code($user);$eligibility=mjl_activity_review_eligibility($row,$user);
-	if(!$eligibility['allowed']){print mjl_ui_system_state('permission','Décision indisponible',$eligibility['reason']).'</section>';return;}
+	if(!$eligibility['allowed']){print mjl_ui_system_state('permission','Décision indisponible',$eligibility['reason']).'</section>';mjl_activity_render_timeline((int) $row['rowid']);return;}
 	$decisions=$role==='AGENT_VERIFICATEUR'?array('PREVALIDATED'=>'Prévalider','RETURNED_SUPERVISOR'=>'Retourner en correction'):array('FINAL_VALIDATED'=>'Valider définitivement','RETURNED_VALIDATOR'=>'Retourner en correction');
 	foreach($decisions as$decision=>$label){print '<form class="mjl-review-form" method="POST" action="?id='.(int)$row['rowid'].'">'.mjl_activity_hidden('review_revision',(int)$row['rowid'],(int)$revision['rowid'],(int)$row['version']).'<input type="hidden" name="decision" value="'.$decision.'">';if(strpos($decision,'RETURNED_')===0)print '<label>Motif (obligatoire)<textarea name="reason" maxlength="2000" required></textarea></label>'.($decision==='RETURNED_VALIDATOR'?'<label>Montant demandé (facultatif)<input name="requested_amount" inputmode="numeric" pattern="[0-9]+"></label>':'');print '<button class="button'.(strpos($decision,'RETURNED_')===0?' button-secondary':'').'" type="submit">'.$label.'</button></form>';}
 	print '</section>';
+	mjl_activity_render_timeline((int) $row['rowid']);
 }

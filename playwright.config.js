@@ -9,6 +9,7 @@ module.exports = defineConfig({
     'fixture-isolation.spec.js',
     'rst002b-activity-assignment.spec.js',
     'rst006a-activity-planning.spec.js',
+    'zz-phase2-planning.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',

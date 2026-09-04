@@ -218,6 +218,10 @@ debugging discoveries. Do not add one-off observations or generic advice.
   remove and confirm owner containers before removing their dependent networks
   or volumes. The test assertion should poll read-only categorical survivor
   queries while a separate finalizer remains responsible for exact removal.
+- Restarting a Compose service reruns its image entrypoint, which can change the
+  ownership or mode of bind-mounted operational sentinels even when their bytes
+  stay unchanged. Restart rehearsals must re-establish and re-attest exact file
+  custody before invoking the next guarded operation.
 - MariaDB `information_schema` ordering follows database collation, while PHP
   `SORT_STRING` is bytewise. Exact schema detectors must normalize and sort
   both expected and observed identifier sets in the same runtime before

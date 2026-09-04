@@ -57,6 +57,7 @@ and official outputs.
 | Projets | Good | Guarded reference states expose only the display label for editing; immutable ownership/ref and parent lifecycle behavior are focused-browser verified. | `custom/mjlfinancement/projects.php` |
 | Types d’Opération | Good | Entity-scoped active/inactive reference states use the shared RST-003 presentation and security contract. | `custom/mjlfinancement/operationtypes.php` |
 | Activities | Implemented, pending gates | Four-section server-rendered planning form, Activity-scoped dynamic Opérations, textual balance, detail/review states, responsive layouts, and no-JavaScript submission are present. Signed keyboard/screen-reader/zoom/reflow/forced-color/reduced-motion evidence remains pending. | `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/lib/mjl_activity_route.lib.php`, `custom/mjlfinancement/js/activities.js` |
+| Opérations | Implemented, pending human gate | Read-only entity/assignment-scoped planning list uses shared table, money, pagination, and guarded Activity-link patterns. Signed keyboard/screen-reader/zoom/reflow/forced-color/reduced-motion evidence remains pending. | `custom/mjlfinancement/operations.php`, `custom/mjlfinancement/lib/mjl_operation_route.lib.php` |
 | Expenses | Removed | Obsolete finance and contextual-upload route is absent. | `custom/mjlfinancement/expenses.php` |
 | Documents | Contained | RST-010A exposes no document UI: custom and native delivery routes return HTTP 403 pending the sequenced Phase 4 implementation. | `custom/mjlfinancement/documents.php`, `custom/mjlfinancement/documentdownload.php` |
 | Conventions | Removed | Obsolete finance and document behavior is absent. | `custom/mjlfinancement/conventions.php` |
@@ -117,11 +118,11 @@ conformance, production readiness, or whole-Phase-3D completion.
 - Formal-French residuals on dashboard, activity/expense timelines, and access
   scope summaries were corrected. Non-protected labels, emails, and CSV/XLSX
   output still require client approval: `BLOCKED_PENDING_CLIENT_REVIEW`.
-- The signed accessibility harness now includes thirteen current archetypes,
+- The signed accessibility harness now includes fourteen current archetypes,
   including Activity list/create/detail/edit/review, plus representative
   screen-reader, forced-colors, reduced-motion, and real-zoom evidence. It
   requires a recorded result, geometry, visible-focus observation, reviewer,
-  keyboard/screen-reader/French findings, and non-empty notes for all 130
+  keyboard/screen-reader/French findings, and non-empty notes for all 140
   combinations. No reviewer has signed this run:
   `BLOCKED_PENDING_MANUAL_ACCESSIBILITY`.
 - The final strengthened-remediation run passed the complete local verification

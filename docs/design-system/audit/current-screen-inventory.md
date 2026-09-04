@@ -15,7 +15,8 @@ coverage.
 | Partenaires | `/custom/mjlfinancement/partners.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Active business-role reads; Validator-only mutation and inactive visibility; Admin denied. | Browser-verified at the focused RST-003 seam; primary navigation remains unchanged until RST-009A. |
 | Projets | `/custom/mjlfinancement/projects.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Same role boundary; immutable Partenaire/ref; parent lifecycle guards. | Browser-verified, including 390-pixel containment and concurrency ordering. |
 | Types d’Opération | `/custom/mjlfinancement/operationtypes.php` | Entity-scoped reference list/detail/create/edit/activate/deactivate. | Same role boundary; no hard deletion. | Browser/schema-verified; catalog remains empty in the shared tenant. |
-| Activities | `/custom/mjlfinancement/activities.php` | RST-006A source implements French-first list/create/detail/edit/review states and Activity-scoped Opérations. | Agent assignment scope; Supervisor/Validator portfolio reads and exact-revision review; Admin denied. | Shared cutover and signed accessibility evidence remain pending; no navigation entry until RST-009B. |
+| Activities | `/custom/mjlfinancement/activities.php` | Active French-first list/create/detail/edit/review states, Activity-scoped Opérations, and sanitized chronology. | Agent assignment scope; Supervisor/Validator portfolio reads and exact-revision review; Admin denied. | Signed accessibility evidence remains pending. |
+| Opérations | `/custom/mjlfinancement/operations.php` | Read-only planning list with Activity links. | Agent current-assignment scope; Supervisor/Validator active-entity portfolio; Admin denied. | No execution editing in Phase 2. |
 | Expenses | `/custom/mjlfinancement/expenses.php` | Removed obsolete finance route. | Returns 404. | Historical contextual-upload/evidence states are retired. |
 | Documents containment | `/custom/mjlfinancement/documents.php` | Dependency-free French HTTP 403; no document UI or data access. | Denied for every actor and method; not navigation-visible. | Phase 4 is approved but not implemented. |
 | Conventions | `/custom/mjlfinancement/conventions.php` | Removed obsolete finance route. | Returns 404. | Historical document behavior is retired. |
@@ -88,9 +89,9 @@ RST-010A retires the document-library/download portions of that historical
 evidence; current document routes are containment-only and have no UI
 accessibility claim.
 
-The current RST-006A manual gate supersedes that historical count with thirteen
+The current Phase 2 manual gate supersedes that historical count with fourteen
 active archetypes and five Activity states across the same five widths and real
-100%/200% browser zoom, for exactly 130 combinations. It additionally records
+100%/200% browser zoom, for exactly 140 combinations. It additionally records
 forced-colors and reduced-motion checks for each Activity state and writes a
 private checksummed artifact. It remains unsigned.
 

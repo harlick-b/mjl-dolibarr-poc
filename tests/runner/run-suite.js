@@ -502,6 +502,8 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/rst002b-activity-assignment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst006a') {
     args.push('tests/e2e/rst006a-activity-planning.spec.js', '--config=playwright.config.js');
+  } else if (target === 'phase2') {
+    args.push('tests/e2e/rst006a-activity-planning.spec.js', 'tests/e2e/zz-phase2-planning.spec.js', '--config=playwright.config.js');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
 	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
@@ -722,7 +724,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
@@ -859,6 +861,11 @@ async function main() {
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
         await runPlaywright(plan, layer, controller.signal);
       }
+      else if (layer === 'phase2') {
+        await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
+        await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
+        await runPlaywright(plan, layer, controller.signal);
+      }
       else if (layer === 'rst006a') {
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
         const allForwardDdlPoints = Array.from({ length: 43 }, (_, index) => `forward-${String(index + 1).padStart(3, '0')}`);
@@ -961,7 +968,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

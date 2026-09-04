@@ -50,7 +50,8 @@ async function resetToPredecessor(custody, port) {
   const prep=path.join(custody,'predecessor-conf.php');
   dc(['cp','dolibarr:/var/www/html/conf/conf.php',prep]);fs.chmodSync(prep,0o600);
   dc(['stop','dolibarr']);
-  dc(['run','--rm','--no-deps','--volume',`${prep}:/var/www/html/conf/conf.php:ro`,'-e','MJL_RST006A_TRAFFIC_STOPPED=1','--entrypoint','/usr/local/bin/php','dolibarr','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A']);
+  dc(['run','--rm','--no-deps','--entrypoint','/bin/sh','dolibarr','-ceu','target=/var/www/documents/.mjl-disposable-fixture-sentinel; printf %s "$MJL_DISPOSABLE_RUN_SENTINEL" > "$target"; chown root:root "$target"; chmod 0444 "$target"']);
+  dc(['run','--rm','--no-deps','--volume',`${prep}:/var/www/html/conf/conf.php:ro`,'-e','MJL_RST006A_TRAFFIC_STOPPED=1','-e','MJL_DISPOSABLE_TEST_TENANT=1','-e',`MJL_DISPOSABLE_PROJECT_NAME=${project}`,'-e',`MJL_DISPOSABLE_RUN_SENTINEL=${sentinel}`,'--entrypoint','/usr/local/bin/php','dolibarr','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=rollback','--confirm=RST-006A']);
   fs.unlinkSync(prep);dc(['start','dolibarr']);await ready(port);
 }
 function writeActiveJournal(custody, completion, backupPath, expectedBackupSha, configPath) {

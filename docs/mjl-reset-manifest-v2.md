@@ -4,18 +4,20 @@ RST-000, RST-000A, RST-001, RST-002A, and RST-003 were explicitly approved and
 executed. RST-003 completed on 2026-08-13 with an empty reference catalog;
 RST-007A, RST-004, RST-008, and RST-009A are executed; their operational-log
 exception was ratified by DEC-039. RST-010A, RST-013A, and RST-014A are
-executed. Phase 1 is `PHASE_1_READY_WITH_NOTES`; the signed human accessibility
-gate is deferred and Phase 2 remains separately gated.
-RST-002B was executed under DEC-050 on 2026-09-02. All other
-later actions remain unapproved and unexecuted.
+executed. Phase 1 is `PHASE_1_READY_WITH_NOTES`; its signed human accessibility
+gate was deferred. RST-002B was executed under DEC-050 on 2026-09-02.
+RST-006A, RST-007B, RST-009B, RST-013B, and RST-014B were executed under
+DEC-052 on 2026-09-04; Phase 2 remains blocked on its signed human accessibility
+gate. All other later actions remain unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
 ## Safety and Approval Contract
 
-- RST-000, RST-000A, RST-001, RST-002A, RST-003, RST-007A, RST-004, RST-008,
-  RST-009A, RST-010A, RST-013A, RST-014A, and RST-002B are `EXECUTED`; every
-  other action is `PENDING_APPROVAL`.
+- RST-000, RST-000A, RST-001, RST-002A, RST-002B, RST-003, RST-004, RST-005,
+  RST-006A, RST-007A, RST-007B, RST-008, RST-009A, RST-009B, RST-010A,
+  RST-013A, RST-013B, RST-014A, and RST-014B are `EXECUTED`; every other action
+  is `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.
@@ -261,10 +263,9 @@ number does not approve a suffixed unit.
 
 ### RST-006A - Opération planning, immutable revisions, and review decisions
 
-- Status: `APPROVED_IMPLEMENTATION` under DEC-051; shared cutover remains pending
-- Current component: source implementation for first-class Opérations,
-  revisions, contributors, and revision-bound Review Decisions; runtime access
-  remains migration-gated on the shared RST-002B predecessor.
+- Status: `EXECUTED` under DEC-052 on 2026-09-04
+- Current component: active local first-class Opérations, revisions,
+  contributors, and revision-bound Review Decisions after the guarded cutover.
 - Proposed action: add empty target planning, immutable-revision, contributor,
   and append-only Review Decision structures plus dedicated Activity creation,
   structural editing, balanced planning, submission/resubmission, correction,
@@ -311,10 +312,9 @@ number does not approve a suffixed unit.
   `llx_mjlfinancement_activity_revision`,
   `llx_mjlfinancement_revision_contributor`, and
   `llx_mjlfinancement_review_decision`; no Expense data.
-- Action and data impact: the approved source can add empty target tables only
-  through the guarded migration; only disposable tests may populate them
-  during implementation. No legacy mapping, spending, or historical revision
-  is fabricated. The shared migration has not run.
+- Action and data impact: the guarded local migration created empty target
+  tables. Only disposable tests populate them during development. No legacy
+  mapping, spending, or historical revision was fabricated.
 - Backup prerequisite: executed RST-002B/RST-005/RST-007A evidence; exact
   post-RST-002B Activity, assignment, audit schema/row digests; and checksummed
   forward/rollback manifests sealed by the separately approved RST-006A
@@ -382,20 +382,20 @@ number does not approve a suffixed unit.
 
 ### RST-007B - Revision-linked Activity chronology
 
-- Status: `PENDING_APPROVAL`
-- Current component: Activity chronology presentation/readers are absent after
-  RST-007A; the append-only audit foundation exists and is empty in the shared
-  tenant, while Activity revisions are not yet implemented.
-- Proposed action: create a new read-only target chronology projection from the
+- Status: `EXECUTED` under DEC-052 on 2026-09-04
+- Current component: read-only Activity chronology over the append-only audit
+  foundation and revision-linked Phase 2 events.
+- Executed action: create a new read-only target chronology projection from the
   revision-linked audit events already appended atomically by their owning
   business transactions. Restore no legacy reader or chronology data.
 - Reason: reviewers and users need linear evidence tied to exact revisions.
 - Phase: Phase 2
 - Dependencies: RST-006A, RST-007A
-- Exact paths: planned `custom/mjlfinancement/lib/mjl_timeline.lib.php`, planned
-  `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, planned
-  `tests/e2e/rst007b-activity-chronology.spec.js`, and planned
-  `tests/unit/rst007b-activity-chronology.test.js`; retained
+- Exact paths: `custom/mjlfinancement/lib/mjl_timeline.lib.php`,
+  `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`,
+  `custom/mjlfinancement/lib/mjl_activity_route.lib.php`,
+  `tests/e2e/zz-phase2-planning.spec.js`, and
+  `tests/unit/phase2-planning-surfaces.test.js`; retained
   `custom/mjlfinancement/lib/mjl_timeline_result.lib.php`,
   `custom/mjlfinancement/activities.php`, and
   `custom/mjlfinancement/lib/mjl_audit.lib.php`,
@@ -445,13 +445,20 @@ number does not approve a suffixed unit.
 
 ### RST-009B - Phase 2 Activity navigation
 
-- Status: `PENDING_APPROVAL`
-- Current component: navigation without target Activity/Opération planning routes.
-- Proposed action: add guarded target planning entries after their implementation passes.
+- Status: `EXECUTED` under DEC-052 on 2026-09-04
+- Current component: guarded Planification navigation with Activity and
+  read-only Opération routes.
+- Executed action: add guarded target planning entries after their implementation passes.
 - Reason: target workflows require explicit full-page navigation.
 - Phase: Phase 2
 - Dependencies: RST-005, RST-006A, RST-009A
-- Exact paths: `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/lib/mjl_navigation_registry.lib.php`, `custom/mjlfinancement/activities.php`, planned `custom/mjlfinancement/operations.php`, `tests/contracts/navigation_registry_test.php`, `tests/e2e/cases/navigation-shell.cases.js`.
+- Exact paths: `custom/mjlfinancement/lib/mjl_navigation.lib.php`,
+  `custom/mjlfinancement/lib/mjl_navigation_registry.lib.php`,
+  `custom/mjlfinancement/activities.php`,
+  `custom/mjlfinancement/operations.php`,
+  `custom/mjlfinancement/lib/mjl_operation_route.lib.php`,
+  `tests/contracts/navigation_registry_test.php`, and
+  `tests/e2e/zz-phase2-planning.spec.js`.
 - Exact tables/data: module menu metadata only.
 - Action and data impact: add guarded Activity and Opération planning entries; no business-data reset.
 - Backup prerequisite: Phase 2 descriptor/menu export.
@@ -609,17 +616,19 @@ number does not approve a suffixed unit.
 
 ### RST-013B - Phase 2 test reset
 
-- Status: `PENDING_APPROVAL`
-- Current component: the shared Activity planning/validation suite and all six
-  formerly listed legacy paths are absent after RST-013A; only focused
-  RST-002B/RST-005/RST-006A/RST-007B verification exists by this point.
-- Proposed action: create new target Phase 2 revision, assignment, separation,
-  correction, validation, scope-security, and locking journeys from the
-  RST-014B disposable factory. Restore no legacy assertion.
+- Status: `EXECUTED` under DEC-052 on 2026-09-04
+- Current component: focused Phase 2 planning/navigation/chronology acceptance
+  layered on the existing exhaustive RST-006A workflow suite.
+- Executed action: add the target Phase 2 route, scope, and presentation journey
+  from the RST-014B disposable factory. Restore no legacy assertion.
 - Reason: Phase 2 must validate its target behavior before its phase verdict.
 - Phase: Phase 2
 - Dependencies: RST-002B, RST-005, RST-006A, RST-007B, RST-014B
-- Exact paths: planned `tests/e2e/activities.spec.js`, planned `tests/e2e/cases/activity-workflow.cases.js`, planned `tests/e2e/cases/scope-security.cases.js`, planned `tests/contracts/behavior_contracts_test.php`, planned `custom/mjlfinancement/scripts/verification/schema/activity_status_integrity.php`, and planned `custom/mjlfinancement/scripts/verify_activity_workflow.php`.
+- Exact paths: `tests/e2e/zz-phase2-planning.spec.js`,
+  `tests/unit/phase2-planning-surfaces.test.js`, `playwright.config.js`,
+  `package.json`, `tests/runner/disposable-run.js`, and
+  `tests/runner/run-suite.js`. The exhaustive RST-006A suite remains the
+  workflow/locking evidence; no duplicate Phase 2 suite was created.
 - Exact tables/data: disposable test fixtures only.
 - Action and data impact: add only target Activity planning/workflow assertions
   in Phase 2; production/local business rows are untouched.
@@ -758,17 +767,18 @@ number does not approve a suffixed unit.
 
 ### RST-014B - Phase 2 disposable test fixtures
 
-- Status: `PENDING_APPROVAL`
-- Current component: no persistent Phase 2 dataset and Phase 1 disposable test factories.
-- Proposed action: extend isolated factories with the minimum balanced planning, assignment, Opération, revision, and validation records required by Phase 2 tests.
+- Status: `EXECUTED` under DEC-052 on 2026-09-04
+- Current component: no persistent Phase 2 dataset and a Phase 2 disposable
+  Activity factory layered on the Phase 1 factory.
+- Executed action: extend isolated factories with the minimum balanced planning,
+  assignment, Opération, revision, and validation records required by Phase 2 tests.
 - Reason: Phase 2 requires evidence without introducing persistent sample data.
 - Phase: Phase 2
 - Dependencies: RST-002B, RST-005, RST-006A, RST-007A, RST-014A
-- Exact paths: planned `tests/helpers/phase2-fixture.js`, planned
-  `tests/fixtures/phase2-fixture.php`, planned
-  `tests/fixtures/phase2-fixture-preflight.php`, planned
-  `tests/unit/phase2-fixture.test.js`, and planned
-  `tests/e2e/phase2-fixture-isolation.spec.js`; modify
+- Exact paths: `tests/helpers/phase2-fixture.js`,
+  `tests/fixtures/phase2-fixture.php`,
+  `tests/unit/phase2-planning-surfaces.test.js`, and
+  `tests/e2e/zz-phase2-planning.spec.js`; modify
   `tests/runner/disposable-run.js`, `tests/runner/run-suite.js`,
   `tests/unit/disposable-run.test.js`, `playwright.config.js`, `package.json`,
   `docs/mjl-acceptance-tests.md`, `docs/mjl-test-coverage-registry.md`,

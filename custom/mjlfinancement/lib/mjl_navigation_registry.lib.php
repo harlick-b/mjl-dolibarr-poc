@@ -26,6 +26,10 @@ function mjl_navigation_registry()
 			mjl_navigation_leaf('references', 'projects', 'Projets', '/custom/mjlfinancement/projects.php', 20, 'references_read'),
 			mjl_navigation_leaf('references', 'operation_types', 'Types d’opération', '/custom/mjlfinancement/operationtypes.php', 30, 'references_read'),
 		)),
+		array('id' => 'planification', 'label' => 'Planification', 'order' => 25, 'items' => array(
+			mjl_navigation_leaf('planification', 'activities', 'Activités', '/custom/mjlfinancement/activities.php', 10, 'planning_read'),
+			mjl_navigation_leaf('planification', 'operations', 'Opérations', '/custom/mjlfinancement/operations.php', 20, 'planning_read'),
+		)),
 		array('id' => 'controle', 'label' => 'Contrôle', 'order' => 30, 'items' => array(
 			mjl_navigation_leaf('controle', 'audit', 'Audit', '/custom/mjlfinancement/workflowactions.php', 10, 'audit_read'),
 		)),

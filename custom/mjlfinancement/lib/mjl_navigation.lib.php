@@ -13,6 +13,7 @@ function mjl_navigation_policy_allows(User $targetUser, $policy)
 	if ((int) $targetUser->statut !== 1 || (empty($targetUser->admin) && (int) $targetUser->entity !== $entity)) return false;
 	if ($policy === 'workspace_enter') return $business || $role === 'ADMIN_PLATEFORME';
 	if ($policy === 'references_read') return $business;
+	if ($policy === 'planning_read') return $business;
 	if ($policy === 'audit_read') return in_array($role, array('VALIDATEUR_DEFINITIF', 'ADMIN_PLATEFORME'), true);
 	if ($policy === 'admin') return $role === 'ADMIN_PLATEFORME';
 	return false;

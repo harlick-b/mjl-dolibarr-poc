@@ -34,8 +34,7 @@ test('RST-006A installs exactly the five planning tables and current revision po
   assert.match(schema, /rst006a_target/);
 });
 
-test('RST-006A keeps Operations activity-scoped and loads its JavaScript once', () => {
-  assert.equal(fs.existsSync(path.join(root, 'custom/mjlfinancement/operations.php')), false);
+test('RST-006A owns Activity mutations and loads its JavaScript once', () => {
   const route = read('custom/mjlfinancement/activities.php') + read('custom/mjlfinancement/lib/mjl_activity_route.lib.php');
   assert.match(route, /create_draft/);
   assert.match(route, /submit_revision/);
@@ -102,12 +101,12 @@ test('RST-006A rollback is staged, checked, and dependency-gated', () => {
       'RST-014D', 'RST-015',
     ],
     statuses: {
-      'RST-006B':'PENDING_APPROVAL','RST-007B':'PENDING_APPROVAL','RST-009B':'PENDING_APPROVAL','RST-009C':'PENDING_APPROVAL',
-      'RST-011':'PENDING_APPROVAL','RST-012':'PENDING_APPROVAL','RST-013B':'PENDING_APPROVAL','RST-013C':'PENDING_APPROVAL',
-      'RST-013D':'PENDING_APPROVAL','RST-013E':'PENDING_APPROVAL','RST-014B':'PENDING_APPROVAL','RST-014C':'PENDING_APPROVAL',
+      'RST-006B':'PENDING_APPROVAL','RST-007B':'EXECUTED','RST-009B':'EXECUTED','RST-009C':'PENDING_APPROVAL',
+      'RST-011':'PENDING_APPROVAL','RST-012':'PENDING_APPROVAL','RST-013B':'EXECUTED','RST-013C':'PENDING_APPROVAL',
+      'RST-013D':'PENDING_APPROVAL','RST-013E':'PENDING_APPROVAL','RST-014B':'EXECUTED','RST-014C':'PENDING_APPROVAL',
       'RST-014D':'PENDING_APPROVAL','RST-015':'PENDING_APPROVAL',
     },
-    executed: [],
+    executed: ['RST-007B','RST-009B','RST-013B','RST-014B'],
   });
   assert.match(migration, /mjl_rst006a_require_rollback_dependencies/);
   assert.match(migration, /mjl_rst006a_disposable_tenant_attested/);
@@ -163,6 +162,8 @@ test('RST-006A cutover seals final evidence only after restart and health verifi
   assert.match(source, /data', 'backups', 'rst006a/);
   assert.match(source, /--conflict-exit-code', '75'/);
   assert.match(source, /Rehearsal interruption hooks are restricted to disposable wrapper tenants/);
+  assert.match(rehearsal, /MJL_DISPOSABLE_PROJECT_NAME=\$\{project\}/);
+  assert.match(rehearsal, /MJL_DISPOSABLE_RUN_SENTINEL=\$\{sentinel\}/);
   for (const point of ['pre-apply','partial-ddl','target-before-restart','restart-before-evidence']) assert.match(rehearsal,new RegExp(`'${point}'`));
   for (const refusal of ['missing journal backup','corrupt journal backup','unknown schema state','tracked source drift','malformed journal','lock allowed a contender']) assert.match(rehearsal,new RegExp(refusal,'i'));
 });

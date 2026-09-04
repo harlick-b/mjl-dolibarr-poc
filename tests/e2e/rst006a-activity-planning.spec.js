@@ -49,6 +49,15 @@ function expectOneWinner(results) {
   expect(results.map((result)=>result.code).sort()).toEqual(['OK','STALE_VERSION']);
 }
 
+async function expectNoOpenTransactions() {
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    if (privilegedScalar('SELECT COUNT(*) FROM information_schema.INNODB_TRX') === '0') return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  expect(privilegedScalar('SELECT COUNT(*) FROM information_schema.INNODB_TRX')).toBe('0');
+}
+
 function structure(name = 'Activité RST-006A') {
   return "array(" +
     "'partner_id'=>'" + fixture.partners.partner + "'," +
@@ -261,7 +270,7 @@ test('concurrent submit and abandon commands commit one version and one audit ev
   expect(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${draft.activity_id}`)).toBe('2');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE object_type='activity' AND object_id=${draft.activity_id}`))).toBe(beforeAudit+1);
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_activity_revision WHERE fk_activity=${draft.activity_id}`))).toBe(results.find((result)=>result.code==='OK').revision_id?1:0);
-  expect(privilegedScalar('SELECT COUNT(*) FROM information_schema.INNODB_TRX')).toBe('0');
+  await expectNoOpenTransactions();
 });
 
 test('concurrent Supervisor decisions preserve one exact revision decision', async () => {
@@ -276,7 +285,7 @@ test('concurrent Supervisor decisions preserve one exact revision decision', asy
   expect(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activity.activity_id}`)).toBe('3');
   expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_review_decision WHERE fk_revision=${activity.revision_id}`)).toBe('1');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE object_type='activity' AND object_id=${activity.activity_id}`))).toBe(beforeAudit+1);
-  expect(privilegedScalar('SELECT COUNT(*) FROM information_schema.INNODB_TRX')).toBe('0');
+  await expectNoOpenTransactions();
 });
 
 test('concurrent Validator decisions preserve separation and one terminal choice', async () => {
@@ -290,7 +299,7 @@ test('concurrent Validator decisions preserve separation and one terminal choice
   expectOneWinner(results);
   expect(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activity.activity_id}`)).toBe('4');
   expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_review_decision WHERE fk_revision=${activity.revision_id} AND stage='VALIDATOR'`)).toBe('1');
-  expect(privilegedScalar('SELECT COUNT(*) FROM information_schema.INNODB_TRX')).toBe('0');
+  await expectNoOpenTransactions();
 });
 
 test('real MariaDB lock timeout returns RETRYABLE_CONFLICT and releases all work', async () => {
@@ -309,7 +318,7 @@ test('real MariaDB lock timeout returns RETRYABLE_CONFLICT and releases all work
   expect(result.code).toBe('RETRYABLE_CONFLICT');
   expect(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${draft.activity_id}`)).toBe(beforeVersion);
   expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE object_type='activity' AND object_id=${draft.activity_id}`)).toBe(beforeAudit);
-  expect(privilegedScalar('SELECT COUNT(*) FROM information_schema.INNODB_TRX')).toBe('0');
+  await expectNoOpenTransactions();
 });
 
 test('real MariaDB deadlock returns RETRYABLE_CONFLICT with complete rollback', async () => {
@@ -335,7 +344,7 @@ test('real MariaDB deadlock returns RETRYABLE_CONFLICT with complete rollback', 
     await new Promise((resolve,reject)=>{holder.once('close',(code)=>code===0?resolve():reject(new Error('Deadlock holder failed.')));holder.once('error',reject);});
     expect(scalar(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${draft.activity_id}`)).toBe(beforeVersion);
     expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE object_type='activity' AND object_id=${draft.activity_id}`)).toBe(beforeAudit);
-    expect(privilegedScalar('SELECT COUNT(*) FROM information_schema.INNODB_TRX')).toBe('0');
+    await expectNoOpenTransactions();
   } finally {
     if (!holder.killed) holder.kill('SIGKILL');
     sql('DROP TABLE IF EXISTS rst006a_test_deadlock');

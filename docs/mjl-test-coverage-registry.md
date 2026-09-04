@@ -12,7 +12,7 @@ behavior are not current evidence.
 | --- | --- | --- |
 | `npm run test:unit` | Static Node contracts and PHP presentation/navigation contracts | No business fixture writes |
 | `npm run test:verify` | Current RST-002B exact schema and empty-tenant verification | Unique disposable tenant, whole-tenant teardown |
-| `npm run test:e2e` | Current reference/auth/document/fixture and RST-002B browser suites in `playwright.config.js` | Unique disposable tenant, whole-tenant teardown |
+| `npm run test:e2e` | Current reference/auth/document/fixture, RST-002B, RST-006A planning, and Phase 2 navigation/chronology browser suites in `playwright.config.js` | Unique disposable tenant, whole-tenant teardown |
 | `npm run test:rst003` | Partenaire/Projet/Type d'Opération references, entity isolation, CSRF, concurrency, and rollback | RST-014A fixtures; focused rollback rehearsal; whole-tenant teardown |
 | `npm run test:rst007a` | Append-only transactional audit behavior | RST-014A fixtures; whole-tenant teardown |
 | `npm run test:rst004` | Removed finance/schema/route absence | RST-014A fixtures; whole-tenant teardown |
@@ -24,8 +24,11 @@ behavior are not current evidence.
 | `npm run test:rst005` | Exact Activity foundation migration, guarded cutover, encrypted restore, rollback/resumption, read/denial matrix, SQL invariants, and retained RST-010A custom/native GET/POST containment | Shared before/after evidence; retention disabled; whole-tenant teardown |
 | `npm run test:rst005-launcher` | Exact root-only fixed-name/no-follow launcher, exact CLI/negative substitution matrix, full live-binding rechecks, launcher-owned interruption cleanup, isolated encrypted restore, disposable rehearsal, and isolated shared-shaped production execute plus standalone rollback | Temporary committed snapshots plus unique disposable tenants/bind roots; Compose, nonce-scoped restore, one-off, operator, client-config, and custody resources proven absent |
 | `npm run test:rst002b` | RST-002B schema/rollback convergence, assignment module, immediate row-level revocation, role guards, audit atomicity, concurrency, and direct SQL denial | Shared before/after evidence; unique disposable tenant; whole-tenant teardown |
+| `npm run test:rst006a` | Exhaustive Activity planning schema boundaries, workflow, revision/review separation, concurrency, pagination, route guards, and fast-wrapper rehearsal | Shared before/after evidence; unique disposable tenant; whole-tenant teardown |
+| `npm run test:rst006a-wrapper` | Focused shared-shaped fast-cutover wrapper success, refusal, interruption/resume, evidence, and cleanup | Temporary committed repository and disposable Compose project |
+| `npm run test:phase2` | Aggregate RST-006A workflow plus Planification, paginated read-only Opérations scope, sanitized chronology, and command-backed fixture integration | Shared before/after evidence; unique disposable tenant; whole-tenant teardown |
 | `npm run test:phase1-reset` | Combined Phase 1 cutover, schema mutation, failure/restore, browser, and containment proof | Shared-source rehearsal plus unique disposable tenant; retention disabled |
-| `npm run test:characterization` | Compatibility alias to the current RST-002B successor gate | Same isolated tenant and teardown as `npm run test:rst002b` |
+| `npm run test:characterization` | Compatibility alias to the Phase 2 successor gate | Same isolated tenant and teardown as `npm run test:phase2` |
 | `npm run test:manual-accessibility` | Human-run accessibility gate | Not an automated completion substitute |
 
 ## Retained executable suites
@@ -39,6 +42,8 @@ behavior are not current evidence.
 | `tests/e2e/fixture-isolation.spec.js` | RST-014A factory, attestation, namespace, evidence, failure, signal, artifact, and teardown behavior |
 | `tests/e2e/rst005-activity-foundation.spec.js` | RST-005 anonymous/authenticated role matrix, active-entity projection, cross-entity/parent/orphan denials, dormant-state checks, immutable-field denial, and complete evidence equality |
 | `tests/e2e/rst002b-activity-assignment.spec.js` | RST-002B current-assignment role matrix, entity isolation, add/remove/transfer, immediate revocation, stale/concurrent commands, audit rollback, reciprocal role guards, and structural SQL denial |
+| `tests/e2e/rst006a-activity-planning.spec.js` | RST-006A planning, revisions, reviews, locking, fixed pagination, validation, and Activity route security |
+| `tests/e2e/zz-phase2-planning.spec.js` | Phase 2 Planification, Opérations access, and Activity chronology acceptance; ordered after the foundational RST-006A suite |
 | `tests/characterization/permissions.spec.js` | Retained unchanged historical RST-002A source; no longer selected by the public characterization command after RST-002B |
 | `tests/unit/*.test.js` | Current static reset, schema, security, canonical-document, runner, and presentation contracts |
 | `tests/contracts/*_test.php` | Current PHP behavior, navigation, presentation, and status contracts |

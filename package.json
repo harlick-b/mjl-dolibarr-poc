@@ -17,10 +17,11 @@
     "test:rst002b": "node tests/runner/run-suite.js rst002b",
     "test:rst006a": "node tests/runner/run-suite.js rst006a",
     "test:rst006a-wrapper": "node tests/runner/rst006a-fast-cutover-rehearsal.js",
+    "test:phase2": "node tests/runner/run-suite.js phase2",
     "cutover:rst002b-fast": "node custom/mjlfinancement/scripts/rst002b_fast_cutover.js",
     "cutover:rst006a-fast": "node custom/mjlfinancement/scripts/rst006a_fast_cutover.js",
     "test:phase1-reset": "node tests/runner/run-suite.js phase1-reset",
-    "test:characterization": "node tests/runner/run-suite.js rst002b",
+    "test:characterization": "node tests/runner/run-suite.js phase2",
     "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility",
     "audit:production-readiness": "node tests/runner/run-suite.js production-readiness"
   },

@@ -30,10 +30,17 @@ function mjl_format_number($value, $kind = 'decimal', $precision = null, $emptyL
 
 function mjl_format_money($value, $currency = 'XOF', $emptyLabel = 'Non renseigné')
 {
-	$number = mjl_presentation_numeric_value($value);
 	$currency = strtoupper(trim((string) $currency));
-	if ($number === null || !preg_match('/^[A-Z]{3}$/', $currency)) return (string) $emptyLabel;
+	if (!preg_match('/^[A-Z]{3}$/', $currency)) return (string) $emptyLabel;
 	$label = $currency === 'XOF' ? 'F CFA' : $currency;
+	$text = is_int($value) || is_string($value) ? (string) $value : '';
+	if (preg_match('/^-?(?:0|[1-9][0-9]*)$/', $text)) {
+		$negative = $text[0] === '-';
+		$digits = $negative ? substr($text, 1) : $text;
+		return ($negative && $digits !== '0' ? '-' : '').preg_replace('/\B(?=(?:\d{3})+(?!\d))/', ' ', $digits).' '.$label;
+	}
+	$number = mjl_presentation_numeric_value($value);
+	if ($number === null) return (string) $emptyLabel;
 	return mjl_format_number($number, 'count', 0, $emptyLabel).' '.$label;
 }
 

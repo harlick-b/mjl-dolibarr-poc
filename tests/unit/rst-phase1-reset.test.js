@@ -54,7 +54,7 @@ test('RST-008 makes invitations business-role-only and selector based', () => {
 	assert.match(auth, /MJL_AUTH_E2E_FAIL_AUTH_OUTBOX/);
 });
 
-test('RST-009A registry contains only approved Phase 1 destinations', () => {
+test('RST-009A destinations remain present after Phase 2 navigation', () => {
   const registry = read('custom/mjlfinancement/lib/mjl_navigation_registry.lib.php');
   for (const label of ['Accueil', 'Partenaires', 'Projets', "Types d’opération", 'Audit', 'Utilisateurs et accès', 'Administration technique']) {
     assert.match(registry, new RegExp(label));

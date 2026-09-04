@@ -19,6 +19,7 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst005-launcher
     npm run test:rst002b
     npm run test:rst006a
+    npm run test:phase2
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
@@ -89,23 +90,24 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   source drift, malformed journals, missing/corrupt backups, four interruption
   and exact-resume stages, and unknown-state containment. It does not cut over
   the shared tenant.
-- The RST-006A manual accessibility gate covers thirteen archetypes, including
-  Activity list/create/detail/edit/review, at five widths and real 100%/200%
-  browser zoom: exactly 130 combinations. Activity states also require forced
+- `test:phase2` aggregates the existing RST-006A planning/workflow suite with
+  Planification navigation, paginated read-only scoped Opérations, sanitized
+  Activity chronology, command-backed fixtures, shared-state preservation, and
+  whole-tenant teardown.
+- The Phase 2 manual accessibility gate covers fourteen archetypes, including
+  Activity list/create/detail/edit/review and Opérations, at five widths and real 100%/200%
+  browser zoom: exactly 140 combinations. Planning states also require forced
   colors and reduced motion evidence. Passing requires named human review,
   keyboard, screen-reader and French findings, and a private checksummed JSON
   artifact. No automated run substitutes for that signature.
 - `npm run cutover:rst002b-fast -- --confirm=RST-002B-FAST` is the intentionally
   small local operational command. It is not an automated test and must not be
   invoked unless the user explicitly requests execution.
-- 'test:characterization' is a compatibility alias to the current
-  `test:rst002b` successor gate. The stale RST-002A characterization source is
-  retained unchanged because it was outside the approved RST-002B path
-  inventory and is no longer selected by the public command.
+- 'test:characterization' is a compatibility alias to `test:phase2`.
 - The default browser contract covers retained reference/auth/document/fixture
-  behavior plus the current RST-002B role, assignment, revocation, concurrency,
-  and direct-guard matrix. Phase 1 predecessor suites remain explicit
-  historical commands rather than default target discovery.
+  behavior, the current RST-002B role/assignment matrix, RST-006A planning and
+  workflow, and Phase 2 Planification/Opérations/chronology. Phase 1 predecessor
+  suites remain explicit historical commands rather than default target discovery.
 - 'test:rst003' retains the reference-foundation schema/browser gate.
 
 The runner rejects port 8080 and shared binds, creates unique Compose project

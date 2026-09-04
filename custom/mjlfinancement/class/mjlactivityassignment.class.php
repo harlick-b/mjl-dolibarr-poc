@@ -104,12 +104,15 @@ class MjlActivityAssignment
 			if ($afterRows === false) return $this->rollbackOutcome('FAILED');
 			$actorName = trim(trim((string) $users[$actorId]['firstname']).' '.trim((string) $users[$actorId]['lastname']));
 			if ($actorName === '') $actorName = (string) $users[$actorId]['login'];
+			$targetAgentName = trim(trim((string) $users[$targetAgentId]['firstname']).' '.trim((string) $users[$targetAgentId]['lastname']));
+			if ($targetAgentName === '') $targetAgentName = (string) $users[$targetAgentId]['login'];
 			$event = array(
 				'entity' => $entity,
 				'object_type' => 'activity_assignment',
 				'object_id' => $activityId,
 				'object_ref' => (string) $activity['ref'],
 				'activity_id' => $activityId,
+				'revision_id' => !empty($activity['fk_current_revision']) ? (int) $activity['fk_current_revision'] : null,
 				'actor' => $authenticatedActor,
 				'actor_name_snapshot' => $actorName,
 				'actor_role_snapshot' => 'VALIDATEUR_DEFINITIF',
@@ -119,7 +122,7 @@ class MjlActivityAssignment
 				'reason' => $reason,
 				'target_version' => $expectedVersion,
 				'result' => 'SUCCESS',
-				'context' => array('operation' => $operation, 'target_agent_id' => $targetAgentId),
+				'context' => array('operation' => $operation, 'target_agent_id' => $targetAgentId, 'target_agent_name' => $targetAgentName),
 			);
 			if (mjl_audit_append_in_transaction($this->db, $event) < 1) return $this->rollbackOutcome('FAILED');
 			if (!$this->db->commit('mjl RST-002B assignment')) {
