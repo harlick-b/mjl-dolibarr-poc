@@ -22,7 +22,7 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-reset-manifest-v2.md` | Canonical owner of pending reset actions and approvals |
 | `docs/mjl-implementation-roadmap-v2.md` | Canonical owner of phase sequence and stop conditions |
 | `docs/mjl-phase-0-audit-report.md` | Active Phase 0 evidence and verdict; its selective reset/fixture recommendations are superseded by DEC-026 through DEC-030 |
-| `docs/mjl-phase-2-readiness-report.md` | Active Phase 2 evidence and blocked-pending-human-accessibility verdict |
+| `docs/mjl-phase-2-readiness-report.md` | Active Phase 2 evidence and `PHASE_2_READY_WITH_NOTES` verdict under DEC-053 |
 | `docs/mjl-phase-1-reset-report.md` | Active RST-000 execution and restore evidence; not target-rule authority |
 | `docs/mjl-rst-000a-deletion-appendix.md` | Active sanitized RST-000A appendix evidence; exact row/file inventory remains private and checksum-bound |
 | `docs/mjl-rst-000a-execution-report.md` | Active RST-000A execution, rollback, and verification evidence; not target-rule authority |

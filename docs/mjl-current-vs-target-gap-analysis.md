@@ -11,7 +11,7 @@ obsolete-finance, account-lifecycle, and navigation reset on 2026-08-14.
 | No obsolete finance core | Finance schemas, loaders, routes, reports, update SQL, and tests are removed; RST-006A planning is active on the empty local tenant. | Execution finance remains gated to Phase 3A. |
 | Invitation-only access | Business-role-only selector/verifier invitation and reset lifecycle is active; groups/scopes are not authorization inputs. | Production email/base URL/secrets remain operator confirmations. |
 | Phase 2 navigation | Exact role-projected reference, Planification, audit, and access destinations are active and direct guards agree. | Phase 3 destinations remain gated. |
-| Activity assignment model | RST-006A is active with creator-primary assignment, abandonment/restoration, Validator assignment commands, immutable revisions, validation, chronology, and fixed pagination. | Signed human accessibility review remains pending. |
+| Activity assignment model | RST-006A is active with creator-primary assignment, abandonment/restoration, Validator assignment commands, immutable revisions, validation, chronology, and fixed pagination. Phase 2 is `READY_WITH_NOTES` under DEC-053. | Signed human accessibility review remains a production/release blocker but does not block Phase 3 development. |
 | Documents/accounting/official outputs | RST-010A closes custom and native document delivery; obsolete assumptions are unreachable or removed. | Phase 4 strategy is approved but sequenced after Phase 3C; accounting and official-output decisions remain deferred. |
 | Persistent empty tenant | Exactly one native Admin; target/custom business tables remain empty. | Disposable factories expand only with their owning feature units. |
 

@@ -4,10 +4,11 @@ Date: 2026-09-04
 
 ## Verdict
 
-`PHASE_2_BLOCKED_PENDING_MANUAL_ACCESSIBILITY`
+`PHASE_2_READY_WITH_NOTES`
 
-This is a local development verdict. It authorizes neither Phase 3 nor
-production deployment or launch.
+DEC-053 amended the sequencing gate after the automated Phase 2 evidence was
+complete. This local development verdict authorizes Phase 3 development, but
+not production deployment or launch.
 
 ## Completed
 
@@ -38,10 +39,12 @@ production deployment or launch.
   rehearsal, and whole-tenant teardown passed in 2083.3 seconds.
 - Changed PHP files passed syntax checks.
 
-## Deferred human gate
+## Carried accessibility note
 
 The signed harness covers 14 archetypes at five widths and real 100%/200%
 browser zoom: 140 combinations, including chronology and Opérations. It still
 requires a named reviewer, assistive technology, keyboard and screen-reader
 findings, French review, notes, and a passing signed artifact. No reviewer was
-available, so no evidence or conformance claim was fabricated.
+available, so no evidence or conformance claim was fabricated. This review no
+longer blocks Phase 3 development, but remains mandatory before production or
+release.

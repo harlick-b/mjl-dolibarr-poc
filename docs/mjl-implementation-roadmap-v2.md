@@ -77,12 +77,14 @@ and optimistic locking. Do not implement execution editing.
 
 Verdict: `PHASE_2_READY`, `PHASE_2_READY_WITH_NOTES`, or `PHASE_2_BLOCKED`.
 
-Current verdict: `PHASE_2_BLOCKED_PENDING_MANUAL_ACCESSIBILITY`. This does not
-authorize Phase 3 or production launch.
+Current verdict: `PHASE_2_READY_WITH_NOTES` under DEC-053. Phase 3 development
+is authorized. The unsigned human accessibility review remains a mandatory
+production/release blocker; this verdict does not authorize production launch.
 
 ## Phase 3A: Execution and Exception Workflows
 
-Preconditions: approved Phase 2 and revision-linked validation.
+Preconditions: approved Phase 2, including a `READY_WITH_NOTES` verdict whose
+notes are carried forward, and revision-linked validation.
 
 Deliver spent amounts, observations, Opération lifecycle, cancellation and
 reopening requests, Activity cancellation, derived execution status,

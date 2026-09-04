@@ -9,6 +9,8 @@ The local tenant contains exactly one preserved native technical
 administrator and no persistent business, invitation, reset, role, scope, or
 audit rows. Module version 0.19.0 depends on native Third Parties and Projects.
 MJL-specific code remains under 'custom/mjlfinancement'.
+DEC-053 permits Phase 3 development under `PHASE_2_READY_WITH_NOTES`; the
+unsigned human accessibility review remains a production/release blocker.
 
 | Surface | Current behavior |
 | --- | --- |

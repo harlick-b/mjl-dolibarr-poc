@@ -7,8 +7,10 @@ exception was ratified by DEC-039. RST-010A, RST-013A, and RST-014A are
 executed. Phase 1 is `PHASE_1_READY_WITH_NOTES`; its signed human accessibility
 gate was deferred. RST-002B was executed under DEC-050 on 2026-09-02.
 RST-006A, RST-007B, RST-009B, RST-013B, and RST-014B were executed under
-DEC-052 on 2026-09-04; Phase 2 remains blocked on its signed human accessibility
-gate. All other later actions remain unapproved and unexecuted.
+DEC-052 on 2026-09-04. DEC-053 issues `PHASE_2_READY_WITH_NOTES` and permits
+Phase 3 development while carrying the unsigned human accessibility review as
+a production/release blocker. All other later actions remain unapproved and
+unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
