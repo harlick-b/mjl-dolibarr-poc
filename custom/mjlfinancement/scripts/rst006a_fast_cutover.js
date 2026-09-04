@@ -96,6 +96,14 @@ function schemaDigest() {
   return sha256Bytes(schema);
 }
 function services() { return dc(['ps', '--status', 'running', '--services']).trim().split('\n').filter(Boolean).sort(); }
+function requireStoppedTraffic() {
+  let observed = services();
+  for (let attempt = 0; attempt < 50 && JSON.stringify(observed) !== JSON.stringify(['mariadb']); attempt += 1) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    observed = services();
+  }
+  invariant(JSON.stringify(observed) === JSON.stringify(['mariadb']), `Traffic-stop verification failed: observed ${JSON.stringify(observed)}.`);
+}
 function healthCheck() {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try { dc(['exec', '-T', 'dolibarr', '/usr/bin/curl', '--fail', '--silent', '--max-time', '3', '--output', '/dev/null', 'http://127.0.0.1/']); return; }
@@ -131,7 +139,7 @@ function prepareAttempt(commit) {
   dc(['cp', 'dolibarr:/var/www/html/conf/conf.php', configPath], { label: 'Dolibarr config copy' });
   fs.chmodSync(configPath, 0o600); checkedFile(configPath);
   dc(['stop', 'dolibarr'], { label: 'Dolibarr stop' });
-  invariant(JSON.stringify(services()) === JSON.stringify(['mariadb']), 'Traffic-stop verification failed.');
+  requireStoppedTraffic();
   const predecessor = migration('detect');
   invariant(predecessor === 'rst002b_target', `Exact empty predecessor required; detected ${predecessor || 'no state'}.`);
   migration('verify-predecessor');
@@ -194,7 +202,7 @@ function main() {
     invariant(JSON.stringify(running) === JSON.stringify(['mariadb']) || JSON.stringify(running) === JSON.stringify(['dolibarr','mariadb']), 'Resume requires MariaDB and no unrelated service.');
     if (running.includes('dolibarr')) dc(['stop', 'dolibarr'], { label: 'Dolibarr stop for resume' });
     stopped = true;
-    invariant(JSON.stringify(services()) === JSON.stringify(['mariadb']), 'Traffic-stop verification failed.');
+    requireStoppedTraffic();
     const detected = migration('detect');
     invariant(['rst002b_target','rst006a_partial','rst006a_target'].includes(detected), 'Unknown schema state; Dolibarr remains stopped. Follow the recorded-backup recovery instructions.');
     const exactPrefix = migration('prefix');

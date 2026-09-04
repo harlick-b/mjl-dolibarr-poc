@@ -11,6 +11,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const sourceRoot = path.resolve(__dirname, '../..');
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mjl-rst006a-wrapper-'));
 const project = path.basename(temporaryRoot).toLowerCase();
+const sentinel = crypto.randomBytes(16).toString('hex');
 const compose = ['compose', '--env-file', '/dev/null', '--project-directory', temporaryRoot, '-f', path.join(temporaryRoot, 'docker-compose.yml'), '-p', project];
 const wrapperTranscripts = [];
 
@@ -68,11 +69,14 @@ async function main() {
   fs.cpSync(path.join(sourceRoot, 'custom'), path.join(temporaryRoot, 'custom'), { recursive: true });
   let composeSource = fs.readFileSync(path.join(sourceRoot, 'docker-compose.yml'), 'utf8');
   composeSource = composeSource.replace('      - "8080:80"', `      - "127.0.0.1:${port}:80"`);
+  composeSource = composeSource.replace('      DOLI_DB_PASSWORD: poc_pwd', `      DOLI_DB_PASSWORD: poc_pwd\n      MJL_DISPOSABLE_TEST_TENANT: "1"\n      MJL_DISPOSABLE_PROJECT_NAME: ${project}\n      MJL_DISPOSABLE_RUN_SENTINEL: ${sentinel}`);
   fs.writeFileSync(path.join(temporaryRoot, 'docker-compose.yml'), composeSource);
   fs.mkdirSync(path.join(temporaryRoot, 'data/documents'), { recursive: true });
   run('/usr/bin/git',['init','--quiet']);run('/usr/bin/git',['config','user.email','rst006a-wrapper@example.test']);run('/usr/bin/git',['config','user.name','RST-006A Wrapper Rehearsal']);run('/usr/bin/git',['add','docker-compose.yml','custom']);run('/usr/bin/git',['commit','--quiet','-m','RST-006A wrapper rehearsal snapshot']);
   dc(['up','-d']); await ready(port);
   dc(['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php']);
+  dc(['exec','-T','mariadb','sh','-ceu','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mariadb -uroot "$MYSQL_DATABASE"'], { input:`INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('MJL_DISPOSABLE_FIXTURE_SENTINEL','${sentinel}','chaine',0,'RST-006A wrapper rehearsal',0);\n` });
+  dc(['exec','-T','dolibarr','sh','-ceu','target=/var/www/documents/.mjl-disposable-fixture-sentinel; printf %s "$MJL_DISPOSABLE_RUN_SENTINEL" > "$target"; chown root:root "$target"; chmod 0444 "$target"']);
   const custody=path.join(temporaryRoot,'data/backups/rst006a');fs.mkdirSync(custody,{recursive:true,mode:0o700});fs.chmodSync(custody,0o700);
   await resetToPredecessor(custody,port);
   const output=wrapper();assert(output.includes('RST-006A cutover complete.'),'Wrapper did not report completion.');
@@ -101,7 +105,7 @@ async function main() {
     await waitForUnlocked(lock);
     if(point==='partial-ddl'){
       const journalBytes=fs.readFileSync(active.journal);fs.unlinkSync(active.journal);
-      refused=false;try{wrapper();}catch(error){refused=/unjournaled non-predecessor schema|remains stopped/i.test(error.output);}
+      refused=false;try{wrapper();}catch(error){refused=/unjournaled non-predecessor schema[\s\S]*remains stopped/i.test(error.output);}
       assert(refused,'Wrapper did not refuse a known partial schema whose active journal was missing.');
       assert(JSON.stringify(serviceSet())===JSON.stringify(['mariadb']),'Missing-journal partial schema did not remain stopped.');
       fs.writeFileSync(active.journal,journalBytes,{mode:0o600});fs.chmodSync(active.journal,0o600);

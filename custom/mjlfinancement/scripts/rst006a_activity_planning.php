@@ -39,7 +39,24 @@ function mjl_rst006a_empty_tenant_evidence(DoliDB $db)
 	);
 }
 
-function mjl_rst006a_require_rollback_dependencies()
+function mjl_rst006a_disposable_tenant_attested(DoliDB $db)
+{
+	$sentinel = (string) getenv('MJL_DISPOSABLE_RUN_SENTINEL');
+	$path = '/var/www/documents/.mjl-disposable-fixture-sentinel';
+	$stat = @lstat($path);
+	if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1'
+		|| !preg_match('/^(?:mjl-test-[a-z0-9-]+|mjl-rst006a-wrapper-[a-z0-9-]+)$/', (string) getenv('MJL_DISPOSABLE_PROJECT_NAME'))
+		|| !preg_match('/^[a-f0-9]{32}$/', $sentinel)
+		|| $stat === false || is_link($path) || !is_file($path)
+		|| (int) $stat['uid'] !== 0 || (((int) $stat['mode']) & 07777) !== 0444
+		|| !hash_equals($sentinel, (string) @file_get_contents($path))) return false;
+	$table = $db->prefix().'const';
+	if ((int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM $table WHERE entity=0 AND name='MJL_DISPOSABLE_FIXTURE_SENTINEL'") !== 1) return false;
+	$value = (string) mjl_rst005_scalar($db, "SELECT value FROM $table WHERE entity=0 AND name='MJL_DISPOSABLE_FIXTURE_SENTINEL'");
+	return hash_equals($sentinel, $value);
+}
+
+function mjl_rst006a_require_rollback_dependencies(DoliDB $db, $disposable)
 {
 	$path = __DIR__.'/rst006a-dependent-units.json';
 	$bytes = file_get_contents($path);
@@ -53,12 +70,13 @@ function mjl_rst006a_require_rollback_dependencies()
 	foreach($data['statuses']as$unit=>$status){if(!is_string($status)||!in_array($status,array('PENDING_APPROVAL','APPROVED_IMPLEMENTATION','EXECUTED'),true))throw new RuntimeException('Rollback dependency status is malformed.');if($status==='EXECUTED')$derivedExecuted[]=$unit;}
 	foreach ($data['executed'] as $unit) if (!is_string($unit) || !in_array($unit, $expected, true)) throw new RuntimeException('Rollback dependency status is malformed.');
 	if($derivedExecuted!==$data['executed'])throw new RuntimeException('Rollback dependency execution index is inconsistent.');
-	if ($data['executed']) throw new RuntimeException('Rollback refused: a dependent reset unit is executed.');
-	if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1' && getenv('MJL_RST006A_TRAFFIC_STOPPED') !== '1') throw new RuntimeException('Shared rollback requires an explicit stopped-traffic attestation.');
+	if ($data['executed'] && !$disposable) throw new RuntimeException('Rollback refused: a dependent reset unit is executed.');
+	if (!$disposable && getenv('MJL_RST006A_TRAFFIC_STOPPED') !== '1') throw new RuntimeException('Shared rollback requires an explicit stopped-traffic attestation.');
 }
 
 $options = getopt('', array('mode:','confirm:','failure-point::'));
 $mode = isset($options['mode']) ? (string) $options['mode'] : '';
+$disposable = mjl_rst006a_disposable_tenant_attested($db);
 if (!in_array($mode, array('apply','rollback','detect','prefix','verify','verify-predecessor','evidence'), true)) throw new RuntimeException('Use an approved RST-006A migration mode.');
 if (in_array($mode, array('apply','rollback'), true) && (!isset($options['confirm']) || $options['confirm'] !== 'RST-006A')) throw new RuntimeException('Explicit --confirm=RST-006A is required.');
 if (in_array($mode, array('apply','rollback'), true) && getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1' && getenv('MJL_RST006A_TRAFFIC_STOPPED') !== '1') throw new RuntimeException('Shared RST-006A mutation requires an explicit stopped-traffic attestation.');
@@ -86,7 +104,7 @@ try {
 		mjl_rst006a_require_target($db);
 		print "RST-006A target installed and verified.\n";
 	} else {
-		mjl_rst006a_require_rollback_dependencies();
+		mjl_rst006a_require_rollback_dependencies($db, $disposable);
 		if ($state !== RST006A_SCHEMA_TARGET && !mjl_rst006a_is_known_rollback_prefix($db)) throw new RuntimeException('Rollback requires the exact target or a known rollback prefix.');
 		foreach (array('activity','activity_assignment') as $suffix) if ((int) mjl_rst005_scalar($db, 'SELECT COUNT(*) FROM '.$db->prefix().'mjlfinancement_'.$suffix) !== 0) throw new RuntimeException('Rollback refused: Activity or assignment rows exist.');
 		foreach (mjl_rst006a_suffixes() as $suffix) {

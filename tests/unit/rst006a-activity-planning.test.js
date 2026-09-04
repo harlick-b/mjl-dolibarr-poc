@@ -110,6 +110,9 @@ test('RST-006A rollback is staged, checked, and dependency-gated', () => {
     executed: [],
   });
   assert.match(migration, /mjl_rst006a_require_rollback_dependencies/);
+  assert.match(migration, /mjl_rst006a_disposable_tenant_attested/);
+  assert.match(migration, /MJL_DISPOSABLE_FIXTURE_SENTINEL/);
+  assert.match(migration, /\.mjl-disposable-fixture-sentinel/);
   assert.match(migration, /dependency execution index is inconsistent/);
   assert.match(schema, /function mjl_rst006a_rollback_target\(/);
   assert.match(schema, /Unable to execute RST-006A DDL/);
@@ -154,6 +157,8 @@ test('RST-006A cutover seals final evidence only after restart and health verifi
   assert.match(source, /Unknown schema state; Dolibarr remains stopped/);
   assert.match(source, /verifyInheritedLock/);
   assert.match(source, /Independent cutover lock contention proof failed/);
+  assert.match(source, /function requireStoppedTraffic\(\)/);
+  assert.match(source, /Traffic-stop verification failed: observed/);
   assert.doesNotMatch(source, /MJL_RST006A_LOCK_HELD/);
   assert.match(source, /data', 'backups', 'rst006a/);
   assert.match(source, /--conflict-exit-code', '75'/);
