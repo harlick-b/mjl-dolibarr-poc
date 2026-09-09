@@ -93,11 +93,12 @@ reconciliation, completeness, concurrency, audit, and tests.
 Verdict: `PHASE_3A_READY`, `PHASE_3A_READY_WITH_NOTES`, or
 `PHASE_3A_BLOCKED`.
 
-Current status: RST-006B, RST-013C, and RST-014C are approved under DEC-054
-and implemented in source. The complete committed-source gates and reviews
-pass with zero unresolved actionable findings. The shared empty-tenant cutover
-remains before the verdict. The carried human accessibility review contains 17
-archetypes and 170 combinations and remains unsigned.
+Current status: RST-006B, RST-013C, and RST-014C executed under DEC-055. The
+complete gates, reviews, guarded empty-tenant cutover, and independent
+post-cutover verification passed. The verdict is
+`PHASE_3A_READY_WITH_NOTES`: the carried human accessibility review contains
+17 archetypes and 170 combinations and remains unsigned. Phase 3B development
+is authorized; production release is not.
 
 ## Phase 3B: Audit, Dashboards, and Operational Outputs
 

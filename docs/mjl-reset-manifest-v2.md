@@ -330,7 +330,7 @@ number does not approve a suffixed unit.
 
 ### RST-006B - Execution exception requests
 
-- Status: `APPROVED` under DEC-054; source implemented, final gates and cutover pending.
+- Status: `EXECUTED` under DEC-055 on 2026-09-09.
 - Current component: implemented version-bound cancellation and reopening requests.
 - Approved action: add request structures and guarded transactional transitions.
 - Reason: terminal exceptions must not bypass locks or audit.
@@ -641,7 +641,7 @@ number does not approve a suffixed unit.
 
 ### RST-013C - Phase 3A test reset
 
-- Status: `APPROVED` under DEC-054; source implemented, final gates and cutover pending.
+- Status: `EXECUTED` under DEC-055 on 2026-09-09.
 - Current component: target spent, lifecycle, cancellation, reopening,
   derivation, completeness, document-audit, and concurrency journeys.
 - Approved action: create new target spent, lifecycle, cancellation, reopening,
@@ -810,7 +810,7 @@ number does not approve a suffixed unit.
 
 ### RST-014C - Phase 3A disposable test fixtures
 
-- Status: `APPROVED` under DEC-054; source implemented, final gates and cutover pending.
+- Status: `EXECUTED` under DEC-055 on 2026-09-09.
 - Current component: Phase 2 isolated factories extended with execution and exception-request cases.
 - Approved action: add explicit spent/null/zero, status, cancellation, and reopening cases to disposable factories.
 - Reason: Phase 3A edge cases require evidence without persistent sample data.

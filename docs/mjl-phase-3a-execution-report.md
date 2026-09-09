@@ -2,9 +2,7 @@
 
 ## Scope
 
-This report covers RST-006B, RST-013C, and RST-014C. Source implementation is
-complete; the final section is updated only after the committed-source gates,
-shared cutover, and final reviews complete.
+This report covers the completed RST-006B, RST-013C, and RST-014C execution.
 
 ## Implemented behavior
 
@@ -63,6 +61,21 @@ shared cutover, and final reviews complete.
 
 ## Verdict
 
-All committed-source gates are satisfied. The guarded shared empty-tenant
-cutover and its post-cutover evidence remain pending. Production launch is not
-authorized.
+The guarded cutover of committed source `c520a11` completed on 2026-09-09.
+It created private mode-0600 backup
+`data/backups/rst006b/rst006b-before-2026-09-09T13-00-51-494Z.sql`
+(874532 bytes, SHA-256
+`b6492f3cc1bf86a04b6e4bbc3fc1642d748d0d1f8dab80bd774a2a403da90058`).
+The business-document checksum remained
+`903b198228c78ef2801048d25ef914395662b2ac97ea04bdffbd5997ba4e2f5f`.
+
+Independent post-cutover verification passed the exact Phase 3A schema and
+application health checks. It found the one active native administrator, zero
+other users, zero Activities, Opérations, cancellation requests, reopening
+requests, and audit rows, plus exactly one enabled hourly
+`MjlExecutionReconciler::run` job.
+
+Verdict: `PHASE_3A_READY_WITH_NOTES` under DEC-055. The sole note is the
+unsigned 170-combination human accessibility review and its Phase 3A addendum.
+This verdict authorizes Phase 3B development; it does not authorize production
+release.

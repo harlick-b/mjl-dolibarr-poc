@@ -3,25 +3,22 @@
 This file is current-state evidence only. It does not override
 'docs/mjl-authoritative-decisions.md'.
 
-## Shared Phase 2 state and Phase 3A source
+## Shared Phase 3A state
 
 The local tenant contains exactly one preserved native technical
 administrator and no persistent business, invitation, reset, role, scope, or
-audit rows. The shared schema remains at RST-006A until the guarded cutover.
-Source module version 0.20.0 depends on native Third Parties and Projects.
+audit rows. The shared schema is at RST-006B. Module version 0.20.0 depends on native Third Parties and Projects.
 MJL-specific code remains under 'custom/mjlfinancement'.
-DEC-053 permits Phase 3 development under `PHASE_2_READY_WITH_NOTES`; the
-unsigned human accessibility review remains a production/release blocker.
-RST-006B, RST-013C, and RST-014C source is implemented and disposable-verified;
-the shared cutover and final verdict remain pending.
+DEC-055 records `PHASE_3A_READY_WITH_NOTES` and permits Phase 3B development;
+the unsigned human accessibility review remains a production/release blocker.
 
 | Surface | Current behavior |
 | --- | --- |
 | Accueil | Role-projected static Phase 1 landing; no finance aggregates. |
 | Partenaires, Projets, Types d’Opération | Same-entity business-role reads; Validator-only activation/deactivation and mutation. |
-| Activities | Entity-scoped planning/review aggregate plus source-ready derived execution status, financial completeness/totals, and guarded Activity cancellation request. |
-| Opérations | Source-ready 50-row execution list: current Assigned Agents enter explicit spending/observations and request exceptions; Supervisor/Validator read; Admin denied. |
-| Demandes d’exception | Source-ready bounded cancellation/reopening list with Agent withdrawal and Validator decision controls; no Phase 3B navigation entry. |
+| Activities | Entity-scoped planning/review aggregate plus active derived execution status, financial completeness/totals, and guarded Activity cancellation request. |
+| Opérations | Active 50-row execution list: current Assigned Agents enter explicit spending/observations and request exceptions; Supervisor/Validator read; Admin denied. |
+| Demandes d’exception | Active bounded cancellation/reopening list with Agent withdrawal and Validator decision controls; no Phase 3B navigation entry. |
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |
 | Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. |
 | Administration technique | Native-Admin link to Dolibarr module administration. |
@@ -39,12 +36,10 @@ the shared cutover and final verdict remain pending.
 - 'llx_mjlfinancement_activity' and 'llx_mjlfinancement_activity_assignment' (empty RST-006A target)
 - 'llx_mjlfinancement_operation', 'llx_mjlfinancement_activity_revision',
   'llx_mjlfinancement_revision_contributor', and
-  'llx_mjlfinancement_review_decision' (empty RST-006A targets)
+  'llx_mjlfinancement_review_decision' (empty RST-006B targets)
+- 'llx_mjlfinancement_cancellation_request' and
+  'llx_mjlfinancement_reopening_request' (empty RST-006B targets)
 - 'llx_mjlfinancement_operation_type' (empty RST-003 reference table)
-
-RST-006B adds empty `llx_mjlfinancement_cancellation_request` and
-`llx_mjlfinancement_reopening_request` tables only at shared cutover. The
-disposable acceptance tenants already prove their exact target definitions.
 
 No legacy group membership participates in MJL authorization. Native Admin
 status derives ADMIN_PLATEFORME; business roles are stored only for non-admin,

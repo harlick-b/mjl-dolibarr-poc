@@ -124,10 +124,11 @@ and disposable Phase 2 acceptance are active. The verdict is
 while the unsigned human accessibility review remains a mandatory
 production/release blocker. This verdict does not authorize production.
 DEC-054 approves RST-006B, RST-013C, and RST-014C as the Phase 3A execution
-and exception unit, including its committed-source empty-tenant cutover. The
-source and disposable acceptance matrix are implemented; final gates, shared
-cutover, and the Phase 3A verdict remain pending. This approval adds no Phase
-3B behavior and does not authorize production. The operational `initdb.log` checksum deviation from
+and exception unit, including its committed-source empty-tenant cutover.
+DEC-055 records their completed gates, clean reviews, guarded shared cutover,
+and independent post-cutover checks on 2026-09-09. The verdict is
+`PHASE_3A_READY_WITH_NOTES`; the sole note is the unsigned human accessibility
+review. Phase 3B development is authorized, but production is not. The operational `initdb.log` checksum deviation from
 the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
 RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary
