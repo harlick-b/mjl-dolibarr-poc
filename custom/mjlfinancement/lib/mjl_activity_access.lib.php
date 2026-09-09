@@ -3,12 +3,14 @@
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006b_schema.lib.php';
 
 function mjl_activity_access_assignment_schema_ready()
 {
 	global $db;
 	try {
-		if (mjl_rst006a_detect_schema($db) === RST006A_SCHEMA_TARGET) mjl_rst006a_require_target($db);
+		if (mjl_rst006b_detect_schema($db) === RST006B_SCHEMA_TARGET) mjl_rst006b_require_target($db);
+		elseif (mjl_rst006a_detect_schema($db) === RST006A_SCHEMA_TARGET) mjl_rst006a_require_target($db);
 		else mjl_rst002b_require_target_objects($db);
 		return true;
 	}

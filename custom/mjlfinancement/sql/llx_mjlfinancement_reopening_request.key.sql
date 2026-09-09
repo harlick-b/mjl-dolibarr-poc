@@ -1,0 +1,5 @@
+ALTER TABLE llx_mjlfinancement_reopening_request ADD CONSTRAINT fk_mjl_reopening_activity FOREIGN KEY (entity,fk_activity) REFERENCES llx_mjlfinancement_activity(entity,rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_reopening_request ADD CONSTRAINT fk_mjl_reopening_operation FOREIGN KEY (entity,fk_operation) REFERENCES llx_mjlfinancement_operation(entity,rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_reopening_request ADD CONSTRAINT fk_mjl_reopening_revision FOREIGN KEY (entity,fk_target_revision,fk_activity) REFERENCES llx_mjlfinancement_activity_revision(entity,rowid,fk_activity) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_reopening_request ADD CONSTRAINT fk_mjl_reopening_requester FOREIGN KEY (fk_requester) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_reopening_request ADD CONSTRAINT fk_mjl_reopening_reviewer FOREIGN KEY (fk_reviewer) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;

@@ -240,20 +240,6 @@ async function runLifecycleProbe({ signal = null, outcome = 'signal' }) {
   }
 }
 
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  test(`[RST-014A] repeated ${signal} runs the real runner teardown`, async () => {
-    test.setTimeout(180000);
-    await runLifecycleProbe({ signal });
-  });
-}
-
-for (const outcome of ['success', 'setup', 'test', 'diagnostics-failure', 'diagnostics-timeout']) {
-  test(`[RST-014A] real runner ${outcome} path scans secrets and tears down`, async () => {
-    test.setTimeout(180000);
-    await runLifecycleProbe({ outcome });
-  });
-}
-
 test('[RST-014A] sentinel ownership and mode fail closed before database access', async () => {
   const beforeAdmin = adminDigest();
   const beforeReservations = scalar("SELECT COUNT(*) FROM llx_const WHERE entity=0 AND name LIKE 'MJL_TEST_FIXTURE_NAMESPACE_%'");
@@ -286,3 +272,20 @@ test('[RST-014A] shared-container guard-only preflight cannot enter fixture crea
     stdio: ['pipe', 'pipe', 'pipe'],
   })).toThrow();
 });
+
+// Keep nested runner/signal exercises last: they intentionally churn child
+// processes and Docker resources, so no parent-tenant attestation may depend on
+// the host runtime state after these teardown probes.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  test(`[RST-014A] repeated ${signal} runs the real runner teardown`, async () => {
+    test.setTimeout(180000);
+    await runLifecycleProbe({ signal });
+  });
+}
+
+for (const outcome of ['success', 'setup', 'test', 'diagnostics-failure', 'diagnostics-timeout']) {
+  test(`[RST-014A] real runner ${outcome} path scans secrets and tears down`, async () => {
+    test.setTimeout(180000);
+    await runLifecycleProbe({ outcome });
+  });
+}

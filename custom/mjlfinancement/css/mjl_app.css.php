@@ -1551,9 +1551,27 @@ a.tmenu[href^="/api/"] {
 .mjl-activity-totals dt { color: var(--mjl-color-text-muted); }
 .mjl-activity-totals dd { font-size: 1.1rem; font-weight: 700; margin: var(--mjl-space-1) 0 0; }
 .mjl-revision-summary { max-height: 32rem; overflow: auto; white-space: pre-wrap; }
+.mjl-operation-card {
+	background: var(--mjl-color-surface);
+	border: 1px solid var(--mjl-color-border-subtle);
+	border-radius: var(--mjl-radius-card);
+	display: grid;
+	gap: var(--mjl-space-3);
+	margin-bottom: var(--mjl-space-4);
+	padding: var(--mjl-space-4);
+}
+.mjl-operation-card > :where(h2, p, dl, form) { margin-block: 0; }
+.mjl-operation-card form {
+	align-items: end;
+	display: grid;
+	gap: var(--mjl-space-3);
+	grid-template-columns: repeat(2, minmax(10rem, 1fr)) minmax(14rem, 2fr) auto;
+}
+.mjl-operation-card form label { display: grid; gap: var(--mjl-space-1); }
+.mjl-operation-card form textarea { min-height: 4.5rem; resize: vertical; }
 
 @media (max-width: 768px) {
-	.mjl-form-grid, .mjl-operation-row, .mjl-activity-totals { grid-template-columns: 1fr; }
+	.mjl-form-grid, .mjl-operation-row, .mjl-activity-totals, .mjl-operation-card form { grid-template-columns: 1fr; }
 }
 
 @media (forced-colors: active) {

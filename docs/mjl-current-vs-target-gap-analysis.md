@@ -8,10 +8,10 @@ obsolete-finance, account-lifecycle, and navigation reset on 2026-08-14.
 | Target | Current state | Remaining gap / owner |
 | --- | --- | --- |
 | One transactional audit | Append-only entity-scoped audit table, transaction-bound writer, and sanitized Activity chronology exist. | Later object adapters remain owned by their phases. |
-| No obsolete finance core | Finance schemas, loaders, routes, reports, update SQL, and tests are removed; RST-006A planning is active on the empty local tenant. | Execution finance remains gated to Phase 3A. |
+| No obsolete finance core | Finance schemas, loaders, routes, reports, and update SQL are removed; RST-006A planning is active on the empty local tenant and Phase 3A execution source passed its committed-source gates. | Shared RST-006B cutover remains. |
 | Invitation-only access | Business-role-only selector/verifier invitation and reset lifecycle is active; groups/scopes are not authorization inputs. | Production email/base URL/secrets remain operator confirmations. |
-| Phase 2 navigation | Exact role-projected reference, Planification, audit, and access destinations are active and direct guards agree. | Phase 3 destinations remain gated. |
-| Activity assignment model | RST-006A is active with creator-primary assignment, abandonment/restoration, Validator assignment commands, immutable revisions, validation, chronology, and fixed pagination. Phase 2 is `READY_WITH_NOTES` under DEC-053. | Signed human accessibility review remains a production/release blocker but does not block Phase 3 development. |
+| Phase 2 navigation | Exact role-projected reference, Planification, audit, and access destinations are active and direct guards agree. Phase 3A exception access is contextual from guarded execution/Activity surfaces. | Phase 3B navigation remains gated; no dashboard/report destination was added. |
+| Activity execution and exceptions | Source module 0.20.0 provides integer-XOF execution, terminal locks, version-bound cancellation/reopening, Activity cancellation cascade, pure projections, and hourly reconciliation through the aggregate command. The disposable schema, concurrency, security, rollback, browser, and review gates pass. | Shared empty-tenant cutover and the unsigned 170-combination human accessibility review remain. |
 | Documents/accounting/official outputs | RST-010A closes custom and native document delivery; obsolete assumptions are unreachable or removed. | Phase 4 strategy is approved but sequenced after Phase 3C; accounting and official-output decisions remain deferred. |
 | Persistent empty tenant | Exactly one native Admin; target/custom business tables remain empty. | Disposable factories expand only with their owning feature units. |
 

@@ -46,8 +46,11 @@ function serverCanRead(userId) {
 function targetVerifierPasses() {
   const source = phpBody(`
     require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006b_schema.lib.php';
     try {
-      mjl_rst006a_require_target($db);
+      $phase3=mjl_rst002b_table_exists($db,mjl_rst006b_table($db,'cancellation_request'))
+        && mjl_rst002b_table_exists($db,mjl_rst006b_table($db,'reopening_request'));
+      if ($phase3) mjl_rst006b_require_target($db); else mjl_rst006a_require_target($db);
       $expected=mjl_rst002b_expected_trigger_map(mjl_rst002b_role_invariant_trigger_statements($db,true));
       $role=[]; $user=[]; foreach($expected as $name=>$definition) { if ($name===$db->prefix().'mjlfinancement_user_admin_bu') $user[$name]=$definition; else $role[$name]=$definition; }
       if (!mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db,$db->prefix().'mjlfinancement_user_role'),$role) || !mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db,$db->prefix().'user'),$user)) throw new RuntimeException('role drift');
@@ -60,7 +63,15 @@ function targetVerifierPasses() {
 function restoreTargetTriggers() {
   const source = phpBody(`
     require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
-    mjl_rst006a_install_guards($db); mjl_rst002b_install_role_invariant_triggers($db,true); echo 'OK';
+    require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006b_schema.lib.php';
+    $phase3=mjl_rst002b_table_exists($db,mjl_rst006b_table($db,'cancellation_request'))
+      && mjl_rst002b_table_exists($db,mjl_rst006b_table($db,'reopening_request'));
+    if ($phase3) {
+      foreach (mjl_rst006b_guard_statements($db) as $sql) if (!$db->query($sql)) exit(2);
+    } else {
+      mjl_rst006a_install_guards($db);
+    }
+    mjl_rst002b_install_role_invariant_triggers($db,true); echo 'OK';
   `);
   expect(composeExec('dolibarr', ['php'], 'utf8', source).trim()).toBe('OK');
 }

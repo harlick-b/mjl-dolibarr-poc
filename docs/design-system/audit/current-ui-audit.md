@@ -56,8 +56,9 @@ and official outputs.
 | Partenaires | Good | French-first reference list/detail/forms, lifecycle states, safe feedback, and 390-pixel containment are focused-browser verified. | `custom/mjlfinancement/partners.php` |
 | Projets | Good | Guarded reference states expose only the display label for editing; immutable ownership/ref and parent lifecycle behavior are focused-browser verified. | `custom/mjlfinancement/projects.php` |
 | Types d’Opération | Good | Entity-scoped active/inactive reference states use the shared RST-003 presentation and security contract. | `custom/mjlfinancement/operationtypes.php` |
-| Activities | Implemented, pending gates | Four-section server-rendered planning form, Activity-scoped dynamic Opérations, textual balance, detail/review states, responsive layouts, and no-JavaScript submission are present. Signed keyboard/screen-reader/zoom/reflow/forced-color/reduced-motion evidence remains pending. | `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/lib/mjl_activity_route.lib.php`, `custom/mjlfinancement/js/activities.js` |
-| Opérations | Implemented, pending human gate | Read-only entity/assignment-scoped planning list uses shared table, money, pagination, and guarded Activity-link patterns. Signed keyboard/screen-reader/zoom/reflow/forced-color/reduced-motion evidence remains pending. | `custom/mjlfinancement/operations.php`, `custom/mjlfinancement/lib/mjl_operation_route.lib.php` |
+| Activities | Implemented, pending human gate | Planning/review remains server-rendered; detail now presents pure derived execution status, completeness/totals, and guarded Activity cancellation. Signed keyboard/screen-reader/zoom/reflow/forced-color/reduced-motion evidence remains pending. | `custom/mjlfinancement/activities.php`, `custom/mjlfinancement/lib/mjl_activity_route.lib.php`, `custom/mjlfinancement/js/activities.js` |
+| Opérations | Implemented, pending human gate | Responsive cards preserve null versus zero, expose no-JavaScript execution and exception forms only to current Assigned Agents, and communicate terminal locks. Supervisor/Validator remain read-only and Admin is denied. | `custom/mjlfinancement/operations.php`, `custom/mjlfinancement/lib/mjl_operation_route.lib.php` |
+| Demandes d’exception | Implemented, pending human gate | Closed filters, 50-row pagination, Agent withdrawal, and Validator approval/rejection forms use shared tokens, visible labels, and responsive cards. | `custom/mjlfinancement/operationrequests.php`, `custom/mjlfinancement/lib/mjl_operation_request_route.lib.php` |
 | Expenses | Removed | Obsolete finance and contextual-upload route is absent. | `custom/mjlfinancement/expenses.php` |
 | Documents | Contained | RST-010A exposes no document UI: custom and native delivery routes return HTTP 403 pending the sequenced Phase 4 implementation. | `custom/mjlfinancement/documents.php`, `custom/mjlfinancement/documentdownload.php` |
 | Conventions | Removed | Obsolete finance and document behavior is absent. | `custom/mjlfinancement/conventions.php` |
@@ -118,11 +119,11 @@ conformance, production readiness, or whole-Phase-3D completion.
 - Formal-French residuals on dashboard, activity/expense timelines, and access
   scope summaries were corrected. Non-protected labels, emails, and CSV/XLSX
   output still require client approval: `BLOCKED_PENDING_CLIENT_REVIEW`.
-- The signed accessibility harness now includes fourteen current archetypes,
+- The signed accessibility harness now includes seventeen current archetypes,
   including Activity list/create/detail/edit/review, plus representative
   screen-reader, forced-colors, reduced-motion, and real-zoom evidence. It
   requires a recorded result, geometry, visible-focus observation, reviewer,
-  keyboard/screen-reader/French findings, and non-empty notes for all 140
+  keyboard/screen-reader/French findings, and non-empty notes for all 170
   combinations. No reviewer has signed this run:
   `BLOCKED_PENDING_MANUAL_ACCESSIBILITY`.
 - The final strengthened-remediation run passed the complete local verification

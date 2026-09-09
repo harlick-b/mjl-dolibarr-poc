@@ -136,6 +136,25 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 - For documentation-only instruction changes, a diff/status check is enough.
 - Always report skipped checks and why.
 
+## Lean-Execution Checkpoint
+
+- After each hour of active implementation, stop and reassess whether the work
+  is becoming over-engineered. Time spent waiting for required tests, builds,
+  downloads, or external tools does not count toward the hour.
+- Reassess immediately, without waiting for the hour, when adding an unplanned
+  abstraction, framework, orchestration layer, generalized helper, or test
+  harness.
+- At the checkpoint, map every new mechanism to an explicit requirement or a
+  material security/data-integrity risk, identify the simplest adequate
+  alternative, and remove speculative or duplicate machinery.
+- If simplification requires a product, scope, or architecture decision,
+  present a lean proposal and wait for user approval before continuing that
+  branch of work.
+- Within discretionary implementation choices, this checkpoint takes
+  precedence over instructions that encourage exhaustive hardening or maximal
+  confidence. It must not be used to skip explicit acceptance requirements,
+  essential security/data-integrity controls, or required verification.
+
 ## Skill Routing
 
 - Global Matt skills are invoked by name. Local project skills are invoked from

@@ -1,7 +1,10 @@
 <?php
 
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_audit.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_execution.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006b_schema.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlcancellationrequest.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlreopeningrequest.class.php';
 
 /** Deep aggregate module for every RST-006A Activity mutation. */
 class MjlActivityCommand
@@ -18,7 +21,7 @@ class MjlActivityCommand
 		$this->db = $db;
 		$this->entity = $entity === null ? (int) $conf->entity : (int) $entity;
 		$this->calendar = $calendar ?: function () {
-			return (new DateTimeImmutable('now', new DateTimeZone('Africa/Porto-Novo')))->format('Y-m-d');
+			return mjl_execution_porto_novo_date(new DateTimeImmutable('now'));
 		};
 	}
 
@@ -123,9 +126,9 @@ class MjlActivityCommand
 			if (!$a) return $this->reject($a === false ? 'FAILED' : 'NOT_FOUND');
 			if ((string) $a['version'] !== (string) $expectedVersion) return $this->reject('STALE_VERSION');
 			if ($a['validation_status'] !== 'ABANDONED' || !$this->future($a['date_start']) || $this->currentAssignmentCount($activityId) !== 0 || !$this->eligibleAgent($primaryAgentId)) return $this->reject('CONFLICT');
-			if (!$this->insertAssignment($activityId, $primaryAgentId, true, $auth['id'], $reason)) return $this->reject('FAILED');
 			$newVersion = ((int) $a['version']) + 1;
 			if (!$this->simpleActivityUpdate($a, $newVersion, $auth['id'], "validation_status='DRAFT'")) return $this->reject('STALE_VERSION');
+			if (!$this->insertAssignment($activityId, $primaryAgentId, true, $auth['id'], $reason)) return $this->reject('FAILED');
 			if (!$this->audit($a, $actor, 'ACTIVITY_RESTORED', 'ABANDONED', 'DRAFT', array('primary_agent_id' => (int) $primaryAgentId), $reason)) return $this->reject('FAILED');
 			return $this->accept($activityId, $newVersion);
 		});
@@ -163,8 +166,170 @@ class MjlActivityCommand
 			if ($decision === 'FINAL_VALIDATED') $extra .= ',latest_validated_amount='.(string) $revision['proposed_amount'];
 			if (!$this->simpleActivityUpdate($a, $newVersion, $auth['id'], $extra)) return $this->reject('STALE_VERSION');
 			if (!$this->audit($a, $actor, 'ACTIVITY_REVIEW_DECIDED', $a['validation_status'], $after, array('revision_id' => (int) $revisionId, 'revision_number'=>(int)$revision['revision_number'], 'decision' => $decision, 'requested_amount' => $requestedAmount === null ? null : (string)$requestedAmount), $reason, array('validation_status'=>$a['validation_status']), array('validation_status'=>$after,'decision'=>$decision,'requested_amount'=>$requestedAmount===null?null:(string)$requestedAmount))) return $this->reject('FAILED');
+			if ($decision === 'FINAL_VALIDATED' && mjl_rst006b_detect_schema($this->db) === RST006B_SCHEMA_TARGET) {
+				$operations = $this->lockOperations($activityId); if ($operations === false) return $this->reject('FAILED');
+				$validated = $a; $validated['validation_status']='FINAL_VALIDATED'; $validated['latest_validated_amount']=(string)$revision['proposed_amount']; $validated['version']=$newVersion;
+				$projected = mjl_execution_project_status($validated, $operations, call_user_func($this->calendar));
+				if (!$this->appendExecutionStatusIfChanged($validated, $actor, 'NOT_STARTED', $projected, 'FINAL_VALIDATION')) return $this->reject('FAILED');
+			}
 			return $this->accept($activityId, $newVersion, $revisionId);
 		});
+	}
+
+	public function updateOperationExecution($activityId, $operationId, $expectedOperationVersion, array $input, User $actor)
+	{
+		if (!$this->decimalId($activityId) || !$this->decimalId($operationId) || !$this->decimalId($expectedOperationVersion)
+			|| count($input) !== 3 || array_diff(array_keys($input), array('status','spent_amount','observation'))
+			|| !in_array($input['status'], array('TODO','IN_PROGRESS','COMPLETED'), true)
+			|| ($input['spent_amount'] !== null && !$this->decimalAmount($input['spent_amount'], true))
+			|| ($input['observation'] !== null && !$this->text($input['observation'], 2000, false))) return $this->outcome('INVALID_INPUT');
+		$observation = $input['observation'] === null || trim($input['observation']) === '' ? null : $this->normalized(trim($input['observation']));
+		return $this->transaction(function () use ($activityId, $operationId, $expectedOperationVersion, $input, $observation, $actor) {
+			$auth = $this->lockActor($actor); $activity = $this->lockActivity($activityId);
+			if (!$auth || $auth['role'] !== 'AGENT_SAISIE') return $this->reject('FORBIDDEN');
+			if (!$activity) return $this->reject($activity === false ? 'FAILED' : 'NOT_FOUND');
+			$assignments = $this->lockAssignments($activityId); $operations = $this->lockOperations($activityId);
+			if ($assignments === false || $operations === false) return $this->reject('FAILED');
+			if (!$this->containsAssignment($assignments, $auth['id']) || $activity['validation_status'] !== 'FINAL_VALIDATED' || !empty($activity['is_cancelled'])) return $this->reject('FORBIDDEN');
+			$operation = $this->operationById($operations, $operationId);
+			if (!$operation) return $this->reject('NOT_FOUND');
+			if ((string) $operation['version'] !== (string) $expectedOperationVersion) return $this->reject('STALE_VERSION');
+			if (in_array($operation['status'], array('COMPLETED','CANCELLED'), true) || !$this->executionTransitionAllowed($operation['status'], $input['status'])) return $this->reject('CONFLICT');
+			if ($input['status'] === 'COMPLETED' && $input['spent_amount'] === null) return $this->reject('CONFLICT');
+			if ($input['spent_amount'] !== null && (string) $input['spent_amount'] !== (string) $operation['authorized_amount'] && $observation === null) return $this->reject('CONFLICT');
+			$beforeStatus = $this->synchronizeExecutionStatusBeforeMutation($activity, $operations, $actor);
+			if ($beforeStatus === null) return $this->reject('FAILED');
+			$spentSql = $input['spent_amount'] === null ? 'NULL' : (string) $input['spent_amount'];
+			$observationSql = $observation === null ? 'NULL' : "'".$this->db->escape($observation)."'";
+			$sql = 'UPDATE '.$this->table('operation')." SET status='".$this->db->escape($input['status'])."',spent_amount=$spentSql,observation=$observationSql,version=version+1,fk_user_modif=".$auth['id'].' WHERE entity='.$this->entity.' AND rowid='.(int)$operationId.' AND version='.(int)$expectedOperationVersion;
+			$res = $this->db->query($sql); if (!$res || $this->db->affected_rows($res) !== 1) return $this->reject('STALE_VERSION');
+			$afterOperation = $operation; $afterOperation['status']=$input['status']; $afterOperation['spent_amount']=$input['spent_amount']; $afterOperation['observation']=$observation; $afterOperation['version']=(int)$operation['version']+1;
+			$afterOperations = $this->replaceOperation($operations, $afterOperation);
+			if (!$this->auditExecution($activity, $actor, 'OPERATION_EXECUTION_UPDATED', $operation['status'], $input['status'], $operation, $afterOperation, (int)$operationId, array(), '', (int)$operation['version'])) return $this->reject('FAILED');
+			$afterStatus = mjl_execution_project_status($activity, $afterOperations, call_user_func($this->calendar));
+			if (!$this->appendExecutionStatusIfChanged($activity, $actor, $beforeStatus, $afterStatus, 'OPERATION')) return $this->reject('FAILED');
+			return array_merge($this->accept($activityId, (int)$activity['version'], $activity['fk_current_revision']), array('operation_id'=>(int)$operationId,'operation_version'=>(int)$afterOperation['version']));
+		}, true);
+	}
+
+	public function requestCancellation($targetType, $targetId, $expectedTargetVersion, $reason, User $actor)
+	{
+		if (!in_array($targetType, array(MjlCancellationRequest::TARGET_ACTIVITY,MjlCancellationRequest::TARGET_OPERATION), true)
+			|| !$this->decimalId($targetId) || !$this->decimalId($expectedTargetVersion) || !$this->text($reason, 2000, true)) return $this->outcome('INVALID_INPUT');
+		$premise = $targetType === MjlCancellationRequest::TARGET_ACTIVITY ? array('fk_activity'=>(int)$targetId) : $this->readOperationPremise($targetId);
+		if (!$premise) return $this->outcome($premise === false ? 'FAILED' : 'NOT_FOUND');
+		$activityId = (int)$premise['fk_activity']; $reason = $this->normalized(trim($reason));
+		return $this->transaction(function () use ($targetType,$targetId,$expectedTargetVersion,$reason,$actor,$activityId) {
+			$auth=$this->lockActor($actor); $activity=$this->lockActivity($activityId);
+			if(!$auth||$auth['role']!=='AGENT_SAISIE')return $this->reject('FORBIDDEN');
+			if(!$activity)return $this->reject($activity===false?'FAILED':'NOT_FOUND');
+			$assignments=$this->lockAssignments($activityId);$operations=$this->lockOperations($activityId);
+			if($assignments===false||$operations===false)return $this->reject('FAILED');
+			if(!$this->containsAssignment($assignments,$auth['id'])||empty($activity['fk_current_revision'])||!empty($activity['is_cancelled']))return $this->reject('FORBIDDEN');
+			$operation=null;$revision=(int)$activity['fk_current_revision'];$hash=null;
+			if($targetType===MjlCancellationRequest::TARGET_ACTIVITY){if((string)$activity['version']!==(string)$expectedTargetVersion)return $this->reject('STALE_VERSION');$hash=$this->operationSetHash($operations);}
+			else{$operation=$this->operationById($operations,$targetId);if(!$operation)return $this->reject('NOT_FOUND');if((string)$operation['version']!==(string)$expectedTargetVersion)return $this->reject('STALE_VERSION');if(!in_array($operation['status'],array('TODO','IN_PROGRESS'),true))return $this->reject('CONFLICT');if($this->hasPendingOperationException($targetId))return $this->reject('CONFLICT');}
+			if($targetType===MjlCancellationRequest::TARGET_ACTIVITY&&$this->hasPendingCancellation($targetType,$targetId))return $this->reject('CONFLICT');
+			$sql='INSERT INTO '.$this->table('cancellation_request').' (entity,target_type,target_id,fk_activity,fk_target_revision,target_version,target_operation_set_hash,fk_requester,requester_name_snapshot,requester_role_snapshot,reason,status,date_request,version) VALUES ('.$this->entity.",'".$targetType."',".(int)$targetId.','.$activityId.','.$revision.','.(int)$expectedTargetVersion.','.($hash===null?'NULL':"'".$hash."'").','.$auth['id'].",'".$this->db->escape($auth['name'])."','AGENT_SAISIE','".$this->db->escape($reason)."','PENDING',NOW(),1)";
+			if(!$this->db->query($sql))return $this->reject($this->databaseFailureOutcome()==='RETRYABLE_CONFLICT'?'RETRYABLE_CONFLICT':'CONFLICT');
+			$requestId=(int)$this->db->last_insert_id($this->table('cancellation_request'));
+			if(!$this->auditExecution($activity,$actor,'CANCELLATION_REQUESTED','',MjlCancellationRequest::PENDING,array(),array('target_type'=>$targetType,'target_id'=>(int)$targetId,'request_id'=>$requestId),$operation?(int)$targetId:null,array('request_id'=>$requestId,'target_type'=>$targetType),$reason,(int)$expectedTargetVersion))return $this->reject('FAILED');
+			return array_merge($this->accept($activityId,(int)$activity['version'],$revision),array('request_id'=>$requestId,'request_version'=>1));
+		},true);
+	}
+
+	public function withdrawCancellation($requestId, $expectedRequestVersion, User $actor)
+	{
+		return $this->withdrawException('cancellation_request','CANCELLATION_WITHDRAWN',$requestId,$expectedRequestVersion,$actor);
+	}
+
+	public function decideCancellation($requestId, $expectedRequestVersion, $decision, $decisionReason, User $actor)
+	{
+		if(!$this->decimalId($requestId)||!$this->decimalId($expectedRequestVersion)||!in_array($decision,array('APPROVED','REJECTED'),true)||!$this->text($decisionReason,2000,true))return $this->outcome('INVALID_INPUT');
+		$premise=$this->readRequestPremise('cancellation_request',$requestId);if(!$premise)return $this->outcome($premise===false?'FAILED':'NOT_FOUND');
+		$activityId=(int)$premise['fk_activity'];$decisionReason=$this->normalized(trim($decisionReason));
+		$assignmentUserIds=$this->readCurrentAssignmentUserIds($activityId);
+		if($assignmentUserIds===false)return $this->outcome('FAILED');
+		return $this->transaction(function()use($requestId,$expectedRequestVersion,$decision,$decisionReason,$actor,$activityId,$assignmentUserIds){
+			$auth=$this->lockActor($actor,$assignmentUserIds);$activity=$this->lockActivity($activityId);if(!$auth||$auth['role']!=='VALIDATEUR_DEFINITIF')return $this->reject('FORBIDDEN');if(!$activity)return $this->reject($activity===false?'FAILED':'NOT_FOUND');
+			$assignments=$this->lockAssignments($activityId);$operations=$this->lockOperations($activityId);$request=$this->lockRequest('cancellation_request',$requestId);if($assignments===false||$operations===false||!$request)return $this->reject($request===false?'FAILED':'NOT_FOUND');
+			if($this->assignmentUserIds($assignments)!==$assignmentUserIds)return $this->reject('RETRYABLE_CONFLICT');
+			if($request['status']!=='PENDING'||(string)$request['version']!==(string)$expectedRequestVersion)return $this->reject('STALE_VERSION');
+			if($decision==='REJECTED'){if(!$this->closeRequest('cancellation_request',$request,$auth,'REJECTED',$decisionReason))return $this->reject('STALE_VERSION');if(!$this->auditExecution($activity,$actor,'CANCELLATION_REJECTED','PENDING','REJECTED',$request,array('request_id'=>(int)$requestId),(string)$request['target_type']==='OPERATION'?(int)$request['target_id']:null,array('request_id'=>(int)$requestId),$decisionReason,(int)$request['target_version']))return $this->reject('FAILED');return array_merge($this->accept($activityId,(int)$activity['version'],$activity['fk_current_revision']),array('request_id'=>(int)$requestId,'request_version'=>(int)$request['version']+1));}
+			$beforeStatus=$this->synchronizeExecutionStatusBeforeMutation($activity,$operations,$actor);if($beforeStatus===null)return $this->reject('FAILED');
+			if($request['target_type']==='ACTIVITY'){
+				if(!empty($activity['is_cancelled'])||(string)$activity['version']!==(string)$request['target_version']||(string)$activity['fk_current_revision']!==(string)$request['fk_target_revision']||!hash_equals((string)$request['target_operation_set_hash'],$this->operationSetHash($operations)))return $this->reject('STALE_VERSION');
+				if(!$this->closeRequest('cancellation_request',$request,$auth,'APPROVED',$decisionReason))return $this->reject('STALE_VERSION');
+				$newActivityVersion=(int)$activity['version']+1;if(!$this->simpleActivityUpdate($activity,$newActivityVersion,$auth['id'],"validation_status='CANCELLED',is_cancelled=1"))return $this->reject('STALE_VERSION');
+				foreach($operations as&$operation)if(in_array($operation['status'],array('TODO','IN_PROGRESS'),true)){$before=$operation;$res=$this->db->query('UPDATE '.$this->table('operation')." SET status='CANCELLED',version=version+1,fk_user_modif=".$auth['id'].' WHERE entity='.$this->entity.' AND rowid='.(int)$operation['rowid'].' AND version='.(int)$operation['version']);if(!$res||$this->db->affected_rows($res)!==1)return $this->reject('STALE_VERSION');$operation['status']='CANCELLED';$operation['version']=(int)$operation['version']+1;if(!$this->auditExecution($activity,$actor,'OPERATION_CANCELLED',$before['status'],'CANCELLED',$before,$operation,(int)$operation['rowid'],array('request_id'=>(int)$requestId),$decisionReason,(int)$before['version']))return $this->reject('FAILED');}unset($operation);
+				foreach($assignments as$assignment)if(!$this->auditExecution($activity,$actor,'ASSIGNMENT_REMOVED','CURRENT','ENDED',$assignment,array('date_end'=>'NOW'),null,array('request_id'=>(int)$requestId,'target_agent_id'=>(int)$assignment['fk_user']),$decisionReason))return $this->reject('FAILED');
+				if(!$this->endAllAssignments($activityId))return $this->reject('FAILED');
+				$afterActivity=$activity;$afterActivity['validation_status']='CANCELLED';$afterActivity['is_cancelled']=1;$afterActivity['version']=$newActivityVersion;
+				if(!$this->auditExecution($activity,$actor,'ACTIVITY_CANCELLED',$activity['validation_status'],'CANCELLED',$activity,$afterActivity,null,array('request_id'=>(int)$requestId),$decisionReason))return $this->reject('FAILED');
+				$afterStatus=mjl_execution_project_status($afterActivity,$operations,call_user_func($this->calendar));if(!$this->appendExecutionStatusIfChanged($afterActivity,$actor,$beforeStatus,$afterStatus,'ACTIVITY_CANCELLATION'))return $this->reject('FAILED');$activity=$afterActivity;
+			}else{
+				$operation=$this->operationById($operations,$request['target_id']);if(!$operation||(string)$operation['version']!==(string)$request['target_version']||(string)$activity['fk_current_revision']!==(string)$request['fk_target_revision']||!in_array($operation['status'],array('TODO','IN_PROGRESS'),true)||!empty($activity['is_cancelled']))return $this->reject('STALE_VERSION');
+				if(!$this->closeRequest('cancellation_request',$request,$auth,'APPROVED',$decisionReason))return $this->reject('STALE_VERSION');$before=$operation;$res=$this->db->query('UPDATE '.$this->table('operation')." SET status='CANCELLED',version=version+1,fk_user_modif=".$auth['id'].' WHERE entity='.$this->entity.' AND rowid='.(int)$operation['rowid'].' AND version='.(int)$operation['version']);if(!$res||$this->db->affected_rows($res)!==1)return $this->reject('STALE_VERSION');$operation['status']='CANCELLED';$operation['version']=(int)$operation['version']+1;$operations=$this->replaceOperation($operations,$operation);if(!$this->auditExecution($activity,$actor,'OPERATION_CANCELLED',$before['status'],'CANCELLED',$before,$operation,(int)$operation['rowid'],array('request_id'=>(int)$requestId),$decisionReason))return $this->reject('FAILED');$afterStatus=mjl_execution_project_status($activity,$operations,call_user_func($this->calendar));if(!$this->appendExecutionStatusIfChanged($activity,$actor,$beforeStatus,$afterStatus,'OPERATION_CANCELLATION'))return $this->reject('FAILED');
+			}
+			if(!$this->auditExecution($activity,$actor,'CANCELLATION_APPROVED','PENDING','APPROVED',$request,array('request_id'=>(int)$requestId),(string)$request['target_type']==='OPERATION'?(int)$request['target_id']:null,array('request_id'=>(int)$requestId),$decisionReason,(int)$request['target_version']))return $this->reject('FAILED');
+			return array_merge($this->accept($activityId,(int)$activity['version'],$activity['fk_current_revision']),array('request_id'=>(int)$requestId,'request_version'=>(int)$request['version']+1));
+		},true);
+	}
+
+	public function requestReopening($operationId,$expectedOperationVersion,$reason,User $actor)
+	{
+		if(!$this->decimalId($operationId)||!$this->decimalId($expectedOperationVersion)||!$this->text($reason,2000,true))return $this->outcome('INVALID_INPUT');
+		$premise=$this->readOperationPremise($operationId);if(!$premise)return $this->outcome($premise===false?'FAILED':'NOT_FOUND');$activityId=(int)$premise['fk_activity'];$reason=$this->normalized(trim($reason));
+		return $this->transaction(function()use($operationId,$expectedOperationVersion,$reason,$actor,$activityId){
+			$auth=$this->lockActor($actor);$activity=$this->lockActivity($activityId);
+			if(!$auth||$auth['role']!=='AGENT_SAISIE')return $this->reject('FORBIDDEN');if(!$activity)return $this->reject($activity===false?'FAILED':'NOT_FOUND');
+			$assignments=$this->lockAssignments($activityId);$operations=$this->lockOperations($activityId);if($assignments===false||$operations===false)return $this->reject('FAILED');
+			$operation=$this->operationById($operations,$operationId);if(!$this->containsAssignment($assignments,$auth['id'])||!$operation||!empty($activity['is_cancelled']))return $this->reject('FORBIDDEN');
+			if((string)$operation['version']!==(string)$expectedOperationVersion)return $this->reject('STALE_VERSION');if($operation['status']!=='COMPLETED'||$this->hasPendingOperationException($operationId))return $this->reject('CONFLICT');
+			$sql='INSERT INTO '.$this->table('reopening_request').' (entity,fk_activity,fk_operation,fk_target_revision,target_version,fk_requester,requester_name_snapshot,requester_role_snapshot,reason,status,date_request,version) VALUES ('.$this->entity.','.$activityId.','.(int)$operationId.','.(int)$activity['fk_current_revision'].','.(int)$expectedOperationVersion.','.$auth['id'].",'".$this->db->escape($auth['name'])."','AGENT_SAISIE','".$this->db->escape($reason)."','PENDING',NOW(),1)";
+			if(!$this->db->query($sql))return $this->reject('CONFLICT');$requestId=(int)$this->db->last_insert_id($this->table('reopening_request'));
+			if(!$this->auditExecution($activity,$actor,'REOPENING_REQUESTED','','PENDING',array(),array('request_id'=>$requestId),(int)$operationId,array('request_id'=>$requestId),$reason,(int)$expectedOperationVersion))return $this->reject('FAILED');
+			return array_merge($this->accept($activityId,(int)$activity['version'],$activity['fk_current_revision']),array('request_id'=>$requestId,'request_version'=>1));
+		},true);
+	}
+
+	public function withdrawReopening($requestId,$expectedRequestVersion,User $actor){return $this->withdrawException('reopening_request','REOPENING_WITHDRAWN',$requestId,$expectedRequestVersion,$actor);}
+
+	public function decideReopening($requestId,$expectedRequestVersion,$decision,$decisionReason,User $actor)
+	{
+		if(!$this->decimalId($requestId)||!$this->decimalId($expectedRequestVersion)||!in_array($decision,array('APPROVED','REJECTED'),true)||!$this->text($decisionReason,2000,true))return $this->outcome('INVALID_INPUT');
+		$premise=$this->readRequestPremise('reopening_request',$requestId);if(!$premise)return $this->outcome($premise===false?'FAILED':'NOT_FOUND');
+		$activityId=(int)$premise['fk_activity'];$decisionReason=$this->normalized(trim($decisionReason));
+		return $this->transaction(function()use($requestId,$expectedRequestVersion,$decision,$decisionReason,$actor,$activityId){
+			$auth=$this->lockActor($actor);$activity=$this->lockActivity($activityId);
+			if(!$auth||$auth['role']!=='VALIDATEUR_DEFINITIF')return $this->reject('FORBIDDEN');
+			if(!$activity)return $this->reject($activity===false?'FAILED':'NOT_FOUND');
+			$assignments=$this->lockAssignments($activityId);$operations=$this->lockOperations($activityId);$request=$this->lockRequest('reopening_request',$requestId);
+			if($assignments===false||$operations===false||!$request)return $this->reject($request===false?'FAILED':'NOT_FOUND');
+			if($request['status']!=='PENDING'||(string)$request['version']!==(string)$expectedRequestVersion)return $this->reject('STALE_VERSION');
+			if($decision==='REJECTED'){
+				if(!$this->closeRequest('reopening_request',$request,$auth,'REJECTED',$decisionReason))return $this->reject('STALE_VERSION');
+				if(!$this->auditExecution($activity,$actor,'REOPENING_REJECTED','PENDING','REJECTED',$request,array('request_id'=>(int)$requestId),(int)$request['fk_operation'],array('request_id'=>(int)$requestId),$decisionReason,(int)$request['target_version']))return $this->reject('FAILED');
+				return array_merge($this->accept($activityId,(int)$activity['version'],$activity['fk_current_revision']),array('request_id'=>(int)$requestId,'request_version'=>(int)$request['version']+1));
+			}
+			$operation=$this->operationById($operations,$request['fk_operation']);
+			if(!$operation||(string)$operation['version']!==(string)$request['target_version']||(string)$activity['fk_current_revision']!==(string)$request['fk_target_revision']||$operation['status']!=='COMPLETED'||!empty($activity['is_cancelled']))return $this->reject('STALE_VERSION');
+			$beforeStatus=$this->synchronizeExecutionStatusBeforeMutation($activity,$operations,$actor);if($beforeStatus===null)return $this->reject('FAILED');
+			if(!$this->closeRequest('reopening_request',$request,$auth,'APPROVED',$decisionReason))return $this->reject('STALE_VERSION');
+			$before=$operation;$res=$this->db->query('UPDATE '.$this->table('operation')." SET status='IN_PROGRESS',version=version+1,fk_user_modif=".$auth['id'].' WHERE entity='.$this->entity.' AND rowid='.(int)$operation['rowid'].' AND version='.(int)$operation['version']);
+			if(!$res||$this->db->affected_rows($res)!==1)return $this->reject('STALE_VERSION');
+			$operation['status']='IN_PROGRESS';$operation['version']=(int)$operation['version']+1;$operations=$this->replaceOperation($operations,$operation);
+			if(!$this->auditExecution($activity,$actor,'OPERATION_REOPENED','COMPLETED','IN_PROGRESS',$before,$operation,(int)$operation['rowid'],array('request_id'=>(int)$requestId),$decisionReason))return $this->reject('FAILED');
+			$afterStatus=mjl_execution_project_status($activity,$operations,call_user_func($this->calendar));
+			if(!$this->appendExecutionStatusIfChanged($activity,$actor,$beforeStatus,$afterStatus,'REOPENING'))return $this->reject('FAILED');
+			if(!$this->auditExecution($activity,$actor,'REOPENING_APPROVED','PENDING','APPROVED',$request,array('request_id'=>(int)$requestId),(int)$request['fk_operation'],array('request_id'=>(int)$requestId),$decisionReason,(int)$request['target_version']))return $this->reject('FAILED');
+			return array_merge($this->accept($activityId,(int)$activity['version'],$activity['fk_current_revision']),array('request_id'=>(int)$requestId,'request_version'=>(int)$request['version']+1,'operation_version'=>(int)$operation['version']));
+		},true);
+	}
+
+	public function reconcileExecutionStatus($activityId,$actor=null)
+	{
+		if(!$this->decimalId($activityId))return $this->outcome('INVALID_INPUT');return $this->transaction(function()use($activityId,$actor){$activity=$this->lockActivity($activityId);if(!$activity)return $this->reject($activity===false?'FAILED':'NOT_FOUND');$operations=$this->lockOperations($activityId);if($operations===false)return $this->reject('FAILED');$projected=mjl_execution_project_status($activity,$operations,call_user_func($this->calendar));$res=$this->db->query('SELECT state_after FROM '.$this->table('audit_event')." WHERE entity=".$this->entity.' AND activity_id='.(int)$activityId." AND action='ACTIVITY_EXECUTION_STATUS_CHANGED' AND result='SUCCESS' ORDER BY rowid DESC LIMIT 1 FOR UPDATE");$row=$res?$this->db->fetch_object($res):null;$before=$row?(string)$row->state_after:'NOT_STARTED';if(!$this->appendExecutionStatusIfChanged($activity,$actor,$before,$projected,'SCHEDULED'))return $this->reject('FAILED');return array_merge($this->accept($activityId,(int)$activity['version'],$activity['fk_current_revision']),array('execution_status'=>$projected));},true);
 	}
 
 	private function create(array $input, User $actor, $submit)
@@ -196,9 +361,9 @@ class MjlActivityCommand
 		});
 	}
 
-	private function transaction(callable $work)
+	private function transaction(callable $work, $phase3a = false)
 	{
-		try { mjl_rst006a_require_target($this->db); }
+		try { $phase3a ? mjl_rst006b_require_target($this->db) : $this->requirePlanningSchema(); }
 		catch (Throwable $e) { return $this->outcome($e->getMessage() === 'MIGRATION_REQUIRED' ? 'MIGRATION_REQUIRED' : 'FAILED'); }
 		if ($this->entity <= 0 || $this->db->transaction_opened > 0) return $this->outcome('CONFLICT');
 		if (!$this->db->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')) return $this->outcome($this->databaseFailureOutcome());
@@ -224,6 +389,12 @@ class MjlActivityCommand
 		}
 	}
 
+	private function requirePlanningSchema()
+	{
+		if (mjl_rst006b_detect_schema($this->db) === RST006B_SCHEMA_TARGET) return;
+		mjl_rst006a_require_target($this->db);
+	}
+
 	private function databaseFailureOutcome(Throwable $exception = null)
 	{
 		$codes = array();
@@ -242,7 +413,7 @@ class MjlActivityCommand
 	{
 		$ids = array_values(array_unique(array_merge(array((int) $actor->id), array_map('intval', $extraIds)))); sort($ids, SORT_NUMERIC);
 		if (!$ids || $ids[0] <= 0) return false;
-		$res = $this->db->query('SELECT rowid,entity,login,firstname,lastname,admin,statut FROM '.$this->db->prefix().'user WHERE rowid IN ('.implode(',', $ids).') ORDER BY rowid FOR UPDATE');
+		$res = $this->db->query('SELECT rowid,entity,login,firstname,lastname,admin,statut FROM '.$this->db->prefix().'user WHERE entity='.$this->entity.' AND rowid IN ('.implode(',', $ids).') ORDER BY rowid FOR UPDATE');
 		if (!$res) return false; $users = array(); while ($row = $this->db->fetch_object($res)) $users[(int) $row->rowid] = (array) $row;
 		$res = $this->db->query('SELECT fk_user,role_code FROM '.$this->table('user_role').' WHERE entity='.$this->entity.' AND fk_user IN ('.implode(',', $ids).') AND is_active=1 ORDER BY fk_user,rowid FOR UPDATE');
 		if (!$res) return false; $roles = array(); while ($row = $this->db->fetch_object($res)) { if (isset($roles[(int) $row->fk_user])) return false; $roles[(int) $row->fk_user] = $row->role_code; }
@@ -343,6 +514,17 @@ class MjlActivityCommand
 		if(!$res)return false;$rows=array();while($row=$this->db->fetch_object($res))$rows[]=(array)$row;return $rows;
 	}
 
+	private function readCurrentAssignmentUserIds($activityId)
+	{
+		$res=$this->db->query('SELECT fk_user FROM '.$this->table('activity_assignment').' WHERE entity='.$this->entity.' AND fk_activity='.(int)$activityId.' AND date_end IS NULL ORDER BY fk_user,rowid');
+		if(!$res)return false;$ids=array();while($row=$this->db->fetch_object($res))$ids[]=(int)$row->fk_user;return array_values(array_unique($ids));
+	}
+
+	private function assignmentUserIds(array $assignments)
+	{
+		$ids=array();foreach($assignments as$assignment)$ids[]=(int)$assignment['fk_user'];sort($ids,SORT_NUMERIC);return array_values(array_unique($ids));
+	}
+
 	private function containsAssignment(array $assignments,$userId)
 	{
 		foreach($assignments as$assignment)if((string)$assignment['fk_user']===(string)$userId)return true;return false;
@@ -396,7 +578,7 @@ class MjlActivityCommand
 	private function loadContributorProfiles(array $ids)
 	{
 		sort($ids,SORT_NUMERIC);$key=implode(',',$ids);if(isset($this->contributorProfiles[$key]))return $this->contributorProfiles[$key];if(!$ids)return array();
-		$res=$this->db->query('SELECT u.rowid,u.login,u.firstname,u.lastname,r.role_code FROM '.$this->db->prefix().'user u LEFT JOIN '.$this->table('user_role').' r ON r.entity='.$this->entity.' AND r.fk_user=u.rowid AND r.is_active=1 WHERE u.rowid IN ('.implode(',',$ids).') ORDER BY u.rowid FOR UPDATE');if(!$res)return false;$profiles=array();while($row=$this->db->fetch_object($res)){$name=trim(trim($row->firstname).' '.trim($row->lastname));if($name==='')$name=$row->login;$profiles[]=array('user_id'=>(string)$row->rowid,'name'=>$this->normalized($name),'role'=>(string)($row->role_code?:'ROLE_HISTORIQUE'));}if(count($profiles)!==count($ids))return false;$this->contributorProfiles[$key]=$profiles;return $profiles;
+		$res=$this->db->query('SELECT u.rowid,u.login,u.firstname,u.lastname,r.role_code FROM '.$this->db->prefix().'user u LEFT JOIN '.$this->table('user_role').' r ON r.entity='.$this->entity.' AND r.fk_user=u.rowid AND r.is_active=1 WHERE u.entity='.$this->entity.' AND u.rowid IN ('.implode(',',$ids).') ORDER BY u.rowid FOR UPDATE');if(!$res)return false;$profiles=array();while($row=$this->db->fetch_object($res)){$name=trim(trim($row->firstname).' '.trim($row->lastname));if($name==='')$name=$row->login;$profiles[]=array('user_id'=>(string)$row->rowid,'name'=>$this->normalized($name),'role'=>(string)($row->role_code?:'ROLE_HISTORIQUE'));}if(count($profiles)!==count($ids))return false;$this->contributorProfiles[$key]=$profiles;return $profiles;
 	}
 
 	private function verifyRevision(array $revision)
@@ -441,6 +623,28 @@ class MjlActivityCommand
 	private function isContributor($revision,$user){return (int)mjl_rst005_scalar($this->db,'SELECT COUNT(*) FROM '.$this->table('revision_contributor').' WHERE entity='.$this->entity.' AND fk_revision='.(int)$revision.' AND fk_user='.(int)$user)===1;}
 	private function prevalidation($revision){$res=$this->db->query('SELECT rowid,fk_actor FROM '.$this->table('review_decision')." WHERE entity=".$this->entity.' AND fk_revision='.(int)$revision." AND stage='SUPERVISOR' AND decision_type='PREVALIDATED' FOR UPDATE");$row=$res?$this->db->fetch_object($res):null;return $row?(array)$row:array();}
 	private function validatorReturnAllowsAmount(array $prior,$amount){$res=$this->db->query('SELECT requested_amount FROM '.$this->table('review_decision')." WHERE entity=".$this->entity.' AND fk_revision='.(int)$prior['rowid']." AND decision_type='RETURNED_VALIDATOR' FOR UPDATE");$row=$res?$this->db->fetch_object($res):null;return $row&&($row->requested_amount!==null||(string)$prior['proposed_amount']===(string)$amount);}
+	private function operationById(array $operations,$id){foreach($operations as$operation)if((string)$operation['rowid']===(string)$id)return$operation;return array();}
+	private function replaceOperation(array $operations,array $replacement){foreach($operations as$index=>$operation)if((string)$operation['rowid']===(string)$replacement['rowid']){$operations[$index]=$replacement;break;}return$operations;}
+	private function executionTransitionAllowed($before,$after){return($before==='TODO'&&in_array($after,array('TODO','IN_PROGRESS','COMPLETED'),true))||($before==='IN_PROGRESS'&&in_array($after,array('IN_PROGRESS','COMPLETED'),true));}
+	private function operationSetHash(array $operations){$rows=array();foreach($operations as$operation)$rows[]=array('id'=>(string)$operation['rowid'],'version'=>(string)$operation['version'],'status'=>(string)$operation['status']);return hash('sha256',json_encode($rows,JSON_UNESCAPED_SLASHES));}
+	private function readOperationPremise($operationId){$res=$this->db->query('SELECT fk_activity FROM '.$this->table('operation').' WHERE entity='.$this->entity.' AND rowid='.(int)$operationId.' AND date_removed IS NULL');if(!$res)return false;$row=$this->db->fetch_object($res);return$row?(array)$row:array();}
+	private function readRequestPremise($suffix,$requestId){$res=$this->db->query('SELECT fk_activity FROM '.$this->table($suffix).' WHERE entity='.$this->entity.' AND rowid='.(int)$requestId);if(!$res)return false;$row=$this->db->fetch_object($res);return$row?(array)$row:array();}
+	private function lockRequest($suffix,$requestId){$res=$this->db->query('SELECT * FROM '.$this->table($suffix).' WHERE entity='.$this->entity.' AND rowid='.(int)$requestId.' FOR UPDATE');if(!$res)return false;$row=$this->db->fetch_object($res);return$row?(array)$row:array();}
+	private function hasPendingCancellation($targetType,$targetId){return(int)mjl_rst005_scalar($this->db,'SELECT COUNT(*) FROM '.$this->table('cancellation_request')." WHERE entity=".$this->entity." AND target_type='".$this->db->escape($targetType)."' AND target_id=".(int)$targetId." AND status='PENDING' FOR UPDATE")>0;}
+	private function hasPendingOperationException($operationId){$cancel=(int)mjl_rst005_scalar($this->db,'SELECT COUNT(*) FROM '.$this->table('cancellation_request')." WHERE entity=".$this->entity." AND target_type='OPERATION' AND target_id=".(int)$operationId." AND status='PENDING' FOR UPDATE");$reopen=(int)mjl_rst005_scalar($this->db,'SELECT COUNT(*) FROM '.$this->table('reopening_request').' WHERE entity='.$this->entity.' AND fk_operation='.(int)$operationId." AND status='PENDING' FOR UPDATE");return$cancel+$reopen>0;}
+	private function closeRequest($suffix,array$request,array$auth,$status,$reason){$sql='UPDATE '.$this->table($suffix)." SET status='".$this->db->escape($status)."',fk_reviewer=".$auth['id'].",reviewer_name_snapshot='".$this->db->escape($auth['name'])."',reviewer_role_snapshot='VALIDATEUR_DEFINITIF',decision_reason='".$this->db->escape($reason)."',date_decision=NOW(),version=version+1 WHERE entity=".$this->entity.' AND rowid='.(int)$request['rowid'].' AND version='.(int)$request['version']." AND status='PENDING'";$res=$this->db->query($sql);return$res&&$this->db->affected_rows($res)===1;}
+	private function withdrawException($suffix,$action,$requestId,$expectedRequestVersion,User$actor){if(!$this->decimalId($requestId)||!$this->decimalId($expectedRequestVersion))return$this->outcome('INVALID_INPUT');$premise=$this->readRequestPremise($suffix,$requestId);if(!$premise)return$this->outcome($premise===false?'FAILED':'NOT_FOUND');$activityId=(int)$premise['fk_activity'];return$this->transaction(function()use($suffix,$action,$requestId,$expectedRequestVersion,$actor,$activityId){$auth=$this->lockActor($actor);$activity=$this->lockActivity($activityId);if(!$auth||$auth['role']!=='AGENT_SAISIE')return$this->reject('FORBIDDEN');if(!$activity)return$this->reject($activity===false?'FAILED':'NOT_FOUND');$assignments=$this->lockAssignments($activityId);$operations=$this->lockOperations($activityId);$request=$this->lockRequest($suffix,$requestId);if($assignments===false||$operations===false||!$request)return$this->reject($request===false?'FAILED':'NOT_FOUND');if(!$this->containsAssignment($assignments,$auth['id'])||(int)$request['fk_requester']!==$auth['id'])return$this->reject('FORBIDDEN');if($request['status']!=='PENDING'||(string)$request['version']!==(string)$expectedRequestVersion)return$this->reject('STALE_VERSION');$sql='UPDATE '.$this->table($suffix)." SET status='WITHDRAWN',date_withdrawal=NOW(),version=version+1 WHERE entity=".$this->entity.' AND rowid='.(int)$requestId.' AND version='.(int)$expectedRequestVersion." AND status='PENDING'";$res=$this->db->query($sql);if(!$res||$this->db->affected_rows($res)!==1)return$this->reject('STALE_VERSION');$operationId=$suffix==='reopening_request'?(int)$request['fk_operation']:($request['target_type']==='OPERATION'?(int)$request['target_id']:null);if(!$this->auditExecution($activity,$actor,$action,'PENDING','WITHDRAWN',$request,array('request_id'=>(int)$requestId),$operationId,array('request_id'=>(int)$requestId),'',(int)$request['target_version']))return$this->reject('FAILED');return array_merge($this->accept($activityId,(int)$activity['version'],$activity['fk_current_revision']),array('request_id'=>(int)$requestId,'request_version'=>(int)$request['version']+1));},true);}
+	private function synchronizeExecutionStatusBeforeMutation(array$activity,array$operations,$actor)
+	{
+		$projected=mjl_execution_project_status($activity,$operations,call_user_func($this->calendar));
+		$res=$this->db->query('SELECT state_after FROM '.$this->table('audit_event')." WHERE entity=".$this->entity.' AND activity_id='.(int)$activity['rowid']." AND action='ACTIVITY_EXECUTION_STATUS_CHANGED' AND result='SUCCESS' ORDER BY rowid DESC LIMIT 1 FOR UPDATE");
+		if(!$res)return null;$row=$this->db->fetch_object($res);$recorded=$row?(string)$row->state_after:'NOT_STARTED';
+		if(!$this->appendExecutionStatusIfChanged($activity,$actor,$recorded,$projected,'MUTATION_CATCH_UP'))return null;
+		return $projected;
+	}
+
+	private function auditExecution(array$activity,$actor,$action,$before,$after,array$previous,array$new,$operationId=null,array$context=array(),$reason='',$targetVersion=null){if($targetVersion===null)$targetVersion=isset($previous['version'])?(int)$previous['version']:(int)$activity['version'];return mjl_audit_append_in_transaction($this->db,array('entity'=>$this->entity,'object_type'=>$operationId===null?'activity':'operation','object_id'=>$operationId===null?(int)$activity['rowid']:(int)$operationId,'object_ref'=>$activity['ref'],'activity_id'=>(int)$activity['rowid'],'operation_id'=>$operationId,'revision_id'=>!empty($activity['fk_current_revision'])?(int)$activity['fk_current_revision']:null,'actor'=>$actor,'action'=>$action,'state_before'=>$before?:null,'state_after'=>$after?:null,'reason'=>$reason?:null,'previous_values'=>$previous,'new_values'=>$new,'target_version'=>(int)$targetVersion,'result'=>'SUCCESS','context'=>$context))>0;}
+	private function appendExecutionStatusIfChanged(array$activity,$actor,$before,$after,$source){if($before===$after)return true;return$this->auditExecution($activity,$actor,'ACTIVITY_EXECUTION_STATUS_CHANGED',$before,$after,array('execution_status'=>$before),array('execution_status'=>$after),null,array('source'=>$source));}
 	private function simpleActivityUpdate(array $a,$version,$actor,$set){$res=$this->db->query('UPDATE '.$this->table('activity').' SET '.$set.',version='.(int)$version.',fk_user_modif='.(int)$actor.' WHERE entity='.$this->entity.' AND rowid='.(int)$a['rowid'].' AND version='.(int)$a['version']);return $res&&$this->db->affected_rows($res)===1;}
 	private function auditStructureFromRows(array $activity,array $operations){$items=array();foreach($operations as$operation)$items[]=array('name'=>(string)$operation['name'],'type_id'=>(int)$operation['fk_operation_type'],'authorized_amount'=>(string)$operation['authorized_amount']);return array('activity'=>array('partner_id'=>(int)$activity['fk_partner'],'project_id'=>(int)$activity['fk_project'],'name'=>(string)$activity['name'],'description'=>(string)$activity['description'],'date_start'=>(string)$activity['date_start'],'date_end'=>(string)$activity['date_end'],'authorized_amount'=>(string)$activity['draft_authorized_amount']),'operations'=>$items);}
 	private function auditStructureFromInput(array $input){$items=array();foreach($input['operations']as$operation)$items[]=array('name'=>$this->normalized($operation['name']),'type_id'=>(int)$operation['type_id'],'authorized_amount'=>(string)$operation['authorized_amount']);return array('activity'=>array('partner_id'=>(int)$input['partner_id'],'project_id'=>(int)$input['project_id'],'name'=>$this->normalized($input['name']),'description'=>$this->normalized($input['description']),'date_start'=>(string)$input['date_start'],'date_end'=>(string)$input['date_end'],'authorized_amount'=>(string)$input['authorized_amount']),'operations'=>$items);}

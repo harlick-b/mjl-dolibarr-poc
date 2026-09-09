@@ -388,7 +388,8 @@ function mjl_rst006a_install_target(DoliDB $db, $failurePoint = '')
 	$base = dirname(__DIR__).'/sql/';
 	foreach (mjl_rst006a_suffixes() as $suffix) {
 		$table = mjl_rst006a_table($db, $suffix);
-		if (!mjl_rst002b_table_exists($db, $table)) mjl_rst006a_load_sql_file($db, $base.'llx_mjlfinancement_'.$suffix.'.sql');
+		$source = $suffix === 'operation' ? __DIR__.'/schema/rst006a_operation.sql' : $base.'llx_mjlfinancement_'.$suffix.'.sql';
+		if (!mjl_rst002b_table_exists($db, $table)) mjl_rst006a_load_sql_file($db, $source);
 		if ($failurePoint === $suffix) throw new RuntimeException('Injected interruption after '.$suffix.'.');
 	}
 	$keyFiles = array('operation','activity_revision','revision_contributor','review_decision');

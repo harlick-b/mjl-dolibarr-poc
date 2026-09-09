@@ -330,13 +330,13 @@ number does not approve a suffixed unit.
 
 ### RST-006B - Execution exception requests
 
-- Status: `PENDING_APPROVAL`
-- Current component: absent version-bound cancellation and reopening requests.
-- Proposed action: add request structures and guarded transactional transitions.
+- Status: `APPROVED` under DEC-054; source implemented, final gates and cutover pending.
+- Current component: implemented version-bound cancellation and reopening requests.
+- Approved action: add request structures and guarded transactional transitions.
 - Reason: terminal exceptions must not bypass locks or audit.
 - Phase: Phase 3A
 - Dependencies: RST-006A, RST-007B
-- Exact paths: planned `custom/mjlfinancement/operationrequests.php`, planned `custom/mjlfinancement/class/mjlcancellationrequest.class.php`, planned `custom/mjlfinancement/class/mjlreopeningrequest.class.php`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_cancellation_request.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_cancellation_request.key.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_reopening_request.sql`, planned `custom/mjlfinancement/sql/llx_mjlfinancement_reopening_request.key.sql`, `tests/e2e/cases/activity-execution.cases.js`.
+- Exact paths: `custom/mjlfinancement/class/mjlactivitycommand.class.php`, `custom/mjlfinancement/class/mjlactivityassignment.class.php`, `custom/mjlfinancement/class/mjlcancellationrequest.class.php`, `custom/mjlfinancement/class/mjlreopeningrequest.class.php`, `custom/mjlfinancement/class/mjlexecutionreconciler.class.php`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/css/mjl_app.css.php`, `custom/mjlfinancement/lib/mjl_activity_access.lib.php`, `custom/mjlfinancement/lib/mjl_activity_route.lib.php`, `custom/mjlfinancement/lib/mjl_audit.lib.php`, `custom/mjlfinancement/lib/mjl_execution.lib.php`, `custom/mjlfinancement/lib/mjl_operation_route.lib.php`, `custom/mjlfinancement/lib/mjl_operation_request_route.lib.php`, `custom/mjlfinancement/operations.php`, `custom/mjlfinancement/operationrequests.php`, `custom/mjlfinancement/scripts/rst006a_activity_planning.php`, `custom/mjlfinancement/scripts/rst006a-dependent-units.json`, `custom/mjlfinancement/scripts/rst006b_execution.php`, `custom/mjlfinancement/scripts/rst006b_schema.lib.php`, `custom/mjlfinancement/scripts/rst006b_fast_cutover.js`, `custom/mjlfinancement/scripts/rst006b_documents_evidence.php`, `custom/mjlfinancement/scripts/schema/rst006a_operation.sql`, `custom/mjlfinancement/scripts/verification/schema/activity_assignment.php`, `custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_operation.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_cancellation_request.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_cancellation_request.key.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_reopening_request.sql`, and `custom/mjlfinancement/sql/llx_mjlfinancement_reopening_request.key.sql`.
 - Activity cancellation also owns the guarded replacement of
   `chk_mjl_activity_rst006a_phase2`; its separately reviewed exact inventory
   must include `custom/mjlfinancement/class/mjlactivity.class.php`,
@@ -641,18 +641,30 @@ number does not approve a suffixed unit.
 
 ### RST-013C - Phase 3A test reset
 
-- Status: `PENDING_APPROVAL`
-- Current component: the three formerly listed execution/document suite paths
-  are absent after RST-013A; focused Phase 3A unit verification is the only
-  permitted precursor.
-- Proposed action: create new target spent, lifecycle, cancellation, reopening,
+- Status: `APPROVED` under DEC-054; source implemented, final gates and cutover pending.
+- Current component: target spent, lifecycle, cancellation, reopening,
+  derivation, completeness, document-audit, and concurrency journeys.
+- Approved action: create new target spent, lifecycle, cancellation, reopening,
   derivation, completeness, document-audit, and concurrency journeys.
 - Reason: Phase 3A must validate execution and exception behavior before its verdict.
 - Phase: Phase 3A
 - Dependencies: RST-006B, RST-007B, RST-013B
-- Exact paths: planned `tests/e2e/cases/activity-execution.cases.js`, planned
-  `tests/e2e/documents-audit.spec.js`, and planned
-  `custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php`.
+- Exact paths: `tests/e2e/activity-execution.spec.js`,
+  `tests/e2e/cases/activity-execution.cases.js`,
+  `tests/e2e/document-containment.spec.js`,
+  `tests/e2e/documents-audit.spec.js`, `tests/manual/accessibility-gate.spec.js`,
+  `tests/e2e/fixture-isolation.spec.js`,
+  `tests/e2e/rst002b-activity-assignment.spec.js`,
+  `tests/e2e/rst006a-activity-planning.spec.js`,
+  `tests/e2e/zz-phase2-planning.spec.js`,
+  `tests/e2e/cases/rst006a.cases.js`,
+  `tests/fixtures/rst006b-schema-probe.php`,
+  `tests/unit/phase3a-execution.test.js`, `tests/unit/rst006b-fast-cutover.test.js`,
+  `tests/unit/rst006a-activity-planning.test.js`,
+  `tests/unit/disposable-run.test.js`, `tests/unit/phase2-planning-surfaces.test.js`,
+  `custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php`,
+  `tests/runner/disposable-run.js`, `tests/runner/run-suite.js`,
+  `playwright.config.js`, and `package.json`.
 - Exact tables/data: disposable Phase 3A test fixtures only.
 - Action and data impact: add target execution/request assertions while
   retaining guarded-document security evidence; local business rows are
@@ -798,13 +810,16 @@ number does not approve a suffixed unit.
 
 ### RST-014C - Phase 3A disposable test fixtures
 
-- Status: `PENDING_APPROVAL`
-- Current component: Phase 2 isolated factories without execution and exception-request cases.
-- Proposed action: add explicit spent/null/zero, status, cancellation, and reopening cases to disposable factories.
+- Status: `APPROVED` under DEC-054; source implemented, final gates and cutover pending.
+- Current component: Phase 2 isolated factories extended with execution and exception-request cases.
+- Approved action: add explicit spent/null/zero, status, cancellation, and reopening cases to disposable factories.
 - Reason: Phase 3A edge cases require evidence without persistent sample data.
 - Phase: Phase 3A
 - Dependencies: RST-006B, RST-014B
-- Exact paths: Phase 3A files under `tests/fixtures` or `tests/helpers` approved with RST-013C.
+- Exact paths: `tests/helpers/phase3a-fixture.js`,
+  `tests/fixtures/phase3a-fixture.php`, `tests/fixtures/phase3a-command.php`,
+  and the bounded concurrency extension in
+  `tests/fixtures/rst006a-parallel-worker.php`.
 - Exact tables/data: disposable Opération, cancellation-request, and reopening-request rows inside an isolated test tenant only.
 - Action and data impact: create explicit test values per run without converting null to zero or fabricating legacy history; destroy all records with the tenant.
 - Backup prerequisite: Phase 2 commit and runner snapshot.

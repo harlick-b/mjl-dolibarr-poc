@@ -22,6 +22,9 @@ CREATE TABLE llx_mjlfinancement_operation (
 	CONSTRAINT chk_mjl_operation_name CHECK (name REGEXP '[^[:space:]]'),
 	CONSTRAINT chk_mjl_operation_amount CHECK (authorized_amount > 0),
 	CONSTRAINT chk_mjl_operation_version CHECK (version > 0),
-	CONSTRAINT chk_mjl_operation_phase2 CHECK (status='TODO' AND spent_amount IS NULL AND observation IS NULL),
+	CONSTRAINT chk_mjl_operation_execution_status CHECK (status IN ('TODO','IN_PROGRESS','COMPLETED','CANCELLED')),
+	CONSTRAINT chk_mjl_operation_spent_amount CHECK (spent_amount IS NULL OR spent_amount >= 0),
+	CONSTRAINT chk_mjl_operation_observation CHECK (observation IS NULL OR observation REGEXP '[^[:space:]]'),
+	CONSTRAINT chk_mjl_operation_execution_shape CHECK ((spent_amount IS NULL OR spent_amount=authorized_amount OR (observation IS NOT NULL AND observation REGEXP '[^[:space:]]')) AND (status<>'COMPLETED' OR spent_amount IS NOT NULL)),
 	CONSTRAINT chk_mjl_operation_removal CHECK ((date_removed IS NULL AND fk_user_removed IS NULL) OR (date_removed IS NOT NULL AND fk_user_removed IS NOT NULL))
 ) ENGINE=innodb DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;

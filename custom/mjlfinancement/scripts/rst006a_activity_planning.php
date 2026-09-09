@@ -15,6 +15,7 @@ function mjl_rst006a_empty_tenant_evidence(DoliDB $db)
 		'non_admin_users' => 'SELECT COUNT(*) FROM '.$db->prefix().'user WHERE rowid<>1',
 		'partners' => 'SELECT COUNT(*) FROM '.$db->prefix().'societe',
 		'projects' => 'SELECT COUNT(*) FROM '.$db->prefix().'projet',
+		'test_constants' => 'SELECT COUNT(*) FROM '.$db->prefix()."const WHERE name IN ('MJL_AUTH_E2E_EXPOSE_TOKENS','MJL_RST_PHASE1_FAILURE_INJECTION','MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION')".(getenv('MJL_DISPOSABLE_TEST_TENANT')==='1'?'':" OR name='MJL_DISPOSABLE_FIXTURE_SENTINEL'")." OR name LIKE 'MJL_TEST_FIXTURE_NAMESPACE_%'",
 	);
 	foreach ($queries as $name => $sql) {
 		$counts[$name] = (int) mjl_rst005_scalar($db, $sql);
@@ -67,7 +68,7 @@ function mjl_rst006a_require_rollback_dependencies(DoliDB $db, $disposable)
 		throw new RuntimeException('Rollback dependency status is missing, malformed, or inconsistent.');
 	}
 	$derivedExecuted=array();
-	foreach($data['statuses']as$unit=>$status){if(!is_string($status)||!in_array($status,array('PENDING_APPROVAL','APPROVED_IMPLEMENTATION','EXECUTED'),true))throw new RuntimeException('Rollback dependency status is malformed.');if($status==='EXECUTED')$derivedExecuted[]=$unit;}
+	foreach($data['statuses']as$unit=>$status){if(!is_string($status)||!in_array($status,array('PENDING_APPROVAL','APPROVED','EXECUTED'),true))throw new RuntimeException('Rollback dependency status is malformed.');if($status==='EXECUTED')$derivedExecuted[]=$unit;}
 	foreach ($data['executed'] as $unit) if (!is_string($unit) || !in_array($unit, $expected, true)) throw new RuntimeException('Rollback dependency status is malformed.');
 	if($derivedExecuted!==$data['executed'])throw new RuntimeException('Rollback dependency execution index is inconsistent.');
 	if ($data['executed'] && !$disposable) throw new RuntimeException('Rollback refused: a dependent reset unit is executed.');

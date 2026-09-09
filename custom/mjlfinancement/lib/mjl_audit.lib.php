@@ -114,7 +114,7 @@ function mjl_audit_insert(DoliDB $db, array $event)
 	if ($entity <= 0 || $objectType === '' || $action === '' || !in_array($result, array('SUCCESS', 'DENIED', 'FAILED'), true)) {
 		return -1;
 	}
-	$actor = isset($event['actor']) ? $event['actor'] : (isset($user) ? $user : null);
+	$actor = array_key_exists('actor', $event) ? $event['actor'] : (isset($user) ? $user : null);
 	list($actorId, $actorName, $actorRole) = mjl_audit_actor_snapshot($actor);
 	if (!empty($event['actor_name_snapshot'])) $actorName = (string) $event['actor_name_snapshot'];
 	if (!empty($event['actor_role_snapshot'])) $actorRole = (string) $event['actor_role_snapshot'];

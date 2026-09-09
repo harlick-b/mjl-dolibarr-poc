@@ -335,7 +335,7 @@ async function runUnit(signal) {
   }
 }
 
-const verificationScripts = ['verification/schema/activity_assignment.php', 'verification/schema/activity_planning.php'];
+const verificationScripts = ['verification/schema/activity_assignment.php', 'verification/schema/activity_execution_schema.php'];
 
 async function runVerification(plan, signal) {
   for (const entry of verificationScripts) {
@@ -483,9 +483,16 @@ async function runPlaywright(plan, target, signal) {
 			'no-role, inactive, unassigned, and Admin actors cannot cross Activity access boundaries','oversized and mass-assigned Activity requests fail before mutation','missing CSRF and replayed contextual submissions fail with exact mutation counts','Activity search output escapes stored HTML',
 		].sort();
 		if (JSON.stringify(discovered) !== JSON.stringify(expected)) throw new Error(`RST-006A focused inventory changed: expected ${expected.length}, discovered ${discovered.length}.`);
-	}
+  }
   if (target === 'e2e') {
-    args.push('--config=playwright.config.js');
+    const batches = [
+      ['tests/e2e/activity-execution.spec.js','tests/e2e/document-containment.spec.js','tests/e2e/documents-audit.spec.js'],
+      ['tests/e2e/auth-concurrency.spec.js','tests/e2e/partners-projects.spec.js'],
+      ['tests/e2e/fixture-isolation.spec.js'],
+      ['tests/e2e/rst002b-activity-assignment.spec.js','tests/e2e/rst006a-activity-planning.spec.js','tests/e2e/zz-phase2-planning.spec.js'],
+    ];
+    for (const batch of batches) await runCommand('npx', ['playwright','test',...batch,'--config=playwright.config.js'], { env: composeEnvironment(plan), signal, timeoutMs: 15 * 60 * 1000 });
+    return;
   } else if (target === 'rst003') {
     args.push('tests/e2e/partners-projects.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase1-all') {
@@ -504,6 +511,8 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/rst006a-activity-planning.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase2') {
     args.push('tests/e2e/rst006a-activity-planning.spec.js', 'tests/e2e/zz-phase2-planning.spec.js', '--config=playwright.config.js');
+  } else if (target === 'phase3a') {
+    args.push('tests/e2e/activity-execution.spec.js', 'tests/e2e/document-containment.spec.js', 'tests/e2e/documents-audit.spec.js', '--config=playwright.config.js');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
 	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
@@ -724,7 +733,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
@@ -866,6 +875,50 @@ async function main() {
         await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
         await runPlaywright(plan, layer, controller.signal);
       }
+	  else if (layer === 'phase3a') {
+		await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php'], { signal: controller.signal });
+		const cronCount=(await databaseSql(plan,"SELECT COUNT(*) FROM llx_cronjob WHERE objectname='MjlExecutionReconciler' AND methodename='run' AND frequency=1 AND unitfrequency=3600 AND status=1",{scalar:true,signal:controller.signal})).trim();
+		if(cronCount!=='1')throw new Error(`Phase 3A hourly reconciler registration mismatch: ${cronCount}.`);
+		const migration='/var/www/html/custom/mjlfinancement/scripts/rst006b_execution.php';
+		const failurePoints=['operation-checks','activity-checks',...Array.from({length:4},(_,index)=>`cancellation_request-fk-${String(index+1).padStart(2,'0')}`),'cancellation_request',...Array.from({length:5},(_,index)=>`reopening_request-fk-${String(index+1).padStart(2,'0')}`),'reopening_request','guards'];
+		const unguardedShared=await expectComposeFailure(plan,['exec','-T','-e','MJL_DISPOSABLE_TEST_TENANT=0','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],'RST-006B unguarded shared apply',{signal:controller.signal});
+		if(!unguardedShared.includes('guarded cutover'))throw new Error('RST-006B raw shared apply was not refused by the cutover capability guard.');
+		const unguardedRollback=await expectComposeFailure(plan,['exec','-T','-e','MJL_DISPOSABLE_TEST_TENANT=0','dolibarr','php',migration,'--mode=rollback','--confirm=RST-006B'],'RST-006B shared rollback',{signal:controller.signal});
+		if(!unguardedRollback.includes('disposable tenant'))throw new Error('RST-006B shared rollback was not refused.');
+		await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=rollback','--confirm=RST-006B'],{signal:controller.signal});
+		for(const failurePoint of failurePoints){const output=await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B',`--failure-point=${failurePoint}`],`RST-006B ${failurePoint}`,{signal:controller.signal});if(!output.includes(`Injected RST-006B interruption after ${failurePoint}`))throw new Error(`RST-006B ${failurePoint} failed for the wrong reason.`);await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],{signal:controller.signal});await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=verify'],{signal:controller.signal});await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=rollback','--confirm=RST-006B'],{signal:controller.signal});}
+		const malformed=await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B','--failure-point=cancellation_request'],'RST-006B malformed-prefix setup',{signal:controller.signal});if(!malformed.includes('Injected RST-006B interruption'))throw new Error('RST-006B malformed-prefix setup failed for the wrong reason.');
+		await databaseSql(plan,'ALTER TABLE llx_mjlfinancement_cancellation_request ADD COLUMN malformed_probe INT NULL',{signal:controller.signal});
+		const refused=await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],'RST-006B unknown schema refusal',{signal:controller.signal});if(!refused.includes('unknown predecessor state'))throw new Error('RST-006B malformed prefix was not refused as unknown.');
+		await databaseSql(plan,'ALTER TABLE llx_mjlfinancement_cancellation_request DROP COLUMN malformed_probe',{signal:controller.signal});
+		await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],{signal:controller.signal});
+		await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],{signal:controller.signal});
+		const verifier=['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php'];
+		await compose(plan,verifier,{signal:controller.signal});
+		const mutations=[
+		  ['column default','ALTER TABLE llx_mjlfinancement_reopening_request MODIFY status VARCHAR(16) NOT NULL DEFAULT \'APPROVED\'','ALTER TABLE llx_mjlfinancement_reopening_request MODIFY status VARCHAR(16) NOT NULL DEFAULT \'PENDING\''],
+		  ['unique pending index','ALTER TABLE llx_mjlfinancement_cancellation_request DROP INDEX uk_mjl_cancellation_pending, ADD INDEX uk_mjl_cancellation_pending (entity,pending_target_key)','ALTER TABLE llx_mjlfinancement_cancellation_request DROP INDEX uk_mjl_cancellation_pending, ADD UNIQUE INDEX uk_mjl_cancellation_pending (entity,pending_target_key)'],
+		  ['foreign-key contract','ALTER TABLE llx_mjlfinancement_reopening_request DROP FOREIGN KEY fk_mjl_reopening_requester','ALTER TABLE llx_mjlfinancement_reopening_request ADD CONSTRAINT fk_mjl_reopening_requester FOREIGN KEY (fk_requester) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT'],
+		  ['retained execution check',"ALTER TABLE llx_mjlfinancement_operation DROP CONSTRAINT chk_mjl_operation_execution_status, ADD CONSTRAINT chk_mjl_operation_execution_status CHECK (status IN ('TODO','IN_PROGRESS','COMPLETED','CANCELLED','BROKEN'))","ALTER TABLE llx_mjlfinancement_operation DROP CONSTRAINT chk_mjl_operation_execution_status, ADD CONSTRAINT chk_mjl_operation_execution_status CHECK (status IN ('TODO','IN_PROGRESS','COMPLETED','CANCELLED'))"],
+		  ['unexpected trigger',"CREATE TRIGGER llx_mjl_rst006b_unexpected BEFORE DELETE ON llx_mjlfinancement_reopening_request FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='unexpected'",'DROP TRIGGER llx_mjl_rst006b_unexpected'],
+		  ['table collation','ALTER TABLE llx_mjlfinancement_reopening_request CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_bin','ALTER TABLE llx_mjlfinancement_reopening_request CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci'],
+		];
+		for(const [category,mutate,restore]of mutations){await databaseSql(plan,mutate,{signal:controller.signal});await expectComposeFailure(plan,verifier,`RST-006B exact ${category}`,{signal:controller.signal});await databaseSql(plan,restore,{signal:controller.signal});await compose(plan,verifier,{signal:controller.signal});}
+		const probe='/opt/mjl-tests/fixtures/rst006b-schema-probe.php';
+		for(const [category,mutate,restore]of [
+		  ['swapped Activity and Operation stages','swap-operation-to-predecessor','restore-operation-target'],
+		  ['both old and new Activity trigger generations','install-old-activity-trigger','drop-old-activity-trigger'],
+		  ['missing required transitioned trigger','drop-required-trigger','restore-required-trigger'],
+		]){await compose(plan,['exec','-T','--user','www-data','dolibarr','php',probe,mutate],{signal:controller.signal});await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],`RST-006B malformed prefix: ${category}`,{signal:controller.signal});await compose(plan,['exec','-T','--user','www-data','dolibarr','php',probe,restore],{signal:controller.signal});await compose(plan,verifier,{signal:controller.signal});}
+		await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=rollback','--confirm=RST-006B'],{signal:controller.signal});
+		await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B','--failure-point=reopening_request'],'RST-006B trigger-prefix setup',{signal:controller.signal});
+		await compose(plan,['exec','-T','--user','www-data','dolibarr','php',probe,'install-out-of-order-trigger'],{signal:controller.signal});
+		await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],'RST-006B out-of-order new trigger prefix',{signal:controller.signal});
+		await compose(plan,['exec','-T','--user','www-data','dolibarr','php',probe,'drop-out-of-order-trigger'],{signal:controller.signal});
+		await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],{signal:controller.signal});
+		await compose(plan,verifier,{signal:controller.signal});
+		await runPlaywright(plan, layer, controller.signal);
+	  }
       else if (layer === 'rst006a') {
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
         const allForwardDdlPoints = Array.from({ length: 43 }, (_, index) => `forward-${String(index + 1).padStart(3, '0')}`);
@@ -968,7 +1021,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

@@ -5,6 +5,8 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form_submission.l
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_form.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_presentation.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_execution.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_timeline.lib.php';
@@ -93,7 +95,7 @@ function mjl_activity_list_query(array $source)
 			if (mb_strlen($value, 'UTF-8') > 100) return null;
 			$filters['q'] = $value;
 		} elseif ($name === 'status') {
-			$allowed = array('DRAFT','ABANDONED','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED');
+			$allowed = array('DRAFT','ABANDONED','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED','CANCELLED');
 			if ($value !== '' && !in_array($value, $allowed, true)) return null;
 			$filters['status'] = $value;
 		} elseif ($name === 'project_id') {
@@ -137,8 +139,8 @@ function mjl_activity_route()
 {
 	global $db,$user;
 	if (empty($user->id) || !mjl_activity_access_can_enter_list($user)) mjl_activity_forbidden();
-	try { mjl_rst006a_require_target($db); } catch (Throwable $e) {
-		http_response_code(503); llxHeader('', 'Activités'); mjl_navigation_shell_start($user); print '<main class="mjl-workspace">'.mjl_ui_system_state('unavailable','Migration requise','La planification des Activités sera disponible après la migration RST-006A.').'</main>'; mjl_navigation_shell_end(); llxFooter(); return;
+	try { mjl_rst006b_require_target($db); } catch (Throwable $e) {
+		http_response_code(503); llxHeader('', 'Activités'); mjl_navigation_shell_start($user); print '<div class="mjl-workspace">'.mjl_ui_system_state('unavailable','Migration requise','Le suivi d’exécution sera disponible après la migration RST-006B.').'</div>'; mjl_navigation_shell_end(); llxFooter(); return;
 	}
 	$method=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'));
 	if($method==='POST'){
@@ -149,10 +151,18 @@ function mjl_activity_route()
 	if(isset($requestSource['action'])&&!is_scalar($requestSource['action']))mjl_activity_bad_request();
 	$action=isset($requestSource['action'])?(string)$requestSource['action']:'';
 	$getAllowed=array('','create','edit','review');
-	$postAllowed=array('create_draft','create_submit','save_structure','submit_revision','abandon','restore','review_revision','assignment_change');
+	$postAllowed=array('create_draft','create_submit','save_structure','submit_revision','abandon','restore','review_revision','assignment_change','request_cancellation');
 	if (($method==='GET'&&!in_array($action,$getAllowed,true))||($method==='POST'&&!in_array($action,$postAllowed,true))||!in_array($method,array('GET','POST'),true))mjl_activity_forbidden();
 	$id=mjl_activity_decimal('id',$method==='POST'?$_POST:$_GET);
 	if(isset($requestSource['id'])&&$id==='')mjl_activity_bad_request();
+	if($method==='POST')$allowedGetKeys=array('id');
+	elseif($action==='create')$allowedGetKeys=array('action','result','recovery');
+	elseif($action==='edit')$allowedGetKeys=array('action','id','result','recovery');
+	elseif($action==='review')$allowedGetKeys=array('action','id','result');
+	elseif($id!=='')$allowedGetKeys=array('action','id','result');
+	else$allowedGetKeys=array('action','q','status','project_id','page','result');
+	$allowedGetKeys=array_merge($allowedGetKeys,array('mainmenu','leftmenu'));
+	foreach(array_keys($_GET)as$key)if(!is_string($key)||!in_array($key,$allowedGetKeys,true))mjl_activity_forbidden();
 	if($method==='POST'&&isset($_GET['id'])&&mjl_activity_decimal('id',$_GET)!==$id)mjl_activity_forbidden();
 	if ($action==='create' && $id!=='') mjl_activity_forbidden();
 	if ($action!=='' && $action!=='create' && strpos($action,'create_')!==0 && $id==='') mjl_activity_forbidden();
@@ -165,13 +175,13 @@ function mjl_activity_route()
 	if ($action==='' && $id==='' && mjl_activity_list_query($_GET)===null) mjl_activity_bad_request();
 	llxHeader('', 'Activités');
 	mjl_navigation_shell_start($user);
-	print '<main class="mjl-workspace">';
+	print '<div class="mjl-workspace">';
 	print mjl_activity_result_feedback();
 	if($action==='create'||$action==='edit')mjl_activity_render_form($row);
 	elseif($action==='review')mjl_activity_render_review($row);
 	elseif($row)mjl_activity_render_detail($row);
 	else mjl_activity_render_list();
-	print '</main><script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/activities.js?v=006a"></script>';
+	print '</div><script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/activities.js?v=006a"></script>';
 	mjl_navigation_shell_end(); llxFooter();
 }
 
@@ -186,7 +196,7 @@ function mjl_activity_result_feedback()
 		'STALE_VERSION' => array('warning', 'La fiche a changé', 'Rechargez la page avant de reprendre votre modification.'),
 		'CONFLICT' => array('warning', 'Action impossible dans l’état actuel', 'Vérifiez le statut, la date de début et l’équilibre des montants.'),
 		'RETRYABLE_CONFLICT' => array('warning', 'Conflit temporaire', 'Aucune modification n’a été enregistrée. Réessayez dans quelques instants.'),
-		'MIGRATION_REQUIRED' => array('unavailable', 'Migration requise', 'La planification est indisponible jusqu’à la migration RST-006A.'),
+		'MIGRATION_REQUIRED' => array('unavailable', 'Migration requise', 'Le suivi d’exécution est indisponible jusqu’à la migration RST-006B.'),
 		'FAILED' => array('danger', 'Échec de l’enregistrement', 'Aucune modification n’a été enregistrée. Contactez l’administrateur si le problème persiste.'),
 	);
 	$code = (string) $_GET['result'];
@@ -199,7 +209,7 @@ function mjl_activity_post($action,$id)
 	global $user;
 	$base=array('token','mjl_submission','action','id','revision_id','version');
 	$structure=array('partner_id','project_id','name','description','date_start','date_end','authorized_amount','operation_key','operation_id','operation_version','operation_name','operation_type_id','operation_amount');
-	$extras=array('create_draft'=>array('mjl_submission_create_submit'),'create_submit'=>array('mjl_submission_create_submit'),'abandon'=>array('reason'),'restore'=>array('primary_agent_id','reason'),'review_revision'=>array('decision','reason','requested_amount'),'assignment_change'=>array('assignment_operation','target_agent_id','reason'));
+	$extras=array('create_draft'=>array('mjl_submission_create_submit'),'create_submit'=>array('mjl_submission_create_submit'),'abandon'=>array('reason'),'restore'=>array('primary_agent_id','reason'),'review_revision'=>array('decision','reason','requested_amount'),'assignment_change'=>array('assignment_operation','target_agent_id','reason'),'request_cancellation'=>array('reason'));
 	$allowed=array_merge($base,in_array($action,array('create_draft','create_submit','save_structure'),true)?$structure:array(),$extras[$action]??array());
 	foreach(array_keys($_POST) as $key)if(!is_string($key)||!in_array($key,$allowed,true))mjl_activity_forbidden();
 	if (!function_exists('currentToken') || !isset($_POST['token']) || !is_scalar($_POST['token']) || !hash_equals((string)currentToken(),(string)$_POST['token']))mjl_activity_forbidden();
@@ -215,6 +225,7 @@ function mjl_activity_post($action,$id)
 	elseif($action==='abandon')$result=$command->abandonDraft($id,$version,$user,isset($_POST['reason'])&&is_scalar($_POST['reason'])?(string)$_POST['reason']:'');
 	elseif($action==='restore')$result=$command->restoreDraft($id,$version,$user,mjl_activity_decimal('primary_agent_id',$_POST),isset($_POST['reason'])&&is_scalar($_POST['reason'])?(string)$_POST['reason']:'');
 	elseif($action==='review_revision')$result=$command->reviewRevision($id,$revision,$version,$user,isset($_POST['decision'])&&is_scalar($_POST['decision'])?(string)$_POST['decision']:'',isset($_POST['reason'])&&is_scalar($_POST['reason'])?(string)$_POST['reason']:'',isset($_POST['requested_amount'])&&$_POST['requested_amount']!==''&&is_scalar($_POST['requested_amount'])?(string)$_POST['requested_amount']:null);
+	elseif($action==='request_cancellation')$result=$command->requestCancellation('ACTIVITY',$id,$version,isset($_POST['reason'])&&is_scalar($_POST['reason'])?(string)$_POST['reason']:'',$user);
 	else {
 		$service=new MjlActivityAssignment($GLOBALS['db']);
 		$result=$service->changeAssignment($id,$version,$user,isset($_POST['assignment_operation'])&&is_scalar($_POST['assignment_operation'])?(string)$_POST['assignment_operation']:'',mjl_activity_decimal('target_agent_id',$_POST),isset($_POST['reason'])&&is_scalar($_POST['reason'])?(string)$_POST['reason']:'');
@@ -240,7 +251,7 @@ function mjl_activity_render_list()
 	if($rows===false)mjl_activity_bad_request();$hasNext=count($rows)>50;$rows=array_slice($rows, 0, 50);
 	$options=array('description'=>'Planifier et suivre les Activités de l’entité active.');if(mjl_scope_is_input_agent($user))$options['primary_action']=array('label'=>'Créer une Activité','href'=>DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?action=create');
 	print mjl_page_header_render('Activités',$options).'<section class="mjl-workspace-section"><form class="mjl-table-filters mjl-activity-filters" method="GET" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php"><label for="activity-q">Recherche</label><input id="activity-q" name="q" maxlength="100" value="'.dol_escape_htmltag($filters['q']).'"><label for="activity-status">Statut</label><select id="activity-status" name="status"><option value="">Tous les statuts</option>';
-	foreach(array('DRAFT','ABANDONED','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED') as$status){$label=mjl_ui_activity_status($status);print '<option value="'.$status.'"'.($filters['status']===$status?' selected':'').'>'.dol_escape_htmltag($label['label']).'</option>';}
+	foreach(array('DRAFT','ABANDONED','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED','CANCELLED') as$status){$label=mjl_ui_activity_status($status);print '<option value="'.$status.'"'.($filters['status']===$status?' selected':'').'>'.dol_escape_htmltag($label['label']).'</option>';}
 	print '</select><label for="activity-project">Projet</label><input id="activity-project" name="project_id" inputmode="numeric" pattern="[1-9][0-9]*" value="'.dol_escape_htmltag($filters['project_id']).'"><button class="button" type="submit">Filtrer</button></form>';
 	if(!$rows)print mjl_ui_system_state('initial-empty','Aucune Activité','Aucune Activité n’est enregistrée dans l’entité active.');
 	else{print '<div class="div-table-responsive-no-min"><table class="noborder centpercent mjl-responsive-table"><thead><tr class="liste_titre"><th>Référence</th><th>Activité</th><th>Projet</th><th>Statut</th></tr></thead><tbody>';foreach($rows as$row){$url=DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.(int)$row->rowid;$status=mjl_ui_activity_status($row->validation_status);print '<tr class="oddeven"><td data-label="Référence"><a href="'.$url.'">'.dol_escape_htmltag($row->ref).'</a></td><td data-label="Activité">'.dol_escape_htmltag($row->name).'</td><td data-label="Projet">'.dol_escape_htmltag(trim($row->project_ref.' - '.$row->project_title)).'</td><td data-label="Statut">'.mjl_ui_status_badge($status).'</td></tr>';}print '</tbody></table></div>';}
@@ -300,15 +311,17 @@ function mjl_activity_render_operation_row($op,$index)
 
 function mjl_activity_render_detail(array $row)
 {
-	global $user;$id=(int)$row['rowid'];$status=mjl_ui_activity_status($row['validation_status']);$options=array('breadcrumb'=>array(array('label'=>'Activités','href'=>DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),array('label'=>$row['ref'])),'description'=>$row['project_ref'].' - '.$row['project_title']);
+	global $user;$id=(int)$row['rowid'];$status=mjl_ui_activity_status($row['validation_status']);$operations=mjl_activity_operations($id);$summary=mjl_execution_summarize($operations);$executionLabels=array('NOT_STARTED'=>'Non démarrée','UPCOMING'=>'À venir','IN_PROGRESS'=>'En cours','OVERDUE'=>'En retard','COMPLETED'=>'Terminée','CANCELLED'=>'Annulée');$executionStatus=mjl_execution_project_status($row,$operations,(new DateTimeImmutable('now',new DateTimeZone('Africa/Porto-Novo')))->format('Y-m-d'));$options=array('breadcrumb'=>array(array('label'=>'Activités','href'=>DOL_URL_ROOT.'/custom/mjlfinancement/activities.php'),array('label'=>$row['ref'])),'description'=>$row['project_ref'].' - '.$row['project_title']);
 	if(mjl_scope_is_input_agent($user)&&in_array($row['validation_status'],array('DRAFT','RETURNED_SUPERVISOR','RETURNED_VALIDATOR'),true))$options['primary_action']=array('label'=>'Modifier','href'=>DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.$id.'&action=edit');
 	$reviewEligibility=mjl_activity_review_eligibility($row,$user);if($reviewEligibility['allowed'])$options['primary_action']=array('label'=>'Examiner la révision','href'=>DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.$id.'&action=review');
 	print mjl_page_header_render($row['ref'].' - '.$row['name'],$options).'<section class="mjl-workspace-section"><p>'.mjl_ui_status_badge($status).'</p>';
 	if(!$reviewEligibility['allowed']&&!empty($row['fk_current_revision'])&&in_array(mjl_scope_effective_role_code($user),array('AGENT_VERIFICATEUR','VALIDATEUR_DEFINITIF'),true))print mjl_ui_system_state('permission','Révision verrouillée',$reviewEligibility['reason']);
-	print '<dl class="mjl-activity-meta"><div><dt>Partenaire</dt><dd>'.dol_escape_htmltag($row['partner_name']).'</dd></div><div><dt>Période</dt><dd>'.dol_escape_htmltag($row['date_start'].' - '.$row['date_end']).'</dd></div><div><dt>Montant autorisé</dt><dd>'.dol_escape_htmltag($row['draft_authorized_amount']).' F CFA</dd></div><div><dt>Version</dt><dd>'.(int)$row['version'].'</dd></div></dl><h2>Opérations planifiées</h2><ul>';foreach(mjl_activity_operations($id) as$op)print '<li>'.dol_escape_htmltag($op['name'].' - '.$op['type_label'].' - '.$op['authorized_amount'].' F CFA').'</li>';print '</ul>';
+	$completenessLabels=array('NOT_STARTED'=>'Non démarrée','PARTIAL'=>'Partiellement renseignée','COMPLETE'=>'Complète');$operationLabels=array('TODO'=>'À faire','IN_PROGRESS'=>'En cours','COMPLETED'=>'Terminée','CANCELLED'=>'Annulée');
+	print '<dl class="mjl-activity-meta"><div><dt>Partenaire</dt><dd>'.dol_escape_htmltag($row['partner_name']).'</dd></div><div><dt>Période</dt><dd>'.dol_escape_htmltag($row['date_start'].' - '.$row['date_end']).'</dd></div><div><dt>Montant autorisé</dt><dd>'.dol_escape_htmltag(mjl_format_money($row['draft_authorized_amount'])).'</dd></div><div><dt>Version</dt><dd>'.(int)$row['version'].'</dd></div><div><dt>Exécution</dt><dd>'.dol_escape_htmltag($executionLabels[$executionStatus]??$executionStatus).'</dd></div><div><dt>Complétude financière</dt><dd>'.dol_escape_htmltag($completenessLabels[$summary['completeness']]??$summary['completeness']).'</dd></div><div><dt>Montant autorisé actif</dt><dd>'.dol_escape_htmltag(mjl_format_money($summary['active_authorized_amount'])).'</dd></div><div><dt>Montant autorisé annulé</dt><dd>'.dol_escape_htmltag(mjl_format_money($summary['cancelled_authorized_amount'])).'</dd></div><div><dt>Dépenses actives</dt><dd>'.dol_escape_htmltag(mjl_format_money($summary['active_spent_amount'])).'</dd></div><div><dt>Dépenses annulées</dt><dd>'.dol_escape_htmltag(mjl_format_money($summary['cancelled_spent_amount'])).'</dd></div><div><dt>Montants dépensés manquants</dt><dd>'.(int)$summary['missing_spent_count'].'</dd></div><div><dt>Opérations annulées incomplètes</dt><dd>'.(int)$summary['cancelled_incomplete_count'].'</dd></div></dl><h2>Opérations planifiées</h2><ul>';foreach($operations as$op)print '<li>'.dol_escape_htmltag($op['name'].' - '.$op['type_label'].' - '.mjl_format_money($op['authorized_amount']).' - '.($operationLabels[$op['status']??'TODO']??($op['status']??'TODO')).' - dépensé : '.mjl_format_money($op['spent_amount']??null)).'</li>';print '</ul><p><a href="'.DOL_URL_ROOT.'/custom/mjlfinancement/operations.php">Saisir ou consulter l’exécution des Opérations</a> · <a href="'.DOL_URL_ROOT.'/custom/mjlfinancement/operationrequests.php">Voir les demandes d’exception</a></p>';
 	if(mjl_scope_is_input_agent($user)&&in_array($row['validation_status'],array('DRAFT','RETURNED_SUPERVISOR','RETURNED_VALIDATOR'),true)){print '<form method="POST" action="?id='.$id.'">'.mjl_activity_hidden('submit_revision',$id,0,(int)$row['version']).'<button class="button" type="submit">Soumettre la révision</button></form>';if($row['validation_status']==='DRAFT')print '<form method="POST" action="?id='.$id.'">'.mjl_activity_hidden('abandon',$id,0,(int)$row['version']).'<label>Motif d’abandon <textarea name="reason" maxlength="2000" required></textarea></label><button class="button button-secondary" type="submit">Abandonner le brouillon</button></form>';}
 	if(mjl_scope_is_final_validator($user)&&$row['validation_status']==='ABANDONED'){print '<form method="POST" action="?id='.$id.'">'.mjl_activity_hidden('restore',$id,0,(int)$row['version']).'<label>Agent principal <select name="primary_agent_id" required>'.mjl_activity_agent_options().'</select></label><label>Motif de restauration <textarea name="reason" maxlength="2000" required></textarea></label><button class="button" type="submit">Restaurer le brouillon</button></form>';}
-	if(mjl_scope_is_final_validator($user)&&$row['validation_status']!=='ABANDONED'){print '<h2>Affectations</h2><form method="POST" action="?id='.$id.'">'.mjl_activity_hidden('assignment_change',$id,0,(int)$row['version']).'<label>Opération <select name="assignment_operation"><option value="ADD_ADDITIONAL">Ajouter un Agent</option><option value="REMOVE_ADDITIONAL">Retirer un Agent additionnel</option><option value="TRANSFER_PRIMARY">Transférer le rôle principal</option></select></label><label>Agent <select name="target_agent_id" required>'.mjl_activity_agent_options().'</select></label><label>Motif <textarea name="reason" maxlength="2000" required></textarea></label><button class="button" type="submit">Modifier l’affectation</button></form>';}
+	if(mjl_scope_is_input_agent($user)&&!empty($row['fk_current_revision'])&&empty($row['is_cancelled'])&&$row['validation_status']!=='ABANDONED'){print '<h2>Demande d’annulation de l’Activité</h2><form method="POST" action="?id='.$id.'">'.mjl_activity_hidden('request_cancellation',$id,0,(int)$row['version']).'<label>Motif <textarea name="reason" maxlength="2000" required></textarea></label><button class="button button-secondary" type="submit">Demander l’annulation</button></form>';}
+	if(mjl_scope_is_final_validator($user)&&!in_array($row['validation_status'],array('ABANDONED','CANCELLED'),true)){print '<h2>Affectations</h2><form method="POST" action="?id='.$id.'">'.mjl_activity_hidden('assignment_change',$id,0,(int)$row['version']).'<label>Opération <select name="assignment_operation"><option value="ADD_ADDITIONAL">Ajouter un Agent</option><option value="REMOVE_ADDITIONAL">Retirer un Agent additionnel</option><option value="TRANSFER_PRIMARY">Transférer le rôle principal</option></select></label><label>Agent <select name="target_agent_id" required>'.mjl_activity_agent_options().'</select></label><label>Motif <textarea name="reason" maxlength="2000" required></textarea></label><button class="button" type="submit">Modifier l’affectation</button></form>';}
 	print '</section>';
 	mjl_activity_render_timeline((int) $row['rowid']);
 }

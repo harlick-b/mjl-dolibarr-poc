@@ -9,6 +9,7 @@ const password = process.env.MJL_TEST_USER_PASSWORD;
 let fixture;
 let secondary;
 let created;
+let createdReference;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -117,10 +118,12 @@ test.beforeAll(() => {
 });
 
 test('create-and-submit allocates the canonical reference, primary assignment, balance, and immutable revision atomically', () => {
+  const nextReference = Number(scalar('SELECT COALESCE((SELECT next_value FROM llx_mjlfinancement_activity_reference_sequence WHERE entity=1),1)'));
+  createdReference = `ACT-${String(nextReference).padStart(6, '0')}`;
   created = command(fixture.users.agent.id, '$command->createAndSubmit(' + structure() + ',$actor)');
   expect(created.code).toBe('OK');
   expect(created.version).toBe(2);
-  expect(scalar('SELECT ref FROM llx_mjlfinancement_activity WHERE rowid=' + created.activity_id)).toBe('ACT-000001');
+  expect(scalar('SELECT ref FROM llx_mjlfinancement_activity WHERE rowid=' + created.activity_id)).toBe(createdReference);
   expect(Number(scalar('SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment WHERE fk_activity=' + created.activity_id + ' AND fk_user=' + fixture.users.agent.id + ' AND is_primary=1 AND date_end IS NULL'))).toBe(1);
   expect(Number(scalar('SELECT COUNT(*) FROM llx_mjlfinancement_activity_revision WHERE rowid=' + created.revision_id + ' AND revision_number=1'))).toBe(1);
   expect(Number(scalar('SELECT SUM(authorized_amount) FROM llx_mjlfinancement_operation WHERE fk_activity=' + created.activity_id + ' AND date_removed IS NULL'))).toBe(1000);
@@ -145,7 +148,7 @@ test('guarded Activity UI is French-first, assignment-scoped, and uses one route
   await login(page, 'rst006a.primary.agent');
   await page.goto('/custom/mjlfinancement/activities.php');
   await expect(page.getByRole('heading', { name: 'Activités' })).toBeVisible();
-  await expect(page.getByText('ACT-000001')).toBeVisible();
+  await expect(page.getByText(createdReference)).toBeVisible();
   await page.goto('/custom/mjlfinancement/activities.php?action=create');
   await expect(page.getByRole('group', { name: '1. Informations générales' })).toBeVisible();
   await expect(page.getByRole('group', { name: '4. Vérification' })).toBeVisible();
@@ -395,7 +398,7 @@ for (const scenario of LITERAL_SEARCH_CASES) test(scenario.name, async ({ browse
   await login(page, 'rst006a.primary.supervisor');
   await page.goto(`/custom/mjlfinancement/activities.php?q=${encodeURIComponent(scenario.query)}`);
   await expect(page.locator('tbody tr')).toHaveCount(1);
-  await expect(page.getByText(`Recherche ${scenario.query} littérale`)).toBeVisible();
+  await expect(page.getByText(scenario.label)).toBeVisible();
   await context.close();
 });
 

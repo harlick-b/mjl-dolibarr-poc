@@ -10,6 +10,8 @@ module.exports = defineConfig({
     'rst002b-activity-assignment.spec.js',
     'rst006a-activity-planning.spec.js',
     'zz-phase2-planning.spec.js',
+    'activity-execution.spec.js',
+    'documents-audit.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',

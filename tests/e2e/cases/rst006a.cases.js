@@ -22,8 +22,8 @@ const INVALID_FILTER_CASES = Object.freeze([
 ]);
 
 const LITERAL_SEARCH_CASES = Object.freeze([
-  Object.freeze({ name: 'percent is searched as a literal wildcard character', query: '%' }),
-  Object.freeze({ name: 'underscore is searched as a literal wildcard character', query: '_' }),
+  Object.freeze({ name: 'percent is searched as a literal wildcard character', query: 'Recherche %', label: 'Recherche % littérale' }),
+  Object.freeze({ name: 'underscore is searched as a literal wildcard character', query: 'Recherche _', label: 'Recherche _ littérale' }),
 ]);
 
 module.exports = { LIST_PAGE_CASES, INVALID_FILTER_CASES, LITERAL_SEARCH_CASES };

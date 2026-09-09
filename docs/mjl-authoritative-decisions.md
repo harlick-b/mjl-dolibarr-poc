@@ -122,7 +122,12 @@ and the lean Phase 2 completion units executed locally under DEC-052 on
 and disposable Phase 2 acceptance are active. The verdict is
 `PHASE_2_READY_WITH_NOTES` under DEC-053: Phase 3 development is authorized,
 while the unsigned human accessibility review remains a mandatory
-production/release blocker. This verdict does not authorize production. The operational `initdb.log` checksum deviation from
+production/release blocker. This verdict does not authorize production.
+DEC-054 approves RST-006B, RST-013C, and RST-014C as the Phase 3A execution
+and exception unit, including its committed-source empty-tenant cutover. The
+source and disposable acceptance matrix are implemented; final gates, shared
+cutover, and the Phase 3A verdict remain pending. This approval adds no Phase
+3B behavior and does not authorize production. The operational `initdb.log` checksum deviation from
 the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
 RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
 RST-000A's recorded approval-boundary

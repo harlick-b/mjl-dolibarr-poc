@@ -71,16 +71,16 @@ test('Planification navigation, operation list, and chronology are human-readabl
   const agent = await browser.newContext(); const page = await agent.newPage(); await login(page, fixture.users.agent.login);
   await page.goto('/custom/mjlfinancement/operations.php');
   await expect(page.getByRole('heading', { name: 'Opérations' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Opération Phase 2', exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'À faire' }).first()).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Partenaire Phase 2' }).first()).toBeVisible();
-  await expect(page.getByRole('cell', { name: /Projet Phase 2/ }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Opération Phase 2', exact: true })).toBeVisible();
+  await expect(page.getByText('À faire', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/^Partenaire Phase 2 \[/).first()).toBeVisible();
+  await expect(page.getByText(/Projet Phase 2/).first()).toBeVisible();
   await expect(page.getByText('Opération pagination 48', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Opération autre entité', { exact: true })).toHaveCount(0);
   await expect(page.locator('main')).toHaveCount(1);
-  await expect(page.locator('tbody tr')).toHaveCount(50);
+  await expect(page.locator('article.mjl-operation-card')).toHaveCount(50);
   await page.getByRole('link', { name: 'Suivant' }).click();
-  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await expect(page.locator('article.mjl-operation-card')).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Précédent' })).toBeVisible();
   await expect(page.locator('#mjl-primary-navigation').getByRole('link', { name: 'Activités' })).toBeVisible();
   await page.goto('/custom/mjlfinancement/activities.php?id=' + fixture.activities.draft.activity_id);
@@ -92,7 +92,7 @@ test('Planification navigation, operation list, and chronology are human-readabl
 
   const other = await browser.newContext(); const otherPage = await other.newPage(); await login(otherPage, fixture.users.other.login);
   await otherPage.goto('/custom/mjlfinancement/operations.php');
-  await expect(otherPage.getByRole('cell', { name: 'Opération Phase 2', exact: true })).toHaveCount(0);
+  await expect(otherPage.getByRole('heading', { name: 'Opération Phase 2', exact: true })).toHaveCount(0);
   await expect(otherPage.getByText('Aucune Opération active n’est enregistrée.')).toBeVisible();
   await other.close();
 
@@ -102,14 +102,14 @@ test('Planification navigation, operation list, and chronology are human-readabl
   const removedAssignment = assignmentCommand(fixture.users.validator.id, fixture.activities.draft.activity_id, edited.version, 'REMOVE_ADDITIONAL', fixture.users.additional.id);
   expect(removedAssignment.code).toBe('OK');
   await additionalPage.goto('/custom/mjlfinancement/operations.php');
-  await expect(additionalPage.getByRole('cell', { name: 'Opération Phase 2', exact: true })).toHaveCount(0);
+  await expect(additionalPage.getByRole('heading', { name: 'Opération Phase 2', exact: true })).toHaveCount(0);
   await expect(additionalPage.getByText('Aucune Opération active n’est enregistrée.')).toBeVisible();
   await additional.close();
 
   for (const role of ['supervisor', 'validator']) {
     const reviewer = await browser.newContext(); const reviewerPage = await reviewer.newPage(); await login(reviewerPage, fixture.users[role].login);
     await reviewerPage.goto('/custom/mjlfinancement/operations.php');
-    await expect(reviewerPage.getByRole('cell', { name: 'Opération Phase 2', exact: true })).toBeVisible();
+    await expect(reviewerPage.getByRole('heading', { name: 'Opération Phase 2', exact: true })).toBeVisible();
     await reviewerPage.goto('/custom/mjlfinancement/activities.php?action=review&id=' + fixture.activities.submitted.activity_id);
     await expect(reviewerPage.getByRole('heading', { name: 'Chronologie' })).toBeVisible();
     await expect(reviewerPage.getByText('Révision soumise')).toBeVisible();

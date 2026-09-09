@@ -8,6 +8,7 @@ const { MJL_REVIEW_WIDTHS } = require('../helpers/responsive-shell');
 const { login } = require('../helpers/mjl-test-runtime');
 const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
 const { createPhase2FixtureSet } = require('../helpers/phase2-fixture');
+const { createPhase3AFixtureSet, phase3ACommand } = require('../helpers/phase3a-fixture');
 
 const outerTolerance = Number(process.env.MJL_MANUAL_ZOOM_OUTER_TOLERANCE || 16);
 const reviewer = (process.env.MJL_MANUAL_ACCESSIBILITY_REVIEWER || '').trim();
@@ -33,6 +34,9 @@ const reviewArchetypes = Object.freeze([
   { key: 'activity-edit', label: 'modification d’Activité', route: () => `/custom/mjlfinancement/activities.php?id=${activityDraftId}&action=edit`, user: 'rst006a.a11y.agent' },
   { key: 'activity-review', label: 'examen d’une révision d’Activité', route: () => `/custom/mjlfinancement/activities.php?id=${activityReviewId}&action=review`, user: 'rst006a.a11y.supervisor' },
   { key: 'operations', label: 'liste des Opérations', route: '/custom/mjlfinancement/operations.php', user: 'rst006a.a11y.agent' },
+  { key: 'operations-execution', label: 'saisie d’exécution et verrou terminal', route: '/custom/mjlfinancement/operations.php', user: 'phase3a.a11y.agent' },
+  { key: 'operation-requests-agent', label: 'demande et retrait d’exception par un Agent', route: '/custom/mjlfinancement/operationrequests.php', user: 'phase3a.a11y.agent' },
+  { key: 'operation-requests-validator', label: 'décision d’exception par un Validateur', route: '/custom/mjlfinancement/operationrequests.php', user: 'phase3a.a11y.validator' },
   { key: 'audit-validator', label: 'audit Validateur', route: '/custom/mjlfinancement/workflowactions.php', user: 'phase1.a11y.validator' },
   { key: 'access-admin', label: 'utilisateurs et accès', route: '/custom/mjlfinancement/admin/access.php', user: 'admin' },
   { key: 'technical-admin', label: 'administration technique', route: '/admin/modules.php', user: 'admin' },
@@ -70,6 +74,14 @@ test.beforeAll(() => {
   activityDraftId = Number(planningFixture.activities.draft?.activity_id || 0);
   activityReviewId = Number(planningFixture.activities.review?.activity_id || 0);
   if (!activityDraftId || !activityReviewId) throw new Error('Phase 2 manual fixture creation failed.');
+  const executionFixture=createPhase3AFixtureSet({
+    namespace:'phase3a.a11y',entity:1,
+    users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],
+    references:{partners:[{key:'partner',label:'Partenaire exécution accessible'}],projects:[{key:'project',label:'Projet exécution accessible',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type exécution accessible'}]},
+    activities:[{key:'execution',agentKey:'agent',partnerKey:'partner',projectKey:'project',name:'Exécution accessible',description:'Saisie, verrou et demandes',dateStart:'2032-01-01',dateEnd:'2032-12-31',authorizedAmount:'1000',operations:[{name:'Opération terminée accessible',typeKey:'type',authorizedAmount:'400'},{name:'Opération en attente accessible',typeKey:'type',authorizedAmount:'600'}]}],
+  });
+  const execution=executionFixture.activities.execution;const completed=phase3ACommand({action:'update',entity:1,actorId:executionFixture.users.agent.id,activityId:execution.activity_id,operationId:execution.operations[0].rowid,expectedVersion:execution.operations[0].version,input:{status:'COMPLETED',spent_amount:'400',observation:null}});if(completed.code!=='OK')throw new Error('Phase 3A terminal accessibility fixture failed.');
+  const pending=phase3ACommand({action:'request-cancel',entity:1,actorId:executionFixture.users.agent.id,targetType:'OPERATION',targetId:execution.operations[1].rowid,expectedVersion:execution.operations[1].version,reason:'Demande accessible en attente'});if(pending.code!=='OK')throw new Error('Phase 3A request accessibility fixture failed.');
 });
 
 async function recordCalibration(page, browser, targetWidth, zoomPercent, assertTargetOuterWidth) {
@@ -153,7 +165,7 @@ async function recordCombination(page, archetype, route, targetWidth, zoomPercen
   });
   let forcedColors = false;
   let reducedMotion = false;
-  if (archetype.key.startsWith('activity-') || archetype.key === 'operations') {
+  if (archetype.key.startsWith('activity-') || archetype.key.startsWith('operation')) {
     await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
     forcedColors = await page.evaluate(() => window.matchMedia('(forced-colors: active)').matches);
     reducedMotion = await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -180,7 +192,7 @@ async function recordCombination(page, archetype, route, targetWidth, zoomPercen
   console.log(`MJL_ACCESSIBILITY_COMBINATION ${JSON.stringify(result)}`);
   expect(result.overflow, `${archetype.key} ${targetWidth}px ${zoomPercent}% overflow`).toBe(false);
   expect(result.focusVisible, `${archetype.key} ${targetWidth}px ${zoomPercent}% visible focus`).toBe(true);
-  if (archetype.key.startsWith('activity-') || archetype.key === 'operations') {
+  if (archetype.key.startsWith('activity-') || archetype.key.startsWith('operation')) {
     expect(result.forcedColors, `${archetype.key} forced-colors`).toBe(true);
     expect(result.reducedMotion, `${archetype.key} reduced-motion`).toBe(true);
   }
@@ -234,8 +246,9 @@ test('real application keyboard, focus, reflow, and Chromium zoom gate', async (
     }
   }
 
-  expect(reviewArchetypes).toHaveLength(14);
-  expect(combinationCount).toBe(140);
+  const expectedCombinationCount=reviewArchetypes.length*MJL_REVIEW_WIDTHS.length*2;
+  expect(reviewArchetypes).toHaveLength(17);
+  expect(combinationCount).toBe(expectedCombinationCount);
 
   const evidence = {
     status: reviewVerdict === 'pass' ? 'signed_pass' : 'signed_fail',
@@ -254,13 +267,13 @@ test('real application keyboard, focus, reflow, and Chromium zoom gate', async (
   };
   const canonical = `${JSON.stringify(evidence)}\n`;
   const payloadSha256 = crypto.createHash('sha256').update(canonical).digest('hex');
-  const signedArtifact = { version: 1, unit: 'PHASE-2', reviewer, payload_sha256: payloadSha256, evidence };
+  const signedArtifact = { version: 1, unit: 'PHASE-3A', reviewer, payload_sha256: payloadSha256, evidence };
   if (!process.env.MJL_EVIDENCE_ROOT) throw new Error('Private accessibility evidence root is missing.');
   const evidenceRoot = path.resolve(process.env.MJL_EVIDENCE_ROOT);
   fs.mkdirSync(evidenceRoot, { recursive: true, mode: 0o700 });
   const rootStat = fs.lstatSync(evidenceRoot);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || (rootStat.mode & 0o777) !== 0o700) throw new Error('Private accessibility evidence root custody is invalid.');
-  const evidencePath = path.join(evidenceRoot, `phase2-manual-accessibility-${payloadSha256}.json`);
+  const evidencePath = path.join(evidenceRoot, `phase3a-manual-accessibility-${payloadSha256}.json`);
   fs.writeFileSync(evidencePath, `${JSON.stringify(signedArtifact, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
   expect(fs.statSync(evidencePath).mode & 0o777).toBe(0o600);
   console.log(`MJL_MANUAL_ACCESSIBILITY_ARTIFACT ${JSON.stringify({ evidencePath, payloadSha256, reviewer })}`);

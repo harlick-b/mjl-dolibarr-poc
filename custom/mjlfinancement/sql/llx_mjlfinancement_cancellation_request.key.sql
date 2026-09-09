@@ -1,0 +1,4 @@
+ALTER TABLE llx_mjlfinancement_cancellation_request ADD CONSTRAINT fk_mjl_cancellation_activity FOREIGN KEY (entity,fk_activity) REFERENCES llx_mjlfinancement_activity(entity,rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_cancellation_request ADD CONSTRAINT fk_mjl_cancellation_revision FOREIGN KEY (entity,fk_target_revision,fk_activity) REFERENCES llx_mjlfinancement_activity_revision(entity,rowid,fk_activity) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_cancellation_request ADD CONSTRAINT fk_mjl_cancellation_requester FOREIGN KEY (fk_requester) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE llx_mjlfinancement_cancellation_request ADD CONSTRAINT fk_mjl_cancellation_reviewer FOREIGN KEY (fk_reviewer) REFERENCES llx_user(rowid) ON UPDATE RESTRICT ON DELETE RESTRICT;

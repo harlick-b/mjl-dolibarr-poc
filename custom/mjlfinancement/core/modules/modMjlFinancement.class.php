@@ -3,6 +3,7 @@
 include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006b_schema.lib.php';
 
 class modMjlFinancement extends DolibarrModules
 {
@@ -16,7 +17,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'Suivi des projets financés du MJL';
 		$this->descriptionlong = 'Socle MJL réinitialisé : référentiels natifs, projection des activités, accès sur invitation et audit immuable.';
-		$this->version = '0.19.0';
+		$this->version = '0.20.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(
@@ -49,7 +50,21 @@ class modMjlFinancement extends DolibarrModules
 		$this->tabs = array();
 		$this->dictionaries = array();
 		$this->boxes = array();
-		$this->cronjobs = array();
+		$this->cronjobs = array(
+			array(
+				'label' => 'Réconciliation des statuts d’exécution MJL',
+				'jobtype' => 'method',
+				'class' => '/mjlfinancement/class/mjlexecutionreconciler.class.php',
+				'objectname' => 'MjlExecutionReconciler',
+				'method' => 'run',
+				'parameters' => '',
+				'comment' => 'Réconciliation horaire idempotente en Africa/Porto-Novo',
+				'frequency' => 1,
+				'unitfrequency' => 3600,
+				'status' => 1,
+				'test' => "isModEnabled('mjlfinancement')",
+			),
+		);
 
 		$this->rights = array();
 		$r = 0;
@@ -96,6 +111,7 @@ class modMjlFinancement extends DolibarrModules
 		$lockName = 'mjl:rst002b:'.substr(hash('sha256', (string) mjl_rst005_scalar($this->db, 'SELECT DATABASE()').':'.$prefix), 0, 46);
 		$migrationRequired = false;
 		$cleanInstall = false;
+		$retainPhase2Target = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && in_array((string) getenv('MJL_TEST_MODE'), array('rst006a','phase2','characterization'), true);
 		if ((int) mjl_rst005_scalar($this->db, "SELECT GET_LOCK('".$this->db->escape($lockName)."',0)") !== 1) return -1;
 		try {
 			$tableCount = (int) mjl_rst005_scalar($this->db, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$this->db->escape($activity)."'");
@@ -105,6 +121,10 @@ class modMjlFinancement extends DolibarrModules
 				if ($customCount !== 0) return -1;
 				$result = $this->_load_tables('/mjlfinancement/sql/');
 				if ($result < 0) return -1;
+				foreach (array('reopening_request','cancellation_request') as $suffix) {
+					$table=$prefix.'mjlfinancement_'.$suffix;
+					if (mjl_rst002b_table_exists($this->db,$table) && !$this->db->query('DROP TABLE '.$table)) throw new RuntimeException('Unable to normalize the clean RST-006B bootstrap: '.$this->db->lasterror());
+				}
 				foreach (array('review_decision','revision_contributor','activity_revision','operation','activity_reference_sequence') as $suffix) {
 					$table=$prefix.'mjlfinancement_'.$suffix;
 					if (mjl_rst002b_table_exists($this->db,$table) && !$this->db->query('DROP TABLE '.$table)) throw new RuntimeException('Unable to normalize the clean RST-006A bootstrap: '.$this->db->lasterror());
@@ -116,27 +136,29 @@ class modMjlFinancement extends DolibarrModules
 				mjl_rst002b_install_role_invariant_triggers($this->db, true);
 				mjl_rst006a_install_target($this->db);
 				mjl_rst006a_require_target($this->db);
+				if (!$retainPhase2Target) { mjl_rst006b_install_target($this->db); mjl_rst006b_require_target($this->db); }
 			} else {
-				$schema = mjl_rst006a_detect_schema($this->db);
-				if ($schema === RST006A_SCHEMA_TARGET) mjl_rst006a_require_target($this->db);
-				elseif ($schema === RST006A_SCHEMA_PREDECESSOR) {
-					mjl_rst002b_require_target_objects($this->db);
-					$migrationRequired = true;
+				$phase3aSchema = mjl_rst006b_detect_schema($this->db);
+				if ($phase3aSchema === RST006B_SCHEMA_TARGET) mjl_rst006b_require_target($this->db);
+				elseif (($schema = mjl_rst006a_detect_schema($this->db)) === RST006A_SCHEMA_TARGET) {
+					mjl_rst006a_require_target($this->db);
+					if (!$retainPhase2Target) $migrationRequired = true;
 				} else return -1;
 			}
+			if ($migrationRequired) return 'RST006B_MIGRATION_REQUIRED';
 			if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
 				&& getenv('MJL_RST_PHASE1_INJECT_ACTIVATION_FAILURE') === '1'
 				&& $this->disposableActivationFailureIsArmed()) return -1;
 			if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
 				&& getenv('MJL_RST005_INJECT_ACTIVATION_FAILURE') === '1'
 				&& $this->disposableRst005ActivationFailureIsArmed()) return -1;
-			if (!$migrationRequired && $this->ensureRoleInvariantTriggers() < 0) return -1;
+			if ($this->ensureRoleInvariantTriggers() < 0) return -1;
 			if ($this->ensureAuthStateConstraints() < 0 || $this->ensureAuthInvariantTriggers() < 0 || $this->ensureAuthFingerprintKey() < 0) return -1;
-			if ($cleanInstall) mjl_rst006a_require_target($this->db);
+			if ($cleanInstall) { if ($retainPhase2Target) mjl_rst006a_require_target($this->db); else mjl_rst006b_require_target($this->db); }
 			$this->remove($options);
 			$result = $this->_init(array(), $options);
 			if ($result < 0) return $result;
-			return $migrationRequired ? 'RST006A_MIGRATION_REQUIRED' : $result;
+			return $result;
 		} catch (Throwable $exception) {
 			dol_syslog('RST-002B module activation refused: '.$exception->getMessage(), LOG_ERR);
 			if (PHP_SAPI === 'cli') fwrite(STDERR, 'RST-002B module activation refused: '.$exception->getMessage().PHP_EOL);

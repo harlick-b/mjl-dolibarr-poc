@@ -68,8 +68,8 @@ test('RST-006A list query has a closed typed filter and fixed pagination contrac
   assert.match(route, /array\('q','status','project_id','page'\)/);
   assert.match(route, /mjl_activity_list_url\(/);
   assert.match(model, /fetchReadProjection\(User \$reader, array \$filters, \$limit, \$offset\)/);
-  assert.match(model, /str_replace\(array\('\\\\', '%', '_'\)/);
-  assert.match(model, /ESCAPE/);
+  assert.match(model, /LOCATE\('\.\$literal\.',a\.ref\)>0/);
+  assert.doesNotMatch(model, /a\.ref LIKE/);
   assert.match(model, /ORDER BY a\.rowid DESC LIMIT/);
   assert.match(route, /array_slice\(\$rows, 0, 50\)/);
 });
@@ -101,9 +101,9 @@ test('RST-006A rollback is staged, checked, and dependency-gated', () => {
       'RST-014D', 'RST-015',
     ],
     statuses: {
-      'RST-006B':'PENDING_APPROVAL','RST-007B':'EXECUTED','RST-009B':'EXECUTED','RST-009C':'PENDING_APPROVAL',
-      'RST-011':'PENDING_APPROVAL','RST-012':'PENDING_APPROVAL','RST-013B':'EXECUTED','RST-013C':'PENDING_APPROVAL',
-      'RST-013D':'PENDING_APPROVAL','RST-013E':'PENDING_APPROVAL','RST-014B':'EXECUTED','RST-014C':'PENDING_APPROVAL',
+      'RST-006B':'APPROVED','RST-007B':'EXECUTED','RST-009B':'EXECUTED','RST-009C':'PENDING_APPROVAL',
+      'RST-011':'PENDING_APPROVAL','RST-012':'PENDING_APPROVAL','RST-013B':'EXECUTED','RST-013C':'APPROVED',
+      'RST-013D':'PENDING_APPROVAL','RST-013E':'PENDING_APPROVAL','RST-014B':'EXECUTED','RST-014C':'APPROVED',
       'RST-014D':'PENDING_APPROVAL','RST-015':'PENDING_APPROVAL',
     },
     executed: ['RST-007B','RST-009B','RST-013B','RST-014B'],
@@ -125,7 +125,8 @@ test('RST-006A rollback is staged, checked, and dependency-gated', () => {
     const dependencyLine = section.match(/^- Dependencies:\s*([^\n]*(?:\n  [^\n]*)*)/m)?.[1] || '';
     if (unit) {
       dependencyMap.set(unit, [...dependencyLine.matchAll(/RST-[0-9A-Z]+/g)].map((match) => match[0]));
-      manifestStatuses.set(unit, section.match(/^- Status: `([^`]+)`/m)?.[1] || '');
+      const recordedStatus = section.match(/^- Status: `([^`]+)`/m)?.[1] || '';
+      manifestStatuses.set(unit, recordedStatus.startsWith('APPROVED') ? 'APPROVED' : recordedStatus.startsWith('EXECUTED') ? 'EXECUTED' : recordedStatus);
     }
   }
   const closure = [];

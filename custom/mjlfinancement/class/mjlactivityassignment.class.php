@@ -3,6 +3,7 @@
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_audit.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006b_schema.lib.php';
 
 /**
  * Deep RST-002B assignment module.
@@ -62,7 +63,7 @@ class MjlActivityAssignment
 			$activity = $this->lockActivity($entity, $activityId);
 			if ($activity === false) return $this->rollbackOutcome('FAILED');
 			if (!$activity) return $this->rollbackOutcome('NOT_FOUND');
-			if ($activity['validation_status'] === 'ABANDONED') return $this->rollbackOutcome('CONFLICT');
+			if (in_array($activity['validation_status'], array('ABANDONED','CANCELLED'), true)) return $this->rollbackOutcome('CONFLICT');
 			$current = $this->loadAssignments($entity, $activityId, true);
 			if ($current === false) return $this->rollbackOutcome('FAILED');
 			if ($this->assignmentIdentity($snapshot) !== $this->assignmentIdentity($current)) return $this->rollbackOutcome('STALE_VERSION');
@@ -139,7 +140,8 @@ class MjlActivityAssignment
 	private function hasCompleteTargetSchema()
 	{
 		try {
-			if (mjl_rst006a_detect_schema($this->db) === RST006A_SCHEMA_TARGET) mjl_rst006a_require_target($this->db);
+			if (mjl_rst006b_detect_schema($this->db) === RST006B_SCHEMA_TARGET) mjl_rst006b_require_target($this->db);
+			elseif (mjl_rst006a_detect_schema($this->db) === RST006A_SCHEMA_TARGET) mjl_rst006a_require_target($this->db);
 			else mjl_rst002b_require_target_objects($this->db);
 			return true;
 		}

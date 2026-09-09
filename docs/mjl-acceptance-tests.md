@@ -20,6 +20,10 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst002b
     npm run test:rst006a
     npm run test:phase2
+    npm run test:rst006b
+    npm run test:rst013c
+    npm run test:rst014c
+    npm run test:phase3a
     npm run test:phase1-reset
 
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
@@ -94,15 +98,32 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   Planification navigation, paginated read-only scoped Opérations, sanitized
   Activity chronology, command-backed fixtures, shared-state preservation, and
   whole-tenant teardown.
-- The Phase 2 manual accessibility gate covers fourteen archetypes, including
+- `test:phase3a` installs the exact RST-006B target, proves rollback to RST-006A,
+  fourteen interrupted forward points (the five phase checkpoints and every
+  cancellation/reopening foreign-key boundary), convergence, idempotence,
+  malformed-state refusal, exact constraints/triggers, and one enabled hourly cron. Its
+  disposable browser/command matrix covers execution boundaries, roles,
+  requests, cascades, rollback, isolation, concurrency, guarded routes,
+  retained document containment, and unconditional tenant teardown. The
+  focused `test:rst006b`, `test:rst013c`, and `test:rst014c` aliases use that
+  same current-purpose Phase 3A boundary.
+- The Phase 3A manual accessibility gate covers seventeen archetypes, including
   Activity list/create/detail/edit/review and Opérations, at five widths and real 100%/200%
-  browser zoom: exactly 140 combinations. Planning states also require forced
+  browser zoom: exactly 170 combinations. Execution editing, terminal lock
+  messaging, Agent request/withdrawal, and Validator decision states are
+  included. Planning states also require forced
   colors and reduced motion evidence. Passing requires named human review,
   keyboard, screen-reader and French findings, and a private checksummed JSON
   artifact. No automated run substitutes for that signature.
 - `npm run cutover:rst002b-fast -- --confirm=RST-002B-FAST` is the intentionally
   small local operational command. It is not an automated test and must not be
   invoked unless the user explicitly requests execution.
+- `npm run cutover:rst006b-fast -- --confirm=RST-006B-FAST` is the approved
+  committed-source, empty-tenant local cutover command. It stops traffic,
+  creates a private verified backup, requires the exact RST-006A predecessor,
+  applies/verifies RST-006B, registers/verifies the hourly reconciler, checks
+  empty-tenant invariants, restarts, and health-checks. It never rolls back the
+  shared tenant.
 - 'test:characterization' is a compatibility alias to `test:phase2`.
 - The default browser contract covers retained reference/auth/document/fixture
   behavior, the current RST-002B role/assignment matrix, RST-006A planning and
@@ -117,7 +138,7 @@ Phase 1 reset proof ignore `MJL_TEST_RETAIN`.
 
 ## Shared cutover invariants
 
-Before and after a Phase 1 cutover:
+Before and after the currently approved empty-tenant cutovers:
 
 - exactly one active native administrator at 'llx_user.rowid=1';
 - zero other users, business roles, Partner scopes, Activities, invitations,

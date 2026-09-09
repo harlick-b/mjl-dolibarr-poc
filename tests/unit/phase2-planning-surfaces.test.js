@@ -54,7 +54,7 @@ test('RST-007B chronology is active-entity Activity scoped and rendered on detai
   assert.match(command, /requested_amount/);
 });
 
-test('RST-009B exposes only read-only Planification routes with assignment scoping', () => {
+test('RST-009B Planification read projection remains scoped after Phase 3A adds guarded execution forms', () => {
   const registry = read('custom/mjlfinancement/lib/mjl_navigation_registry.lib.php');
   const route = read('custom/mjlfinancement/operations.php') + read('custom/mjlfinancement/lib/mjl_operation_route.lib.php');
   assert.match(registry, /'planification'/);
@@ -69,8 +69,10 @@ test('RST-009B exposes only read-only Planification routes with assignment scopi
   assert.match(route, /activity_assignment/);
   assert.match(route, /fk_user=/);
   assert.match(route, /mjl_ui_system_state\('unavailable'/);
-  assert.doesNotMatch(route, /<form|\$_POST|INSERT|UPDATE|DELETE/);
-  assert.doesNotMatch(route, /<main class=/);
+  assert.match(route, /mjl_form_submission_consume/);
+  assert.match(route, /updateOperationExecution/);
+  assert.match(route, /requestCancellation/);
+  assert.doesNotMatch(route, /\b(?:INSERT|UPDATE|DELETE)\b/);
 });
 
 test('Phase 2 acceptance runs after its foundational RST-006A suite', () => {

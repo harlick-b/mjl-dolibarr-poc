@@ -13,10 +13,15 @@ $fields = array(
 	'submit'=>array('operation','activity_id','version','actor_id','barrier','lock_wait_timeout'),
 	'abandon'=>array('operation','activity_id','version','actor_id','reason','barrier','lock_wait_timeout'),
 	'review'=>array('operation','activity_id','revision_id','version','actor_id','decision','reason','barrier','lock_wait_timeout'),
+	'request-cancel'=>array('operation','activity_id','operation_id','version','actor_id','reason','barrier','lock_wait_timeout'),
+	'complete-and-request-reopen'=>array('operation','activity_id','operation_id','version','actor_id','reason','barrier','lock_wait_timeout'),
+	'reconcile'=>array('operation','activity_id','version','actor_id','local_date','barrier','lock_wait_timeout'),
 );
 if (!isset($fields[$operation]) || array_keys($request) !== $fields[$operation]) { fwrite(STDERR, "invalid request\n"); exit(2); }
 foreach (array('activity_id','version','actor_id') as $field) if (!isset($request[$field]) || !is_string($request[$field]) || preg_match('/^[1-9][0-9]*$/',$request[$field]) !== 1) { fwrite(STDERR, "invalid identifier\n"); exit(2); }
 if (isset($request['revision_id']) && (!is_string($request['revision_id']) || preg_match('/^[1-9][0-9]*$/',$request['revision_id']) !== 1)) { fwrite(STDERR, "invalid revision\n"); exit(2); }
+if (isset($request['operation_id']) && (!is_string($request['operation_id']) || preg_match('/^[1-9][0-9]*$/',$request['operation_id']) !== 1)) { fwrite(STDERR, "invalid operation\n"); exit(2); }
+if (isset($request['local_date']) && (!is_string($request['local_date']) || preg_match('/^\d{4}-\d{2}-\d{2}$/',$request['local_date']) !== 1)) { fwrite(STDERR, "invalid date\n"); exit(2); }
 if (!is_string($request['barrier']) || ($request['barrier'] !== '' && preg_match('/^[a-f0-9]{32}$/',$request['barrier']) !== 1)) { fwrite(STDERR, "invalid barrier\n"); exit(2); }
 if (!is_int($request['lock_wait_timeout']) || $request['lock_wait_timeout'] < 1 || $request['lock_wait_timeout'] > 10) { fwrite(STDERR, "invalid timeout\n"); exit(2); }
 if (!$db->query('SET SESSION innodb_lock_wait_timeout='.(int)$request['lock_wait_timeout'])) { fwrite(STDERR, "timeout setup failed\n"); exit(2); }
@@ -33,8 +38,16 @@ if ($request['barrier'] !== '') {
 $conf->entity=1;
 $actor=new User($db);
 if($actor->fetch((int)$request['actor_id'])<=0){fwrite(STDERR,"actor unavailable\n");exit(2);}
-$command=new MjlActivityCommand($db,static function(){return '2026-09-03';},1);
+$localDate=isset($request['local_date'])?$request['local_date']:'2026-09-03';
+$command=new MjlActivityCommand($db,static function()use($localDate){return $localDate;},1);
 if($operation==='submit')$result=$command->submitRevision($request['activity_id'],$request['version'],$actor);
 elseif($operation==='abandon')$result=$command->abandonDraft($request['activity_id'],$request['version'],$actor,$request['reason']);
+elseif($operation==='request-cancel')$result=$command->requestCancellation('OPERATION',$request['operation_id'],$request['version'],$request['reason'],$actor);
+elseif($operation==='complete-and-request-reopen'){
+	$completed=$command->updateOperationExecution($request['activity_id'],$request['operation_id'],$request['version'],array('status'=>'COMPLETED','spent_amount'=>'100','observation'=>null),$actor);
+	$result=$completed['code']==='OK'?$command->requestReopening($request['operation_id'],(string)$completed['operation_version'],$request['reason'],$actor):$completed;
+	$result['completion_code']=$completed['code'];
+}
+elseif($operation==='reconcile')$result=$command->reconcileExecutionStatus($request['activity_id'],null);
 else$result=$command->reviewRevision($request['activity_id'],$request['revision_id'],$request['version'],$actor,$request['decision'],$request['reason']);
 print json_encode($result,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE).PHP_EOL;

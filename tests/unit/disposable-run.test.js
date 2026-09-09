@@ -87,6 +87,10 @@ test('maps each public command to explicit durable layers without phase-era targ
   assert.deepEqual(getSuitePlan('rst003'), ['rst003']);
   assert.deepEqual(getSuitePlan('rst005'), ['rst005']);
   assert.deepEqual(getSuitePlan('rst006a'), ['rst006a']);
+  assert.deepEqual(getSuitePlan('rst006b'), ['phase3a']);
+  assert.deepEqual(getSuitePlan('rst013c'), ['phase3a']);
+  assert.deepEqual(getSuitePlan('rst014c'), ['phase3a']);
+  assert.deepEqual(getSuitePlan('phase3a'), ['phase3a']);
   assert.deepEqual(getSuitePlan('phase2'), ['phase2']);
   assert.deepEqual(getSuitePlan('rst014a'), ['rst014a']);
   assert.deepEqual(getSuitePlan('characterization'), ['phase2']);
@@ -100,6 +104,9 @@ test('provisioning restores web-user ownership only inside disposable document s
   const runner = fs.readFileSync(path.join(repositoryRoot, 'tests/runner/run-suite.js'), 'utf8');
   assert.match(runner, /'chown', '-R', 'www-data:www-data', '\/var\/www\/documents'/);
   assert.doesNotMatch(runner, /chown[^\n]*(?:repositoryRoot|\/var\/www\/html\/custom)/);
+  assert.match(runner, /const batches = \[/);
+  for (const file of ['activity-execution','auth-concurrency','document-containment','documents-audit','fixture-isolation','partners-projects','rst002b-activity-assignment','rst006a-activity-planning','zz-phase2-planning']) assert.match(runner, new RegExp(`tests/e2e/${file}\\.spec\\.js`));
+  assert.match(runner, /for \(const batch of batches\).*timeoutMs: 15 \* 60 \* 1000/s);
 });
 
 test('diagnostics failures cannot bypass teardown and all failures remain inspectable', async () => {

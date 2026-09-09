@@ -64,9 +64,8 @@ class MjlActivity extends CommonObject
 		if ($filters['status'] !== '') $sql .= " AND a.validation_status='".$this->db->escape($filters['status'])."'";
 		if ($filters['project_id'] !== '') $sql .= ' AND p.rowid='.(int) $filters['project_id'].' AND p.entity='.$entity;
 		if ($filters['q'] !== '') {
-			$literal = str_replace(array('\\', '%', '_'), array('\\\\', '\\%', '\\_'), $filters['q']);
-			$like = "'%".$this->db->escape($literal)."%' ESCAPE '\\\\'";
-			$sql .= ' AND (a.ref LIKE '.$like.' OR a.name LIKE '.$like.' OR p.ref LIKE '.$like.' OR p.title LIKE '.$like.')';
+			$literal = "'".$this->db->escape($filters['q'])."'";
+			$sql .= ' AND (LOCATE('.$literal.',a.ref)>0 OR LOCATE('.$literal.',a.name)>0 OR LOCATE('.$literal.',p.ref)>0 OR LOCATE('.$literal.',p.title)>0)';
 		}
 		$sql .= ' ORDER BY a.rowid DESC LIMIT '.$limit.' OFFSET '.$offset;
 		$resql = $this->db->query($sql);

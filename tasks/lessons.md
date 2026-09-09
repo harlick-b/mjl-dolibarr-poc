@@ -1,5 +1,12 @@
 # Reusable Lessons
 
+- Long implementation sessions can drift into redundant confidence machinery.
+  After each hour of active implementation—and immediately before introducing
+  an unplanned abstraction or test harness—perform the repository's
+  lean-execution checkpoint. Prefer the smallest mechanism that satisfies an
+  explicit requirement or material safety risk, and seek user approval when a
+  simplification changes product, scope, or architecture.
+
 Update this file only after repeated mistakes, user corrections, or durable
 debugging discoveries. Do not add one-off observations or generic advice.
 
@@ -232,3 +239,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   boundary needs an observable structural effect, and prefix classification
   must compare full definitions (options, columns, indexes, foreign keys,
   checks, and triggers), not only object names or counts.
+- SQL `CHECK` constraints accept the three-valued result `UNKNOWN`. Whenever a
+  nullable operand is mandatory in one branch, require `IS NOT NULL`
+  explicitly; a regex or comparison against `NULL` alone does not reject the
+  row. Exact-schema tests should exercise the null branch, not only compare the
+  stored constraint text.
