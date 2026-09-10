@@ -68,4 +68,4 @@ remain separately labeled. Query failures produce unavailable sections.
 
 The navigation adds Alertes, Demandes d’exception and business Rapports only
 after readiness; audit report variants select Audit. The obsolete supervision
-route remains denied. Focused verification passed: 79/79 combined browser checks, equal shared-state evidence and complete disposable teardown. See the Phase 3B plan checkpoint for run evidence; whole-phase validation, human accessibility and cutover remain pending.
+route remains denied. Focused verification passed: 79/79 combined browser checks, equal shared-state evidence and complete disposable teardown. The subsequent aggregate passed 211 Node and 192 browser tests, including the scale benchmark and schema/renderer probes. See `docs/mjl-phase-3b-validation-2026-09-10.md`; remaining full-phase failure/recovery, race, discovery and cutover proofs, plus human accessibility, remain pending.

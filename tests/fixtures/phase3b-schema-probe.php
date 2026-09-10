@@ -59,7 +59,8 @@ print "Phase 3B installed CSV/XLSX/PDF renderer probes passed.\n";
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlexport.class.php';
 $conf->entity=1;
 $owner=new MjlExport($db,$actor,1,'/tmp/mjl-phase3b-owner-probe');
-$artifact=$owner->generate('audit','csv',array(),function($reader,$filters){
+// Earlier aggregate batches create audit history; this selection stays empty.
+$artifact=$owner->generate('audit','csv',array('q'=>'MJL-SCHEMA-PROBE-NO-MATCH'),function($reader,$filters){
 	$events=$reader->audit($filters,true);
 	phase3b_assert(count($events)===0,'Empty audit snapshot contains unexpected events');
 	return array('activity_ids'=>array(),'document'=>array('metadata'=>array(),'sections'=>array(array('title'=>'Journal d’audit','headers'=>array('Événement'),'rows'=>array()))));

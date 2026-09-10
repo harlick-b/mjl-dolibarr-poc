@@ -10,10 +10,12 @@ behavior are not current evidence.
 
 | Command | Current purpose | Isolation / cleanup |
 | --- | --- | --- |
+| `npm test` | Unit, isolated verifier, maintained browser batches, Phase 3B schema/renderer probes and scale benchmark; 211 Node and 192 browser tests passed on 2026-09-10 | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
+| `npm run test:phase3b-performance` | 1,000 Activities / 10,000 Operations / 50,000 audit events; populated-page p95 and 15 measured report/format combinations with audited row counts and peak memory | Guarded command-backed fixture; exact shared before/after evidence; retention disabled; whole-tenant teardown |
 | `npm run test:phase3b-monitoring` | Financial-first dashboard, eligibility/alerts, filtered browsing/navigation and existing report/chronology regressions (79 cases) | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
 | `npm run test:unit` | Static Node contracts and PHP presentation/navigation contracts | No business fixture writes |
-| `npm run test:verify` | Current RST-002B exact schema and empty-tenant verification | Unique disposable tenant, whole-tenant teardown |
-| `npm run test:e2e` | Current reference/auth/document/fixture, RST-002B, RST-006A planning, and Phase 2 navigation/chronology browser suites in `playwright.config.js` | Unique disposable tenant, whole-tenant teardown |
+| `npm run test:verify` | Current RST-002B exact schema and empty-tenant verification | Exact shared before/after evidence; unique disposable tenant; whole-tenant teardown |
+| `npm run test:e2e` | Current reference/auth/document/fixture, planning/execution, Phase 2 and Phase 3B browser batches, schema/renderer probes and scale benchmark | Exact shared before/after evidence; unique disposable tenant; whole-tenant teardown |
 | `npm run test:rst003` | Partenaire/Projet/Type d'Opération references, entity isolation, CSRF, concurrency, and rollback | RST-014A fixtures; focused rollback rehearsal; whole-tenant teardown |
 | `npm run test:rst007a` | Append-only transactional audit behavior | RST-014A fixtures; whole-tenant teardown |
 | `npm run test:rst004` | Removed finance/schema/route absence | RST-014A fixtures; whole-tenant teardown |

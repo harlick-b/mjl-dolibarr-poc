@@ -4,6 +4,7 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
 
 ## Public current-purpose commands
 
+    npm test
     npm run test:unit
     npm run test:verify
     npm run test:e2e
@@ -24,12 +25,26 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst013c
     npm run test:rst014c
     npm run test:phase3b-monitoring
+    npm run test:phase3b-performance
     npm run test:phase3b-reports
     npm run test:phase3b-activities
     npm run test:phase3b
     npm run test:phase3a
     npm run test:phase1-reset
 
+- `npm test` runs unit, isolated verification and all maintained browser batches,
+  including the Phase 3B schema/renderer probes and scale benchmark. The aggregate,
+  `test:e2e` and `test:verify` require shared-state equality and no-retain teardown.
+  Latest aggregate: 211 Node tests and 192 browser tests passed on 2026-09-10.
+  See [the validation record](mjl-phase-3b-validation-2026-09-10.md).
+- 'test:phase3b-performance' builds 1,000 Activities, 10,000 Operations and
+  50,000 audit events in a disposable tenant. It checks populated authenticated
+  pages after one warm-up and 20 serial samples (p95 ≤2 seconds), then five
+  reports in PDF/XLSX/CSV with audited row counts, actual downloads, generation
+  ≤30 seconds and full-generator peak memory. Export selections are recorded;
+  this does not prove maximum-row throughput for every format. Setup has its
+  own longer allowance, outside measured budgets. The focused and aggregate
+  benchmarks passed; shared-state evidence matched and teardown completed.
 - 'test:phase3b-monitoring' runs dashboard, alerts, browsing and navigation
   acceptance plus the existing report/chronology batch. It covers scoped
   financial meaning, permitted actions, stale closure, filters/pagination,

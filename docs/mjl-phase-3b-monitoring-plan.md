@@ -667,3 +667,31 @@ Phase 3B remains **IN_PROGRESS**. Whole-phase/aggregate validation, scale and
 performance acceptance, signed human accessibility review and guarded shared
 cutover were deliberately not run in this slice. The shared tenant retains
 Phase 3A behavior; no persistent sample data, shared migration or push occurred.
+
+## Scale and aggregate validation checkpoint — 2026-09-10
+
+`npm run test:phase3b-performance` passed in 1400.3 seconds against 1,000
+Activities, 10,000 Operations and 50,000 audit events. All 13 populated-page
+latency cases met p95 ≤2 seconds, and all 15 measured report/format selections
+met the 30-second export budget. Maximum generator memory was 68 MiB with a
+256 MiB PHP limit. These selected exports do not establish maximum-row
+throughput for every format.
+
+`npm test` passed in 2535.9 seconds: 211 Node tests, PHP contracts, 192 browser
+tests, schema/renderer probes and a repeated scale benchmark. The aggregate's
+worst p95 was 1.72 seconds. `npm run test:verify` separately passed in 233.6
+seconds. Shared before/after evidence matched and all three successful runs
+completed disposable teardown. The aggregate now includes the existing RST-012
+probe immediately before monitoring tests, and containing aggregate modes
+enforce shared-state equality.
+
+See [the validation record](mjl-phase-3b-validation-2026-09-10.md) for image IDs,
+PHP/host limits, workload distribution, measured export rows, raw evidence paths
+and interrupted attempts. Standards/Security and benchmark Spec reviews have no
+outstanding actionable finding.
+
+Phase 3B remains **IN_PROGRESS**. The explicit unfinished-integration guard
+remains for expanded full-pipeline failure/recovery coverage, remaining
+authorization-race orders, deliberate discovery-failure controls and disposable
+cutover rehearsals. Signed human accessibility and guarded shared cutover remain
+pending. No persistent sample data, shared migration or push occurred.
