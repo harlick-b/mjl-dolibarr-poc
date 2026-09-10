@@ -12,7 +12,7 @@ async function login(page,key='agent') {
 test.beforeAll(()=>{
  cp.execFileSync('docker',['compose','exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-report-fixture.php','install'],{env:process.env,stdio:'pipe'});
  fixture=createPhase3AFixtureSet({namespace:'phase3b.monitor',entity:1,
-  users:[{key:'agent',role:'AGENT_SAISIE'},{key:'other',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'},{key:'norole',role:null}],
+  users:[{key:'agent',role:'AGENT_SAISIE'},{key:'other',role:'AGENT_SAISIE'},{key:'contributor',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'},{key:'norole',role:null}],
   references:{partners:[{key:'partner',label:'Partenaire suivi'}],projects:[{key:'project',label:'Projet suivi',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type suivi'}]},
   activities:[['owned','100'],['hidden','900']].map(([key,amount])=>({key,agentKey:key==='owned'?'agent':'other',partnerKey:'partner',projectKey:'project',name:'Suivi '+key,description:'Indicateurs du tableau de bord.',dateStart:'2026-09-05',dateEnd:'2032-09-30',authorizedAmount:amount,operations:[{name:'Opération '+key,typeKey:'type',authorizedAmount:amount}]}))});
 });
@@ -79,13 +79,18 @@ test('workflow counts differ from permitted work and late review keeps correctio
  await login(page,'validator');await page.goto('/custom/mjlfinancement/index.php?q=Revue%20suivie');await expect(page.locator('[aria-labelledby="mjl-workflow-title"]')).toContainText('Soumise : 2');await expect(page.locator('[data-work^="activity-"]')).toHaveCount(0);
 });
 test('a contributor who becomes Supervisor sees the stage count but cannot review their revision',async({page})=>{
- const activity=createActivities([{key:'contributor',name:'Contribution suivie',actorId:fixture.users.other.id}]).contributor;
- sql("UPDATE llx_mjlfinancement_user_role SET role_code='AGENT_VERIFICATEUR' WHERE entity=1 AND fk_user="+fixture.users.other.id+" AND is_active=1");
+ const activity=createActivities([{key:'contributor',name:'Contribution suivie',actorId:fixture.users.contributor.id}]).contributor;
+ await login(page,'validator');await page.goto('/custom/mjlfinancement/activities.php?id='+activity.activity_id);
+ const assignment=page.locator('form').filter({has:page.getByRole('button',{name:'Modifier l’affectation',exact:true})});
+ await assignment.locator('[name="assignment_operation"]').selectOption('TRANSFER_PRIMARY');await assignment.locator('[name="target_agent_id"]').selectOption(String(fixture.users.agent.id));await assignment.getByLabel('Motif').fill('Relève avant changement de rôle');
+ await assignment.getByRole('button',{name:'Modifier l’affectation',exact:true}).click();
+ expect(sql('SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_user='+fixture.users.contributor.id+' AND date_end IS NULL')).toBe('0');
+ sql("UPDATE llx_mjlfinancement_user_role SET role_code='AGENT_VERIFICATEUR' WHERE entity=1 AND fk_user="+fixture.users.contributor.id+" AND is_active=1");
  try {
-  await login(page,'other');await page.goto('/custom/mjlfinancement/index.php?activity_id='+activity.activity_id);
+  await login(page,'contributor');await page.goto('/custom/mjlfinancement/index.php?activity_id='+activity.activity_id);
   await expect(page.locator('[aria-labelledby="mjl-workflow-title"]')).toContainText('Soumise : 1');await expect(page.locator('[data-work]')).toHaveCount(0);
   await page.goto('/custom/mjlfinancement/activities.php?id='+activity.activity_id+'&action=review');await expect(page.getByText('Décision indisponible',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Prévalider',exact:true})).toHaveCount(0);
- }finally{sql("UPDATE llx_mjlfinancement_user_role SET role_code='AGENT_SAISIE' WHERE entity=1 AND fk_user="+fixture.users.other.id+" AND is_active=1");}
+ }finally{sql("UPDATE llx_mjlfinancement_user_role SET role_code='AGENT_SAISIE' WHERE entity=1 AND fk_user="+fixture.users.contributor.id+" AND is_active=1");}
 });
 test('51-row browsing, queues and alerts keep stable order and preserve filters',async({page})=>{
  for(let start=0;start<51;start+=12) createActivities(Array.from({length:Math.min(12,51-start)},(_,i)=>({key:'p'+(start+i),name:'Pagination suivi '+String(start+i).padStart(2,'0'),dateStart:'2026-09-05'})));
@@ -99,12 +104,14 @@ test('51-row browsing, queues and alerts keep stable order and preserve filters'
  }
 });
 test('reference filters retain inactive visible references and hide other entities',async({page})=>{
+ const partnerLabel=sql('SELECT nom FROM llx_societe WHERE entity=1 AND rowid='+fixture.partners.partner);
+ const projectLabel=sql('SELECT title FROM llx_projet WHERE entity=1 AND rowid='+fixture.projects.project);
  sql('UPDATE llx_societe SET status=0 WHERE rowid='+fixture.partners.partner+' AND entity=1');
  sql('UPDATE llx_projet SET fk_statut=0 WHERE rowid='+fixture.projects.project+' AND entity=1');
  try {
   await login(page);await page.goto('/custom/mjlfinancement/index.php');await page.getByText('Filtrer la sélection',{exact:true}).click();
-  await expect(page.getByLabel('Partenaire',{exact:true}).locator('option[value="'+fixture.partners.partner+'"]')).toHaveText('Partenaire suivi');
-  await expect(page.getByLabel('Projet',{exact:true}).locator('option[value="'+fixture.projects.project+'"]')).toHaveText('Projet suivi');
+  await expect(page.getByLabel('Partenaire',{exact:true}).locator('option[value="'+fixture.partners.partner+'"]')).toHaveText(partnerLabel);
+  await expect(page.getByLabel('Projet',{exact:true}).locator('option[value="'+fixture.projects.project+'"]')).toHaveText(projectLabel);
   await page.getByLabel('Projet',{exact:true}).selectOption(String(fixture.projects.project));await page.getByRole('button',{name:'Appliquer les filtres'}).click();await expect(page.locator('[data-metric="validated_amount"]')).toContainText('100 F CFA');
  }finally{sql('UPDATE llx_societe SET status=1 WHERE rowid='+fixture.partners.partner+' AND entity=1');sql('UPDATE llx_projet SET fk_statut=1 WHERE rowid='+fixture.projects.project+' AND entity=1');}
 });
@@ -130,18 +137,18 @@ test('general and request filters remain composed in both forms',async({page})=>
  await login(page);await page.goto('/custom/mjlfinancement/operationrequests.php?type=CANCELLATION&status=WITHDRAWN');
  await page.getByText('Filtrer la sélection',{exact:true}).click();await page.getByLabel('Projet',{exact:true}).selectOption(String(fixture.projects.project));await page.getByRole('button',{name:'Appliquer les filtres'}).click();
  expect(new URL(page.url()).searchParams.get('status')).toBe('WITHDRAWN');expect(new URL(page.url()).searchParams.get('type')).toBe('CANCELLATION');await expect(page.locator('.mjl-operation-card')).toHaveCount(1);
- await page.getByLabel('Type',{exact:true}).selectOption('');await page.getByRole('button',{name:'Filtrer les demandes'}).click();expect(new URL(page.url()).searchParams.get('project_id')).toBe(String(fixture.projects.project));
+ await page.getByRole('combobox',{name:'Type',exact:true}).selectOption('');await page.getByRole('button',{name:'Filtrer les demandes'}).click();expect(new URL(page.url()).searchParams.get('project_id')).toBe(String(fixture.projects.project));
 });
 test('past drafts retain abandonment, proposals stay explicit and future finalized work remains actionable',async({page})=>{
  const drafts=createActivities([{key:'past',name:'Brouillon périmé suivi',dateStart:'2026-09-05',submit:false},{key:'future',name:'Brouillon futur suivi',submit:false}]);
  await login(page);await page.goto('/custom/mjlfinancement/activities.php?id='+drafts.past.activity_id);await expect(page.getByRole('button',{name:'Abandonner le brouillon'})).toBeVisible();await expect(page.getByRole('button',{name:'Soumettre la révision'})).toHaveCount(0);await expect(page.getByRole('link',{name:'Modifier',exact:true})).toHaveCount(0);await expect(page.locator('main')).toContainText('Montant proposé courant');
  await page.goto('/custom/mjlfinancement/operations.php?activity_id='+drafts.future.activity_id);await expect(page.locator('.mjl-operation-card')).toContainText('Montant proposé');
- const future=createPhase3AFixtureSet({namespace:'phase3b.future',entity:1,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'p',label:'Partenaire futur'}],projects:[{key:'p',label:'Projet futur',partnerKey:'p'}],operationTypes:[{key:'t',label:'Type futur'}]},activities:[{key:'f',agentKey:'agent',partnerKey:'p',projectKey:'p',name:'Activité future validée',description:'Exécution permise après validation.',dateStart:'2032-09-05',dateEnd:'2032-09-30',authorizedAmount:'10',operations:[{name:'Opération future',typeKey:'t',authorizedAmount:'10'}]}]});
+ const future=createPhase3AFixtureSet({namespace:'phase3b.future',entity:1,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'p',label:'Partenaire futur'}],projects:[{key:'project',label:'Projet futur',partnerKey:'p'}],operationTypes:[{key:'t',label:'Type futur'}]},activities:[{key:'f',agentKey:'agent',partnerKey:'p',projectKey:'project',name:'Activité future validée',description:'Exécution permise après validation.',dateStart:'2032-09-05',dateEnd:'2032-09-30',authorizedAmount:'10',operations:[{name:'Opération future',typeKey:'t',authorizedAmount:'10'}]}]});
  const original=fixture;fixture=future;
  try {await login(page);await page.goto('/custom/mjlfinancement/index.php');await expect(page.locator('[data-work^="operation-"]')).toHaveCount(1);await expect(page.locator('[data-alert="SPENDING_MISSING"]')).toHaveCount(0);}finally{fixture=original;}
 });
 test('foreign selections and revoked current assignments reveal no business data',async({page})=>{
- const foreign=createPhase3AFixtureSet({namespace:'phase3b.monitor-ext',entity:2,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'p',label:'Partenaire étranger suivi'}],projects:[{key:'p',label:'Projet étranger suivi',partnerKey:'p'}],operationTypes:[{key:'t',label:'Type étranger suivi'}]},activities:[{key:'f',agentKey:'agent',partnerKey:'p',projectKey:'p',name:'Activité étrangère suivie',description:'Isolation.',dateStart:'2026-09-05',dateEnd:'2032-09-30',authorizedAmount:'10',operations:[{name:'Opération étrangère suivie',typeKey:'t',authorizedAmount:'10'}]}]});
+ const foreign=createPhase3AFixtureSet({namespace:'phase3b.monitor-ext',entity:2,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'p',label:'Partenaire étranger suivi'}],projects:[{key:'project',label:'Projet étranger suivi',partnerKey:'p'}],operationTypes:[{key:'t',label:'Type étranger suivi'}]},activities:[{key:'f',agentKey:'agent',partnerKey:'p',projectKey:'project',name:'Activité étrangère suivie',description:'Isolation.',dateStart:'2026-09-05',dateEnd:'2032-09-30',authorizedAmount:'10',operations:[{name:'Opération étrangère suivie',typeKey:'t',authorizedAmount:'10'}]}]});
  for(const role of ['agent','supervisor','validator']) {await login(page,role);for(const route of ['index.php','alerts.php','activities.php','operations.php']){await page.goto('/custom/mjlfinancement/'+route+'?activity_id='+foreign.activities.f.activity_id);await expect(page.locator('main')).not.toContainText('Activité étrangère suivie');await expect(page.locator('[data-work],[data-alert],[data-activity],.mjl-operation-card')).toHaveCount(0);}}
  const a=createActivities([{key:'revoke',name:'Suivi retrait immédiat',actorId:fixture.users.other.id,additionalAgentIds:[fixture.users.agent.id],assignmentActorId:fixture.users.validator.id}]).revoke;
  await login(page);await page.goto('/custom/mjlfinancement/activities.php?activity_id='+a.activity_id);await expect(page.locator('[data-activity]')).toHaveCount(1);

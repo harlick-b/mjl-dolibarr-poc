@@ -11,7 +11,7 @@ coverage.
 
 | Screen | Route/path | Current purpose | Access notes | Current-state caveat |
 | --- | --- | --- | --- | --- |
-| Workspace dashboard | `/custom/mjlfinancement/index.php` | Financial indicators first, workflow counts, 50-row permitted-action queue and five-alert preview. | Exact RST-012; active entity/current assignment; Admin remains technical/audit-only. | Shared Phase 3A retains its static landing. Focused final verification and expanded human review pending. |
+| Workspace dashboard | `/custom/mjlfinancement/index.php` | Financial indicators first, workflow counts, 50-row permitted-action queue and five-alert preview. | Exact RST-012; active entity/current assignment; Admin remains technical/audit-only. | Shared Phase 3A retains its static landing. Focused final verification passed (79/79); expanded human review pending. |
 | Partenaires | `/custom/mjlfinancement/partners.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Active business-role reads; Validator-only mutation and inactive visibility; Admin denied. | Browser-verified at the focused RST-003 seam; primary navigation remains unchanged until RST-009A. |
 | Projets | `/custom/mjlfinancement/projects.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Same role boundary; immutable Partenaire/ref; parent lifecycle guards. | Browser-verified, including 390-pixel containment and concurrency ordering. |
 | Types d’Opération | `/custom/mjlfinancement/operationtypes.php` | Entity-scoped reference list/detail/create/edit/activate/deactivate. | Same role boundary; no hard deletion. | Browser/schema-verified; catalog remains empty in the shared tenant. |
@@ -113,3 +113,10 @@ Phase 3B Alertes (`alerts.php`) and browsing now share validated GET filters,
 50-row pagination and source-unavailable states. Navigation adds Alertes,
 Rapports and Demandes d’exception only under exact RST-012 readiness. No shared
 cutover or human accessibility signoff is implied.
+
+Dashboard/navigation focused evidence (2026-09-10): 79/79 combined E2E checks
+passed in `mjl-test-20260910t161750-372637-5329ad95`. The populated dashboard
+was inspected at 390/768/980/1024/1366 pixels and in mobile forced colors without
+JavaScript. Keyboard menu/focus behavior, empty/error states and exact readiness
+were exercised. Shared before/after evidence matched and the tenant was removed.
+This completes the slice's technical check, not the signed human review.

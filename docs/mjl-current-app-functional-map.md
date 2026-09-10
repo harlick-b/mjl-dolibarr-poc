@@ -68,4 +68,4 @@ remain separately labeled. Query failures produce unavailable sections.
 
 The navigation adds Alertes, Demandes d’exception and business Rapports only
 after readiness; audit report variants select Audit. The obsolete supervision
-route remains denied. Focused final verification is in progress.
+route remains denied. Focused verification passed: 79/79 combined browser checks, equal shared-state evidence and complete disposable teardown. See the Phase 3B plan checkpoint for run evidence; whole-phase validation, human accessibility and cutover remain pending.

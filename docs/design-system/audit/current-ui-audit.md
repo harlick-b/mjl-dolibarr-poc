@@ -50,8 +50,8 @@ and official outputs.
 
 | Screen | Alignment | Main UI Debt | Safe Area |
 | --- | --- | --- | --- |
-| Workspace dashboard | Implemented, focused final gate pending | Financial-first indicators, scoped filters, workflow counts, permitted actions and alerts reuse v3. Shared predecessor remains until cutover; expanded human review pending. | `custom/mjlfinancement/index.php` |
-| Supervision dashboard | Medium | Production role wording, scoped filters, and audit-row resolution are aligned; route filename remains compatibility debt. | `custom/mjlfinancement/dpafdashboard.php` |
+| Workspace dashboard | Focused technical validation passed (79/79) | Financial-first indicators, scoped filters, workflow counts, permitted actions and alerts reuse v3. Shared predecessor remains until cutover; expanded human review pending. | `custom/mjlfinancement/index.php` |
+| Supervision dashboard | Retired route denied | Direct access remains denied; the scoped financial-first dashboard is Accueil after exact RST-012 readiness. | `custom/mjlfinancement/dpafdashboard.php` |
 | Partenaires | Good | French-first reference list/detail/forms, lifecycle states, safe feedback, and 390-pixel containment are focused-browser verified. | `custom/mjlfinancement/partners.php` |
 | Projets | Good | Guarded reference states expose only the display label for editing; immutable ownership/ref and parent lifecycle behavior are focused-browser verified. | `custom/mjlfinancement/projects.php` |
 | Types d’Opération | Good | Entity-scoped active/inactive reference states use the shared RST-003 presentation and security contract. | `custom/mjlfinancement/operationtypes.php` |
@@ -182,4 +182,4 @@ Dashboard/navigation slice: draft abandonment remains available after start;
 proposed versus validated amounts are explicit on touched detail and Opération
 views. Request filters compose with Activity filters, and stale requests retain
 closure controls. No-JavaScript forced-colors mobile capture was inspected;
-final combined technical verification is in progress.
+final combined technical verification passed (79/79). Populated dashboard captures at 390/768/980/1024/1366 were inspected; keyboard menu/Escape/focus, no-JavaScript, reduced-motion and forced-colors checks passed. Signed human accessibility review remains pending.

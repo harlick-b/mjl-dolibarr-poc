@@ -626,4 +626,44 @@ and Spec reviews identified and led to corrections for Project labels, proposed
 amount labels, request-filter composition, draft abandonment after start, and
 the request source budget. The abandonment predicate was observed failing and
 then passing through the public eligibility projection. Final combined
-report/chronology/dashboard verification is in progress.
+report/chronology/dashboard verification passed as recorded below.
+
+
+### Slice validation completed — 2026-09-10
+
+- `npm run test:phase3b-monitoring`: **79/79 passed** (15 dashboard/navigation
+  cases plus 64 report/chronology regressions), run
+  `mjl-test-20260910t161750-372637-5329ad95`, **594.7 seconds** including setup
+  and teardown. All source-failure, role-change, 50/51-row, assignment removal,
+  foreign-entity, no-JavaScript, keyboard, readiness and filter cases executed.
+- The runner's `phase3b-monitoring-shared-evidence.json` has exactly equal
+  before/after source, document, database and resource evidence. Artifact
+  scanning passed; the run's containers, network and three volumes were removed.
+  Runtime logs contain no PHP warning, fatal, parse or uncaught-error entries.
+- `npm run test:unit`: **210/210 Node tests** and all PHP contracts passed.
+  `php -l <file>` passed for every PHP file listed by
+  `git diff-tree --no-commit-id --name-only -r bcba069` (13 files).
+  `node --check tests/e2e/phase3b-monitoring.spec.js` and `git diff --check` passed.
+- Populated dashboard captures at 390/768/980/1024/1366 pixels were inspected,
+  together with the 390-pixel no-JavaScript, reduced-motion, forced-colors view.
+  Cards, amounts and navigation remain readable without horizontal clipping;
+  keyboard menu/Escape/focus and viewport overflow assertions passed.
+- Standards/Security and Spec reviews have no outstanding actionable finding.
+  Design and full-feature checks pass within this slice's technical boundary.
+  This is not signed human accessibility approval.
+
+Validation corrected test setup only after implementation commit `bcba069`:
+a dedicated contributor transfers current assignment through the guarded UI
+before changing role; inactive-reference assertions use exact stored fixture
+labels; the request Type dropdown is selected by accessible combobox name;
+and Partenaire/Projet fixture keys are distinct across reference collections.
+The preceding complete runs reached 70, 72, 75 and 76 passes before these
+fixture/locator failures; none is represented as a passing acceptance gate.
+Interrupted runs have no usable final acceptance result. Orphan resources from
+runs `20260910t133027`, `20260910t145138` and `20260910t151240` were explicitly
+removed once their runner processes were confirmed absent.
+
+Phase 3B remains **IN_PROGRESS**. Whole-phase/aggregate validation, scale and
+performance acceptance, signed human accessibility review and guarded shared
+cutover were deliberately not run in this slice. The shared tenant retains
+Phase 3A behavior; no persistent sample data, shared migration or push occurred.

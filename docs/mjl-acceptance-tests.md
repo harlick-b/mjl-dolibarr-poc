@@ -36,6 +36,9 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   source failures, readiness and responsive/no-JavaScript behavior. It shares
   the mandatory no-retain teardown and exact shared-state evidence contract.
   This slice gate does not establish whole-phase readiness.
+  Latest slice evidence: 79/79 passed on 2026-09-10 in
+  `mjl-test-20260910t161750-372637-5329ad95` (594.7 seconds with setup/teardown);
+  shared before/after evidence matched. See the Phase 3B checkpoint.
 - 'test:phase3b-reports' combines Activities, Operations, Fiche Activité, portfolio, audit
   and Activity chronology acceptance, including parent/child filter semantics, formats, exact variance,
   cancellation/proposal classification, pagination and scoped access. Fiche

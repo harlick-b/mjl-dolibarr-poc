@@ -10,6 +10,7 @@ behavior are not current evidence.
 
 | Command | Current purpose | Isolation / cleanup |
 | --- | --- | --- |
+| `npm run test:phase3b-monitoring` | Financial-first dashboard, eligibility/alerts, filtered browsing/navigation and existing report/chronology regressions (79 cases) | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
 | `npm run test:unit` | Static Node contracts and PHP presentation/navigation contracts | No business fixture writes |
 | `npm run test:verify` | Current RST-002B exact schema and empty-tenant verification | Unique disposable tenant, whole-tenant teardown |
 | `npm run test:e2e` | Current reference/auth/document/fixture, RST-002B, RST-006A planning, and Phase 2 navigation/chronology browser suites in `playwright.config.js` | Unique disposable tenant, whole-tenant teardown |
@@ -45,6 +46,7 @@ behavior are not current evidence.
 | `tests/e2e/rst006a-activity-planning.spec.js` | RST-006A planning, revisions, reviews, locking, fixed pagination, validation, and Activity route security |
 | `tests/e2e/zz-phase2-planning.spec.js` | Phase 2 Planification, Opérations access, and Activity chronology acceptance; ordered after the foundational RST-006A suite |
 | `tests/characterization/permissions.spec.js` | Retained unchanged historical RST-002A source; no longer selected by the public characterization command after RST-002B |
+| `tests/e2e/phase3b-monitoring.spec.js` | 15 scoped dashboard, role/contributor, date, stale-request, filter/pagination, failure, responsive, assignment-removal, cross-entity and readiness cases |
 | `tests/unit/*.test.js` | Current static reset, schema, security, canonical-document, runner, and presentation contracts |
 | `tests/contracts/*_test.php` | Current PHP behavior, navigation, presentation, and status contracts |
 

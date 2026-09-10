@@ -277,3 +277,13 @@ debugging discoveries. Do not add one-off observations or generic advice.
   Check writes against the complete encoded row length. Fault tests must fail
   the final row: a later write can otherwise detect the full filesystem and
   hide the silent-truncation bug in the earlier row.
+
+- The disposable reference factory requires keys unique across Partenaire,
+  Projet and Type collections, and decorates stored labels with a unique suffix.
+  Reusing a key in another collection or asserting an undecorated label prevents
+  later serial acceptance cases from running. Check fixture requests against the
+  factory contract and use the stored label or returned identifier for assertions.
+- Playwright exact `getByLabel()` matching can include nested select option text
+  even when the control's computed accessible name is just the label. For such
+  controls, use `getByRole('combobox', { name: ..., exact: true })`; retain the
+  name assertion instead of replacing it with an unrelated CSS selector.
