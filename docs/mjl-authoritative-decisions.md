@@ -151,7 +151,10 @@ approved Phase 1 role-projected navigation. RST-010A is executed as
 containment hardening only and authorizes no document-management behavior.
 The future Phase 4 strategy is approved by DEC-041 but cannot be implemented
 before its roadmap dependencies and a fresh post-Phase-3C live inventory and
-reset-unit review. Every other unexecuted reset-manifest entry remains
+reset-unit review. DEC-056 separately approves the Phase 3B bundle RST-009C, RST-011, RST-012,
+RST-013D and RST-014D for implementation and guarded local cutover under
+`docs/mjl-phase-3b-monitoring-plan.md`; execution is in progress.
+Every other unexecuted reset-manifest entry remains
 `PENDING_APPROVAL` unless its explicit approved-in-review status is stated
 above.
 DEC-042 narrows the future Admin document exception to the runtime active

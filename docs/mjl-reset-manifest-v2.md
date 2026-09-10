@@ -468,7 +468,7 @@ number does not approve a suffixed unit.
 
 ### RST-009C - Phase 3 navigation
 
-- Status: `PENDING_APPROVAL`
+- Status: `APPROVED` under DEC-056 on 2026-09-09
 - Current component: legacy dashboard/report navigation and absent target execution entries.
 - Proposed action: expose approved Phase 3 execution, monitoring, audit, and reporting routes.
 - Reason: routes must follow completed guards and phase scope.
@@ -479,6 +479,8 @@ number does not approve a suffixed unit.
 - Action and data impact: expose approved execution, dashboards, audit, and reporting routes after their guards pass.
 - Backup prerequisite: Phase 3B descriptor/menu export.
 - Rollback/verification: restore prior navigation metadata and files.
+
+- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
 
 ### RST-010A - Disable unapproved document business behavior
 
@@ -539,31 +541,35 @@ number does not approve a suffixed unit.
 
 ### RST-011 - Replace dashboards and alerts
 
-- Status: `PENDING_APPROVAL`
-- Current component: finance and Partner-scope dashboard/alert queries.
+- Status: `APPROVED` under DEC-056 on 2026-09-09
+- Current component: Phase 3A landing page and contained alerts route; the obsolete finance dashboards remain absent.
 - Proposed action: replace them with revision-aware Activity/Opération metrics.
-- Reason: current KPIs mix obsolete sources, states, and authorization.
+- Reason: Phase 3B introduces scoped target monitoring over the executed Activity/Opération foundation.
 - Phase: Phase 3B
 - Dependencies: RST-006B, RST-007B
-- Exact paths: `custom/mjlfinancement/index.php`, `custom/mjlfinancement/dpafdashboard.php`, `custom/mjlfinancement/alerts.php`, `custom/mjlfinancement/lib/mjl_dashboard.lib.php`, `custom/mjlfinancement/lib/mjl_alert_condition.lib.php`, `custom/mjlfinancement/lib/mjl_alert_presentation.lib.php`, `custom/mjlfinancement/lib/mjl_alerts.lib.php`, `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `tests/contracts/container/dashboard_resilience_test.php`, `tests/e2e/dashboards-alerts.spec.js`, `tests/e2e/cases/role-dashboards.cases.js`, `tests/e2e/cases/scoped-alerts.cases.js`.
+- Exact paths: `custom/mjlfinancement/index.php`, `custom/mjlfinancement/alerts.php`, `custom/mjlfinancement/class/mjlmonitoring.class.php`, `custom/mjlfinancement/lib/mjl_monitoring.lib.php`, planned `custom/mjlfinancement/lib/mjl_monitoring_route.lib.php`, `custom/mjlfinancement/lib/mjl_activity_route.lib.php`, `custom/mjlfinancement/lib/mjl_operation_route.lib.php`, `custom/mjlfinancement/lib/mjl_operation_request_route.lib.php`, `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, `tests/unit/phase3b-monitoring.test.js`, planned `tests/e2e/phase3b-monitoring.spec.js`.
 - Exact tables/data: read-only queries over target Activity, Opération, assignment, revision, and audit tables; no cache table authorized.
 - Action and data impact: replace finance/Partner-scope queries with separated revision-aware target totals; no source data mutation.
 - Backup prerequisite: phase commit and captured old/new aggregate fixtures.
 - Rollback/verification: restore prior query/UI files; source data remains unchanged.
 
+- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
+
 ### RST-012 - Replace report catalog
 
-- Status: `PENDING_APPROVAL`
-- Current component: 18-key CSV/XLSX finance report code after RST-000A deletes its local sample report rows/files.
+- Status: `APPROVED` under DEC-056 on 2026-09-09
+- Current component: No active report catalog. Legacy report machinery remains deleted; retained CSV/XLSX helpers cannot bypass the new export owner.
 - Proposed action: replace the old code catalog with target PDF/XLSX plus supplemental CSV outputs.
 - Reason: target sources, scopes, formats, and audit contract differ.
 - Phase: Phase 3B
 - Dependencies: RST-006B, RST-007B
-- Exact paths: `custom/mjlfinancement/reports.php`, `custom/mjlfinancement/class/mjlreport.class.php`, `custom/mjlfinancement/lib/mjl_reporting.lib.php`, `custom/mjlfinancement/lib/mjl_csv_export.lib.php`, `custom/mjlfinancement/lib/mjl_xlsx_export.lib.php`, planned `custom/mjlfinancement/lib/mjl_pdf_export.lib.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_report.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_report.key.sql`, `custom/mjlfinancement/sql/update_0.3.0.sql`, `custom/mjlfinancement/scripts/verify_traceability_exports.php`, `custom/mjlfinancement/scripts/verification/scope/traceability_targets.php`, `custom/mjlfinancement/scripts/verification/schema/core_schema.php`, `custom/mjlfinancement/scripts/check_production_readiness.php`, `custom/mjlfinancement/lib/mjl_navigation_registry.lib.php`, `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `custom/mjlfinancement/lib/mjl_dashboard.lib.php`, `custom/mjlfinancement/lib/mjl_integrity.lib.php`, `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, `custom/mjlfinancement/lib/mjl_traceability_scope.lib.php`, `custom/mjlfinancement/index.php`, `tests/e2e/reports-exports.spec.js`, `tests/e2e/cases/report-exports.cases.js`, `tests/contracts/navigation_registry_test.php`, `tests/e2e/access-shell.spec.js`, `tests/e2e/cases/navigation-shell.cases.js`, `tests/e2e/cases/scope-security.cases.js`, `tests/e2e/screen-inventory.spec.js`, `tests/manual/accessibility-gate.spec.js`, `tests/runner/run-suite.js`, `tests/unit/operational-script-boundary.test.js`; continued absence of removed persistent report seed sources is an invariant.
-- Exact tables/data: empty target `llx_mjlfinancement_report`; disposable generated test outputs; read-only target Activity/Opération/revision/audit sources.
-- Action and data impact: replace all 18 legacy code keys with the approved PDF/XLSX catalog and retain supplemental CSV; create no persistent sample report row and label no output official without later approval.
+- Exact paths: planned `custom/mjlfinancement/reports.php` and `custom/mjlfinancement/reportexport.php`; `custom/mjlfinancement/class/mjlexport.class.php`, `custom/mjlfinancement/class/mjlexportspool.class.php`, `custom/mjlfinancement/class/mjlmonitoring.class.php`, `custom/mjlfinancement/lib/mjl_report_data.lib.php`, `custom/mjlfinancement/lib/mjl_report_format.lib.php`, `custom/mjlfinancement/lib/mjl_report_render.lib.php`, planned `custom/mjlfinancement/lib/mjl_audit_projection.lib.php`, `custom/mjlfinancement/workflowactions.php`, `custom/mjlfinancement/lib/mjl_timeline_presentation.lib.php`, `custom/mjlfinancement/scripts/rst012_schema.lib.php`, `custom/mjlfinancement/scripts/schema/rst012_report.sql`, planned `custom/mjlfinancement/scripts/rst012_exports.php` and `custom/mjlfinancement/scripts/rst012_fast_cutover.js`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/scripts/rst006a-dependent-units.json`, `tests/fixtures/phase3b-schema-probe.php`, `tests/unit/phase3b-report-format.test.js`, `tests/unit/phase3b-export-spool.test.js`, planned `tests/e2e/phase3b-exports.spec.js`. Continued absence of deleted legacy report tables/classes and persistent report fixtures is an invariant.
+- Exact tables/data: empty target `llx_mjlfinancement_export_record` (new immutable RST-012 evidence; the deleted legacy report table stays absent); disposable generated test outputs; read-only target Activity/Opération/revision/audit sources.
+- Action and data impact: introduce the five approved operational reports in PDF/XLSX/CSV with immutable generation evidence; create no persistent sample report and label no output official.
 - Backup prerequisite: RST-000, executed RST-000A, and a report code/schema baseline.
-- Rollback/verification: restore prior registry/export code; disposable report fixtures and files are destroyed with their tenant.
+- Rollback/verification: rehearse guarded installation and rollback only while the new table is empty and no generation evidence exists; otherwise contain routes and preserve immutable evidence.
+
+- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
 
 ### RST-013A - Phase 1 test reset
 
@@ -676,17 +682,19 @@ number does not approve a suffixed unit.
 
 ### RST-013D - Phase 3B test reset
 
-- Status: `PENDING_APPROVAL`
+- Status: `APPROVED` under DEC-056 on 2026-09-09
 - Current component: legacy dashboard, alert, report, audit, and presentation tests.
 - Proposed action: align tests with target metrics and PDF/XLSX plus supplemental CSV outputs.
 - Reason: Phase 3B behavior must be tested in Phase 3B rather than deferred to hardening.
 - Phase: Phase 3B
 - Dependencies: RST-009C, RST-011, RST-012, RST-013C
-- Exact paths: `tests/e2e/dashboards-alerts.spec.js`, `tests/e2e/reports-exports.spec.js`, `tests/e2e/cases/report-exports.cases.js`, `tests/e2e/cases/role-dashboards.cases.js`, `tests/e2e/cases/scoped-alerts.cases.js`, `tests/manual/accessibility-gate.spec.js`, `tests/unit/design-system-v3-remediation.test.js`, `tests/unit/design-system-v3.test.js`, `tests/contracts/page_header_test.php`, `tests/contracts/presentation_convergence_test.php`, `tests/contracts/table_presentation_test.php`, `tests/evidence/inter-font-css.js`, `tests/helpers/responsive-shell.js`.
+- Exact paths: `tests/unit/phase3b-monitoring.test.js`, `tests/unit/phase3b-report-format.test.js`, `tests/unit/phase3b-export-spool.test.js`, `tests/unit/disposable-run.test.js`, `tests/unit/rst006a-activity-planning.test.js`, `tests/fixtures/phase3b-schema-probe.php`, `tests/fixtures/phase3b-report-fixture.php`, `tests/e2e/phase3b-activities-report.spec.js`, planned `tests/e2e/phase3b-monitoring.spec.js` and `tests/e2e/phase3b-exports.spec.js`, `tests/manual/accessibility-gate.spec.js`, `tests/runner/run-suite.js`, `tests/runner/disposable-run.js`, `playwright.config.js`, `package.json`, existing navigation/presentation/accessibility contracts, and planned RST-012 cutover rehearsal under `tests/runner`.
 - Exact tables/data: disposable Phase 3B fixtures and generated report/UI evidence only.
 - Action and data impact: replace dashboard/report assertions without deleting visual accessibility contracts.
 - Backup prerequisite: Phase 3A commit and disposable report-fixture definitions.
 - Rollback/verification: restore named files and run the prior Phase 3B suite.
+
+- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
 
 ### RST-013E - Phase 3C test and runner reset
 
@@ -827,17 +835,19 @@ number does not approve a suffixed unit.
 
 ### RST-014D - Phase 3B disposable report fixtures
 
-- Status: `PENDING_APPROVAL`
+- Status: `APPROVED` under DEC-056 on 2026-09-09
 - Current component: isolated Phase 3A factories and no persistent report catalog data.
 - Proposed action: add disposable target operational PDF/XLSX and supplemental CSV report cases.
 - Reason: Phase 3B output behavior requires evidence without a persistent sample catalog.
 - Phase: Phase 3B
 - Dependencies: RST-012, RST-014C
-- Exact paths: Phase 3B report files under `tests/fixtures` or `tests/helpers` approved with RST-013D; no persistent `fixed_reports.csv` replacement.
-- Exact tables/data: disposable report rows and generated files inside run-scoped database/document volumes only.
+- Exact paths: `tests/fixtures/phase3b-schema-probe.php`, `tests/fixtures/phase3b-report-fixture.php`, `tests/e2e/phase3b-activities-report.spec.js`, planned `tests/fixtures/phase3b-fixture.php`, `tests/helpers/phase3b-fixture.js` and scale/performance probes within the existing disposable runner boundary; `tests/runner/run-suite.js` and `tests/runner/disposable-run.js`. No persistent fixture package or `fixed_reports.csv` replacement.
+- Exact tables/data: disposable Activity/Opération/audit/export records and generated files in private container storage, all removed with the tenant; no generated file in shared document storage.
 - Action and data impact: generate target test outputs per run, label none official, and remove rows/files/volumes with the tenant.
 - Backup prerequisite: Phase 3A commit and runner snapshot.
 - Rollback/verification: restore helper code and prove no report fixture or generated output survives teardown.
+
+- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
 
 ### RST-015 - Production-readiness model rewrite
 
@@ -858,3 +868,42 @@ number does not approve a suffixed unit.
 The user must approve exact IDs, including suffixes. Approval may narrow an
 action but cannot broaden it. Missing dependencies, backups, row inventories,
 or restore evidence block execution. Unapproved units remain blocked.
+
+Phase 3B Activities slice inventory: `custom/mjlfinancement/reports.php`,
+`custom/mjlfinancement/reportexport.php`, `custom/mjlfinancement/lib/mjl_report_route.lib.php`,
+and the scoped contextual entry in `custom/mjlfinancement/lib/mjl_activity_route.lib.php`.
+These routes require RST-012; this checkpoint does not activate the shared tenant.
+
+Operations report slice inventory: existing report data/format/render/route
+libraries, `custom/mjlfinancement/lib/mjl_operation_route.lib.php` contextual link,
+`tests/e2e/phase3b-operations-report.spec.js`, existing disposable Phase 3A
+factories, `test:phase3b-reports` combined runner, and pure projection/format
+contracts. No new schema, persistent fixture, or shared activation is introduced.
+
+Fiche Activité slice inventory: existing report data/route libraries and the
+Activity detail contextual link; `tests/e2e/phase3b-activity-detail.spec.js` in
+the existing combined reports and aggregate E2E batches. Three-section exports
+reuse the RST-012 owner, renderer and scope revalidation without new persistence
+or runtime dependencies. No shared cutover is part of this slice.
+
+Portfolio slice inventory: existing report data/route libraries and report tabs;
+`tests/e2e/phase3b-portfolio-report.spec.js` joins the existing combined reports
+and actual aggregate E2E batches. Grouping uses the scoped full-Activity
+projection and exact totals, with all contributing Activity IDs retained for
+authorization and evidence. No new schema or runtime dependency is introduced.
+
+Complete audit slice inventory: `lib/mjl_audit_projection.lib.php` and
+`lib/mjl_audit_report_route.lib.php` under `custom/mjlfinancement`, existing
+monitoring/report libraries and export owner, plus the guarded RST-012 delegation
+in `workflowactions.php`. `tests/e2e/phase3b-audit-report.spec.js`,
+`tests/unit/phase3b-audit-projection.test.js` and fixed disposable audit probes in
+`tests/fixtures/phase3b-report-fixture.php` use the existing report runner.
+No new schema, persistent fixture, core edit or shared activation is introduced.
+
+Activity chronology slice inventory: existing `lib/mjl_timeline.lib.php`,
+`lib/mjl_timeline_presentation.lib.php` and Activity route under
+`custom/mjlfinancement`; `tests/unit/phase3b-timeline.test.js` and
+`tests/e2e/phase3b-timeline.spec.js`; fixed chronology probes in the guarded
+existing report fixture and membership in focused/aggregate runner batches.
+The existing report redaction/cause helpers are reused. This read-only extension
+adds no schema, persistent fixture, core edit or shared cutover.

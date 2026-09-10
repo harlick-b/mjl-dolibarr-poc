@@ -100,3 +100,11 @@ cross-entity aggregation. The Phase 4 Admin exception is read-only metadata,
 guarded download/preview of current documents, and reasoned separately audited
 historical recovery. Admin may not upload, append, replace, withdraw,
 categorize, review, validate, or use raw/native ECM delivery.
+
+## Phase 3B Exports (DEC-056)
+
+Agents export only currently assigned Activities; Supervisors and Validators
+export their active-entity portfolio. Complete audit export is Validator/Admin
+only. All included Activity permissions and the original effective role are
+rechecked under current-state locks at generation commit. Revocation committed
+before that gate prevents delivery; an authorized response may finish afterward.

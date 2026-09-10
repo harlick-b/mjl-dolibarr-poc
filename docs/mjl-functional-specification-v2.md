@@ -284,8 +284,9 @@ values include `+`; negative values include `-`. Missing spent amount displays
 `Non renseigné`. The symbol `-` never means missing information. Observation
 is required when spent differs from authorized.
 
-XLSX keeps amounts, zero, and percentages numeric, using number formats for
-display. PDF follows the human display rules. CSV remains numeric where
+XLSX keeps ordinary amounts, zero, and percentages numeric, using number formats for
+display. DEC-056 permits exact text for values beyond safe spreadsheet precision,
+with an explicit metadata explanation; no silent rounding is permitted. PDF follows the human display rules. CSV remains numeric where
 declared numeric and follows its supplemental export contract.
 
 ## 17. Currency
@@ -393,7 +394,7 @@ audit event only after successful generation.
 
 PDF and XLSX are required operational formats. CSV is supplemental, audited,
 UTF-8 BOM, semicolon-separated, French-headed, and stable in filename. XLSX
-keeps numeric values numeric. Phase 6 official reports become immutable
+keeps ordinary numeric values numeric, with the DEC-056 exact-text precision exception. Phase 6 official reports become immutable
 snapshots and are never inferred from generic operational exports.
 
 ## 26. Dashboard Rules
@@ -590,3 +591,15 @@ Upload defenses follow the OWASP defense-in-depth file-upload guidance:
 Phase 3C hardens core and decides integration readiness only. Production launch
 waits for the client and project owner to decide whether Phases 4, 5, and 6 are
 mandatory before launch. No automated or Codex verdict replaces that decision.
+
+## Phase 3B Monitoring and Export Clarifications (DEC-056)
+
+The approved Phase 3B monitoring plan defines the five fixed reports, computed
+in-app alerts, seven-calendar-day warning window, current cumulative totals
+selected by Activity date overlap, and bounded generation. Latest validated
+amounts survive cancellation. Child filters never shrink Activity completeness.
+Export authorization linearizes at the final current-read transaction commit;
+an already authorized response may finish. Generated files are private and
+temporary; hard-crash leftovers are swept on the next export or controlled startup.
+No successful generation is delivered without confirmed audit/record commit. An
+uncertain commit may leave both immutable records and never claims browser receipt.
