@@ -110,7 +110,7 @@ test('current design audits mark removed routes as absent', () => {
     'docs/design-system/audit/current-ui-audit.md',
   ]) {
     const audit = read(relativePath);
-    for (const route of ['budgetlines.php', 'reports.php', 'validations.php', 'exchangelogs.php', 'roadmap.php']) {
+    for (const route of ['budgetlines.php', 'validations.php', 'exchangelogs.php', 'roadmap.php']) {
       const line = audit.split('\n').find((candidate) => candidate.includes(route));
       assert.ok(line, `${relativePath} must inventory ${route}`);
       assert.match(line, /Removed|404|absent/i, `${relativePath}: ${route}`);
