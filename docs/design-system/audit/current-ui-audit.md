@@ -26,8 +26,7 @@ and official outputs.
   custom and native document delivery paths are denial-only.
 - The workflow audit screen exists; the obsolete exchange-log screen is
   removed.
-- CSV/XLSX exports are the current output formats; PDF/Word reports are outside
-  the current authoritative scope.
+- Operational PDF/XLSX and supplemental audited CSV are approved for Phase 3B under DEC-056; implementation is in progress. Word and official Partner outputs are not part of this unit.
 - Historical shared journey summaries and document panels are not current
   document behavior; exact finance recovery,
   resource pagination, contextual timelines, and enriched dashboard-card
@@ -64,9 +63,9 @@ and official outputs.
 | Conventions | Removed | Obsolete finance and document behavior is absent. | `custom/mjlfinancement/conventions.php` |
 | Budget lines | Removed | Obsolete finance route is absent and returns 404. | `custom/mjlfinancement/budgetlines.php` |
 | Fund receipts | Removed | Obsolete finance and proof-document behavior is absent. | `custom/mjlfinancement/fundreceipts.php` |
-| Reports / exports | Removed | Obsolete report-center route is absent and returns 404; target Phase 3B outputs are not implemented. | `custom/mjlfinancement/reports.php` |
+| Activities report | Focused technical validation passed | Scoped preview and three audited downloads; shared Phase 3A stays unavailable pending cutover. 16 focused E2E checks and mobile/PDF visual inspection passed; expanded human review and other Phase 3B reports remain pending. | `custom/mjlfinancement/reports.php`, `reportexport.php` |
 | Validation history | Removed | Obsolete expense-validation route is absent and returns 404. | `custom/mjlfinancement/validations.php` |
-| Workflow audit | Partial | Current technical audit route should become more contextual in later phases. | `custom/mjlfinancement/workflowactions.php` |
+| Workflow audit | Focused technical validation passed | Complete historical report available after exact RST-012; shared predecessor remains until cutover. Expanded human review pending. | `custom/mjlfinancement/workflowactions.php` |
 | Exchange logs | Removed | Obsolete exchange-log route is absent and returns 404. | `custom/mjlfinancement/exchangelogs.php` |
 | Roadmap | Removed | Obsolete internal roadmap route is absent and returns 404. | `custom/mjlfinancement/roadmap.php` |
 | Auth/invitations | Medium | Invitation-only stance and formal accented plain-text templates are aligned; production email/base URL remains pending. | Auth templates, `admin/access.php`, `invitation.php`, `lib/mjl_email.lib.php` |
@@ -77,7 +76,7 @@ and official outputs.
 - Preserve no public registration.
 - Preserve RST-010A denial-only containment until the sequenced Phase 4
   implementation replaces it; do not restore contextual uploads or downloads.
-- Preserve CSV/XLSX-only scope unless authority changes.
+- Apply the DEC-056 operational PDF/XLSX/CSV contract.
 - Use `docs/mjl-authoritative-decisions.md` for terminology and role decisions.
 
 ## Phase 3D.2 gate evidence
@@ -136,3 +135,45 @@ conformance, production readiness, or whole-Phase-3D completion.
 Automated design and security evidence has no open high-risk finding after
 remediation. This remains a local integration result, not WCAG conformance or
 production-readiness approval.
+
+Operations report extension (focused technical validation passed): `reports.php?report=operations` reuses
+the Activities report controls and guarded `reportexport.php` delivery. It adds
+explicit parent-versus-child filter labels, Opération type/state, proposed versus
+validated authorization, observation and exact variance. The 27-check combined reports gate passed, including 11 Operations checks; the
+390px screenshot and PDF were inspected. No shared cutover or expanded human
+signoff is implied.
+
+Fiche Activité extension (focused technical validation passed): a contextual
+Activity link opens the complete three-section report. The 35-check combined
+reports gate passed, including 8 Fiche checks and the multiline observation
+regression. The 390px no-JavaScript preview and actual PDF general-information
+and Opération pages were inspected. Literal markup stays escaped and line breaks
+remain readable. Expanded human accessibility, whole-phase readiness and shared
+cutover remain pending.
+
+Portfolio summary extension (focused technical validation passed): one selected
+grouping level, Projet by default or Partenaire, with pre-grouping Activity
+filters and exact separated financial indicators. Draft/returned and
+submitted/prevalidated pending amounts remain explicit. All 43 combined report
+checks passed, including 8 portfolio checks; the 390px no-JavaScript layout and
+actual PDF body were inspected. Expanded human accessibility and shared cutover
+remain pending.
+
+Complete audit report extension (focused technical validation passed): historical
+filters and stable 50-event cursor pagination, expandable field-level changes,
+French field/action/cause labels, and guarded Validator/Admin downloads. Unknown
+or malformed details remain explicitly unavailable and prevent complete export.
+All 55 combined report checks passed, including 12 audit checks; the actual PDF
+body and 390px no-JavaScript preview were inspected. Full values are redacted
+before numbered continuation rows. Expanded human accessibility, ordinary
+Activity chronology, whole-phase readiness and shared cutover remain pending.
+
+Activity chronology extension (focused technical validation passed): detail and
+review pages reuse the existing linear list with French execution, request,
+assignment and automatic-transition summaries. Current Activity access is
+rechecked, 50-event cursors retain the parent/review route, and captured
+single-Activity export scope is checked before inclusion. Redacted multiline
+observations remain readable. Unknown, malformed and oversized details show an
+explicit unavailable message. The 63-check combined reports gate passed,
+including all 8 chronology checks, and the 390px no-JavaScript chronology was
+inspected. Expanded human accessibility and whole-phase readiness remain pending.

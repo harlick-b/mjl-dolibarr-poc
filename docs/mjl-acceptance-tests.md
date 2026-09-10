@@ -23,9 +23,42 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst006b
     npm run test:rst013c
     npm run test:rst014c
+    npm run test:phase3b-reports
+    npm run test:phase3b-activities
+    npm run test:phase3b
     npm run test:phase3a
     npm run test:phase1-reset
 
+- 'test:phase3b-reports' combines Activities, Operations, Fiche Activité, portfolio, audit
+  and Activity chronology acceptance, including parent/child filter semantics, formats, exact variance,
+  cancellation/proposal classification, pagination and scoped access. Fiche
+  checks cover complete general/financial/Opération sections, current revision
+  references and assignments, zero versus missing spending, literal user text,
+  required single-Activity scope, rejected child filters and actual PDF/XLSX/CSV
+  files with matching immutable evidence, including mobile without JavaScript.
+  Portfolio checks cover Projet/Partenaire grouping, full-Activity filter and
+  access scope, exact totals beyond native integer range, null/zero and proposal
+  separation, single-level actual files, strict filters and mobile grouping.
+  Audit checks cover Validator/Admin access, historical filters, cursor pages,
+  all three actual formats, native cancellation/reopening snapshots, quoted
+  credential redaction before continuation splitting, and refusal of unknown
+  or malformed details without export evidence. Audit exports exclude their own
+  generation event and retain no Activity scope.
+  Chronology checks cover native execution/request/cancellation summaries,
+  historical assignment identifiers, redaction, 50-event cursors on detail and
+  review pages, malformed/foreign cursor rejection, unavailable oversized
+  details, single-Activity export inclusion, immediate assignment revocation
+  and mobile navigation without JavaScript.
+  Export format contracts additionally reject a positive partial final CSV write;
+  actual XLSX checks retain numeric zero variance with its canonical dash display.
+  It uses the same no-retain teardown and shared-state evidence requirements.
+- 'test:phase3b-activities' exercises scoped Activities previews, all three actual
+  downloads, immutable evidence hashes, role/POST/filter denials, no-JavaScript
+  mobile filtering, authorization races and atomic failure rollback in a
+  disposable tenant. It requires teardown and exact shared-state equality.
+- 'test:phase3b' remains an incomplete full-phase gate, including schema/renderer
+  probes; its explicit unfinished-integration guard must remain until all
+  Phase 3B acceptance requirements are implemented.
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
 - 'test:verify' provisions an isolated tenant and runs the current RST-002B
   exact-schema and empty-tenant verifier.

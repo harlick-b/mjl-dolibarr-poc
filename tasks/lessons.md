@@ -244,3 +244,36 @@ debugging discoveries. Do not add one-off observations or generic advice.
   explicitly; a regex or comparison against `NULL` alone does not reject the
   row. Exact-schema tests should exercise the null branch, not only compare the
   stored constraint text.
+- Report size checks must reject excess rows before serializing the complete
+  document. A small PHP array using shared values can expand into a fatal-size
+  JSON string before a later memory check runs; count first and account for
+  bounded serialized chunks, including metadata and headings. Check headroom
+  before derived-record and typed-cell expansion too: even 10,000 small source
+  rows can exhaust PHP memory before the writer preflight is reached.
+- Shared-state test evidence includes the protected repository source digest.
+  Freeze source during these runs (or use an isolated fixed checkout); editing
+  code concurrently invalidates isolation evidence even when the database and
+  document storage remain untouched.
+
+- For literal multiline report text, the installed `dol_escape_htmltag()`
+  defaults are not lossless: they turn LF into literal backslash-n, and can
+  normalize entities or remove selected tags. Use plain-text HTML escaping
+  before controlled line-break markup, and assert rendered multiline text in
+  the browser as well as exported bytes. This affected both Fiche fields and
+  Operations observations.
+
+- Historical audit text can contain quoted JSON credentials with spaces even
+  when the original writer used a key-value sanitizer. Redact complete quoted
+  values before the legacy unquoted rule and before continuation splitting;
+  otherwise the first rule can consume only the prefix and expose the rest.
+  Exercise actor snapshots as well as reasons/context, including escaped quotes.
+
+- Disposable workflow commands may use a fixed business date while audit
+  timestamps still use the actual recording clock. Date-filter tests must use
+  the fixture event’s captured date rather than its workflow date; otherwise a
+  correct filter starts failing the day after the test is written.
+
+- `fputcsv()` can return a positive short byte count while `fflush()` succeeds.
+  Check writes against the complete encoded row length. Fault tests must fail
+  the final row: a later write can otherwise detect the full filesystem and
+  hide the silent-truncation bug in the earlier row.

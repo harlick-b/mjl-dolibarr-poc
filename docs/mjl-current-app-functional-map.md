@@ -19,11 +19,13 @@ the unsigned human accessibility review remains a production/release blocker.
 | Activities | Entity-scoped planning/review aggregate plus active derived execution status, financial completeness/totals, and guarded Activity cancellation request. |
 | Opérations | Active 50-row execution list: current Assigned Agents enter explicit spending/observations and request exceptions; Supervisor/Validator read; Admin denied. |
 | Demandes d’exception | Active bounded cancellation/reopening list with Agent withdrawal and Validator decision controls; no Phase 3B navigation entry. |
+| Activity chronology | Detail/review pages show sanitized execution, request, assignment, automatic-transition and single-Activity export summaries, with stable 50-event cursors. Active entity/current assignment remain enforced; Admin denied. Oversized or unavailable details remain explicit. |
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |
 | Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. |
 | Administration technique | Native-Admin link to Dolibarr module administration. |
 | Invitation/reset | Public selector in the query string, secret verifier in the fragment, hash-only storage, same-origin POST redemption, single use, expiry, throttling, CSRF, transaction/audit coupling, and neutral reset-request response. |
-| Finance, reports, validations, exchanges | Routes, classes, loaders, schema, historical update SQL, and obsolete tests removed. |
+| Legacy finance, reports, validations, exchanges | Obsolete implementations remain removed. |
+| Phase 3B Activities / Operations / Fiche Activité / portfolio / audit report source | New scoped `reports.php` preview (Activities by default, Operations via `report=operations`, Fiche via `report=activity_detail&activity_id=ID`, portfolio via `report=portfolio`, complete audit via `report=audit` for Validator/Admin) and `reportexport.php` downloads require exact RST-012 schema. All 64 combined report/chronology checks passed in disposable tenants. `workflowactions.php` delegates to the new audit preview only when RST-012 is present; shared Phase 3A retains its existing audit screen until guarded cutover. |
 | Documents | MJL `documents.php` and `documentdownload.php` return dependency-free HTTP 403 for every actor/method; Apache blocks `/ecm/*`, `/document.php`, and `/viewimage.php`. Native ECM storage remains dormant and unchanged. |
 | Alerts and old supervision | Retained containment routes return explicit 403 pending their approved target units. |
 

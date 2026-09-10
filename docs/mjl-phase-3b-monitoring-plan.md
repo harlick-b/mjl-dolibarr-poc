@@ -184,3 +184,428 @@ Review work remained read-only. Repository/installed-code inspection, pure calcu
 ## Execution authorization
 
 Approved for implementation and guarded local cutover by the user on 2026-09-09 under DEC-056. Review baseline: `4f74b4c`. Test seams are the scoped read/projection interfaces, authenticated routes, generated files, exact schema/cutover commands, and disposable runner described above. Implementation is in progress; no readiness verdict or shared cutover is yet claimed.
+
+## Implementation checkpoint — 2026-09-09
+
+**Status: IN_PROGRESS, not Phase 3B ready.** No shared cutover has run. The
+Phase 3A routes and module activation remain the active application surface.
+
+Implemented preliminary components: scoped monitoring reads, exact financial
+and deadline projections, fixed report-filter/portfolio helpers, immutable
+`mjlfinancement_export_record` schema, private single-lock spool, typed
+CSV/XLSX/PDF rendering, and an export transaction owner. The owner captures a
+consistent snapshot and rechecks runtime entity, native identity, role and
+included Activity access before atomic generation evidence. It returns an
+unlinked descriptor. The Activities preview and POST delivery routes now use
+this owner; focused Activities validation passed as recorded below.
+
+Verification at this checkpoint:
+
+- `node tests/runner/run-suite.js unit`: 181 Node tests and all PHP contracts
+  passed. New PHP files passed `php -l`.
+- Attached `node tests/runner/run-suite.js phase3b`: schema, installed
+  CSV/XLSX/multipage-PDF renderer, and native Admin audit-export transaction
+  probes passed. The run still exits nonzero through its explicit
+  incomplete-integration guard; this is not a passed Phase 3B gate.
+- Disposable run `mjl-test-20260909t150143-899496-747e936d` completed teardown.
+  Its `phase3b-shared-evidence.json` proves identical before/after protected
+  source, documents, database, Admin and shared resource evidence.
+- Earlier probes exposed and led to fixes for the installed spreadsheet loader
+  and writer file permissions. Two background runs were externally terminated;
+  their exact owned containers, volumes and networks were removed explicitly.
+  Those runs do not count as verification evidence.
+- Independent component reviews found and fixed audit byte-count underestimates,
+  missing historical filters, numeric-zero division, preflight allocation order,
+  omitted metadata limits, PDF headings/money display, and export-owner cleanup
+  and identity issues. These are component reviews, not final feature approval.
+
+Remaining mandatory work: the other three complete report datasets and audit change
+projection; scoped dashboards, lists, queues, chronology and navigation; the remaining report
+delivery routes; activation/migration/cutover commands; real authorization-race,
+concurrency, failure and performance tests; complete runner/Playwright coverage;
+expanded accessibility evidence; final independent reviews; full committed-source
+gates and guarded local cutover. `npm test`, `npm run test:verify`, the expanded
+manual gate and cutover rehearsals have not been run for this unfinished phase.
+No production or READY verdict is implied by this checkpoint.
+
+
+## Activities vertical slice — verified 2026-09-09
+
+**Slice: PASS. Full Phase 3B: IN_PROGRESS.** The Activities list links to the
+scoped report only when the target export table exists. The report requires the
+exact RST-012 schema; shared Phase 3A remains unavailable pending guarded cutover.
+Business users can filter and preview their complete selection and download
+French PDF/XLSX/CSV files. Native Admin and users without a business role are
+denied. Downloads capture a consistent selection, recheck current identity and
+all included assignments, commit immutable generation evidence atomically, and
+stream only the verified unlinked descriptor. Incidental output is discarded.
+Preview queries have bounded waits and recover cleanly after a blocked read.
+
+Verification:
+
+- `node tests/runner/run-suite.js phase3b-activities`: **16/16 passed** in
+  `mjl-test-20260909t162317-1056957-a55c5be7` (242.7 seconds including provisioning
+  and teardown). Coverage includes the actual Activities entry point, all three
+  formats and matching hashes, Agent/role/entity boundaries, malformed requests,
+  mobile filtering without JavaScript, overlapping generations, assignment and
+  account changes after capture, failure at both evidence insert boundaries,
+  buffered output, preview timeout/recovery, null versus zero, and spool cleanup.
+- The run's `phase3b-activities-shared-evidence.json` proves exact before/after
+  equality. Containers, volumes and network were removed; artifact secret scan
+  passed. All business fixtures belonged to this disposable tenant.
+- `node tests/runner/run-suite.js unit`: **182/182 Node tests** and all PHP
+  contracts passed. `php -l` passed for all 14 changed/new PHP files, including
+  `custom/mjlfinancement/lib/mjl_report_route.lib.php` and
+  `tests/fixtures/phase3b-report-fixture.php`. `git diff --check` passed.
+- Inspected the 390px no-JavaScript screenshot and rendered PDF page. The mobile
+  form fits its viewport; the PDF preserves the oversized FCFA amount and null
+  spending labels without clipped content. Expanded human accessibility signoff
+  remains pending.
+- Standards review: **0 open blocking findings** after runner/documentation and
+  delivery-failure fixes. Spec review: **0 open findings for this slice** after
+  distinct unsupported-record handling and additional failure/race coverage.
+  These reviews do not approve the unfinished whole phase.
+
+The public aggregate E2E batches now include this slice after predecessor checks.
+The full `phase3b` command also invokes it but retains an explicit incomplete-phase
+failure. Aggregate `npm test`, `npm run test:verify`, `npm run test:e2e`, expanded
+manual accessibility, scale/performance and committed-source/cutover gates were
+not run for this slice: the other reports, dashboards and deployment work remain
+unfinished. No shared schema migration, production action or READY verdict was
+performed. Existing durable lessons were reviewed; no additional lesson was needed.
+
+
+## Operations vertical slice — verified 2026-09-09
+
+**Slice: PASS. Full Phase 3B: IN_PROGRESS.** The existing preview and POST route
+accept a closed `report` key: `activities` (default) or `operations`. Both use
+the same reviewed export owner. The Opérations list links to its report only
+when the target export table exists; the report still requires exact RST-012.
+There is no shared schema change or cutover in this slice.
+
+The Opérations report adds scoped type/state filters after complete-parent
+projection, proposed/validated authorization, spending, observation, exact signed
+difference and variance. Parent filter labels explicitly identify the Activity.
+Inactive types referenced by visible work remain selectable. Pagination preserves
+filters and downloads include every selected page; audit scope contains exactly
+the represented parent Activities. Cancelled parents retain prior validation and
+each child's own execution state. Missing ratios are blank in CSV/XLSX; exact
+zero remains numeric in XLSX, while tiny signed percentages retain their text
+presentation when numeric spreadsheet formatting would lose the sign.
+
+The existing memory-headroom check is now available before derived-record and
+typed-table expansion as well as before writer allocation. This fixes a reproduced
+32 MiB fatal allocation failure without introducing another reporting framework.
+A standalone 10,000-small-row probe built at 64 MiB peak under a 128 MiB limit
+and passed CSV preflight; it is not the full database/writer performance gate.
+
+Verification:
+
+- `node tests/runner/run-suite.js phase3b-reports`: **27/27 passed**, comprising
+  the 16 Activities regression checks and 11 Opérations checks, in disposable
+  run `mjl-test-20260909t165805-1143807-3aa312fa` (270.8 seconds including setup
+  and teardown). The new checks exercise the real entry point, parent/child
+  filter semantics, all three files and matching immutable evidence, exact XLSX
+  cell types and formula-like text, cancelled and proposed work, 51-row pagination
+  across two valid Activities, role/Agent/entity restrictions, malformed report
+  requests, and inactive types on mobile without JavaScript.
+- `phase3b-reports-shared-evidence.json` proves exact shared before/after equality.
+  All owned containers, volumes and network were removed and artifact scanning
+  passed. No test records or generated files were retained in a tenant.
+- `node tests/runner/run-suite.js unit`: **186/186 Node tests** and all PHP
+  contracts passed. New regression tests were observed failing before fixing
+  missing numeric values, memory exhaustion, and exact zero percentage typing.
+- `php -l` passed on all 15 changed/new PHP files; `git diff --check` passed.
+- Inspected the 390px screenshot and PDF body page: controls and values fit,
+  observations remain readable, and oversized amounts/difference/percentage
+  retain their exact representation.
+- Standards/security review: **0 open blocking findings**. Spec review:
+  **0 open findings for this slice**. Review caught an invalid 51-child fixture;
+  it now uses command-valid 50+1 children across two Activities. A subsequent
+  fixture namespace-length failure was fixed without weakening factory limits.
+
+`test:phase3b-reports` is included in actual aggregate runner coverage and the
+full phase gate; the latter retains its explicit incomplete-phase failure.
+Aggregate `npm test`, `test:verify`, `test:e2e`, expanded human accessibility,
+full-scale/performance and cutover gates were not rerun for this bounded slice;
+Fiche Activité, portfolio, audit, dashboards and deployment work remain pending.
+No whole-phase READY verdict or production authorization is implied.
+
+## Fiche Activité slice checkpoint — 2026-09-09
+
+The Fiche Activité is implemented behind exact RST-012 readiness, with a
+contextual link from the Activity detail. It requires one accessible Activity
+and presents general information (including description, current assignments
+and current submitted revision number/identifier), separated financial indicators,
+and the complete current non-removed Opération collection. Unsupported child
+filters and missing selection are rejected. Missing, foreign and inaccessible
+Activities fail without exposing details or generating export evidence.
+
+PDF, XLSX and supplemental CSV reuse the existing export owner, consistent
+snapshot, full-scope authorization recheck and atomic audit/immutable evidence.
+The Fiche always retains its parent in audit scope. A shared download form avoids
+three copies of the same CSRF/format/filter controls; no new persistence or
+runtime dependency was added. Fixed three-section documents use existing row,
+source, artifact and memory limits.
+
+A browser regression exposed that the installed Dolibarr HTML helper's default
+converts line breaks into literal backslash-n text. Fiche cells and Operations
+observations now use plain-text HTML escaping followed by controlled line-break
+markup. Browser assertions verify preserved line breaks and literal markup;
+all installed export formats retain their distinct typed-value safeguards.
+
+Verification:
+
+- `node tests/runner/run-suite.js phase3b-reports`: **35/35 passed** (16
+  Activities, 11 Operations, 8 Fiche checks), disposable run
+  `mjl-test-20260909t172232-1206502-c4d278c8`, 322.4 seconds including setup and
+  teardown. PDF, XLSX and CSV contain all three sections, exact numeric/null
+  semantics, literal user text and matching single-Activity immutable evidence.
+- Shared before/after evidence is exactly equal. Artifact scanning passed;
+  all owned containers, network and volumes were removed. Retained sanitized
+  runtime logs contain no PHP fatal/parse or uncaught errors.
+- `node tests/runner/run-suite.js unit`: **188/188 Node tests** and all PHP
+  contracts passed. The two new Fiche projection contracts failed before
+  implementation and then passed.
+- `php -l` passed on all 15 changed/new PHP files; `git diff --check` passed.
+- The initial combined run passed all 27 existing checks and reproduced the
+  multiline preview bug in the new Fiche test. Its remaining seven serial
+  Fiche checks were skipped, and its diagnostic artifacts were removed by the
+  credential scanner. Its owned tenant was fully torn down. It is not final
+  acceptance evidence.
+
+Standards/security review: no open blocking findings. Spec review: no findings
+for this slice. Documentation completion identified by Standards is recorded in
+the current map, acceptance guidance, reset inventory and screen/audit records.
+The no-JavaScript 390px preview and actual PDF general-information/Opération
+pages were inspected: controls and content fit, descriptions/observations
+remain readable, and zero versus missing spending is preserved.
+
+The complete phase remains IN_PROGRESS. Portfolio and audit reports, dashboards,
+full-scale/performance verification, broader aggregate gates, expanded human
+accessibility and guarded cutover remain pending. Aggregate npm test,
+test:verify, test:e2e, full-phase and cutover commands were not rerun for this
+bounded report slice; no READY or production verdict is implied.
+
+## Portfolio summary slice checkpoint — 2026-09-09
+
+The portfolio report is implemented behind exact RST-012 readiness and available
+from the report tabs. It defaults to one row per Projet and allows one row per
+Partenaire instead. Activity filters apply before grouping; each full Activity
+contributes once, and downloads retain every contributing Activity ID for scope
+revalidation and immutable evidence. Machine-readable output contains only the
+selected grouping level, without mixed subtotals.
+
+The summary includes exact financial totals, Activity/Opération counts and
+missing-spending counts. Null-only spending remains unknown; explicit zero stays
+zero and mixed known/unknown sums remain identified by their counters. Pending
+proposals remain separate from validated amounts and are further broken down
+into draft/returned and submitted/prevalidated amounts, using the existing
+states and exact addition. Child filters and invalid/empty grouping are rejected.
+
+Spec review caught the initially missing proposal-state distinction. It was
+reproduced with a failing unit contract, corrected, and checked with a real
+draft of 20 FCFA plus a submitted proposal of 10 FCFA in one group. The first
+browser run `mjl-test-20260909t173830-1245217-0bfaf6ce` was gracefully interrupted
+before browser execution so this fix could be included; all its owned resources
+were removed. It is not acceptance evidence.
+
+Verification:
+
+- `node tests/runner/run-suite.js phase3b-reports`: **43/43 passed** (the previous
+  35 plus 8 portfolio checks), run `mjl-test-20260909t174216-1254985-e5d4922c`,
+  366.7 seconds including setup and teardown. Tests cover both grouping modes,
+  exact totals beyond native integer range, null/zero and proposal breakdown,
+  pre-grouping filters, scope/role/invalid-filter denials, actual PDF/XLSX/CSV
+  with immutable evidence, and mobile grouping without JavaScript.
+- Shared before/after evidence is exactly equal. Artifact scanning passed;
+  all owned containers, volumes and network were removed. Sanitized runtime
+  logs contain no PHP fatal/parse or uncaught errors.
+- `node tests/runner/run-suite.js unit`: **191/191 Node tests** and all PHP
+  contracts passed. Three new portfolio contracts were observed failing before
+  their respective implementations, then passing.
+- `php -l` passed on all 15 changed/new PHP files; `git diff --check` passed.
+- The 390px no-JavaScript preview and actual PDF body page were inspected:
+  grouping controls and financial fields fit, exact amounts remain readable,
+  and the pending proposal breakdown is explicit.
+
+Standards/security: no open blocking findings. Spec: the proposal-state finding
+is resolved, with no outstanding finding for this slice. Existing projection,
+renderer, download form, authorization and disposable-factory boundaries are
+reused; no new schema, persistence or runtime dependency was added.
+
+The full phase remains IN_PROGRESS. The audit report, audit/chronology work,
+dashboards, full-scale/performance checks, broader aggregate gates, expanded
+human accessibility and guarded cutover remain pending. Aggregate npm test,
+test:verify, test:e2e, full-phase and cutover commands were not rerun for this
+bounded slice; no whole-phase READY or production verdict is implied.
+
+## Complete audit report slice checkpoint — 2026-09-09
+
+The complete audit report is implemented for Validator/Admin behind exact
+RST-012 readiness. The existing audit menu route delegates to it only after that
+schema is present; the shared Phase 3A audit page remains unchanged. Business
+reports remain denied to Admin, and Agent/Supervisor cannot access complete audit.
+
+The finite projection registry in `lib/mjl_audit_projection.lib.php` covers all
+42 currently emitted actions and their payload variants, including native
+cancellation, reopening, reference changes and both assignment-removal shapes.
+It preserves historical IDs, references, revision/target version and actor
+snapshots without current-record joins. Missing fields in partial after-snapshots
+mean “Non enregistré”, not deletion; explicit null, empty text and zero remain
+distinct. Reference before/after wrappers become proper scalar changes. French
+field/action labels and finite automatic cause labels accompany the stored codes.
+
+Historical filters and a stable 50-event cursor scope previews. PDF/XLSX/CSV
+include all matching events within the existing resource limits and exclude
+their own generation event. Audit exports retain empty Activity scope even when
+filtered to an Activity. Complete scalar values are redacted before numbered
+4000-character continuation rows. Unknown actions, extra/malformed payload
+fields or unsupported causes leave details unavailable in preview and refuse a
+complete export without success evidence. Previously unrecorded history cannot
+be reconstructed by this projection.
+
+Independent standards/security and specification reviews found two gaps: quoted
+credentials containing spaces could evade the legacy sanitizer, and automatic
+causes needed explicit French labels. Both were fixed and covered by unit
+contracts; no blocking review finding remains for this slice. Existing report
+owner, renderers, budgets and disposable fixture boundaries are reused, with no
+new schema, persistence or runtime dependency.
+
+Verification:
+
+- `node tests/runner/run-suite.js phase3b-reports`: **55/55 passed**, including
+  12 audit checks, run `mjl-test-20260909t181531-1322001-0119a47c`, 390.7 seconds
+  including setup and teardown. Native cancellation/reopening histories,
+  Validator/Admin exports, actual PDF/XLSX/CSV and immutable hashes, role/entity
+  denials, historical filters, 57-event cursor coverage, null/zero, quoted
+  credential redaction, continuation rows and unsupported-event refusal passed.
+- Shared before/after evidence is exactly equal. Artifact scanning passed;
+  all owned containers, volumes and network were removed. Sanitized runtime
+  logs contain no PHP fatal/parse or uncaught errors.
+- `node tests/runner/run-suite.js unit`: **197/197 Node tests** and all PHP
+  contracts passed. The audit projector includes six targeted contracts with
+  the initial missing implementation observed failing before implementation.
+- `php -l` passed on all 18 changed/new PHP files; `git diff --check` passed.
+- The actual PDF body and 390px no-JavaScript preview were inspected. Historical
+  metadata and field changes remain readable; null and exact zero remain distinct.
+
+The phase remains IN_PROGRESS. Ordinary Activity chronology, dashboards and
+navigation, full-scale/performance checks, broader aggregate gates, expanded
+human accessibility and guarded cutover remain pending. Aggregate npm test,
+test:verify, test:e2e, full-phase and cutover commands were not rerun for this
+bounded slice; no whole-phase READY or production verdict is implied.
+
+## Activity chronology slice checkpoint — 2026-09-10
+
+Activity detail and review pages now present contextual French summaries for
+execution changes, cancellation/reopening requests and decisions, assignment
+changes, automatic execution transitions and single-Activity business exports.
+Explicit zero, missing spending and multiline observations retain their meaning;
+actor snapshots and displayed details use the existing whole-value redaction.
+No raw audit JSON or technical payload is exposed. Assignment removal without a
+recorded name falls back to the captured Agent identifier, without current-user
+joins. Automatic future/overdue and active/ended assignment states have explicit
+French labels.
+
+The loader rechecks current Activity read access and active entity, with a
+current-assignment predicate for Agents. It reads at most 51 events, displays 50,
+and uses an Activity-scoped immutable event anchor with `(event_date, rowid)`
+ordering. Detail and review navigation preserve their parent route. The event and cursor-anchor queries
+each have a five-second statement limit, and combined event detail payloads over
+65,536 bytes are withheld before PHP buffering. Unknown/malformed or oversized
+details have an explicit unavailable state. Multi-Activity and audit exports
+remain outside ordinary chronology; captured export scope is checked as well as
+the producer’s Activity linkage.
+
+Standards/security review: the missing future/overdue labels were fixed with a
+failing/passing contract; no outstanding finding remains. Spec review: the
+cancellation-driven assignment variant needed captured-ID fallback and French
+active/ended labels; both were reproduced, fixed and verified. Existing
+presentation, redaction, scope, list and disposable-factory boundaries are reused;
+no schema, persistence, runtime dependency or core modification was added.
+
+Verification:
+
+- `node tests/runner/run-suite.js phase3b-reports`: **63/63 passed**, including
+  all eight chronology checks, run `mjl-test-20260910t121116-86187-45c60cd2`,
+  **502.1 seconds** including setup and teardown. Coverage includes native
+  execution/request/cancellation history, assignment identification and immediate
+  access revocation, zero/null/redaction, single versus multi-Activity/audit
+  exports, 57-event cursor traversal with an event appended between pages,
+  review-route preservation, invalid/foreign cursors, unavailable details,
+  automatic causes, and mobile navigation without JavaScript.
+- Shared before/after evidence is exactly equal. Artifact scanning passed;
+  every owned container, volume and network was removed. Sanitized runtime logs
+  contain no PHP fatal/parse, uncaught or PHP warning entries.
+- `node tests/runner/run-suite.js unit`: **201/201 Node tests** and all PHP
+  contracts passed, including four new chronology presentation contracts.
+- `php -l <file>` passed for all **20 changed/new PHP files**, selected from
+  `git diff --name-only` plus `git ls-files --others --exclude-standard`.
+  `git diff --check` and JavaScript syntax checks passed.
+- The 390px no-JavaScript chronology screenshot was inspected: historical
+  metadata, multiline changes and pagination remain readable without overflow.
+
+The first run `mjl-test-20260910t120122-45191-34fc7206` passed all eight chronology
+checks but exposed a date-dependent audit test (60 passed, one failed, two
+skipped). The test used September 9 even though its audit event was recorded on
+September 10. It now filters using the event’s captured date, independently of
+the command’s fixed business date. That run’s owned Docker resources were
+confirmed removed; the artifact scanner removed its contaminated failure
+capture, which was not reconstructed. It is not a passing gate. The durable
+clock-seam lesson is recorded in `tasks/lessons.md`.
+
+The phase remains IN_PROGRESS. Dashboards/navigation, full-scale/performance
+checks, broader aggregate gates, expanded human accessibility and guarded
+cutover remain pending. Aggregate npm test, test:verify, test:e2e, full-phase and
+cutover commands were not rerun for this bounded slice; the focused combined
+report/chronology gate is the current affected-surface evidence. No whole-phase
+READY or production verdict is implied.
+
+## Full uncommitted-work review before commit — 2026-09-10
+
+The user requested review of all changes since `4f74b4c`, followed by splitting
+and committing all work. The review covered all 52 changed/new files, including
+untracked source, canonical decisions, the report backend and schema, every
+report route, chronology, fixtures, tests and runner integration. Independent
+Standards/security and Spec audits covered the full implemented scope.
+
+Standards/security: one high-severity finding, resolved. The CSV renderer only
+checked `fputcsv() === false`, but a full filesystem can return a positive
+partial byte count even while `fflush()` succeeds. A child-process file-size
+limit reproduced truncation on the final row. The renderer now serializes each
+bounded row in memory and requires the exact complete byte count from the file
+write; partial writes raise `RENDER_FAILED` before export evidence is committed.
+The failing regression was observed passing after the fix. The reviewer
+confirmed the fix; no outstanding Standards/security finding remains.
+
+Spec: one medium-severity finding, resolved. Actual equal spent/authorized
+amounts project zero variance with the canonical human display `-`. XLSX was
+storing that as text. It now stores numeric zero and uses a zero-section number
+format displaying the dash. A regression through the actual Opération
+projection and an actual generated workbook both verify value, type and format.
+The reviewer confirmed the fix; no outstanding Spec finding remains within the
+implemented scope.
+
+Final verification before commit:
+
+- `node tests/runner/run-suite.js unit`: **203/203 Node tests** and all PHP
+  contracts passed, including both newly reproduced export regressions.
+- `node tests/runner/run-suite.js phase3b-reports`: **64/64 browser tests passed**,
+  run `mjl-test-20260910t124441-161880-a3061d70`, **493.9 seconds** including
+  setup and teardown. The additional check reads the actual XLSX zero cell and
+  its number format; all earlier report/chronology checks remain green.
+- Shared before/after evidence is exactly equal. Artifact scanning passed;
+  all owned Docker resources were removed. Runtime logs contain no PHP
+  fatal/parse/uncaught/warning entries.
+- `php -l <file>` passed on all 20 changed/new PHP files. JavaScript syntax and
+  `git diff --check` passed. A changed-file private-key/token pattern scan found
+  no matches; this is bounded evidence, not a universal secret-detection claim.
+
+The commits separate approved scope/decisions, backend projections/schema/export
+integrity, guarded pages/disposable acceptance, and verification documentation.
+No shared cutover or production action is included. Dashboards/navigation,
+full-scale benchmarks, full-phase/aggregate verification, human accessibility
+and cutover remain pending. Aggregate and full-phase commands were not rerun:
+the affected export and chronology surfaces use the focused combined gate, and
+the full-phase unfinished guard remains intentional.
