@@ -21,6 +21,7 @@
     "test:rst006b": "node tests/runner/run-suite.js rst006b",
     "test:rst013c": "node tests/runner/run-suite.js rst013c",
     "test:rst014c": "node tests/runner/run-suite.js rst014c",
+    "test:phase3b-monitoring": "node tests/runner/run-suite.js phase3b-monitoring",
     "test:phase3b-reports": "node tests/runner/run-suite.js phase3b-reports",
     "test:phase3b-activities": "node tests/runner/run-suite.js phase3b-activities",
     "test:phase3b": "node tests/runner/run-suite.js phase3b",

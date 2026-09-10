@@ -3,6 +3,14 @@
 require_once __DIR__.'/mjl_execution.lib.php';
 require_once __DIR__.'/mjl_presentation.lib.php';
 
+/** One business date throughout a request; explicit fixture dates remain caller-owned. */
+function mjl_monitoring_date()
+{
+	static $date = null;
+	if ($date === null) $date = mjl_execution_porto_novo_date(new DateTimeImmutable('now'));
+	return $date;
+}
+
 /** Exact financial projection shared by detail, monitoring and operational reports. */
 function mjl_monitoring_activity_projection(array $activity, array $operations, $localDate)
 {

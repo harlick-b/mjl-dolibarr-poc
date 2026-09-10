@@ -11,7 +11,7 @@ coverage.
 
 | Screen | Route/path | Current purpose | Access notes | Current-state caveat |
 | --- | --- | --- | --- | --- |
-| Workspace dashboard | `/custom/mjlfinancement/index.php` | Role-aware enriched cards with definition/scope/period/freshness/destination metadata, local source-unavailable states, scoped filters, alerts context, and Admin-only unresolved-data diagnostics. | Any user who can enter the MJL workspace; server queries retain role/entity/scope guards. | Fixture and compatibility identifiers still contain POC-era vocabulary. |
+| Workspace dashboard | `/custom/mjlfinancement/index.php` | Financial indicators first, workflow counts, 50-row permitted-action queue and five-alert preview. | Exact RST-012; active entity/current assignment; Admin remains technical/audit-only. | Shared Phase 3A retains its static landing. Focused final verification and expanded human review pending. |
 | Partenaires | `/custom/mjlfinancement/partners.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Active business-role reads; Validator-only mutation and inactive visibility; Admin denied. | Browser-verified at the focused RST-003 seam; primary navigation remains unchanged until RST-009A. |
 | Projets | `/custom/mjlfinancement/projects.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Same role boundary; immutable Partenaire/ref; parent lifecycle guards. | Browser-verified, including 390-pixel containment and concurrency ordering. |
 | Types d’Opération | `/custom/mjlfinancement/operationtypes.php` | Entity-scoped reference list/detail/create/edit/activate/deactivate. | Same role boundary; no hard deletion. | Browser/schema-verified; catalog remains empty in the shared tenant. |
@@ -108,3 +108,8 @@ blocking browser cases. It ran in tenant
 removed its containers, network, database volume, and document volume. The
 separate final C1/C2 characterization passed 28/28 in tenant
 `mjl-test-20260805t123629-44505-8ff6b050`; that tenant was also removed.
+
+Phase 3B Alertes (`alerts.php`) and browsing now share validated GET filters,
+50-row pagination and source-unavailable states. Navigation adds Alertes,
+Rapports and Demandes d’exception only under exact RST-012 readiness. No shared
+cutover or human accessibility signoff is implied.

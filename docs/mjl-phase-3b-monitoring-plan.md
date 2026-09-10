@@ -609,3 +609,21 @@ full-scale benchmarks, full-phase/aggregate verification, human accessibility
 and cutover remain pending. Aggregate and full-phase commands were not rerun:
 the affected export and chronology surfaces use the focused combined gate, and
 the full-phase unfinished guard remains intentional.
+
+## Dashboard/navigation slice — implementation 2026-09-10
+
+User-selected boundary: this slice only; full-phase validation, human review
+and cutover remain pending. Accueil leads with financial indicators, then
+workflow counts, permitted actions and alerts. Readiness remains exact RST-012,
+so the shared Phase 3A tenant is unchanged. No schema installation or cutover
+was performed.
+
+The first dashboard check failed on the absent financial overview and then
+passed after implementation. A five-flow disposable browser run subsequently
+passed, covering financial meaning, role navigation, filter links, stale-request
+closure and mobile forced-colors/no-JavaScript behavior. Independent Standards
+and Spec reviews identified and led to corrections for Project labels, proposed
+amount labels, request-filter composition, draft abandonment after start, and
+the request source budget. The abandonment predicate was observed failing and
+then passing through the public eligibility projection. Final combined
+report/chronology/dashboard verification is in progress.

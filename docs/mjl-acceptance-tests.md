@@ -23,12 +23,19 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:rst006b
     npm run test:rst013c
     npm run test:rst014c
+    npm run test:phase3b-monitoring
     npm run test:phase3b-reports
     npm run test:phase3b-activities
     npm run test:phase3b
     npm run test:phase3a
     npm run test:phase1-reset
 
+- 'test:phase3b-monitoring' runs dashboard, alerts, browsing and navigation
+  acceptance plus the existing report/chronology batch. It covers scoped
+  financial meaning, permitted actions, stale closure, filters/pagination,
+  source failures, readiness and responsive/no-JavaScript behavior. It shares
+  the mandatory no-retain teardown and exact shared-state evidence contract.
+  This slice gate does not establish whole-phase readiness.
 - 'test:phase3b-reports' combines Activities, Operations, Fiche Activité, portfolio, audit
   and Activity chronology acceptance, including parent/child filter semantics, formats, exact variance,
   cancellation/proposal classification, pagination and scoped access. Fiche

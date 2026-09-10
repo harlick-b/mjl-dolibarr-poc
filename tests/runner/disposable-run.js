@@ -89,6 +89,7 @@ function getSuitePlan(mode) {
 	phase3b: ['phase3b'],
 	'phase3b-activities': ['phase3b-activities'],
 	'phase3b-reports': ['phase3b-reports'],
+	'phase3b-monitoring': ['phase3b-monitoring'],
 	rst006b: ['phase3a'],
 	rst013c: ['phase3a'],
 	rst014c: ['phase3a'],

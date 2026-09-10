@@ -59,7 +59,7 @@ test('RST-009A destinations remain present after Phase 2 navigation', () => {
   for (const label of ['Accueil', 'Partenaires', 'Projets', "Types d’opération", 'Audit', 'Utilisateurs et accès', 'Administration technique']) {
     assert.match(registry, new RegExp(label));
   }
-  for (const route of ['expenses.php', 'conventions.php', 'budgetlines.php', 'fundreceipts.php', 'reports.php', 'exchangelogs.php', 'documents.php', 'alerts.php']) {
+  for (const route of ['expenses.php', 'conventions.php', 'budgetlines.php', 'fundreceipts.php', 'exchangelogs.php', 'documents.php']) {
     assert.doesNotMatch(registry, new RegExp(route.replace('.', '\\.')));
   }
   const guard = read('custom/mjlfinancement/deployment/apache-native-guard.conf');

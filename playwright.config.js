@@ -12,6 +12,7 @@ module.exports = defineConfig({
     'zz-phase2-planning.spec.js',
     'activity-execution.spec.js',
     'documents-audit.spec.js',
+    'phase3b-monitoring.spec.js',
     'phase3b-activities-report.spec.js',
     'phase3b-operations-report.spec.js',
     'phase3b-activity-detail.spec.js',

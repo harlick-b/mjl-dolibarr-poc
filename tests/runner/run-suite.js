@@ -490,7 +490,7 @@ async function runPlaywright(plan, target, signal) {
       ['tests/e2e/auth-concurrency.spec.js','tests/e2e/partners-projects.spec.js'],
       ['tests/e2e/fixture-isolation.spec.js'],
       ['tests/e2e/rst002b-activity-assignment.spec.js','tests/e2e/rst006a-activity-planning.spec.js','tests/e2e/zz-phase2-planning.spec.js'],
-      ['tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js'],
+      ['tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js','tests/e2e/phase3b-monitoring.spec.js'],
     ];
     for (const batch of batches) await runCommand('npx', ['playwright','test',...batch,'--config=playwright.config.js'], { env: composeEnvironment(plan), signal, timeoutMs: 15 * 60 * 1000 });
     return;
@@ -512,8 +512,9 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/rst006a-activity-planning.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase2') {
     args.push('tests/e2e/rst006a-activity-planning.spec.js', 'tests/e2e/zz-phase2-planning.spec.js', '--config=playwright.config.js');
-  } else if (target === 'phase3b-reports') {
+  } else if (target === 'phase3b-reports' || target === 'phase3b-monitoring') {
     args.push('tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js','--config=playwright.config.js');
+    if (target === 'phase3b-monitoring') args.push('tests/e2e/phase3b-monitoring.spec.js');
   } else if (target === 'phase3b-activities') {
     args.push('tests/e2e/phase3b-activities-report.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase3a') {
@@ -704,7 +705,7 @@ async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMod
 	&& !runMode.startsWith('rst005')
     && !runMode.startsWith('rst013a')
     && !runMode.startsWith('rst014a')
-    && !['phase3b-reports', 'phase3b-activities', 'phase3b', 'all', 'verify', 'e2e', 'manual-accessibility'].includes(runMode);
+    && !['phase3b-monitoring', 'phase3b-reports', 'phase3b-activities', 'phase3b', 'all', 'verify', 'e2e', 'manual-accessibility'].includes(runMode);
   try {
     if (shouldRetain) retain(plan);
   } finally {
@@ -739,7 +740,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-monitoring' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
@@ -881,13 +882,13 @@ async function main() {
         await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
         await runPlaywright(plan, layer, controller.signal);
       }
-	  else if (layer === 'phase3b-activities' || layer === 'phase3b-reports') {
+	  else if (layer === 'phase3b-monitoring' || layer === 'phase3b-activities' || layer === 'phase3b-reports') {
 		await runPlaywright(plan,layer,controller.signal);
 	  }
 	  else if (layer === 'phase3b') {
 		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-schema-probe.php'], {signal: controller.signal});
-		await runPlaywright(plan,'phase3b-reports',controller.signal);
-		throw new Error('Phase 3B integration gate is not complete: dashboards/navigation, cutover and scale/performance checks remain.');
+		await runPlaywright(plan,'phase3b-monitoring',controller.signal);
+		throw new Error('Phase 3B integration gate is not complete: whole-phase validation, cutover and scale/performance checks remain.');
 	  }
 	  else if (layer === 'phase3a') {
 		await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php'], { signal: controller.signal });
@@ -1035,7 +1036,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-monitoring' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

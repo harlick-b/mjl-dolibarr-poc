@@ -3,6 +3,7 @@
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation_registry.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once __DIR__.'/mjl_monitoring_access.lib.php';
 
 function mjl_navigation_policy_allows(User $targetUser, $policy)
 {
@@ -14,6 +15,7 @@ function mjl_navigation_policy_allows(User $targetUser, $policy)
 	if ($policy === 'workspace_enter') return $business || $role === 'ADMIN_PLATEFORME';
 	if ($policy === 'references_read') return $business;
 	if ($policy === 'planning_read') return $business;
+	if ($policy === 'monitoring_read') return $business && mjl_monitoring_readiness() === 1;
 	if ($policy === 'audit_read') return in_array($role, array('VALIDATEUR_DEFINITIF', 'ADMIN_PLATEFORME'), true);
 	if ($policy === 'admin') return $role === 'ADMIN_PLATEFORME';
 	return false;

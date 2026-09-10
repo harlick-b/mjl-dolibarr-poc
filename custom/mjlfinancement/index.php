@@ -9,6 +9,11 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 if (!mjl_navigation_policy_allows($user, 'workspace_enter')) { http_response_code(403); accessforbidden(); }
 $role = mjl_scope_effective_role_code($user, (int) $conf->entity);
 $admin = $role === 'ADMIN_PLATEFORME';
+require_once __DIR__.'/lib/mjl_monitoring_access.lib.php';
+if (!$admin && mjl_monitoring_readiness()!==0) {
+	require_once __DIR__.'/lib/mjl_monitoring_route.lib.php';
+	mjl_monitoring_page('home'); $db->close(); exit;
+}
 llxHeader('', 'Accueil');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';

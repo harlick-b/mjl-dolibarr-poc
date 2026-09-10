@@ -46,3 +46,26 @@ the unsigned human accessibility review remains a production/release blocker.
 No legacy group membership participates in MJL authorization. Native Admin
 status derives ADMIN_PLATEFORME; business roles are stored only for non-admin,
 same-entity users.
+
+## Phase 3B dashboard source (shared cutover pending)
+
+Exact RST-012 readiness enables financial-first Accueil, computed Alertes,
+50-row Activity/Opération browsing and current-role action queues. Shared
+Phase 3A retains the predecessor screens. Admin remains technical/audit-only;
+Agents use current Activity assignments, and reviewers use the active entity.
+
+The shared filters are Partenaire, Projet, Activity reference/name, validation,
+execution, completeness and inclusive Activity-date overlap. Opération
+type/state filters narrow children after complete parent projection. Typed
+request selection uses `type` plus `request_id`; `status` remains a stored
+request state. Requests that can no longer be approved display `À clôturer`,
+with eligible rejection or withdrawal. No stale state or alert row is stored.
+
+Detail/review controls reuse queue eligibility. Structural editing and return
+freeze at start; unchanged submitted reviews may finish and unsubmitted drafts
+may still be abandoned. Pending proposals and validated authorization/spending
+remain separately labeled. Query failures produce unavailable sections.
+
+The navigation adds Alertes, Demandes d’exception and business Rapports only
+after readiness; audit report variants select Audit. The obsolete supervision
+route remains denied. Focused final verification is in progress.

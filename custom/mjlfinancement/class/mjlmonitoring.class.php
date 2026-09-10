@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__.'/../lib/mjl_monitoring.lib.php';
+require_once __DIR__.'/../lib/mjl_monitoring_work.lib.php';
 require_once __DIR__.'/../lib/mjl_scope.lib.php';
 
 /** Bounded entity/assignment-scoped read model. No business mutations. */
@@ -17,7 +18,7 @@ class MjlMonitoring
 	{
 		$this->db=$db; $this->actor=$actor; $this->entity=(int)$entity;
 		$this->role=mjl_scope_effective_role_code($actor,$this->entity);
-		$this->date=$date ?? mjl_execution_porto_novo_date(new DateTimeImmutable('now'));
+		$this->date=$date ?? mjl_monitoring_date();
 		if ($this->entity<1 || !in_array($this->role,array('AGENT_SAISIE','AGENT_VERIFICATEUR','VALIDATEUR_DEFINITIF','ADMIN_PLATEFORME'),true)) throw new RuntimeException('FORBIDDEN');
 	}
 
@@ -59,7 +60,7 @@ class MjlMonitoring
 		$assignmentFrom=' FROM '.$this->table('activity_assignment').' aa JOIN '.$this->table('activity').' a ON a.entity=aa.entity AND a.rowid=aa.fk_activity JOIN '.$this->db->prefix().'user u ON u.rowid=aa.fk_user AND u.entity=aa.entity WHERE '.$where.' AND aa.date_end IS NULL';
 		$assignedStats=$this->rows('SELECT COUNT(*) AS n,COALESCE(SUM(COALESCE(OCTET_LENGTH(u.firstname),0)+COALESCE(OCTET_LENGTH(u.lastname),0)+COALESCE(OCTET_LENGTH(u.login),0)+128),0) AS bytes'.$assignmentFrom)[0];
 		if ((int)$assignedStats['n']>100000 || (int)$a['n']>10000 || (int)$o['n']>100000 || (int)$a['bytes']+(int)$o['bytes']+(int)$assignedStats['bytes']>self::SOURCE_LIMIT) throw new RuntimeException('SOURCE_LIMIT');
-		$activities=$this->rows('SELECT a.*,s.nom AS partner_name,p.title AS project_name,r.revision_number'.$from.' JOIN '.$this->db->prefix().'societe s ON s.entity=a.entity AND s.rowid=a.fk_partner JOIN '.$this->db->prefix().'projet p ON p.entity=a.entity AND p.rowid=a.fk_project LEFT JOIN '.$this->table('activity_revision').' r ON r.entity=a.entity AND r.rowid=a.fk_current_revision WHERE '.$where.' ORDER BY a.rowid DESC');
+		$activities=$this->rows('SELECT a.*,s.nom AS partner_name,p.title AS project_name,r.revision_number'.$from.' JOIN '.$this->db->prefix().'societe s ON s.entity=a.entity AND s.rowid=a.fk_partner JOIN '.$this->db->prefix().'projet p ON p.entity=a.entity AND p.rowid=a.fk_project LEFT JOIN '.$this->table('activity_revision').' r ON r.entity=a.entity AND r.rowid=a.fk_current_revision AND r.fk_activity=a.rowid WHERE '.$where.' ORDER BY a.rowid DESC');
 		$operations=$this->rows('SELECT o.*,t.label AS type_label'.$operationFrom.' JOIN '.$this->table('operation_type').' t ON t.entity=o.entity AND t.rowid=o.fk_operation_type WHERE '.$where.' AND o.date_removed IS NULL ORDER BY o.rowid');
 		$byActivity=array();foreach($operations as $row) $byActivity[$row['fk_activity']][]=$row;
 		$assignments=$this->rows('SELECT aa.fk_activity,aa.fk_user,aa.is_primary,u.firstname,u.lastname,u.login FROM '.$this->table('activity_assignment').' aa JOIN '.$this->table('activity').' a ON a.entity=aa.entity AND a.rowid=aa.fk_activity JOIN '.$this->db->prefix().'user u ON u.rowid=aa.fk_user AND u.entity=aa.entity WHERE '.$where.' AND aa.date_end IS NULL ORDER BY aa.fk_activity,aa.is_primary DESC,aa.rowid');
@@ -79,9 +80,63 @@ class MjlMonitoring
 		$rows=array();foreach($activities as $activity) foreach($activity['operations'] as $operation) {
 			if ($filters['type_id']!=='' && (string)$operation['fk_operation_type']!==$filters['type_id']) continue;
 			if ($filters['operation_status']!=='' && $operation['status']!==$filters['operation_status']) continue;
-			$rows[]=array_merge($operation,array('activity_ref'=>$activity['ref'],'activity_name'=>$activity['name'],'partner_name'=>$activity['partner_name'],'project_name'=>$activity['project_name'],'authorization_kind'=>$activity['validated_amount']===null?'Proposée':'Validée','activity_id'=>$activity['rowid']));
+			$actions=mjl_monitoring_activity_actions($activity,$this->role,$this->actor->id,$this->date);
+			$rows[]=array_merge($operation,array('activity_ref'=>$activity['ref'],'activity_name'=>$activity['name'],'partner_name'=>$activity['partner_name'],'project_name'=>$activity['project_name'],'authorization_kind'=>$activity['validated_amount']===null?'Proposée':'Validée','activity_id'=>$activity['rowid'],'validation_status'=>$activity['validation_status'],'is_cancelled'=>$activity['is_cancelled'],'execution_allowed'=>$actions['execution']));
 		}
 		return $rows;
+	}
+
+	/** Only current revision facts are loaded, including historical contributors. */
+	public function reviewFacts(array $activities)
+	{
+		if (!$activities) return array();
+		$ids=implode(',',array_map('intval',array_column($activities,'rowid')));
+		$from=' FROM '.$this->table('activity').' a WHERE '.$this->activityWhere(mjl_monitoring_filters(array())).' AND a.rowid IN ('.$ids.')';
+		$revisions='SELECT a.fk_current_revision'.$from;
+		$contributors=$this->rows('SELECT fk_revision,fk_user FROM '.$this->table('revision_contributor').' WHERE entity='.$this->entity.' AND fk_revision IN ('.$revisions.') ORDER BY fk_revision,fk_user LIMIT 100001');
+		if (count($contributors)>100000) throw new RuntimeException('SOURCE_LIMIT');
+		$decisions=$this->rows('SELECT fk_revision,fk_actor FROM '.$this->table('review_decision')." WHERE entity=".$this->entity." AND stage='SUPERVISOR' AND decision_type='PREVALIDATED' AND fk_revision IN (".$revisions.') ORDER BY rowid LIMIT 10001');
+		if (count($decisions)>10000) throw new RuntimeException('SOURCE_LIMIT');
+		$facts=array();
+		foreach ($contributors as $row) $facts[$row['fk_revision']]['contributors'][]=$row['fk_user'];
+		foreach ($decisions as $row) $facts[$row['fk_revision']]['prevalidator_id']=$row['fk_actor'];
+		foreach ($activities as &$activity) $activity=array_merge($activity,array('contributors'=>array(),'prevalidator_id'=>null),$facts[$activity['fk_current_revision']] ?? array());
+		unset($activity);
+		return $activities;
+	}
+
+	/** Bounded, scoped request browsing; status is a stored state, never a stale flag. */
+	public function requests(array $activities, $status='PENDING')
+	{
+		if (!in_array($status,array('','PENDING','APPROVED','REJECTED','WITHDRAWN'),true)) throw new InvalidArgumentException('INVALID_FILTER');
+		if (!$activities) return array();
+		$byId=array_column($activities,null,'rowid');
+		$ids=implode(',',array_map('intval',array_keys($byId)));
+		$where=$this->activityWhere(mjl_monitoring_filters(array())).' AND a.rowid IN ('.$ids.')'.($status!==''?' AND r.status='.$this->literal($status):'');
+		$result=array(); $bytes=0;
+		foreach (array('CANCELLATION'=>'cancellation_request','REOPENING'=>'reopening_request') as $type=>$suffix) {
+			$from=' FROM '.$this->table($suffix).' r JOIN '.$this->table('activity').' a ON a.entity=r.entity AND a.rowid=r.fk_activity WHERE '.$where;
+			$stats=$this->rows('SELECT COUNT(*) AS n,COALESCE(SUM(OCTET_LENGTH(r.reason)+OCTET_LENGTH(r.requester_name_snapshot)+512),0) AS bytes'.$from)[0];
+			$bytes+=(int)$stats['bytes'];
+			if (count($result)+(int)$stats['n']>10000 || $bytes>self::SOURCE_LIMIT) throw new RuntimeException('SOURCE_LIMIT');
+			$columns='r.rowid,r.entity,r.fk_activity,r.fk_target_revision,r.target_version,r.fk_requester,r.requester_name_snapshot,r.reason,r.status,r.version,r.date_request,'.($type==='CANCELLATION'?'r.target_type,r.target_id,r.target_operation_set_hash':'r.fk_operation');
+			foreach ($this->rows('SELECT '.$columns.$from.' ORDER BY r.date_request DESC,r.rowid DESC') as $request) {
+				$request['request_type']=$type;
+				$activity=$byId[$request['fk_activity']];
+				$target=$activity; $label=$activity['ref'];
+				if ($type==='REOPENING' || $request['target_type']==='OPERATION') {
+					$target=null; $id=$type==='REOPENING'?$request['fk_operation']:$request['target_id'];
+					foreach ($activity['operations'] as $operation) if ((string)$operation['rowid']===(string)$id) $target=$operation;
+					$label.=' / '.($target['name'] ?? 'Opération indisponible');
+				}
+				$request['target_label']=$label;
+				$request['current_target_version']=$target['version'] ?? 0;
+				$request['eligibility']=mjl_monitoring_request_actions($request,$activity,$activity['operations'],$this->role,$this->actor->id);
+				$result[]=$request;
+			}
+		}
+		usort($result,function($a,$b){return strcmp($b['date_request'],$a['date_request']) ?: strcmp($a['request_type'],$b['request_type']) ?: ((int)$b['rowid']<=>(int)$a['rowid']);});
+		return $result;
 	}
 
 	public function auditWhere(array $filters)

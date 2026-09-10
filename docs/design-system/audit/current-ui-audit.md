@@ -50,7 +50,7 @@ and official outputs.
 
 | Screen | Alignment | Main UI Debt | Safe Area |
 | --- | --- | --- | --- |
-| Workspace dashboard | Medium | Enriched cards now expose definition, scope, period, freshness, destination, and local source failure; final client KPI wording can still be reviewed. | `custom/mjlfinancement/index.php` |
+| Workspace dashboard | Implemented, focused final gate pending | Financial-first indicators, scoped filters, workflow counts, permitted actions and alerts reuse v3. Shared predecessor remains until cutover; expanded human review pending. | `custom/mjlfinancement/index.php` |
 | Supervision dashboard | Medium | Production role wording, scoped filters, and audit-row resolution are aligned; route filename remains compatibility debt. | `custom/mjlfinancement/dpafdashboard.php` |
 | Partenaires | Good | French-first reference list/detail/forms, lifecycle states, safe feedback, and 390-pixel containment are focused-browser verified. | `custom/mjlfinancement/partners.php` |
 | Projets | Good | Guarded reference states expose only the display label for editing; immutable ownership/ref and parent lifecycle behavior are focused-browser verified. | `custom/mjlfinancement/projects.php` |
@@ -177,3 +177,9 @@ observations remain readable. Unknown, malformed and oversized details show an
 explicit unavailable message. The 63-check combined reports gate passed,
 including all 8 chronology checks, and the 390px no-JavaScript chronology was
 inspected. Expanded human accessibility and whole-phase readiness remain pending.
+
+Dashboard/navigation slice: draft abandonment remains available after start;
+proposed versus validated amounts are explicit on touched detail and Opération
+views. Request filters compose with Activity filters, and stale requests retain
+closure controls. No-JavaScript forced-colors mobile capture was inspected;
+final combined technical verification is in progress.
