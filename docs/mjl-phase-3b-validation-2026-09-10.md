@@ -81,12 +81,14 @@ Runs `mjl-test-20260910t164418-443360-f06370a0` and `mjl-test-20260910t165411-46
 
 ## Remaining whole-phase requirements
 
-Phase 3B remains IN_PROGRESS. The explicit unfinished-integration guard remains. Outstanding executable proofs identified in the whole-phase audit are:
+Phase 3B remains IN_PROGRESS. The explicit unfinished-integration guard remains. Outstanding executable proofs identified at this September 10 checkpoint were:
 
 - Full-pipeline low-memory/deadline and renderer/open/hash/unlink failures, ambiguous commit, interrupted transfer and actual killed-worker orphan recovery. Existing audit/record-insertion rollback tests do not establish all of these cases.
 - Commit-before-revocation ordering and remaining cross-Agent abandonment/cancellation races.
 - A deliberately failing Phase 3B test that fails both focused and aggregate public commands.
 - The disposable guarded cutover wrapper/rehearsals, interrupted-DDL convergence, empty rollback and evidence-preserving containment.
+
+The first two bullets were subsequently covered by the [September 11 recovery checkpoint](mjl-phase-3b-recovery-validation-2026-09-11.md), which passed 111 combined monitoring/report checks. Discovery controls and disposable cutover proofs remain outstanding.
 
 Signed human accessibility and guarded shared cutover remain pending. No push or shared cutover occurred.
 

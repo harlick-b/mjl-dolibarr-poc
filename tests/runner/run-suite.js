@@ -490,7 +490,7 @@ async function runPlaywright(plan, target, signal) {
       ['tests/e2e/auth-concurrency.spec.js','tests/e2e/partners-projects.spec.js'],
       ['tests/e2e/fixture-isolation.spec.js'],
       ['tests/e2e/rst002b-activity-assignment.spec.js','tests/e2e/rst006a-activity-planning.spec.js','tests/e2e/zz-phase2-planning.spec.js'],
-      ['tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js','tests/e2e/phase3b-monitoring.spec.js'],
+      ['tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-export-recovery.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js','tests/e2e/phase3b-monitoring.spec.js'],
     ];
     for (const batch of batches) {
       // Activate monitoring only after predecessor-surface regressions finish.
@@ -522,10 +522,10 @@ async function runPlaywright(plan, target, signal) {
   } else if (target === 'phase3b-performance') {
     args.push('tests/e2e/zz-phase3b-performance.spec.js','--config=playwright.config.js');
   } else if (target === 'phase3b-reports' || target === 'phase3b-monitoring') {
-    args.push('tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js','--config=playwright.config.js');
+    args.push('tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-export-recovery.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js','--config=playwright.config.js');
     if (target === 'phase3b-monitoring') args.push('tests/e2e/phase3b-monitoring.spec.js');
   } else if (target === 'phase3b-activities') {
-    args.push('tests/e2e/phase3b-activities-report.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-export-recovery.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase3a') {
     args.push('tests/e2e/activity-execution.spec.js', 'tests/e2e/document-containment.spec.js', 'tests/e2e/documents-audit.spec.js', '--config=playwright.config.js');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
@@ -898,7 +898,7 @@ async function main() {
 		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-schema-probe.php'], {signal: controller.signal});
 		await runPlaywright(plan,'phase3b-monitoring',controller.signal);
 		await runPlaywright(plan,'phase3b-performance',controller.signal);
-		throw new Error('Phase 3B integration gate is not complete: expanded failure/recovery and authorization-race coverage, discovery controls and disposable cutover rehearsals remain.');
+		throw new Error('Phase 3B integration gate is not complete: discovery controls and disposable cutover rehearsals remain.');
 	  }
 	  else if (layer === 'phase3a') {
 		await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php'], { signal: controller.signal });

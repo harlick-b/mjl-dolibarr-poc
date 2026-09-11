@@ -51,9 +51,10 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   source failures, readiness and responsive/no-JavaScript behavior. It shares
   the mandatory no-retain teardown and exact shared-state evidence contract.
   This slice gate does not establish whole-phase readiness.
-  Latest slice evidence: 79/79 passed on 2026-09-10 in
-  `mjl-test-20260910t161750-372637-5329ad95` (594.7 seconds with setup/teardown);
-  shared before/after evidence matched. See the Phase 3B checkpoint.
+  Latest slice evidence: 111/111 passed on 2026-09-11 in
+  `mjl-test-20260911t113709-170446-f125f370` (751.8 seconds with setup/teardown);
+  shared before/after evidence matched. This includes 32 export recovery and
+  authorization-race checks. See [the recovery validation record](mjl-phase-3b-recovery-validation-2026-09-11.md).
 - 'test:phase3b-reports' combines Activities, Operations, Fiche Activité, portfolio, audit
   and Activity chronology acceptance, including parent/child filter semantics, formats, exact variance,
   cancellation/proposal classification, pagination and scoped access. Fiche
@@ -80,7 +81,11 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
 - 'test:phase3b-activities' exercises scoped Activities previews, all three actual
   downloads, immutable evidence hashes, role/POST/filter denials, no-JavaScript
   mobile filtering, authorization races and atomic failure rollback in a
-  disposable tenant. It requires teardown and exact shared-state equality.
+  disposable tenant. Its recovery suite covers both commit/revocation orders,
+  memory/deadline/source/format/artifact limits, renderer/open/hash/unlink
+  failures, uncertain COMMIT acknowledgements, interrupted PDF delivery and
+  actual SIGKILL orphan recovery. It checks descriptors, locks, transactions
+  and SQL budgets before process exit. It requires teardown and exact shared-state equality.
 - 'test:phase3b' remains an incomplete full-phase gate, including schema/renderer
   probes; its explicit unfinished-integration guard must remain until all
   Phase 3B acceptance requirements are implemented.

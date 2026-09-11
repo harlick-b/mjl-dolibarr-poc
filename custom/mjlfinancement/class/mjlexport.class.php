@@ -69,6 +69,9 @@ class MjlExport
 		}
 	}
 
+	/** Keep private file ownership replaceable in disposable failure tests. */
+	protected function createSpool($root) { return new MjlExportSpool($root); }
+
 	/** Builder is an internal fixed-report adapter, never request-supplied code. */
 	public function generate($type,$format,array $source,callable $builder)
 	{
@@ -76,7 +79,7 @@ class MjlExport
 		if ($this->db->transaction_opened>0) throw new RuntimeException('INVALID_EXPORT_TRANSACTION');
 		$deadline=hrtime(true)+30000000000; $spool=null; $artifact=null; $budgets=null; $committed=false; $shutdownArmed=true; $failure=null;
 		try {
-			$spool=new MjlExportSpool($this->spoolRoot);
+			$spool=$this->createSpool($this->spoolRoot);
 			register_shutdown_function(function()use(&$shutdownArmed,$spool,&$artifact,&$budgets){
 				if (!$shutdownArmed) return;
 				try { if ($this->db->transaction_opened>0) $this->db->rollback('mjl export shutdown'); } catch (Throwable $ignored) {}

@@ -40,6 +40,7 @@ if ($action==='chronology-fixtures') {
  }
  if (!$db->commit('disposable chronology fixture')) exit(9);print json_encode($ids);exit;
 }
+if ($action==='recovery' || $action==='abandon') { require __DIR__.'/phase3b-export-recovery.php'; exit; }
 if ($action==='spool-state') {print json_encode(array_values(array_diff(scandir('/tmp/mjlfinancement-exports'),array('.','..','generation.lock'))));exit;}
 if ($action==='delivery') {
  require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_report_route.lib.php';

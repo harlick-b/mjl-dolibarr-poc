@@ -695,3 +695,31 @@ remains for expanded full-pipeline failure/recovery coverage, remaining
 authorization-race orders, deliberate discovery-failure controls and disposable
 cutover rehearsals. Signed human accessibility and guarded shared cutover remain
 pending. No persistent sample data, shared migration or push occurred.
+
+
+## Export recovery and authorization checkpoint — 2026-09-11
+
+`npm run test:phase3b-monitoring` passed **111/111** checks in 751.8 seconds,
+including 32 new export recovery and authorization cases. `npm run test:unit`
+passed 211 tests plus PHP contracts. Shared before/after evidence was identical,
+PHP runtime diagnostics were clean, artifact scanning passed and the disposable
+tenant was fully removed.
+
+The new suite exercises real file-open/unlink failures, short hashing reads,
+renderer and source/row/cell/byte/artifact limits, actual low-memory and deadline
+failures, uncertain COMMIT acknowledgement with both committed and uncommitted
+outcomes, interrupted PDF delivery and real SIGKILL orphan recovery. Same-process
+checks expose descriptor/lock leaks before shutdown can conceal them. Fourteen
+races cover both authorization orderings for assignment removal, account/role/
+entity/Admin changes, Activity cancellation and cross-Agent draft abandonment.
+Commit-first cases observe a real database lock wait and retain exact committed
+artifact bytes after revocation. Two protected internal seams enable these
+checks without changing the public export interface or adding request fault flags.
+
+See [the recovery validation record](mjl-phase-3b-recovery-validation-2026-09-11.md)
+for evidence, corrected diagnostic attempts, review outcomes and skipped gates.
+The earlier failure/recovery and remaining authorization-race gaps are covered.
+Phase 3B remains **IN_PROGRESS**: deliberate discovery-failure controls,
+disposable cutover rehearsals, signed human accessibility and guarded shared
+cutover remain pending. The explicit incomplete-phase guard remains. No shared
+migration, persistent seed or push occurred.

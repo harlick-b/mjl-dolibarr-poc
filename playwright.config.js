@@ -15,6 +15,7 @@ module.exports = defineConfig({
     'phase3b-monitoring.spec.js',
     'zz-phase3b-performance.spec.js',
     'phase3b-activities-report.spec.js',
+    'phase3b-export-recovery.spec.js',
     'phase3b-operations-report.spec.js',
     'phase3b-activity-detail.spec.js',
     'phase3b-portfolio-report.spec.js',

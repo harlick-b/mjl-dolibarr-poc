@@ -65,12 +65,15 @@ class MjlExportSpool
 		return $path;
 	}
 
+	/** Native open boundary for disposable I/O failure verification. */
+	protected function openArtifact($path) { return fopen($path,'rb'); }
+
 	/** Hash, rewind and unlink the exact regular descriptor before authorization commit. */
 	public function detach($path)
 	{
 		if (!$this->attempt || dirname($path)!==$this->attempt) throw new RuntimeException('INVALID_SPOOL_STATE');
 		$this->requirePrivate($path,false);
-		$fd=fopen($path,'rb');
+		$fd=$this->openArtifact($path);
 		if ($fd===false) throw new RuntimeException('SPOOL_UNAVAILABLE');
 		try {
 			$stat=fstat($fd); $named=lstat($path);
