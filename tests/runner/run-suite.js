@@ -898,7 +898,7 @@ async function main() {
 		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-schema-probe.php'], {signal: controller.signal});
 		await runPlaywright(plan,'phase3b-monitoring',controller.signal);
 		await runPlaywright(plan,'phase3b-performance',controller.signal);
-		throw new Error('Phase 3B integration gate is not complete: disposable cutover rehearsals remain.');
+		await runCommand(process.execPath,['tests/runner/rst012-fast-cutover-rehearsal.js'],{signal:controller.signal});
 	  }
 	  else if (layer === 'phase3a') {
 		await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php'], { signal: controller.signal });

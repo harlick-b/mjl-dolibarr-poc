@@ -94,6 +94,8 @@ test('Phase 3A exposes one guarded aggregate mutation seam and exact schema entr
   assert.match(module, /version = '0\.20\.0'/);
   assert.match(module, /MjlExecutionReconciler/);
   assert.match(module, /unitfrequency' => 3600/);
-  assert.ok(module.indexOf("if ($migrationRequired) return 'RST006B_MIGRATION_REQUIRED'") < module.indexOf('$this->_init('));
+  const migrationGuard = module.indexOf('if ($migrationRequired)');
+  assert.ok(migrationGuard > 0 && migrationGuard < module.indexOf('$this->_init('));
+  assert.match(module.slice(migrationGuard, module.indexOf('$this->_init(')), /\$this->error = 'MJL guarded migration required\.';[\s\S]*return -1;/);
   assert.doesNotMatch(module, /elseif \(\$schema === RST006A_SCHEMA_PREDECESSOR\)/);
 });

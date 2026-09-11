@@ -4,6 +4,7 @@ include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/activity_schema_installer.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006a_schema.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006b_schema.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst012_schema.lib.php';
 
 class modMjlFinancement extends DolibarrModules
 {
@@ -112,6 +113,7 @@ class modMjlFinancement extends DolibarrModules
 		$migrationRequired = false;
 		$cleanInstall = false;
 		$retainPhase2Target = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && in_array((string) getenv('MJL_TEST_MODE'), array('rst006a','phase2','characterization'), true);
+		$retainPhase3aTarget = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && in_array((string) getenv('MJL_TEST_MODE'), array('all','e2e','verify','phase3a','phase3b','phase3b-performance','phase3b-monitoring','phase3b-reports','phase3b-activities','rst006b','rst013c','rst014c'), true);
 		if ((int) mjl_rst005_scalar($this->db, "SELECT GET_LOCK('".$this->db->escape($lockName)."',0)") !== 1) return -1;
 		try {
 			$tableCount = (int) mjl_rst005_scalar($this->db, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$this->db->escape($activity)."'");
@@ -136,16 +138,30 @@ class modMjlFinancement extends DolibarrModules
 				mjl_rst002b_install_role_invariant_triggers($this->db, true);
 				mjl_rst006a_install_target($this->db);
 				mjl_rst006a_require_target($this->db);
-				if (!$retainPhase2Target) { mjl_rst006b_install_target($this->db); mjl_rst006b_require_target($this->db); }
+				if (!$retainPhase2Target) {
+					mjl_rst006b_install_target($this->db); mjl_rst006b_require_target($this->db);
+					if (!$retainPhase3aTarget) { mjl_rst012_install($this->db); mjl_rst012_require_target($this->db); }
+				}
 			} else {
 				$phase3aSchema = mjl_rst006b_detect_schema($this->db);
-				if ($phase3aSchema === RST006B_SCHEMA_TARGET) mjl_rst006b_require_target($this->db);
+				if ($phase3aSchema === RST006B_SCHEMA_TARGET) {
+					mjl_rst006b_require_target($this->db);
+					$reportTable=$prefix.'mjlfinancement_export_record';
+					if ($retainPhase3aTarget) {
+						if (mjl_rst002b_table_exists($this->db,$reportTable)) return -1;
+					} elseif (mjl_rst002b_table_exists($this->db,$reportTable)) mjl_rst012_require_target($this->db);
+					else $migrationRequired = true;
+				}
 				elseif (($schema = mjl_rst006a_detect_schema($this->db)) === RST006A_SCHEMA_TARGET) {
 					mjl_rst006a_require_target($this->db);
 					if (!$retainPhase2Target) $migrationRequired = true;
 				} else return -1;
 			}
-			if ($migrationRequired) return 'RST006B_MIGRATION_REQUIRED';
+			if ($migrationRequired) {
+				$this->error = 'MJL guarded migration required.';
+				if (PHP_SAPI === 'cli') fwrite(STDERR, $this->error.PHP_EOL);
+				return -1;
+			}
 			if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
 				&& getenv('MJL_RST_PHASE1_INJECT_ACTIVATION_FAILURE') === '1'
 				&& $this->disposableActivationFailureIsArmed()) return -1;
@@ -154,7 +170,11 @@ class modMjlFinancement extends DolibarrModules
 				&& $this->disposableRst005ActivationFailureIsArmed()) return -1;
 			if ($this->ensureRoleInvariantTriggers() < 0) return -1;
 			if ($this->ensureAuthStateConstraints() < 0 || $this->ensureAuthInvariantTriggers() < 0 || $this->ensureAuthFingerprintKey() < 0) return -1;
-			if ($cleanInstall) { if ($retainPhase2Target) mjl_rst006a_require_target($this->db); else mjl_rst006b_require_target($this->db); }
+			if ($cleanInstall) {
+				if ($retainPhase2Target) mjl_rst006a_require_target($this->db);
+				elseif ($retainPhase3aTarget) mjl_rst006b_require_target($this->db);
+				else mjl_rst012_require_target($this->db);
+			}
 			$this->remove($options);
 			$result = $this->_init(array(), $options);
 			if ($result < 0) return $result;

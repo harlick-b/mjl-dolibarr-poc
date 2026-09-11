@@ -51,17 +51,69 @@ function mjl_rst012_require_target(DoliDB $db)
 	if (!mjl_rst005_map_equal(mjl_rst002b_actual_trigger_map($db,$table),$expected[$table])) throw new RuntimeException('RST012_TRIGGER_CONTRACT');
 }
 
+function mjl_rst012_expected_trigger_map(DoliDB $db)
+{
+	$table=$db->prefix().'mjlfinancement_export_record';
+	$expected=array($table=>array());
+	foreach (mjl_rst012_guard_statements($db) as $sql) mjl_rst006b_add_trigger_contract($expected,$sql);
+	return $expected[$table];
+}
+
+/** Return the exact installed DDL prefix, or throw before any mutation. */
+function mjl_rst012_prefix(DoliDB $db)
+{
+	mjl_rst006b_require_target($db);
+	$table=$db->prefix().'mjlfinancement_export_record';
+	if (!mjl_rst002b_table_exists($db,$table)) return 'forward-000';
+	try { mjl_rst006a_require_new_table_contract($db,'report',mjl_rst012_report_contract($db),$table); }
+	catch (Throwable $exception) { throw new RuntimeException('RST012_UNKNOWN_SCHEMA',0,$exception); }
+	$actual=mjl_rst002b_actual_trigger_map($db,$table);
+	$expected=mjl_rst012_expected_trigger_map($db);
+	$names=array_keys($expected);
+	for ($count=0;$count<=count($names);$count++) {
+		$prefix=array();
+		for ($index=0;$index<$count;$index++) $prefix[$names[$index]]=$expected[$names[$index]];
+		if (mjl_rst005_map_equal($actual,$prefix)) return 'forward-'.str_pad((string)($count+1),3,'0',STR_PAD_LEFT);
+	}
+	throw new RuntimeException('RST012_UNKNOWN_SCHEMA');
+}
+
+function mjl_rst012_fail_after($point)
+{
+	if (getenv('MJL_RST012_FAILURE_INJECTION_ATTESTED')==='1' && getenv('MJL_RST012_FAIL_AFTER')===$point) throw new RuntimeException('Injected RST-012 interruption after '.$point);
+}
+
 /** Caller must have proven traffic stopped and backup or disposable-tenant custody. */
 function mjl_rst012_install(DoliDB $db)
 {
 	mjl_rst006b_require_target($db);
 	$table=$db->prefix().'mjlfinancement_export_record';
-	if (mjl_rst002b_table_exists($db,$table)) {
-		mjl_rst012_require_target($db);
-		return;
+	$prefix=mjl_rst012_prefix($db);
+	if ($prefix==='forward-000') {
+		$sql=file_get_contents(__DIR__.'/schema/rst012_report.sql');
+		if ($sql===false || !$db->query(str_replace('llx_',$db->prefix(),$sql))) throw new RuntimeException('RST012_CREATE_FAILED');
+		mjl_rst012_fail_after('forward-001');
+		$prefix='forward-001';
 	}
-	$sql=file_get_contents(__DIR__.'/schema/rst012_report.sql');
-	if ($sql===false || !$db->query(str_replace('llx_',$db->prefix(),$sql))) throw new RuntimeException('RST012_CREATE_FAILED');
-	foreach (mjl_rst012_guard_statements($db) as $sql) if (!$db->query($sql)) throw new RuntimeException('RST012_GUARD_FAILED');
+	$statements=mjl_rst012_guard_statements($db);
+	$installed=(int)substr($prefix,8)-1;
+	for ($index=$installed;$index<count($statements);$index++) {
+		if (!$db->query($statements[$index])) throw new RuntimeException('RST012_GUARD_FAILED');
+		mjl_rst012_fail_after('forward-'.str_pad((string)($index+2),3,'0',STR_PAD_LEFT));
+	}
 	mjl_rst012_require_target($db);
+}
+
+function mjl_rst012_rollback_empty(DoliDB $db)
+{
+	$prefix=mjl_rst012_prefix($db);
+	if ($prefix==='forward-000') return;
+	if ($prefix!=='forward-004') throw new RuntimeException('RST012_UNKNOWN_SCHEMA');
+	mjl_rst012_require_target($db);
+	$table=$db->prefix().'mjlfinancement_export_record';
+	if (!mjl_rst002b_table_exists($db,$table)) return;
+	if ((int)mjl_rst005_scalar($db,'SELECT COUNT(*) FROM '.$table)!==0) throw new RuntimeException('RST012_EVIDENCE_PRESENT');
+	foreach (array_reverse(array_keys(mjl_rst012_expected_trigger_map($db))) as $trigger) if (!$db->query('DROP TRIGGER '.$trigger)) throw new RuntimeException('RST012_ROLLBACK_GUARD_FAILED');
+	if (!$db->query('DROP TABLE '.$table)) throw new RuntimeException('RST012_ROLLBACK_TABLE_FAILED');
+	mjl_rst006b_require_target($db);
 }
