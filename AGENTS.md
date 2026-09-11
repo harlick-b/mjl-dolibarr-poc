@@ -138,6 +138,18 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 
 ## Lean-Execution Checkpoint
 
+- Over-engineering is forbidden. Implement only mechanisms required by the
+  current acceptance criteria or a concrete security/data-integrity risk.
+  Prefer an existing project seam or the smallest direct implementation that
+  satisfies the requirement.
+- Apply this checkpoint before the first implementation edit. Map each planned
+  mechanism to a current requirement, remove anything justified only by
+  hypothetical reuse, future flexibility, additional confidence, or an
+  unrequested failure model, and keep that minimal map as the scope boundary.
+- Stop immediately when the implementation introduces machinery outside that
+  map, duplicates an existing mechanism, or grows into its own framework.
+  Delete the speculative work before continuing; prior effort is not a reason
+  to retain it.
 - After each hour of active implementation, stop and reassess whether the work
   is becoming over-engineered. Time spent waiting for required tests, builds,
   downloads, or external tools does not count toward the hour.

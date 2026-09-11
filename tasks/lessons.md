@@ -1,11 +1,12 @@
 # Reusable Lessons
 
-- Long implementation sessions can drift into redundant confidence machinery.
-  After each hour of active implementation—and immediately before introducing
-  an unplanned abstraction or test harness—perform the repository's
-  lean-execution checkpoint. Prefer the smallest mechanism that satisfies an
-  explicit requirement or material safety risk, and seek user approval when a
-  simplification changes product, scope, or architecture.
+- Over-engineering is forbidden. Before editing, write the smallest mechanism
+  map that satisfies each current requirement and concrete safety risk, then
+  treat it as the scope boundary. Do not add journals, generalized recovery
+  protocols, multi-stage crash simulators, duplicate evidence formats, or new
+  harness layers when an existing guarded command, exact state detector, and
+  one focused rehearsal are sufficient. Any unplanned infrastructure triggers
+  an immediate stop-and-delete review; sunk effort never justifies keeping it.
 
 Update this file only after repeated mistakes, user corrections, or durable
 debugging discoveries. Do not add one-off observations or generic advice.
