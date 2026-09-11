@@ -5,6 +5,11 @@ const {createPhase2FixtureSet}=require('../helpers/phase2-fixture');
 const {privilegedScalar}=require('../helpers/mjl-test-runtime');
 let fixture,drafts;
 test.describe.configure({mode:'serial'});
+// Opt-in negative control: prove the real public runners discover this Phase 3B suite.
+// Global setup still requires the guarded disposable environment before this hook runs.
+test.beforeAll(()=>{
+ if(process.env.MJL_PHASE3B_DISCOVERY_FAILURE==='1') throw new Error('MJL_PHASE3B_DISCOVERY_CONTROL: deliberate Phase 3B test failure');
+});
 const php=['compose','exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-report-fixture.php'];
 const database=['compose','exec','-T','mariadb','mariadb','--defaults-extra-file=/run/mjl-test/client.cnf','-N','-B','dolidb'];
 function sql(statement){return cp.execFileSync('docker',database,{env:process.env,input:statement+'\n',encoding:'utf8'}).trim();}

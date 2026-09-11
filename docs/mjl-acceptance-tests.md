@@ -55,6 +55,9 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   `mjl-test-20260911t113709-170446-f125f370` (751.8 seconds with setup/teardown);
   shared before/after evidence matched. This includes 32 export recovery and
   authorization-race checks. See [the recovery validation record](mjl-phase-3b-recovery-validation-2026-09-11.md).
+  The opt-in discovery control also proves that this focused command and the
+  aggregate `npm test` command propagate a deliberately failing Phase 3B test;
+  see [the discovery validation record](mjl-phase-3b-discovery-validation-2026-09-11.md).
 - 'test:phase3b-reports' combines Activities, Operations, Fiche Activité, portfolio, audit
   and Activity chronology acceptance, including parent/child filter semantics, formats, exact variance,
   cancellation/proposal classification, pagination and scoped access. Fiche

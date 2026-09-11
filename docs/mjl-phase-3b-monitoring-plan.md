@@ -723,3 +723,20 @@ Phase 3B remains **IN_PROGRESS**: deliberate discovery-failure controls,
 disposable cutover rehearsals, signed human accessibility and guarded shared
 cutover remain pending. The explicit incomplete-phase guard remains. No shared
 migration, persistent seed or push occurred.
+
+## Test-discovery checkpoint — 2026-09-11
+
+The opt-in `MJL_PHASE3B_DISCOVERY_FAILURE=1` control proves that the actual
+focused `test:phase3b-monitoring` and aggregate `npm test` commands discover and
+propagate a deliberately failing Phase 3B test. The focused control failed on
+the exact marker after 36 checks; the aggregate failed on the same marker after
+211 unit tests, PHP contracts, schema/renderer/Admin probes and 148 browser
+checks. A normal focused run then passed 111/111. Every qualifying run retained
+equal shared-state evidence, clean artifacts and diagnostics, and complete
+disposable teardown.
+
+See [the discovery validation record](mjl-phase-3b-discovery-validation-2026-09-11.md).
+The discovery gap is covered. Phase 3B remains **IN_PROGRESS** for disposable
+cutover rehearsals, signed human accessibility and guarded shared cutover. The
+explicit incomplete-phase guard remains. No shared migration, persistent seed
+or push occurred.

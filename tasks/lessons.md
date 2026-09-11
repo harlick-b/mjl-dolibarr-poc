@@ -287,3 +287,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   even when the control's computed accessible name is just the label. For such
   controls, use `getByRole('combobox', { name: ..., exact: true })`; retain the
   name assertion instead of replacing it with an unrelated CSS selector.
+
+- Playwright failure reports copy nearby source lines into artifacts. Put
+  deliberate negative-control hooks in source without literal credentials;
+  otherwise the secret scanner correctly deletes the evidence tree even when
+  the tested failure itself is expected.

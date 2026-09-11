@@ -25,6 +25,7 @@ module.exports = defineConfig({
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',
   timeout: 60000,
   workers: 1,
+  maxFailures: process.env.MJL_PHASE3B_DISCOVERY_FAILURE === '1' ? 1 : undefined,
   use: {
     baseURL: process.env.MJL_BASE_URL,
     trace: 'off',
