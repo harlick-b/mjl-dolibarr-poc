@@ -138,6 +138,13 @@ Automated design and security evidence has no open high-risk finding after
 remediation. This remains a local integration result, not WCAG conformance or
 production-readiness approval.
 
+## Dated Phase 3B incremental evidence
+
+The pending-cutover wording in the incremental checkpoints below records their
+pre-cutover boundary. DEC-057 and the active screen table above supersede only
+that wording as of 2026-09-14; their technical results remain historical
+evidence.
+
 Operations report extension (focused technical validation passed): `reports.php?report=operations` reuses
 the Activities report controls and guarded `reportexport.php` delivery. It adds
 explicit parent-versus-child filter labels, Opération type/state, proposed versus

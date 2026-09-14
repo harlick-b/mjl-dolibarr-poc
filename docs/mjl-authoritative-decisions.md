@@ -154,8 +154,8 @@ before its roadmap dependencies and a fresh post-Phase-3C live inventory and
 reset-unit review. DEC-056 separately approves the Phase 3B bundle RST-009C, RST-011, RST-012,
 RST-013D and RST-014D for implementation and guarded local cutover under
 `docs/mjl-phase-3b-monitoring-plan.md`. Source implementation and disposable
-technical gates completed on 2026-09-11. Signed human accessibility and the
-guarded shared cutover then completed under DEC-057 on 2026-09-14. The verdict is
+technical gates completed on 2026-09-11. The guarded shared cutover then
+completed under DEC-057 on 2026-09-14. The verdict is
 `PHASE_3B_READY_WITH_NOTES`, whose sole note is the unsigned human accessibility
 review; no production authorization is implied.
 DEC-057 defers only the signed human accessibility review: it does not block
