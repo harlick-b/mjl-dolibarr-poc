@@ -22,9 +22,10 @@ number does not approve a suffixed unit.
 ## Safety and Approval Contract
 
 - RST-000, RST-000A, RST-001, RST-002A, RST-002B, RST-003, RST-004, RST-005,
-  RST-006A, RST-007A, RST-007B, RST-008, RST-009A, RST-009B, RST-010A,
-  RST-009C, RST-011, RST-012, RST-013A, RST-013B, RST-013D, RST-014A,
-  RST-014B, and RST-014D are `EXECUTED`; every other action is
+  RST-006A, RST-006B, RST-007A, RST-007B, RST-008, RST-009A, RST-009B,
+  RST-009C, RST-010A, RST-011, RST-012, RST-013A, RST-013B, RST-013C,
+  RST-013D, RST-014A, RST-014B, RST-014C, and RST-014D are `EXECUTED`;
+  every other action is
   `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved

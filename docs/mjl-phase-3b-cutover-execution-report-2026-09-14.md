@@ -111,12 +111,14 @@ projects were `mjl-test-20260914t121457-182509-55871e25` and
 three volumes was explicitly removed. They are supplemental evidence only.
 
 `npm run test:unit` subsequently passed 215/215 after the Phase 2 alias repair.
-The final repaired `npm run test:phase2` passed the exact RST-012 and empty
-checks plus all 43 retained browser cases in 343.7 seconds; its disposable
-tenant, network, and three volumes were removed. An earlier repaired-alias
-attempt was externally interrupted during its browser stage and was likewise
-removed. `npm run test:verify` passed in 197.5 seconds and completed disposable
-teardown.
+The final repaired `npm run test:phase2` used disposable project
+`mjl-test-20260914t141453-476331-90706a6c` and passed the exact RST-012 and
+empty checks plus all 43 retained browser cases in 343.7 seconds. `npm run
+test:verify` used `mjl-test-20260914t141119-465607-3f4d134e` and passed in
+197.5 seconds. Both runs preserved exact shared-state equality, removed their
+tenant, network, and three volumes, and retained no artifacts. An earlier
+repaired-alias attempt was externally interrupted during its browser stage and
+was likewise removed.
 
 The successful disposable RST-012 wrapper proves schema rollback to the empty
 predecessor and forward recovery. The private shared database backup was not
