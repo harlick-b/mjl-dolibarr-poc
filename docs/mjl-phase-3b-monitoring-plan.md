@@ -740,3 +740,22 @@ The discovery gap is covered. Phase 3B remains **IN_PROGRESS** for disposable
 cutover rehearsals, signed human accessibility and guarded shared cutover. The
 explicit incomplete-phase guard remains. No shared migration, persistent seed
 or push occurred.
+
+## Final disposable technical validation — 2026-09-11
+
+This checkpoint supersedes the earlier `IN_PROGRESS` statements only for work
+subsequently completed. `npm run test:phase3b` passed from a fresh start in
+2467.4 seconds, including all schema/renderer probes, 111 monitoring/report/
+recovery checks, scale acceptance, and the complete guarded RST-012 rehearsal
+matrix. `npm test` passed in 2494.7 seconds with 214 Node/static checks, PHP
+contracts, 223 functional browser checks, the scale case, and all required
+probes. `npm run test:verify` passed in 175.8 seconds. All three runs preserved
+exact shared-state equality and completed disposable teardown.
+
+See `docs/mjl-phase-3b-final-validation-2026-09-11.md` for run identifiers,
+performance bounds, corrections, and the verdict boundary. The source and
+disposable technical gates and required reviews are complete. The verdict is
+`PHASE_3B_READY_WITH_NOTES`; its sole note is the unsigned human accessibility
+review.
+Guarded shared cutover remains pending explicit approval. No production
+authorization or shared migration is claimed.

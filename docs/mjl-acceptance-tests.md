@@ -35,8 +35,9 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
 - `npm test` runs unit, isolated verification and all maintained browser batches,
   including the Phase 3B schema/renderer probes and scale benchmark. The aggregate,
   `test:e2e` and `test:verify` require shared-state equality and no-retain teardown.
-  Latest aggregate: 211 Node tests and 192 browser tests passed on 2026-09-10.
-  See [the validation record](mjl-phase-3b-validation-2026-09-10.md).
+  Latest aggregate: 214 Node/static checks, 223 functional browser checks and
+  the scale benchmark passed on 2026-09-11. See
+  [the final technical validation record](mjl-phase-3b-final-validation-2026-09-11.md).
 - 'test:phase3b-performance' builds 1,000 Activities, 10,000 Operations and
   50,000 audit events in a disposable tenant. It checks populated authenticated
   pages after one warm-up and 20 serial samples (p95 ≤2 seconds), then five
@@ -89,9 +90,10 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
   failures, uncertain COMMIT acknowledgements, interrupted PDF delivery and
   actual SIGKILL orphan recovery. It checks descriptors, locks, transactions
   and SQL budgets before process exit. It requires teardown and exact shared-state equality.
-- 'test:phase3b' remains an incomplete full-phase gate, including schema/renderer
-  probes; its explicit unfinished-integration guard must remain until all
-  Phase 3B acceptance requirements are implemented.
+- 'test:phase3b' is the complete disposable Phase 3B gate. It includes the
+  schema/renderer probes, monitoring/report/recovery batch, scale benchmark, and
+  guarded RST-012 cutover rehearsal matrix. It does not migrate the shared
+  tenant or substitute for the signed human accessibility gate.
 - 'test:unit' runs static Node contracts and PHP presentation/navigation contracts.
 - 'test:verify' provisions an isolated tenant and runs the current RST-002B
   exact-schema and empty-tenant verifier.

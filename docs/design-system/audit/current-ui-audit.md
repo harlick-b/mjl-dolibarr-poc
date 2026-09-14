@@ -26,7 +26,7 @@ and official outputs.
   custom and native document delivery paths are denial-only.
 - The workflow audit screen exists; the obsolete exchange-log screen is
   removed.
-- Operational PDF/XLSX and supplemental audited CSV are approved for Phase 3B under DEC-056; implementation is in progress. Word and official Partner outputs are not part of this unit.
+- Operational PDF/XLSX and supplemental audited CSV are implemented and technically validated for Phase 3B under DEC-056. Word and official Partner outputs are not part of this unit.
 - Historical shared journey summaries and document panels are not current
   document behavior; exact finance recovery,
   resource pagination, contextual timelines, and enriched dashboard-card
@@ -63,7 +63,7 @@ and official outputs.
 | Conventions | Removed | Obsolete finance and document behavior is absent. | `custom/mjlfinancement/conventions.php` |
 | Budget lines | Removed | Obsolete finance route is absent and returns 404. | `custom/mjlfinancement/budgetlines.php` |
 | Fund receipts | Removed | Obsolete finance and proof-document behavior is absent. | `custom/mjlfinancement/fundreceipts.php` |
-| Activities report | Focused technical validation passed | Scoped preview and three audited downloads; shared Phase 3A stays unavailable pending cutover. 16 focused E2E checks and mobile/PDF visual inspection passed; expanded human review and other Phase 3B reports remain pending. | `custom/mjlfinancement/reports.php`, `reportexport.php` |
+| Activities report | Complete technical validation passed | Scoped preview and three audited downloads; shared Phase 3A stays unavailable pending cutover. Complete Phase 3B report, recovery, responsive, and aggregate evidence passed; expanded human review remains pending. | `custom/mjlfinancement/reports.php`, `reportexport.php` |
 | Validation history | Removed | Obsolete expense-validation route is absent and returns 404. | `custom/mjlfinancement/validations.php` |
 | Workflow audit | Focused technical validation passed | Complete historical report available after exact RST-012; shared predecessor remains until cutover. Expanded human review pending. | `custom/mjlfinancement/workflowactions.php` |
 | Exchange logs | Removed | Obsolete exchange-log route is absent and returns 404. | `custom/mjlfinancement/exchangelogs.php` |

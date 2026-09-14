@@ -80,8 +80,9 @@ function mjl_monitoring_filters(array $source, $audit = false)
 	foreach ($defaults as $key => $default) {
 		if (!isset($source[$key])) continue;
 		if (!is_scalar($source[$key])) throw new InvalidArgumentException('INVALID_FILTER');
-		$value = trim((string) $source[$key]);
-		if (!preg_match('//u',$value) || preg_match('/[\x00-\x1F\x7F]/u',$value) || mb_strlen($value)>100) throw new InvalidArgumentException('INVALID_FILTER');
+		$raw = (string) $source[$key];
+		if (!preg_match('//u',$raw) || preg_match('/[\x00-\x1F\x7F]/u',$raw) || mb_strlen($raw)>100) throw new InvalidArgumentException('INVALID_FILTER');
+		$value = trim($raw);
 		if (substr($key,-3)==='_id' || in_array($key,array('page','cursor','target_version'),true)) {
 			if ($value!=='' && (!preg_match('/^[1-9][0-9]{0,17}$/',$value))) throw new InvalidArgumentException('INVALID_FILTER');
 		}

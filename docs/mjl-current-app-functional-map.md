@@ -9,8 +9,10 @@ The local tenant contains exactly one preserved native technical
 administrator and no persistent business, invitation, reset, role, scope, or
 audit rows. The shared schema is at RST-006B. Module version 0.20.0 depends on native Third Parties and Projects.
 MJL-specific code remains under 'custom/mjlfinancement'.
-DEC-055 records `PHASE_3A_READY_WITH_NOTES` and permits Phase 3B development;
-the unsigned human accessibility review remains a production/release blocker.
+DEC-055 records `PHASE_3A_READY_WITH_NOTES`. Phase 3B source and its complete
+disposable technical gates are validated under DEC-056; the shared tenant still
+uses Phase 3A until the separately approved guarded cutover. The unsigned human
+accessibility review remains a production/release blocker.
 
 | Surface | Current behavior |
 | --- | --- |
@@ -68,4 +70,9 @@ remain separately labeled. Query failures produce unavailable sections.
 
 The navigation adds Alertes, Demandes d’exception and business Rapports only
 after readiness; audit report variants select Audit. The obsolete supervision
-route remains denied. Combined monitoring/report verification passed 111/111 checks on 2026-09-11, including 32 export recovery and authorization-race checks, equal shared-state evidence and complete disposable teardown. See `docs/mjl-phase-3b-recovery-validation-2026-09-11.md`. Focused and aggregate negative controls also prove deliberate Phase 3B test discovery; see `docs/mjl-phase-3b-discovery-validation-2026-09-11.md`. The September 10 aggregate passed 211 Node and 192 browser tests, including the scale benchmark and schema/renderer probes. Disposable cutover proofs, human accessibility and guarded shared cutover remain pending.
+route remains denied. The complete Phase 3B gate passed on 2026-09-11, including
+111 monitoring/report/recovery checks, the scale benchmark, and the disposable
+RST-012 cutover matrix. The final aggregate passed 214 Node/static checks, 223
+functional browser checks, and the scale case. Shared evidence remained equal
+and teardown completed. See `docs/mjl-phase-3b-final-validation-2026-09-11.md`.
+Signed human accessibility and guarded shared cutover remain pending.

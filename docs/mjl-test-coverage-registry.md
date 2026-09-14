@@ -10,9 +10,10 @@ behavior are not current evidence.
 
 | Command | Current purpose | Isolation / cleanup |
 | --- | --- | --- |
-| `npm test` | Unit, isolated verifier, maintained browser batches, Phase 3B schema/renderer probes and scale benchmark; 211 Node and 192 browser tests passed on 2026-09-10 | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
+| `npm test` | Unit, isolated verifier, maintained browser batches, Phase 3B schema/renderer probes and scale benchmark; 214 Node/static checks, 223 functional browser checks, and the scale case passed on 2026-09-11 | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
+| `npm run test:phase3b` | Complete Phase 3B schema/renderer, monitoring/report/recovery, scale, and guarded RST-012 cutover-rehearsal gate | Exact shared before/after evidence; retention disabled; whole-tenant teardown; no shared cutover |
 | `npm run test:phase3b-performance` | 1,000 Activities / 10,000 Operations / 50,000 audit events; populated-page p95 and 15 measured report/format combinations with audited row counts and peak memory | Guarded command-backed fixture; exact shared before/after evidence; retention disabled; whole-tenant teardown |
-| `npm run test:phase3b-monitoring` | Financial-first dashboard, eligibility/alerts, filtered browsing/navigation and existing report/chronology regressions (79 cases) | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
+| `npm run test:phase3b-monitoring` | Financial-first dashboard, eligibility/alerts, filtered browsing/navigation, reports/chronology, and export recovery/authorization races (111 cases) | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
 | `npm run test:unit` | Static Node contracts and PHP presentation/navigation contracts | No business fixture writes |
 | `npm run test:verify` | Current RST-002B exact schema and empty-tenant verification | Exact shared before/after evidence; unique disposable tenant; whole-tenant teardown |
 | `npm run test:e2e` | Current reference/auth/document/fixture, planning/execution, Phase 2 and Phase 3B browser batches, schema/renderer probes and scale benchmark | Exact shared before/after evidence; unique disposable tenant; whole-tenant teardown |
@@ -29,7 +30,7 @@ behavior are not current evidence.
 | `npm run test:rst002b` | RST-002B schema/rollback convergence, assignment module, immediate row-level revocation, role guards, audit atomicity, concurrency, and direct SQL denial | Shared before/after evidence; unique disposable tenant; whole-tenant teardown |
 | `npm run test:rst006a` | Exhaustive Activity planning schema boundaries, workflow, revision/review separation, concurrency, pagination, route guards, and fast-wrapper rehearsal | Shared before/after evidence; unique disposable tenant; whole-tenant teardown |
 | `npm run test:rst006a-wrapper` | Focused shared-shaped fast-cutover wrapper success, refusal, interruption/resume, evidence, and cleanup | Temporary committed repository and disposable Compose project |
-| `npm run test:phase2` | Aggregate RST-006A workflow plus Planification, paginated read-only Opérations scope, sanitized chronology, and command-backed fixture integration | Shared before/after evidence; unique disposable tenant; whole-tenant teardown |
+| `npm run test:phase2` | Intended aggregate RST-006A workflow plus Planification, paginated read-only Opérations scope, sanitized chronology, and command-backed fixture integration; standalone compatibility is pending repair after RST-012 activation | Shared before/after evidence; unique disposable tenant; whole-tenant teardown |
 | `npm run test:phase1-reset` | Combined Phase 1 cutover, schema mutation, failure/restore, browser, and containment proof | Shared-source rehearsal plus unique disposable tenant; retention disabled |
 | `npm run test:characterization` | Compatibility alias to the Phase 2 successor gate | Same isolated tenant and teardown as `npm run test:phase2` |
 | `npm run test:manual-accessibility` | Human-run accessibility gate | Not an automated completion substitute |

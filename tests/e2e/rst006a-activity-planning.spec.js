@@ -374,10 +374,11 @@ for (const scenario of LIST_PAGE_CASES) test(scenario.name, async ({ browser }) 
   await login(page, 'rst006a.primary.supervisor');
   const query = new URLSearchParams({ q: scenario.query, ...(scenario.page > 1 ? { page: String(scenario.page) } : {}) });
   await page.goto(`/custom/mjlfinancement/activities.php?${query}`);
-  await expect(page.locator('tbody tr')).toHaveCount(scenario.count);
+  const activityLinks = page.getByRole('link', { name: /^ACT-\d+/ });
+  await expect(activityLinks).toHaveCount(scenario.count);
   await expect(page.getByRole('link', { name: 'Précédent' })).toHaveCount(scenario.previous ? 1 : 0);
   await expect(page.getByRole('link', { name: 'Suivant' })).toHaveCount(scenario.next ? 1 : 0);
-  const references = await page.locator('tbody tr td:first-child').allTextContents();
+  const references = await activityLinks.allTextContents();
   expect(references).toEqual([...references].sort().reverse());
   await context.close();
 });
@@ -388,7 +389,7 @@ for (const scenario of INVALID_FILTER_CASES) test(scenario.name, async ({ browse
   await login(page, 'rst006a.primary.supervisor');
   const response = await page.goto(`/custom/mjlfinancement/activities.php?${scenario.query}`);
   expect(response.status()).toBe(scenario.status || 400);
-  if (!scenario.status) expect(await response.text()).toBe('Requête non valide');
+  if (!scenario.status) expect(await response.text()).toBe('Filtres invalides.');
   await context.close();
 });
 
@@ -397,7 +398,7 @@ for (const scenario of LITERAL_SEARCH_CASES) test(scenario.name, async ({ browse
   const page = await context.newPage();
   await login(page, 'rst006a.primary.supervisor');
   await page.goto(`/custom/mjlfinancement/activities.php?q=${encodeURIComponent(scenario.query)}`);
-  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await expect(page.getByRole('link', { name: /^ACT-\d+/ })).toHaveCount(1);
   await expect(page.getByText(scenario.label)).toBeVisible();
   await context.close();
 });
@@ -408,7 +409,7 @@ test('unrelated presentation parameters are ignored while filters remain effecti
   await login(page, 'rst006a.primary.supervisor');
   const response = await page.goto('/custom/mjlfinancement/activities.php?q=Pagination&mainmenu=project&leftmenu=ignored');
   expect(response.status()).toBe(200);
-  await expect(page.locator('tbody tr')).toHaveCount(50);
+  await expect(page.getByRole('link', { name: /^ACT-\d+/ })).toHaveCount(50);
   await context.close();
 });
 
@@ -420,7 +421,7 @@ test('Previous and Next preserve the typed status and Project filters', async ({
   for (const name of ['Précédent', 'Suivant']) {
     const url = new URL(await page.getByRole('link', { name }).getAttribute('href'), 'http://example.test');
     expect(url.searchParams.get('q')).toBe('Pagination');
-    expect(url.searchParams.get('status')).toBe('DRAFT');
+    expect(url.searchParams.get('validation_status')).toBe('DRAFT');
     expect(url.searchParams.get('project_id')).toBe(String(fixture.projects.project));
   }
   await context.close();

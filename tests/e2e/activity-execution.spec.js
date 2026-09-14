@@ -397,7 +397,8 @@ test('guarded execution and exception routes expose only role-appropriate contro
   const agentPage = await agentContext.newPage();
   await login(agentPage, 'phase3a.execution.agent');
   const unexpectedActivityQuery=await agentContext.request.get('/custom/mjlfinancement/activities.php?unexpected=1');
-  expect(unexpectedActivityQuery.status()).toBe(403);
+  expect(unexpectedActivityQuery.status()).toBe(400);
+  expect(await unexpectedActivityQuery.text()).toBe('Filtres invalides.');
   await agentPage.goto('/custom/mjlfinancement/operations.php');
   await expect(agentPage.locator('main')).toHaveCount(1);
   await expect(agentPage.getByRole('heading', { name: 'Opérations' })).toBeVisible();
@@ -450,8 +451,8 @@ test('guarded execution and exception routes expose only role-appropriate contro
   const supervisorPage = await supervisorContext.newPage();
   await login(supervisorPage, 'phase3a.execution.supervisor');
   await supervisorPage.goto('/custom/mjlfinancement/activities.php?q=Planification_');
-  await expect(supervisorPage.locator('tbody tr')).toHaveCount(1);
-  await expect(supervisorPage.getByText('Planification_conservée')).toBeVisible();
+  await expect(supervisorPage.locator('main article')).toHaveCount(1);
+  await expect(supervisorPage.getByRole('link', { name: /^ACT-\d+ · Planification_conservée$/ })).toBeVisible();
   await supervisorPage.goto('/custom/mjlfinancement/operations.php');
   await expect(supervisorPage.getByRole('button', { name: 'Enregistrer l’exécution' })).toHaveCount(0);
   await supervisorPage.goto('/custom/mjlfinancement/operationrequests.php');

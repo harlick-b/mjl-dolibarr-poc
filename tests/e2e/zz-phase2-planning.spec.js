@@ -71,10 +71,11 @@ test('Planification navigation, operation list, and chronology are human-readabl
   const agent = await browser.newContext(); const page = await agent.newPage(); await login(page, fixture.users.agent.login);
   await page.goto('/custom/mjlfinancement/operations.php');
   await expect(page.getByRole('heading', { name: 'Opérations' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Opération Phase 2', exact: true })).toBeVisible();
-  await expect(page.getByText('À faire', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText(/^Partenaire Phase 2 \[/).first()).toBeVisible();
-  await expect(page.getByText(/Projet Phase 2/).first()).toBeVisible();
+  const operationCard = page.locator('article.mjl-operation-card').filter({ has: page.getByRole('heading', { name: 'Opération Phase 2', exact: true }) });
+  await expect(operationCard).toBeVisible();
+  await expect(operationCard.getByText('Statut', { exact: true }).locator('..')).toContainText('À faire');
+  await expect(operationCard.getByText('Partenaire', { exact: true }).locator('..')).toContainText('Partenaire Phase 2');
+  await expect(operationCard.getByText('Projet', { exact: true }).locator('..')).toContainText('Projet Phase 2');
   await expect(page.getByText('Opération pagination 48', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Opération autre entité', { exact: true })).toHaveCount(0);
   await expect(page.locator('main')).toHaveCount(1);
@@ -93,7 +94,7 @@ test('Planification navigation, operation list, and chronology are human-readabl
   const other = await browser.newContext(); const otherPage = await other.newPage(); await login(otherPage, fixture.users.other.login);
   await otherPage.goto('/custom/mjlfinancement/operations.php');
   await expect(otherPage.getByRole('heading', { name: 'Opération Phase 2', exact: true })).toHaveCount(0);
-  await expect(otherPage.getByText('Aucune Opération active n’est enregistrée.')).toBeVisible();
+  await expect(otherPage.getByRole('status').getByText('Aucune Opération', { exact: true })).toBeVisible();
   await other.close();
 
   const additional = await browser.newContext(); const additionalPage = await additional.newPage(); await login(additionalPage, fixture.users.additional.login);
@@ -103,7 +104,7 @@ test('Planification navigation, operation list, and chronology are human-readabl
   expect(removedAssignment.code).toBe('OK');
   await additionalPage.goto('/custom/mjlfinancement/operations.php');
   await expect(additionalPage.getByRole('heading', { name: 'Opération Phase 2', exact: true })).toHaveCount(0);
-  await expect(additionalPage.getByText('Aucune Opération active n’est enregistrée.')).toBeVisible();
+  await expect(additionalPage.getByRole('status').getByText('Aucune Opération', { exact: true })).toBeVisible();
   await additional.close();
 
   for (const role of ['supervisor', 'validator']) {
