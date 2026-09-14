@@ -12,6 +12,8 @@ Phase 3 development while carrying the unsigned human accessibility review as
 a production/release blocker. DEC-057 further confirms that this unsigned
 human review does not block local development, the approved RST-012 local
 cutover, or Phase 3C planning; automated accessibility checks remain active.
+RST-009C, RST-011, RST-012, RST-013D, and RST-014D completed their guarded
+shared empty-tenant cutover and independent checks under DEC-057 on 2026-09-14.
 RST-013E and RST-015 remain `PENDING_APPROVAL`. All other later actions remain
 unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
@@ -471,7 +473,7 @@ number does not approve a suffixed unit.
 
 ### RST-009C - Phase 3 navigation
 
-- Status: `APPROVED` under DEC-056 on 2026-09-09
+- Status: `EXECUTED` under DEC-057 on 2026-09-14
 - Current component: legacy dashboard/report navigation and absent target execution entries.
 - Proposed action: expose approved Phase 3 execution, monitoring, audit, and reporting routes.
 - Reason: routes must follow completed guards and phase scope.
@@ -544,7 +546,7 @@ number does not approve a suffixed unit.
 
 ### RST-011 - Replace dashboards and alerts
 
-- Status: `APPROVED` under DEC-056 on 2026-09-09
+- Status: `EXECUTED` under DEC-057 on 2026-09-14
 - Current component: Phase 3A landing page and contained alerts route; the obsolete finance dashboards remain absent.
 - Proposed action: replace them with revision-aware Activity/Opération metrics.
 - Reason: Phase 3B introduces scoped target monitoring over the executed Activity/Opération foundation.
@@ -560,7 +562,7 @@ number does not approve a suffixed unit.
 
 ### RST-012 - Replace report catalog
 
-- Status: `APPROVED` under DEC-056 on 2026-09-09
+- Status: `EXECUTED` under DEC-057 on 2026-09-14
 - Current component: No active report catalog. Legacy report machinery remains deleted; retained CSV/XLSX helpers cannot bypass the new export owner.
 - Proposed action: replace the old code catalog with target PDF/XLSX plus supplemental CSV outputs.
 - Reason: target sources, scopes, formats, and audit contract differ.
@@ -685,7 +687,7 @@ number does not approve a suffixed unit.
 
 ### RST-013D - Phase 3B test reset
 
-- Status: `APPROVED` under DEC-056 on 2026-09-09
+- Status: `EXECUTED` under DEC-057 on 2026-09-14
 - Current component: legacy dashboard, alert, report, audit, and presentation tests.
 - Proposed action: align tests with target metrics and PDF/XLSX plus supplemental CSV outputs.
 - Reason: Phase 3B behavior must be tested in Phase 3B rather than deferred to hardening.
@@ -707,7 +709,20 @@ number does not approve a suffixed unit.
 - Reason: Phase 3C must prove target hardening without weakening disposable-test safety.
 - Phase: Phase 3C
 - Dependencies: RST-013D, RST-015
-- Exact paths: `custom/mjlfinancement/scripts/check_production_readiness.php`, `custom/mjlfinancement/scripts/verification/runner.php`, `tests/characterization/playwright.config.js`, `tests/contracts/verification_runner_test.php`, `tests/fixtures/disposable-compose.override.yml`, `tests/helpers/mjl-test-runtime.js`, `tests/helpers/playwright-global-setup.js`, `tests/helpers/verify-disposable-environment.js`, `tests/manual/playwright.config.js`, `tests/runner/disposable-policy.js`, `tests/runner/disposable-run.js`, `tests/runner/run-suite.js`, `tests/unit/disposable-policy.test.js`, `tests/unit/disposable-run.test.js`, `tests/unit/operational-script-boundary.test.js`, `tests/unit/verification-entrypoints.test.js`.
+- Exact paths: planned `tests/e2e/phase3c-hardening.spec.js` and
+  `tests/fixtures/phase3c-readiness-fixture.php`; existing
+  `tests/characterization/playwright.config.js`,
+  `tests/fixtures/disposable-compose.override.yml`,
+  `tests/helpers/mjl-test-runtime.js`,
+  `tests/helpers/playwright-global-setup.js`,
+  `tests/helpers/verify-disposable-environment.js`,
+  `tests/manual/playwright.config.js`, `tests/runner/disposable-evidence.js`,
+  `tests/runner/disposable-policy.js`, `tests/runner/disposable-run.js`,
+  `tests/runner/run-suite.js`, `tests/unit/disposable-evidence.test.js`,
+  `tests/unit/disposable-policy.test.js`, `tests/unit/disposable-run.test.js`,
+  and `tests/unit/operational-script-boundary.test.js`. The previously listed
+  separate verification runner and its contract/unit tests do not exist and
+  must not be recreated.
 - Exact tables/data: disposable test fixtures and generated test outputs only.
 - Action and data impact: replace readiness assertions and revalidate runner safety; no local or production business rows.
 - Backup prerequisite: Phase 3B commit and disposable-runner configuration snapshot.
@@ -838,7 +853,7 @@ number does not approve a suffixed unit.
 
 ### RST-014D - Phase 3B disposable report fixtures
 
-- Status: `APPROVED` under DEC-056 on 2026-09-09
+- Status: `EXECUTED` under DEC-057 on 2026-09-14
 - Current component: isolated Phase 3A factories and no persistent report catalog data.
 - Proposed action: add disposable target operational PDF/XLSX and supplemental CSV report cases.
 - Reason: Phase 3B output behavior requires evidence without a persistent sample catalog.
@@ -860,7 +875,14 @@ number does not approve a suffixed unit.
 - Reason: current readiness gates assert obsolete scope and formats.
 - Phase: Phase 3C
 - Dependencies: RST-009C, RST-011, RST-012, RST-013D
-- Exact paths: `custom/mjlfinancement/scripts/check_production_readiness.php`, `custom/mjlfinancement/roadmap.php`, `docs/mjl-production-readiness-plan.md`, `docs/mjl-deployment-checklist.md`, `docs/mjl-acceptance-tests.md`, `docs/mjl-test-coverage-registry.md`, and `package.json`. Phase 3C tests are owned separately by RST-013E.
+- Exact paths: planned
+  `custom/mjlfinancement/scripts/check_production_readiness.php`; existing
+  `docs/mjl-production-readiness-plan.md`, `docs/mjl-deployment-checklist.md`,
+  `docs/mjl-acceptance-tests.md`, `docs/mjl-test-coverage-registry.md`,
+  `tests/runner/run-suite.js`, `tests/unit/operational-script-boundary.test.js`,
+  and `package.json`. The removed `custom/mjlfinancement/roadmap.php` remains
+  absent and is covered as an absence contract. Phase 3C behavior tests are
+  owned separately by RST-013E.
 - Exact tables/data: Dolibarr configuration constants read by the diagnostic; no production constant mutation is authorized.
 - Action and data impact: replace old-product readiness assertions and diagnostics after Phase 3B; public/base URL, email transport, secrets, final permissions, deployment rehearsal, and go-live remain client-owned gates.
 - Backup prerequisite: configuration export with secrets redacted from reports and Phase 3C code/docs baseline.

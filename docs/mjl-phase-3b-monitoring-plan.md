@@ -759,3 +759,12 @@ disposable technical gates and required reviews are complete. The verdict is
 review.
 Guarded shared cutover remains pending explicit approval. No production
 authorization or shared migration is claimed.
+
+## Shared cutover execution — 2026-09-14
+
+DEC-057 supersedes only the pending-cutover statements in the dated checkpoints
+above. The guarded RST-012 shared cutover and independent empty-tenant checks
+completed on 2026-09-14. See
+`docs/mjl-phase-3b-cutover-execution-report-2026-09-14.md`. Signed human
+accessibility remains the sole production/release readiness note, and no
+production authorization is implied.

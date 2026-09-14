@@ -50,7 +50,7 @@ and official outputs.
 
 | Screen | Alignment | Main UI Debt | Safe Area |
 | --- | --- | --- | --- |
-| Workspace dashboard | Focused technical validation passed (79/79) | Financial-first indicators, scoped filters, workflow counts, permitted actions and alerts reuse v3. Shared predecessor remains until cutover; expanded human review pending. | `custom/mjlfinancement/index.php` |
+| Workspace dashboard | Active after exact RST-012 cutover | Financial-first indicators, scoped filters, workflow counts, permitted actions and alerts reuse v3. Expanded human review remains pending. | `custom/mjlfinancement/index.php` |
 | Supervision dashboard | Retired route denied | Direct access remains denied; the scoped financial-first dashboard is Accueil after exact RST-012 readiness. | `custom/mjlfinancement/dpafdashboard.php` |
 | Partenaires | Good | French-first reference list/detail/forms, lifecycle states, safe feedback, and 390-pixel containment are focused-browser verified. | `custom/mjlfinancement/partners.php` |
 | Projets | Good | Guarded reference states expose only the display label for editing; immutable ownership/ref and parent lifecycle behavior are focused-browser verified. | `custom/mjlfinancement/projects.php` |
@@ -63,9 +63,9 @@ and official outputs.
 | Conventions | Removed | Obsolete finance and document behavior is absent. | `custom/mjlfinancement/conventions.php` |
 | Budget lines | Removed | Obsolete finance route is absent and returns 404. | `custom/mjlfinancement/budgetlines.php` |
 | Fund receipts | Removed | Obsolete finance and proof-document behavior is absent. | `custom/mjlfinancement/fundreceipts.php` |
-| Activities report | Complete technical validation passed | Scoped preview and three audited downloads; shared Phase 3A stays unavailable pending cutover. Complete Phase 3B report, recovery, responsive, and aggregate evidence passed; expanded human review remains pending. | `custom/mjlfinancement/reports.php`, `reportexport.php` |
+| Activities report | Active after exact RST-012 cutover | Scoped preview and three audited downloads are active. Complete Phase 3B report, recovery, responsive, and aggregate evidence passed; expanded human review remains pending. | `custom/mjlfinancement/reports.php`, `reportexport.php` |
 | Validation history | Removed | Obsolete expense-validation route is absent and returns 404. | `custom/mjlfinancement/validations.php` |
-| Workflow audit | Focused technical validation passed | Complete historical report available after exact RST-012; shared predecessor remains until cutover. Expanded human review pending. | `custom/mjlfinancement/workflowactions.php` |
+| Workflow audit | Active after exact RST-012 cutover | Complete historical report and guarded exports are active for Validator/Admin. Expanded human review remains pending. | `custom/mjlfinancement/workflowactions.php` |
 | Exchange logs | Removed | Obsolete exchange-log route is absent and returns 404. | `custom/mjlfinancement/exchangelogs.php` |
 | Roadmap | Removed | Obsolete internal roadmap route is absent and returns 404. | `custom/mjlfinancement/roadmap.php` |
 | Auth/invitations | Medium | Invitation-only stance and formal accented plain-text templates are aligned; production email/base URL remains pending. | Auth templates, `admin/access.php`, `invitation.php`, `lib/mjl_email.lib.php` |
