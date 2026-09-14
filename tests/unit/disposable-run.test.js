@@ -109,6 +109,16 @@ test('provisioning restores web-user ownership only inside disposable document s
   assert.match(runner, /for \(const batch of batches\).*timeoutMs: 15 \* 60 \* 1000/s);
 });
 
+test('Phase 2 compatibility verifies the current RST-012 target before browser acceptance', () => {
+  const runner = fs.readFileSync(path.join(repositoryRoot, 'tests/runner/run-suite.js'), 'utf8');
+  const branch = runner.match(/else if \(layer === 'phase2'\) \{([\s\S]*?)\n\s*\}\n\s*else if \(layer === 'phase3b-performance'/);
+  assert.ok(branch, 'Phase 2 runner branch is missing.');
+  assert.match(branch[1], /rst012_export_schema\.php'\s*,\s*'--mode=verify'/);
+  assert.match(branch[1], /rst012_export_schema\.php'\s*,\s*'--mode=verify-empty'/);
+  assert.doesNotMatch(branch[1], /rst006a_activity_planning\.php|--confirm=RST-006A/);
+  assert.match(branch[1], /runPlaywright\(plan, layer, controller\.signal\)/);
+});
+
 test('diagnostics failures cannot bypass teardown and all failures remain inspectable', async () => {
   const executionError = new Error('execution failed');
   let cleanupCalled = false;

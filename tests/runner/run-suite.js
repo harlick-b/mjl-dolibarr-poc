@@ -887,8 +887,8 @@ async function main() {
         await runPlaywright(plan, layer, controller.signal);
       }
       else if (layer === 'phase2') {
-        await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
-        await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
+        await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst012_export_schema.php','--mode=verify'], { signal: controller.signal });
+        await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst012_export_schema.php','--mode=verify-empty'], { signal: controller.signal });
         await runPlaywright(plan, layer, controller.signal);
       }
 	  else if (layer === 'phase3b-performance' || layer === 'phase3b-monitoring' || layer === 'phase3b-activities' || layer === 'phase3b-reports') {

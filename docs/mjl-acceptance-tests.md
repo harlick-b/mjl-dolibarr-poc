@@ -165,7 +165,8 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
 - `test:phase2` aggregates the existing RST-006A planning/workflow suite with
   Planification navigation, paginated read-only scoped Opérations, sanitized
   Activity chronology, command-backed fixtures, shared-state preservation, and
-  whole-tenant teardown.
+  whole-tenant teardown. Its compatibility runner verifies the current exact
+  empty RST-012 target before running the retained Phase 2 browser behavior.
 - `test:phase3a` installs the exact RST-006B target, proves rollback to RST-006A,
   fourteen interrupted forward points (the five phase checkpoints and every
   cancellation/reopening foreign-key boundary), convergence, idempotence,

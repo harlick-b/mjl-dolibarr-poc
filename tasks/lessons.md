@@ -293,3 +293,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   deliberate negative-control hooks in source without literal credentials;
   otherwise the secret scanner correctly deletes the evidence tree even when
   the tested failure itself is expected.
+- A retained compatibility suite must prepare or verify the repository's
+  current installed schema before exercising older behavior. Reapplying an
+  obsolete predecessor migration can fail before the compatibility behavior
+  runs, even when that behavior remains valid on the current target.
