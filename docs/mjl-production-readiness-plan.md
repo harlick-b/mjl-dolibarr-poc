@@ -12,6 +12,12 @@ not completion gates for `V1_FUNCTIONAL_RULES_AND_PILOT_VALIDATION`. Deferral
 does not convert an unknown or blocked control into a pass and does not
 authorize production deployment.
 
+Under DEC-057, signed human accessibility review is also deferred for local
+development, the approved local RST-012 cutover, and Phase 3C planning.
+Automated accessibility checks remain active. The unsigned human review is a
+production/release blocker and no readiness record may represent it as passed
+or claim WCAG conformance.
+
 ## Readiness Rule
 
 A feature is production-ready only when route guards, direct POST guards, data

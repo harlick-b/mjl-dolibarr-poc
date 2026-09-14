@@ -113,6 +113,11 @@ Official Partner labeling remains forbidden.
 Verdict: `PHASE_3B_READY`, `PHASE_3B_READY_WITH_NOTES`, or
 `PHASE_3B_BLOCKED`.
 
+Current verdict: `PHASE_3B_READY_WITH_NOTES`. Under DEC-057, the unsigned
+human accessibility review does not block local development, the approved
+RST-012 local cutover, or Phase 3C planning. It remains a mandatory
+production/release blocker, and no WCAG conformance is claimed.
+
 ## Phase 3C: Core Hardening and Integration Readiness
 
 Preconditions: approved Phases 1, 2, 3A, and 3B.

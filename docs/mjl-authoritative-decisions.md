@@ -158,6 +158,12 @@ technical gates completed on 2026-09-11. Signed human accessibility and the
 guarded shared cutover remain pending. The technical verdict is
 `PHASE_3B_READY_WITH_NOTES`, whose sole note is the unsigned human accessibility
 review; no production authorization is implied.
+DEC-057 defers only the signed human accessibility review: it does not block
+local development, the approved RST-012 local cutover, or Phase 3C planning.
+Automated accessibility checks remain active, and the unsigned human review
+remains a mandatory production/release blocker without any WCAG conformance
+claim. DEC-057 authorizes no RST-013E or RST-015 implementation; both remain
+`PENDING_APPROVAL` pending a separately reviewed plan and approval.
 Every other unexecuted reset-manifest entry remains
 `PENDING_APPROVAL` unless its explicit approved-in-review status is stated
 above.

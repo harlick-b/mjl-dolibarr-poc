@@ -87,7 +87,9 @@ passed 41/41. Native no-JavaScript menu fallback, keyboard focus restoration,
 escaping, empty suppression, and 390-pixel viewport containment are covered.
 
 The unsigned manual accessibility matrix and real 200% browser-zoom evidence
-remain release blockers. This checkpoint does not claim WCAG conformance.
+remain production/release blockers. Under DEC-057 they do not block local
+development, the approved RST-012 local cutover, or Phase 3C planning. This
+checkpoint does not claim WCAG conformance.
 
 ## Phase 3D.3 gate evidence
 

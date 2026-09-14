@@ -12,7 +12,8 @@ MJL-specific code remains under 'custom/mjlfinancement'.
 DEC-055 records `PHASE_3A_READY_WITH_NOTES`. Phase 3B source and its complete
 disposable technical gates are validated under DEC-056; the shared tenant still
 uses Phase 3A until the separately approved guarded cutover. The unsigned human
-accessibility review remains a production/release blocker.
+accessibility review does not block local development, that local cutover, or
+Phase 3C planning under DEC-057; it remains a production/release blocker.
 
 | Surface | Current behavior |
 | --- | --- |

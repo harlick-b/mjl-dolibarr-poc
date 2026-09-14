@@ -88,8 +88,9 @@ alerts, reports, and administration archetypes and requires reviewer identity,
 assistive technology, explicit verdict, and real Chromium 100%/200% evidence at
 390/768/980/1024/1366. Every one of the 90 combinations must record its result,
 geometry, visible-focus observation, reviewer, and non-empty notes. It remains
-unsigned, so the integration verdict is
-`BLOCKED_PENDING_MANUAL_ACCESSIBILITY` and does not claim WCAG conformance.
+unsigned. Under DEC-057 it does not block local development, the approved
+RST-012 local cutover, or Phase 3C planning; it remains a production/release
+blocker and does not support a WCAG conformance claim.
 RST-010A retires the document-library/download portions of that historical
 evidence; current document routes are containment-only and have no UI
 accessibility claim.
