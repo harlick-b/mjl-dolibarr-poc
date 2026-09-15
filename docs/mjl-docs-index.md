@@ -25,6 +25,7 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-phase-2-readiness-report.md` | Active Phase 2 evidence and `PHASE_2_READY_WITH_NOTES` verdict under DEC-053 |
 | `docs/mjl-phase-3b-cutover-execution-report-2026-09-14.md` | Active shared RST-012 cutover and post-cutover evidence; not production authorization |
 | `docs/mjl-phase-3c-hardening-plan.md` | DEC-058-approved RST-013E/RST-015 implementation boundary; no production authorization |
+| `docs/mjl-phase-3c-integration-report-2026-09-15.md` | Executed Phase 3C gate evidence, blockers, and integration verdict |
 | `docs/mjl-phase-1-reset-report.md` | Active RST-000 execution and restore evidence; not target-rule authority |
 | `docs/mjl-rst-000a-deletion-appendix.md` | Active sanitized RST-000A appendix evidence; exact row/file inventory remains private and checksum-bound |
 | `docs/mjl-rst-000a-execution-report.md` | Active RST-000A execution, rollback, and verification evidence; not target-rule authority |

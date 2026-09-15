@@ -103,10 +103,10 @@ test('RST-006A rollback is staged, checked, and dependency-gated', () => {
     statuses: {
       'RST-006B':'EXECUTED','RST-007B':'EXECUTED','RST-009B':'EXECUTED','RST-009C':'EXECUTED',
       'RST-011':'EXECUTED','RST-012':'EXECUTED','RST-013B':'EXECUTED','RST-013C':'EXECUTED',
-      'RST-013D':'EXECUTED','RST-013E':'APPROVED','RST-014B':'EXECUTED','RST-014C':'EXECUTED',
-      'RST-014D':'EXECUTED','RST-015':'APPROVED',
+      'RST-013D':'EXECUTED','RST-013E':'EXECUTED','RST-014B':'EXECUTED','RST-014C':'EXECUTED',
+      'RST-014D':'EXECUTED','RST-015':'EXECUTED',
     },
-    executed: ['RST-006B','RST-007B','RST-009B','RST-009C','RST-011','RST-012','RST-013B','RST-013C','RST-013D','RST-014B','RST-014C','RST-014D'],
+    executed: ['RST-006B','RST-007B','RST-009B','RST-009C','RST-011','RST-012','RST-013B','RST-013C','RST-013D','RST-013E','RST-014B','RST-014C','RST-014D','RST-015'],
   });
   assert.match(migration, /mjl_rst006a_require_rollback_dependencies/);
   assert.match(migration, /mjl_rst006a_disposable_tenant_attested/);

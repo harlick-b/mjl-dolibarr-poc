@@ -15,6 +15,7 @@ obsolete-finance, account-lifecycle, and navigation reset on 2026-08-14.
 | Documents/accounting/official outputs | RST-010A closes custom and native document delivery; obsolete assumptions are unreachable or removed. | Phase 4 strategy is approved but sequenced after Phase 3C; accounting and official-output decisions remain deferred. |
 | Persistent empty tenant | Exactly one native Admin; target/custom business tables remain empty. | Disposable factories expand only with their owning feature units. |
 | Phase 2 command compatibility | The standalone alias verifies the current empty RST-012 target before running retained planning/Phase 2 browser behavior. Its focused unit contract and final 43-case disposable browser run pass. | Compatibility repair complete; this remains compatibility coverage rather than Phase 3B acceptance evidence. |
+| Historical reverse-prefix gates | Current Phase 2, Phase 3A, Phase 3B, readiness, and Phase 3C behavior pass their focused disposable gates. | `phase1-reset`, `rst013a`, `rst014a`, `rst005`, `rst005-launcher`, `rst002b`, and `rst006a` retain rollback or exact-schema assumptions that reject later dependent tables/columns. They block Phase 3C integration and require separately approved compatibility scope. |
 
 RST-010A containment hardening is executed. Both MJL endpoints deny without
 bootstrap, native ECM and generic delivery entrypoints are blocked, and

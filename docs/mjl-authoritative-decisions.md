@@ -162,9 +162,10 @@ DEC-057 defers only the signed human accessibility review: it does not block
 local development, the approved RST-012 local cutover, or Phase 3C planning.
 Automated accessibility checks remain active, and the unsigned human review
 remains a mandatory production/release blocker without any WCAG conformance
-claim. DEC-057 authorized no RST-013E or RST-015 implementation. DEC-058 now
-separately approves both exact units for the confidence-reviewed Phase 3C
-source and disposable verification work. It authorizes no production
+claim. DEC-057 authorized no RST-013E or RST-015 implementation. DEC-058
+separately approved and executed both exact units for the confidence-reviewed
+Phase 3C source and disposable verification work. The 2026-09-15 integration
+report records blocking regression failures. DEC-058 authorizes no production
 preparation, shared mutation/restore, persistent fixture, or Phase 4–6 work.
 Every other unexecuted reset-manifest entry remains
 `PENDING_APPROVAL` unless its explicit approved-in-review status is stated

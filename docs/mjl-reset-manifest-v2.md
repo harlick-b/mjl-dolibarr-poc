@@ -706,7 +706,7 @@ number does not approve a suffixed unit.
 
 ### RST-013E - Phase 3C test and runner reset
 
-- Status: `APPROVED` (DEC-058; source and disposable verification only)
+- Status: `EXECUTED` (DEC-058; source and disposable verification only; integration blocked by recorded regression failures)
 - Current component: old readiness assertions and shared runner/disposable infrastructure.
 - Proposed action: align readiness tests and revalidate all exact supporting infrastructure.
 - Reason: Phase 3C must prove target hardening without weakening disposable-test safety.
@@ -879,7 +879,7 @@ number does not approve a suffixed unit.
 
 ### RST-015 - Production-readiness model rewrite
 
-- Status: `APPROVED` (DEC-058; read-only source and disposable verification only)
+- Status: `EXECUTED` (DEC-058; read-only source and disposable verification only)
 - Current component: old-product readiness diagnostic, deployment docs, and package mappings.
 - Proposed action: rewrite diagnostics/documentation after Phase 3B and its tests complete.
 - Reason: current readiness gates assert obsolete scope and formats.
