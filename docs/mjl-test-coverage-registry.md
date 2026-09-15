@@ -10,6 +10,8 @@ behavior are not current evidence.
 
 | Command | Current purpose | Isolation / cleanup |
 | --- | --- | --- |
+| `npm run audit:production-readiness` | Read-only CLI observation of exact RST-012, empty start, module/route/entity controls, reconciler registration and explicitly unknown client release configuration | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
+| `npm run test:phase3c` | Phase 3C additions: readiness composition, reconciler pagination/idempotence/retry/timezone, representative request/export evidence, and second-project restore | Two unique disposable identities created and validated before provisioning; private temporary backup custody; shared-state evidence; retention disabled; complete teardown |
 | `npm test` | Unit, isolated verifier, maintained browser batches, Phase 3B schema/renderer probes and scale benchmark; 214 Node/static checks, 223 functional browser checks, and the scale case passed on 2026-09-11 | Exact shared before/after evidence; retention disabled; whole-tenant teardown |
 | `npm run test:phase3b` | Complete Phase 3B schema/renderer, monitoring/report/recovery, scale, and guarded RST-012 cutover-rehearsal gate | Exact shared before/after evidence; retention disabled; whole-tenant teardown; no shared cutover |
 | `npm run test:phase3b-performance` | 1,000 Activities / 10,000 Operations / 50,000 audit events; populated-page p95 and 15 measured report/format combinations with audited row counts and peak memory | Guarded command-backed fixture; exact shared before/after evidence; retention disabled; whole-tenant teardown |
@@ -50,8 +52,26 @@ behavior are not current evidence.
 | `tests/e2e/zz-phase2-planning.spec.js` | Phase 2 Planification, Opérations access, and Activity chronology acceptance; ordered after the foundational RST-006A suite |
 | `tests/characterization/permissions.spec.js` | Retained unchanged historical RST-002A source; no longer selected by the public characterization command after RST-002B |
 | `tests/e2e/phase3b-monitoring.spec.js` | 15 scoped dashboard, role/contributor, date, stale-request, filter/pagination, failure, responsive, assignment-removal, cross-entity and readiness cases |
+| `tests/e2e/phase3c-hardening.spec.js` | CLI HTTP denial, more-than-100-row reconciler traversal, scheduled-event idempotence/retry/timezone, representative request/export evidence, and discovery control |
 | `tests/unit/*.test.js` | Current static reset, schema, security, canonical-document, runner, and presentation contracts |
 | `tests/contracts/*_test.php` | Current PHP behavior, navigation, presentation, and status contracts |
+
+## Phase 3C acceptance map
+
+| Requirement | Existing owner or focused addition |
+| --- | --- |
+| Empty RST-012 start | `audit:production-readiness`; existing RST-012 bootstrap/verifiers |
+| Roles, direct routes/POST, CSRF, replay, assignment and entity isolation | `npm test`, `test:rst002b`, `test:rst006a`, `test:phase3a` |
+| Revisions, audit, exports, balances, nullable spending, transitions, locking, references and request rules | `test:rst006a`, `test:phase3a`, `test:phase3b` |
+| Reconciler registration, pagination, idempotence, retry and Porto-Novo date | Diagnostic plus `tests/e2e/phase3c-hardening.spec.js` |
+| Diagnostic containment, read-only behavior and sanitized database failure | `audit:production-readiness` plus Phase 3C HTTP denial |
+| Document containment and export recovery | `npm test`, `test:phase3a`, `test:phase3b` |
+| Automated accessibility, responsive/no-JavaScript behavior and bounded-volume performance | `npm test`, `test:phase2`, `test:phase3b` |
+| Database/document/configuration restore, incomplete backup and restored access | Phase 3C runner restore rehearsal |
+| Shared-state equality, secret scan and complete teardown | Existing disposable finalization applied to every listed gate |
+
+The signed human accessibility review remains a separate release gate under
+DEC-057.
 
 ## RST-013A replacement contract
 

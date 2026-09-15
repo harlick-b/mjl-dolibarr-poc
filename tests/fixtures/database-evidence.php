@@ -300,6 +300,7 @@ try {
         'ecm_sha256' => hash_final($ecmHash),
         'module_metadata_sha256' => hash_final($moduleMetadataHash),
         'documents_sha256' => evidence_tree_digest('/var/www/documents'),
+		'configuration_sha256' => evidence_tree_digest('/var/www/html/conf'),
         'disposable_control_count' => $disposableControlCount,
         'disposable_file_sentinel_present' => file_exists('/var/www/documents/.mjl-disposable-fixture-sentinel'),
         'admin_count' => $adminCount,

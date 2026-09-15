@@ -1,110 +1,42 @@
-# MJL Deployment Checklist
+# MJL Deployment Decision Checklist
 
-Target decisions come from `docs/mjl-authoritative-decisions.md`.
+This checklist records inputs for a later deployment decision. Phase 3C does
+not perform these actions and does not make the application production-ready.
 
-## Deployment Steps
+## Evidence required from Phase 3C
 
-1. Deploy Dolibarr 23.0.x with the MJL custom module under
-   `custom/mjlfinancement`.
-2. Configure the Dolibarr database and document storage paths before enabling
-   the module.
-3. Enable required native modules:
-   - third parties;
-   - projects;
-   - ECM/documents;
-   - export;
-   - `MjlFinancement`.
-4. Keep browser access to native admin/config/workspace families blocked by
-   `custom/mjlfinancement/deployment/apache-native-guard.conf`.
-5. Keep unused native modules disabled through the operator cleanup path:
-   `custom/mjlfinancement/scripts/disable_native_workspace_modules.php`.
-6. Activate or reactivate the MJL module so SQL definitions and guarded update
-   scripts run.
-7. Configure production users, groups, rights, roles, and Partenaires /
-   Programmes according to the final permission matrix.
-8. Confirm invitation-only access and no public registration.
+- Exact RST-012 schema and empty-start diagnostic.
+- Direct authorization, POST, active-entity and containment tests.
+- Disposable database, implemented document/configuration storage restore.
+- Reconciler pagination/idempotence, error paths and bounded-volume performance.
+- Secret-free evidence, shared-state equality and complete disposable teardown.
+- One of the canonical integration verdicts, always followed by: `This verdict
+  does not authorize production launch.`
 
-## Environment And Configuration
+## Client and operator confirmations still required
 
-- Confirm production egress and privacy policy permits the approved Inter
-  dependency on `https://fonts.googleapis.com` and
-  `https://fonts.gstatic.com`.
-- If a Content Security Policy is present, allow the first origin in
-  `style-src` and the second in `font-src`. Do not broaden other directives.
-- If production policy forbids these origins, provide an approved local Inter
-  pipeline before release. Browser fallback remains functional but does not
-  replace this operator decision.
+- Choose the production hostname, TLS/reverse-proxy behavior and public/base
+  URL used by invitations and password resets.
+- Choose and prove the production mail transport and sender.
+- Define secret custody, database/document/configuration persistence, backup
+  schedule, retention, restore ownership and monitoring/logging procedures.
+- Confirm production session, PHP error-display and log-access settings.
 - Confirm the reverse proxy preserves `Referrer-Policy: same-origin` on login,
-  invitation, password-reset, and MJL browser documents. A missing or weaker
-  policy blocks release because application paths or query tokens could become
-  cross-origin referrers.
-- Configure public/base URL for invitation and password-reset links.
-- Configure production email transport before sending real invitations.
-- Configure `DOL_DATA_ROOT` and ECM storage on persistent storage.
-- Restrict filesystem and web-server access so ECM files are not publicly
-  exposed.
-- Store real secrets outside the repository.
-- Keep PHP, database, and web-server logs available to technical operators.
+  invitation, password-reset and MJL pages so application paths and query
+  tokens are not sent as cross-origin referrers.
+- Decide the allowed Inter font delivery policy and matching CSP.
+- Complete the named human keyboard, screen-reader, reflow and real 100%/200%
+  browser-zoom review. Automated checks do not replace its signature.
+- Decide which gated Phase 4–6 capabilities are part of the future launch.
 
-## Database Update Procedure
+Unknown values remain `Needs confirmation`. Do not copy local Docker values or
+test evidence into production configuration.
 
-1. Back up the database and document storage before every deployment.
-2. Use a maintenance window if schema updates are expected.
-3. Deploy code.
-4. Reactivate the module or run the documented Dolibarr module update path.
-5. Run relevant schema audits from `docs/mjl-acceptance-tests.md`.
-6. Review reported legacy columns, broken links, duplicate references, or
-   cross-entity data before reopening access.
+## Later deployment sequence
 
-## Backup And Restore
-
-- Back up MariaDB.
-- Back up Dolibarr document storage, including ECM and MJL upload directories.
-- Back up production configuration and secrets separately from source.
-- Store backups outside the application host and test restore access.
-- After restore, run schema audits and smoke checks.
-
-## Production Diagnostics
-
-- Run `npm run audit:production-readiness` in its disposable tenant and retain
-  its `OK`, `UNKNOWN`, explicit blocked verdict, tenant identity, loopback port,
-  duration, and cleanup evidence. This diagnostic is not part of `npm test` and
-  is not production approval.
-- Confirm `/custom/mjlfinancement/scripts/*` returns HTTP 403 while the same
-  guarded operational entrypoints remain callable only through deployment CLI.
-
-- Confirm module version remains below `1.0.0` unless every in-scope readiness
-  row is ready.
-- Confirm active entity filtering on dashboards, exports, audit lists,
-  document lookups, and workflow lookups.
-- Confirm normal users cannot reach hidden advanced/reference pages by direct
-  URL.
-- Confirm native Dolibarr route families (`/projet`, `/societe`, `/ecm`,
-  `/comm`, `/commande`, `/fourn`, `/hrm`, `/holiday`, `/expensereport`,
-  `/compta`, `/accountancy`, `/banque`, `/tax`, `/modulebuilder`, `/api`,
-  `/core/tools.php`, all `/admin/*`, native `/user/*` except logout/password
-  reset, and dormant native module families such as categories, products,
-  imports, tickets, donations, contracts, intervention, and website) return
-  the MJL 403 page in the browser.
-- Native module maintenance is an operator/bootstrap task, not a browser
-  workflow in the MJL workspace.
-- Confirm project creation/editing is available inside MJL only for
-  Administrateur plateforme and Validateur définitif.
-- Until the sequenced Phase 4 implementation is complete, confirm
-  `/custom/mjlfinancement/documents.php`,
-  `/custom/mjlfinancement/documentdownload.php`, `/ecm/*`, `/document.php`,
-  and `/viewimage.php` all remain denied. Do not restore legacy ECM or MJL
-  document delivery.
-- Confirm CSV/XLSX exports are server-filtered and French-labeled.
-- Confirm no PDF/Word report feature is exposed for this phase.
-
-## Production Blockers To Resolve
-
-- Final client-approved permission matrix.
-- Final official report/export columns and templates.
-- Production email transport, public/base URL, and secrets configuration.
-- Final deployment storage, backup, restore, and monitoring procedure.
-- Signed manual keyboard, screen-reader, reflow, and real 100%/200% Chromium
-  evidence at the required widths.
-- Client approval of non-protected French labels, emails, and official CSV/XLSX
-  outputs.
+Only after a separate go-live approval: take verified backups, deploy committed
+source, activate the module through the documented guarded path, run the
+read-only diagnostic against the intended environment, run approved smoke
+checks, and retain sanitized evidence. Keep native workspace and operational
+script HTTP guards active. Any schema, authorization, isolation, restore or
+teardown failure blocks release.

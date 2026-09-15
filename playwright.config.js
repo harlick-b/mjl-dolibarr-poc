@@ -20,6 +20,7 @@ module.exports = defineConfig({
     'phase3b-activity-detail.spec.js',
     'phase3b-portfolio-report.spec.js',
     'phase3b-audit-report.spec.js', 'phase3b-timeline.spec.js',
+    'phase3c-hardening.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',

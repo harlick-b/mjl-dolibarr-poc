@@ -24,7 +24,7 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-phase-0-audit-report.md` | Active Phase 0 evidence and verdict; its selective reset/fixture recommendations are superseded by DEC-026 through DEC-030 |
 | `docs/mjl-phase-2-readiness-report.md` | Active Phase 2 evidence and `PHASE_2_READY_WITH_NOTES` verdict under DEC-053 |
 | `docs/mjl-phase-3b-cutover-execution-report-2026-09-14.md` | Active shared RST-012 cutover and post-cutover evidence; not production authorization |
-| `docs/mjl-phase-3c-hardening-plan.md` | Draft separately approval-gated RST-013E/RST-015 implementation plan |
+| `docs/mjl-phase-3c-hardening-plan.md` | DEC-058-approved RST-013E/RST-015 implementation boundary; no production authorization |
 | `docs/mjl-phase-1-reset-report.md` | Active RST-000 execution and restore evidence; not target-rule authority |
 | `docs/mjl-rst-000a-deletion-appendix.md` | Active sanitized RST-000A appendix evidence; exact row/file inventory remains private and checksum-bound |
 | `docs/mjl-rst-000a-execution-report.md` | Active RST-000A execution, rollback, and verification evidence; not target-rule authority |
@@ -51,8 +51,8 @@ canonical v2 owner. If canonical documents contradict, stop.
 | `docs/mjl-current-vs-target-gap-analysis.md` | Active debt summary only; canonical owners decide target behavior |
 | `docs/mjl-acceptance-tests.md` | Active transitional test guidance; target tests require isolated disposable fixtures and no persistent seed |
 | `docs/mjl-test-coverage-registry.md` | Historical/current legacy-suite inventory; results are not target acceptance authority |
-| `docs/mjl-deployment-checklist.md` | Old-product deployment evidence; DEFER and rewrite in Phase 3C |
-| `docs/mjl-production-readiness-plan.md` | Old-product readiness evidence; DEFER and rewrite in Phase 3C |
+| `docs/mjl-deployment-checklist.md` | Current client/operator decision checklist for a later separately approved deployment |
+| `docs/mjl-production-readiness-plan.md` | Current Phase 3C integration/release boundary and client-owned decision matrix |
 | `docs/client-cadrage-app-vision.md` | Superseded pre-decision cadrage support; historical only |
 | `docs/design-context.md` | Historical input to v3 generation; not current product authority |
 | `docs/design/mjl-sites-style-handoff.md` | Historical design handoff; not current product authority |

@@ -14,7 +14,8 @@ human review does not block local development, the approved RST-012 local
 cutover, or Phase 3C planning; automated accessibility checks remain active.
 RST-009C, RST-011, RST-012, RST-013D, and RST-014D completed their guarded
 shared empty-tenant cutover and independent checks under DEC-057 on 2026-09-14.
-RST-013E and RST-015 remain `PENDING_APPROVAL`. All other later actions remain
+RST-013E and RST-015 are separately `APPROVED` for source implementation and
+disposable verification under DEC-058. All other later actions remain
 unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
@@ -25,7 +26,7 @@ number does not approve a suffixed unit.
   RST-006A, RST-006B, RST-007A, RST-007B, RST-008, RST-009A, RST-009B,
   RST-009C, RST-010A, RST-011, RST-012, RST-013A, RST-013B, RST-013C,
   RST-013D, RST-014A, RST-014B, RST-014C, and RST-014D are `EXECUTED`;
-  every other action is
+  RST-013E and RST-015 are `APPROVED` under DEC-058; every other action is
   `PENDING_APPROVAL`.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
@@ -705,7 +706,7 @@ number does not approve a suffixed unit.
 
 ### RST-013E - Phase 3C test and runner reset
 
-- Status: `PENDING_APPROVAL`
+- Status: `APPROVED` (DEC-058; source and disposable verification only)
 - Current component: old readiness assertions and shared runner/disposable infrastructure.
 - Proposed action: align readiness tests and revalidate all exact supporting infrastructure.
 - Reason: Phase 3C must prove target hardening without weakening disposable-test safety.
@@ -715,14 +716,21 @@ number does not approve a suffixed unit.
   `tests/fixtures/phase3c-readiness-fixture.php`; existing
   `tests/characterization/playwright.config.js`,
   `tests/fixtures/disposable-compose.override.yml`,
+	`tests/fixtures/database-evidence.php`,
   `tests/helpers/mjl-test-runtime.js`,
   `tests/helpers/playwright-global-setup.js`,
   `tests/helpers/verify-disposable-environment.js`,
   `tests/manual/playwright.config.js`, `tests/runner/disposable-evidence.js`,
   `tests/runner/disposable-policy.js`, `tests/runner/disposable-run.js`,
-  `tests/runner/run-suite.js`, `tests/unit/disposable-evidence.test.js`,
+  `tests/runner/run-suite.js`, `playwright.config.js`, `package.json`,
+  `docs/mjl-authoritative-decisions.md`, `docs/mjl-decision-register-v2.md`,
+  `docs/mjl-docs-index.md`, `docs/mjl-phase-3c-hardening-plan.md`,
+  `docs/mjl-reset-manifest-v2.md`, `docs/mjl-acceptance-tests.md`,
+  `docs/mjl-test-coverage-registry.md`, `tasks/lessons.md`,
+  `tests/unit/disposable-evidence.test.js`,
   `tests/unit/disposable-policy.test.js`, `tests/unit/disposable-run.test.js`,
-  and `tests/unit/operational-script-boundary.test.js`. The previously listed
+  `tests/unit/operational-script-boundary.test.js`, and
+  `tests/unit/rst006a-activity-planning.test.js`. The previously listed
   separate verification runner and its contract/unit tests do not exist and
   must not be recreated.
 - Exact tables/data: disposable test fixtures and generated test outputs only.
@@ -871,7 +879,7 @@ number does not approve a suffixed unit.
 
 ### RST-015 - Production-readiness model rewrite
 
-- Status: `PENDING_APPROVAL`
+- Status: `APPROVED` (DEC-058; read-only source and disposable verification only)
 - Current component: old-product readiness diagnostic, deployment docs, and package mappings.
 - Proposed action: rewrite diagnostics/documentation after Phase 3B and its tests complete.
 - Reason: current readiness gates assert obsolete scope and formats.
@@ -881,8 +889,14 @@ number does not approve a suffixed unit.
   `custom/mjlfinancement/scripts/check_production_readiness.php`; existing
   `docs/mjl-production-readiness-plan.md`, `docs/mjl-deployment-checklist.md`,
   `docs/mjl-acceptance-tests.md`, `docs/mjl-test-coverage-registry.md`,
+  `docs/mjl-authoritative-decisions.md`, `docs/mjl-decision-register-v2.md`,
+  `docs/mjl-docs-index.md`, `docs/mjl-phase-3c-hardening-plan.md`,
+  `docs/mjl-reset-manifest-v2.md`, `tests/fixtures/database-evidence.php`,
   `tests/runner/run-suite.js`, `tests/unit/operational-script-boundary.test.js`,
-  and `package.json`. The removed `custom/mjlfinancement/roadmap.php` remains
+  `tests/unit/disposable-run.test.js`,
+  `tests/unit/rst006a-activity-planning.test.js`,
+  `custom/mjlfinancement/scripts/rst006a-dependent-units.json`, and
+  `package.json`. The removed `custom/mjlfinancement/roadmap.php` remains
   absent and is covered as an absence contract. Phase 3C behavior tests are
   owned separately by RST-013E.
 - Exact tables/data: Dolibarr configuration constants read by the diagnostic; no production constant mutation is authorized.

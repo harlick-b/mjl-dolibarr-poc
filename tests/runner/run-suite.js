@@ -3,8 +3,10 @@
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const net = require('node:net');
+const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { chromium } = require('playwright');
 
 const { assertCleanupComplete, assertDisposableConfig } = require('./disposable-policy');
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('./disposable-run');
@@ -226,11 +228,11 @@ function runCommand(command, args, options = {}) {
         if (stdout.length) process.stdout.write(sanitizeOutput(stdout.toString('utf8'), allSecretValues()));
         if (stderr.length) process.stderr.write(sanitizeOutput(stderr.toString('utf8'), allSecretValues()));
       }
-      if (code === 0) {
+      if (code === 0 && !(options.rejectStderr && stderr.length)) {
         resolve(output);
         return;
       }
-      const error = new Error(timedOut ? `${command} timed out.` : `${command} failed with ${signal || `exit ${code}`}.`);
+	  const error = new Error(timedOut ? `${command} timed out.` : (code === 0 ? `${command} wrote unexpected stderr.` : `${command} failed with ${signal || `exit ${code}`}.`));
       error.exitCode = code;
       error.output = Buffer.concat([stdout, stderr]).toString('utf8');
       error.stderr = stderr.toString('utf8');
@@ -295,9 +297,13 @@ async function waitUntilReady(plan, signal) {
 
 async function provisionDisposableFixtureControls(plan, signal) {
   await compose(plan, ['exec', '-T', 'dolibarr', 'chown', '-R', 'www-data:www-data', '/var/www/documents'], { quiet: true, signal });
+	await provisionDisposableDatabaseClient(plan, signal);
+	await compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', 'dolidb'], { quiet: true, signal, input: "INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('MJL_DISPOSABLE_FIXTURE_SENTINEL',UUID(),'chaine',0,'disposable fixture attestation',0); UPDATE llx_const SET value='" + plan.sentinel + "' WHERE name='MJL_DISPOSABLE_FIXTURE_SENTINEL' AND entity=0; INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('MAIN_LANG_DEFAULT','fr_FR','chaine',0,'disposable canonical language',1),('MAIN_MONNAIE','XOF','chaine',0,'disposable canonical currency',1) ON DUPLICATE KEY UPDATE value=VALUES(value),type=VALUES(type),note=VALUES(note);\n" });
+	await compose(plan, ['exec', '-T', 'dolibarr', 'sh', '-ceu', 'sentinel=/var/www/documents/.mjl-disposable-fixture-sentinel; umask 0222; printf %s "$MJL_DISPOSABLE_RUN_SENTINEL" > "$sentinel"; chown root:root "$sentinel"; chmod 0444 "$sentinel"; test "$(stat -c %u:%a "$sentinel")" = 0:444'], { quiet: true, signal });
+}
+
+async function provisionDisposableDatabaseClient(plan, signal) {
   await compose(plan, ['exec', '-T', 'mariadb', 'sh', '-ceu', 'umask 077; mkdir -p /run/mjl-test; target=/run/mjl-test/client.cnf; temporary=/run/mjl-test/client.cnf.new; printf "[client]\\nuser=%s\\npassword=%s\\n[client_root]\\nuser=root\\npassword=%s\\n" "$MYSQL_USER" "$MYSQL_PASSWORD" "$MYSQL_ROOT_PASSWORD" > "$temporary"; chmod 0600 "$temporary"; mv "$temporary" "$target"'], { quiet: true, signal });
-  await compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', 'dolidb'], { quiet: true, signal, input: "INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('MJL_DISPOSABLE_FIXTURE_SENTINEL',UUID(),'chaine',0,'disposable fixture attestation',0); UPDATE llx_const SET value='" + plan.sentinel + "' WHERE name='MJL_DISPOSABLE_FIXTURE_SENTINEL' AND entity=0;\n" });
-  await compose(plan, ['exec', '-T', 'dolibarr', 'sh', '-ceu', 'sentinel=/var/www/documents/.mjl-disposable-fixture-sentinel; umask 0222; printf %s "$MJL_DISPOSABLE_RUN_SENTINEL" > "$sentinel"; chown root:root "$sentinel"; chmod 0444 "$sentinel"; test "$(stat -c %u:%a "$sentinel")" = 0:444'], { quiet: true, signal });
 }
 
 async function provision(plan, signal) {
@@ -311,6 +317,28 @@ async function provision(plan, signal) {
 
 async function databaseSql(plan, statement, options = {}) {
   return compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', ...(options.scalar ? ['-N', '-B'] : []), 'dolidb'], { ...options, input: `${statement}\n` });
+}
+
+async function captureDisposableEvidence(plan, signal, applicationRunning = true) {
+	const args = applicationRunning
+		? ['exec', '-T', 'dolibarr', 'php']
+		: ['run', '--rm', '--no-deps', '--entrypoint', 'php', 'dolibarr'];
+	return JSON.parse(await compose(plan, args, {
+		quiet: true, signal, input: fs.readFileSync(path.join(repositoryRoot, 'tests/fixtures/database-evidence.php')),
+	}));
+}
+
+async function waitUntilDatabaseReady(plan, signal) {
+	const deadline = Date.now() + 2 * 60 * 1000;
+	while (Date.now() < deadline) {
+		try {
+			await compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', '-e', 'SELECT 1'], { quiet: true, signal, timeoutMs: 3000 });
+			return;
+		} catch (_) {
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		}
+	}
+	throw new Error('Disposable MariaDB did not become ready within 2 minutes.');
 }
 
 async function rst006aStructuralCounts(plan, signal) {
@@ -442,13 +470,207 @@ async function runRst003RollbackRehearsal(plan, signal) {
 }
 
 async function runProductionReadiness(plan, signal) {
-  await compose(plan, [
+	const validate = (raw, expectedStatus) => {
+		if (!raw.endsWith('\n') || raw.trim().includes('\n') || raw.includes('CORE_SCOPE_')) throw new Error('Production-readiness diagnostic did not emit exactly one non-verdict JSON document.');
+		let result;
+		try { result = JSON.parse(raw); } catch (_) { throw new Error('Production-readiness diagnostic emitted malformed JSON.'); }
+		if (Object.keys(result).join(',') !== 'schema_version,environment,diagnostic_status,controls' || result.schema_version !== 1 || result.environment !== 'disposable' || result.diagnostic_status !== expectedStatus || !Array.isArray(result.controls)) throw new Error('Production-readiness diagnostic envelope is invalid.');
+		const names = new Set();
+		for (const control of result.controls) {
+			if (Object.keys(control).join(',') !== 'name,class,status,detail' || !['integration', 'release'].includes(control.class) || !['OK', 'UNKNOWN', 'BLOCKED'].includes(control.status) || typeof control.detail !== 'string' || names.has(control.name)) throw new Error('Production-readiness diagnostic control contract is invalid.');
+			names.add(control.name);
+		}
+		const expectedNames = expectedStatus === 'OK'
+			? ['rst012_schema','active_entity','native_administrator','empty_start','mjl_module','route_containment','invitation_only','french_language','xof_currency','porto_novo_timezone','reconciler_registration','public_base_url','mail_transport','session_error_logging','secret_custody','persistent_storage','backup_restore_evidence','signed_accessibility']
+			: ['diagnostic_execution'];
+		if (JSON.stringify([...names]) !== JSON.stringify(expectedNames)) throw new Error('Production-readiness diagnostic control inventory is invalid.');
+		if (expectedStatus === 'OK' && result.controls.some((control) => control.class === 'integration' && control.status !== 'OK')) throw new Error('Production-readiness diagnostic status conflicts with an integration control.');
+		if (result.controls.some((control) => control.status === 'UNKNOWN' && control.class !== 'release')) throw new Error('Production-readiness diagnostic reports an unknown integration control.');
+		for (const secret of allSecretValues()) if (secret && raw.includes(secret)) throw new Error('Production-readiness diagnostic exposed a registered secret.');
+		return result;
+	};
+	const before = await captureDisposableEvidence(plan, signal);
+	const output = await compose(plan, [
     'exec',
     '-T',
     'dolibarr',
     'php',
     '/var/www/html/custom/mjlfinancement/scripts/check_production_readiness.php',
-  ], { signal });
+  ], { quiet: true, rejectStderr: true, signal });
+	validate(output, 'OK');
+	if (JSON.stringify(await captureDisposableEvidence(plan, signal)) !== JSON.stringify(before)) throw new Error('Production-readiness diagnostic changed disposable database, document, or configuration state.');
+
+	let failureOutput = '';
+	try {
+		await compose(plan, ['exec', '-T', '-e', 'MJL_READINESS_FAILURE_INJECTION=1', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/check_production_readiness.php'], { quiet: true, rejectStderr: true, signal });
+		throw new Error('Production-readiness failure control unexpectedly succeeded.');
+	} catch (error) {
+		if (error.message.includes('unexpectedly succeeded')) throw error;
+		if (error.stderr && error.stderr.trim() !== '') throw new Error('Production-readiness failure control wrote unexpected stderr.');
+		failureOutput = error.output || '';
+	}
+	validate(failureOutput, 'BLOCKED');
+	if (JSON.stringify(await captureDisposableEvidence(plan, signal)) !== JSON.stringify(before)) throw new Error('Production-readiness failure control did not restore exact disposable state.');
+}
+
+async function runPhase3cRestoreRehearsal(sourcePlan, destination, signal) {
+  const custody = fs.mkdtempSync(path.join(os.tmpdir(), 'mjl-phase3c-restore-'));
+  const summary = {
+    schema_version: 1,
+    source_project: sourcePlan.projectName,
+    destination_project: destination.projectName,
+    incomplete_backup: 'PENDING',
+    pre_adaptation_comparison: 'PENDING',
+    permitted_adaptations: ['disposable_sentinel', 'local_base_url'],
+    adaptation_comparison: 'PENDING',
+    restored_counts: null,
+    restored_access: 'PENDING',
+    destination_cleanup: 'PENDING',
+    backup_custody_cleanup: 'PENDING',
+  };
+  const sourceDocuments = path.join(custody, 'documents');
+  const sourceConfiguration = path.join(custody, 'configuration');
+  const restoredDocuments = path.join(custody, 'restored-documents');
+  const restoredConfiguration = path.join(custody, 'restored-configuration');
+	const adaptedDocuments = path.join(custody, 'adapted-documents');
+	const adaptedConfiguration = path.join(custody, 'adapted-configuration');
+  let destinationProvisioned = false;
+  const dumpArgs = ['exec', '-T', 'mariadb', 'mariadb-dump', '--defaults-extra-file=/run/mjl-test/client.cnf', '--single-transaction', '--routines', '--triggers', '--events', '--hex-blob', '--skip-comments', 'dolidb'];
+	const constantDumpArgs = [...dumpArgs.slice(0, -1), '--no-create-info', '--skip-triggers', "--where=NOT (entity=0 AND name='MJL_DISPOSABLE_FIXTURE_SENTINEL')", 'dolidb', 'llx_const'];
+  const resetDatabase = () => compose(destination, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf'], { quiet: true, signal, input: 'DROP DATABASE dolidb; CREATE DATABASE dolidb CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;\n' });
+  const restoreSql = (statement) => compose(destination, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', 'dolidb'], { quiet: true, signal, input: `${statement}\n`, timeoutMs: 120000 });
+  const restoreFull = async (statement) => {
+    try { await restoreSql(statement); }
+    catch (_) { throw new Error('Phase 3C full database restore failed.'); }
+  };
+  let restoreFailure = null;
+	try {
+	await compose(sourcePlan, ['exec', '-T', 'dolibarr', 'sh', '-ceu', 'umask 077; printf phase3c-storage-canary > /var/www/documents/.mjl-phase3c-storage-canary; chown www-data:www-data /var/www/documents/.mjl-phase3c-storage-canary; chmod 0600 /var/www/documents/.mjl-phase3c-storage-canary'], { quiet: true, signal });
+    await compose(sourcePlan, ['stop', 'dolibarr'], { quiet: true, signal });
+    const sourceDump = await compose(sourcePlan, dumpArgs, { quiet: true, signal, timeoutMs: 120000 });
+    fs.mkdirSync(sourceDocuments, { mode: 0o700 });
+    fs.mkdirSync(sourceConfiguration, { mode: 0o700 });
+    await compose(sourcePlan, ['cp', 'dolibarr:/var/www/documents/.', sourceDocuments], { quiet: true, signal });
+    await compose(sourcePlan, ['cp', 'dolibarr:/var/www/html/conf/.', sourceConfiguration], { quiet: true, signal });
+
+    const resolved = await compose(destination, ['config', '--format', 'json'], { quiet: true, signal });
+    assertDisposableConfig(JSON.parse(resolved), destination);
+    fs.mkdirSync(destination.artifactRoot, { recursive: true, mode: 0o700 });
+    destinationProvisioned = true;
+	await compose(destination, ['up', '-d', 'mariadb'], { signal });
+	await provisionDisposableDatabaseClient(destination, signal);
+	await waitUntilDatabaseReady(destination, signal);
+	await compose(destination, ['create', 'dolibarr'], { quiet: true, signal });
+	if (process.env.MJL_PHASE3C_RESTORE_FAILURE === '1') throw new Error('Injected Phase 3C restore failure after destination provisioning.');
+
+	await resetDatabase();
+	const boundary = sourceDump.lastIndexOf(';\n', Math.floor(sourceDump.length / 2));
+	if (boundary < 1) throw new Error('Phase 3C could not construct an incomplete statement-aligned backup.');
+	await restoreSql(sourceDump.slice(0, boundary + 2));
+	const incompleteDump = await compose(destination, dumpArgs, { quiet: true, signal, timeoutMs: 120000 });
+	if (crypto.createHash('sha256').update(incompleteDump).digest('hex') === crypto.createHash('sha256').update(sourceDump).digest('hex')) throw new Error('Phase 3C restore accepted an incomplete database backup.');
+	summary.incomplete_backup = 'DETECTED';
+
+	await resetDatabase();
+    await restoreFull(sourceDump);
+    const restoredDump = await compose(destination, dumpArgs, { quiet: true, signal, timeoutMs: 120000 });
+    if (crypto.createHash('sha256').update(restoredDump).digest('hex') !== crypto.createHash('sha256').update(sourceDump).digest('hex')) throw new Error('Phase 3C restored database differs before destination adaptation.');
+
+    await compose(destination, ['run', '--rm', '--no-deps', '--entrypoint', 'sh', 'dolibarr', '-ceu', 'find /var/www/documents -mindepth 1 -delete; find /var/www/html/conf -mindepth 1 -delete'], { quiet: true, signal });
+    await compose(destination, ['cp', `${sourceDocuments}/.`, 'dolibarr:/var/www/documents'], { quiet: true, signal });
+    await compose(destination, ['cp', `${sourceConfiguration}/.`, 'dolibarr:/var/www/html/conf'], { quiet: true, signal });
+    fs.mkdirSync(restoredDocuments, { mode: 0o700 });
+    fs.mkdirSync(restoredConfiguration, { mode: 0o700 });
+    await compose(destination, ['cp', 'dolibarr:/var/www/documents/.', restoredDocuments], { quiet: true, signal });
+    await compose(destination, ['cp', 'dolibarr:/var/www/html/conf/.', restoredConfiguration], { quiet: true, signal });
+    if (streamTreeDigest(sourceDocuments) !== streamTreeDigest(restoredDocuments)) throw new Error('Phase 3C restored document storage differs before adaptation.');
+    if (streamTreeDigest(sourceConfiguration) !== streamTreeDigest(restoredConfiguration)) throw new Error('Phase 3C restored configuration differs before adaptation.');
+	summary.pre_adaptation_comparison = 'OK';
+	const preAdaptationConstants = await compose(destination, constantDumpArgs, { quiet: true, signal, timeoutMs: 120000 });
+
+	const adaptedRows = await databaseSql(destination, "UPDATE llx_const SET value='"+destination.sentinel+"' WHERE entity=0 AND name='MJL_DISPOSABLE_FIXTURE_SENTINEL'; SELECT ROW_COUNT();", { quiet: true, scalar: true, signal });
+	if (adaptedRows.trim() !== '1') throw new Error('Phase 3C destination sentinel adaptation did not change exactly one row.');
+    await compose(destination, ['run', '--rm', '--no-deps', '--entrypoint', 'sh', 'dolibarr', '-ceu', 'printf %s "$MJL_DISPOSABLE_RUN_SENTINEL" > /var/www/documents/.mjl-disposable-fixture-sentinel; chown root:root /var/www/documents/.mjl-disposable-fixture-sentinel; chmod 0444 /var/www/documents/.mjl-disposable-fixture-sentinel'], { quiet: true, signal });
+    await compose(destination, ['run', '--rm', '--no-deps', '--entrypoint', 'sh', 'dolibarr', '-ceu', 'sed -i "s|$1|$DOLI_URL_ROOT|g" /var/www/html/conf/conf.php', '--', sourcePlan.baseUrl], { quiet: true, signal });
+	fs.mkdirSync(adaptedDocuments, { mode: 0o700 });
+	fs.mkdirSync(adaptedConfiguration, { mode: 0o700 });
+	await compose(destination, ['cp', 'dolibarr:/var/www/documents/.', adaptedDocuments], { quiet: true, signal });
+	await compose(destination, ['cp', 'dolibarr:/var/www/html/conf/.', adaptedConfiguration], { quiet: true, signal });
+	const sourceConf = path.join(sourceConfiguration, 'conf.php');
+	const adaptedConf = path.join(adaptedConfiguration, 'conf.php');
+	const sourceConfStat = fs.statSync(sourceConf);
+	const adaptedConfStat = fs.statSync(adaptedConf);
+	if ((sourceConfStat.mode & 0o7777) !== (adaptedConfStat.mode & 0o7777)) throw new Error('Phase 3C destination adaptation changed configuration mode.');
+	if (fs.readFileSync(sourceConf, 'utf8').split(sourcePlan.baseUrl).join('MJL_RESTORED_BASE_URL') !== fs.readFileSync(adaptedConf, 'utf8').split(destination.baseUrl).join('MJL_RESTORED_BASE_URL')) throw new Error('Phase 3C destination adaptation changed configuration beyond the base URL.');
+	fs.unlinkSync(sourceConf);
+	fs.unlinkSync(adaptedConf);
+	if (streamTreeDigest(sourceConfiguration) !== streamTreeDigest(adaptedConfiguration)) throw new Error('Phase 3C destination adaptation changed configuration beyond the base URL.');
+	const sourceSentinel = path.join(sourceDocuments, '.mjl-disposable-fixture-sentinel');
+	const adaptedSentinel = path.join(adaptedDocuments, '.mjl-disposable-fixture-sentinel');
+	const sourceSentinelStat = fs.statSync(sourceSentinel);
+	const adaptedSentinelStat = fs.statSync(adaptedSentinel);
+	if ((sourceSentinelStat.mode & 0o7777) !== (adaptedSentinelStat.mode & 0o7777) || fs.readFileSync(sourceSentinel, 'utf8') !== sourcePlan.sentinel || fs.readFileSync(adaptedSentinel, 'utf8') !== destination.sentinel) throw new Error('Phase 3C destination sentinel adaptation changed document mode or content shape.');
+	fs.unlinkSync(sourceSentinel);
+	fs.unlinkSync(adaptedSentinel);
+	if (streamTreeDigest(sourceDocuments) !== streamTreeDigest(adaptedDocuments)) throw new Error('Phase 3C destination adaptation changed document storage beyond the disposable sentinel.');
+	summary.adaptation_comparison = 'OK';
+    await compose(destination, ['up', '-d', 'dolibarr'], { signal });
+    await waitUntilReady(destination, signal);
+    await compose(destination, ['exec', '-T', 'dolibarr', 'sh', '-ceu', 'grep -F "$DOLI_URL_ROOT" /var/www/html/conf/conf.php >/dev/null'], { quiet: true, signal });
+	const postAdaptationConstants = await compose(destination, constantDumpArgs, { quiet: true, signal, timeoutMs: 120000 });
+	if (preAdaptationConstants !== postAdaptationConstants) throw new Error('Phase 3C destination adaptation changed configuration constants beyond the sentinel.');
+    await compose(destination, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst012_export_schema.php', '--mode=verify'], { signal });
+    const representative = await databaseSql(destination, "SELECT CONCAT((SELECT COUNT(*) FROM llx_mjlfinancement_activity),'|',(SELECT COUNT(*) FROM llx_mjlfinancement_activity_revision),'|',(SELECT COUNT(*) FROM llx_mjlfinancement_audit_event),'|',(SELECT COUNT(*) FROM llx_mjlfinancement_export_record),'|',(SELECT COUNT(*) FROM llx_mjlfinancement_cancellation_request)+(SELECT COUNT(*) FROM llx_mjlfinancement_reopening_request))", { scalar: true, signal });
+    const counts = representative.trim().split('|').map(Number);
+	if (counts.length !== 5 || counts.some((count) => count < 1)) throw new Error('Phase 3C restored representative business evidence is incomplete.');
+	summary.restored_counts = counts;
+    await compose(destination, ['exec', '-T', 'dolibarr', 'test', '-f', '/var/www/documents/.mjl-phase3c-storage-canary'], { quiet: true, signal });
+	await compose(destination, ['exec', '-T', '--user', 'www-data', 'dolibarr', 'sh', '-ceu', 'test -r /var/www/documents/.mjl-phase3c-storage-canary; probe=/var/www/documents/.mjl-phase3c-write-probe; printf ok > "$probe"; test "$(cat "$probe")" = ok; rm -f "$probe"'], { quiet: true, signal });
+	await verifyRestoredApplicationAccess(destination, sourcePlan.testUserPassword, signal);
+	summary.restored_access = 'OK';
+	} catch (error) {
+		restoreFailure = error;
+  } finally {
+	const cleanupFailures = [];
+	if (destinationProvisioned && destination) {
+		try { await cleanup(destination); summary.destination_cleanup = 'OK'; } catch (error) { cleanupFailures.push(error); summary.destination_cleanup = 'BLOCKED'; }
+	}
+	if (destination) {
+		try { fs.rmSync(destination.artifactRoot, { recursive: true, force: true }); } catch (error) { cleanupFailures.push(error); }
+	}
+	try { fs.rmSync(custody, { recursive: true, force: true }); } catch (error) { cleanupFailures.push(error); }
+	if (fs.existsSync(custody)) cleanupFailures.push(new Error('Phase 3C backup custody remains after teardown.'));
+	else summary.backup_custody_cleanup = 'OK';
+	for (const cleanupFailure of cleanupFailures) restoreFailure = combineFailures(restoreFailure, cleanupFailure, 'Phase 3C restore and cleanup failed.');
+	try { fs.writeFileSync(path.join(sourcePlan.artifactRoot, 'phase3c-restore-summary.json'), `${JSON.stringify(summary, null, 2)}\n`, { mode: 0o600 }); }
+	catch (error) { restoreFailure = combineFailures(restoreFailure, error, 'Phase 3C restore and summary persistence failed.'); }
+	if (restoreFailure) throw restoreFailure;
+  }
+}
+
+async function verifyRestoredApplicationAccess(plan, sourcePassword, signal) {
+	const activityIds = (await databaseSql(plan, "SELECT CONCAT((SELECT rowid FROM llx_mjlfinancement_activity WHERE entity=1 AND name='Réconciliation Phase 3C 0-0' LIMIT 1),'|',(SELECT rowid FROM llx_mjlfinancement_activity WHERE entity=2 AND name='Isolation Phase 3C' LIMIT 1))", { scalar: true, signal })).trim().split('|');
+	if (activityIds.length !== 2 || activityIds.some((id) => !/^\d+$/.test(id))) throw new Error('Phase 3C restored access sentinels are missing.');
+	const browser = await chromium.launch({ headless: true });
+	try {
+		const context = await browser.newContext({ baseURL: plan.baseUrl });
+		const page = await context.newPage();
+		await page.goto('/index.php');
+		await page.getByLabel('Identifiant').fill('p3c-b00.agent');
+		await page.getByLabel('Mot de passe').fill(sourcePassword);
+		await page.getByRole('button', { name: 'Connexion' }).click();
+		if ((await page.goto(`/custom/mjlfinancement/activities.php?id=${activityIds[0]}`)).status() !== 200) throw new Error('Restored authorized Activity read failed.');
+		if ((await page.goto(`/custom/mjlfinancement/activities.php?id=${activityIds[1]}`)).status() !== 403) throw new Error('Restored cross-entity Activity read was not denied.');
+		await context.clearCookies();
+		await page.goto('/index.php');
+		await page.getByLabel('Identifiant').fill('p3c-b00.norole');
+		await page.getByLabel('Mot de passe').fill(sourcePassword);
+		await page.getByRole('button', { name: 'Connexion' }).click();
+		if ((await page.goto(`/custom/mjlfinancement/activities.php?id=${activityIds[0]}`)).status() !== 403) throw new Error('Restored no-role Activity read was not denied.');
+		await context.close();
+	} finally {
+		await browser.close();
+	}
 }
 
 async function runPlaywright(plan, target, signal) {
@@ -528,6 +750,9 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-export-recovery.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase3a') {
     args.push('tests/e2e/activity-execution.spec.js', 'tests/e2e/document-containment.spec.js', 'tests/e2e/documents-audit.spec.js', '--config=playwright.config.js');
+	} else if (target === 'phase3c' || target === 'phase3c-discovery') {
+	args.push('tests/e2e/phase3c-hardening.spec.js', '--config=playwright.config.js');
+	if (target === 'phase3c-discovery') args.push('--grep', 'Phase 3C discovery control');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
 	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
@@ -714,7 +939,7 @@ async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMod
 	&& !runMode.startsWith('rst005')
     && !runMode.startsWith('rst013a')
     && !runMode.startsWith('rst014a')
-    && !['phase3b-performance', 'phase3b-monitoring', 'phase3b-reports', 'phase3b-activities', 'phase3b', 'all', 'verify', 'e2e', 'manual-accessibility'].includes(runMode);
+    && !['phase3b-performance', 'phase3b-monitoring', 'phase3b-reports', 'phase3b-activities', 'phase3b', 'phase3c', 'production-readiness', 'all', 'verify', 'e2e', 'manual-accessibility'].includes(runMode);
   try {
     if (shouldRetain) retain(plan);
   } finally {
@@ -741,6 +966,7 @@ async function main() {
   }
 
   let plan = null;
+  let restorePlan = null;
   let provisionAttempted = false;
   let failure = null;
   let sharedBefore = null;
@@ -749,15 +975,27 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-performance' || mode === 'phase3b-monitoring' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-performance' || mode === 'phase3b-monitoring' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3c' || mode === 'production-readiness' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
+      if (mode === 'phase3c') {
+        let restorePort = await allocatePort();
+        while (restorePort === plan.port) restorePort = await allocatePort();
+        restorePlan = createRunPlan({ repositoryRoot, port: restorePort });
+        const identities = [plan.projectName, restorePlan.projectName, plan.baseUrl, restorePlan.baseUrl, plan.databaseVolume, restorePlan.databaseVolume, plan.documentVolume, restorePlan.documentVolume, plan.configVolume, restorePlan.configVolume, plan.sentinel, restorePlan.sentinel];
+        if (new Set(identities).size !== identities.length) throw new Error('Phase 3C disposable source and restore identities must be distinct.');
+      }
       fs.mkdirSync(plan.artifactRoot, { recursive: true, mode: 0o700 });
       const initialSecrets = [
         ['disposable credential', plan.testUserPassword],
         ['disposable sentinel', plan.sentinel],
         ['secret registry capability', plan.secretRegistryCapability],
         ...plan.lifecyclePasswords.map((password) => ['lifecycle credential', password]),
+        ...(restorePlan ? [
+          ['phase three c destination credential', restorePlan.testUserPassword],
+          ['phase three c destination sentinel', restorePlan.sentinel],
+          ...restorePlan.lifecyclePasswords.map((password) => ['phase three c destination credential', password]),
+        ] : []),
       ];
       for (const [category, value] of initialSecrets) {
         registerRunnerSecret(category, value);
@@ -1035,6 +1273,16 @@ async function main() {
 		if (!selectedDdlPoint && !postDdlOnly) await runCommand(process.execPath, [path.join(repositoryRoot,'tests/runner/rst006a-fast-cutover-rehearsal.js')], { signal: controller.signal, timeoutMs: 15 * 60 * 1000 });
       }
       else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
+      else if (layer === 'phase3c') {
+		await runProductionReadiness(plan, controller.signal);
+		if (process.env.MJL_PHASE3C_DISCOVERY_FAILURE === '1') {
+			await runPlaywright(plan, 'phase3c-discovery', controller.signal);
+			throw new Error('Phase 3C deliberate discovery failure unexpectedly passed.');
+		}
+		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-schema-probe.php'], {signal: controller.signal});
+		await runPlaywright(plan, layer, controller.signal);
+		await runPhase3cRestoreRehearsal(plan, restorePlan, controller.signal);
+	  }
       else await runPlaywright(plan, layer, controller.signal);
     }
   } catch (error) {
@@ -1046,7 +1294,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-performance' || mode === 'phase3b-monitoring' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-performance' || mode === 'phase3b-monitoring' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3c' || mode === 'production-readiness' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

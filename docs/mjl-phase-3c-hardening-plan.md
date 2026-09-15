@@ -1,10 +1,12 @@
 # Phase 3C Hardening and Integration-Readiness Draft
 
-Status: **DRAFT — RST-013E and RST-015 remain `PENDING_APPROVAL`**.
+Status: **APPROVED FOR IMPLEMENTATION under DEC-058 — no production launch**.
 
 Authority: the canonical v2 documents routed by
 `docs/mjl-authoritative-decisions.md`. Historical implementation prompts are
-context only. This draft authorizes no implementation or production launch.
+context only. DEC-058 authorizes only the RST-015 and RST-013E source and
+disposable-verification work described here; it does not authorize production
+launch.
 
 ## Goal and verdict boundary
 
@@ -18,9 +20,8 @@ launch.` The client and project owner retain the Phase 4–6 go-live decision.
 
 - The shared tenant is now the empty RST-012 target; Phase 3B functionality and
   its hourly reconciler are active.
-- `custom/mjlfinancement/scripts/check_production_readiness.php` is absent, so
-  `npm run audit:production-readiness` currently provisions a disposable tenant
-  and then fails at an absent entrypoint.
+- `custom/mjlfinancement/scripts/check_production_readiness.php` is the approved
+  CLI-only read-only diagnostic.
 - The manifest also names absent `scripts/verification/runner.php`,
   `tests/contracts/verification_runner_test.php`, and
   `tests/unit/verification-entrypoints.test.js`. A separate verification
@@ -35,7 +36,7 @@ launch.` The client and project owner retain the Phase 4–6 go-live decision.
   RST-015 must replace these with the canonical Phase 3B core boundary.
 
 The reset manifest is amended alongside this draft to record the real seams and
-the files that must remain absent. Both units remain approval-gated.
+the files that must remain absent. DEC-058 approved both units separately.
 
 ## RST-015 — read-only readiness model rewrite
 
@@ -44,7 +45,7 @@ the existing disposable runner. It reads configuration and installed state but
 does not change constants, users, business data, documents, jobs, or schema.
 
 Its machine-readable result contains only named control status
-(`OK`, `UNKNOWN`, or `BLOCKED`) and a final Phase 3C verdict. It must not print
+(`OK`, `UNKNOWN`, or `BLOCKED`) and a diagnostic status. It must not print
 secret values. Controls cover exact RST-012 schema and empty-start behavior,
 module/native-route containment, active-entity guards, invitation-only access,
 Porto-Novo timezone, XOF/French configuration, enabled unique reconciler,
@@ -97,11 +98,16 @@ retired suites. Signed human accessibility remains a separate release gate.
 
 ## Acceptance and rollback
 
-Required committed-source gates are PHP syntax checks for new PHP, Node syntax
-checks for runner changes, `npm run test:unit`, repaired `npm run test:phase2`,
-`npm run audit:production-readiness`, the new `npm run test:phase3c`,
-`npm run test:verify`, and `npm test`. Each container-backed command must prove
-shared-state equality, secret-free evidence, and complete teardown.
+Required committed-source gates are PHP and Node syntax checks, then serial
+executions of `npm run test:unit`, `npm run test:verify`, `npm test`,
+`npm run audit:production-readiness`, `npm run test:phase3c`,
+`npm run test:phase1-reset`, `npm run test:rst003`, `npm run test:rst013a`,
+`npm run test:rst014a`, `npm run test:rst005`,
+`npm run test:rst005-launcher`, `npm run test:rst002b`,
+`npm run test:rst006a`, `npm run test:phase2`, `npm run test:phase3a`, and
+`npm run test:phase3b`. Identical aliases and wrapper slices are recorded from
+their owning command rather than rerun. Each container-backed command must
+prove shared-state equality, secret-free evidence, and complete teardown.
 
 Before implementation, capture the Phase 3B source commit, sanitized
 configuration control names, and runner configuration digest. Rollback restores
@@ -109,9 +115,9 @@ only RST-013E/RST-015 source and documentation. It changes no shared business
 rows or configuration. Any restore rehearsal is restricted to a new disposable
 project; shared restore requires separate explicit authorization.
 
-Approval must name both `RST-013E` and `RST-015`. Approval of this draft does
-not authorize Phase 4, 5, 6, production deployment, persistent sample data, or
-shared restoration.
+DEC-058 separately approves `RST-013E` and `RST-015`. It does not authorize
+Phase 4, 5, 6, production deployment, persistent sample data, or shared
+restoration.
 
 ## Review closure
 

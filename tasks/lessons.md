@@ -297,3 +297,10 @@ debugging discoveries. Do not add one-off observations or generic advice.
   current installed schema before exercising older behavior. Reapplying an
   obsolete predecessor migration can fail before the compatibility behavior
   runs, even when that behavior remains valid on the current target.
+- A new aggregate gate should cover only evidence that existing public suites
+  do not already own. Keep established regressions as separate committed-source
+  commands; composing them into the new gate obscures coverage and multiplies
+  runtime without adding evidence.
+- A MariaDB container can answer an early root health probe before its scoped
+  application client is usable. Provision the scoped client first, then wait
+  with that exact client before running restore or verification SQL.

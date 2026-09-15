@@ -355,7 +355,7 @@ test('maintained fixture markers fit the 14-character import-key boundary', () =
 });
 
 test('Phase 3B and containing aggregate runs remove failed tenants even when retention is requested', async () => {
-  for (const runMode of ['phase3b-performance', 'phase3b-monitoring', 'phase3b-reports', 'phase3b-activities', 'phase3b', 'all', 'verify', 'e2e', 'manual-accessibility']) {
+	for (const runMode of ['phase3b-performance', 'phase3b-monitoring', 'phase3b-reports', 'phase3b-activities', 'phase3b', 'phase3c', 'production-readiness', 'all', 'verify', 'e2e', 'manual-accessibility']) {
     const events = [];
     await finalizeDisposableRun({
       plan: {projectName: 'mjl-test-phase3b-cleanup'}, provisionAttempted: true,
@@ -364,5 +364,10 @@ test('Phase 3B and containing aggregate runs remove failed tenants even when ret
       retain: () => events.push('retain'),
     });
     assert.deepEqual(events, ['capture', 'remove'], runMode);
-  }
+	}
+});
+
+test('Phase 3C and production readiness are public disposable suite modes', () => {
+	assert.deepEqual(getSuitePlan('production-readiness'), ['production-readiness']);
+	assert.deepEqual(getSuitePlan('phase3c'), ['phase3c']);
 });

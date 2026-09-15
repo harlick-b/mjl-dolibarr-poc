@@ -31,6 +31,20 @@ Authority comes from 'docs/mjl-authoritative-decisions.md'.
     npm run test:phase3b
     npm run test:phase3a
     npm run test:phase1-reset
+    npm run audit:production-readiness
+    npm run test:phase3c
+
+- `audit:production-readiness` runs the CLI-only read-only diagnostic in an
+  empty disposable RST-012 tenant. It reports observed integration and release
+  controls without emitting the Phase 3C verdict. Release-only unknowns remain
+  visible. Shared-state equality, secret scanning and teardown are mandatory.
+- `test:phase3c` covers only the new Phase 3C evidence: the diagnostic,
+  reconciler pagination/idempotence/retry/timezone behavior, representative
+  request/export preservation, and a second-project database/document/
+  configuration restore rehearsal. Existing authorization, workflow,
+  monitoring/report/recovery, automated accessibility, and performance suites
+  remain separate required gates. It does not authorize production and does
+  not replace the signed human accessibility review.
 
 - `npm test` runs unit, isolated verification and all maintained browser batches,
   including the Phase 3B schema/renderer probes and scale benchmark. The aggregate,

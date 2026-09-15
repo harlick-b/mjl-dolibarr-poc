@@ -1,81 +1,48 @@
-# MJL Production Readiness Plan
+# MJL Core Integration and Release Readiness
 
-This plan defines how production readiness is evaluated. Target decisions come
-from `docs/mjl-authoritative-decisions.md`; current implementation evidence
-comes from `docs/mjl-current-app-functional-map.md`.
+Authority comes from `docs/mjl-authoritative-decisions.md`. Phase 3C evaluates
+the implemented core through RST-012 for integration. It does not authorize a
+production launch.
 
-## Current Scheduling Status
+## Two readiness boundaries
 
-Historical Phase 5 production and operator work is `DEFERRED`. The requirements
-in this document are retained for future release-readiness work, but they are
-not completion gates for `V1_FUNCTIONAL_RULES_AND_PILOT_VALIDATION`. Deferral
-does not convert an unknown or blocked control into a pass and does not
-authorize production deployment.
+`npm run audit:production-readiness` runs a read-only CLI diagnostic in a
+disposable tenant. It reports each observed control as `OK`, `UNKNOWN`, or
+`BLOCKED`. It never emits the Phase 3C integration verdict and never converts a
+missing client decision into a pass.
 
-Under DEC-057, signed human accessibility review is also deferred for local
-development, the approved local RST-012 cutover, and Phase 3C planning.
-Automated accessibility checks remain active. The unsigned human review is a
-production/release blocker and no readiness record may represent it as passed
-or claim WCAG conformance.
+Integration readiness is decided only after the complete committed-source gate
+matrix. Schema, authorization, entity isolation, data integrity, reconciler,
+restore, security, performance, errors, and teardown evidence are blocking.
+Final public URL, mail delivery, infrastructure custody, production logging and
+the signed human accessibility review are release controls. Their unknown state
+remains visible without making a sound local core fail integration.
 
-## Readiness Rule
+## Current core boundary
 
-A feature is production-ready only when route guards, direct POST guards, data
-behavior, tests, documentation, and skipped-check notes support that claim.
+The core hierarchy is `Partenaire -> Projet -> Activité -> Opérations`.
+Activity assignments determine Agent access. Supervisor and Validator roles
+have portfolio visibility; the native Admin is technical and audit-only.
+Planning revisions, review decisions, execution, exception requests, audit and
+export evidence are guarded and entity-scoped. Operational outputs are PDF and
+XLSX with audited CSV support. Phase 4 document behavior remains absent behind
+RST-010A containment.
 
-Use these statuses:
+## Client-owned Phase 4–6 decisions
 
-- `ready`: all acceptance criteria and verification checks passed.
-- `partial`: implemented or partly verified, with remaining gaps.
-- `blocked`: missing decision, dependency, or failed check prevents safe
-  production use.
-- `out_of_scope`: explicitly excluded from the current phase.
+| Input | Available | Go-live requirement | Dependency | Blocker | Owner | Decision date | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Phase 4 document categories and final retention policy | Partial strategy only | Required if Phase 4 ships | Post-Phase-3C inventory | Client rules and legal confirmation | Client | Needs confirmation | Needs confirmation |
+| Production public/base URL | No | Required for invitations and reset links | Hosting topology | Final hostname and TLS termination | Client/operator | Needs confirmation | Needs confirmation |
+| Production mail transport and sender | No | Required before real invitations | Client mail service | SMTP/API credentials and delivery proof | Client/operator | Needs confirmation | Needs confirmation |
+| Production secret custody and rotation | No | Required | Hosting and operations model | External secret store, access owners and rotation procedure | Client/operator | Needs confirmation | Needs confirmation |
+| Persistent database/document/configuration storage | No | Required | Hosting topology | Volumes, access and custody | Client/operator | Needs confirmation | Needs confirmation |
+| Production backup and restore procedure | No | Required | Persistent storage | Schedule, retention and restore evidence | Client/operator | Needs confirmation | Needs confirmation |
+| Session, error and logging posture | No | Required | Reverse proxy and runtime | Final configuration and operator evidence | Client/operator | Needs confirmation | Needs confirmation |
+| Signed human accessibility review | No | Required | Stable release candidate | Named human evidence | Client/project owner | Needs confirmation | Needs confirmation |
+| Phase 5 accounting rules and examples | No | Required only if Phase 5 ships | Client accounting decisions | Journals, accounts and posting rules | Client | Needs confirmation | Needs confirmation |
+| Phase 6 official Partner templates and mappings | No | Required only if Phase 6 ships | Approved templates | Columns, signatures and mappings | Client | Needs confirmation | Needs confirmation |
+| Final inclusion of Phases 4, 5 and 6 | No | Required for go-live scope | Phase 3C verdict and client inputs | Project-owner decision | Client/project owner | Needs confirmation | Needs confirmation |
 
-## Non-Negotiable Gates
-
-- Dolibarr core files are untouched.
-- Active entity filtering remains present.
-- Every new or touched POST action has CSRF protection.
-- Every new or touched user input is sanitized and escaped on output.
-- Navigation hiding is paired with server-side direct URL and POST guards.
-- Documents are uploaded contextually and downloaded through guarded MJL routes.
-- Exports are server-filtered and audited when export audit is implemented.
-- No public registration is added.
-- Sample/default passwords remain local development/test behavior only.
-
-## Migration Policy
-
-- Migration filenames follow the module version they introduce.
-- Migrations must be non-destructive and idempotent where possible.
-- Backfills must log unresolved records instead of silently granting broad
-  access.
-- The module stays below `1.0.0` until every in-scope production row is ready.
-
-## Verification Policy
-
-Use the smallest sufficient verification per change, then expand when workflow,
-security, documents, schema, exports, or UI are touched.
-
-Expected checks include:
-
-- PHP syntax checks for touched PHP files.
-- Relevant schema audit scripts for schema changes.
-- Relevant smoke scripts for workflow/document/export changes.
-- `npm run test:e2e` for app UI, auth, dashboards, exports, official outputs,
-  and workflow changes.
-- Documentation diff/status for documentation-only phases.
-
-Unavailable commands must be reported explicitly.
-
-## Current Readiness Summary
-
-- `schedule`: deferred until explicitly reactivated.
-- `ready`: no full production release claim yet.
-- `partial`: workspace, role/scope foundation, activities, expenses,
-  disbursement, guarded documents, dashboards, reports, exports, invitations,
-  and audit helpers.
-- `blocked`: final client permission matrix, official report templates,
-  production email/base URL/secrets, and deployment rehearsal.
-- `out_of_scope`: public registration, PDF/Word reports, full accounting ERP,
-  payroll, procurement, bank API, SMS, OCR, external portal, offline mode, and
-  AI reporting.
+The signed accessibility review remains a release blocker under DEC-057. No
+current evidence supports a WCAG conformance or production-readiness claim.
