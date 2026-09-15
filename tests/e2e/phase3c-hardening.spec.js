@@ -11,9 +11,10 @@ let foreign;
 let boundary;
 let primary;
 
-test.beforeAll(() => {
-	for (let batch = 0; batch < 13; batch += 1) {
-		const created = createPhase3AFixtureSet({
+test.describe.configure({ mode: 'serial', retries: 0 });
+
+function createReconciliationBatch(batch) {
+	return createPhase3AFixtureSet({
 			namespace: `p3c-b${String(batch).padStart(2, '0')}`,
 			entity: 1,
 			users: [
@@ -40,8 +41,10 @@ test.beforeAll(() => {
 				operations: [{ name: `Opération ${batch}-${index}`, typeKey: 'type', authorizedAmount: '100' }],
 			})),
 		});
-		if (batch === 0) primary = created;
-	}
+}
+
+test.beforeAll(() => {
+	primary = createReconciliationBatch(0);
 	foreign = createPhase3AFixtureSet({ namespace: 'p3c-foreign', entity: 2, users: [{ key: 'agent', role: 'AGENT_SAISIE' }, { key: 'supervisor', role: 'AGENT_VERIFICATEUR' }, { key: 'validator', role: 'VALIDATEUR_DEFINITIF' }], references: { partners: [{ key: 'partner', label: 'Partenaire isolation Phase 3C' }], projects: [{ key: 'project', label: 'Projet isolation Phase 3C', partnerKey: 'partner' }], operationTypes: [{ key: 'type', label: 'Type isolation Phase 3C' }] }, activities: [{ key: 'foreign', agentKey: 'agent', partnerKey: 'partner', projectKey: 'project', name: 'Isolation Phase 3C', description: 'Canari inter-entité.', dateStart: '2026-09-05', dateEnd: '2026-09-30', authorizedAmount: '100', operations: [{ name: 'Opération isolation', typeKey: 'type', authorizedAmount: '100' }] }] });
 	boundary = createPhase3AFixtureSet({ namespace: 'p3c-boundary', entity: 1, users: [{ key: 'agent', role: 'AGENT_SAISIE' }, { key: 'supervisor', role: 'AGENT_VERIFICATEUR' }, { key: 'validator', role: 'VALIDATEUR_DEFINITIF' }], references: { partners: [{ key: 'partner', label: 'Partenaire fuseau Phase 3C' }], projects: [{ key: 'project', label: 'Projet fuseau Phase 3C', partnerKey: 'partner' }], operationTypes: [{ key: 'type', label: 'Type fuseau Phase 3C' }] }, activities: [{ key: 'boundary', agentKey: 'agent', partnerKey: 'partner', projectKey: 'project', name: 'Frontière Porto-Novo Phase 3C', description: 'Canari de date.', dateStart: '2032-06-01', dateEnd: '2032-06-01', authorizedAmount: '100', operations: [{ name: 'Opération fuseau', typeKey: 'type', authorizedAmount: '100' }] }] });
 	const operation = primary.activities.a0.operations[0];
@@ -74,6 +77,7 @@ test('CLI diagnostic is denied over HTTP and exposes no canonical integration ve
 });
 
 test('installed reconciler traverses more than one 100-row page and remains idempotent', () => {
+	for (let batch = 1; batch < 13; batch += 1) createReconciliationBatch(batch);
 	const before = Number(fixture('scheduled-count'));
 	const foreignBefore = scalar(`SELECT CONCAT(version,'|',(SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE entity=2 AND activity_id=${foreign.activities.foreign.activity_id} AND action='ACTIVITY_EXECUTION_STATUS_CHANGED'),'|',COALESCE((SELECT state_after FROM llx_mjlfinancement_audit_event WHERE entity=2 AND activity_id=${foreign.activities.foreign.activity_id} AND action='ACTIVITY_EXECUTION_STATUS_CHANGED' ORDER BY rowid DESC LIMIT 1),'NONE')) FROM llx_mjlfinancement_activity WHERE entity=2 AND rowid=${foreign.activities.foreign.activity_id}`);
 	const first = JSON.parse(fixture('reconcile'));
