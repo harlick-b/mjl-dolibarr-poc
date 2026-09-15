@@ -616,6 +616,7 @@ async function runPhase3cRestoreRehearsal(sourcePlan, destination, signal) {
 	summary.adaptation_comparison = 'OK';
     await compose(destination, ['up', '-d', 'dolibarr'], { signal });
     await waitUntilReady(destination, signal);
+    await waitUntilDatabaseReady(destination, signal);
     await compose(destination, ['exec', '-T', 'dolibarr', 'sh', '-ceu', 'grep -F "$DOLI_URL_ROOT" /var/www/html/conf/conf.php >/dev/null'], { quiet: true, signal });
 	const postAdaptationConstants = await compose(destination, constantDumpArgs, { quiet: true, signal, timeoutMs: 120000 });
 	if (preAdaptationConstants !== postAdaptationConstants) throw new Error('Phase 3C destination adaptation changed configuration constants beyond the sentinel.');
