@@ -1,189 +1,91 @@
 # MJL Authoritative Decisions
 
-This file is the highest-level MJL authority router after the post-cadrage
-Phase 0 reset. It supersedes the former POC-era authority model.
+This file routes current MJL authority. Development is unfinished. Recorded
+implementation, verification, readiness, and approval states are evidence only
+and never imply current user acceptance.
 
-## Authority Order
+## Authority order
 
-Use this order for MJL work:
-
-1. Direct user instruction in the current task.
+1. The user's latest explicit instruction.
 2. This authority router.
-3. The canonical v2 documents listed below, each for its assigned subject.
-4. The approved v3 design package for visual presentation only.
-5. The current-vs-target gap analysis.
-6. The current application functional map as current-state evidence only.
-7. Existing implementation code and tests as current-state evidence only.
-8. Historical prompts, plans, reports, and POC notes.
+3. The canonical documents below for their assigned subjects.
+4. Approved v3 design guidance for visual presentation only.
+5. Gap analysis and current-state evidence.
+6. Existing code and tests as current-state evidence only.
 
-If canonical v2 documents contradict one another, stop. Do not conceal the
-contradiction by choosing an implicit precedence rule.
+The latest user instruction supersedes every conflicting earlier project
+decision, approval, plan, report, test convention, and skill procedure. Update
+conflicting active guidance instead of applying an older rule. If canonical
+documents still contradict each other after applying the latest instruction,
+stop and surface the contradiction.
 
-## Canonical v2 Ownership
+## Canonical ownership
 
 | Subject | Canonical document |
 | --- | --- |
 | Complete business rules | `docs/mjl-functional-specification-v2.md` |
-| Decision provenance and status | `docs/mjl-decision-register-v2.md` |
+| Decision history and provenance | `docs/mjl-decision-register-v2.md` |
 | Core, excluded, and gated scope | `docs/mjl-scope-boundary-v2.md` |
 | Visibility and permitted actions | `docs/mjl-permission-matrix-v2.md` |
 | States, transitions, and guards | `docs/mjl-status-and-transition-model-v2.md` |
 | Target entities, fields, and invariants | `docs/mjl-data-dictionary-v2.md` |
-| Proposed reset actions and approvals | `docs/mjl-reset-manifest-v2.md` |
-| Phase dependencies and stop conditions | `docs/mjl-implementation-roadmap-v2.md` |
+| Reset-unit state | `docs/mjl-reset-manifest-v2.md` |
+| Implementation state and unfinished phases | `docs/mjl-implementation-roadmap-v2.md` |
 
-`docs/mjl-phase-0-audit-report.md` is evidence, not a target-decision source.
+Completed plans and reports are recoverable from Git history and are not active
+guidance. `docs/mjl-current-app-functional-map.md` records current-state
+evidence only. Unresolved weaknesses and unapproved recommendations belong in
+`docs/mjl-current-vs-target-gap-analysis.md`.
 
-## Post-cadrage Decisions
+## Current product decisions
 
-- The application is not live. Backward compatibility is not required.
-- All existing local sample/demo data must be deleted through an approved,
-  checksum-scoped clean reset. Existing users, role assignments, Partners,
-  Projects, Activities, finance records, logs, and documents are not migrated
-  into the target model.
-- Exactly one native Dolibarr technical administrator account is preserved.
-  Every other existing sample account is deleted rather than migrated.
-- No persistent sample/demo dataset is created until all implementation phases
-  are complete and a later dataset specification is approved.
-- Disposable test-only fixtures are permitted only in isolated tenants and
-  must be removed with the tenant. They are not persistent sample data and are
-  never business-rule authority.
+- The application is under development and nothing is accepted by default.
+- No phase, passing test, verdict, or registered approval authorizes later work.
+- Production preparation and production-readiness assessment are deferred until
+  the user explicitly requests them.
+- The application is not live. Existing local sample data is not migrated.
+- Preserve exactly one native Dolibarr technical administrator in the empty
+  development tenant.
+- Create no persistent sample/demo dataset until the user approves one. Tests
+  may create minimal records only in isolated disposable tenants and must tear
+  them down.
 - The canonical hierarchy is `Partenaire -> Projet -> Activité -> Opérations`.
-- RST-003 reference records use activation/deactivation, never application
-  hard deletion. A Partenaire deactivation atomically closes its active
-  Projects; reactivation does not reopen them. A Project permanently retains
-  its original Partenaire and generated technical reference.
-- `Programme` is not a generic entity name. It may remain inside a proper name.
-- Each user has one effective MJL role.
-- Stable role codes remain `AGENT_SAISIE`, `AGENT_VERIFICATEUR`,
-  `VALIDATEUR_DEFINITIF`, and `ADMIN_PLATEFORME`.
+- `Programme` is not a generic entity name; it may remain in a proper name.
+- Each user has one effective role. Stable codes are `AGENT_SAISIE`,
+  `AGENT_VERIFICATEUR`, `VALIDATEUR_DEFINITIF`, and `ADMIN_PLATEFORME`.
 - `AGENT_VERIFICATEUR` is labeled `Agent superviseur et prévalidateur`.
-- Native Dolibarr admin status implies `ADMIN_PLATEFORME` and cannot coexist
-  with an active MJL business role.
-- Agent visibility is based on current Activity assignment, not Partner scope.
-- Supervisors and Validators can view all Activities.
-- The Validator is the business superuser. Admin is technical and audit-only,
-  except for the approved Phase 4 read-only document exception within the
-  runtime active Dolibarr entity (`$conf->entity`). That exception permits
-  scoped metadata browsing, guarded download/preview of current documents, and
-  reasoned separately audited historical recovery; it grants no document or
-  business mutation.
+- Native Dolibarr admin implies `ADMIN_PLATEFORME`, cannot coexist with an
+  active MJL business role, and grants no business workflow mutation.
+- Agent visibility follows current Activity assignment. Supervisors and
+  Validators can view all Activities.
+- Only Admin can send invitations for now; no public registration route exists.
 - Submitted business revisions are immutable and review decisions target one
-  exact revision.
-- Missing financial information is never zero.
-- XOF amounts use integer-safe storage.
-- Operational outputs require PDF and XLSX. Audited CSV remains supplemental.
-- The Phase 4 contextual document strategy is approved, with three explicitly
-  accepted residual risks, but implementation remains sequenced after Phases 2
-  through 3C. Accounting entries and official Partner reports remain gated by
-  later client decisions.
-- Phase 4 category rules are append-only immutable revisions. Submitted
-  revisions freeze the complete selected rule payload and qualifying evidence.
-  Document bytes/metadata are immutable and document status is derived from
-  append-only lifecycle events rather than mutable withdrawal fields.
-- Phase 3C is not a production-launch authorization.
+  exact revision. Self-validation remains forbidden.
+- Missing financial information is never zero. XOF amounts use integer-safe
+  storage.
+- Operational outputs require French-labeled PDF and XLSX; audited CSV is
+  supplemental.
+- Document business behavior remains behind the current containment boundary.
+  Phase 4 requires a fresh user request. Accounting and official Partner
+  reports remain deferred pending user decisions.
+- The future Phase 4 Admin document exception is read-only and non-mutating in
+  the runtime active Dolibarr entity (`$conf->entity`) only.
 
-## Implementation Boundary
+## Implementation boundary
 
-MJL-specific code stays outside Dolibarr core. Native third parties, projects,
-users, authentication, ECM, and export capabilities may be reused through safe
-MJL interfaces.
+MJL-specific code stays outside Dolibarr core. Native Dolibarr capabilities may
+be reused through guarded MJL interfaces. The roadmap records which phases are
+implemented; that status does not establish acceptance.
 
-RST-000, RST-000A, RST-001, RST-002A, RST-002B, RST-003, RST-005, RST-006A,
-RST-007A, RST-007B, RST-004, RST-008, RST-009A, RST-009B, RST-010A,
-RST-013A, RST-013B, RST-014A, and RST-014B are executed. RST-014A passed its complete
-committed-source gate matrix and independent Standards, Spec, and
-Security/Isolation reviews on 2026-08-21. RST-013A was separately approved and
-executed under DEC-044 on 2026-08-21, including its separately approved
-positive-control and serial factory-only amendment; its complete committed-source
-gate matrix and final Standards, Spec, and Security/Isolation reviews are clean.
-The formal Phase 1 verdict is `PHASE_1_READY_WITH_NOTES`: the only deferred note
-is the signed human-only accessibility gate. That verdict did not authorize
-Phase 2 or RST-005; RST-005 was subsequently and separately approved for
-implementation by DEC-045 on 2026-08-24, only within
-`docs/mjl-rst-005-activity-foundation-strategy.md`. Disposable implementation
-proved that MariaDB refuses `RENAME TABLE` while explicit table locks remain
-active. The user then separately approved the exact temporary insert-guard
-amendment and confirmed the protected launcher test seams. The root-owned
-launcher and the DEC-046 confidence-hardening amendment passed their complete
-committed-source gates and clean final reviews at commit
-`b9520f5aaf38629d13618034cce546e71637ebab`, protected-tree digest
-`a01bfd02d6e0bff4c1039f5f191233bfa5fe9cbc170c715f640737d75403f40f`.
-The user separately approved that exact pair, and the empty shared Activity
-foundation was executed and independently verified on 2026-09-01 under
-DEC-047. Recovery and rollback were not run. RST-002B implementation was
-separately approved at strategy commit `7676f1f` by DEC-048. DEC-049 supersedes
-only its operational ceremony: this empty local POC uses one fast guarded
-backup/apply/verify/restart command without commit/digest packet machinery.
-The user then explicitly authorized and completed that cutover on 2026-09-02
-under DEC-050; the tenant remains empty with one native administrator. RST-006A
-and the lean Phase 2 completion units executed locally under DEC-052 on
-2026-09-04. Planning, Planification navigation, sanitized Activity chronology,
-and disposable Phase 2 acceptance are active. The verdict is
-`PHASE_2_READY_WITH_NOTES` under DEC-053: Phase 3 development is authorized,
-while the unsigned human accessibility review remains a mandatory
-production/release blocker. This verdict does not authorize production.
-DEC-054 approves RST-006B, RST-013C, and RST-014C as the Phase 3A execution
-and exception unit, including its committed-source empty-tenant cutover.
-DEC-055 records their completed gates, clean reviews, guarded shared cutover,
-and independent post-cutover checks on 2026-09-09. The verdict is
-`PHASE_3A_READY_WITH_NOTES`; the sole note is the unsigned human accessibility
-review. Phase 3B development is authorized, but production is not. The operational `initdb.log` checksum deviation from
-the Phase 1 activation was explicitly ratified by DEC-039; it authorizes no
-RST-010A or later behavior. See `docs/mjl-phase1-reset-execution-report.md`.
-RST-000A's recorded approval-boundary
-deviation was ratified through supplemental checksum
-`5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`.
-It deleted the checksum-approved legacy sample rows/files without migration
-and preserved native administrator `llx_user.rowid=1`. RST-001 enforces one
-effective role and derives `ADMIN_PLATEFORME` from native administrator status
-without granting business workflow access. RST-002A removes Partner scope from
-runtime authorization, retains its exact empty table until RST-002B, freezes all
-legacy Activity mutations, and exposes only a safe read-only reviewer projection.
-RST-003 establishes empty guarded Partenaire, Projet, and Type d’Opération
-references with Validator-only mutation and no persistent fixtures. RST-007A
-adds the single append-only transactional audit foundation. RST-004 removes
-the obsolete finance core and the Activity-to-Convention seam. RST-008
-retargets invitation and reset credentials to business roles with public
-selectors, fragment-only verifiers, hashed storage, transactional use, and
-no legacy group or Partner-scope authorization. RST-009A exposes only the
-approved Phase 1 role-projected navigation. RST-010A is executed as
-containment hardening only and authorizes no document-management behavior.
-The future Phase 4 strategy is approved by DEC-041 but cannot be implemented
-before its roadmap dependencies and a fresh post-Phase-3C live inventory and
-reset-unit review. DEC-056 separately approves the Phase 3B bundle RST-009C, RST-011, RST-012,
-RST-013D and RST-014D for implementation and guarded local cutover under
-`docs/mjl-phase-3b-monitoring-plan.md`. Source implementation and disposable
-technical gates completed on 2026-09-11. The guarded shared cutover then
-completed under DEC-057 on 2026-09-14. The verdict is
-`PHASE_3B_READY_WITH_NOTES`, whose sole note is the unsigned human accessibility
-review; no production authorization is implied.
-DEC-057 defers only the signed human accessibility review: it does not block
-local development, the approved RST-012 local cutover, or Phase 3C planning.
-Automated accessibility checks remain active, and the unsigned human review
-remains a mandatory production/release blocker without any WCAG conformance
-claim. DEC-057 authorized no RST-013E or RST-015 implementation. DEC-058
-separately approved and executed both exact units for the confidence-reviewed
-Phase 3C source and disposable verification work. The 2026-09-15 integration
-report records blocking regression failures. DEC-058 authorizes no production
-preparation, shared mutation/restore, persistent fixture, or Phase 4–6 work.
-Every other unexecuted reset-manifest entry remains
-`PENDING_APPROVAL` unless its explicit approved-in-review status is stated
-above.
-DEC-042 narrows the future Admin document exception to the runtime active
-Dolibarr entity and fixes the append-only category-rule and document-lifecycle
-contracts. It changes no current RST-010A denial behavior.
+Use the smallest implementation that satisfies the current request and a
+concrete authorization, security, or data-integrity risk. Check scope before
+editing and when new work appears. Record useful optional work as an unapproved
+recommendation rather than implementing it.
 
-## Design Authority
+## Design authority
 
-`docs/design-system/approved/v3/` remains approved for visual tokens,
-components, density, interaction states, responsive behavior, and
-accessibility guidance. Product, role, permission, workflow, document, and
-export assertions in that package are superseded where they conflict with the
-canonical v2 documents.
-
-## Historical Documentation
-
-Historical evidence remains recoverable, but it is not active guidance.
-Conflicting documents must be marked non-authoritative in
-`docs/mjl-docs-index.md` or updated to the canonical v2 model.
+The approved v3 design package is authority for visual presentation only.
+`docs/design-system/approved/v3/` owns visual tokens, components, density,
+interaction states, responsive behavior, and accessibility guidance. Product,
+role, permission, workflow, document, and export assertions are superseded by
+the canonical documents when they conflict.

@@ -1,10 +1,11 @@
 ---
-status: accepted
+status: historical-proposal
 ---
 
 # Phase 4 owns document policy outside native ECM delivery
 
-The approved Phase 4 document module owns categories, authorization, series,
+If the user requests and accepts Phase 4 after a fresh scope review, its
+document module would own categories, authorization, series,
 versions, revision snapshots, quotas, lifecycle, and audit behind one
 contextual interface. Native ECM is only an entity-matched metadata/storage
 adapter, not an authorization or delivery interface, because its generic

@@ -6,6 +6,11 @@ come from `docs/mjl-authoritative-decisions.md`; command behavior comes from
 Partner-scope authorization, legacy finance behavior, and live document-library
 behavior are not current evidence.
 
+This is an inventory, not a required test matrix. Recorded pass counts are
+historical. Select only the smallest focused command for the current change;
+long, aggregate, performance, and production-readiness runs require an explicit
+current user request.
+
 ## Public commands
 
 | Command | Current purpose | Isolation / cleanup |
@@ -55,23 +60,6 @@ behavior are not current evidence.
 | `tests/e2e/phase3c-hardening.spec.js` | CLI HTTP denial, more-than-100-row reconciler traversal, scheduled-event idempotence/retry/timezone, representative request/export evidence, and discovery control |
 | `tests/unit/*.test.js` | Current static reset, schema, security, canonical-document, runner, and presentation contracts |
 | `tests/contracts/*_test.php` | Current PHP behavior, navigation, presentation, and status contracts |
-
-## Phase 3C acceptance map
-
-| Requirement | Existing owner or focused addition |
-| --- | --- |
-| Empty RST-012 start | `audit:production-readiness`; existing RST-012 bootstrap/verifiers |
-| Roles, direct routes/POST, CSRF, replay, assignment and entity isolation | `npm test`, `test:rst002b`, `test:rst006a`, `test:phase3a` |
-| Revisions, audit, exports, balances, nullable spending, transitions, locking, references and request rules | `test:rst006a`, `test:phase3a`, `test:phase3b` |
-| Reconciler registration, pagination, idempotence, retry and Porto-Novo date | Diagnostic plus `tests/e2e/phase3c-hardening.spec.js` |
-| Diagnostic containment, read-only behavior and sanitized database failure | `audit:production-readiness` plus Phase 3C HTTP denial |
-| Document containment and export recovery | `npm test`, `test:phase3a`, `test:phase3b` |
-| Automated accessibility, responsive/no-JavaScript behavior and bounded-volume performance | `npm test`, `test:phase2`, `test:phase3b` |
-| Database/document/configuration restore, incomplete backup and restored access | Phase 3C runner restore rehearsal |
-| Shared-state equality, secret scan and complete teardown | Existing disposable finalization applied to every listed gate |
-
-The signed human accessibility review remains a separate release gate under
-DEC-057.
 
 ## RST-013A replacement contract
 

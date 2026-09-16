@@ -27,8 +27,8 @@ Core scope excludes PTA negotiation, fund requests, receipt of funds, TDR
 approval, Partner authorization messages, e-Tresor payment processing, bank
 reconciliation, and external audit execution.
 
-Document containment remains active until the approved Phase 4 implementation
-reaches its roadmap position after Phases 2 through 3C.
+Document containment remains active unless the user explicitly requests and
+accepts a future Phase 4 implementation after a fresh scope review.
 Accounting waits for approved rules and examples. Official Partner reporting
 waits for approved templates and mappings.
 
@@ -82,7 +82,7 @@ The clean local reset preserves exactly one native technical administrator.
 No existing sample user's role assignment is migrated.
 
 The Validator is the business superuser. Admin is technical and audit-only,
-apart from the narrowly approved Phase 4 read-only document exception within
+apart from the proposed future Phase 4 read-only document exception within
 the runtime active Dolibarr entity (`$conf->entity`).
 Admin may invite users, assign one role, activate/deactivate accounts, access
 technical administration and complete audit, export audit, and perform
@@ -562,7 +562,7 @@ accepts that deactivation, assignment removal, replacement, or withdrawal does
 not invalidate an already issued preview cookie for up to one minute. It also
 accepts a permanent environment wrapping
 key without rotation and browser-side original rendering after server-side
-scanning. These residual risks must remain explicit in readiness evidence.
+scanning. These residual risks must remain explicit in any future design review.
 
 Production remains blocked until the isolated preview origin and TLS,
 scanner/signature operations, key escrow, backup and restore, monitoring, and
@@ -571,18 +571,17 @@ legal retention obligations are implemented and verified.
 Phase 4 module tests must cover category activation/versioning, prospective
 requiredness, revision snapshots, contributor separation, lifecycle locks,
 replacement and withdrawal, rate/quota concurrency, audit failure, encryption
-integrity, and filesystem/database compensation. Disposable E2E matrices must
-cover every role, assignment removal, cross-entity and cross-object IDs, stale
-forms, CSRF, concurrent upload/replacement/submission, malicious filenames,
-MIME and polyglot bypasses, EICAR, scanner outage and stale signatures, quota
-exhaustion, encrypted restore, preview exchange/replay/range behavior, and
-reasoned historical recovery.
+integrity, and filesystem/database compensation. If Phase 4 is requested,
+focused tests must cover each changed authorization, upload-security, lifecycle,
+and data-integrity boundary. An exhaustive matrix or long benchmark requires an
+explicit current user request.
 
 Completion must prove native ECM remains blocked and no public hash bypasses
 MJL delivery. It must reconcile filesystem, ECM, custom metadata, audit, quota,
-and encrypted-content hashes after success, injected failures, rollback, and
-backup/restore. The future Phase 4 execution report is separate from RST-010A,
-and Phase 4 rollback returns to RST-010A containment, never legacy behavior.
+and encrypted-content hashes after success and the directly relevant failure
+paths. Record any requested execution evidence in the shared decision register
+or gap analysis. Phase 4 rollback returns to RST-010A containment, never legacy
+behavior.
 Upload defenses follow the OWASP defense-in-depth file-upload guidance:
 [OWASP File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html).
 
@@ -594,7 +593,7 @@ mandatory before launch. No automated or Codex verdict replaces that decision.
 
 ## Phase 3B Monitoring and Export Clarifications (DEC-056)
 
-The approved Phase 3B monitoring plan defines the five fixed reports, computed
+The implemented Phase 3B behavior defines the five fixed reports, computed
 in-app alerts, seven-calendar-day warning window, current cumulative totals
 selected by Activity date overlap, and bounded generation. Latest validated
 amounts survive cancellation. Child filters never shrink Activity completeness.

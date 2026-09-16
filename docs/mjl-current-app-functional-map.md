@@ -3,16 +3,15 @@
 This file is current-state evidence only. It does not override
 'docs/mjl-authoritative-decisions.md'.
 
-## Shared Phase 3B state
+## Current local state
 
 The local tenant contains exactly one preserved native technical
 administrator and no persistent business, invitation, reset, role, scope, or
 audit rows. The shared schema is at exact RST-012. Module version 0.20.0 depends on native Third Parties and Projects.
 MJL-specific code remains under 'custom/mjlfinancement'.
-DEC-057 records the guarded shared RST-012 cutover and
-`PHASE_3B_READY_WITH_NOTES`. The unsigned human accessibility review does not
-block local development or Phase 3C planning; it remains a production/release
-blocker.
+The local schema implements RST-012. Historical cutover and verdict details
+remain in the decision register; they do not record current user acceptance or
+production readiness.
 
 | Surface | Current behavior |
 | --- | --- |
@@ -50,9 +49,9 @@ No legacy group membership participates in MJL authorization. Native Admin
 status derives ADMIN_PLATEFORME; business roles are stored only for non-admin,
 same-entity users.
 
-## Phase 3B dashboard source
+## Dashboard source
 
-Exact RST-012 readiness enables financial-first Accueil, computed Alertes,
+The exact RST-012 schema check enables financial-first Accueil, computed Alertes,
 50-row Activity/Opération browsing and current-role action queues. Admin remains technical/audit-only;
 Agents use current Activity assignments, and reviewers use the active entity.
 
@@ -68,14 +67,8 @@ freeze at start; unchanged submitted reviews may finish and unsubmitted drafts
 may still be abandoned. Pending proposals and validated authorization/spending
 remain separately labeled. Query failures produce unavailable sections.
 
-The navigation adds Alertes, Demandes d’exception and business Rapports only
-after readiness; audit report variants select Audit. The obsolete supervision
-route remains denied. The complete Phase 3B gate passed on 2026-09-11, including
-111 monitoring/report/recovery checks, the scale benchmark, and the disposable
-RST-012 cutover matrix. The final aggregate passed 214 Node/static checks, 223
-functional browser checks, and the scale case. Shared evidence remained equal
-and teardown completed. See `docs/mjl-phase-3b-final-validation-2026-09-11.md`.
-The guarded shared cutover completed on 2026-09-14 with the tenant empty and
-the prior Admin, ECM, business-document, and reconciler evidence preserved.
-See `docs/mjl-phase-3b-cutover-execution-report-2026-09-14.md`. Signed human
-accessibility remains a production/release blocker.
+The navigation adds Alertes, Demandes d’exception and business Rapports after
+the implemented RST-012 schema check; audit report variants select Audit.
+The obsolete supervision route remains denied. Historical test runs and the
+local cutover remain available in Git history and the decision register. These
+implementation facts do not record user acceptance or production readiness.

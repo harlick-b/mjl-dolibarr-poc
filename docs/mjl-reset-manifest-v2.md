@@ -14,9 +14,9 @@ human review does not block local development, the approved RST-012 local
 cutover, or Phase 3C planning; automated accessibility checks remain active.
 RST-009C, RST-011, RST-012, RST-013D, and RST-014D completed their guarded
 shared empty-tenant cutover and independent checks under DEC-057 on 2026-09-14.
-RST-013E and RST-015 are separately `APPROVED` for source implementation and
-disposable verification under DEC-058. All other later actions remain
-unapproved and unexecuted.
+RST-013E and RST-015 are implemented under DEC-058. These status statements are
+historical implementation evidence only; they do not record current user
+acceptance. All other later actions remain unapproved and unexecuted.
 Each ID below is an independently scoped approval unit. Approval of a parent
 number does not approve a suffixed unit.
 
@@ -25,9 +25,9 @@ number does not approve a suffixed unit.
 - RST-000, RST-000A, RST-001, RST-002A, RST-002B, RST-003, RST-004, RST-005,
   RST-006A, RST-006B, RST-007A, RST-007B, RST-008, RST-009A, RST-009B,
   RST-009C, RST-010A, RST-011, RST-012, RST-013A, RST-013B, RST-013C,
-  RST-013D, RST-014A, RST-014B, RST-014C, and RST-014D are `EXECUTED`;
-  RST-013E and RST-015 are `APPROVED` under DEC-058; every other action is
-  `PENDING_APPROVAL`.
+  RST-013D, RST-013E, RST-014A, RST-014B, RST-014C, RST-014D, and RST-015 are
+  `EXECUTED`; every other action is `PENDING_APPROVAL`. `EXECUTED` does not mean
+  accepted by the user.
 - RST-000A deleted legacy local sample data without migration and preserved
   exactly one native technical administrator through a checksum-approved
   deletion appendix.
@@ -41,8 +41,9 @@ number does not approve a suffixed unit.
   later approved mutation; counts in this document never identify rows.
 - Native `llx_user`, `llx_societe`, `llx_projet`, ECM tables, and
   `data/documents` must never be broadly truncated.
-- A later execution report must name each approved ID, exact commands,
-  before/after counts, backup artifact, and rollback result.
+- For a later explicitly requested destructive action, record essential
+  before/after and recovery evidence in the shared decision register or gap
+  analysis rather than creating a separate execution report.
 
 ## Manifest Actions
 
@@ -54,13 +55,13 @@ number does not approve a suffixed unit.
 - Reason: later approved destructive actions require proven recovery.
 - Phase: Phase 1 precondition
 - Dependencies: none
-- Exact paths: `docker-compose.yml`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `data/documents`, and the MariaDB volume selected by `docker-compose.yml`; documentation output goes to `docs/mjl-phase-1-reset-report.md`.
+- Exact paths: `docker-compose.yml`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `data/documents`, and the MariaDB volume selected by `docker-compose.yml`.
 - Exact tables/data: all MariaDB schemas in the local Compose tenant; Dolibarr configuration constants; document inventory under `data/documents`.
 - Action and data impact: create a logical database dump, configuration export, and document snapshot/inventory; no business-data mutation.
 - Backup prerequisite: destination capacity and checksum algorithm confirmed before capture; dump and document archive checksums recorded.
 - Rollback/verification: restore into an isolated disposable tenant and compare schema plus row counts before any dependent approval may execute.
-- Execution evidence: `docs/mjl-phase-1-reset-report.md`; all database,
-  document, and configuration restore comparisons passed.
+- Historical database, document, and configuration restore evidence remains in
+  Git history; the decision register preserves the outcome.
 
 ### RST-000A - Clean local sample-data purge
 
@@ -76,7 +77,7 @@ number does not approve a suffixed unit.
 - Backup prerequisite: satisfied by verified RST-000 artifacts and explicit approval of appendix bundle checksum `15ba42a2dba1e3e8c3f8171b93e1049ffcbee7ddea1fb12fb6f3cfe358ce593d` on 2026-08-10.
 - Approval deviation: post-reset activation recreated one legacy Admin-role row, and its removal plus supporting source/test/evidence changes exceeded the first appendix. The user ratified that exact scope on 2026-08-10 through supplemental checksum `5ecc8e68574358526817051cc4ce4d3322d144775b978e7154f633dfe913a870`.
 - Rollback/verification: restore RST-000; prove the preserved administrator can authenticate, all appendix targets are absent, no non-appendix native row changed, persistent business tables are empty, normal setup cannot repopulate them, and disposable-test infrastructure remains isolated.
-- Execution evidence: `docs/mjl-rst-000a-execution-report.md`.
+- Historical execution evidence remains in Git history.
 
 ### RST-001 - Effective roles and native-admin invariant
 
@@ -89,9 +90,10 @@ number does not approve a suffixed unit.
 - Exact paths: `custom/mjlfinancement/admin/access.php`, `custom/mjlfinancement/lib/mjl_scope.lib.php`, `custom/mjlfinancement/lib/mjl_workspace.lib.php`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_user_role.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_user_role.key.sql`, the non-seeding `custom/mjlfinancement/scripts/bootstrap_poc.php`, `custom/mjlfinancement/scripts/verification/schema/role_scope_schema.php`, `tests/e2e/auth-invitations.spec.js`, `tests/e2e/cases/auth-lifecycle.cases.js`, `tests/e2e/cases/role-dashboards.cases.js`, `tests/unit/access-audit-fail-closed.test.js`.
 - Exact tables/data: target structure and guards for `llx_mjlfinancement_user_role`, `llx_user`, `llx_usergroup`, `llx_usergroup_user`, `llx_user_rights`, `llx_usergroup_rights`, and `llx_rights_def`; no deleted sample assignment is an input.
 - Action and data impact: enforce one effective role for future accounts, derive `ADMIN_PLATEFORME` for the one preserved native administrator, and prohibit concurrent business-role rows for any native admin. No existing sample user or role assignment is migrated.
-- Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
+- Backup prerequisite: RST-000, RST-000A decision history and Git evidence, and a schema/code baseline.
 - Rollback/verification: restore prior code/schema; verify the preserved administrator retains technical access and disposable target users cannot acquire zero, multiple, or native-admin-plus-business roles.
-- Execution evidence: `docs/mjl-rst-001-execution-report.md`; singular active-role persistence, derived native Admin, business-role rejection, Admin business-route denial, clean schema audit, and clean persistent tenant checks passed.
+- Implemented behavior covers singular active-role persistence, derived native
+  Admin, business-role rejection, and Admin business-route denial.
 
 ### RST-002A - Retire Partner authorization scopes
 
@@ -108,12 +110,10 @@ number does not approve a suffixed unit.
   `custom/mjlfinancement/index.php` as the temporary Admin-only technical landing.
 - Exact tables/data: empty `llx_mjlfinancement_user_soc_scope` definition and every code/query dependency listed below; its former rows are deleted only by RST-000A.
 - Action and data impact: remove Partner scope from authorization inputs; retain the empty table only until RST-002B removes it. No row archive or user mapping is produced.
-- Backup prerequisite: RST-000, the executed RST-000A report, and a code/schema baseline.
+- Backup prerequisite: RST-000, RST-000A decision history and Git evidence, and a code/schema baseline.
 - Rollback/verification: restore prior guards only in an isolated rollback; until RST-002B is complete, affected Agent Activity routes fail closed.
-- Execution evidence: `docs/mjl-rst-002a-execution-report.md`; the shared table
-  remained globally empty, the focused disposable suite passed 6/6, the
-  archived-HEAD rollback rehearsal passed in isolation, and both disposable
-  projects left zero labeled Docker resources.
+- Implemented behavior removes Partner scope from authorization. Historical
+  disposable and rollback evidence remains in Git history.
 - Exhaustive current dependency paths additionally covered by this approval:
   `custom/mjlfinancement/activities.php`,
   `custom/mjlfinancement/alerts.php`,
@@ -167,7 +167,9 @@ number does not approve a suffixed unit.
 - Reason: the target supports primary and additional current Agents with immediate revocation.
 - Phase: Phase 2
 - Dependencies: RST-002A, RST-005, RST-007A
-- Exact paths: the approved corrected inventory in `docs/mjl-rst-002b-activity-assignment-strategy.md` is exhaustive. `custom/mjlfinancement/lib/mjl_audit.lib.php` remains unchanged and supplies the existing transaction-bound append interface. Shared Phase 2 suites remain reserved for RST-013B.
+- Exact paths are the implemented RST-002B migration, assignment service,
+  guards, and focused tests. `custom/mjlfinancement/lib/mjl_audit.lib.php`
+  supplies the transaction-bound append interface.
 - Exact tables/data: empty `llx_mjlfinancement_activity_assignment`; removed
   RST-005 `chk_mjl_activity_responsible_dormant`,
   `llx_mjlfinancement_activity.fk_user_responsible`, and the empty
@@ -206,8 +208,9 @@ number does not approve a suffixed unit.
 - Exact paths: `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/partners.php`, `custom/mjlfinancement/projects.php`, `custom/mjlfinancement/operationtypes.php`, `custom/mjlfinancement/lib/mjl_reference.lib.php`, `custom/mjlfinancement/lib/mjl_reference_route.lib.php`, `custom/mjlfinancement/class/mjloperationtype.class.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_operation_type.key.sql`, `custom/mjlfinancement/sql/update_0.12.0.sql`, `custom/mjlfinancement/sql/update_0.12.1.sql`, `custom/mjlfinancement/scripts/audit_schema_current.php`, `custom/mjlfinancement/scripts/verification/schema/reference_foundation.php`, `package.json`, `tests/runner/disposable-run.js`, `tests/runner/run-suite.js`, `tests/e2e/partners-projects.spec.js`, `tests/e2e/cases/partner-project.cases.js`, `tests/unit/rst003-reference-foundation.test.js`, `tests/unit/disposable-run.test.js`, and `tests/unit/design-system-v3-remediation.test.js`.
 - Exact tables/data: empty target-facing use of `llx_societe` and `llx_projet`; implemented empty `llx_mjlfinancement_operation_type`. Legacy native rows are deleted only by RST-000A.
 - Action and data impact: implement stable identifiers, active/inactive behavior, and Validator-only management without creating UNICEF, Coopération Suisse, Project, or Opération-type sample rows. Final values come from later real entry or the post-all-phases dataset specification.
-- Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
-- Rollback/verification: focused schema/browser acceptance and rollback behavior passed in disposable tenants whose containers, network, database volume, and document volume were removed; the shared tenant retained exactly one Admin and zero business/reference/audit rows. See `docs/mjl-rst-003-execution-report.md`.
+- Backup prerequisite: RST-000, RST-000A decision history and Git evidence, and a schema/code baseline.
+- Rollback/verification: focused schema/browser acceptance and rollback behavior
+  are implemented in disposable tests; historical run evidence remains in Git.
 
 ### RST-004 - Remove obsolete finance core
 
@@ -220,7 +223,7 @@ number does not approve a suffixed unit.
 - Exact paths: `custom/mjlfinancement/conventions.php`, `custom/mjlfinancement/budgetlines.php`, `custom/mjlfinancement/fundreceipts.php`, `custom/mjlfinancement/expenses.php`, `custom/mjlfinancement/validations.php`, `custom/mjlfinancement/class/mjlconvention.class.php`, `custom/mjlfinancement/class/mjlbudgetline.class.php`, `custom/mjlfinancement/class/mjlfundreceipt.class.php`, `custom/mjlfinancement/class/mjlexpense.class.php`, `custom/mjlfinancement/class/mjlvalidation.class.php`, `custom/mjlfinancement/lib/mjl_expense_access.lib.php`, `custom/mjlfinancement/lib/mjl_expense_recovery.lib.php`, `custom/mjlfinancement/lib/mjl_finance_feedback.lib.php`, `custom/mjlfinancement/lib/mjl_finance_governance.lib.php`, `custom/mjlfinancement/lib/mjl_finance_metrics.lib.php`, `custom/mjlfinancement/lib/mjl_finance_recovery.lib.php`, `custom/mjlfinancement/sql/llx_mjlfinancement_convention.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_convention.key.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_budget_line.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_budget_line.key.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_fund_receipt.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_fund_receipt.key.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_expense.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_expense.key.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_validation.sql`, `custom/mjlfinancement/sql/llx_mjlfinancement_validation.key.sql`, `custom/mjlfinancement/sql/update_0.2.0.sql`, `custom/mjlfinancement/sql/update_0.3.0.sql`, `custom/mjlfinancement/sql/update_0.8.0.sql`, `custom/mjlfinancement/sql/update_0.10.0.sql`, `custom/mjlfinancement/sql/update_0.11.0.sql`, `custom/mjlfinancement/scripts/verify_expense_workflow.php`, `custom/mjlfinancement/scripts/verification/schema/core_schema.php`, `custom/mjlfinancement/scripts/verification/schema/expense_workflow_schema.php`, `custom/mjlfinancement/scripts/verification/schema/relationship_integrity.php`, `custom/mjlfinancement/core/modules/modMjlFinancement.class.php`, `custom/mjlfinancement/lib/mjl_navigation_registry.lib.php`, `tests/characterization/finance.spec.js`, `tests/characterization/cases/budget-integrity.cases.js`, `tests/characterization/cases/convention-integrity.cases.js`, `tests/characterization/cases/fund-receipt-integrity.cases.js`, `tests/e2e/expenses.spec.js`, `tests/e2e/finance.spec.js`, `tests/e2e/cases/expense-disbursement.cases.js`, `tests/e2e/cases/expense-workflow.cases.js`.
 - Exact tables/data: `llx_mjlfinancement_convention`, `llx_mjlfinancement_budget_line`, `llx_mjlfinancement_fund_receipt`, `llx_mjlfinancement_expense`, `llx_mjlfinancement_validation`.
 - Action and data impact: remove routes, module entries, and empty obsolete tables; no finance value is archived, inferred, or migrated to Opérations.
-- Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
+- Backup prerequisite: RST-000, RST-000A decision history and Git evidence, and a schema/code baseline.
 - Rollback/verification: restore prior empty tables and code; verify no legacy route or seed path remains and guarded-document security seams are retained where still required.
 
 ### RST-005 - Replace the legacy Activity model
@@ -243,10 +246,9 @@ number does not approve a suffixed unit.
 - Dependencies: the formal Phase 1 verdict and retained executed RST-000A,
   RST-001, RST-002A, RST-003, RST-004, RST-007A, RST-008, RST-009A, RST-010A,
   RST-013A, and RST-014A
-- Exact paths: the closed create/modify/retain inventory in
-  `docs/mjl-rst-005-activity-foundation-strategy.md`. The formerly listed
-  recovery helper, Activity JavaScript, status-integrity script, and
-  workflow/execution case files are absent and remain absent.
+- Exact paths are the retained RST-005 migration, verification, launcher, tests,
+  and schema oracles. Obsolete recovery, JavaScript, status-integrity, and
+  workflow/execution paths remain absent.
 - Exact schema oracles: `docs/mjl-rst-005-phase1-activity-schema.sql` at
   SHA-256 `db69168768515aa2ea4d46f8e8bb61ce5901bc87ed76df2723c9834ccb0dc7e2`
   and `docs/mjl-rst-005-target-activity-schema.sql` at SHA-256
@@ -267,9 +269,8 @@ number does not approve a suffixed unit.
   dependent unit or target row exists, standalone rollback refuses and leaves
   the target schema read-only pending reverse-dependency rollback or an
   explicitly approved full restore. Never restore legacy document, Convention,
-  workflow, execution, email, navigation, or sample behavior. The exact
-  migration, verification, checksum, and rollback contract is
-  `docs/mjl-rst-005-activity-foundation-strategy.md`.
+  workflow, execution, email, navigation, or sample behavior. Current scripts,
+  tests, and the two retained schema oracles define the technical contract.
 
 ### RST-006A - Opération planning, immutable revisions, and review decisions
 
@@ -383,7 +384,7 @@ number does not approve a suffixed unit.
   `llx_mjlfinancement_access_audit`, and `llx_mjlfinancement_report`; existing
   empty append-only `llx_mjlfinancement_audit_event`.
 - Action and data impact: introduce an empty append-only target audit table and remove legacy readers/tables only after their consumers are replaced. No old actor snapshot or event is migrated.
-- Backup prerequisite: RST-000, the executed RST-000A report, and a schema/code baseline.
+- Backup prerequisite: RST-000, RST-000A decision history and Git evidence, and a schema/code baseline.
 - Rollback/verification: once any dependent unit exists, standalone rollback
   refuses, retains the append-only audit foundation read-only, and disables
   dependent mutations pending reverse-dependency rollback or an explicitly
@@ -488,7 +489,7 @@ number does not approve a suffixed unit.
 - Backup prerequisite: Phase 3B descriptor/menu export.
 - Rollback/verification: restore prior navigation metadata and files.
 
-- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
+- DEC-056 inventory amendment: the implemented Phase 3B inventory supersedes stale legacy paths. Current behavior uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance, and seed implementations remain absent.
 
 ### RST-010A - Disable unapproved document business behavior
 
@@ -518,8 +519,7 @@ number does not approve a suffixed unit.
   `custom/mjlfinancement/scripts/bootstrap_poc.php`, `package.json`, the
   disposable runner/configuration under `tests/runner` and `tests/fixtures`, a
   focused document-containment E2E/contract suite, and removal of
-  `tests/evidence/inter-font-live.js`. The complete inventory and behavior are
-  fixed by `docs/mjl-rst-010a-containment-strategy.md`.
+  `tests/evidence/inter-font-live.js`.
 - Exact tables/data: read-only native `llx_ecm_files` and
   `llx_ecm_directories`, native ECM module configuration, and the full
   `data/documents` tree. At review time `llx_ecm_files` has zero rows,
@@ -540,8 +540,8 @@ number does not approve a suffixed unit.
   implementation, document helpers, document audit events, lifecycle tests,
   navigation, or legacy ECM behavior. Disposable authenticated/anonymous GET
   and POST, traversal, cross-entity, native ECM, and before/after filesystem and
-  ECM checksum checks passed as recorded in
-  `docs/mjl-rst-010a-execution-report.md`.
+  ECM checksum checks remain in the focused tests. Historical run evidence is
+  available in Git history.
 - Later authority clarification: DEC-042 narrows future Phase 4 Admin document
   reads/recovery to the runtime active Dolibarr entity and defines append-only
   category-rule and lifecycle records. It changes no executed RST-010A path,
@@ -561,7 +561,7 @@ number does not approve a suffixed unit.
 - Backup prerequisite: phase commit and captured old/new aggregate fixtures.
 - Rollback/verification: restore prior query/UI files; source data remains unchanged.
 
-- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
+- DEC-056 inventory amendment: the implemented Phase 3B inventory supersedes stale legacy paths. Current behavior uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance, and seed implementations remain absent.
 
 ### RST-012 - Replace report catalog
 
@@ -577,7 +577,7 @@ number does not approve a suffixed unit.
 - Backup prerequisite: RST-000, executed RST-000A, and a report code/schema baseline.
 - Rollback/verification: rehearse guarded installation and rollback only while the new table is empty and no generation evidence exists; otherwise contain routes and preserve immutable evidence.
 
-- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
+- DEC-056 inventory amendment: the implemented Phase 3B inventory supersedes stale legacy paths. Current behavior uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance, and seed implementations remain absent.
 
 ### RST-013A - Phase 1 test reset
 
@@ -600,10 +600,8 @@ number does not approve a suffixed unit.
   `tests/runner/disposable-run.js`, `package.json`, `playwright.config.js`,
   `docs/mjl-acceptance-tests.md`, `docs/mjl-test-coverage-registry.md`,
   `docs/mjl-reset-manifest-v2.md`, `docs/mjl-implementation-roadmap-v2.md`,
-  `docs/mjl-docs-index.md`, `docs/mjl-authoritative-decisions.md`,
-  `docs/mjl-decision-register-v2.md`,
-  `docs/mjl-rst-013a-test-reset-strategy.md`, and
-  `docs/mjl-rst-013a-execution-report.md`.
+  `docs/mjl-docs-index.md`, `docs/mjl-authoritative-decisions.md`, and
+  `docs/mjl-decision-register-v2.md`.
 - Exact tables/data: RST-014A disposable test fixtures inside isolated tenants
   plus exactly one same-entity/matched-parent Activity projection control with
   unique current-field canaries, focused poison
@@ -624,11 +622,10 @@ number does not approve a suffixed unit.
   maintained absence gates; never recreate them for a dynamic test.
 - Backup prerequisite: baseline commit and diff of each named test.
 - Rollback/verification: restore only RST-013A source/docs; never recreate absent
-  tests or legacy behavior. Run every focused Phase 1 suite, unit, verify,
-  characterization, E2E, shared-state checks, and unconditional teardown proof.
-  Any prior ready verdict becomes `PHASE_1_BLOCKED` until equivalent replacement
-  coverage is separately approved and cleanly reviewed.
-  The exact reviewed contract is `docs/mjl-rst-013a-test-reset-strategy.md`.
+  tests or legacy behavior. Run only focused checks for the changed behavior;
+  preserve authorization and teardown coverage.
+  Any removed current authorization coverage must have a focused maintained
+  replacement. Historical strategy details remain in Git history.
 
 ### RST-013B - Phase 2 test reset
 
@@ -702,7 +699,7 @@ number does not approve a suffixed unit.
 - Backup prerequisite: Phase 3A commit and disposable report-fixture definitions.
 - Rollback/verification: restore named files and run the prior Phase 3B suite.
 
-- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
+- DEC-056 inventory amendment: the implemented Phase 3B inventory supersedes stale legacy paths. Current behavior uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance, and seed implementations remain absent.
 
 ### RST-013E - Phase 3C test and runner reset
 
@@ -724,7 +721,7 @@ number does not approve a suffixed unit.
   `tests/runner/disposable-policy.js`, `tests/runner/disposable-run.js`,
   `tests/runner/run-suite.js`, `playwright.config.js`, `package.json`,
   `docs/mjl-authoritative-decisions.md`, `docs/mjl-decision-register-v2.md`,
-  `docs/mjl-docs-index.md`, `docs/mjl-phase-3c-hardening-plan.md`,
+  `docs/mjl-docs-index.md`,
   `docs/mjl-reset-manifest-v2.md`, `docs/mjl-acceptance-tests.md`,
   `docs/mjl-test-coverage-registry.md`, `tasks/lessons.md`,
   `tests/unit/disposable-evidence.test.js`,
@@ -775,11 +772,9 @@ number does not approve a suffixed unit.
   `package.json`, `docs/mjl-acceptance-tests.md`,
   `docs/mjl-test-coverage-registry.md`, `docs/mjl-reset-manifest-v2.md`,
   `docs/mjl-implementation-roadmap-v2.md`, `docs/mjl-docs-index.md`,
-  `docs/mjl-authoritative-decisions.md`,
-  `docs/mjl-decision-register-v2.md`,
-  `docs/mjl-rst-014a-disposable-fixture-strategy.md`, and
-  `docs/mjl-rst-014a-execution-report.md`. Retained/absent invariants are
-  enumerated in the strategy.
+  `docs/mjl-authoritative-decisions.md`, and
+  `docs/mjl-decision-register-v2.md`. Retained/absent invariants remain in the
+  focused fixture and runner tests.
 - Exact tables/data: no shared or post-teardown rows. Inside the disposable
   database only, the runner may create one entity-0 `llx_const` run-sentinel
   row; each successful factory request may create one entity-0 `llx_const`
@@ -812,8 +807,8 @@ number does not approve a suffixed unit.
   form; retain credential/sanitizer/scanner/unconditional-cleanup hardening and
   never restore seeding or selective fixture/audit deletion. Verify normal startup/shared checksums, factory input
   rejection, transaction rollback, secret-free output, and teardown on success,
-  setup/test/diagnostics failure, SIGINT, and SIGTERM. The exact reviewed
-  contract is `docs/mjl-rst-014a-disposable-fixture-strategy.md`.
+  setup/test/diagnostics failure, SIGINT, and SIGTERM. Current fixture, runner,
+  policy, and focused tests define the technical contract.
 
 ### RST-014B - Phase 2 disposable test fixtures
 
@@ -875,7 +870,7 @@ number does not approve a suffixed unit.
 - Backup prerequisite: Phase 3A commit and runner snapshot.
 - Rollback/verification: restore helper code and prove no report fixture or generated output survives teardown.
 
-- DEC-056 inventory amendment: the Phase 3B monitoring plan supersedes stale legacy paths. New target work uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance and seed implementations remain absent.
+- DEC-056 inventory amendment: the implemented Phase 3B inventory supersedes stale legacy paths. Current behavior uses the monitoring/audit/report libraries and routes, `scripts/schema/rst012_report.sql`, the RST-012 schema/cutover commands, and existing disposable runner/factory seams. Removed legacy report, finance, and seed implementations remain absent.
 
 ### RST-015 - Production-readiness model rewrite
 
@@ -890,7 +885,7 @@ number does not approve a suffixed unit.
   `docs/mjl-production-readiness-plan.md`, `docs/mjl-deployment-checklist.md`,
   `docs/mjl-acceptance-tests.md`, `docs/mjl-test-coverage-registry.md`,
   `docs/mjl-authoritative-decisions.md`, `docs/mjl-decision-register-v2.md`,
-  `docs/mjl-docs-index.md`, `docs/mjl-phase-3c-hardening-plan.md`,
+  `docs/mjl-docs-index.md`,
   `docs/mjl-reset-manifest-v2.md`, `tests/fixtures/database-evidence.php`,
   `tests/runner/run-suite.js`, `tests/unit/operational-script-boundary.test.js`,
   `tests/unit/disposable-run.test.js`,

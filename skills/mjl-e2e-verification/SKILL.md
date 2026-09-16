@@ -21,12 +21,15 @@ installs.
 ## Workflow
 
 1. Match checks to the changed surface.
-2. Prefer `npm run test:e2e` for UI-covered flows.
+2. Select the smallest focused E2E spec or suite for the changed UI flow.
 3. Use documented smoke and audit scripts for schema, workflow, and export
    checks. Target behavior may use only minimal disposable test fixtures;
    legacy sample-data checks are current-state characterization, not target
    evidence.
 4. Report skipped checks with reasons.
+
+Do not run the aggregate E2E suite, a long phase suite, or a repeated gate
+without an explicit current user request.
 
 ## Output
 

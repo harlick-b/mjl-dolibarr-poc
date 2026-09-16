@@ -43,9 +43,10 @@ dataset is deferred until all implementation phases are complete.
 
 ## Verification
 
-Use `docs/mjl-acceptance-tests.md` for the active transitional verification
-matrix. `docs/mjl-deployment-checklist.md` is old-product evidence and must not
-be used as a target deployment gate until its Phase 3C rewrite.
+Use `docs/mjl-acceptance-tests.md` to choose the smallest focused check for the
+current change. `docs/mjl-deployment-checklist.md` records deferred questions
+only and must not be executed until the user explicitly requests deployment
+preparation.
 
 Available reset verification command:
 
@@ -53,6 +54,5 @@ Available reset verification command:
 npm run test:unit
 ```
 
-The container-backed legacy suites remain isolated from the shared tenant, but
-their former persistent seed has been removed. RST-014 must replace it with
-disposable factories before those suites can serve as target acceptance gates.
+Container-backed legacy suites remain isolated from the shared tenant, and
+their former persistent seed remains removed. Do not revive it.

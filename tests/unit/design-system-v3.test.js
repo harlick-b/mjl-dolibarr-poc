@@ -134,9 +134,9 @@ test('active design authority and deployment language remain aligned with phase 
   const manifest = read('docs/design-system/approved/v3/design-manifest.yaml');
   const v3Design = read('docs/design-system/approved/v3/DESIGN.md');
 
-  assert.match(authority, /approved v3 design package for visual presentation only/i);
-  assert.match(authority, /Product, role, permission, workflow, document, and[\s\S]*superseded/i);
-  assert.match(docsIndex, /Approved visual authority; old product assertions superseded/i);
+  assert.match(authority, /approved v3 design package[^.]*visual presentation only/i);
+  assert.match(authority, /Product,[\s\S]*role,[\s\S]*permission,[\s\S]*workflow,[\s\S]*document,[\s\S]*export[^.]*superseded/i);
+  assert.match(docsIndex, /approved visual authority; old product\s+assertions are superseded/i);
   assert.match(manifest, /^\s*policy: approved-cdn-with-system-fallback\s*$/m);
   assert.match(v3Design, /DS3-008/);
   assert.match(v3Design, /unavailable or unauthorized links are omitted/i);

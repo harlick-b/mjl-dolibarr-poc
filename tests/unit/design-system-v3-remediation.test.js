@@ -99,7 +99,7 @@ test('active documentation states the precise Google Fonts privacy boundary', ()
   assert.match(readme, /Referrer-Policy: same-origin/);
   assert.match(readme, /application\s+paths and query tokens/i);
   assert.match(readme, /gstatic(?: font origin)? may receive the Google stylesheet URL/i);
-  assert.match(deployment, /preserves `Referrer-Policy: same-origin`/);
+  assert.match(deployment, /preserv(?:e|es) `Referrer-Policy: same-origin`/);
 });
 
 test('v3 remediation activates the approved auth and interactive-row metrics', () => {

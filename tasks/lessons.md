@@ -7,6 +7,10 @@
   harness layers when an existing guarded command, exact state detector, and
   one focused rehearsal are sufficient. Any unplanned infrastructure triggers
   an immediate stop-and-delete review; sunk effort never justifies keeping it.
+  Use the smallest focused verification for the changed surface. Do not run
+  long suites, full matrices, benchmarks, or repeated passing checks unless the
+  user explicitly requests them. Implementation and passing tests never imply
+  user acceptance or production readiness.
 
 Update this file only after repeated mistakes, user corrections, or durable
 debugging discoveries. Do not add one-off observations or generic advice.

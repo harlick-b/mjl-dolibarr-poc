@@ -117,14 +117,14 @@ test('RST-005 runner is retained while default discovery targets its RST-002B su
   assert.match(playwright, /rst002b-activity-assignment\.spec\.js/);
 });
 
-test('sealed schema hashes referenced by the strategy match their bytes', () => {
-  const strategy = read('docs/mjl-rst-005-activity-foundation-strategy.md');
+test('sealed schema hashes referenced by the reset manifest match their bytes', () => {
+  const manifest = read('docs/mjl-reset-manifest-v2.md');
   for (const file of [
     'docs/mjl-rst-005-phase1-activity-schema.sql',
     'docs/mjl-rst-005-target-activity-schema.sql',
   ]) {
     const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex');
-    assert.match(strategy, new RegExp(hash));
+    assert.match(manifest, new RegExp(hash));
   }
   assert.equal(
     read('custom/mjlfinancement/scripts/oracles/rst005_phase1_activity.sql'),

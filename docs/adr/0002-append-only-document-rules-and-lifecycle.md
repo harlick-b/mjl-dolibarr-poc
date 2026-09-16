@@ -4,7 +4,7 @@ MJL product decisions come from `../mjl-authoritative-decisions.md`.
 
 ## Status
 
-Accepted
+Historical proposal; unaccepted and unrequested
 
 ## Context
 

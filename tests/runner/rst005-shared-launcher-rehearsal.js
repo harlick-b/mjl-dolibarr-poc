@@ -443,7 +443,7 @@ async function runScenario(scenario) {
 
     if (scenario === 'source-mutation-during' || scenario === 'source-mutation-after') {
       const mutationStage = scenario === 'source-mutation-during' ? 171 : 174;
-      const mutationPath = path.join(repositoryRoot, 'docs/mjl-rst-005-activity-foundation-strategy.md');
+      const mutationPath = path.join(repositoryRoot, 'docs/mjl-reset-manifest-v2.md');
       const original = fs.readFileSync(mutationPath);
       let mutated = false;
       writeInputs();

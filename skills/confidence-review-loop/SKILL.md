@@ -25,6 +25,11 @@ security-sensitive change, or plan the user explicitly asks to challenge.
 3. Propose concrete fixes for each issue.
 4. Repeat until the remaining assumptions are explicit and acceptable.
 
+Keep the review proportional to the concrete risk. Do not pursue absolute
+certainty, repeat already sufficient checks, or expand implementation to cover
+hypothetical risks. The user's latest explicit instruction overrides earlier
+plans and this procedure.
+
 ## Output
 
 Return confidence result, loopholes found, fixes required, updated strategy, and

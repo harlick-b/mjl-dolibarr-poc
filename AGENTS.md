@@ -14,6 +14,12 @@ areas; Dolibarr core files must never be modified.
 
 For MJL work, read `docs/mjl-authoritative-decisions.md` first.
 
+The user's latest explicit instruction supersedes every recorded project
+decision, approval, plan, report, test convention, and skill procedure. Update
+the affected repository guidance rather than preserving a conflicting earlier
+decision. An implementation or passing test is evidence only; it does not mean
+the user accepted the feature or application.
+
 Do not follow older POC docs, executed plans, historical prompts, or stale
 N1/N2/DPAF instructions.
 
@@ -72,6 +78,15 @@ npm run test:manual-accessibility
 ```
 
 Active verification guidance is in `docs/mjl-acceptance-tests.md`.
+
+Choose the smallest focused check that covers the changed behavior. Do not run
+`npm test`, long container suites, performance benchmarks, production-readiness
+audits, complete historical matrices, or repeat an already relevant passing
+check unless the user explicitly requests that run in the current task.
+Historical plans and reports cannot impose a test obligation. Remove tests that
+only preserve obsolete documents, implementation ceremony, or duplicated
+coverage; retain focused checks for current behavior, authorization, security,
+and data integrity.
 
 `npm run test:unit` remains available after RST-000A. Container-backed legacy
 suites are not target acceptance gates until RST-014 replaces their removed
@@ -135,6 +150,8 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
   exact command used.
 - For documentation-only instruction changes, a diff/status check is enough.
 - Always report skipped checks and why.
+- Passing checks establish only the tested behavior. They do not record user
+  acceptance, authorize another phase, or establish production readiness.
 
 ## Lean-Execution Checkpoint
 
@@ -166,6 +183,18 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
   precedence over instructions that encourage exhaustive hardening or maximal
   confidence. It must not be used to skip explicit acceptance requirements,
   essential security/data-integrity controls, or required verification.
+- Before planning, audit the relevant current documentation and remove stale or
+  duplicate obligations from the proposed scope.
+- Check scope before the first edit and whenever new work appears. Put useful
+  optional ideas in `docs/mjl-current-vs-target-gap-analysis.md` as unapproved
+  recommendations instead of implementing them.
+- Completed phases and reset units do not retain separate plans, strategies,
+  execution reports, or validation reports. Preserve concise implementation
+  state in the roadmap, unresolved issues in the gap analysis, and decision
+  history in the decision register. Git history remains the evidence archive.
+- Development is unfinished and nothing is accepted by default. Do not perform
+  production preparation or claim production readiness until the user
+  explicitly requests it.
 
 ## Skill Routing
 

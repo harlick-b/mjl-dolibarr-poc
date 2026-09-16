@@ -10,6 +10,10 @@ description: Use for MJL-specific production readiness checks, deployment blocke
 Use when assessing whether a feature, workflow, or deployment state is ready for
 production-style review.
 
+Use only when the user explicitly requests production-readiness or deployment
+work. Development remains unfinished; an implementation or passing test does
+not authorize this audit or production preparation.
+
 ## Read first
 
 - `AGENTS.md`

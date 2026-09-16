@@ -22,6 +22,10 @@ Use before declaring a feature, workflow, or meaningful change complete.
 3. Run or identify the correct verification commands for the changed surface.
 4. Record skipped checks and residual risks.
 
+Use focused checks only. Full matrices, long suites, benchmarks, and repeated
+checks require an explicit current user request. Validation does not mean user
+acceptance or production readiness.
+
 ## Output
 
 Return pass/fail status, checks run, evidence, gaps, risks, and recommended
