@@ -14,10 +14,18 @@ function mjl_monitoring_url($kind, array $filters=array(), array $extra=array())
 function mjl_monitoring_filter_form(array $filters, array $choices, $kind, array $extra=array())
 {
 	$isOperations=$kind==='operations';
-	print '<details class="mjl-workspace-section"><summary>Filtrer la sélection</summary><form class="mjl-activity-form" method="GET"><div class="mjl-form-grid">';
-	foreach (array('q'=>'Recherche d’Activité','date_from'=>'Période à partir du','date_to'=>'Période jusqu’au') as $key=>$label) print '<label for="monitor-'.$key.'">'.$label.'</label><input id="monitor-'.$key.'" name="'.$key.'" type="'.($key==='q'?'search':'date').'" maxlength="100" value="'.dol_escape_htmltag($filters[$key]).'">';
+	$isActivities=$kind==='activities';
+	$active=0;
+	foreach (array('q','date_from','date_to','partner_id','project_id','validation_status','execution_status','completeness','activity_id') as $key) if ($filters[$key]!=='') $active++;
+	if ($isActivities) {
+		print '<section class="mjl-activity-filter-panel" aria-label="Recherche et filtres des Activités"><form method="GET"><div class="mjl-activity-filter-toolbar"><label for="monitor-q">Rechercher une Activité</label><input id="monitor-q" name="q" type="search" maxlength="100" value="'.dol_escape_htmltag($filters['q']).'" placeholder="Rechercher une Activité…"><button class="button" type="submit">Rechercher</button></div><details class="mjl-activity-filter-details"'.($active?' open':'').'><summary>Filtres'.($active?' ('.$active.')':'').'</summary><div class="mjl-form-grid">';
+	} else {
+		print '<details class="mjl-workspace-section"><summary>Filtrer la sélection</summary><form class="mjl-activity-form" method="GET"><div class="mjl-form-grid">';
+		print '<label for="monitor-q">Recherche d’Activité</label><input id="monitor-q" name="q" type="search" maxlength="100" value="'.dol_escape_htmltag($filters['q']).'">';
+	}
+	foreach (array('date_from'=>'Période à partir du','date_to'=>'Période jusqu’au') as $key=>$label) print '<label for="monitor-'.$key.'">'.$label.'</label><input id="monitor-'.$key.'" name="'.$key.'" type="date"'.($isActivities?' data-mjl-date':'').' value="'.dol_escape_htmltag($filters[$key]).'">';
 	foreach (array_merge(array('partner_id'=>'Partenaire','project_id'=>'Projet'),$isOperations?array('type_id'=>'Type d’opération'):array()) as $key=>$label) {
-		print '<label for="monitor-'.$key.'">'.$label.'</label><select id="monitor-'.$key.'" name="'.$key.'"><option value="">Tous</option>';
+		print '<label for="monitor-'.$key.'">'.$label.'</label><select id="monitor-'.$key.'" name="'.$key.'"'.($isActivities?' data-mjl-select':'').'><option value="">Tous</option>';
 		if ($filters[$key]!=='' && !in_array($filters[$key],array_map('strval',array_column($choices[$key],'id')),true)) print '<option selected value="'.dol_escape_htmltag($filters[$key]).'">Référence hors sélection</option>';
 		foreach ($choices[$key] as $choice) print '<option value="'.(int)$choice['id'].'"'.((string)$choice['id']===$filters[$key]?' selected':'').'>'.dol_escape_htmltag($choice['label']).'</option>';
 		print '</select>';
@@ -33,7 +41,8 @@ function mjl_monitoring_filter_form(array $filters, array $choices, $kind, array
 	print '</div>';
 	foreach ($extra as $key=>$value) print '<input type="hidden" name="'.$key.'" value="'.dol_escape_htmltag($value).'">';
 	if ($filters['activity_id']!=='') print '<input type="hidden" name="activity_id" value="'.dol_escape_htmltag($filters['activity_id']).'">';
-	print '<button class="button" type="submit">Appliquer les filtres</button> <a href="'.mjl_monitoring_url($kind).'">Réinitialiser</a></form></details>';
+	if ($isActivities) print '<div class="mjl-activity-filter-actions"><button class="button" type="submit">Appliquer les filtres</button> <a href="'.mjl_monitoring_url($kind).'">Réinitialiser</a></div></details></form></section>';
+	else print '<button class="button" type="submit">Appliquer les filtres</button> <a href="'.mjl_monitoring_url($kind).'">Réinitialiser</a></form></details>';
 }
 
 function mjl_monitoring_pagination($kind, array $filters, $count, $label, array $extra=array())
@@ -117,6 +126,51 @@ function mjl_monitoring_render_items(array $items, $alerts=false)
 	print '</ol>';
 }
 
+function mjl_monitoring_activity_list(array $activities, array $filters)
+{
+	$count=count($activities);
+	$page=(int)$filters['page'];
+	$rows=array_slice($activities,($page-1)*50,50);
+	$first=$rows?(($page-1)*50+1):0;
+	$last=$rows?($first+count($rows)-1):0;
+	print '<section class="mjl-activity-list" aria-label="Résultats des Activités"><div class="mjl-activity-list-heading"><strong>'.($count===1?'1 Activité':$count.' Activités').' dans la sélection</strong><span>Résultats '.$first.'–'.$last.' sur '.$count.'</span></div>';
+	if (!$rows) {
+		print mjl_ui_system_state('filtered-empty','Aucune Activité',$count?'Aucune Activité sur cette page. Revenez à la page précédente.':'Aucune Activité ne correspond aux filtres et à vos accès.');
+		print '</section>';
+		mjl_monitoring_pagination('activities',$filters,$count,'Pagination des Activités');
+		return;
+	}
+	print '<div class="mjl-activity-list-scroll"><table class="mjl-activity-list-table mjl-data-table"><thead><tr><th scope="col">Activité / Partenaire</th><th scope="col">Validation</th><th scope="col">Exécution</th><th scope="col">Période / Projet</th><th scope="col">Montant autorisé</th><th scope="col">Montant dépensé</th><th scope="col">Fiche</th></tr></thead><tbody>';
+	foreach ($rows as $activity) {
+		$id=(int)$activity['rowid'];
+		$url=mjl_monitoring_url('activities',array('id'=>$id));
+		$validated=$activity['validated_amount']!==null;
+		$amount=$validated?$activity['validated_amount']:$activity['pending_amount'];
+		$amountKind=$validated?'Validé':($amount!==null?'Proposé':'Non renseigné');
+		$operations=$activity['operations'];
+		print '<tr class="mjl-activity-list-row" data-activity="'.$id.'"><td data-label="Activité / Partenaire"><a class="mjl-activity-list-name" href="'.dol_escape_htmltag($url).'">'.dol_escape_htmltag($activity['name']).'</a><small>'.dol_escape_htmltag($activity['ref'].' · '.$activity['partner_name']).'</small></td>';
+		print '<td data-label="Validation">'.mjl_ui_status_badge(mjl_ui_activity_status($activity['validation_status'])).'</td><td data-label="Exécution">'.mjl_ui_status_badge(mjl_ui_execution_status($activity['execution_status'])).'</td>';
+		print '<td data-label="Période / Projet">'.dol_escape_htmltag(mjl_format_date($activity['date_start'])).' au '.dol_escape_htmltag(mjl_format_date($activity['date_end'])).'<small>'.dol_escape_htmltag($activity['project_name']).'</small></td>';
+		print '<td class="mjl-activity-list-money" data-label="Montant autorisé">'.dol_escape_htmltag(mjl_format_money($amount)).'<small>'.$amountKind.'</small></td>';
+		print '<td class="mjl-activity-list-money" data-label="Montant dépensé">'.dol_escape_htmltag(mjl_format_money($activity['total_spent_amount'])).'<small>'.(int)$activity['explicit_spent_count'].' / '.(int)$activity['operation_count'].' Opérations renseignées</small>'.mjl_ui_status_badge(mjl_ui_completeness_status($activity['completeness'])).'</td>';
+		print '<td data-label="Fiche"><a class="mjl-action mjl-action-secondary" href="'.dol_escape_htmltag($url).'">Ouvrir</a></td></tr>';
+		print '<tr class="mjl-activity-list-expansion"><td colspan="7"><details><summary>Voir les Opérations ('.count($operations).') de '.dol_escape_htmltag($activity['ref']).'</summary>';
+		if (!$operations) print '<p>Aucune Opération enregistrée.</p>';
+		else {
+			print '<div class="mjl-activity-operations-scroll"><table class="mjl-activity-operations-table mjl-data-table"><thead><tr><th scope="col">Opération / Type</th><th scope="col">Autorisé</th><th scope="col">Dépensé</th><th scope="col">Écart</th><th scope="col">Variance</th><th scope="col">État</th><th scope="col">Observation</th><th scope="col">Fiche</th></tr></thead><tbody>';
+			foreach ($operations as $operation) {
+				$spent=$operation['spent_amount'] ?? null;
+				$operationUrl=mjl_monitoring_url('operations',array('activity_id'=>$id)).'#operation-'.(int)$operation['rowid'];
+				print '<tr><td><strong>'.dol_escape_htmltag($operation['name']).'</strong><small>'.dol_escape_htmltag($operation['type_label']).'</small></td><td>'.dol_escape_htmltag(mjl_format_money($operation['authorized_amount'])).'</td><td>'.dol_escape_htmltag(mjl_format_money($spent)).'</td><td>'.dol_escape_htmltag(mjl_execution_variance_amount($spent,$operation['authorized_amount'])).'</td><td>'.dol_escape_htmltag(mjl_execution_variance_percent($spent,$operation['authorized_amount'])).'</td><td>'.mjl_ui_status_badge(mjl_ui_operation_status($operation['status'])).'</td><td class="mjl-activity-observation">'.htmlspecialchars($operation['observation']===null||$operation['observation']===''?'Aucune':$operation['observation'],ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</td><td><a href="'.dol_escape_htmltag($operationUrl).'">Consulter</a></td></tr>';
+			}
+			print '</tbody></table></div>';
+		}
+		print '</details></td></tr>';
+	}
+	print '</tbody></table></div></section>';
+	mjl_monitoring_pagination('activities',$filters,$count,'Pagination des Activités');
+}
+
 function mjl_monitoring_page($kind)
 {
 	global $db,$user,$conf;
@@ -178,14 +232,8 @@ function mjl_monitoring_page($kind)
 			$alerts=mjl_monitoring_alerts($activities,$reader->role(),$user->id,$reader->date());
 			mjl_monitoring_render_items(array_slice($alerts,((int)$filters['page']-1)*50,50),true); mjl_monitoring_pagination('alerts',$filters,count($alerts),'Pagination des alertes');
 		} elseif ($kind==='activities') {
-			print '<p><a href="'.dol_escape_htmltag(mjl_monitoring_url('reports',$filters,array('page'=>1))).'">Suivi des Activités et téléchargements</a></p>';
-			if (!$activities) print mjl_ui_system_state('filtered-empty','Aucune Activité','Aucune Activité ne correspond aux filtres et à vos accès.');
-			foreach (array_slice($activities,((int)$filters['page']-1)*50,50) as $activity) {
-				print '<article class="mjl-activity-panel" data-activity="'.(int)$activity['rowid'].'"><h2><a href="'.mjl_monitoring_url('activities',array('id'=>$activity['rowid'])).'">'.dol_escape_htmltag($activity['ref'].' · '.$activity['name']).'</a></h2><p>'.dol_escape_htmltag($activity['partner_name'].' · '.$activity['project_name']).'</p><p>'.mjl_ui_status_badge(mjl_ui_activity_status($activity['validation_status'])).' '.dol_escape_htmltag(mjl_report_status_labels()[$activity['execution_status']]).'</p><dl class="mjl-activity-meta">';
-				foreach (array('initial_amount','pending_amount','validated_amount','total_spent_amount') as $key) print '<div><dt>'.dol_escape_htmltag(mjl_monitoring_labels()[$key]).'</dt><dd>'.dol_escape_htmltag(mjl_format_money($activity[$key])).'</dd></div>';
-				print '<div><dt>Complétude des dépenses</dt><dd>'.dol_escape_htmltag($activity['completeness']==='NOT_STARTED'?'Non renseignée':mjl_report_status_labels()[$activity['completeness']]).'</dd></div></dl></article>';
-			}
-			mjl_monitoring_pagination('activities',$filters,count($activities),'Pagination des Activités');
+			print '<p><a class="mjl-action mjl-action-secondary" href="'.dol_escape_htmltag(mjl_monitoring_url('reports',$filters,array('page'=>1))).'">Suivi des Activités et téléchargements</a></p>';
+			mjl_monitoring_activity_list($activities,$filters);
 		} elseif ($kind==='operations') {
 			$rows=$reader->operations($activities,$filters); usort($rows,function($a,$b){return (int)$b['rowid']<=>(int)$a['rowid'];});
 			print '<p>Les filtres de type et d’état d’Opération ne changent pas les totaux ni la complétude de l’Activité parente.</p><p><a href="'.dol_escape_htmltag(mjl_monitoring_url('reports',$filters,array('report'=>'operations','page'=>1))).'">Suivi des Opérations et téléchargements</a></p>';
@@ -197,7 +245,9 @@ function mjl_monitoring_page($kind)
 			mjl_monitoring_requests_view($requests,$filters,$requestFilters);
 		}
 	}
-	print '</div>'; mjl_navigation_shell_end(); llxFooter();
+	print '</div>';
+	if ($kind==='activities') print '<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_form_controls.js?v=1"></script>';
+	mjl_navigation_shell_end(); llxFooter();
 }
 
 function mjl_monitoring_requests_view($requests, array $filters, array $requestFilters)

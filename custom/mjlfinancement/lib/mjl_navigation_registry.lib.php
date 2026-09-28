@@ -34,6 +34,7 @@ function mjl_navigation_registry()
 		)),
 		array('id' => 'controle', 'label' => 'Contrôle', 'order' => 30, 'items' => array(
 			mjl_navigation_leaf('controle', 'audit', 'Audit', '/custom/mjlfinancement/workflowactions.php', 10, 'audit_read'),
+			mjl_navigation_leaf('controle', 'audit_report', 'Journal d’audit', '/custom/mjlfinancement/reports.php?report=audit', 15, 'audit_read'),
 			mjl_navigation_leaf('controle', 'reports', 'Rapports', '/custom/mjlfinancement/reports.php', 20, 'monitoring_read'),
 		)),
 		array('id' => 'administration', 'label' => 'Administration', 'order' => 40, 'items' => array(
@@ -68,7 +69,7 @@ function mjl_navigation_active_state($requestUri, $dolUrlRoot = '')
 	$path = mjl_navigation_normalize_request_path($requestUri, $dolUrlRoot);
 	if ($path === '/custom/mjlfinancement/reports.php') {
 		parse_str((string)parse_url((string)$requestUri, PHP_URL_QUERY), $query);
-		if (($query['report'] ?? '') === 'audit') return array('id'=>'audit', 'current'=>'location');
+		if (($query['report'] ?? '') === 'audit') return array('id'=>'audit_report', 'current'=>'page');
 	}
 	foreach (mjl_navigation_registry() as $category) foreach ($category['items'] as $item) {
 		if (in_array($path, $item['active_paths'], true)) return array('id' => $item['id'], 'current' => $path === $item['path'] ? 'page' : 'location');
@@ -80,4 +81,28 @@ function mjl_navigation_active_item_id($requestUri, $dolUrlRoot = '')
 {
 	$state = mjl_navigation_active_state($requestUri, $dolUrlRoot);
 	return $state['id'];
+}
+
+function mjl_navigation_shell_projection(array $sections)
+{
+	$visible = array();
+	foreach ($sections as $section) foreach ($section['items'] as $item) $visible[$item['id']] = $item;
+	$groups = array();
+	$primary = array(
+		'home' => array('label' => 'Tableau de bord', 'secondary' => array('alerts', 'reports')),
+		'activities' => array('label' => 'Activités', 'secondary' => array('operations', 'requests')),
+		'partners' => array('label' => 'Partenaires', 'secondary' => array()),
+		'projects' => array('label' => 'Projets', 'secondary' => array('operation_types')),
+		'access' => array('label' => 'Utilisateurs', 'secondary' => array('technical')),
+		'audit' => array('label' => 'Historique', 'secondary' => array('audit_report')),
+	);
+	foreach ($primary as $id => $presentation) {
+		if (!isset($visible[$id])) continue;
+		$item = $visible[$id];
+		$item['label'] = $presentation['label'];
+		$item['secondary'] = array();
+		foreach ($presentation['secondary'] as $secondaryId) if (isset($visible[$secondaryId])) $item['secondary'][] = $visible[$secondaryId];
+		$groups[] = $item;
+	}
+	return $groups;
 }

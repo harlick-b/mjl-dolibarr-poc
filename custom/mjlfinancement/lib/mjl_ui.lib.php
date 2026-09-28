@@ -28,6 +28,40 @@ function mjl_ui_activity_status($status)
 	return isset($states[(string) $status]) ? $states[(string) $status] : array('label' => 'Statut non reconnu', 'tone' => 'warning');
 }
 
+function mjl_ui_execution_status($status)
+{
+	$states = array(
+		'NOT_STARTED' => array('label'=>'Exécution non démarrée','tone'=>'neutral'),
+		'UPCOMING' => array('label'=>'À venir','tone'=>'info'),
+		'IN_PROGRESS' => array('label'=>'En cours','tone'=>'success'),
+		'OVERDUE' => array('label'=>'En retard','tone'=>'danger'),
+		'COMPLETED' => array('label'=>'Terminée','tone'=>'success'),
+		'CANCELLED' => array('label'=>'Annulée','tone'=>'neutral'),
+	);
+	return $states[(string)$status] ?? array('label'=>'État indisponible','tone'=>'warning');
+}
+
+function mjl_ui_completeness_status($status)
+{
+	$states = array(
+		'NOT_STARTED' => array('label'=>'Dépenses non renseignées','tone'=>'neutral'),
+		'PARTIAL' => array('label'=>'Dépenses partielles','tone'=>'warning'),
+		'COMPLETE' => array('label'=>'Dépenses complètes','tone'=>'success'),
+	);
+	return $states[(string)$status] ?? array('label'=>'Complétude indisponible','tone'=>'warning');
+}
+
+function mjl_ui_operation_status($status)
+{
+	$states = array(
+		'TODO' => array('label'=>'À faire','tone'=>'neutral'),
+		'IN_PROGRESS' => array('label'=>'En cours','tone'=>'info'),
+		'COMPLETED' => array('label'=>'Terminée','tone'=>'success'),
+		'CANCELLED' => array('label'=>'Annulée','tone'=>'neutral'),
+	);
+	return $states[(string)$status] ?? array('label'=>'État indisponible','tone'=>'warning');
+}
+
 function mjl_ui_escape($value)
 {
 	return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

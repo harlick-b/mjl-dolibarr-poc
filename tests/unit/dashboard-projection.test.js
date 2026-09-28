@@ -24,7 +24,7 @@ test('monitoring navigation projects business additions and keeps complete audit
  const file=path.resolve(__dirname,'../../custom/mjlfinancement/lib/mjl_navigation_registry.lib.php');
  const r=JSON.parse(execFileSync('php',['-r',`require '${file}'; echo json_encode([mjl_navigation_project_registry(['workspace_enter'=>true,'monitoring_read'=>true]),mjl_navigation_active_state('/erp/custom/mjlfinancement/reports.php?report=audit','/erp'),mjl_navigation_active_state('/custom/mjlfinancement/reports.php?report=portfolio')]);`],{encoding:'utf8'}));
  assert.deepEqual(r[0].flatMap(x=>x.items.map(y=>y.id)),['home','alerts','requests','reports']);
- assert.equal(r[1].id,'audit'); assert.equal(r[2].id,'reports');
+ assert.equal(r[1].id,'audit_report'); assert.equal(r[2].id,'reports');
 });
 test('an assigned Agent may abandon a draft after structural editing freezes',()=>{
  const r=project("mjl_monitoring_activity_actions(['validation_status'=>'DRAFT','fk_current_revision'=>null,'date_start'=>'2032-01-01','assignments'=>[['fk_user'=>7]]],'AGENT_SAISIE',7,'2032-01-02')");

@@ -370,7 +370,6 @@
 				controller.acceptLeave();
 				form.setAttribute('aria-busy', 'true');
 				Array.prototype.forEach.call(form.querySelectorAll('button[type="submit"], input[type="submit"]'), function (button) {
-					button.disabled = true;
 					button.setAttribute('aria-busy', 'true');
 				});
 			});

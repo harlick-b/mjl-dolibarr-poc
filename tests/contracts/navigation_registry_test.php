@@ -5,24 +5,25 @@ require __DIR__.'/../../custom/mjlfinancement/lib/mjl_navigation_registry.lib.ph
 function nav_assert($condition, $message) { if (!$condition) { fwrite(STDERR, 'FAIL: '.$message.PHP_EOL); exit(1); } }
 
 $registry = mjl_navigation_registry();
-nav_assert(array_column($registry, 'id') === array('espace', 'references', 'planification', 'controle', 'administration'), 'Phase 2 category order');
+nav_assert(array_column($registry, 'id') === array('espace', 'references', 'planification', 'controle', 'administration'), 'Registry category order');
 $ids = array();
 $paths = array();
 $policies = array('workspace_enter', 'references_read', 'planning_read', 'monitoring_read', 'audit_read', 'admin');
 foreach ($registry as $category) {
 	nav_assert(!empty($category['items']), 'No empty category');
 	foreach ($category['items'] as $item) {
-		nav_assert(in_array($item['access_policy'], $policies, true), 'Closed Phase 1 policy set');
+		nav_assert(in_array($item['access_policy'], $policies, true), 'Closed navigation policy set');
 		nav_assert($item['active_paths'] === array($item['path']), 'Exact canonical active path');
 		$ids[] = $item['id'];
 		$paths[] = $item['path'];
 	}
 }
-nav_assert($ids === array('home', 'alerts', 'partners', 'projects', 'operation_types', 'activities', 'operations', 'requests', 'audit', 'reports', 'access', 'technical'), 'Exact destinations including readiness-gated Phase 3B');
+nav_assert($ids === array('home', 'alerts', 'partners', 'projects', 'operation_types', 'activities', 'operations', 'requests', 'audit', 'audit_report', 'reports', 'access', 'technical'), 'Exact authorized destinations');
 nav_assert(count($paths) === count(array_unique($paths)), 'Unique routes');
 nav_assert(mjl_navigation_active_item_id('/custom/mjlfinancement/workflowactions.php?x=1') === 'audit', 'Audit active state');
+nav_assert(mjl_navigation_active_item_id('/custom/mjlfinancement/reports.php?report=audit') === 'audit_report', 'Audit report active state');
 nav_assert(mjl_navigation_active_item_id('/custom/mjlfinancement/expenses.php') === '', 'Obsolete route has no active state');
 $projected = mjl_navigation_project_registry(array('workspace_enter' => true, 'references_read' => true, 'planning_read' => true));
 nav_assert(array_column($projected, 'id') === array('espace', 'references', 'planification'), 'Projection removes inaccessible categories');
-nav_assert(array_merge(...array_map(static function ($category) { return array_column($category['items'], 'id'); }, $projected)) === array('home', 'partners', 'projects', 'operation_types', 'activities', 'operations'), 'Predecessor projection excludes readiness-gated destinations');
-print 'MJL Phase 2 navigation registry: OK'.PHP_EOL;
+nav_assert(array_merge(...array_map(static function ($category) { return array_column($category['items'], 'id'); }, $projected)) === array('home', 'partners', 'projects', 'operation_types', 'activities', 'operations'), 'Projection excludes unauthorized destinations');
+print 'MJL navigation registry: OK'.PHP_EOL;

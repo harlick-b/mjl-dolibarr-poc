@@ -20,6 +20,8 @@ module.exports = defineConfig({
     'portfolio-report.spec.js',
     'audit-report.spec.js', 'timeline.spec.js',
     'reconciliation-restore.spec.js',
+    'vui-activities-list.spec.js',
+    'vui-activity-planning.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',

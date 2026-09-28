@@ -48,27 +48,64 @@ function mjl_navigation_current_state()
 	return mjl_navigation_active_state($uri, defined('DOL_URL_ROOT') ? DOL_URL_ROOT : '');
 }
 
+function mjl_navigation_icon($id)
+{
+	$paths = array(
+		'home' => 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+		'activities' => 'M5 4h14v17H5z M9 2h6v4H9z M8 10h8 M8 14h8 M8 18h4',
+		'partners' => 'M3 21V8l8-4v17 M11 11l10-4v14 M1 21h22 M6 9v2 M6 14v2 M15 12v2 M18 11v2 M15 17v2 M18 16v3',
+		'projects' => 'M3 7V4h6l3 3h9v13H3z',
+		'access' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M17 4a4 4 0 0 1 0 7 M22 21v-2a4 4 0 0 0-3-4',
+		'audit' => 'M3 12a9 9 0 1 0 3-7 M3 3v5h5 M12 7v5l3 2',
+	);
+	if (!isset($paths[$id])) return '';
+	return '<svg class="mjl-nav-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="'.$paths[$id].'"></path></svg>';
+}
+
 function mjl_navigation_shell_start(User $targetUser)
 {
 	$active = mjl_navigation_current_state();
+	$groups = mjl_navigation_shell_projection(mjl_navigation_sections($targetUser));
+	$activeGroup = null;
+	$activeSecondary = null;
+	foreach ($groups as $group) {
+		if ($group['id'] === $active['id']) $activeGroup = $group;
+		foreach ($group['secondary'] as $secondary) if ($secondary['id'] === $active['id']) { $activeGroup = $group; $activeSecondary = $secondary; }
+	}
+	if ($activeGroup === null && $groups) $activeGroup = $groups[0];
+	$name = trim(trim((string) $targetUser->firstname).' '.trim((string) $targetUser->lastname));
+	if ($name === '') $name = (string) $targetUser->login;
+	$role = mjl_scope_role_label(mjl_scope_effective_role_code($targetUser));
 	print '<div class="mjl-module-shell"><a class="mjl-skip-link" href="#mjl-main-content">Aller au contenu principal</a>';
-	print '<button class="mjl-navigation-trigger" type="button" aria-controls="mjl-primary-navigation" aria-expanded="false">Ouvrir le menu principal</button>';
 	print '<button class="mjl-navigation-backdrop" type="button" data-mjl-navigation-backdrop aria-label="Fermer le menu principal"></button>';
 	print '<aside class="mjl-module-sidebar" id="mjl-primary-navigation" aria-label="Menu module MJL"><button class="mjl-navigation-close" type="button" data-mjl-navigation-close>Fermer le menu</button>';
-	print '<div class="mjl-sidebar-title"><span>MJL</span><strong>Suivi des projets</strong></div><nav class="mjl-sidebar-nav">';
-	foreach (mjl_navigation_sections($targetUser) as $category) {
-		print '<section class="mjl-sidebar-section" aria-labelledby="mjl-nav-'.$category['id'].'"><h2 class="mjl-sidebar-category" id="mjl-nav-'.$category['id'].'">'.dol_escape_htmltag($category['label']).'</h2><div class="mjl-sidebar-items">';
-		foreach ($category['items'] as $item) {
-			$current = $active['id'] === $item['id'] ? ' aria-current="'.$active['current'].'"' : '';
-			$class = 'mjl-sidebar-link'.($current !== '' ? ' mjl-sidebar-link-active' : '');
-			print '<a class="'.$class.'" href="'.DOL_URL_ROOT.$item['path'].'"'.$current.'><span>'.dol_escape_htmltag($item['label']).'</span></a>';
+	print '<div class="mjl-sidebar-title"><span class="mjl-brandmark" aria-hidden="true">M</span><strong>MJL</strong></div><nav class="mjl-sidebar-nav" aria-label="Navigation principale">';
+	foreach ($groups as $group) {
+		$inGroup = $activeGroup !== null && $activeGroup['id'] === $group['id'];
+		$current = $active['id'] === $group['id'] && $activeSecondary === null ? ' aria-current="page"' : '';
+		$class = 'mjl-sidebar-link'.($inGroup ? ' mjl-sidebar-link-active' : '');
+		print '<div class="mjl-sidebar-group"><a class="'.$class.'" href="'.DOL_URL_ROOT.$group['path'].'"'.$current.'>'.mjl_navigation_icon($group['id']).'<span>'.dol_escape_htmltag($group['label']).'</span></a>';
+		if ($inGroup && $group['secondary']) {
+			print '<div class="mjl-sidebar-children">';
+			foreach ($group['secondary'] as $secondary) {
+				$selected = $active['id'] === $secondary['id'];
+				print '<a class="mjl-sidebar-child-link'.($selected ? ' mjl-sidebar-child-link-active' : '').'" href="'.DOL_URL_ROOT.$secondary['path'].'"'.($selected ? ' aria-current="page"' : '').'>'.dol_escape_htmltag($secondary['label']).'</a>';
+			}
+			print '</div>';
 		}
-		print '</div></section>';
+		print '</div>';
 	}
-	print '</nav></aside><main class="mjl-module-main" id="mjl-main-content" tabindex="-1">'.mjl_feedback_render_and_clear();
+	print '</nav><div class="mjl-sidebar-profile"><span class="mjl-profile-mark" aria-hidden="true">M</span><div><strong>'.dol_escape_htmltag($name).'</strong><small>'.dol_escape_htmltag($role).'</small></div></div></aside>';
+	print '<div class="mjl-module-content"><header class="mjl-module-topbar"><button class="mjl-navigation-trigger" type="button" aria-controls="mjl-primary-navigation" aria-expanded="false">Ouvrir le menu principal</button><nav class="mjl-shell-breadcrumb" aria-label="Fil d’Ariane"><span>Ministère de la Justice</span>';
+	if ($activeGroup !== null) {
+		print '<span aria-hidden="true">/</span>';
+		if ($activeSecondary !== null) print '<a href="'.DOL_URL_ROOT.$activeGroup['path'].'">'.dol_escape_htmltag($activeGroup['label']).'</a><span aria-hidden="true">/</span><strong aria-current="page">'.dol_escape_htmltag($activeSecondary['label']).'</strong>';
+		else print '<strong aria-current="page">'.dol_escape_htmltag($activeGroup['label']).'</strong>';
+	}
+	print '</nav></header><main class="mjl-module-main" id="mjl-main-content" tabindex="-1">'.mjl_feedback_render_and_clear();
 }
 
 function mjl_navigation_shell_end()
 {
-	print mjl_feedback_render_and_clear().'<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_components.js"></script></main></div>';
+	print mjl_feedback_render_and_clear().'<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_components.js"></script></main></div></div>';
 }

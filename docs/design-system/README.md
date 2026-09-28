@@ -19,6 +19,50 @@ components, focus states, density, responsive behavior, and accessibility
 guidance remain authoritative. Its old role, Partner-scope, finance,
 document-policy, CSV/XLSX-only, and PDF-prohibition statements are superseded.
 
+## Post-cadrage UI implementation map
+
+`docs/inspiration/` supplies the target screen composition and interaction
+examples. The approved v3 tokens govern palette, typography, spacing,
+dimensions, and accessibility where the examples differ. The prototype HTML is
+a visual reference, not application code or a source of permissions, records,
+or workflow state. Demo controls and sample records do not enter the runtime.
+
+The current application uses PHP-rendered pages and JavaScript. Extend the
+existing MJL page headers, forms, tables, status presentation, feedback, and
+empty/error states. Use the installed jQuery UI calendar and Select2 only where
+an existing MJL control does not supply the needed interaction, styled with v3
+tokens and initialized within the MJL shell. Shared presentation helpers take
+already-authorized data; routes retain data access, tokens, versions, and
+actions. Mutualize repeated dialog, filter, date, financial, status, Operation,
+and chronology presentation when their first consumers are implemented. Keep
+validation, execution, and financial-completeness statuses distinct. Shared
+browser financial previews must use exact integer arithmetic; server rules
+remain authoritative. Preserve Inter's existing loading path.
+
+| Target surface | Existing guarded route or entry point |
+| --- | --- |
+| Role dashboard, alerts, reports | `index.php`, `alerts.php`, `reports.php` |
+| Activities list, full-page planning, detail, review | `activities.php` |
+| Operation execution and exception decisions | `operations.php`, `operationrequests.php` |
+| Partners, Projects, Operation Types | `partners.php`, `projects.php`, `operationtypes.php` |
+| Users and invitations | `admin/access.php`, `invitation.php` |
+| History and audited downloads | `workflowactions.php`, `reportexport.php` |
+
+All paths in the table are under `custom/mjlfinancement/`. The six primary
+navigation entries are Tableau de bord, Activités, Partenaires, Projets,
+Utilisateurs, and Historique, filtered by existing access rules. Provide
+authorized contextual links to Alerts, Reports, Operations, Exception Requests,
+Operation Types, and technical administration before removing their current
+sidebar entries. The Operation drawer is read-only in this pass; existing
+guarded execution remains accessible. Existing form submissions and redirects
+remain the action path. Use supported filter parameters only and preserve
+ordinary navigation and forms without JavaScript.
+
+Before each wave, map proposed UI mechanisms to its approved screen behavior
+or a concrete integrity risk. Use focused disposable-tenant E2E coverage for
+touched screens, syntax checks for changed source, and representative visual
+comparison. Report what was implemented and stop before the next wave.
+
 ## Approved generation governance
 
 The normative v3 artifacts are stable by default. They may be amended in place

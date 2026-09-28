@@ -30,6 +30,36 @@ unresolved weaknesses and unapproved recommendations.
 These statements describe repository state only. They do not record user
 acceptance or readiness for production.
 
+## Post-cadrage UI pass
+
+VUI-00 records the agreed implementation map. VUI-01 shared foundations are
+implemented with Activity create/edit as the first consumer. VUI-02 shared
+shell/navigation is implemented with six permission-filtered primary entries,
+contextual secondary links, a real-user profile, and responsive drawer.
+VUI-03 Activities list is implemented with the existing scoped monitoring
+projection, supported filters, separated states, exact counts, pagination,
+and read-only Operation expansion. VUI-04 Activity planning is implemented
+with a redesigned create/edit form, shared controls, exact budget feedback,
+browser-side validation, and dependent Partner-to-Project selection using
+active-entity Project data. No UI wave has been accepted. The user authorized a
+phased design pass using `docs/inspiration/` for composition and interaction,
+while the approved v3 design tokens remain the visual authority. Reuse the
+current PHP/JavaScript stack, shared MJL presentation helpers, and installed
+compatible widgets. Keep business rules, authorization, queries, endpoints,
+schema, authentication, and exports under their existing owners. Stop and ask
+before a UI wave requires a backend change.
+
+UI wave order: VUI-01 shared foundations; VUI-02 shell/navigation; VUI-03
+Activities list; VUI-04 Activity planning; VUI-05 Activity workspace and
+assignments; VUI-06 review/revisions; VUI-07 read-only Operation consultation;
+VUI-08 exception dialogs; VUI-09 role dashboards; VUI-10 Partner/Project
+management; VUI-11 Users/invitations; VUI-12 history/exports; VUI-13
+cross-screen consistency. Each wave is scoped, verified, reported, and stopped
+before the next wave. Create a shared presentation mechanism with its first
+actual consumer, reuse it on later screens, and remove replaced UI code and CSS.
+The route map, component plan, and visual precedence are in the active
+design-system README; deferred backend dependencies are in the gap analysis.
+
 ## Unfinished product work
 
 ### Phase 4: Documents

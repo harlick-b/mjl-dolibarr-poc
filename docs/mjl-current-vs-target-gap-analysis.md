@@ -14,3 +14,17 @@ This is implementation-debt evidence beneath the canonical v2 documents.
 | Historical reverse-prefix gates | Retained reset suites still expect predecessor schemas. | `rst013a`, `rst014a`, `rst002b`, and `rst006a` reject later dependent tables or columns. They are not current acceptance gates; adapt or retire them only when requested work needs those checks. |
 | Test-suite cost and duplication | Focused commands and isolated disposable tenants exist. | **Unapproved recommendation:** simplify overlapping historical phase and reset suites where a smaller maintained test proves the same behavior; retain authorization, entity isolation, security, and data-integrity coverage. |
 | Production preparation | Development configuration exists. | Production work and readiness assessment are deferred until the user explicitly requests them. Client configuration remains unknown and no feature or application has been accepted. |
+
+## Post-cadrage UI dependencies outside the approved design pass
+
+These are deferred backend or data-contract gaps, not instructions to expand a
+visual wave. Stop and ask before changing their queries, endpoints, schema,
+permissions, authentication, or business rules.
+
+| Reference behavior | Current evidence | Deferred dependency |
+| --- | --- | --- |
+| Editable Operation drawer | Execution is available through guarded Operation routes, but forms issue one-use submission tokens and the session keeps at most 20 pending tokens. A 21-form probe invalidated the first form. | Keep the new drawer read-only. A single-Operation form-loading contract and the existing multi-form token problem need a separate backend decision. |
+| Email OTP during login | The MJL login template and auth library expose password login and invitation/reset flows; no matching email-OTP stage was found in the reviewed code. | Do not claim or simulate two-step login. Authentication work requires a separate request. |
+| Reference and account fields/actions | Current Partner forms expose a name, Project edit preserves its original Partner, and Admin access supports invitation, role update, deactivation, and revocation. | Defer Partner description, unsupported account profile/reactivation actions, and bulk assignment replacement. |
+| Extra list and dashboard data | Current monitoring filters support search, Partner, Project, validation, execution, completeness, and period overlap. The reference also depicts Agent/deadline filters and Admin metrics not supplied by the current read contracts. | Use supported filters and real projections only; seek a separate decision for missing read contracts. |
+| Complete failed-form recovery | Activity recovery stores a subset of selections and rebuilds draft Operations by index. | Preserve current behavior and do not claim full restoration without a separate backend change. |

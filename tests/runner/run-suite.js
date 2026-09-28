@@ -558,6 +558,10 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/activity-planning.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase2') {
     args.push('tests/e2e/activity-planning.spec.js', 'tests/e2e/planning-navigation.spec.js', '--config=playwright.config.js');
+  } else if (target === 'vui03') {
+    args.push('tests/e2e/vui-activities-list.spec.js', '--config=playwright.config.js');
+  } else if (target === 'vui04') {
+    args.push('tests/e2e/vui-activity-planning.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase3b') {
     args.push('tests/e2e/activities-report.spec.js','tests/e2e/export-recovery.spec.js','tests/e2e/operations-report.spec.js','tests/e2e/activity-detail.spec.js','tests/e2e/portfolio-report.spec.js','tests/e2e/audit-report.spec.js','tests/e2e/timeline.spec.js','tests/e2e/monitoring.spec.js','--config=playwright.config.js');
   } else if (target === 'phase3a') {
@@ -747,7 +751,7 @@ async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMod
   const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1'
     && !runMode.startsWith('rst013a')
     && !runMode.startsWith('rst014a')
-    && !['phase3b', 'phase3c', 'all', 'verify', 'e2e', 'manual-accessibility'].includes(runMode);
+    && !['phase3b', 'phase3c', 'vui03', 'vui04', 'all', 'verify', 'e2e', 'manual-accessibility'].includes(runMode);
   try {
     if (shouldRetain) retain(plan);
   } finally {
@@ -783,7 +787,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || mode === 'vui03' || mode === 'vui04' || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       if (mode === 'phase3c') {
@@ -905,6 +909,10 @@ async function main() {
         await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst012_export_schema.php','--mode=verify-empty'], { signal: controller.signal });
         await runPlaywright(plan, layer, controller.signal);
       }
+	  else if (layer === 'vui03' || layer === 'vui04') {
+		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], {signal: controller.signal});
+		await runPlaywright(plan,layer,controller.signal);
+	  }
 	  else if (layer === 'phase3b') {
 		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], {signal: controller.signal});
 		await runPlaywright(plan,layer,controller.signal);
@@ -1045,7 +1053,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || mode === 'vui03' || mode === 'vui04' || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

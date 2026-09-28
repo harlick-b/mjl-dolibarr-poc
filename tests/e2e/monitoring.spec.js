@@ -30,10 +30,10 @@ test('business navigation agrees with direct guards and Admin remains technical'
   await login(page,role); const response=await page.goto('/custom/mjlfinancement/index.php');
   if(role==='norole'){expect(response.status()).toBe(403);continue;}
   const nav=page.locator('#mjl-primary-navigation');
-  for(const name of ['Alertes','Rapports','Demandes d’exception']) await expect(nav.getByRole('link',{name,exact:true})).toHaveCount(role==='admin'?0:1);
-  await expect(nav.getByRole('link',{name:'Audit',exact:true})).toHaveCount(['admin','validator'].includes(role)?1:0);
+  for(const name of ['Alertes','Rapports']) await expect(nav.getByRole('link',{name,exact:true})).toHaveCount(role==='admin'?0:1);
+  await expect(nav.getByRole('link',{name:'Historique',exact:true})).toHaveCount(['admin','validator'].includes(role)?1:0);
   if(role==='admin') {await expect(page.getByRole('heading',{name:'Situation financière'})).toHaveCount(0);expect((await page.goto('/custom/mjlfinancement/alerts.php')).status()).toBe(403);}
-  else {await page.goto('/custom/mjlfinancement/reports.php?report=portfolio');await expect(nav.getByRole('link',{name:'Rapports',exact:true})).toHaveAttribute('aria-current','page');}
+  else {await page.goto('/custom/mjlfinancement/activities.php');await expect(nav.getByRole('link',{name:'Demandes d’exception',exact:true})).toHaveCount(1);await page.goto('/custom/mjlfinancement/reports.php?report=portfolio');await expect(nav.getByRole('link',{name:'Rapports',exact:true})).toHaveAttribute('aria-current','page');}
  }
  await login(page,'validator');await page.goto('/custom/mjlfinancement/reports.php?report=audit');await expect(page.locator('#mjl-primary-navigation').getByRole('link',{name:'Audit',exact:true})).toHaveAttribute('aria-current','location');
  expect((await page.goto('/custom/mjlfinancement/dpafdashboard.php')).status()).toBe(403);

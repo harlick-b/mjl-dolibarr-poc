@@ -239,3 +239,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - A MariaDB container can answer an early root health probe before its scoped
   application client is usable. Provision the scoped client first, then wait
   with that exact client before running restore or verification SQL.
+
+- Select2 emits jQuery change events. Native-only listeners can miss real widget
+  selections even when Playwright `selectOption()` tests pass. Bind dependent
+  controls through jQuery when present and exercise the visible widget in E2E.
