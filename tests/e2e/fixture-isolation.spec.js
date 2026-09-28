@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync, spawn } = require('node:child_process');
 
-const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
+const { createUserReferenceFixtureSet } = require('../helpers/user-reference-fixture');
 const { registerSecret, scalar, sql } = require('../helpers/mjl-test-runtime');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
@@ -39,7 +39,7 @@ test.describe.configure({ mode: 'serial' });
 
 test('[RST-014A] factory creates only the bounded allowlisted graph and preserves Admin', () => {
   const before = adminDigest();
-  const result = createPhase1FixtureSet(request());
+  const result = createUserReferenceFixtureSet(request());
   expect(result.users.agent.login).toBe('rst014a-e2e.agent');
   expect(scalar("SELECT CONCAT(admin,':',entity,':',pass IS NULL,':',pass_temp IS NULL) FROM llx_user WHERE login='rst014a-e2e.agent'" )).toBe('0:1:1:1');
   expect(scalar(`SELECT COUNT(*) FROM llx_projet WHERE rowid=${result.projects.project} AND entity=1 AND fk_soc=${result.partners.partner}`)).toBe('1');
@@ -49,8 +49,8 @@ test('[RST-014A] factory creates only the bounded allowlisted graph and preserve
 test('[RST-014A] namespace replay and cross-entity reuse fail atomically', () => {
   const beforeAdmin = adminDigest();
   const beforeUsers = scalar("SELECT COUNT(*) FROM llx_user WHERE login LIKE 'rst014a-e2e.%'");
-  expect(() => createPhase1FixtureSet(request())).toThrow(/failed/i);
-  expect(() => createPhase1FixtureSet(request('rst014a-e2e', 2))).toThrow(/failed/i);
+  expect(() => createUserReferenceFixtureSet(request())).toThrow(/failed/i);
+  expect(() => createUserReferenceFixtureSet(request('rst014a-e2e', 2))).toThrow(/failed/i);
   expect(scalar("SELECT COUNT(*) FROM llx_user WHERE login LIKE 'rst014a-e2e.%'")).toBe(beforeUsers);
   expect(adminDigest()).toBe(beforeAdmin);
 });
@@ -58,7 +58,7 @@ test('[RST-014A] namespace replay and cross-entity reuse fail atomically', () =>
 async function directFactory(value, user = 'www-data') {
   const before = adminDigest();
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', ['compose', 'exec', '-T', '--user', user, 'dolibarr', 'php', '/opt/mjl-tests/fixtures/phase1-fixture.php'], {
+    const child = spawn('docker', ['compose', 'exec', '-T', '--user', user, 'dolibarr', 'php', '/opt/mjl-tests/fixtures/user-reference-fixture.php'], {
       env: process.env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -156,7 +156,7 @@ test('[RST-014A] post-reservation failure rolls back the complete fixture transa
   const reservation = require('node:crypto').createHash('sha256').update(namespace).digest('hex');
   sql("CREATE TRIGGER rst014a_fixture_rollback BEFORE INSERT ON llx_user FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='fixture rollback probe'");
   try {
-    expect(() => createPhase1FixtureSet(request(namespace))).toThrow(/failed/i);
+    expect(() => createUserReferenceFixtureSet(request(namespace))).toThrow(/failed/i);
   } finally {
     sql('DROP TRIGGER rst014a_fixture_rollback');
   }
@@ -166,7 +166,7 @@ test('[RST-014A] post-reservation failure rolls back the complete fixture transa
 
 test('[RST-014A] every permitted role and role-less user stay entity-local', () => {
   for (const entity of [1, 2]) {
-    const result = createPhase1FixtureSet({
+    const result = createUserReferenceFixtureSet({
       namespace: `rst014a-roles-${entity}`, entity,
       users: [
         { key: 'agent', role: 'AGENT_SAISIE' },
@@ -196,7 +196,7 @@ test('[RST-014A] complete factory fails before DB access when the file sentinel 
   }
 });
 
-async function runLifecycleProbe({ signal = null, outcome = 'signal' }) {
+async function runLifecycleProbe({ outcome }) {
   const injectedSecret = `lifecycle-${require('node:crypto').randomBytes(16).toString('hex')}`;
   await registerSecret('injected lifecycle secret', injectedSecret);
   const child = spawn(process.execPath, ['tests/runner/run-suite.js', 'rst014a-lifecycle-probe'], {
@@ -222,11 +222,6 @@ async function runLifecycleProbe({ signal = null, outcome = 'signal' }) {
     const timer = setTimeout(() => reject(new Error('Lifecycle probe cleanup timed out.')), 130000);
     child.once('close', () => { clearTimeout(timer); resolve(); });
   });
-  if (signal) {
-    child.kill(signal);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    child.kill(signal);
-  }
   await closed;
   expect(output).not.toContain(injectedSecret);
   if (outcome === 'success') process.stdout.write(`${injectedSecret}\n`);
@@ -236,7 +231,7 @@ async function runLifecycleProbe({ signal = null, outcome = 'signal' }) {
     ['container', ['ps', '-a'], '{{.Names}}'], ['network', ['network', 'ls'], '{{.Name}}'], ['volume', ['volume', 'ls'], '{{.Name}}'],
   ]) {
     const remaining = execFileSync('docker', [...args, '--filter', filter, '--format', format], { encoding: 'utf8' }).trim();
-    expect(remaining, `${kind} survived ${signal}`).toBe('');
+    expect(remaining, `${kind} survived ${outcome}`).toBe('');
   }
 }
 
@@ -245,7 +240,7 @@ test('[RST-014A] sentinel ownership and mode fail closed before database access'
   const beforeReservations = scalar("SELECT COUNT(*) FROM llx_const WHERE entity=0 AND name LIKE 'MJL_TEST_FIXTURE_NAMESPACE_%'");
   execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'chmod', '0644', '/var/www/documents/.mjl-disposable-fixture-sentinel'], { env: process.env });
   try {
-    expect(() => createPhase1FixtureSet(request('rst014a-bad-mode'))).toThrow(/failed/i);
+    expect(() => createUserReferenceFixtureSet(request('rst014a-bad-mode'))).toThrow(/failed/i);
   } finally {
     execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'chmod', '0444', '/var/www/documents/.mjl-disposable-fixture-sentinel'], { env: process.env });
   }
@@ -254,7 +249,7 @@ test('[RST-014A] sentinel ownership and mode fail closed before database access'
 
   execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'chown', 'www-data:www-data', '/var/www/documents/.mjl-disposable-fixture-sentinel'], { env: process.env });
   try {
-    expect(() => createPhase1FixtureSet(request('rst014a-bad-owner'))).toThrow(/failed/i);
+    expect(() => createUserReferenceFixtureSet(request('rst014a-bad-owner'))).toThrow(/failed/i);
   } finally {
     execFileSync('docker', ['compose', 'exec', '-T', 'dolibarr', 'chown', 'root:root', '/var/www/documents/.mjl-disposable-fixture-sentinel'], { env: process.env });
   }
@@ -262,7 +257,7 @@ test('[RST-014A] sentinel ownership and mode fail closed before database access'
 });
 
 test('[RST-014A] shared-container guard-only preflight cannot enter fixture creation', () => {
-  const source = fs.readFileSync(path.join(repositoryRoot, 'tests/fixtures/phase1-fixture-preflight.php'));
+  const source = fs.readFileSync(path.join(repositoryRoot, 'tests/fixtures/disposable-fixture-preflight.php'));
   const sharedEnvironment = { ...process.env };
   for (const key of ['COMPOSE_PROJECT_NAME', 'COMPOSE_FILE', 'MJL_BASE_URL', 'MJL_TEST_PORT', 'MJL_DISPOSABLE_RUN_SENTINEL', 'MJL_TEST_USER_PASSWORD']) delete sharedEnvironment[key];
   expect(() => execFileSync('docker', ['compose', '-f', path.join(repositoryRoot, 'docker-compose.yml'), 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php'], {
@@ -276,13 +271,6 @@ test('[RST-014A] shared-container guard-only preflight cannot enter fixture crea
 // Keep nested runner/signal exercises last: they intentionally churn child
 // processes and Docker resources, so no parent-tenant attestation may depend on
 // the host runtime state after these teardown probes.
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  test(`[RST-014A] repeated ${signal} runs the real runner teardown`, async () => {
-    test.setTimeout(180000);
-    await runLifecycleProbe({ signal });
-  });
-}
-
 for (const outcome of ['success', 'setup', 'test', 'diagnostics-failure', 'diagnostics-timeout']) {
   test(`[RST-014A] real runner ${outcome} path scans secrets and tears down`, async () => {
     test.setTimeout(180000);

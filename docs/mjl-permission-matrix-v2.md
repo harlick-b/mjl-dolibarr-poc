@@ -96,10 +96,8 @@ For this matrix, active entity means the runtime active Dolibarr entity
 `$conf->entity`, never the entity stored on the administrator's user row.
 Cross-entity identifiers are denied for every role, including Admin. Permitted
 platform entity switching changes the active scope and never authorizes
-cross-entity aggregation. The Phase 4 Admin exception is read-only metadata,
-guarded download/preview of current documents, and reasoned separately audited
-historical recovery. Admin may not upload, append, replace, withdraw,
-categorize, review, validate, or use raw/native ECM delivery.
+cross-entity aggregation. Any future Phase 4 Admin document exception is
+read-only and non-mutating within `$conf->entity` only.
 
 ## Phase 3B Exports (DEC-056)
 

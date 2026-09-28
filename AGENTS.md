@@ -73,7 +73,6 @@ npm test
 npm run test:unit
 npm run test:verify
 npm run test:e2e
-npm run test:characterization
 npm run test:manual-accessibility
 ```
 
@@ -88,10 +87,8 @@ only preserve obsolete documents, implementation ceremony, or duplicated
 coverage; retain focused checks for current behavior, authorization, security,
 and data integrity.
 
-`npm run test:unit` remains available after RST-000A. Container-backed legacy
-suites are not target acceptance gates until RST-014 replaces their removed
-persistent seed with disposable factories; do not revive the seed to make
-them pass.
+Container-backed suites use isolated disposable tenants and minimal fixtures.
+Do not restore the removed persistent seed to make tests pass.
 
 Lint command: Needs confirmation. Build command: Needs confirmation.
 
@@ -155,7 +152,9 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 
 ## Lean-Execution Checkpoint
 
-- Over-engineering is forbidden. Implement only mechanisms required by the
+- Over-engineering is banned. Delete obsolete implementation, commands,
+  tests, and documents together; a reference from another obsolete file is not
+  a reason to keep either one. Implement only mechanisms required by the
   current acceptance criteria or a concrete security/data-integrity risk.
   Prefer an existing project seam or the smallest direct implementation that
   satisfies the requirement.
@@ -208,9 +207,8 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 - Risky plans, architectural uncertainty, or "are you sure?" reviews: use local
   `confidence-review-loop` at `skills/confidence-review-loop/SKILL.md`.
 - Bugs, failing tests, regressions, performance issues, production errors,
-  inconsistent behavior, or unclear runtime failures: use local `diagnose` at
-  `skills/diagnose/SKILL.md`; reproduce the issue or create a feedback loop
-  before fixing.
+  inconsistent behavior, or unclear runtime failures: use Matt
+  `diagnosing-bugs`; reproduce the issue or create a feedback loop before fixing.
 - Feature work or bug fixes where behavior can be built in vertical slices: use
   Matt `tdd`.
 - Architecture, module design, public interfaces, adapters, UI/API/domain/data
@@ -223,7 +221,6 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 - Auth, APIs, user data, secrets, public forms, permissions, rate limits, logs,
   guarded documents, or production-security concerns: use local
   `security-baseline-review`.
-- Before marking a feature complete: use local `full-feature-validation`.
 - Before merge or before presenting a substantial diff as done: use Matt
   `code-review`.
 - When the current conversation or spec needs to become a structured PRD: use
@@ -233,10 +230,6 @@ Lint command: Needs confirmation. Build command: Needs confirmation.
 - Before ending a long session, switching agents, or handing work to a fresh
   context: use Matt `handoff`.
 - When creating or improving reusable skills: use Matt `writing-great-skills`.
-- For MJL-specific E2E/smoke verification, use local `mjl-e2e-verification`.
-- For MJL production-readiness review, use local
-  `mjl-production-readiness-audit`.
-- For the MJL design-system gate, use local `mjl-design-system-gate`.
 - At the end of meaningful work: evaluate whether `tasks/lessons.md` should be
   updated.
 - If a named skill is unavailable, perform the equivalent review manually and

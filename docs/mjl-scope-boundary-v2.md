@@ -20,9 +20,9 @@ Partenaire. It does not model negotiation or approval of the upstream PTA.
 - PDF and XLSX outputs plus supplemental audited CSV.
 - Authentication, invitations, authorization, concurrency, and readiness hardening.
 
-Core implementation is delivered against an empty persistent tenant after the
-approved clean reset. Persistent demonstration data is not part of Phases 1
-through 6. Test-only records may exist solely inside disposable test tenants.
+Core implementation exists against an empty persistent tenant after the
+clean reset; user acceptance remains outstanding. Persistent demonstration
+data is not part of Phases 1 through 6. Test-only records may exist solely inside disposable test tenants.
 
 ## Outside Core Scope
 
@@ -45,18 +45,10 @@ through 6. Test-only records may exist solely inside disposable test tenants.
 
 ### Phase 4: contextual document management
 
-The strategy is approved for implementation only at its roadmap position after
-Phases 2 through 3C. It covers contextual supporting evidence on Projet,
-Activité, and Opération; scoped read-only browsing; an empty Validator-managed
-category catalog; revision requirement snapshots; append-only series and
-versions; reasoned withdrawal; workflow locks; guarded attachment download;
-isolated-origin preview; malware and structural validation; encrypted storage;
-quota/rate limits; reconciliation; and complete audit.
-
-It excludes Partner attachments, public shares, public document routes, raw
-native ECM links, bulk document actions, physical deletion, OCR, external
-portals, and speculative category values. Existing containment code is not the
-Phase 4 implementation.
+Phase 4 is unrequested. A fresh user request and scope review must define its
+requirements before implementation. Current document routes and native delivery
+paths remain denied. Any future Admin document exception is read-only and
+non-mutating within the runtime active entity (`$conf->entity`) only.
 
 ### Phase 5: accounting entries
 
@@ -78,6 +70,6 @@ requirement does not authorize new document, accounting, or report schemas.
 
 ## Production Boundary
 
-Phase 3C decides only whether core scope is ready for integration. The client
-and project owner decide which gated phases are mandatory before launch. No
-Codex verdict authorizes production deployment.
+Disposable reconciliation and restore checks are development evidence only.
+The user decides which gated phases are required before launch. Production preparation and readiness
+assessment require a fresh explicit request.

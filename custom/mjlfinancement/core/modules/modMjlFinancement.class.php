@@ -112,8 +112,8 @@ class modMjlFinancement extends DolibarrModules
 		$lockName = 'mjl:rst002b:'.substr(hash('sha256', (string) mjl_rst005_scalar($this->db, 'SELECT DATABASE()').':'.$prefix), 0, 46);
 		$migrationRequired = false;
 		$cleanInstall = false;
-		$retainPhase2Target = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && in_array((string) getenv('MJL_TEST_MODE'), array('rst006a','phase2','characterization'), true);
-		$retainPhase3aTarget = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && in_array((string) getenv('MJL_TEST_MODE'), array('all','e2e','verify','phase3a','phase3b','phase3b-performance','phase3b-monitoring','phase3b-reports','phase3b-activities','rst006b','rst013c','rst014c'), true);
+		$retainPhase2Target = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && in_array((string) getenv('MJL_TEST_MODE'), array('rst006a','phase2'), true);
+		$retainPhase3aTarget = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && in_array((string) getenv('MJL_TEST_MODE'), array('all','e2e','verify','phase3a','phase3b'), true);
 		if ((int) mjl_rst005_scalar($this->db, "SELECT GET_LOCK('".$this->db->escape($lockName)."',0)") !== 1) return -1;
 		try {
 			$tableCount = (int) mjl_rst005_scalar($this->db, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$this->db->escape($activity)."'");

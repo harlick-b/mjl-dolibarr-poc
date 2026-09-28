@@ -6,9 +6,9 @@ const path = require('path');
 const { verifyDisposableEnvironment } = require('../helpers/verify-disposable-environment');
 const { MJL_REVIEW_WIDTHS } = require('../helpers/responsive-shell');
 const { login } = require('../helpers/mjl-test-runtime');
-const { createPhase1FixtureSet } = require('../helpers/phase1-fixture');
-const { createPhase2FixtureSet } = require('../helpers/phase2-fixture');
-const { createPhase3AFixtureSet, phase3ACommand } = require('../helpers/phase3a-fixture');
+const { createUserReferenceFixtureSet } = require('../helpers/user-reference-fixture');
+const { createActivityFixtureSet } = require('../helpers/activity-fixture');
+const { createExecutionFixtureSet, runExecutionFixtureCommand } = require('../helpers/execution-fixture');
 
 const outerTolerance = Number(process.env.MJL_MANUAL_ZOOM_OUTER_TOLERANCE || 16);
 const reviewer = (process.env.MJL_MANUAL_ACCESSIBILITY_REVIEWER || '').trim();
@@ -49,7 +49,7 @@ test.beforeAll(() => {
   if (!reviewer || !assistiveTechnology || !reviewNotes || !keyboardFindings || !screenReaderFindings || frenchReview !== 'pass' || !['pass', 'fail'].includes(reviewVerdict)) {
     throw new Error('A signed manual review requires reviewer, assistive technology, keyboard and screen-reader findings, French review=pass, notes, and verdict=pass|fail.');
   }
-  createPhase1FixtureSet({
+  createUserReferenceFixtureSet({
     namespace: 'phase1.a11y', entity: 1,
     users: [
       { key: 'agent', role: 'AGENT_SAISIE' },
@@ -58,7 +58,7 @@ test.beforeAll(() => {
     ],
     references: { partners: [], projects: [], operationTypes: [] },
   });
-  const planningFixture = createPhase2FixtureSet({
+  const planningFixture = createActivityFixtureSet({
     namespace: 'rst006a.a11y', entity: 1,
     users: [{ key: 'agent', role: 'AGENT_SAISIE' }, { key: 'agent2', role: 'AGENT_SAISIE' }, { key: 'supervisor', role: 'AGENT_VERIFICATEUR' }, { key: 'validator', role: 'VALIDATEUR_DEFINITIF' }],
     references: {
@@ -74,14 +74,14 @@ test.beforeAll(() => {
   activityDraftId = Number(planningFixture.activities.draft?.activity_id || 0);
   activityReviewId = Number(planningFixture.activities.review?.activity_id || 0);
   if (!activityDraftId || !activityReviewId) throw new Error('Phase 2 manual fixture creation failed.');
-  const executionFixture=createPhase3AFixtureSet({
+  const executionFixture=createExecutionFixtureSet({
     namespace:'phase3a.a11y',entity:1,
     users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],
     references:{partners:[{key:'partner',label:'Partenaire exécution accessible'}],projects:[{key:'project',label:'Projet exécution accessible',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type exécution accessible'}]},
     activities:[{key:'execution',agentKey:'agent',partnerKey:'partner',projectKey:'project',name:'Exécution accessible',description:'Saisie, verrou et demandes',dateStart:'2032-01-01',dateEnd:'2032-12-31',authorizedAmount:'1000',operations:[{name:'Opération terminée accessible',typeKey:'type',authorizedAmount:'400'},{name:'Opération en attente accessible',typeKey:'type',authorizedAmount:'600'}]}],
   });
-  const execution=executionFixture.activities.execution;const completed=phase3ACommand({action:'update',entity:1,actorId:executionFixture.users.agent.id,activityId:execution.activity_id,operationId:execution.operations[0].rowid,expectedVersion:execution.operations[0].version,input:{status:'COMPLETED',spent_amount:'400',observation:null}});if(completed.code!=='OK')throw new Error('Phase 3A terminal accessibility fixture failed.');
-  const pending=phase3ACommand({action:'request-cancel',entity:1,actorId:executionFixture.users.agent.id,targetType:'OPERATION',targetId:execution.operations[1].rowid,expectedVersion:execution.operations[1].version,reason:'Demande accessible en attente'});if(pending.code!=='OK')throw new Error('Phase 3A request accessibility fixture failed.');
+  const execution=executionFixture.activities.execution;const completed=runExecutionFixtureCommand({action:'update',entity:1,actorId:executionFixture.users.agent.id,activityId:execution.activity_id,operationId:execution.operations[0].rowid,expectedVersion:execution.operations[0].version,input:{status:'COMPLETED',spent_amount:'400',observation:null}});if(completed.code!=='OK')throw new Error('Phase 3A terminal accessibility fixture failed.');
+  const pending=runExecutionFixtureCommand({action:'request-cancel',entity:1,actorId:executionFixture.users.agent.id,targetType:'OPERATION',targetId:execution.operations[1].rowid,expectedVersion:execution.operations[1].version,reason:'Demande accessible en attente'});if(pending.code!=='OK')throw new Error('Phase 3A request accessibility fixture failed.');
 });
 
 async function recordCalibration(page, browser, targetWidth, zoomPercent, assertTargetOuterWidth) {

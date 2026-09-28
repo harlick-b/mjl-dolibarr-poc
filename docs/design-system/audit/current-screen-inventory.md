@@ -1,123 +1,33 @@
 # MJL Clarity System - Current Screen Inventory
 
-MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
-file is current-state evidence only.
+MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
+inventory records current routes and their access boundaries. It is
+repository-visible evidence, not user acceptance.
 
-## Scope
+| Screen | Route/path | Current purpose and access |
+| --- | --- | --- |
+| Accueil | `/custom/mjlfinancement/index.php` | Financial indicators, workflow counts, permitted actions, and alert preview; entity and current-assignment scope; Admin technical/audit only. |
+| Partenaires | `/custom/mjlfinancement/partners.php` | Reference list and lifecycle forms; business-role reads, Validator mutation, Admin denied. |
+| Projets | `/custom/mjlfinancement/projects.php` | Reference list and lifecycle forms; business-role reads, Validator mutation, parent lifecycle guards. |
+| Types d’Opération | `/custom/mjlfinancement/operationtypes.php` | Entity-scoped reference list and forms; Validator mutation, no hard deletion. |
+| Activities | `/custom/mjlfinancement/activities.php` | Planning, review, execution/completeness summaries, chronology, and contextual cancellation requests; assignment and role guards, Admin denied. |
+| Opérations | `/custom/mjlfinancement/operations.php` | Execution cards and exception forms; current Assigned Agents mutate, Supervisor/Validator read, Admin denied. |
+| Demandes d’exception | `/custom/mjlfinancement/operationrequests.php` | Filtered cancellation/reopening list; current requester withdrawal, Validator decisions, Supervisor reads, Admin denied. |
+| Alertes | `/custom/mjlfinancement/alerts.php` | Computed alerts under entity and role/assignment scope; Admin denied. |
+| Rapports | `/custom/mjlfinancement/reports.php` | Scoped Activities, Opérations, Fiche Activité, and portfolio previews; audit report limited to Validator/Admin. |
+| Report downloads | `/custom/mjlfinancement/reportexport.php` | CSRF-protected, audited PDF/XLSX/CSV POST delivery with report-specific access checks. |
+| Workflow audit | `/custom/mjlfinancement/workflowactions.php` | Filtered event history and details for Validator/Admin in the active entity. |
+| Admin access | `/custom/mjlfinancement/admin/access.php` | Admin-only invitations and access management. |
+| Invitation acceptance | `/custom/mjlfinancement/invitation.php` | Public token redemption with CSRF protection; no public registration. |
+| Documents | `/custom/mjlfinancement/documents.php` | HTTP 403 for every actor and method; no document UI. |
+| Document download | `/custom/mjlfinancement/documentdownload.php` | HTTP 403 for every actor and method; native `/ecm/*`, `/document.php`, and `/viewimage.php` delivery is also denied. |
+| Login/password pages | Dolibarr auth templates/hooks | Native authentication with MJL styling; invitation-only access. |
 
-This inventory is documentation-only. It lists repo-visible screens and helper
-routes that matter for UI, auth, dashboards, exports, documents, and workflow
-coverage.
+The obsolete finance, expense-validation, exchange-log, and roadmap routes are
+removed. `/custom/mjlfinancement/dpafdashboard.php` remains a denied legacy
+supervision route. Document delivery stays closed unless the user authorizes
+new Phase 4 work.
 
-| Screen | Route/path | Current purpose | Access notes | Current-state caveat |
-| --- | --- | --- | --- | --- |
-| Workspace dashboard | `/custom/mjlfinancement/index.php` | Financial indicators first, workflow counts, 50-row permitted-action queue and five-alert preview. | Exact RST-012; active entity/current assignment; Admin remains technical/audit-only. | Active on the shared empty tenant after the 2026-09-14 cutover; expanded human review pending. |
-| Partenaires | `/custom/mjlfinancement/partners.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Active business-role reads; Validator-only mutation and inactive visibility; Admin denied. | Browser-verified at the focused RST-003 seam; primary navigation remains unchanged until RST-009A. |
-| Projets | `/custom/mjlfinancement/projects.php` | RST-003 reference list/detail/create/edit/activate/deactivate. | Same role boundary; immutable Partenaire/ref; parent lifecycle guards. | Browser-verified, including 390-pixel containment and concurrency ordering. |
-| Types d’Opération | `/custom/mjlfinancement/operationtypes.php` | Entity-scoped reference list/detail/create/edit/activate/deactivate. | Same role boundary; no hard deletion. | Browser/schema-verified; catalog remains empty in the shared tenant. |
-| Activities | `/custom/mjlfinancement/activities.php` | French-first planning/review plus derived execution/completeness/totals and contextual Activity cancellation requests. | Agent assignment scope; Supervisor/Validator portfolio reads and exact-revision review; Admin denied. | Phase 3A automated gates pass; signed accessibility evidence remains pending. |
-| Activity chronology | `/custom/mjlfinancement/activities.php?id=ID`, including `action=review` | French contextual event summaries, redacted multiline text and stable 50-event cursor navigation. | Current Activity read scope; Admin denied. Only genuinely single-Activity business exports appear. | 8 chronology checks passed in the 63-check combined gate; 390px no-JavaScript chronology inspected. Human accessibility remains pending. |
-| Opérations | `/custom/mjlfinancement/operations.php` | Responsive execution cards with explicit spent amount, observation, lifecycle/lock messaging, Activity links, and exception forms. | Only current Assigned Agents mutate; Supervisor/Validator read; Admin denied. | No dashboard/report behavior or global navigation was added. |
-| Demandes d’exception | `/custom/mjlfinancement/operationrequests.php` | Bounded filtered cancellation/reopening requests with withdrawal and decision forms. | Current Assigned requester withdraws; current Validator approves/rejects; Supervisor reads; Admin denied. | Contextual Phase 3A route; signed accessibility evidence remains pending. |
-| Expenses | `/custom/mjlfinancement/expenses.php` | Removed obsolete finance route. | Returns 404. | Historical contextual-upload/evidence states are retired. |
-| Documents containment | `/custom/mjlfinancement/documents.php` | Dependency-free French HTTP 403; no document UI or data access. | Denied for every actor and method; not navigation-visible. | Phase 4 is approved but not implemented. |
-| Conventions | `/custom/mjlfinancement/conventions.php` | Removed obsolete finance route. | Returns 404. | Historical document behavior is retired. |
-| Budget lines | `/custom/mjlfinancement/budgetlines.php` | Removed obsolete finance route. | Returns 404. | Historical interaction evidence below is not current behavior. |
-| Fund receipts | `/custom/mjlfinancement/fundreceipts.php` | Removed obsolete finance route. | Returns 404. | Historical proof-document behavior is retired. |
-| Alerts | `/custom/mjlfinancement/alerts.php` | Computed Activity and Opération alerts. | Active entity and role/assignment scope; Admin denied. | Alerts are computed, not stored. |
-| Supervision dashboard | `/custom/mjlfinancement/dpafdashboard.php` | Retired supervision route. | Direct access denied. | Accueil owns the active scoped financial dashboard. |
-| Activities report | `/custom/mjlfinancement/reports.php` | Business roles only; assignment/entity-scoped filters and 50-row preview. | Active on the exact RST-012 shared schema. | PDF/XLSX/CSV via CSRF-protected POST `/custom/mjlfinancement/reportexport.php`; 16 focused E2E checks passed; expanded human review pending. |
-| Operations report | `/custom/mjlfinancement/reports.php?report=operations` | Business roles; complete-parent filtering before Opération type/state filters. | Same guarded POST pipeline; exact RST-012 required. | 11 Operations E2E checks passed within the 27-check reports gate; PDF and 390px layout inspected. Expanded human review pending. |
-| Fiche Activité report | `/custom/mjlfinancement/reports.php?report=activity_detail&activity_id=ID` | One accessible Activity; general information, assignments/revision references, financial summary and complete current Opérations. | Contextual Activity link; same guarded POST pipeline and exact RST-012 requirement. | 8 Fiche E2E checks passed in the 35-check reports gate; 390px no-JavaScript preview and PDF pages inspected. Expanded human review pending. |
-| Portfolio summary | `/custom/mjlfinancement/reports.php?report=portfolio` | Business roles; complete scoped Activities grouped by Projet or Partenaire. | Same guarded POST owner; all contributing Activities retained in scope. Exact RST-012 required. | 8 portfolio checks passed in the 43-check reports gate; PDF and 390px no-JavaScript layout inspected. Expanded human review pending. |
-| Validation history | `/custom/mjlfinancement/validations.php` | Removed obsolete expense-validation route. | Returns 404. | Workflow audit remains a separate current route. |
-| Workflow audit | `/custom/mjlfinancement/workflowactions.php`; `/custom/mjlfinancement/reports.php?report=audit` | Historical metadata, field-level before/after values, explicit automatic causes, 50-event cursor and historical filters. | Validator/Admin only, active entity; guarded PDF/XLSX/CSV exports active on exact RST-012. | 12 audit checks passed within the 55-check reports gate; actual PDF and 390px no-JavaScript preview inspected. Expanded human review pending. |
-| Exchange logs | `/custom/mjlfinancement/exchangelogs.php` | Removed obsolete exchange-log route. | Returns 404. | Append-only audit is the retained current evidence source. |
-| Admin access | `/custom/mjlfinancement/admin/access.php` | Invitations and access administration. | Admin only. | Production email/base URL pending. |
-| Invitation acceptance | `/custom/mjlfinancement/invitation.php` | Public token invitation flow. | Token and CSRF checks. | Outside app shell by design. |
-| Document download containment | `/custom/mjlfinancement/documentdownload.php` | Dependency-free French HTTP 403; no ECM/file lookup or attachment. | Denied for every actor and method. | Native `/ecm/*`, `/document.php`, and `/viewimage.php` are also denied. |
-| Roadmap | `/custom/mjlfinancement/roadmap.php` | Removed internal roadmap route. | Returns 404. | Roadmap authority is documentation-only. |
-| Login/password pages | Dolibarr auth templates/hooks | Auth and password flows with MJL styling. | Native auth plus MJL hooks. | No public registration should appear. |
-
-## Historical Phase 3D.2 interaction evidence
-
-- Projects retain visible `Ouvrir` links and add conditional authorized
-  secondary row menus.
-- Conventions now use guarded create, edit, activate, close,
-  delete-confirmation, and upload states.
-- Budget lines now use guarded create, edit, and activate states.
-- Fund receipts now use guarded create, edit, received, not-received, and
-  upload states.
-- Finance guards run before fields, options, or exact recovery. Uploads and
-  convention deletion remain nonrecoverable; mutations remain POST-only.
-
-## Historical Phase 3D.4 integration evidence
-
-The historical Phase 3D.4 browser inventory covered every one of the then-active
-application screens plus invitation, registration, document-download, roadmap,
-and operational-script helper routes. Each application route asserts its exact
-document title and H1, a unique visible `main` landmark, the MJL shell, safe
-rendering without raw diagnostics, and Admin access. Separate assertions cover
-an authenticated user with no MJL role, the former global Documents behavior,
-former guarded downloads, hidden roadmap, absent public registration, and HTTP denial
-of the entire operational-script family. Exact advanced-route admissions stay
-in non-blocking characterization C2 pending the client permission matrix.
-
-The affected browser run passed 113/113 cases in tenant
-`mjl-test-20260804t162004-941966-e614149e` on
-`http://127.0.0.1:46207` in 399.2 seconds; containers, network, and named volumes
-were removed. Finance behavior without final authority remains isolated in
-characterization and passed 21/21 in separate tenant
-`mjl-test-20260804t162933-982937-3ed3dd46` on port 44551 in 208.4 seconds,
-including bootstrap and cleanup.
-
-After audit review, the inventory added route-by-route Agent checks for the
-dashboard plus six displayed business routes using positive assigned markers,
-same-entity out-of-scope markers, and equivalent entity-2 markers assigned to
-the same Agent. It does not freeze the pending role-to-advanced-route matrix;
-C2 records those current admissions. The fixture is removed in suite teardown.
-The then-current intermediate run passed 116/116
-browser cases in tenant `mjl-test-20260804t165458-1076689-96f5f821` on port
-46729; the total includes
-two concurrent v3 font-resource checks outside 3D.4. Runner duration was 601.3
-seconds including 20 Node contracts, 7 PHP contracts, full container
-verification, and complete resource cleanup.
-
-The historical manual gate named auth, dashboard, list, form, workflow, Documents,
-alerts, reports, and administration archetypes and requires reviewer identity,
-assistive technology, explicit verdict, and real Chromium 100%/200% evidence at
-390/768/980/1024/1366. Every one of the 90 combinations must record its result,
-geometry, visible-focus observation, reviewer, and non-empty notes. It remains
-unsigned. Under DEC-057 it does not block local development, the approved
-RST-012 local cutover, or Phase 3C planning; it remains a production/release
-blocker and does not support a WCAG conformance claim.
-RST-010A retires the document-library/download portions of that historical
-evidence; current document routes are containment-only and have no UI
-accessibility claim.
-
-The current Phase 3A manual gate supersedes that historical count with seventeen
-active archetypes and five Activity states across the same five widths and real
-100%/200% browser zoom, for exactly 170 combinations. It adds execution,
-terminal lock, Agent exception, and Validator decision states and additionally records
-forced-colors and reduced-motion checks for each Activity state and writes a
-private checksummed artifact. It remains unsigned.
-
-The final strengthened-remediation `npm test` passed 31/31 Node contracts,
-7/7 PHP contracts, the complete container-verification layer, and 114/114
-blocking browser cases. It ran in tenant
-`mjl-test-20260805t124354-71091-ed08d24c` on port 36037 for 475.0 seconds and
-removed its containers, network, database volume, and document volume. The
-separate final C1/C2 characterization passed 28/28 in tenant
-`mjl-test-20260805t123629-44505-8ff6b050`; that tenant was also removed.
-
-Phase 3B Alertes (`alerts.php`) and browsing now share validated GET filters,
-50-row pagination and source-unavailable states. Navigation adds Alertes,
-Rapports and Demandes d’exception only under exact RST-012 readiness. No shared
-cutover or human accessibility signoff is implied.
-
-Dashboard/navigation focused evidence (2026-09-10): 79/79 combined E2E checks
-passed in `mjl-test-20260910t161750-372637-5329ad95`. The populated dashboard
-was inspected at 390/768/980/1024/1366 pixels and in mobile forced colors without
-JavaScript. Keyboard menu/focus behavior, empty/error states and exact readiness
-were exercised. Shared before/after evidence matched and the tenant was removed.
-This completes the slice's technical check, not the signed human review.
+Signed human accessibility review remains outstanding for active screens and
+states. Production email/base URL and client approval of non-protected copy and
+official outputs also remain outstanding.

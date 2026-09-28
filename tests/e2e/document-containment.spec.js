@@ -3,7 +3,7 @@ const { execFileSync } = require('node:child_process');
 
 const adminPassword = process.env.DOLI_ADMIN_PASSWORD || 'Admin1234';
 const testPassword = process.env.MJL_TEST_USER_PASSWORD;
-const fixtureScript = '/opt/mjl-tests/fixtures/rst010a-document-state.php';
+const fixtureScript = '/opt/mjl-tests/fixtures/document-state-fixture.php';
 let fixture;
 
 function fixtureAction(action) {

@@ -48,11 +48,12 @@ current change. `docs/mjl-deployment-checklist.md` records deferred questions
 only and must not be executed until the user explicitly requests deployment
 preparation.
 
-Available reset verification command:
+For a fast source check:
 
 ```bash
 npm run test:unit
 ```
 
-Container-backed legacy suites remain isolated from the shared tenant, and
-their former persistent seed remains removed. Do not revive it.
+Container-backed tests use isolated disposable tenants, create only the records
+needed by each check, and tear down their tenants afterward. They do not use a
+persistent sample-data seed.

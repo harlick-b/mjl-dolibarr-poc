@@ -29,7 +29,6 @@ stop and surface the contradiction.
 | Visibility and permitted actions | `docs/mjl-permission-matrix-v2.md` |
 | States, transitions, and guards | `docs/mjl-status-and-transition-model-v2.md` |
 | Target entities, fields, and invariants | `docs/mjl-data-dictionary-v2.md` |
-| Reset-unit state | `docs/mjl-reset-manifest-v2.md` |
 | Implementation state and unfinished phases | `docs/mjl-implementation-roadmap-v2.md` |
 
 Completed plans and reports are recoverable from Git history and are not active
@@ -77,8 +76,10 @@ MJL-specific code stays outside Dolibarr core. Native Dolibarr capabilities may
 be reused through guarded MJL interfaces. The roadmap records which phases are
 implemented; that status does not establish acceptance.
 
-Use the smallest implementation that satisfies the current request and a
-concrete authorization, security, or data-integrity risk. Check scope before
+Over-engineering is banned. Remove obsolete mechanisms and their stale
+callers together; historical references do not justify keeping them. Use the
+smallest implementation that satisfies the current request and a concrete
+authorization, security, or data-integrity risk. Check scope before
 editing and when new work appears. Record useful optional work as an unapproved
 recommendation rather than implementing it.
 

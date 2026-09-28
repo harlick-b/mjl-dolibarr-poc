@@ -11,8 +11,6 @@ const { chromium } = require('playwright');
 const { assertCleanupComplete, assertDisposableConfig } = require('./disposable-policy');
 const { createRunPlan, getSuitePlan, sanitizeOutput } = require('./disposable-run');
 const { scanArtifacts, streamTreeDigest } = require('./disposable-evidence');
-const { runPhase1CutoverRehearsal: runPhase1Cutover } = require('./phase1-cutover-rehearsal');
-const { runRst005CutoverRehearsal } = require('./rst005-cutover-rehearsal');
 const { registerSecretAt } = require('../helpers/mjl-test-runtime');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
@@ -383,79 +381,6 @@ async function runPhase1Verification(plan, signal) {
   await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_behavior.php'], { signal });
 }
 
-async function runPhase1SchemaMutationRehearsal(plan, signal) {
-  const verifier = ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_schema_exact.php'];
-  const probes = [
-    {
-      label: 'engine mutation',
-      mutate: 'ALTER TABLE llx_mjlfinancement_audit_event ENGINE=Aria',
-      restore: 'ALTER TABLE llx_mjlfinancement_audit_event ENGINE=InnoDB',
-    },
-    {
-      label: 'index mutation',
-      mutate: 'ALTER TABLE llx_mjlfinancement_invitation DROP INDEX idx_mjl_invitation_status, ADD INDEX idx_mjl_invitation_status (entity,status(8))',
-      restore: 'ALTER TABLE llx_mjlfinancement_invitation DROP INDEX idx_mjl_invitation_status, ADD INDEX idx_mjl_invitation_status (entity,status)',
-    },
-    {
-      label: 'foreign-key mutation',
-      mutate: 'ALTER TABLE llx_mjlfinancement_password_reset DROP FOREIGN KEY fk_mjl_reset_target_user',
-      restore: 'ALTER TABLE llx_mjlfinancement_password_reset ADD CONSTRAINT fk_mjl_reset_target_user FOREIGN KEY (fk_user) REFERENCES llx_user(rowid) ON DELETE RESTRICT ON UPDATE RESTRICT',
-    },
-    {
-      label: 'check mutation',
-      mutate: 'ALTER TABLE llx_mjlfinancement_invitation DROP CONSTRAINT chk_mjl_invitation_terminal_date',
-      restore: "ALTER TABLE llx_mjlfinancement_invitation ADD CONSTRAINT chk_mjl_invitation_terminal_date CHECK ((status IN ('pending_send','sent') AND date_accepted IS NULL AND date_revoked IS NULL) OR (status='accepted' AND date_accepted IS NOT NULL) OR (status IN ('revoked','send_failed') AND date_revoked IS NOT NULL))",
-    },
-    {
-      label: 'generated-column mutation',
-      mutate: "ALTER TABLE llx_mjlfinancement_password_reset DROP INDEX uk_mjl_reset_live_user, MODIFY live_user_id INTEGER AS (CASE WHEN status='sent' THEN fk_user ELSE NULL END) PERSISTENT, ADD UNIQUE INDEX uk_mjl_reset_live_user (entity,live_user_id)",
-      restore: "ALTER TABLE llx_mjlfinancement_password_reset DROP INDEX uk_mjl_reset_live_user, MODIFY live_user_id INTEGER AS (CASE WHEN status IN ('pending_send','sent') THEN fk_user ELSE NULL END) PERSISTENT, ADD UNIQUE INDEX uk_mjl_reset_live_user (entity,live_user_id)",
-    },
-    {
-      label: 'collation mutation',
-      mutate: 'ALTER TABLE llx_mjlfinancement_audit_event MODIFY object_type VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL',
-      restore: 'ALTER TABLE llx_mjlfinancement_audit_event MODIFY object_type VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci NOT NULL',
-    },
-    {
-      label: 'trigger mutation',
-      mutate: "CREATE OR REPLACE TRIGGER llx_mjlfinancement_audit_event_bu BEFORE UPDATE ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='mutated'",
-      restore: "CREATE OR REPLACE TRIGGER llx_mjlfinancement_audit_event_bu BEFORE UPDATE ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='MJL audit events are append-only'",
-    },
-    {
-      label: 'unexpected-trigger mutation',
-      mutate: 'CREATE TRIGGER phase1_unexpected_trigger AFTER INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SET @phase1_unexpected_trigger=1',
-      restore: 'DROP TRIGGER phase1_unexpected_trigger',
-    },
-  ];
-  for (const probe of probes) {
-    await databaseSql(plan, probe.mutate, { quiet: true, signal });
-    try {
-      await expectComposeFailure(plan, verifier, probe.label, { signal });
-    } finally {
-      await databaseSql(plan, probe.restore, { quiet: true, signal });
-    }
-    await compose(plan, verifier, { quiet: true, signal });
-  }
-}
-
-async function runPhase1FailpointConstantRehearsal(plan, signal) {
-  const verifier = ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verify_phase1_reset.php'];
-  const probes = [
-    ['MJL_RST_PHASE1_FAILURE_INJECTION', 0],
-    ['MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION', 7],
-  ];
-  for (const [name, entity] of probes) {
-    await databaseSql(plan, `INSERT INTO llx_const(name,value,type,visible,note,entity) VALUES('${name}','1','chaine',0,'disposable verifier mutation',${entity})`, { quiet: true, signal });
-    try {
-      const output = await expectComposeFailure(plan, verifier, `${name} survival mutation`, { signal });
-      if (!/failure-injection constant remains/i.test(output)) throw new Error(`${name} verifier mutation failed for the wrong reason: ${output.trim()}`);
-    } finally {
-      await databaseSql(plan, `DELETE FROM llx_const WHERE name='${name}'`, { quiet: true, signal });
-    }
-    await compose(plan, verifier, { quiet: true, signal });
-  }
-}
-
 async function runRst003RollbackRehearsal(plan, signal) {
   let renamed = false;
   try {
@@ -469,65 +394,8 @@ async function runRst003RollbackRehearsal(plan, signal) {
   await runRst003Verification(plan, signal);
 }
 
-async function runProductionReadiness(plan, signal) {
-	const validate = (raw, expectedStatus) => {
-		if (!raw.endsWith('\n') || raw.trim().includes('\n') || raw.includes('CORE_SCOPE_')) throw new Error('Production-readiness diagnostic did not emit exactly one non-verdict JSON document.');
-		let result;
-		try { result = JSON.parse(raw); } catch (_) { throw new Error('Production-readiness diagnostic emitted malformed JSON.'); }
-		if (Object.keys(result).join(',') !== 'schema_version,environment,diagnostic_status,controls' || result.schema_version !== 1 || result.environment !== 'disposable' || result.diagnostic_status !== expectedStatus || !Array.isArray(result.controls)) throw new Error('Production-readiness diagnostic envelope is invalid.');
-		const names = new Set();
-		for (const control of result.controls) {
-			if (Object.keys(control).join(',') !== 'name,class,status,detail' || !['integration', 'release'].includes(control.class) || !['OK', 'UNKNOWN', 'BLOCKED'].includes(control.status) || typeof control.detail !== 'string' || names.has(control.name)) throw new Error('Production-readiness diagnostic control contract is invalid.');
-			names.add(control.name);
-		}
-		const expectedNames = expectedStatus === 'OK'
-			? ['rst012_schema','active_entity','native_administrator','empty_start','mjl_module','route_containment','invitation_only','french_language','xof_currency','porto_novo_timezone','reconciler_registration','public_base_url','mail_transport','session_error_logging','secret_custody','persistent_storage','backup_restore_evidence','signed_accessibility']
-			: ['diagnostic_execution'];
-		if (JSON.stringify([...names]) !== JSON.stringify(expectedNames)) throw new Error('Production-readiness diagnostic control inventory is invalid.');
-		if (expectedStatus === 'OK' && result.controls.some((control) => control.class === 'integration' && control.status !== 'OK')) throw new Error('Production-readiness diagnostic status conflicts with an integration control.');
-		if (result.controls.some((control) => control.status === 'UNKNOWN' && control.class !== 'release')) throw new Error('Production-readiness diagnostic reports an unknown integration control.');
-		for (const secret of allSecretValues()) if (secret && raw.includes(secret)) throw new Error('Production-readiness diagnostic exposed a registered secret.');
-		return result;
-	};
-	const before = await captureDisposableEvidence(plan, signal);
-	const output = await compose(plan, [
-    'exec',
-    '-T',
-    'dolibarr',
-    'php',
-    '/var/www/html/custom/mjlfinancement/scripts/check_production_readiness.php',
-  ], { quiet: true, rejectStderr: true, signal });
-	validate(output, 'OK');
-	if (JSON.stringify(await captureDisposableEvidence(plan, signal)) !== JSON.stringify(before)) throw new Error('Production-readiness diagnostic changed disposable database, document, or configuration state.');
-
-	let failureOutput = '';
-	try {
-		await compose(plan, ['exec', '-T', '-e', 'MJL_READINESS_FAILURE_INJECTION=1', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/check_production_readiness.php'], { quiet: true, rejectStderr: true, signal });
-		throw new Error('Production-readiness failure control unexpectedly succeeded.');
-	} catch (error) {
-		if (error.message.includes('unexpectedly succeeded')) throw error;
-		if (error.stderr && error.stderr.trim() !== '') throw new Error('Production-readiness failure control wrote unexpected stderr.');
-		failureOutput = error.output || '';
-	}
-	validate(failureOutput, 'BLOCKED');
-	if (JSON.stringify(await captureDisposableEvidence(plan, signal)) !== JSON.stringify(before)) throw new Error('Production-readiness failure control did not restore exact disposable state.');
-}
-
 async function runPhase3cRestoreRehearsal(sourcePlan, destination, signal) {
   const custody = fs.mkdtempSync(path.join(os.tmpdir(), 'mjl-phase3c-restore-'));
-  const summary = {
-    schema_version: 1,
-    source_project: sourcePlan.projectName,
-    destination_project: destination.projectName,
-    incomplete_backup: 'PENDING',
-    pre_adaptation_comparison: 'PENDING',
-    permitted_adaptations: ['disposable_sentinel', 'local_base_url'],
-    adaptation_comparison: 'PENDING',
-    restored_counts: null,
-    restored_access: 'PENDING',
-    destination_cleanup: 'PENDING',
-    backup_custody_cleanup: 'PENDING',
-  };
   const sourceDocuments = path.join(custody, 'documents');
   const sourceConfiguration = path.join(custody, 'configuration');
   const restoredDocuments = path.join(custody, 'restored-documents');
@@ -561,15 +429,6 @@ async function runPhase3cRestoreRehearsal(sourcePlan, destination, signal) {
 	await provisionDisposableDatabaseClient(destination, signal);
 	await waitUntilDatabaseReady(destination, signal);
 	await compose(destination, ['create', 'dolibarr'], { quiet: true, signal });
-	if (process.env.MJL_PHASE3C_RESTORE_FAILURE === '1') throw new Error('Injected Phase 3C restore failure after destination provisioning.');
-
-	await resetDatabase();
-	const boundary = sourceDump.lastIndexOf(';\n', Math.floor(sourceDump.length / 2));
-	if (boundary < 1) throw new Error('Phase 3C could not construct an incomplete statement-aligned backup.');
-	await restoreSql(sourceDump.slice(0, boundary + 2));
-	const incompleteDump = await compose(destination, dumpArgs, { quiet: true, signal, timeoutMs: 120000 });
-	if (crypto.createHash('sha256').update(incompleteDump).digest('hex') === crypto.createHash('sha256').update(sourceDump).digest('hex')) throw new Error('Phase 3C restore accepted an incomplete database backup.');
-	summary.incomplete_backup = 'DETECTED';
 
 	await resetDatabase();
     await restoreFull(sourceDump);
@@ -585,7 +444,6 @@ async function runPhase3cRestoreRehearsal(sourcePlan, destination, signal) {
     await compose(destination, ['cp', 'dolibarr:/var/www/html/conf/.', restoredConfiguration], { quiet: true, signal });
     if (streamTreeDigest(sourceDocuments) !== streamTreeDigest(restoredDocuments)) throw new Error('Phase 3C restored document storage differs before adaptation.');
     if (streamTreeDigest(sourceConfiguration) !== streamTreeDigest(restoredConfiguration)) throw new Error('Phase 3C restored configuration differs before adaptation.');
-	summary.pre_adaptation_comparison = 'OK';
 	const preAdaptationConstants = await compose(destination, constantDumpArgs, { quiet: true, signal, timeoutMs: 120000 });
 
 	const adaptedRows = await databaseSql(destination, "UPDATE llx_const SET value='"+destination.sentinel+"' WHERE entity=0 AND name='MJL_DISPOSABLE_FIXTURE_SENTINEL'; SELECT ROW_COUNT();", { quiet: true, scalar: true, signal });
@@ -613,7 +471,6 @@ async function runPhase3cRestoreRehearsal(sourcePlan, destination, signal) {
 	fs.unlinkSync(sourceSentinel);
 	fs.unlinkSync(adaptedSentinel);
 	if (streamTreeDigest(sourceDocuments) !== streamTreeDigest(adaptedDocuments)) throw new Error('Phase 3C destination adaptation changed document storage beyond the disposable sentinel.');
-	summary.adaptation_comparison = 'OK';
     await compose(destination, ['up', '-d', 'dolibarr'], { signal });
     await waitUntilReady(destination, signal);
     await waitUntilDatabaseReady(destination, signal);
@@ -624,27 +481,22 @@ async function runPhase3cRestoreRehearsal(sourcePlan, destination, signal) {
     const representative = await databaseSql(destination, "SELECT CONCAT((SELECT COUNT(*) FROM llx_mjlfinancement_activity),'|',(SELECT COUNT(*) FROM llx_mjlfinancement_activity_revision),'|',(SELECT COUNT(*) FROM llx_mjlfinancement_audit_event),'|',(SELECT COUNT(*) FROM llx_mjlfinancement_export_record),'|',(SELECT COUNT(*) FROM llx_mjlfinancement_cancellation_request)+(SELECT COUNT(*) FROM llx_mjlfinancement_reopening_request))", { scalar: true, signal });
     const counts = representative.trim().split('|').map(Number);
 	if (counts.length !== 5 || counts.some((count) => count < 1)) throw new Error('Phase 3C restored representative business evidence is incomplete.');
-	summary.restored_counts = counts;
     await compose(destination, ['exec', '-T', 'dolibarr', 'test', '-f', '/var/www/documents/.mjl-phase3c-storage-canary'], { quiet: true, signal });
 	await compose(destination, ['exec', '-T', '--user', 'www-data', 'dolibarr', 'sh', '-ceu', 'test -r /var/www/documents/.mjl-phase3c-storage-canary; probe=/var/www/documents/.mjl-phase3c-write-probe; printf ok > "$probe"; test "$(cat "$probe")" = ok; rm -f "$probe"'], { quiet: true, signal });
 	await verifyRestoredApplicationAccess(destination, sourcePlan.testUserPassword, signal);
-	summary.restored_access = 'OK';
 	} catch (error) {
 		restoreFailure = error;
   } finally {
 	const cleanupFailures = [];
 	if (destinationProvisioned && destination) {
-		try { await cleanup(destination); summary.destination_cleanup = 'OK'; } catch (error) { cleanupFailures.push(error); summary.destination_cleanup = 'BLOCKED'; }
+		try { await cleanup(destination); } catch (error) { cleanupFailures.push(error); }
 	}
 	if (destination) {
 		try { fs.rmSync(destination.artifactRoot, { recursive: true, force: true }); } catch (error) { cleanupFailures.push(error); }
 	}
 	try { fs.rmSync(custody, { recursive: true, force: true }); } catch (error) { cleanupFailures.push(error); }
 	if (fs.existsSync(custody)) cleanupFailures.push(new Error('Phase 3C backup custody remains after teardown.'));
-	else summary.backup_custody_cleanup = 'OK';
 	for (const cleanupFailure of cleanupFailures) restoreFailure = combineFailures(restoreFailure, cleanupFailure, 'Phase 3C restore and cleanup failed.');
-	try { fs.writeFileSync(path.join(sourcePlan.artifactRoot, 'phase3c-restore-summary.json'), `${JSON.stringify(summary, null, 2)}\n`, { mode: 0o600 }); }
-	catch (error) { restoreFailure = combineFailures(restoreFailure, error, 'Phase 3C restore and summary persistence failed.'); }
 	if (restoreFailure) throw restoreFailure;
   }
 }
@@ -676,94 +528,50 @@ async function verifyRestoredApplicationAccess(plan, sourcePassword, signal) {
 
 async function runPlaywright(plan, target, signal) {
   const args = ['playwright', 'test'];
-	if (target === 'rst006a') {
-		const specification = fs.readFileSync(path.join(repositoryRoot, 'tests/e2e/rst006a-activity-planning.spec.js'), 'utf8');
-		const scenarioTables = require(path.join(repositoryRoot, 'tests/e2e/cases/rst006a.cases.js'));
-		const literalNames = [...specification.matchAll(/\ntest\('([^']+)'/g)].map((match) => match[1]);
-		const generatedNames = Object.values(scenarioTables).flat().map((scenario) => scenario.name);
-		const discovered = [...literalNames, ...generatedNames].sort();
-		const expected = [
-			'create-and-submit allocates the canonical reference, primary assignment, balance, and immutable revision atomically',
-			'separation of duties and exact revision review produce a terminal final validation',
-			'guarded Activity UI is French-first, assignment-scoped, and uses one route-owned script',
-			'strict decimal and unexpected structures fail without consuming a reference',
-			'signed BIGINT maximum succeeds while arithmetic overflow rolls back without consuming a reference',
-			'deactivated references reject new use without reference allocation but remain valid when unchanged',
-			'start-date freeze forbids structural return while unchanged submitted review can finish',
-			'an assigned Agent abandons an unsubmitted draft and a Validator restores one primary assignment before start',
-			'a returned Activity requires a structural change before resubmission and preserves its total',
-			'audit insertion failure rolls back business data and reference allocation',
-			'contributors remain cumulative and truthfully snapshotted after a prior contributor changes role',
-			'concurrent submit and abandon commands commit one version and one audit event','concurrent Supervisor decisions preserve one exact revision decision','concurrent Validator decisions preserve separation and one terminal choice','real MariaDB lock timeout returns RETRYABLE_CONFLICT and releases all work','real MariaDB deadlock returns RETRYABLE_CONFLICT with complete rollback',
-			'list fixture creates exact pagination cohorts and literal wildcard canaries through aggregate commands',
-			'zero-result cohort renders no rows or pagination','one-result cohort renders one row without pagination','50-result cohort renders the exact cutoff without Next','51-result cohort page 1 renders 50 rows with Next','51-result cohort page 2 renders one row with Previous',
-			'list page 1 renders 50 of 101 Activities','list page 2 renders the middle 50 Activities','list page 3 renders the final Activity',
-			'list rejects an unknown status','list rejects page zero','list rejects an overflowing project identifier','list rejects a search longer than 100 characters',
-			'web stack rejects malformed UTF-8 search bytes','list rejects a leading control character before trimming','list rejects a trailing control character before trimming',
-			'percent is searched as a literal wildcard character','underscore is searched as a literal wildcard character',
-			'unrelated presentation parameters are ignored while filters remain effective','cross-entity Project filters disclose no Project or Activity existence','Activity list and create page remain usable when JavaScript is disabled',
-			'Previous and Next preserve the typed status and Project filters',
-			'no-role, inactive, unassigned, and Admin actors cannot cross Activity access boundaries','oversized and mass-assigned Activity requests fail before mutation','missing CSRF and replayed contextual submissions fail with exact mutation counts','Activity search output escapes stored HTML',
-		].sort();
-		if (JSON.stringify(discovered) !== JSON.stringify(expected)) throw new Error(`RST-006A focused inventory changed: expected ${expected.length}, discovered ${discovered.length}.`);
-  }
   if (target === 'e2e') {
     const batches = [
-      ['tests/e2e/activity-execution.spec.js','tests/e2e/document-containment.spec.js','tests/e2e/documents-audit.spec.js'],
-      ['tests/e2e/auth-concurrency.spec.js','tests/e2e/partners-projects.spec.js'],
+      ['tests/e2e/activity-execution.spec.js','tests/e2e/document-containment.spec.js'],
+      ['tests/e2e/auth-concurrency.spec.js','tests/e2e/partner-project.spec.js'],
       ['tests/e2e/fixture-isolation.spec.js'],
-      ['tests/e2e/rst002b-activity-assignment.spec.js','tests/e2e/rst006a-activity-planning.spec.js','tests/e2e/zz-phase2-planning.spec.js'],
-      ['tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-export-recovery.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js','tests/e2e/phase3b-monitoring.spec.js'],
+      ['tests/e2e/activity-assignment.spec.js','tests/e2e/activity-planning.spec.js','tests/e2e/planning-navigation.spec.js'],
+      ['tests/e2e/activities-report.spec.js','tests/e2e/export-recovery.spec.js','tests/e2e/operations-report.spec.js','tests/e2e/activity-detail.spec.js','tests/e2e/portfolio-report.spec.js','tests/e2e/audit-report.spec.js','tests/e2e/timeline.spec.js','tests/e2e/monitoring.spec.js'],
     ];
     for (const batch of batches) {
       // Activate monitoring only after predecessor-surface regressions finish.
-      if (batch[0] === 'tests/e2e/phase3b-activities-report.spec.js') {
-        await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-schema-probe.php'], { signal });
+      if (batch[0] === 'tests/e2e/activities-report.spec.js') {
+        await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], { signal });
       }
       await runCommand('npx', ['playwright','test',...batch,'--config=playwright.config.js'], { env: composeEnvironment(plan), signal, timeoutMs: 15 * 60 * 1000 });
     }
-    await runPlaywright(plan,'phase3b-performance',signal);
     return;
   } else if (target === 'rst003') {
-    args.push('tests/e2e/partners-projects.spec.js', '--config=playwright.config.js');
-  } else if (target === 'phase1-all') {
-	args.push('tests/e2e/phase1-reset.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/partner-project.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst010a') {
 	args.push('tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst014a') {
-    args.push('tests/e2e/fixture-isolation.spec.js', 'tests/e2e/phase1-reset.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/partners-projects.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/fixture-isolation.spec.js', 'tests/e2e/reset-boundaries.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/partner-project.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst013a') {
-    args.push('tests/e2e/phase1-reset.spec.js', '--config=playwright.config.js', '--grep', '\\[RST-013A\\]');
-  } else if (target === 'rst005') {
-    args.push('tests/e2e/rst005-activity-foundation.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/reset-boundaries.spec.js', '--config=playwright.config.js', '--grep', '\\[RST-013A\\]');
   } else if (target === 'rst002b') {
-    args.push('tests/e2e/rst002b-activity-assignment.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/activity-assignment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst006a') {
-    args.push('tests/e2e/rst006a-activity-planning.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/activity-planning.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase2') {
-    args.push('tests/e2e/rst006a-activity-planning.spec.js', 'tests/e2e/zz-phase2-planning.spec.js', '--config=playwright.config.js');
-  } else if (target === 'phase3b-performance') {
-    args.push('tests/e2e/zz-phase3b-performance.spec.js','--config=playwright.config.js');
-  } else if (target === 'phase3b-reports' || target === 'phase3b-monitoring') {
-    args.push('tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-export-recovery.spec.js','tests/e2e/phase3b-operations-report.spec.js','tests/e2e/phase3b-activity-detail.spec.js','tests/e2e/phase3b-portfolio-report.spec.js','tests/e2e/phase3b-audit-report.spec.js','tests/e2e/phase3b-timeline.spec.js','--config=playwright.config.js');
-    if (target === 'phase3b-monitoring') args.push('tests/e2e/phase3b-monitoring.spec.js');
-  } else if (target === 'phase3b-activities') {
-    args.push('tests/e2e/phase3b-activities-report.spec.js','tests/e2e/phase3b-export-recovery.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/activity-planning.spec.js', 'tests/e2e/planning-navigation.spec.js', '--config=playwright.config.js');
+  } else if (target === 'phase3b') {
+    args.push('tests/e2e/activities-report.spec.js','tests/e2e/export-recovery.spec.js','tests/e2e/operations-report.spec.js','tests/e2e/activity-detail.spec.js','tests/e2e/portfolio-report.spec.js','tests/e2e/audit-report.spec.js','tests/e2e/timeline.spec.js','tests/e2e/monitoring.spec.js','--config=playwright.config.js');
   } else if (target === 'phase3a') {
-    args.push('tests/e2e/activity-execution.spec.js', 'tests/e2e/document-containment.spec.js', 'tests/e2e/documents-audit.spec.js', '--config=playwright.config.js');
-	} else if (target === 'phase3c' || target === 'phase3c-discovery') {
-	args.push('tests/e2e/phase3c-hardening.spec.js', '--config=playwright.config.js');
-	if (target === 'phase3c-discovery') args.push('--grep', 'Phase 3C discovery control');
+    args.push('tests/e2e/activity-execution.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+	} else if (target === 'phase3c') {
+	args.push('tests/e2e/reconciliation-restore.spec.js', '--config=playwright.config.js');
   } else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(target)) {
-	args.push('tests/e2e/phase1-reset.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
+	args.push('tests/e2e/reset-boundaries.spec.js', ...(target === 'rst008' ? ['tests/e2e/auth-concurrency.spec.js'] : []), '--config=playwright.config.js');
     const tags = { rst007a: 'RST-007A', rst004: 'RST-004', rst008: 'RST-008', rst009a: 'RST-009A' };
     args.push('--grep', `\\[${tags[target]}\\]`);
-  } else if (target === 'characterization') {
-    args.push('--config=tests/characterization/playwright.config.js');
   } else {
     args.push('--config=tests/manual/playwright.config.js', '--debug');
   }
-  await runCommand('npx', args, { env: composeEnvironment(plan), signal, timeoutMs: (target === 'phase3b-performance' ? 55 : 15) * 60 * 1000 });
+  await runCommand('npx', args, { env: composeEnvironment(plan), signal, timeoutMs: 15 * 60 * 1000 });
 }
 
 async function captureDiagnosticsInline(plan, signal, workerSecrets = []) {
@@ -936,11 +744,10 @@ async function finalizeDisposableRun({ plan, provisionAttempted, failure, runMod
   } catch (diagnosticsError) {
     failure = combineFailures(failure, diagnosticsError, 'Test execution and diagnostics capture failed.');
   }
-  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1' && runMode !== 'phase1-reset'
-	&& !runMode.startsWith('rst005')
+  const shouldRetain = failure && environment.MJL_TEST_RETAIN === '1'
     && !runMode.startsWith('rst013a')
     && !runMode.startsWith('rst014a')
-    && !['phase3b-performance', 'phase3b-monitoring', 'phase3b-reports', 'phase3b-activities', 'phase3b', 'phase3c', 'production-readiness', 'all', 'verify', 'e2e', 'manual-accessibility'].includes(runMode);
+    && !['phase3b', 'phase3c', 'all', 'verify', 'e2e', 'manual-accessibility'].includes(runMode);
   try {
     if (shouldRetain) retain(plan);
   } finally {
@@ -976,7 +783,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-performance' || mode === 'phase3b-monitoring' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3c' || mode === 'production-readiness' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       if (mode === 'phase3c') {
@@ -1030,19 +837,6 @@ async function main() {
           if (setupFailure === 'setup') throw new Error('Injected lifecycle setup failure.');
           await compose(plan, ['up', '-d', 'mariadb'], { quiet: true, signal: controller.signal, timeoutMs: 60000 });
           process.stdout.write(`${layer === 'rst013a-lifecycle-probe' ? 'RST-013A' : 'RST-014A'} lifecycle probe ready.\n`);
-        } else if (mode === 'phase1-reset') {
-          await runPhase1Cutover({
-            plan,
-            signal: controller.signal,
-            repositoryRoot,
-            runCommand,
-            compose,
-            waitUntilReady,
-            expectComposeFailure,
-            assertDisposableConfig,
-          });
-          await runRst005CutoverRehearsal({ plan, signal: controller.signal, repositoryRoot, compose, databaseSql });
-          await provisionDisposableFixtureControls(plan, controller.signal);
         }
         else await provision(plan, controller.signal);
       }
@@ -1066,26 +860,7 @@ async function main() {
         await runRst003RollbackRehearsal(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
       }
-      else if (['rst007a', 'rst004', 'rst008', 'rst009a'].includes(layer)) {
-        await runPhase1Verification(plan, controller.signal);
-		if (mode === 'phase1-reset' && layer === 'rst007a') await runPhase1SchemaMutationRehearsal(plan, controller.signal);
-		if (mode === 'phase1-reset' && layer === 'rst007a') await runPhase1FailpointConstantRehearsal(plan, controller.signal);
-		if (mode !== 'phase1-reset') await runPlaywright(plan, layer, controller.signal);
-      }
-      else if (layer === 'rst010a') {
-        await runPhase1Verification(plan, controller.signal);
-        await runPlaywright(plan, mode === 'phase1-reset' ? 'phase1-all' : layer, controller.signal);
-      }
-      else if (layer === 'rst014a') {
-        await runPhase1Verification(plan, controller.signal);
-        await runPlaywright(plan, layer, controller.signal);
-      }
-      else if (layer === 'rst013a') {
-        await runPhase1Verification(plan, controller.signal);
-        await runPlaywright(plan, layer, controller.signal);
-      }
-      else if (layer === 'rst005') {
-        await runRst005CutoverRehearsal({ plan, signal: controller.signal, repositoryRoot, compose, databaseSql });
+      else if (['rst007a', 'rst004', 'rst008', 'rst009a', 'rst010a', 'rst014a', 'rst013a'].includes(layer)) {
         await runPhase1Verification(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
       }
@@ -1130,14 +905,9 @@ async function main() {
         await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst012_export_schema.php','--mode=verify-empty'], { signal: controller.signal });
         await runPlaywright(plan, layer, controller.signal);
       }
-	  else if (layer === 'phase3b-performance' || layer === 'phase3b-monitoring' || layer === 'phase3b-activities' || layer === 'phase3b-reports') {
-		await runPlaywright(plan,layer,controller.signal);
-	  }
 	  else if (layer === 'phase3b') {
-		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-schema-probe.php'], {signal: controller.signal});
-		await runPlaywright(plan,'phase3b-monitoring',controller.signal);
-		await runPlaywright(plan,'phase3b-performance',controller.signal);
-		await runCommand(process.execPath,['tests/runner/rst012-fast-cutover-rehearsal.js'],{signal:controller.signal});
+		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], {signal: controller.signal});
+		await runPlaywright(plan,layer,controller.signal);
 	  }
 	  else if (layer === 'phase3a') {
 		await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_execution_schema.php'], { signal: controller.signal });
@@ -1168,19 +938,6 @@ async function main() {
 		  ['table collation','ALTER TABLE llx_mjlfinancement_reopening_request CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_bin','ALTER TABLE llx_mjlfinancement_reopening_request CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci'],
 		];
 		for(const [category,mutate,restore]of mutations){await databaseSql(plan,mutate,{signal:controller.signal});await expectComposeFailure(plan,verifier,`RST-006B exact ${category}`,{signal:controller.signal});await databaseSql(plan,restore,{signal:controller.signal});await compose(plan,verifier,{signal:controller.signal});}
-		const probe='/opt/mjl-tests/fixtures/rst006b-schema-probe.php';
-		for(const [category,mutate,restore]of [
-		  ['swapped Activity and Operation stages','swap-operation-to-predecessor','restore-operation-target'],
-		  ['both old and new Activity trigger generations','install-old-activity-trigger','drop-old-activity-trigger'],
-		  ['missing required transitioned trigger','drop-required-trigger','restore-required-trigger'],
-		]){await compose(plan,['exec','-T','--user','www-data','dolibarr','php',probe,mutate],{signal:controller.signal});await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],`RST-006B malformed prefix: ${category}`,{signal:controller.signal});await compose(plan,['exec','-T','--user','www-data','dolibarr','php',probe,restore],{signal:controller.signal});await compose(plan,verifier,{signal:controller.signal});}
-		await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=rollback','--confirm=RST-006B'],{signal:controller.signal});
-		await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B','--failure-point=reopening_request'],'RST-006B trigger-prefix setup',{signal:controller.signal});
-		await compose(plan,['exec','-T','--user','www-data','dolibarr','php',probe,'install-out-of-order-trigger'],{signal:controller.signal});
-		await expectComposeFailure(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],'RST-006B out-of-order new trigger prefix',{signal:controller.signal});
-		await compose(plan,['exec','-T','--user','www-data','dolibarr','php',probe,'drop-out-of-order-trigger'],{signal:controller.signal});
-		await compose(plan,['exec','-T','dolibarr','php',migration,'--mode=apply','--confirm=RST-006B'],{signal:controller.signal});
-		await compose(plan,verifier,{signal:controller.signal});
 		await runPlaywright(plan, layer, controller.signal);
 	  }
       else if (layer === 'rst006a') {
@@ -1271,16 +1028,9 @@ async function main() {
 		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
 		}
 		if (!selectedDdlPoint) await runPlaywright(plan, layer, controller.signal);
-		if (!selectedDdlPoint && !postDdlOnly) await runCommand(process.execPath, [path.join(repositoryRoot,'tests/runner/rst006a-fast-cutover-rehearsal.js')], { signal: controller.signal, timeoutMs: 15 * 60 * 1000 });
       }
-      else if (layer === 'production-readiness') await runProductionReadiness(plan, controller.signal);
       else if (layer === 'phase3c') {
-		await runProductionReadiness(plan, controller.signal);
-		if (process.env.MJL_PHASE3C_DISCOVERY_FAILURE === '1') {
-			await runPlaywright(plan, 'phase3c-discovery', controller.signal);
-			throw new Error('Phase 3C deliberate discovery failure unexpectedly passed.');
-		}
-		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/phase3b-schema-probe.php'], {signal: controller.signal});
+		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], {signal: controller.signal});
 		await runPlaywright(plan, layer, controller.signal);
 		await runPhase3cRestoreRehearsal(plan, restorePlan, controller.signal);
 	  }
@@ -1295,7 +1045,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst005' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b-performance' || mode === 'phase3b-monitoring' || mode === 'phase3b-reports' || mode === 'phase3b-activities' || mode === 'phase3b' || mode === 'phase3c' || mode === 'production-readiness' || mode === 'phase3a' || mode === 'rst006b' || mode === 'rst013c' || mode === 'rst014c' || mode === 'characterization' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

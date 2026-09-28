@@ -21,7 +21,6 @@ test('operational entrypoints require the shared CLI-only guard', () => {
 		'disable_native_workspace_modules.php',
 		'rst_phase1_reset.php',
 		'verify_phase1_reset.php',
-		'check_production_readiness.php',
   ]) {
     const source = fs.readFileSync(
       path.join(repositoryRoot, 'custom/mjlfinancement/scripts', script),
@@ -29,33 +28,6 @@ test('operational entrypoints require the shared CLI-only guard', () => {
     );
     assert.match(source, /require_once __DIR__\.'\/cli_guard\.php';/, script);
   }
-});
-
-test('production readiness is a read-only JSON diagnostic and never claims the Phase 3C verdict', () => {
-	const source = fs.readFileSync(
-		path.join(repositoryRoot, 'custom/mjlfinancement/scripts/check_production_readiness.php'),
-		'utf8',
-	);
-	assert.match(source, /NOSESSION/);
-	assert.match(source, /mjl_rst012_require_target/);
-	assert.match(source, /information_schema\.COLUMNS/);
-	assert.match(source, /COLUMN_NAME='entity'/);
-	assert.match(source, /native_administrator/);
-	assert.match(source, /nativeUserDenied/);
-	assert.match(source, /businessCount === 0/);
-	assert.match(source, /json_encode/);
-	assert.doesNotMatch(source, /CORE_SCOPE_(?:READY|BLOCKED)/);
-	assert.doesNotMatch(source, /(?:INSERT|UPDATE|DELETE|REPLACE|ALTER|CREATE|DROP|activateModule|mjl_rst012_install)\s*\(/);
-});
-
-test('local bootstrap activates modules without persistent sample creation', () => {
-  const source = fs.readFileSync(
-    path.join(repositoryRoot, 'custom/mjlfinancement/scripts/bootstrap_poc.php'),
-    'utf8',
-  );
-
-  assert.doesNotMatch(source, /mjl_sample_data|mjl_csv_|ensureUser|setPassword|api_key/i);
-  assert.match(source, /without creating users, roles, groups, Partners, Projects, business records, documents, or sample data/);
 });
 
 test('operational module scripts fail closed on the exact preserved administrator', () => {

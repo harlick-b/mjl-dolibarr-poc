@@ -2,8 +2,17 @@ const { test, expect } = require('@playwright/test');
 const childProcess = require('node:child_process');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
-const { createPhase3AFixtureSet, phase3ACommand } = require('../helpers/phase3a-fixture');
-const { EXECUTION_TRANSITIONS, REQUEST_STATES } = require('./cases/activity-execution.cases');
+const { createExecutionFixtureSet, runExecutionFixtureCommand } = require('../helpers/execution-fixture');
+
+const statuses = ['TODO','IN_PROGRESS','COMPLETED','CANCELLED'];
+const EXECUTION_TRANSITIONS = Object.freeze(statuses.flatMap((from) => statuses.map((to) => Object.freeze({
+  from,
+  to,
+  allowed: (from === 'TODO' && ['TODO','IN_PROGRESS','COMPLETED'].includes(to)) || (from === 'IN_PROGRESS' && ['IN_PROGRESS','COMPLETED'].includes(to)),
+  outcome: to === 'CANCELLED' ? 'INVALID_INPUT' : ((from === 'COMPLETED' || from === 'CANCELLED' || (from === 'IN_PROGRESS' && to === 'TODO')) ? 'CONFLICT' : 'OK'),
+}))));
+
+const REQUEST_STATES = Object.freeze(['PENDING','APPROVED','REJECTED','WITHDRAWN']);
 
 function sql(statement) {
   return childProcess.execFileSync('docker', ['compose','exec','-T','mariadb','mariadb','--defaults-extra-file=/run/mjl-test/client.cnf','-N','-B','dolidb'], { encoding: 'utf8', env: process.env, input: `${statement}\n` }).trim();
@@ -14,7 +23,7 @@ let secondary;
 let edge;
 let matrix;
 let validation;
-const command = (request) => phase3ACommand({ entity: 1, ...request });
+const command = (request) => runExecutionFixtureCommand({ entity: 1, ...request });
 
 function planningCommand(actorId, expression) {
   const source = `<?php define('NOLOGIN',1);require '/var/www/html/main.inc.php';require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivitycommand.class.php';$conf->entity=1;$actor=new User($db);if($actor->fetch(${Number(actorId)})<=0)exit(2);$command=new MjlActivityCommand($db,function(){return '2026-09-04';},1);echo json_encode(${expression},JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);`;
@@ -30,11 +39,11 @@ async function login(page, loginName) {
 }
 
 function parallelCancellation(request) {
-  return new Promise((resolve,reject)=>{const child=spawn('docker',['compose','exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/rst006a-parallel-worker.php'],{env:process.env,stdio:['pipe','pipe','pipe']});const stdout=[];const stderr=[];const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Phase 3A concurrency worker timed out.'));},15000);child.stdout.on('data',(chunk)=>stdout.push(Buffer.from(chunk)));child.stderr.on('data',(chunk)=>stderr.push(Buffer.from(chunk)));child.once('error',reject);child.once('close',(code)=>{clearTimeout(timer);if(code!==0)return reject(new Error(Buffer.concat(stderr).toString('utf8')));resolve(JSON.parse(Buffer.concat(stdout).toString('utf8').trim()));});child.stdin.end(JSON.stringify(request));});
+  return new Promise((resolve,reject)=>{const child=spawn('docker',['compose','exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/activity-command-worker.php'],{env:process.env,stdio:['pipe','pipe','pipe']});const stdout=[];const stderr=[];const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Phase 3A concurrency worker timed out.'));},15000);child.stdout.on('data',(chunk)=>stdout.push(Buffer.from(chunk)));child.stderr.on('data',(chunk)=>stderr.push(Buffer.from(chunk)));child.once('error',reject);child.once('close',(code)=>{clearTimeout(timer);if(code!==0)return reject(new Error(Buffer.concat(stderr).toString('utf8')));resolve(JSON.parse(Buffer.concat(stdout).toString('utf8').trim()));});child.stdin.end(JSON.stringify(request));});
 }
 
 test.beforeAll(() => {
-  fixture = createPhase3AFixtureSet({
+  fixture = createExecutionFixtureSet({
     namespace: 'phase3a.execution', entity: 1,
     users: [
       { key: 'agent', role: 'AGENT_SAISIE' }, { key: 'agent2', role: 'AGENT_SAISIE' },
@@ -58,7 +67,7 @@ test.beforeAll(() => {
       { key: 'request-rules', agentKey: 'agent', partnerKey: 'partner', projectKey: 'project', name: 'Règles des demandes', description: 'Motifs, versions et terminalité.', dateStart: '2026-09-05', dateEnd: '2026-09-30', authorizedAmount: '100', operations: [{ name: 'Opération des demandes', typeKey: 'type', authorizedAmount: '100' }] },
     ],
   });
-  edge = createPhase3AFixtureSet({
+  edge = createExecutionFixtureSet({
     namespace: 'phase3a.edge', entity: 1,
     users: [{ key: 'agent', role: 'AGENT_SAISIE' }, { key: 'agent2', role: 'AGENT_SAISIE' }, { key: 'supervisor', role: 'AGENT_VERIFICATEUR' }, { key: 'validator', role: 'VALIDATEUR_DEFINITIF' }],
     references: { partners: [{ key: 'partner', label: 'Partenaire limites Phase 3A' }], projects: [{ key: 'project', label: 'Projet limites Phase 3A', partnerKey: 'partner' }], operationTypes: [{ key: 'type', label: 'Type limites Phase 3A' }] },
@@ -73,7 +82,7 @@ test.beforeAll(() => {
       { key: 'missed-transition', agentKey: 'agent', partnerKey: 'partner', projectKey: 'project', name: 'Transition calendaire manquée', description: 'Rattrapage avant mutation.', dateStart: '2026-09-05', dateEnd: '2026-09-30', authorizedAmount: '100', operations: [{ name: 'Opération après échéance', typeKey: 'type', authorizedAmount: '100' }] },
     ],
   });
-  secondary = createPhase3AFixtureSet({
+  secondary = createExecutionFixtureSet({
     namespace: 'phase3a.secondary', entity: 2,
     users: [{ key: 'agent', role: 'AGENT_SAISIE' }, { key: 'supervisor', role: 'AGENT_VERIFICATEUR' }, { key: 'validator', role: 'VALIDATEUR_DEFINITIF' }],
     references: {
@@ -83,10 +92,10 @@ test.beforeAll(() => {
     },
     activities: [{ key: 'execution', agentKey: 'agent', partnerKey: 'partner', projectKey: 'project', name: 'Exécution autre entité', description: 'Isolation.', dateStart: '2026-09-05', dateEnd: '2026-09-30', authorizedAmount: '100', operations: [{ name: 'Opération autre entité', typeKey: 'type', authorizedAmount: '100' }] }],
   });
-  matrix=createPhase3AFixtureSet({namespace:'phase3a.matrix',entity:1,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'agent2',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'partner',label:'Partenaire matrice Phase 3A'}],projects:[{key:'project',label:'Projet matrice Phase 3A',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type matrice Phase 3A'}]},activities:[
+  matrix=createExecutionFixtureSet({namespace:'phase3a.matrix',entity:1,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'agent2',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'partner',label:'Partenaire matrice Phase 3A'}],projects:[{key:'project',label:'Projet matrice Phase 3A',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type matrice Phase 3A'}]},activities:[
     ...['TODO','IN_PROGRESS'].flatMap((from)=>['TODO','IN_PROGRESS','COMPLETED','CANCELLED'].map((to)=>({key:`${from}-${to}`.toLowerCase(),agentKey:'agent',partnerKey:'partner',projectKey:'project',name:`Transition ${from} vers ${to}`,description:'Matrice exhaustive des transitions.',dateStart:'2026-09-05',dateEnd:'2026-09-30',authorizedAmount:'100',operations:[{name:`Opération ${from} vers ${to}`,typeKey:'type',authorizedAmount:'100'}]}))),
   ]});
-  validation=createPhase3AFixtureSet({namespace:'phase3a.validation',entity:1,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'partner',label:'Partenaire validation Phase 3A'}],projects:[{key:'project',label:'Projet validation Phase 3A',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type validation Phase 3A'}]},activities:[{key:'rollback',finalize:false,agentKey:'agent',partnerKey:'partner',projectKey:'project',name:'Validation atomique Phase 3A',description:'Le premier événement dérivé est transactionnel.',dateStart:'2026-09-05',dateEnd:'2026-09-30',authorizedAmount:'100',operations:[{name:'Opération validation atomique',typeKey:'type',authorizedAmount:'100'}]}]});
+  validation=createExecutionFixtureSet({namespace:'phase3a.validation',entity:1,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'partner',label:'Partenaire validation Phase 3A'}],projects:[{key:'project',label:'Projet validation Phase 3A',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type validation Phase 3A'}]},activities:[{key:'rollback',finalize:false,agentKey:'agent',partnerKey:'partner',projectKey:'project',name:'Validation atomique Phase 3A',description:'Le premier événement dérivé est transactionnel.',dateStart:'2026-09-05',dateEnd:'2026-09-30',authorizedAmount:'100',operations:[{name:'Opération validation atomique',typeKey:'type',authorizedAmount:'100'}]}]});
 });
 
 test('definitive validation records one transactional execution baseline', () => {
@@ -106,7 +115,7 @@ test('definitive validation records one transactional execution baseline', () =>
   expect(sql(`SELECT CONCAT(validation_status,'|',version,'|',IF(latest_validated_amount IS NULL,'NULL',latest_validated_amount)) FROM llx_mjlfinancement_activity WHERE rowid=${pending.activity_id}`)).toBe(`PREVALIDATED|${prevalidated.version}|NULL`);
 });
 
-test('Assigned Agent preserves explicit zero and completed Operations lock', () => {
+test('Assigned Agent preserves explicit zero, completed Operations lock, and visible audit', async ({ page }) => {
   const activity = fixture.activities.execution;
   const operation = activity.operations[0];
   const rejected = command({ action: 'update', actorId: fixture.users.agent.id, activityId: activity.activity_id, operationId: operation.rowid, expectedVersion: operation.version, input: { status: 'COMPLETED', spent_amount: '0', observation: null } });
@@ -117,6 +126,11 @@ test('Assigned Agent preserves explicit zero and completed Operations lock', () 
   expect(sql(`SELECT target_version FROM llx_mjlfinancement_audit_event WHERE operation_id=${operation.rowid} AND action='OPERATION_EXECUTION_UPDATED' ORDER BY rowid DESC LIMIT 1`)).toBe(String(operation.version));
   const locked = command({ action: 'update', actorId: fixture.users.agent.id, activityId: activity.activity_id, operationId: operation.rowid, expectedVersion: completed.operation_version, input: { status: 'COMPLETED', spent_amount: '1', observation: 'Tentative' } });
   expect(locked.code).toBe('CONFLICT');
+  await login(page, fixture.users.validator.login);
+  const response = await page.goto('/custom/mjlfinancement/workflowactions.php?audit_action=OPERATION_EXECUTION_UPDATED');
+  expect(response.status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'Audit' })).toBeVisible();
+  await expect(page.locator('body')).toContainText('OPERATION_EXECUTION_UPDATED');
 });
 
 test('Phase 3A guards preserve version-only planning saves with inactive retained references', () => {

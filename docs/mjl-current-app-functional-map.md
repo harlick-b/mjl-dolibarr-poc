@@ -1,17 +1,15 @@
 # MJL Current App Functional Map
 
 This file is current-state evidence only. It does not override
-'docs/mjl-authoritative-decisions.md'.
+`docs/mjl-authoritative-decisions.md`.
 
 ## Current local state
 
-The local tenant contains exactly one preserved native technical
-administrator and no persistent business, invitation, reset, role, scope, or
-audit rows. The shared schema is at exact RST-012. Module version 0.20.0 depends on native Third Parties and Projects.
-MJL-specific code remains under 'custom/mjlfinancement'.
-The local schema implements RST-012. Historical cutover and verdict details
-remain in the decision register; they do not record current user acceptance or
-production readiness.
+The shared local tenant has one native technical administrator and no
+persistent MJL business or access records. The installed custom schema is at
+RST-012; module version 0.20.0 depends on native Third Parties and Projects.
+MJL code lives in `custom/mjlfinancement`. Tests create minimal records in
+isolated disposable tenants and remove those tenants after each run.
 
 | Surface | Current behavior |
 | --- | --- |
@@ -19,31 +17,31 @@ production readiness.
 | Partenaires, Projets, Types d’Opération | Same-entity business-role reads; Validator-only activation/deactivation and mutation. |
 | Activities | Entity-scoped planning/review aggregate plus active derived execution status, financial completeness/totals, and guarded Activity cancellation request. |
 | Opérations | Active 50-row execution list: current Assigned Agents enter explicit spending/observations and request exceptions; Supervisor/Validator read; Admin denied. |
-| Demandes d’exception | Active bounded cancellation/reopening list with Agent withdrawal and Validator decision controls and Phase 3B navigation. |
+| Demandes d’exception | Active bounded cancellation/reopening list with Agent withdrawal and Validator decision controls in MJL navigation. |
 | Activity chronology | Detail/review pages show sanitized execution, request, assignment, automatic-transition and single-Activity export summaries, with stable 50-event cursors. Active entity/current assignment remain enforced; Admin denied. Oversized or unavailable details remain explicit. |
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |
 | Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. |
 | Administration technique | Native-Admin link to Dolibarr module administration. |
 | Invitation/reset | Public selector in the query string, secret verifier in the fragment, hash-only storage, same-origin POST redemption, single use, expiry, throttling, CSRF, transaction/audit coupling, and neutral reset-request response. |
-| Legacy finance, reports, validations, exchanges | Obsolete implementations remain removed. |
-| Activities / Operations / Fiche Activité / portfolio / audit reports | Active scoped `reports.php` previews and audited PDF/XLSX/CSV downloads require exact RST-012. Audit remains Validator/Admin only; business reports retain role and assignment scope. |
+| Activities / Operations / Fiche Activité / portfolio / audit reports | Active scoped `reports.php` previews and audited PDF/XLSX/CSV downloads require the current export schema. Audit remains Validator/Admin only; business reports retain role and assignment scope. |
 | Documents | MJL `documents.php` and `documentdownload.php` return dependency-free HTTP 403 for every actor/method; Apache blocks `/ecm/*`, `/document.php`, and `/viewimage.php`. Native ECM storage remains dormant and unchanged. |
-| Alertes and old supervision | Active computed Alertes are derived from current scoped data; obsolete supervision remains denied. |
+| Alertes | Computed alerts come from current scoped data. |
 
-## Persistent custom tables in the touched boundary
+## Persistent custom tables
 
-- 'llx_mjlfinancement_audit_event' (append-only through database triggers)
-- 'llx_mjlfinancement_invitation'
-- 'llx_mjlfinancement_password_reset'
-- 'llx_mjlfinancement_user_role'
-- 'llx_mjlfinancement_activity' and 'llx_mjlfinancement_activity_assignment' (empty RST-006A target)
-- 'llx_mjlfinancement_operation', 'llx_mjlfinancement_activity_revision',
-  'llx_mjlfinancement_revision_contributor', and
-  'llx_mjlfinancement_review_decision' (empty RST-006B targets)
-- 'llx_mjlfinancement_cancellation_request' and
-  'llx_mjlfinancement_reopening_request' (empty RST-006B targets)
-- 'llx_mjlfinancement_operation_type' (empty RST-003 reference table)
-- 'llx_mjlfinancement_export_record' (empty immutable RST-012 export evidence)
+The following custom tables are installed and contain no persistent sample
+records in the shared local tenant:
+
+- `llx_mjlfinancement_audit_event` (append-only through database triggers)
+- `llx_mjlfinancement_invitation`, `llx_mjlfinancement_password_reset`,
+  `llx_mjlfinancement_user_role`
+- `llx_mjlfinancement_activity`, `llx_mjlfinancement_activity_assignment`
+- `llx_mjlfinancement_operation`, `llx_mjlfinancement_activity_revision`,
+  `llx_mjlfinancement_revision_contributor`, `llx_mjlfinancement_review_decision`
+- `llx_mjlfinancement_cancellation_request`,
+  `llx_mjlfinancement_reopening_request`
+- `llx_mjlfinancement_operation_type`
+- `llx_mjlfinancement_export_record` (immutable export evidence)
 
 No legacy group membership participates in MJL authorization. Native Admin
 status derives ADMIN_PLATEFORME; business roles are stored only for non-admin,
@@ -51,9 +49,10 @@ same-entity users.
 
 ## Dashboard source
 
-The exact RST-012 schema check enables financial-first Accueil, computed Alertes,
-50-row Activity/Opération browsing and current-role action queues. Admin remains technical/audit-only;
-Agents use current Activity assignments, and reviewers use the active entity.
+The current schema readiness check enables financial-first Accueil, computed
+Alertes, 50-row Activity/Opération browsing, and current-role action queues.
+Admin remains technical/audit-only; Agents use current Activity assignments,
+and reviewers use the active entity.
 
 The shared filters are Partenaire, Projet, Activity reference/name, validation,
 execution, completeness and inclusive Activity-date overlap. Opération
@@ -67,8 +66,7 @@ freeze at start; unchanged submitted reviews may finish and unsubmitted drafts
 may still be abandoned. Pending proposals and validated authorization/spending
 remain separately labeled. Query failures produce unavailable sections.
 
-The navigation adds Alertes, Demandes d’exception and business Rapports after
-the implemented RST-012 schema check; audit report variants select Audit.
-The obsolete supervision route remains denied. Historical test runs and the
-local cutover remain available in Git history and the decision register. These
-implementation facts do not record user acceptance or production readiness.
+Navigation includes Alertes, Demandes d’exception and business Rapports when
+the schema check passes; audit report variants select Audit. The obsolete
+supervision route remains denied. These implementation facts do not record user
+acceptance or production readiness.

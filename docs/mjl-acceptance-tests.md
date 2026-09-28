@@ -31,10 +31,7 @@ isolation, security boundaries, and data integrity.
 - `npm run test:unit` for fast source contracts;
 - `npm run test:verify` for the current isolated schema verifier;
 - `npm run test:e2e` only when broad current UI coverage is explicitly needed;
-- named `test:rst*` and `test:phase*` commands only for their affected surface;
-- `npm run test:phase3b-performance` only for explicitly requested performance work;
-- `npm run audit:production-readiness` only for explicitly requested future
-  production-readiness work.
+- named `test:rst*` and `test:phase*` commands only for their affected surface.
 
 Disposable suites must keep their isolation, secret handling, shared-state
 preservation, and teardown guarantees. Never revive persistent sample data to

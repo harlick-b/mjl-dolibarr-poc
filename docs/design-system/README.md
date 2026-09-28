@@ -2,15 +2,9 @@
 
 ## Status
 
-- Active approved design generation: v3.
-- Design package and repository implementation: approved and implemented.
-- Automated promotion gate: passed.
-- Implementation verdict: `IMPLEMENTED_WITH_NOTES`.
-- Manual accessibility validation and production/operator readiness are
-  explicitly deferred from the current functional milestone. Client business
-  decisions remain inputs to the next milestone.
-
-This approval does not establish WCAG conformance or production readiness.
+The approved v3 package governs visual presentation. The application remains
+under development; signed human accessibility review, client copy review, and
+user acceptance remain outstanding. Production readiness is not established.
 
 ## Authority
 
@@ -24,11 +18,6 @@ The approved package predates the post-cadrage v2 product reset. Its tokens,
 components, focus states, density, responsive behavior, and accessibility
 guidance remain authoritative. Its old role, Partner-scope, finance,
 document-policy, CSV/XLSX-only, and PDF-prohibition statements are superseded.
-
-The former v2 package was retired after every useful artifact was rebuilt,
-consolidated, or explicitly retired in the v3 migration ledger. It is not kept
-as a stale in-tree archive and remains recoverable from Git commit
-`e95927f816bb127914b432adb119e522c669cbc8`.
 
 ## Approved generation governance
 
@@ -81,15 +70,8 @@ ordinary connection metadata.
 The gstatic font origin may receive the Google stylesheet URL as its referrer.
 Production infrastructure must preserve this policy.
 
-## Deferred release confirmations
-
-- Production reverse-proxy CSP, egress, and privacy policy.
-- Signed keyboard, screen-reader, reflow, and real browser-zoom evidence.
-- Client approval of non-protected wording and Phase 6 official templates.
-- Production email, public URL, secrets, storage, backup, monitoring, and
-  retention configuration.
-
 If production CSP is introduced, it must allow
 `https://fonts.googleapis.com` in `style-src` and
 `https://fonts.gstatic.com` in `font-src`, or an approved local Inter pipeline
-must replace the CDN source.
+must replace the CDN source. Other deferred deployment questions are in the
+[deployment checklist](../mjl-deployment-checklist.md).

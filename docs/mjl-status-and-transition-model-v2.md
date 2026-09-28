@@ -92,28 +92,7 @@ Cancellation never supplies a missing amount and never implies completeness.
 - Revision, validation, execution, request, and completeness states remain
   separate concepts.
 
-## Phase 4 Document Series and Lifecycle Events
+## Future Documents
 
-| Effective state/event | Allowed next event | Actor | Guard |
-| --- | --- | --- | --- |
-| None | `PUBLISHED` | Authorized Agent or Validator | Parent context authorized; workflow unlocked; validation and scan pass |
-| Current version | `PUBLISHED` plus prior-version `SUPERSEDED` | Authorized Agent or Validator | One transaction; expected series version matches |
-| Current version | `WITHDRAWN` | Authorized uploader scope or Validator | Mandatory reason; Validator cannot withdraw Agent evidence; no physical delete |
-| Superseded or withdrawn version | None | None | Immutable historical evidence; reasoned recovery view only |
-
-A series may have many versions but ordered append-only lifecycle events derive
-at most one current version. Version numbers and per-series event sequences are
-append-only and never reused. The lifecycle event and audit event commit in the
-same transaction. A per-series lock or optimistic version returns a retryable
-conflict to a concurrent loser. Any current-state projection is rebuildable,
-not authoritative version metadata. Submission snapshots the qualifying
-version identifiers and complete selected Category Rule Revision payloads.
-Snapshot versions never change even when a later version or rule is appended,
-superseded, or withdrawn.
-
-Evidence is immutable during submitted or prevalidated review. Activité
-evidence is locked from definitive validation. Post-validation Opération
-evidence remains open until the Opération becomes terminal; an approved
-reopening unlocks only future append operations. It never makes an old version
-mutable. Stale, cross-entity, cross-parent, or locked mutations
-fail without changing files, metadata, ECM linkage, quota, or audit.
+There is no active MJL document lifecycle. Current document delivery remains
+denied; future states require a fresh user request and scope review.

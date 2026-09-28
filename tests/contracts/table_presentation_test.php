@@ -14,7 +14,7 @@ mjl_table_assert(function_exists('mjl_table_render_filter_bar'), 'Shared filter-
 $fields = array(
 	array(
 		'name' => 'partner',
-		'label' => 'Partenaire / Programme',
+		'label' => 'Partenaire',
 		'value' => '12',
 		'default' => '',
 		'options' => array('' => 'Tous les partenaires', '12' => 'UNICEF', '13' => 'Programme <Redevabilité>'),
@@ -42,7 +42,7 @@ mjl_table_assert(strpos($html, 'id="mjl-filter-projects-partner"') !== false, 'S
 mjl_table_assert(strpos($html, 'value="12" selected') !== false, 'Selected option is not retained.');
 mjl_table_assert(strpos($html, 'Programme &lt;Redevabilité&gt;') !== false, 'Option labels are not safely escaped.');
 mjl_table_assert(strpos($html, 'Filtres actifs :') !== false, 'Applied-filter summary is missing.');
-mjl_table_assert(strpos($html, 'Partenaire / Programme : UNICEF') !== false, 'Selected partner is missing from the summary.');
+mjl_table_assert(strpos($html, 'Partenaire : UNICEF') !== false, 'Selected partner is missing from the summary.');
 mjl_table_assert(strpos($html, 'Trier par : Plus récents') !== false, 'Non-default sort is missing from the summary.');
 mjl_table_assert(strpos($html, 'Statut :') === false, 'Default filters must not appear as active.');
 

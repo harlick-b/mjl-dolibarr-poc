@@ -23,7 +23,7 @@ unresolved weaknesses and unapproved recommendations.
 - Phase 3A execution and exception workflows are implemented.
 - Phase 3B dashboards, alerts, browsing, audit views, and operational exports
   are implemented.
-- Phase 3C diagnostics and disposable integration checks are implemented. Some
+- Phase 3C reconciliation and disposable restore checks are implemented. Some
   historical rollback and exact-schema suites conflict with later schemas; the
   gap analysis records this unresolved compatibility debt.
 
@@ -34,10 +34,9 @@ acceptance or readiness for production.
 
 ### Phase 4: Documents
 
-Document behavior remains behind the current containment boundary. Existing
-canonical specifications and historical ADRs describe possible direction, but
-the work is unaccepted and unrequested. Implementation requires a fresh user
-request and a current scope review.
+Document behavior remains behind the current containment boundary. Phase 4
+is unrequested; its requirements need a fresh user request and scope review
+before implementation.
 
 ### Phase 5: Accounting
 

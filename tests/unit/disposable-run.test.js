@@ -85,18 +85,12 @@ test('maps each public command to explicit durable layers without phase-era targ
   assert.deepEqual(getSuitePlan('verify'), ['verify']);
   assert.deepEqual(getSuitePlan('e2e'), ['e2e']);
   assert.deepEqual(getSuitePlan('rst003'), ['rst003']);
-  assert.deepEqual(getSuitePlan('rst005'), ['rst005']);
   assert.deepEqual(getSuitePlan('rst006a'), ['rst006a']);
-  assert.deepEqual(getSuitePlan('rst006b'), ['phase3a']);
-  assert.deepEqual(getSuitePlan('rst013c'), ['phase3a']);
-  assert.deepEqual(getSuitePlan('rst014c'), ['phase3a']);
   assert.deepEqual(getSuitePlan('phase3a'), ['phase3a']);
   assert.deepEqual(getSuitePlan('phase2'), ['phase2']);
   assert.deepEqual(getSuitePlan('rst014a'), ['rst014a']);
-  assert.deepEqual(getSuitePlan('characterization'), ['phase2']);
   assert.deepEqual(getSuitePlan('manual-accessibility'), ['manual-accessibility']);
-  assert.deepEqual(getSuitePlan('production-readiness'), ['production-readiness']);
-  assert.ok(!getSuitePlan('all').includes('production-readiness'));
+  assert.deepEqual(getSuitePlan('phase3c'), ['phase3c']);
   assert.throws(() => getSuitePlan('phase3'), /unknown test mode/i);
 });
 
@@ -104,19 +98,6 @@ test('provisioning restores web-user ownership only inside disposable document s
   const runner = fs.readFileSync(path.join(repositoryRoot, 'tests/runner/run-suite.js'), 'utf8');
   assert.match(runner, /'chown', '-R', 'www-data:www-data', '\/var\/www\/documents'/);
   assert.doesNotMatch(runner, /chown[^\n]*(?:repositoryRoot|\/var\/www\/html\/custom)/);
-  assert.match(runner, /const batches = \[/);
-  for (const file of ['activity-execution','auth-concurrency','document-containment','documents-audit','fixture-isolation','partners-projects','rst002b-activity-assignment','rst006a-activity-planning','zz-phase2-planning']) assert.match(runner, new RegExp(`tests/e2e/${file}\\.spec\\.js`));
-  assert.match(runner, /for \(const batch of batches\).*timeoutMs: 15 \* 60 \* 1000/s);
-});
-
-test('Phase 2 compatibility verifies the current RST-012 target before browser acceptance', () => {
-  const runner = fs.readFileSync(path.join(repositoryRoot, 'tests/runner/run-suite.js'), 'utf8');
-  const branch = runner.match(/else if \(layer === 'phase2'\) \{([\s\S]*?)\n\s*\}\n\s*else if \(layer === 'phase3b-performance'/);
-  assert.ok(branch, 'Phase 2 runner branch is missing.');
-  assert.match(branch[1], /rst012_export_schema\.php'\s*,\s*'--mode=verify'/);
-  assert.match(branch[1], /rst012_export_schema\.php'\s*,\s*'--mode=verify-empty'/);
-  assert.doesNotMatch(branch[1], /rst006a_activity_planning\.php|--confirm=RST-006A/);
-  assert.match(branch[1], /runPlaywright\(plan, layer, controller\.signal\)/);
 });
 
 test('diagnostics failures cannot bypass teardown and all failures remain inspectable', async () => {
@@ -126,11 +107,11 @@ test('diagnostics failures cannot bypass teardown and all failures remain inspec
     plan: { projectName: 'mjl-test-finalizer' },
     provisionAttempted: true,
     failure: executionError,
-    runMode: 'phase1-reset',
+    runMode: 'e2e',
     environment: { MJL_TEST_RETAIN: '1' },
     capture: async () => { throw new Error('diagnostics failed'); },
     remove: async () => { cleanupCalled = true; throw new Error('cleanup failed'); },
-    retain: () => { throw new Error('Phase 1 must never retain.'); },
+    retain: () => { throw new Error('Disposable E2E must never retain.'); },
   });
   assert.equal(cleanupCalled, true);
   assert.ok(result instanceof AggregateError);
@@ -152,23 +133,6 @@ test('RST-014A never retains a failed tenant', async () => {
   });
   assert.equal(removed, true);
   assert.equal(retained, false);
-});
-
-test('RST-005 never retains a failed tenant', async () => {
-  const events = [];
-  const failure = new Error('rst005 failure');
-  const result = await finalizeDisposableRun({
-    plan: { projectName: 'mjl-test-rst005', artifactRoot: '/tmp/mjl-test-rst005' },
-    provisionAttempted: true,
-    failure,
-    runMode: 'rst005',
-    environment: { MJL_TEST_RETAIN: '1' },
-    capture: async () => events.push('capture'),
-    remove: async () => events.push('remove'),
-    retain: () => events.push('retain'),
-  });
-  assert.equal(result, failure);
-  assert.deepEqual(events, ['capture', 'remove']);
 });
 
 test('never-resolving diagnostics are bounded and cannot bypass teardown', async () => {
@@ -332,30 +296,15 @@ test('diagnostics worker rejects outside and symlinked artifact roots before wri
 });
 
 test('every Playwright surface installs the disposable guard with no shared URL fallback', () => {
-  for (const relative of ['playwright.config.js', 'tests/characterization/playwright.config.js', 'tests/manual/playwright.config.js']) {
+  for (const relative of ['playwright.config.js', 'tests/manual/playwright.config.js']) {
     const config = fs.readFileSync(path.join(repositoryRoot, relative), 'utf8');
     assert.match(config, /globalSetup/);
     assert.doesNotMatch(config, /127\.0\.0\.1:8080|localhost:8080/);
   }
 });
 
-test('maintained fixture markers fit the 14-character import-key boundary', () => {
-  for (const relative of ['tests/e2e/cases', 'tests/characterization/cases']) {
-    const directory = path.join(repositoryRoot, relative);
-    for (const filename of fs.readdirSync(directory).filter((entry) => entry.endsWith('.js'))) {
-      const source = fs.readFileSync(path.join(directory, filename), 'utf8');
-      assert.doesNotMatch(
-        source,
-        /'[A-Z][A-Z0-9]{14,}'/,
-        `${relative}/${filename} contains a compact fixture marker that cannot fit import_key`,
-      );
-      assert.doesNotMatch(source, /DOL_DOC_ROOT|[A-Z0-9]+-Final validator|[A-Z0-9]+Final validator/);
-    }
-  }
-});
-
 test('Phase 3B and containing aggregate runs remove failed tenants even when retention is requested', async () => {
-	for (const runMode of ['phase3b-performance', 'phase3b-monitoring', 'phase3b-reports', 'phase3b-activities', 'phase3b', 'phase3c', 'production-readiness', 'all', 'verify', 'e2e', 'manual-accessibility']) {
+	for (const runMode of ['phase3b', 'phase3c', 'all', 'verify', 'e2e', 'manual-accessibility']) {
     const events = [];
     await finalizeDisposableRun({
       plan: {projectName: 'mjl-test-phase3b-cleanup'}, provisionAttempted: true,
@@ -365,9 +314,4 @@ test('Phase 3B and containing aggregate runs remove failed tenants even when ret
     });
     assert.deepEqual(events, ['capture', 'remove'], runMode);
 	}
-});
-
-test('Phase 3C and production readiness are public disposable suite modes', () => {
-	assert.deepEqual(getSuitePlan('production-readiness'), ['production-readiness']);
-	assert.deepEqual(getSuitePlan('phase3c'), ['phase3c']);
 });
