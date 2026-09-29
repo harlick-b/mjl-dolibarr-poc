@@ -5,6 +5,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_dashboard_ui.lib.php';
 
 if (!mjl_navigation_policy_allows($user, 'workspace_enter')) { http_response_code(403); accessforbidden(); }
 $role = mjl_scope_effective_role_code($user, (int) $conf->entity);
@@ -14,15 +15,16 @@ if (!$admin && mjl_monitoring_readiness()!==0) {
 	require_once __DIR__.'/lib/mjl_monitoring_route.lib.php';
 	mjl_monitoring_page('home'); $db->close(); exit;
 }
-llxHeader('', 'Accueil');
+llxHeader('', $admin ? 'Administration' : 'Tableau de bord');
 mjl_navigation_shell_start($user);
 print '<div class="mjl-workspace">';
-print mjl_page_header_render('Accueil', array(
+print mjl_page_header_render($admin ? 'Administration' : 'Tableau de bord', array(
 	'breadcrumb' => array(array('label' => 'MJL')),
-	'description' => $admin ? 'Administration technique, gestion des accès et audit.' : 'Références actives pour le suivi des projets.',
+	'description' => $admin ? 'Gestion des accès, audit et configuration technique.' : 'Références actives pour le suivi des projets.',
 	'context' => array('label' => 'Rôle', 'value' => mjl_scope_role_label($role)),
 ));
-print mjl_ui_system_state('empty', $admin ? 'Espace d’administration' : 'Fondation Phase 1', $admin ? 'Utilisez le menu pour gérer les accès ou consulter l’audit.' : 'Les Activités et Opérations seront ouvertes par les phases suivantes.');
+if ($admin) print mjl_dashboard_admin_cards();
+else print mjl_ui_system_state('unavailable', 'Suivi indisponible', 'Les données du tableau de bord ne sont pas disponibles avec cette version du module.');
 print '</div>';
 mjl_navigation_shell_end();
 llxFooter();

@@ -3,6 +3,7 @@
 require_once __DIR__.'/mjl_report_route.lib.php';
 require_once __DIR__.'/mjl_monitoring_access.lib.php';
 require_once __DIR__.'/mjl_operation_consultation.lib.php';
+require_once __DIR__.'/mjl_dashboard_ui.lib.php';
 
 function mjl_monitoring_url($kind, array $filters=array(), array $extra=array())
 {
@@ -59,12 +60,18 @@ function mjl_monitoring_financial_cards(array $activities, array $filters)
 {
 	$totals=mjl_monitoring_dashboard_totals($activities);
 	$labels=mjl_monitoring_labels()+array('pending_draft_amount'=>'Propositions en brouillon ou retournées','pending_submitted_amount'=>'Propositions soumises ou prévalidées');
-	print '<section class="mjl-workspace-section" aria-labelledby="mjl-financial-title"><h2 id="mjl-financial-title">Situation financière</h2><p>Montants cumulés courants. Une annulation conserve les montants validés. Les dépenses renseignées constituent une somme partielle lorsque des montants manquent.</p><div class="mjl-card-grid">';
-	foreach (array('initial_amount','pending_amount','pending_draft_amount','pending_submitted_amount','validated_amount','active_authorized_amount','cancelled_authorized_amount','active_spent_amount','cancelled_spent_amount','total_spent_amount','missing_spent_count','cancelled_incomplete_count') as $key) {
+	$primary=array('validated_amount','active_authorized_amount','total_spent_amount','missing_spent_count');
+	$secondary=array('initial_amount','pending_amount','pending_draft_amount','pending_submitted_amount','cancelled_authorized_amount','active_spent_amount','cancelled_spent_amount','cancelled_incomplete_count');
+	$reportUrl=mjl_monitoring_url('reports',$filters,array('report'=>'portfolio','page'=>1));
+	$render=function($key) use ($totals,$labels,$reportUrl) {
 		$value=substr($key,-6)==='_count'?(string)$totals[$key]:mjl_format_money($totals[$key]);
-		print '<article class="mjl-dashboard-card" data-metric="'.$key.'"><h3 class="mjl-card-label">'.dol_escape_htmltag($labels[$key]).'</h3><strong class="mjl-card-value">'.dol_escape_htmltag($value).'</strong><a class="mjl-card-link" href="'.dol_escape_htmltag(mjl_monitoring_url('reports',$filters,array('report'=>'portfolio','page'=>1))).'">Consulter le portefeuille</a></article>';
-	}
-	print '</div></section>';
+		print '<article class="mjl-dashboard-card" data-metric="'.$key.'"><h3 class="mjl-card-label">'.dol_escape_htmltag($labels[$key]).'</h3><strong class="mjl-card-value">'.dol_escape_htmltag($value).'</strong><a class="mjl-card-link" href="'.dol_escape_htmltag($reportUrl).'">Consulter le portefeuille</a></article>';
+	};
+	print '<section class="mjl-workspace-section mjl-dashboard-financial" aria-labelledby="mjl-financial-title"><div class="mjl-section-heading"><div><h2 id="mjl-financial-title">Situation financière</h2><p>Montants cumulés courants. Les dépenses renseignées restent une somme partielle lorsque des montants manquent.</p></div></div><div class="mjl-dashboard-financial-strip">';
+	foreach ($primary as $key) $render($key);
+	print '</div><details class="mjl-dashboard-financial-details"><summary>Voir les indicateurs financiers complémentaires</summary><p>Une annulation conserve les montants validés et les dépenses déjà enregistrées.</p><div class="mjl-card-grid">';
+	foreach ($secondary as $key) $render($key);
+	print '</div></details></section>';
 }
 
 function mjl_monitoring_stage_counts(array $activities, array $filters)
@@ -194,7 +201,7 @@ function mjl_monitoring_page($kind)
 		}
 		$filters=mjl_report_validate_request($kind==='operations'?'operations':'activities','csv',$source);
 	} catch (InvalidArgumentException $exception) { mjl_report_http_error(400,'Filtres invalides.'); }
-	$titles=array('home'=>'Accueil','alerts'=>'Alertes','activities'=>'Activités','operations'=>'Opérations','requests'=>'Demandes d’exception');
+	$titles=array('home'=>'Tableau de bord','alerts'=>'Alertes','activities'=>'Activités','operations'=>'Opérations','requests'=>'Demandes d’exception');
 	$title=$titles[$kind]; $activities=null; $queue=null; $requests=null; $choices=null; $budgets=null;
 	$reader=new MjlMonitoring($db,$user,(int)$conf->entity);
 	try {
@@ -215,7 +222,9 @@ function mjl_monitoring_page($kind)
 	finally { if ($budgets!==null && !$db->query('SET SESSION max_statement_time='.(float)$budgets['statement_time'].',innodb_lock_wait_timeout='.(int)$budgets['row_wait'].',lock_wait_timeout='.(int)$budgets['metadata_wait'])) { $activities=null; http_response_code(503); } }
 	header('Cache-Control: private, no-store');
 	llxHeader('',$title); mjl_navigation_shell_start($user);
-	$options=array('description'=>'Montants cumulés courants et suivi dans votre périmètre d’accès.','context'=>array('label'=>'Rôle','value'=>mjl_scope_role_label($reader->role())));
+	$profile=mjl_dashboard_profile($reader->role());
+	$options=array('description'=>$kind==='home'?$profile['description']:'Montants cumulés courants et suivi dans votre périmètre d’accès.','context'=>array('label'=>'Rôle','value'=>mjl_scope_role_label($reader->role())));
+	if ($kind==='home') $options['primary_action']=array('label'=>'Voir les Activités','href'=>mjl_monitoring_url('activities'));
 	if ($kind==='activities' && $reader->role()==='AGENT_SAISIE') $options['primary_action']=array('label'=>'Créer une Activité','href'=>mjl_monitoring_url('activities',array('action'=>'create')));
 	print '<div class="mjl-workspace">'.mjl_page_header_render($title,$options);
 	if ($activities===null) print mjl_ui_system_state('unavailable','Suivi indisponible','Les données ne peuvent pas être chargées. Aucun total ni action n’est disponible.');
@@ -224,13 +233,18 @@ function mjl_monitoring_page($kind)
 		else mjl_monitoring_filter_form($filters,$choices,$kind,$kind==='requests'?$requestFilters:array());
 		print '<p>Calcul au '.dol_escape_htmltag(mjl_format_date($reader->date())).' (Africa/Porto-Novo). Actualisé le '.dol_escape_htmltag(gmdate('d/m/Y H:i')).' UTC. Périmètre : '.($reader->role()==='AGENT_SAISIE'?'Activités actuellement affectées':'portefeuille de l’entité active').'. Période : '.($filters['date_from']==='' && $filters['date_to']===''?'toutes les dates':dol_escape_htmltag(($filters['date_from']?:'sans début').' au '.($filters['date_to']?:'sans fin'))).'. La sélection retient les Activités dont les dates chevauchent la période.</p>';
 		if ($kind==='home') {
-			mjl_monitoring_financial_cards($activities,$filters); mjl_monitoring_stage_counts($activities,$filters);
-			print '<section class="mjl-workspace-section" aria-labelledby="mjl-work-title"><h2 id="mjl-work-title">Actions à traiter</h2><p>Actions permises pour votre profil. Les demandes devenues obsolètes restent à clôturer.</p>';
+			mjl_dashboard_render_kpis($activities,$queue,$reader->role(),$filters);
+			print '<div class="mjl-dashboard-main-grid"><section id="mjl-dashboard-work" class="mjl-dashboard-panel" aria-labelledby="mjl-work-title"><div class="mjl-section-heading"><div><h2 id="mjl-work-title">'.dol_escape_htmltag($profile['work_label']).'</h2><p>Actions permises pour votre profil. Les demandes devenues obsolètes restent à clôturer.</p></div></div>';
 			if ($queue===null) print mjl_ui_system_state('unavailable','Actions indisponibles','Les autorisations de traitement ne peuvent pas être chargées.');
 			else { mjl_monitoring_render_items(array_slice($queue,((int)$filters['page']-1)*50,50)); mjl_monitoring_pagination('home',$filters,count($queue),'Pagination des actions'); }
-			print '</section><section class="mjl-workspace-section"><h2>Alertes de suivi</h2>';
+			print '</section>';
+			mjl_dashboard_render_execution($activities,$filters);
+			print '</div>';
+			mjl_monitoring_financial_cards($activities,$filters);
+			mjl_monitoring_stage_counts($activities,$filters);
+			print '<section class="mjl-workspace-section mjl-dashboard-alerts" aria-labelledby="mjl-dashboard-alerts-title"><div class="mjl-section-heading"><div><h2 id="mjl-dashboard-alerts-title">Alertes de suivi</h2><p>Échéances et informations financières calculées dans votre périmètre.</p></div></div>';
 			$alerts=mjl_monitoring_alerts($activities,$reader->role(),$user->id,$reader->date()); mjl_monitoring_render_items(array_slice($alerts,0,5),true);
-			print '<a href="'.dol_escape_htmltag(mjl_monitoring_url('alerts',$filters,array('page'=>1))).'">Voir toutes les alertes ('.count($alerts).')</a></section>';
+			print '<a class="mjl-action mjl-action-secondary" href="'.dol_escape_htmltag(mjl_monitoring_url('alerts',$filters,array('page'=>1))).'">Voir toutes les alertes ('.count($alerts).')</a></section>';
 		} elseif ($kind==='alerts') {
 			$alerts=mjl_monitoring_alerts($activities,$reader->role(),$user->id,$reader->date());
 			mjl_monitoring_render_items(array_slice($alerts,((int)$filters['page']-1)*50,50),true); mjl_monitoring_pagination('alerts',$filters,count($alerts),'Pagination des alertes');

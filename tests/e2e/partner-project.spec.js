@@ -40,6 +40,12 @@ async function createReference(page, route, label, partnerId = '') {
   await expect(page).toHaveURL(new RegExp(`${route}\\.php\\?id=\\d+`));
 }
 
+async function confirmReferenceLifecycle(page, action) {
+  await page.getByRole('button', { name: action, exact: true }).click();
+  const confirmation = action === 'Désactiver' ? 'Confirmer la désactivation' : 'Confirmer l’activation';
+  await page.getByRole('dialog').getByRole('button', { name: confirmation, exact: true }).click();
+}
+
 test.beforeAll(() => {
   createUserReferenceFixtureSet({
     namespace: 'rst003.e2e', entity: 1,
@@ -83,11 +89,11 @@ test('Partenaire deactivation closes active Projets and reactivation does not re
   const partnerId = scalar(`SELECT rowid FROM llx_societe WHERE entity=1 AND nom='${marker} Partenaire A'`);
   await login(page, 'rst003.e2e.validator');
   await page.goto(`/custom/mjlfinancement/partners.php?id=${partnerId}`);
-  await page.getByRole('button', { name: 'Désactiver' }).click();
+  await confirmReferenceLifecycle(page, 'Désactiver');
   expect(scalar(`SELECT status FROM llx_societe WHERE rowid=${partnerId}`)).toBe('0');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_projet WHERE fk_soc=${partnerId} AND fk_statut=1`))).toBe(0);
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_projet WHERE fk_soc=${partnerId} AND fk_statut=2`))).toBe(2);
-  await page.getByRole('button', { name: 'Activer' }).click();
+  await confirmReferenceLifecycle(page, 'Activer');
   expect(scalar(`SELECT status FROM llx_societe WHERE rowid=${partnerId}`)).toBe('1');
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_projet WHERE fk_soc=${partnerId} AND fk_statut=1`))).toBe(0);
 });
@@ -110,7 +116,7 @@ test('creation after deactivation fails and stale edit cannot overwrite current 
   await pendingProject.getByLabel('Libellé').fill(`${marker} Projet concurrence`);
   await pendingProject.getByLabel('Partenaire').selectOption(String(partnerId));
   await page.goto(`/custom/mjlfinancement/partners.php?id=${partnerId}`);
-  await page.getByRole('button', { name: 'Désactiver' }).click();
+  await confirmReferenceLifecycle(page, 'Désactiver');
   await pendingProject.getByRole('button', { name: 'Enregistrer' }).click();
   expect(Number(scalar(`SELECT COUNT(*) FROM llx_projet WHERE title='${marker} Projet concurrence'`))).toBe(0);
   await page.goto('/custom/mjlfinancement/projects.php?action=create');
@@ -136,7 +142,7 @@ test('parent and child mutations serialize in both real lock-contention ordering
   try {
     const createClick = createPage.getByRole('button', { name: 'Enregistrer' }).click();
     await waitForDatabaseSleep();
-    const deactivateClick = deactivatePage.getByRole('button', { name: 'Désactiver' }).click();
+    const deactivateClick = confirmReferenceLifecycle(deactivatePage, 'Désactiver');
     await Promise.all([createClick, deactivateClick]);
   } finally {
     sql('DROP TRIGGER IF EXISTS rst003_project_insert_barrier');
@@ -154,7 +160,7 @@ test('parent and child mutations serialize in both real lock-contention ordering
   await firstDeactivate.goto(`/custom/mjlfinancement/partners.php?id=${deactivationFirstPartner}`);
   sql('CREATE TRIGGER rst003_partner_update_barrier BEFORE UPDATE ON llx_societe FOR EACH ROW DO SLEEP(3)');
   try {
-    const deactivateClick = firstDeactivate.getByRole('button', { name: 'Désactiver' }).click();
+    const deactivateClick = confirmReferenceLifecycle(firstDeactivate, 'Désactiver');
     await waitForDatabaseSleep();
     const createClick = pendingCreate.getByRole('button', { name: 'Enregistrer' }).click();
     await Promise.all([deactivateClick, createClick]);
@@ -174,18 +180,18 @@ test('Projet lifecycle requires an active parent and preserves identity across r
   const identity = scalar(`SELECT CONCAT(rowid, ':', ref, ':', fk_soc) FROM llx_projet WHERE rowid=${projectId}`);
 
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await page.getByRole('button', { name: 'Désactiver' }).click();
+  await confirmReferenceLifecycle(page, 'Désactiver');
   expect(scalar(`SELECT fk_statut FROM llx_projet WHERE rowid=${projectId}`)).toBe('2');
   await page.goto(`/custom/mjlfinancement/partners.php?id=${partnerId}`);
-  await page.getByRole('button', { name: 'Désactiver' }).click();
+  await confirmReferenceLifecycle(page, 'Désactiver');
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await page.getByRole('button', { name: 'Activer' }).click();
+  await confirmReferenceLifecycle(page, 'Activer');
   expect(scalar(`SELECT fk_statut FROM llx_projet WHERE rowid=${projectId}`)).toBe('2');
 
   await page.goto(`/custom/mjlfinancement/partners.php?id=${partnerId}`);
-  await page.getByRole('button', { name: 'Activer' }).click();
+  await confirmReferenceLifecycle(page, 'Activer');
   await page.goto(`/custom/mjlfinancement/projects.php?id=${projectId}`);
-  await page.getByRole('button', { name: 'Activer' }).click();
+  await confirmReferenceLifecycle(page, 'Activer');
   expect(scalar(`SELECT fk_statut FROM llx_projet WHERE rowid=${projectId}`)).toBe('1');
   expect(scalar(`SELECT CONCAT(rowid, ':', ref, ':', fk_soc) FROM llx_projet WHERE rowid=${projectId}`)).toBe(identity);
 });

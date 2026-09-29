@@ -26,6 +26,8 @@ module.exports = defineConfig({
     'vui-review-workflow.spec.js',
     'vui-operation-consultation.spec.js',
     'vui-exception-dialogs.spec.js',
+    'vui-role-dashboards.spec.js',
+    'vui-reference-management.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',
   outputDir: process.env.MJL_PLAYWRIGHT_OUTPUT_DIR || 'test-results/playwright',

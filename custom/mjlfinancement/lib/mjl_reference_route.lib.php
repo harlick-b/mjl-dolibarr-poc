@@ -4,6 +4,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_reference.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_reference_ui.lib.php';
 
 function mjl_reference_route($kind)
 {
@@ -103,14 +104,17 @@ function mjl_reference_render_list($kind, $config)
 	if (mjl_reference_can_manage($user)) $options['primary_action'] = array('label' => 'Créer un '.$config['singular'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php?action=create');
 	print mjl_page_header_render($config['title'], $options);
 	$rows = mjl_reference_list($kind);
+	if (in_array($kind, array('partner', 'project'), true)) {
+		print mjl_reference_ui_list($kind, $config, $rows, mjl_reference_can_manage($user));
+		return;
+	}
 	print '<section class="mjl-workspace-section">';
 	if (!$rows) print mjl_ui_system_state('initial-empty', 'Aucune référence', 'Aucun élément n’est encore enregistré.');
 	else {
-		print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" aria-label="'.$config['title'].'"><thead><tr class="liste_titre"><th>'.$config['singular'].'</th>'.($kind === 'project' ? '<th>Partenaire</th>' : '').'<th>Statut</th></tr></thead><tbody>';
+		print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" aria-label="'.$config['title'].'"><thead><tr class="liste_titre"><th>'.$config['singular'].'</th><th>Statut</th></tr></thead><tbody>';
 		foreach ($rows as $row) {
 			$url = DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php?id='.((int) $row['rowid']);
 			print '<tr class="oddeven mjl-row-interactive"><td data-label="'.$config['singular'].'"><a class="mjl-table-link" href="'.$url.'">'.dol_escape_htmltag($row['label']).'</a></td>';
-			if ($kind === 'project') print '<td data-label="Partenaire">'.dol_escape_htmltag($row['parent_label']).'</td>';
 			print '<td data-label="Statut">'.((int) $row['active'] === 1 ? 'Actif' : 'Inactif').'</td></tr>';
 		}
 		print '</tbody></table></div>';
@@ -125,13 +129,15 @@ function mjl_reference_render_detail($kind, $config, $row)
 	$options = array('breadcrumb' => array(array('label' => $config['title'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php'), array('label' => $row[$field])), 'description' => mjl_reference_is_active($kind, $row) ? 'Référence active' : 'Référence inactive');
 	if (mjl_reference_can_manage($user)) $options['primary_action'] = array('label' => 'Modifier', 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php?id='.((int) $row['rowid']).'&action=edit');
 	print mjl_page_header_render($config['singular'].' '.$row[$field], $options);
-	print '<section class="mjl-workspace-section"><dl class="mjl-activity-meta"><div><dt>Libellé</dt><dd>'.dol_escape_htmltag($row[$field]).'</dd></div>';
+	print '<section class="mjl-workspace-section mjl-reference-detail"><dl class="mjl-activity-meta"><div><dt>Libellé</dt><dd>'.dol_escape_htmltag($row[$field]).'</dd></div>';
 	if ($kind === 'project') print '<div><dt>Partenaire</dt><dd>'.dol_escape_htmltag($row['partner_name']).'</dd></div>';
-	print '<div><dt>Statut</dt><dd>'.(mjl_reference_is_active($kind, $row) ? 'Actif' : 'Inactif').'</dd></div></dl>';
+	print '<div><dt>Statut</dt><dd>'.mjl_ui_status_badge(array('label' => mjl_reference_is_active($kind, $row) ? 'Actif' : 'Inactif', 'tone' => mjl_reference_is_active($kind, $row) ? 'success' : 'neutral')).'</dd></div></dl>';
 	if (mjl_reference_can_manage($user)) {
 		$action = mjl_reference_is_active($kind, $row) ? 'deactivate' : 'activate';
 		$label = $action === 'activate' ? 'Activer' : 'Désactiver';
-		print '<form method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php?id='.((int) $row['rowid']).'">'.mjl_reference_hidden_fields($config, $action, (int) $row['rowid'], mjl_reference_fingerprint($kind, $row)).'<button class="button" type="submit">'.$label.'</button></form>';
+		$form = '<form class="mjl-reference-lifecycle-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php?id='.((int) $row['rowid']).'">'.mjl_reference_hidden_fields($config, $action, (int) $row['rowid'], mjl_reference_fingerprint($kind, $row)).'<button class="button'.($action === 'deactivate' ? ' button-secondary' : '').'" type="submit">'.$label.'</button></form>';
+		if (in_array($kind, array('partner', 'project'), true)) print mjl_reference_ui_lifecycle($kind, $config, $row, $form);
+		else print $form;
 	}
 	print '</section>';
 }
@@ -143,18 +149,36 @@ function mjl_reference_render_form($kind, $config, $row, $action, $recovery)
 	$id = $isCreate ? 0 : (int) $row['rowid'];
 	$field = $config['field'];
 	$label = $recovery['values']['label'] ?? ($isCreate ? '' : $row[$field]);
-	print mjl_page_header_render(($isCreate ? 'Créer un ' : 'Modifier le ').$config['singular'], array('description' => 'Les champs obligatoires sont indiqués.'));
-	print '<section class="mjl-workspace-section mjl-activity-panel">'.mjl_form_error_summary($recovery['errors'], 'Corrigez les champs indiqués', 'mjl-reference-', !empty($recovery['errors']));
-	print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php'.($id ? '?id='.$id : '').'">'.mjl_reference_hidden_fields($config, $storedAction, $id, $isCreate ? '' : mjl_reference_fingerprint($kind, $row));
-	print mjl_form_field('label', 'Libellé', '<input required maxlength="255" name="label" value="'.dol_escape_htmltag($label).'">', true, '', '', 'mjl-reference-');
+	$title = ($isCreate ? 'Créer un ' : 'Modifier le ').$config['singular'];
+	$description = 'Les champs obligatoires sont indiqués.';
+	if (!in_array($kind, array('partner', 'project'), true)) {
+		print mjl_page_header_render($title, array('description' => $description));
+		print '<section class="mjl-workspace-section mjl-activity-panel">'.mjl_form_error_summary($recovery['errors'], 'Corrigez les champs indiqués', 'mjl-reference-', !empty($recovery['errors']));
+		print '<form class="mjl-activity-form" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php'.($id ? '?id='.$id : '').'">'.mjl_reference_hidden_fields($config, $storedAction, $id, $isCreate ? '' : mjl_reference_fingerprint($kind, $row));
+		print mjl_form_field('label', 'Libellé', '<input required maxlength="255" name="label" value="'.dol_escape_htmltag($label).'">', true, '', '', 'mjl-reference-');
+		print '<div class="mjl-activity-form-actions"><button class="button" type="submit">Enregistrer</button><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php'.($id ? '?id='.$id : '').'">Annuler</a></div></form></section>';
+		return;
+	}
+	$listUrl = DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php';
+	$cancelUrl = $listUrl.($id ? '?id='.$id : '');
+	print mjl_page_header_render($config['title'], array(
+		'breadcrumb' => array(array('label' => $config['title'], 'href' => $listUrl), array('label' => $title)),
+		'description' => 'Gestion des références métier MJL.',
+	));
+	$body = '<div class="mjl-reference-form-errors" data-mjl-form-errors>'.mjl_form_error_summary($recovery['errors'], 'Corrigez les champs indiqués', 'mjl-reference-', !empty($recovery['errors'])).'</div>';
+	$body .= '<form class="mjl-activity-form mjl-reference-form" data-mjl-validate data-mjl-substantive'.(!empty($recovery['values']) ? ' data-mjl-recovered="true"' : '').' method="POST" action="'.$listUrl.($id ? '?id='.$id : '').'">'.mjl_reference_hidden_fields($config, $storedAction, $id, $isCreate ? '' : mjl_reference_fingerprint($kind, $row));
+	$body .= mjl_form_field('label', 'Libellé', '<input required maxlength="255" name="label" value="'.dol_escape_htmltag($label).'">', true, '', (string) ($recovery['errors']['label'] ?? ''), 'mjl-reference-');
 	if ($kind === 'project' && $isCreate) {
 		$selected = (int) ($recovery['values']['partner_alias'] ?? 0);
 		$select = '<select required name="partner_id"><option value="">Sélectionner</option>';
 		foreach (mjl_reference_active_partners() as $partner) $select .= '<option value="'.((int) $partner['rowid']).'"'.($selected === (int) $partner['rowid'] ? ' selected' : '').'>'.dol_escape_htmltag($partner['nom']).'</option>';
 		$select .= '</select>';
-		print mjl_form_field('partner_id', 'Partenaire', $select, true, '', '', 'mjl-reference-');
+		$body .= mjl_form_field('partner_id', 'Partenaire', $select, true, 'Le Partenaire du Projet ne pourra plus être modifié après sa création.', (string) ($recovery['errors']['partner_id'] ?? ''), 'mjl-reference-');
+	} elseif ($kind === 'project') {
+		$body .= '<dl class="mjl-reference-immutable"><div><dt>Partenaire</dt><dd>'.dol_escape_htmltag($row['partner_name']).'</dd></div></dl>';
 	}
-	print '<div class="mjl-activity-form-actions"><button class="button" type="submit">Enregistrer</button><a class="mjl-action mjl-action-secondary" href="'.DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php'.($id ? '?id='.$id : '').'">Annuler</a></div></form></section>';
+	$body .= '<div class="mjl-activity-form-actions"><button class="button" type="submit">Enregistrer</button><a class="mjl-action mjl-action-secondary" href="'.$cancelUrl.'">Annuler</a></div></form>';
+	print mjl_reference_ui_page_dialog($kind, $title, $description, $body, $cancelUrl);
 }
 
 function mjl_reference_hidden_fields($config, $action, $id, $fingerprint)

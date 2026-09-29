@@ -35,7 +35,7 @@ test('business navigation agrees with direct guards and Admin remains technical'
   if(role==='admin') {await expect(page.getByRole('heading',{name:'Situation financière'})).toHaveCount(0);expect((await page.goto('/custom/mjlfinancement/alerts.php')).status()).toBe(403);}
   else {await page.goto('/custom/mjlfinancement/activities.php');await expect(nav.getByRole('link',{name:'Demandes d’exception',exact:true})).toHaveCount(1);await page.goto('/custom/mjlfinancement/reports.php?report=portfolio');await expect(nav.getByRole('link',{name:'Rapports',exact:true})).toHaveAttribute('aria-current','page');}
  }
- await login(page,'validator');await page.goto('/custom/mjlfinancement/reports.php?report=audit');await expect(page.locator('#mjl-primary-navigation').getByRole('link',{name:'Audit',exact:true})).toHaveAttribute('aria-current','location');
+ await login(page,'validator');await page.goto('/custom/mjlfinancement/reports.php?report=audit');await expect(page.locator('#mjl-primary-navigation').getByRole('link',{name:'Journal d’audit',exact:true})).toHaveAttribute('aria-current','page');
  expect((await page.goto('/custom/mjlfinancement/dpafdashboard.php')).status()).toBe(403);
 });
 test('filtered browsing and report links preserve the complete parent selection',async({page})=>{
@@ -54,8 +54,8 @@ test('stale requests stay visible for closure without an approval control',async
  const u=runExecutionFixtureCommand({entity:1,localDate:'2026-09-10',action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId:o.rowid,expectedVersion:o.version,input:{status:'IN_PROGRESS',spent_amount:'0',observation:'Aucune dépense'}});expect(u.code).toBe('OK');
  await login(page,'validator');await page.goto('/custom/mjlfinancement/index.php?q=Suivi');
  const item=page.locator('[data-work="CANCELLATION-'+r.request_id+'"]');await expect(item).toContainText('À clôturer');await item.getByRole('link',{name:'Ouvrir'}).click();
- await expect(page.locator('.mjl-operation-card')).toHaveCount(1);await expect(page.getByRole('button',{name:'Approuver',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'Rejeter',exact:true})).toBeVisible();
- await login(page);await page.goto('/custom/mjlfinancement/operationrequests.php?type=CANCELLATION&request_id='+r.request_id);await page.getByRole('button',{name:'Retirer la demande',exact:true}).click();await expect(page.getByText('Décision enregistrée',{exact:true})).toBeVisible();
+ await expect(page.locator('.mjl-operation-card')).toHaveCount(1);await expect(page.getByRole('link',{name:'Approuver',exact:true})).toHaveCount(0);await expect(page.getByRole('link',{name:'Rejeter',exact:true})).toBeVisible();
+ await login(page);await page.goto('/custom/mjlfinancement/operationrequests.php?type=CANCELLATION&request_id='+r.request_id);await page.getByRole('link',{name:'Retirer la demande',exact:true}).click();await page.getByRole('dialog',{name:/Retirer la demande/}).getByRole('button',{name:'Retirer la demande',exact:true}).click();await expect(page.getByText('Décision enregistrée',{exact:true})).toBeVisible();
  await page.goto('/custom/mjlfinancement/index.php');await expect(page.locator('[data-metric="total_spent_amount"]')).toContainText('0 F CFA');await expect(page.locator('[data-metric="missing_spent_count"] .mjl-card-value')).toHaveText('0');
 });
 test('mobile monitoring works without JavaScript and with user contrast and motion preferences',async({browser},testInfo)=>{
@@ -142,7 +142,7 @@ test('general and request filters remain composed in both forms',async({page})=>
 });
 test('past drafts retain abandonment, proposals stay explicit and future finalized work remains actionable',async({page})=>{
  const drafts=createActivities([{key:'past',name:'Brouillon périmé suivi',dateStart:'2026-09-05',submit:false},{key:'future',name:'Brouillon futur suivi',submit:false}]);
- await login(page);await page.goto('/custom/mjlfinancement/activities.php?id='+drafts.past.activity_id);await expect(page.getByRole('button',{name:'Abandonner le brouillon'})).toBeVisible();await expect(page.getByRole('button',{name:'Soumettre la révision'})).toHaveCount(0);await expect(page.getByRole('link',{name:'Modifier',exact:true})).toHaveCount(0);await expect(page.locator('main')).toContainText('Montant proposé courant');
+ await login(page);await page.goto('/custom/mjlfinancement/activities.php?id='+drafts.past.activity_id);await page.getByRole('tab',{name:'Validation et demandes',exact:true}).click();await expect(page.getByRole('button',{name:'Abandonner le brouillon'})).toBeVisible();await expect(page.getByRole('button',{name:'Soumettre la révision'})).toHaveCount(0);await expect(page.getByRole('link',{name:'Modifier',exact:true})).toHaveCount(0);await expect(page.locator('main')).toContainText('Montant autorisé proposé');
  await page.goto('/custom/mjlfinancement/operations.php?activity_id='+drafts.future.activity_id);await expect(page.locator('.mjl-operation-card')).toContainText('Montant proposé');
  const future=createExecutionFixtureSet({namespace:'phase3b.future',entity:1,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'p',label:'Partenaire futur'}],projects:[{key:'project',label:'Projet futur',partnerKey:'p'}],operationTypes:[{key:'t',label:'Type futur'}]},activities:[{key:'f',agentKey:'agent',partnerKey:'p',projectKey:'project',name:'Activité future validée',description:'Exécution permise après validation.',dateStart:'2032-09-05',dateEnd:'2032-09-30',authorizedAmount:'10',operations:[{name:'Opération future',typeKey:'t',authorizedAmount:'10'}]}]});
  const original=fixture;fixture=future;

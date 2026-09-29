@@ -53,6 +53,17 @@ and ordinary-link fallback. VUI-08 exception dialogs are implemented with one
 shared progressive dialog host that moves each existing guarded form without
 cloning it or issuing another token, while preserving visible no-JavaScript
 forms, role eligibility, exact versions, financial facts, and terminal rules.
+VUI-09 role dashboards are implemented with role-specific headings and
+indicators derived from the existing scoped Activity projection, current
+permission-aware work queues, execution progress, financial disclosure, and
+alert previews. The Admin dashboard exposes only the existing guarded access,
+history, audit-report, and technical-administration destinations; it fabricates
+no account or health metrics. VUI-10 Partner/Project management is implemented
+with shared responsive reference tables, current status and parent facts,
+role-aware row actions, progressive create/edit and lifecycle dialogs, shared
+dirty-state protection, and ordinary-form fallback. Project ownership stays immutable
+after creation and the existing lifecycle, permission, token, and entity boundaries remain under
+their current backend owners.
 No UI wave has been accepted. The user authorized
 a phased design pass using `docs/inspiration/` for composition and interaction,
 while the approved v3 design tokens remain the visual authority. Reuse the

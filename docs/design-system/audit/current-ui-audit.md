@@ -9,8 +9,12 @@ browser verification for this documentation update.
 - The custom-module workspace is the primary MJL interface. Business screens
   use French-first labels, scoped data, guarded actions, and shared presentation
   contracts for amounts, dates, feedback, and status.
-- Accueil shows financial indicators, computed alerts, and permitted actions.
-  Alertes are computed from current scoped data rather than stored rows.
+- Tableau de bord composes role-specific indicators, permitted actions,
+  execution progress, financial facts, and computed alerts from current scoped
+  data. Admin sees only supported access, audit, and technical destinations.
+- Partner and Project management uses shared responsive tables and progressive
+  form/lifecycle dialogs while retaining current role reads, Validator-only
+  mutation, immutable Project ownership, and ordinary-form fallback.
 - Activity planning/review, Opération execution, exception requests, contextual
   chronology, and audited PDF/XLSX/CSV reports are present. Business access is
   entity and assignment scoped; Admin remains technical and audit focused.
@@ -27,8 +31,9 @@ browser verification for this documentation update.
 
 | Screen | Current UI | Source |
 | --- | --- | --- |
-| Accueil | Financial indicators, filters, workflow counts, permitted actions, and alert preview. | `custom/mjlfinancement/index.php` |
-| Partenaires, Projets, Types d’Opération | French-first reference lists and forms with guarded lifecycle actions. | `custom/mjlfinancement/partners.php`, `projects.php`, `operationtypes.php` |
+| Tableau de bord | Role-specific scoped indicators, permitted actions, execution progress, financial disclosure, and alert preview. | `custom/mjlfinancement/index.php` |
+| Partenaires, Projets | Responsive status/parent lists, role-aware actions, progressive forms and lifecycle confirmation; Project ownership remains immutable. | `custom/mjlfinancement/partners.php`, `projects.php` |
+| Types d’Opération | French-first reference list and forms with guarded lifecycle actions. | `custom/mjlfinancement/operationtypes.php` |
 | Activities | Planning/review, derived execution and financial status, contextual chronology, and guarded cancellation request. | `custom/mjlfinancement/activities.php` |
 | Opérations | Responsive execution cards, explicit amounts and lock states, and Agent exception forms. | `custom/mjlfinancement/operations.php` |
 | Demandes d’exception | Filtered cancellation/reopening requests with Agent withdrawal and Validator decisions. | `custom/mjlfinancement/operationrequests.php` |

@@ -6,9 +6,9 @@ repository-visible evidence, not user acceptance.
 
 | Screen | Route/path | Current purpose and access |
 | --- | --- | --- |
-| Accueil | `/custom/mjlfinancement/index.php` | Financial indicators, workflow counts, permitted actions, and alert preview; entity and current-assignment scope; Admin technical/audit only. |
-| Partenaires | `/custom/mjlfinancement/partners.php` | Reference list and lifecycle forms; business-role reads, Validator mutation, Admin denied. |
-| Projets | `/custom/mjlfinancement/projects.php` | Reference list and lifecycle forms; business-role reads, Validator mutation, parent lifecycle guards. |
+| Tableau de bord | `/custom/mjlfinancement/index.php` | Role-specific scoped indicators, permitted actions, execution progress, financial disclosure, and alert preview; Admin receives supported access, audit, and technical navigation only. |
+| Partenaires | `/custom/mjlfinancement/partners.php` | Responsive status list and progressive create/edit/lifecycle dialogs; business-role reads, Validator mutation, Admin denied. |
+| Projets | `/custom/mjlfinancement/projects.php` | Responsive parent/status list and progressive create/edit/lifecycle dialogs; business-role reads, Validator mutation, immutable parent and lifecycle guards. |
 | Types d’Opération | `/custom/mjlfinancement/operationtypes.php` | Entity-scoped reference list and forms; Validator mutation, no hard deletion. |
 | Activities | `/custom/mjlfinancement/activities.php` | Planning, review, execution/completeness summaries, chronology, and contextual cancellation requests; assignment and role guards, Admin denied. |
 | Opérations | `/custom/mjlfinancement/operations.php` | Execution cards and exception forms; current Assigned Agents mutate, Supervisor/Validator read, Admin denied. |

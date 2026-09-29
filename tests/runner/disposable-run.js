@@ -92,6 +92,8 @@ function getSuitePlan(mode) {
 	vui06: ['vui06'],
 	vui07: ['vui07'],
 	vui08: ['vui08'],
+	vui09: ['vui09'],
+	vui10: ['vui10'],
 	phase3c: ['phase3c'],
     'rst014a-lifecycle-probe': ['rst014a-lifecycle-probe'],
     'diagnostics-worker': [],
