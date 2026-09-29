@@ -473,10 +473,105 @@
 		});
 	}
 
+
+	function initTabs(tablist) {
+		var tabs = Array.prototype.slice.call(tablist.querySelectorAll('[data-mjl-tab]'));
+		if (!tabs.length) return;
+		var panels = tabs.map(function (tab) { return document.getElementById(tab.getAttribute('href').slice(1)); });
+		if (panels.some(function (panel) { return !panel; })) return;
+		tablist.classList.add('mjl-tabs-enhanced');
+		tablist.setAttribute('role', 'tablist');
+		tabs.forEach(function (tab, index) {
+			tab.setAttribute('role', 'tab');
+			tab.setAttribute('aria-controls', panels[index].id);
+			panels[index].setAttribute('role', 'tabpanel');
+			panels[index].setAttribute('aria-labelledby', tab.id);
+		});
+
+		function select(tab, moveFocus) {
+			tabs.forEach(function (item, index) {
+				var selected = item === tab;
+				item.setAttribute('aria-selected', selected ? 'true' : 'false');
+				item.setAttribute('tabindex', selected ? '0' : '-1');
+				panels[index].hidden = !selected;
+			});
+			if (moveFocus) tab.focus();
+		}
+
+		tabs.forEach(function (tab, index) {
+			tab.addEventListener('click', function (event) {
+				event.preventDefault();
+				select(tab, false);
+				window.history.replaceState(null, '', tab.getAttribute('href'));
+			});
+			tab.addEventListener('keydown', function (event) {
+				if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(event.key) === -1) return;
+				event.preventDefault();
+				var target = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+				select(tabs[target], true);
+			});
+		});
+		var hashTab = tabs.find(function (tab) { return tab.getAttribute('href') === window.location.hash; });
+		select(hashTab || tabs.find(function (tab) { return tab.getAttribute('data-mjl-selected') === 'true'; }) || tabs[0], false);
+	}
+
+	function initAssignmentDialog(dialog) {
+		var operation = dialog.querySelector('[data-mjl-assignment-operation]');
+		var target = dialog.querySelector('[data-mjl-assignment-target]');
+		if (!operation || !target) return;
+		var options = Array.prototype.map.call(target.options, function (option) { return option.cloneNode(true); });
+
+		function syncTargets() {
+			var action = operation.value;
+			var selected = target.value;
+			target.innerHTML = '';
+			options.forEach(function (template, index) {
+				var current = template.getAttribute('data-is-current') === '1';
+				var primary = template.getAttribute('data-is-primary') === '1';
+				var allowed = index === 0
+					|| (action === 'ADD_ADDITIONAL' && !current)
+					|| (action === 'REMOVE_ADDITIONAL' && current && !primary)
+					|| (action === 'TRANSFER_PRIMARY' && !primary);
+				if (!allowed) return;
+				var option = template.cloneNode(true);
+				if (option.value === selected) option.selected = true;
+				target.appendChild(option);
+			});
+			if (!target.value) target.value = '';
+		}
+		operation.addEventListener('change', syncTargets);
+		syncTargets();
+	}
+
+	function initDialog(dialog) {
+		if (typeof dialog.showModal !== 'function') return;
+		var identifier = dialog.id;
+		var triggers = document.querySelectorAll('[data-mjl-dialog-open="' + identifier + '"]');
+		if (!identifier || !triggers.length) return;
+		dialog.removeAttribute('open');
+		dialog.classList.add('mjl-dialog-enhanced');
+		Array.prototype.forEach.call(triggers, function (trigger) {
+			trigger.addEventListener('click', function (event) {
+				event.preventDefault();
+				dialog.showModal();
+				var focusTarget = dialog.querySelector('select, input, textarea, button');
+				if (focusTarget) focusTarget.focus();
+			});
+		});
+		Array.prototype.forEach.call(dialog.querySelectorAll('[data-mjl-dialog-close]'), function (button) {
+			button.addEventListener('click', function () { dialog.close(); });
+		});
+		dialog.addEventListener('click', function (event) {
+			if (event.target === dialog) dialog.close();
+		});
+	}
+
 	document.addEventListener('DOMContentLoaded', function () {
 		Array.prototype.forEach.call(document.querySelectorAll('.mjl-module-shell'), initNavigationDrawer);
 		Array.prototype.forEach.call(document.querySelectorAll('form[data-mjl-validate]'), initValidatedForm);
 		initSubstantiveForms(document.querySelectorAll('form[data-mjl-substantive]'));
 		initTableActionMenus(document.querySelectorAll('[data-mjl-action-menu]'));
+		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-tabs]'), initTabs);
+		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-dialog]'), function (dialog) { initAssignmentDialog(dialog); initDialog(dialog); });
 	});
 })();

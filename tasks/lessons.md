@@ -243,3 +243,5 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Select2 emits jQuery change events. Native-only listeners can miss real widget
   selections even when Playwright `selectOption()` tests pass. Bind dependent
   controls through jQuery when present and exercise the visible widget in E2E.
+
+- Progressive disclosure must keep the server-rendered fallback semantically honest: render ordinary anchors and usable forms first, then add ARIA tab roles, roving tabindex, hidden panels, and modal-only controls only after JavaScript enhancement. Otherwise no-JavaScript users receive unreachable links or visible inert buttons.

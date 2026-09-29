@@ -41,7 +41,13 @@ projection, supported filters, separated states, exact counts, pagination,
 and read-only Operation expansion. VUI-04 Activity planning is implemented
 with a redesigned create/edit form, shared controls, exact budget feedback,
 browser-side validation, and dependent Partner-to-Project selection using
-active-entity Project data. No UI wave has been accepted. The user authorized a
+active-entity Project data. VUI-05 Activity workspace is implemented with
+status and financial summaries, progressive tabs, current assignments, an
+Operation table, lock explanations, and individual reasoned assignment
+actions. VUI-06 review/revisions is implemented with immutable submitted
+snapshots, staged progress, role-aware decisions, reasoned correction dialogs,
+revision history, late-validation guidance, and read-only reviewer states. No UI wave has been accepted. The user
+authorized a
 phased design pass using `docs/inspiration/` for composition and interaction,
 while the approved v3 design tokens remain the visual authority. Reuse the
 current PHP/JavaScript stack, shared MJL presentation helpers, and installed

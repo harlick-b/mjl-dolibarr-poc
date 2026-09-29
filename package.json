@@ -20,6 +20,8 @@
     "test:phase3a": "node tests/runner/run-suite.js phase3a",
     "test:vui03": "node tests/runner/run-suite.js vui03",
     "test:vui04": "node tests/runner/run-suite.js vui04",
+    "test:vui05": "node tests/runner/run-suite.js vui05",
+    "test:vui06": "node tests/runner/run-suite.js vui06",
     "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility"
   },
   "devDependencies": {

@@ -42,6 +42,7 @@ a.tmenu[href^="/api/"] {
 	--mjl-color-text-secondary: #34414a;
 	--mjl-color-text-muted: #5c6870;
 	--mjl-color-text-inverse: #ffffff;
+	--mjl-color-overlay: #202529b8;
 	--mjl-color-surface: #ffffff;
 	--mjl-color-surface-subtle: #f5f7f8;
 	--mjl-color-surface-disabled: #e3e8eb;
@@ -1719,4 +1720,135 @@ a.tmenu[href^="/api/"] {
 	.mjl-activity-list-row td::before { color: var(--mjl-color-text-muted); content: attr(data-label); display: block; font-size: 11px; margin-bottom: var(--mjl-space-1); }
 	.mjl-activity-list-expansion { display: block; }
 	.mjl-activity-list-expansion td { display: block; }
+}
+
+
+/* Activity workspace: central business facts, progressive tabs and assignments. */
+.mjl-activity-statusline {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--mjl-space-2);
+	margin: 0 0 var(--mjl-space-4);
+}
+.mjl-activity-statusline .mjl-status-pill { margin-top: 0; }
+.mjl-activity-fact {
+	color: var(--mjl-color-text-muted);
+	font-size: 13px;
+	font-weight: 600;
+}
+.mjl-activity-financial-strip {
+	background: var(--mjl-color-primary);
+	border-radius: var(--mjl-radius-panel);
+	color: var(--mjl-color-text-inverse);
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	margin: 0 0 var(--mjl-space-5);
+	overflow: hidden;
+}
+.mjl-activity-financial-strip > div {
+	border-inline-end: 1px solid rgba(255,255,255,.18);
+	min-width: 0;
+	padding: var(--mjl-space-4);
+}
+.mjl-activity-financial-strip > div:last-child { border-inline-end: 0; }
+.mjl-activity-financial-strip dt { font-size: 12px; font-weight: 600; margin-bottom: var(--mjl-space-2); opacity: .8; }
+.mjl-activity-financial-strip dd { font-size: 18px; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.mjl-activity-financial-strip small { display: block; margin-top: var(--mjl-space-1); opacity: .72; }
+.mjl-activity-tabs { border-bottom: 1px solid var(--mjl-color-border-subtle); gap: 0; margin-bottom: var(--mjl-space-4); }
+.mjl-activity-tabs a { border: 0; border-bottom: 3px solid transparent; border-radius: 0; }
+.mjl-activity-tabs a[aria-selected="true"] { background: transparent; border-bottom-color: var(--mjl-color-action); color: var(--mjl-color-primary); }
+.mjl-activity-tab-panel[hidden] { display: none; }
+.mjl-section-heading { align-items: flex-start; display: flex; gap: var(--mjl-space-3); justify-content: space-between; }
+.mjl-section-heading :where(h2,p) { margin-top: 0; }
+.mjl-activity-description { white-space: normal; }
+.mjl-assignment-list { list-style: none; margin: 0; padding: 0; }
+.mjl-assignment-list li { align-items: center; border-top: 1px solid var(--mjl-color-border-subtle); display: flex; gap: var(--mjl-space-3); padding: var(--mjl-space-3) 0; }
+.mjl-assignment-list li:first-child { border-top: 0; }
+.mjl-assignment-list small { color: var(--mjl-color-text-muted); display: block; margin-top: 2px; }
+.mjl-assignment-avatar { align-items: center; background: var(--mjl-color-status-info-surface); border-radius: 50%; color: var(--mjl-color-primary); display: inline-flex; flex: 0 0 36px; font-weight: 700; height: 36px; justify-content: center; }
+.mjl-activity-operations-table { border-collapse: collapse; width: 100%; }
+.mjl-activity-operations-table th, .mjl-activity-operations-table td { border-bottom: 1px solid var(--mjl-color-border-subtle); padding: 10px 12px; text-align: start; vertical-align: middle; }
+.mjl-activity-operations-table th { color: var(--mjl-color-text-muted); font-size: 12px; text-transform: uppercase; }
+.mjl-dialog-panel { background: var(--mjl-color-surface); border: 1px solid var(--mjl-color-border-subtle); border-radius: var(--mjl-radius-panel); box-shadow: var(--mjl-shadow-panel); padding: var(--mjl-space-5); }
+.mjl-dialog-actions { display: flex; justify-content: flex-end; }
+
+@media (max-width: 900px) {
+	.mjl-activity-financial-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.mjl-activity-financial-strip > div { border-bottom: 1px solid rgba(255,255,255,.18); }
+}
+@media (max-width: 620px) {
+	.mjl-activity-financial-strip { grid-template-columns: 1fr; }
+	.mjl-activity-financial-strip > div { border-inline-end: 0; }
+	.mjl-section-heading { align-items: stretch; flex-direction: column; }
+	.mjl-activity-operations-table { min-width: 0; }
+	.mjl-activity-operations-table thead { border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; }
+	.mjl-activity-operations-table tr { border: 1px solid var(--mjl-color-border-subtle); display: block; margin-bottom: var(--mjl-space-3); padding: var(--mjl-space-2); }
+	.mjl-activity-operations-table td { align-items: baseline; border: 0; display: grid; gap: var(--mjl-space-2); grid-template-columns: minmax(6rem, .8fr) minmax(0, 1.2fr); padding: 6px; }
+	.mjl-activity-operations-table td::before { color: var(--mjl-color-text-muted); content: attr(data-label); font-size: 12px; font-weight: 700; }
+}
+@media (forced-colors: active) {
+	.mjl-activity-financial-strip { border: 1px solid CanvasText; }
+	.mjl-assignment-avatar { border: 1px solid CanvasText; }
+}
+
+
+/* Review workspace: immutable revision evidence and role-aware decisions. */
+.mjl-review-progress {
+	display: grid;
+	gap: 0;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	list-style: none;
+	margin: 0 0 var(--mjl-space-5);
+	padding: 0;
+}
+.mjl-review-stage {
+	align-items: center;
+	border-bottom: 3px solid var(--mjl-color-border-subtle);
+	display: flex;
+	gap: var(--mjl-space-3);
+	min-width: 0;
+	padding: var(--mjl-space-3);
+}
+.mjl-review-stage > span {
+	align-items: center;
+	background: var(--mjl-color-surface-subtle);
+	border: 1px solid var(--mjl-color-border);
+	border-radius: 50%;
+	display: inline-flex;
+	flex: 0 0 30px;
+	font-size: 12px;
+	font-weight: 700;
+	height: 30px;
+	justify-content: center;
+}
+.mjl-review-stage strong, .mjl-review-stage small { display: block; }
+.mjl-review-stage small { color: var(--mjl-color-text-muted); margin-top: 2px; }
+.mjl-review-stage-complete { border-bottom-color: var(--mjl-color-status-success); }
+.mjl-review-stage-complete > span { background: var(--mjl-color-status-success-badge-surface); border-color: var(--mjl-color-status-success); color: var(--mjl-color-status-success); }
+.mjl-review-stage-current { border-bottom-color: var(--mjl-color-action); }
+.mjl-review-stage-current > span { background: var(--mjl-color-primary); border-color: var(--mjl-color-primary); color: var(--mjl-color-text-inverse); }
+.mjl-review-layout { align-items: start; display: grid; gap: var(--mjl-space-5); grid-template-columns: minmax(0, 1fr) minmax(17rem, 21rem); }
+.mjl-review-main { min-width: 0; }
+.mjl-review-decision { position: sticky; top: var(--mjl-space-4); }
+.mjl-review-decision .mjl-review-form { margin-bottom: var(--mjl-space-3); }
+.mjl-review-decision .button { min-height: var(--mjl-touch-target); width: 100%; }
+.mjl-review-guidance { color: var(--mjl-color-text-muted); font-size: 13px; }
+.mjl-review-description { border-top: 1px solid var(--mjl-color-border-subtle); margin-top: var(--mjl-space-4); padding-top: var(--mjl-space-3); }
+.mjl-review-description :where(h3,p) { margin-bottom: 0; }
+.mjl-review-form { display: grid; gap: var(--mjl-space-3); }
+.mjl-review-form label { display: grid; font-size: 13px; font-weight: 700; gap: var(--mjl-space-1); }
+.mjl-review-form textarea { min-height: 7rem; resize: vertical; }
+.mjl-modal-dialog { background: transparent; border: 0; max-width: min(620px, calc(100vw - 32px)); padding: 0; width: 100%; }
+.mjl-modal-dialog::backdrop { background: var(--mjl-color-overlay); }
+.mjl-modal-dialog[open]:not(.mjl-dialog-enhanced) { display: block; margin: var(--mjl-space-5) 0 0; max-width: none; position: static; width: auto; }
+.mjl-modal-dialog[open]:not(.mjl-dialog-enhanced) [data-mjl-dialog-close] { display: none; }
+
+@media (max-width: 820px) {
+	.mjl-review-layout { grid-template-columns: 1fr; }
+	.mjl-review-decision { position: static; }
+	.mjl-review-progress { grid-template-columns: 1fr; }
+	.mjl-review-stage { border-bottom-width: 1px; border-inline-start: 3px solid var(--mjl-color-border-subtle); }
+	.mjl-review-stage-complete { border-inline-start-color: var(--mjl-color-status-success); }
+	.mjl-review-stage-current { border-inline-start-color: var(--mjl-color-action); }
 }

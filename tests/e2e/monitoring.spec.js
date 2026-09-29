@@ -74,14 +74,15 @@ test('workflow counts differ from permitted work and late review keeps correctio
  await login(page,'supervisor');await page.goto('/custom/mjlfinancement/index.php?q=Revue%20suivie');
  await expect(page.locator('[aria-labelledby="mjl-workflow-title"]')).toContainText('Soumise : 2');await expect(page.locator('[data-work^="activity-"]')).toHaveCount(2);
  await page.locator('[data-work="activity-'+created.late.activity_id+'"]').getByRole('link',{name:'Ouvrir'}).click();
- await expect(page.getByRole('button',{name:'Prévalider',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Retourner en correction',exact:true})).toHaveCount(0);
- await page.goto('/custom/mjlfinancement/activities.php?id='+created.future.activity_id+'&action=review');await expect(page.getByRole('button',{name:'Retourner en correction',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Prévalider',exact:true})).toBeVisible();await expect(page.getByRole('link',{name:'Retourner en correction',exact:true})).toHaveCount(0);
+ await page.goto('/custom/mjlfinancement/activities.php?id='+created.future.activity_id+'&action=review');await expect(page.getByRole('link',{name:'Retourner en correction',exact:true})).toBeVisible();
  await login(page,'validator');await page.goto('/custom/mjlfinancement/index.php?q=Revue%20suivie');await expect(page.locator('[aria-labelledby="mjl-workflow-title"]')).toContainText('Soumise : 2');await expect(page.locator('[data-work^="activity-"]')).toHaveCount(0);
 });
 test('a contributor who becomes Supervisor sees the stage count but cannot review their revision',async({page})=>{
  const activity=createActivities([{key:'contributor',name:'Contribution suivie',actorId:fixture.users.contributor.id}]).contributor;
  await login(page,'validator');await page.goto('/custom/mjlfinancement/activities.php?id='+activity.activity_id);
- const assignment=page.locator('form').filter({has:page.getByRole('button',{name:'Modifier l’affectation',exact:true})});
+ await page.getByRole('link',{name:'Gérer les affectations',exact:true}).click();
+ const assignment=page.getByRole('dialog',{name:'Gérer les affectations'}).locator('form');
  await assignment.locator('[name="assignment_operation"]').selectOption('TRANSFER_PRIMARY');await assignment.locator('[name="target_agent_id"]').selectOption(String(fixture.users.agent.id));await assignment.getByLabel('Motif').fill('Relève avant changement de rôle');
  await assignment.getByRole('button',{name:'Modifier l’affectation',exact:true}).click();
  expect(sql('SELECT COUNT(*) FROM llx_mjlfinancement_activity_assignment WHERE entity=1 AND fk_user='+fixture.users.contributor.id+' AND date_end IS NULL')).toBe('0');
