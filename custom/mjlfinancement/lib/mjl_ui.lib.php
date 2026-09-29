@@ -62,6 +62,17 @@ function mjl_ui_operation_status($status)
 	return $states[(string)$status] ?? array('label'=>'État indisponible','tone'=>'warning');
 }
 
+function mjl_ui_request_status($status)
+{
+	$states = array(
+		'PENDING' => array('label'=>'En attente','tone'=>'warning'),
+		'APPROVED' => array('label'=>'Approuvée','tone'=>'success'),
+		'REJECTED' => array('label'=>'Rejetée','tone'=>'danger'),
+		'WITHDRAWN' => array('label'=>'Retirée','tone'=>'neutral'),
+	);
+	return $states[(string)$status] ?? array('label'=>'Statut inconnu','tone'=>'warning');
+}
+
 function mjl_ui_escape($value)
 {
 	return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

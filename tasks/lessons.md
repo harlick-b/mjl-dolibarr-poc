@@ -245,3 +245,11 @@ debugging discoveries. Do not add one-off observations or generic advice.
   controls through jQuery when present and exercise the visible widget in E2E.
 
 - Progressive disclosure must keep the server-rendered fallback semantically honest: render ordinary anchors and usable forms first, then add ARIA tab roles, roving tabindex, hidden panels, and modal-only controls only after JavaScript enhancement. Otherwise no-JavaScript users receive unreachable links or visible inert buttons.
+- Shared action styles that set `display` can override the browser's default
+  `[hidden]` rule. For role-dependent actions inside a component, include a
+  component-scoped `[hidden] { display: none !important; }` rule and verify the
+  restricted role in the browser.
+- A `querySelector()` selector list does not prioritize selectors by their
+  written order; it returns the earliest matching element in DOM order. Scope
+  dialog initial-focus selectors to the form host when header controls appear
+  before the intended field.

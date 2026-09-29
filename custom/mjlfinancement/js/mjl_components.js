@@ -543,26 +543,121 @@
 		syncTargets();
 	}
 
-	function initDialog(dialog) {
-		if (typeof dialog.showModal !== 'function') return;
-		var identifier = dialog.id;
-		var triggers = document.querySelectorAll('[data-mjl-dialog-open="' + identifier + '"]');
-		if (!identifier || !triggers.length) return;
-		dialog.removeAttribute('open');
-		dialog.classList.add('mjl-dialog-enhanced');
-		Array.prototype.forEach.call(triggers, function (trigger) {
+	function initNativeDialog(dialog, options) {
+		if (typeof dialog.showModal !== 'function' || !options.triggers.length) return;
+		var activeTrigger = null;
+		Array.prototype.forEach.call(options.triggers, function (trigger) {
 			trigger.addEventListener('click', function (event) {
 				event.preventDefault();
+				activeTrigger = trigger;
+				if (options.beforeOpen) options.beforeOpen(trigger);
 				dialog.showModal();
-				var focusTarget = dialog.querySelector('select, input, textarea, button');
+				var focusTarget = dialog.querySelector(options.focusTarget || 'select, input, textarea, button');
 				if (focusTarget) focusTarget.focus();
 			});
 		});
-		Array.prototype.forEach.call(dialog.querySelectorAll('[data-mjl-dialog-close]'), function (button) {
+		Array.prototype.forEach.call(dialog.querySelectorAll(options.closeControl), function (button) {
 			button.addEventListener('click', function () { dialog.close(); });
 		});
 		dialog.addEventListener('click', function (event) {
 			if (event.target === dialog) dialog.close();
+		});
+		dialog.addEventListener('close', function () {
+			if (options.afterClose) options.afterClose();
+			if (activeTrigger && document.contains(activeTrigger)) activeTrigger.focus();
+			activeTrigger = null;
+		});
+	}
+
+	function initDialog(dialog) {
+		if (typeof dialog.showModal !== 'function') return;
+		var identifier = dialog.id;
+		var triggers = identifier ? document.querySelectorAll('[data-mjl-dialog-open="' + identifier + '"]') : [];
+		if (!triggers.length) return;
+		dialog.removeAttribute('open');
+		dialog.classList.add('mjl-dialog-enhanced');
+		initNativeDialog(dialog, { triggers: triggers, closeControl: '[data-mjl-dialog-close]' });
+	}
+
+	function initExceptionDialog(dialog) {
+		if (typeof dialog.showModal !== 'function') return;
+		var triggers = document.querySelectorAll('[data-mjl-exception-open]');
+		var usableTriggers = [];
+		var title = dialog.querySelector('[data-exception-dialog-title]');
+		var context = dialog.querySelector('[data-exception-dialog-context]');
+		var guidance = dialog.querySelector('[data-exception-dialog-guidance]');
+		var host = dialog.querySelector('[data-exception-dialog-form]');
+		var activeSource = null;
+		var activeForm = null;
+
+		Array.prototype.forEach.call(triggers, function (trigger) {
+			var source = document.getElementById(trigger.dataset.exceptionSource || '');
+			if (!source || !source.matches('[data-mjl-exception-source]') || !source.querySelector('form')) return;
+			trigger.classList.add('mjl-exception-trigger-enhanced');
+			source.classList.add('mjl-exception-source-enhanced');
+			usableTriggers.push(trigger);
+		});
+		if (!usableTriggers.length) return;
+		dialog.classList.add('mjl-dialog-enhanced');
+
+		initNativeDialog(dialog, {
+			triggers: usableTriggers,
+			closeControl: '[data-mjl-exception-close]',
+			focusTarget: '[data-exception-dialog-form] textarea, [data-exception-dialog-form] button[type="submit"]',
+			beforeOpen: function (trigger) {
+				activeSource = document.getElementById(trigger.dataset.exceptionSource || '');
+				activeForm = activeSource ? activeSource.querySelector('form') : null;
+				title.textContent = trigger.dataset.exceptionTitle || 'Action exceptionnelle';
+				context.textContent = trigger.dataset.exceptionContext || '';
+				guidance.textContent = trigger.dataset.exceptionGuidance || '';
+				if (activeForm) host.appendChild(activeForm);
+			},
+			afterClose: function () {
+				if (activeSource && activeForm) activeSource.appendChild(activeForm);
+				activeSource = null;
+				activeForm = null;
+			}
+		});
+	}
+
+	function initOperationDrawer(dialog) {
+		var triggers = document.querySelectorAll('[data-mjl-operation-consult]');
+		if (!triggers.length) return;
+		var status = dialog.querySelector('[data-operation-drawer-status]');
+		var activityLink = dialog.querySelector('[data-operation-drawer-activity-link]');
+		var executionLink = dialog.querySelector('[data-operation-drawer-execution-link]');
+		var fields = {
+			name: '[data-operation-drawer-name]',
+			activity: '[data-operation-drawer-activity]',
+			type: '[data-operation-drawer-type]',
+			authorizationLabel: '[data-operation-drawer-authorization-label]',
+			authorized: '[data-operation-drawer-authorized]',
+			spent: '[data-operation-drawer-spent]',
+			difference: '[data-operation-drawer-difference]',
+			variance: '[data-operation-drawer-variance]',
+			observation: '[data-operation-drawer-observation]'
+		};
+
+		function assign(selector, value) {
+			var target = dialog.querySelector(selector);
+			if (target) target.textContent = value || '';
+		}
+
+		initNativeDialog(dialog, {
+			triggers: triggers,
+			closeControl: '[data-operation-drawer-close]',
+			focusTarget: '[data-operation-drawer-close]',
+			beforeOpen: function (trigger) {
+				Object.keys(fields).forEach(function (key) {
+					assign(fields[key], trigger.dataset['operation' + key.charAt(0).toUpperCase() + key.slice(1)]);
+				});
+				status.className = 'mjl-status-pill mjl-status-' + (trigger.dataset.operationStatusTone || 'neutral');
+				status.textContent = trigger.dataset.operationStatus || '';
+				activityLink.href = trigger.dataset.operationActivityHref || '#';
+				var executionHref = trigger.dataset.operationExecutionHref || '';
+				executionLink.hidden = executionHref === '';
+				if (executionHref !== '') executionLink.href = executionHref;
+			}
 		});
 	}
 
@@ -573,5 +668,7 @@
 		initTableActionMenus(document.querySelectorAll('[data-mjl-action-menu]'));
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-tabs]'), initTabs);
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-dialog]'), function (dialog) { initAssignmentDialog(dialog); initDialog(dialog); });
+		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-operation-drawer]'), initOperationDrawer);
+		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-exception-dialog]'), initExceptionDialog);
 	});
 })();

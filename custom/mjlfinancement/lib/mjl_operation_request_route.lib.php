@@ -4,12 +4,13 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_activity_access.l
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_form_submission.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_exception_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivitycommand.class.php';
 
 function mjl_request_forbidden(){http_response_code(403);header('Content-Type: text/plain; charset=UTF-8');print 'Forbidden';exit;}
 function mjl_request_bad(){http_response_code(400);header('Content-Type: text/plain; charset=UTF-8');print 'Requête non valide';exit;}
 function mjl_request_decimal($name,array $source){if(!isset($source[$name])||!is_scalar($source[$name]))return '';$value=(string)$source[$name];return preg_match('/^[1-9][0-9]*$/',$value)===1&&strlen($value)<=19&&(strlen($value)<19||strcmp($value,'9223372036854775807')<=0)?$value:'';}
-function mjl_request_status_label($status){$labels=array('PENDING'=>'En attente','APPROVED'=>'Approuvée','REJECTED'=>'Rejetée','WITHDRAWN'=>'Retirée');return $labels[$status]??'Statut inconnu';}
+function mjl_request_status_label($status){$value=mjl_ui_request_status($status);return $value['label'];}
 function mjl_request_unavailable(){global $user;http_response_code(503);llxHeader('','Demandes d’exception');mjl_navigation_shell_start($user);print '<div class="mjl-workspace">'.mjl_page_header_render('Demandes d’exception').'<section class="mjl-workspace-section">'.mjl_ui_system_state('unavailable','Demandes indisponibles','Le service ne peut pas charger les demandes pour le moment. Réessayez plus tard.').'</section></div>';mjl_navigation_shell_end();llxFooter();}
 function mjl_request_context($action,$type,$id,$version){global $conf,$user;return array('user_id'=>(int)$user->id,'entity'=>(int)$conf->entity,'route'=>'operationrequests','form'=>$type,'action'=>$action,'object_id'=>(int)$id,'version'=>(int)$version);}
 function mjl_request_hidden($action,$type,$id,$version){return '<input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'"><input type="hidden" name="mjl_submission" value="'.dol_escape_htmltag(mjl_form_submission_issue(mjl_request_context($action,$type,$id,$version))).'"><input type="hidden" name="action" value="'.$action.'"><input type="hidden" name="request_type" value="'.$type.'"><input type="hidden" name="request_id" value="'.(int)$id.'"><input type="hidden" name="version" value="'.(int)$version.'">';}
@@ -26,7 +27,9 @@ function mjl_operation_request_route()
 	if($type===''||$type==='REOPENING')$queries[]="SELECT 'REOPENING' AS request_type,r.rowid,r.target_version,o.version AS current_target_version,r.fk_requester,r.requester_name_snapshot,r.reason,r.status,r.version,r.date_request,CONCAT(a.ref,' / ',o.name) AS target_label FROM ".$db->prefix().'mjlfinancement_reopening_request r INNER JOIN '.$db->prefix().'mjlfinancement_activity a ON a.entity=r.entity AND a.rowid=r.fk_activity INNER JOIN '.$db->prefix().'mjlfinancement_operation o ON o.entity=r.entity AND o.rowid=r.fk_operation'.$assignment.$where;
 	$res=$db->query('SELECT * FROM ('.implode(' UNION ALL ',$queries).') requests ORDER BY date_request DESC,request_type,rowid DESC LIMIT 51 OFFSET '.$offset);if(!$res){mjl_request_unavailable();return;}$rows=array();while($row=$db->fetch_object($res))$rows[]=$row;$hasNext=count($rows)>50;$rows=array_slice($rows,0,50);
 	llxHeader('','Demandes d’exception');mjl_navigation_shell_start($user);print '<div class="mjl-workspace">'.mjl_page_header_render('Demandes d’exception',array('description'=>'Annulations et réouvertures liées à une version précise.')).'<section class="mjl-workspace-section">'.mjl_request_feedback().'<form method="GET"><label>Type <select name="type"><option value="">Tous</option><option value="CANCELLATION"'.($type==='CANCELLATION'?' selected':'').'>Annulation</option><option value="REOPENING"'.($type==='REOPENING'?' selected':'').'>Réouverture</option></select></label><label>Statut <select name="status"><option value="">Tous</option>';foreach(array('PENDING'=>'En attente','APPROVED'=>'Approuvée','REJECTED'=>'Rejetée','WITHDRAWN'=>'Retirée')as$value=>$label)print '<option value="'.$value.'"'.($status===$value?' selected':'').'>'.$label.'</option>';print '</select></label><button class="button" type="submit">Filtrer</button></form>';
-	if(!$rows)print mjl_ui_system_state('initial-empty','Aucune demande','Aucune demande ne correspond aux filtres.');else foreach($rows as$row)mjl_request_render($row);
+	$hasExceptionAction=false;
+	if(!$rows)print mjl_ui_system_state('initial-empty','Aucune demande','Aucune demande ne correspond aux filtres.');else foreach($rows as$row)$hasExceptionAction=mjl_request_render($row)||$hasExceptionAction;
+	if($hasExceptionAction)print mjl_exception_dialog();
 	if($page>1||$hasNext){$query=array('type'=>$type,'status'=>$status);print '<nav class="mjl-pagination" aria-label="Pagination des demandes">';if($page>1){if($page-1>1)$query['page']=$page-1;print '<a rel="prev" href="?'.http_build_query($query).'">Précédent</a>';unset($query['page']);}if($hasNext){$query['page']=$page+1;print '<a rel="next" href="?'.http_build_query($query).'">Suivant</a>';}print '</nav>';}
 	print '</section></div>';mjl_navigation_shell_end();llxFooter();
 }
@@ -42,11 +45,35 @@ function mjl_request_render($row)
 {
 	global $user;
 	$type=(string)$row->request_type;
+	$typePhrase=$type==='CANCELLATION'?'d’annulation':'de réouverture';
 	$actionUrl=DOL_URL_ROOT.'/custom/mjlfinancement/operationrequests.php';
-	$requestedVersion=(int)$row->target_version;$currentVersion=(int)$row->current_target_version;$targetVersionLabel=$currentVersion.($currentVersion!==$requestedVersion?' — cible modifiée':'');
-	print '<article class="mjl-operation-card"><h2>'.($type==='CANCELLATION'?'Demande d’annulation':'Demande de réouverture').' — '.dol_escape_htmltag($row->target_label).'</h2><dl class="mjl-activity-meta"><div><dt>Statut</dt><dd>'.dol_escape_htmltag(mjl_request_status_label((string)$row->status)).'</dd></div><div><dt>Version ciblée</dt><dd>'.$requestedVersion.'</dd></div><div><dt>Version actuelle de la cible</dt><dd>'.$targetVersionLabel.'</dd></div><div><dt>Version de la demande</dt><dd>'.(int)$row->version.'</dd></div><div><dt>Demandée par</dt><dd>'.dol_escape_htmltag($row->requester_name_snapshot).'</dd></div></dl><p>'.nl2br(dol_escape_htmltag($row->reason)).'</p>';
-	if (isset($row->eligibility) && $row->eligibility['stale']) print '<p><strong>À clôturer</strong> : la cible a changé. La demande peut être rejetée ou retirée par les profils autorisés.</p>';
-	if(isset($row->eligibility)?$row->eligibility['withdraw']:($row->status==='PENDING'&&(int)$row->fk_requester===(int)$user->id&&mjl_scope_is_input_agent($user)))print '<form method="POST" action="'.$actionUrl.'">'.mjl_request_hidden('withdraw',$type,$row->rowid,$row->version).'<button class="button button-secondary" type="submit">Retirer la demande</button></form>';
-	if($row->status==='PENDING'&&mjl_scope_is_final_validator($user)){foreach(array('approve'=>'Approuver','reject'=>'Rejeter')as$action=>$label) if (!isset($row->eligibility) || $row->eligibility[$action]) print '<form method="POST" action="'.$actionUrl.'">'.mjl_request_hidden($action,$type,$row->rowid,$row->version).'<label>Motif de décision <textarea name="reason" maxlength="2000" required></textarea></label><button class="button'.($action==='reject'?' button-secondary':'').'" type="submit">'.$label.'</button></form>';}
-	print '</article>';
+	$requestedVersion=(int)$row->target_version;
+	$currentVersion=(int)$row->current_target_version;
+	$targetVersionLabel=$currentVersion.($currentVersion!==$requestedVersion?' — cible modifiée':'');
+	$status=mjl_ui_request_status((string)$row->status);
+	print '<article class="mjl-operation-card mjl-exception-card"><header class="mjl-section-heading"><div><p class="mjl-eyebrow">Demande '.dol_escape_htmltag($typePhrase).'</p><h2>'.dol_escape_htmltag($row->target_label).'</h2></div>'.mjl_ui_status_badge($status).'</header>';
+	print '<dl class="mjl-activity-meta"><div><dt>Statut</dt><dd>'.dol_escape_htmltag(mjl_request_status_label((string)$row->status)).'</dd></div><div><dt>Version ciblée</dt><dd>'.$requestedVersion.'</dd></div><div><dt>Version actuelle de la cible</dt><dd>'.$targetVersionLabel.'</dd></div><div><dt>Version de la demande</dt><dd>'.(int)$row->version.'</dd></div><div><dt>Demandée par</dt><dd>'.dol_escape_htmltag($row->requester_name_snapshot).'</dd></div><div><dt>Date de demande</dt><dd>'.dol_escape_htmltag(mjl_format_date(substr((string)$row->date_request,0,10))).'</dd></div></dl>';
+	print '<div class="mjl-exception-reason"><strong>Motif de la demande</strong><p>'.nl2br(mjl_ui_escape($row->reason),false).'</p></div>';
+	if(isset($row->eligibility)&&$row->eligibility['stale'])print mjl_ui_system_state('warning','À clôturer','La cible a changé. La demande peut être rejetée ou retirée par les profils autorisés.');
+	$hasAction=false;
+	print '<div class="mjl-exception-card-actions">';
+	$canWithdraw=isset($row->eligibility)?$row->eligibility['withdraw']:($row->status==='PENDING'&&(int)$row->fk_requester===(int)$user->id&&mjl_scope_is_input_agent($user));
+	if($canWithdraw){
+		$form='<form class="mjl-exception-form" data-mjl-substantive method="POST" action="'.$actionUrl.'">'.mjl_request_hidden('withdraw',$type,$row->rowid,$row->version).'<div class="mjl-dialog-actions"><button class="button button-secondary" type="submit">Retirer la demande</button></div></form>';
+		print mjl_exception_action(array('id'=>'mjl-request-'.strtolower($type).'-'.(int)$row->rowid.'-withdraw','title'=>'Retirer la demande '.$typePhrase,'context'=>$row->target_label,'guidance'=>'La demande sera clôturée sans modifier l’Activité ni l’Opération ciblée.','trigger'=>'Retirer la demande'),$form);
+		$hasAction=true;
+	}
+	if($row->status==='PENDING'&&mjl_scope_is_final_validator($user)){
+		foreach(array('approve'=>'Approuver','reject'=>'Rejeter')as$action=>$label){
+			if(isset($row->eligibility)&&!$row->eligibility[$action])continue;
+			if($action==='approve'&&$type==='CANCELLATION')$guidance='Les montants autorisés et dépensés restent conservés. L’annulation ne réécrit pas une Opération déjà terminée.';
+			elseif($action==='approve')$guidance='Après approbation, l’Opération revient à « En cours » avec ses montants conservés.';
+			else$guidance='Le rejet clôture la demande sans modifier l’Activité ni l’Opération ciblée.';
+			$form='<form class="mjl-exception-form" data-mjl-substantive method="POST" action="'.$actionUrl.'">'.mjl_request_hidden($action,$type,$row->rowid,$row->version).'<label>Motif de décision <textarea name="reason" maxlength="2000" required></textarea></label><div class="mjl-dialog-actions"><button class="button'.($action==='reject'?' button-secondary':'').'" type="submit">'.$label.'</button></div></form>';
+			print mjl_exception_action(array('id'=>'mjl-request-'.strtolower($type).'-'.(int)$row->rowid.'-'.$action,'title'=>$label.' la demande '.$typePhrase,'context'=>$row->target_label,'guidance'=>$guidance,'trigger'=>$label,'tone'=>$action==='approve'?'primary':'secondary'),$form);
+			$hasAction=true;
+		}
+	}
+	print '</div></article>';
+	return $hasAction;
 }

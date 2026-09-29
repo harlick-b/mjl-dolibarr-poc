@@ -1586,7 +1586,8 @@ a.tmenu[href^="/api/"] {
 	margin-bottom: var(--mjl-space-4);
 	padding: var(--mjl-space-4);
 }
-.mjl-operation-card > :where(h2, p, dl, form) { margin-block: 0; }
+.mjl-operation-card > :where(h2, p, dl, form) { margin-block: 0; min-width: 0; }
+.mjl-operation-card > :where(h2, p) { overflow-wrap: anywhere; }
 .mjl-operation-card form {
 	align-items: end;
 	display: grid;
@@ -1851,4 +1852,126 @@ a.tmenu[href^="/api/"] {
 	.mjl-review-stage { border-bottom-width: 1px; border-inline-start: 3px solid var(--mjl-color-border-subtle); }
 	.mjl-review-stage-complete { border-inline-start-color: var(--mjl-color-status-success); }
 	.mjl-review-stage-current { border-inline-start-color: var(--mjl-color-action); }
+}
+
+
+/* Read-only contextual Operation drawer. */
+.mjl-operation-drawer {
+	background: transparent;
+	border: 0;
+	height: 100dvh;
+	margin: 0 0 0 auto;
+	max-height: 100dvh;
+	max-width: min(31rem, 100vw);
+	padding: 0;
+	width: 100%;
+}
+.mjl-operation-drawer::backdrop { background: var(--mjl-color-overlay); }
+.mjl-operation-drawer-panel {
+	background: var(--mjl-color-surface);
+	border-inline-start: 1px solid var(--mjl-color-border-subtle);
+	box-shadow: var(--mjl-shadow-panel);
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+}
+.mjl-operation-drawer-header {
+	align-items: flex-start;
+	border-bottom: 1px solid var(--mjl-color-border-subtle);
+	display: flex;
+	gap: var(--mjl-space-4);
+	justify-content: space-between;
+	padding: var(--mjl-space-5);
+}
+.mjl-operation-drawer-header > div { min-width: 0; }
+.mjl-operation-drawer-header :where(h2,p) { margin: 0; overflow-wrap: anywhere; }
+.mjl-operation-drawer-header h2 { margin-top: var(--mjl-space-1); }
+.mjl-operation-drawer-body { flex: 1; overflow: auto; padding: var(--mjl-space-5); }
+.mjl-operation-drawer-facts { margin: var(--mjl-space-4) 0 0; }
+.mjl-operation-drawer-facts > div {
+	border-bottom: 1px solid var(--mjl-color-border-subtle);
+	display: grid;
+	gap: var(--mjl-space-3);
+	grid-template-columns: minmax(9rem, 1fr) minmax(0, 1.4fr);
+	padding: var(--mjl-space-3) 0;
+}
+.mjl-operation-drawer-facts dt { color: var(--mjl-color-text-muted); font-size: 12px; font-weight: 700; }
+.mjl-operation-drawer-facts dd { margin: 0; overflow-wrap: anywhere; text-align: end; }
+.mjl-operation-drawer-observation { grid-template-columns: 1fr !important; }
+.mjl-operation-drawer-observation dd { text-align: start; white-space: pre-wrap; }
+.mjl-operation-drawer-footer {
+	border-top: 1px solid var(--mjl-color-border-subtle);
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--mjl-space-3);
+	justify-content: flex-end;
+	padding: var(--mjl-space-4) var(--mjl-space-5);
+}
+@media (max-width: 540px) {
+	.mjl-operation-drawer { max-width: 100vw; }
+	.mjl-operation-drawer-header { padding: var(--mjl-space-4); }
+	.mjl-operation-drawer-body { padding: var(--mjl-space-4); }
+	.mjl-operation-drawer-facts > div { grid-template-columns: 1fr; gap: var(--mjl-space-1); }
+	.mjl-operation-drawer-facts dd { text-align: start; }
+	.mjl-operation-drawer-footer { align-items: stretch; flex-direction: column; padding: var(--mjl-space-4); }
+	.mjl-operation-drawer-footer .mjl-action { justify-content: center; }
+}
+@media (forced-colors: active) {
+	.mjl-operation-drawer-panel { border-inline-start-color: CanvasText; }
+}
+.mjl-operation-drawer [hidden] { display: none !important; }
+
+
+/* Controlled exception requests and decisions. */
+.mjl-exception-action { display: inline-flex; margin: var(--mjl-space-2) var(--mjl-space-2) var(--mjl-space-2) 0; }
+.mjl-exception-trigger { display: none; }
+.mjl-exception-trigger-enhanced { display: inline-flex; }
+.mjl-exception-source {
+	background: var(--mjl-color-status-warning-surface);
+	border: 1px solid var(--mjl-color-status-warning);
+	border-radius: var(--mjl-radius-card);
+	display: grid;
+	gap: var(--mjl-space-4);
+	margin: var(--mjl-space-3) 0;
+	padding: var(--mjl-space-4);
+}
+.mjl-exception-source-enhanced { display: none; }
+.mjl-exception-inline-copy :where(h3,p) { margin: 0; overflow-wrap: anywhere; }
+.mjl-exception-inline-copy p { margin-top: var(--mjl-space-2); }
+.mjl-exception-guidance { color: var(--mjl-color-text-muted); }
+.mjl-exception-dialog .mjl-dialog-panel {
+	display: grid;
+	gap: var(--mjl-space-4);
+	max-height: min(90dvh, 46rem);
+	overflow: auto;
+}
+.mjl-exception-dialog .mjl-section-heading { border-bottom: 1px solid var(--mjl-color-border-subtle); padding-bottom: var(--mjl-space-4); }
+.mjl-exception-dialog .mjl-section-heading > div { min-width: 0; }
+.mjl-exception-dialog .mjl-section-heading :where(h2,p) { overflow-wrap: anywhere; }
+.mjl-exception-dialog-guidance { margin: 0; }
+.mjl-exception-form { display: grid; gap: var(--mjl-space-4); }
+.mjl-exception-form label { display: grid; font-size: 13px; font-weight: 700; gap: var(--mjl-space-2); }
+.mjl-exception-form textarea { min-height: 8rem; resize: vertical; }
+.mjl-exception-form .mjl-dialog-actions { gap: var(--mjl-space-2); }
+.mjl-exception-card .mjl-section-heading { align-items: flex-start; }
+.mjl-exception-card .mjl-eyebrow { margin-bottom: var(--mjl-space-1); }
+.mjl-exception-card .mjl-status-pill { flex: 0 0 auto; }
+.mjl-exception-reason {
+	background: var(--mjl-color-surface-subtle);
+	border-inline-start: 3px solid var(--mjl-color-action);
+	padding: var(--mjl-space-3) var(--mjl-space-4);
+}
+.mjl-exception-reason p { margin: var(--mjl-space-2) 0 0; overflow-wrap: anywhere; }
+.mjl-exception-card-actions { display: flex; flex-wrap: wrap; gap: var(--mjl-space-2); }
+.mjl-exception-card-actions .mjl-exception-action { margin: 0; }
+
+@media (max-width: 540px) {
+	.mjl-exception-action, .mjl-exception-trigger-enhanced { width: 100%; }
+	.mjl-exception-trigger-enhanced { justify-content: center; }
+	.mjl-exception-dialog .mjl-dialog-panel { max-height: calc(100dvh - 32px); padding: var(--mjl-space-4); }
+	.mjl-exception-form .mjl-dialog-actions { align-items: stretch; flex-direction: column; }
+	.mjl-exception-form .mjl-dialog-actions .button { width: 100%; }
+}
+@media (forced-colors: active) {
+	.mjl-exception-source, .mjl-exception-reason { border-color: CanvasText; }
 }

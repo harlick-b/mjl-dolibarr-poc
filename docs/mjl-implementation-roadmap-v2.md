@@ -46,9 +46,15 @@ status and financial summaries, progressive tabs, current assignments, an
 Operation table, lock explanations, and individual reasoned assignment
 actions. VUI-06 review/revisions is implemented with immutable submitted
 snapshots, staged progress, role-aware decisions, reasoned correction dialogs,
-revision history, late-validation guidance, and read-only reviewer states. No UI wave has been accepted. The user
-authorized a
-phased design pass using `docs/inspiration/` for composition and interaction,
+revision history, late-validation guidance, and read-only reviewer states.
+VUI-07 Operation consultation is implemented with a shared read-only contextual
+drawer, exact financial and execution facts, role-aware execution navigation,
+and ordinary-link fallback. VUI-08 exception dialogs are implemented with one
+shared progressive dialog host that moves each existing guarded form without
+cloning it or issuing another token, while preserving visible no-JavaScript
+forms, role eligibility, exact versions, financial facts, and terminal rules.
+No UI wave has been accepted. The user authorized
+a phased design pass using `docs/inspiration/` for composition and interaction,
 while the approved v3 design tokens remain the visual authority. Reuse the
 current PHP/JavaScript stack, shared MJL presentation helpers, and installed
 compatible widgets. Keep business rules, authorization, queries, endpoints,

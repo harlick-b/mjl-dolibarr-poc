@@ -6,6 +6,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.ph
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_presentation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_execution.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_exception_ui.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlactivitycommand.class.php';
 
 function mjl_operation_forbidden() { http_response_code(403); header('Content-Type: text/plain; charset=UTF-8'); print 'Forbidden'; exit; }
@@ -93,11 +94,29 @@ function mjl_operation_post()
 function mjl_operation_render_rows(array $rows)
 {
 	global $user;
-	foreach($rows as$row){$url=DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.(int)$row->activity_id;print '<article class="mjl-operation-card" id="operation-'.(int)$row->rowid.'"><h2>'.dol_escape_htmltag($row->name).'</h2><p><a href="'.$url.'">'.dol_escape_htmltag($row->activity_ref.' - '.$row->activity_name).'</a></p><dl class="mjl-activity-meta"><div><dt>Partenaire</dt><dd>'.dol_escape_htmltag($row->partner_name).'</dd></div><div><dt>Projet</dt><dd>'.dol_escape_htmltag($row->project_name ?? trim($row->project_ref.' - '.$row->project_title)).'</dd></div><div><dt>Type d’Opération</dt><dd>'.dol_escape_htmltag($row->type_label).'</dd></div><div><dt>Statut</dt><dd>'.dol_escape_htmltag(mjl_operation_status_label($row->status)).'</dd></div><div><dt>'.(isset($row->authorization_kind)?($row->authorization_kind==='Proposée'?'Montant proposé':'Montant autorisé validé'):'Montant autorisé').'</dt><dd>'.dol_escape_htmltag(mjl_format_money($row->authorized_amount)).'</dd></div><div><dt>Montant dépensé</dt><dd>'.dol_escape_htmltag(mjl_format_money($row->spent_amount)).'</dd></div><div><dt>Écart</dt><dd>'.dol_escape_htmltag(mjl_execution_variance_amount($row->spent_amount,$row->authorized_amount)).'</dd></div><div><dt>Variance %</dt><dd>'.dol_escape_htmltag(mjl_execution_variance_percent($row->spent_amount,$row->authorized_amount)).'</dd></div></dl>';
+	$hasExceptionAction=false;
+	foreach($rows as$row){
+		$url=DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.(int)$row->activity_id;
+		print '<article class="mjl-operation-card" id="operation-'.(int)$row->rowid.'"><h2>'.dol_escape_htmltag($row->name).'</h2><p><a href="'.$url.'">'.dol_escape_htmltag($row->activity_ref.' - '.$row->activity_name).'</a></p><dl class="mjl-activity-meta"><div><dt>Partenaire</dt><dd>'.dol_escape_htmltag($row->partner_name).'</dd></div><div><dt>Projet</dt><dd>'.dol_escape_htmltag($row->project_name ?? trim($row->project_ref.' - '.$row->project_title)).'</dd></div><div><dt>Type d’Opération</dt><dd>'.dol_escape_htmltag($row->type_label).'</dd></div><div><dt>Statut</dt><dd>'.dol_escape_htmltag(mjl_operation_status_label($row->status)).'</dd></div><div><dt>'.(isset($row->authorization_kind)?($row->authorization_kind==='Proposée'?'Montant proposé':'Montant autorisé validé'):'Montant autorisé').'</dt><dd>'.dol_escape_htmltag(mjl_format_money($row->authorized_amount)).'</dd></div><div><dt>Montant dépensé</dt><dd>'.dol_escape_htmltag(mjl_format_money($row->spent_amount)).'</dd></div><div><dt>Écart</dt><dd>'.dol_escape_htmltag(mjl_execution_variance_amount($row->spent_amount,$row->authorized_amount)).'</dd></div><div><dt>Variance %</dt><dd>'.dol_escape_htmltag(mjl_execution_variance_percent($row->spent_amount,$row->authorized_amount)).'</dd></div></dl>';
 		if($row->observation!==null&&$row->observation!=='')print '<p><strong>Observation :</strong> '.dol_escape_htmltag($row->observation).'</p>';
 		$canAct=isset($row->execution_allowed)?$row->execution_allowed:(mjl_scope_is_input_agent($user)&&(string)$row->validation_status==='FINAL_VALIDATED'&&empty($row->is_cancelled));
-		if($canAct&&!in_array($row->status,array('COMPLETED','CANCELLED'),true)){print '<form method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/operations.php">'.mjl_operation_hidden('update_execution',$row->activity_id,$row->rowid,$row->version).'<label>Statut <select name="status"><option value="TODO"'.($row->status==='TODO'?' selected':'').'>À faire</option><option value="IN_PROGRESS"'.($row->status==='IN_PROGRESS'?' selected':'').'>En cours</option><option value="COMPLETED">Terminée</option></select></label><label>Montant dépensé <input name="spent_amount" inputmode="numeric" pattern="[0-9]+" value="'.dol_escape_htmltag($row->spent_amount===null?'':$row->spent_amount).'"></label><label>Observation <textarea name="observation" maxlength="2000">'.dol_escape_htmltag($row->observation??'').'</textarea></label><button class="button" type="submit">Enregistrer l’exécution</button></form>';}
-		if($canAct&&$row->status!=='CANCELLED'){print '<form method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/operations.php">'.mjl_operation_hidden($row->status==='COMPLETED'?'request_reopening':'request_cancellation',$row->activity_id,$row->rowid,$row->version).'<label>Motif <textarea name="reason" maxlength="2000" required></textarea></label><button class="button button-secondary" type="submit">'.($row->status==='COMPLETED'?'Demander la réouverture':'Demander l’annulation').'</button></form>';}
-		if($row->status==='CANCELLED')print '<p>Cette Opération est annulée et verrouillée.</p>';elseif($row->status==='COMPLETED')print '<p>Cette Opération est terminée et verrouillée. Une demande approuvée est requise pour la rouvrir.</p>';
-		print '<p><a href="'.DOL_URL_ROOT.'/custom/mjlfinancement/operationrequests.php">Voir les demandes d’exception</a></p></article>';}
+		if($canAct&&!in_array($row->status,array('COMPLETED','CANCELLED'),true)){
+			print '<form method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/operations.php">'.mjl_operation_hidden('update_execution',$row->activity_id,$row->rowid,$row->version).'<label>Statut <select name="status"><option value="TODO"'.($row->status==='TODO'?' selected':'').'>À faire</option><option value="IN_PROGRESS"'.($row->status==='IN_PROGRESS'?' selected':'').'>En cours</option><option value="COMPLETED">Terminée</option></select></label><label>Montant dépensé <input name="spent_amount" inputmode="numeric" pattern="[0-9]+" value="'.dol_escape_htmltag($row->spent_amount===null?'':$row->spent_amount).'"></label><label>Observation <textarea name="observation" maxlength="2000">'.dol_escape_htmltag($row->observation??'').'</textarea></label><button class="button" type="submit">Enregistrer l’exécution</button></form>';
+		}
+		if($canAct&&$row->status!=='CANCELLED'){
+			$reopening=$row->status==='COMPLETED';
+			$action=$reopening?'request_reopening':'request_cancellation';
+			$label=$reopening?'Demander la réouverture':'Demander l’annulation';
+			$title=$reopening?'Demander la réouverture de l’Opération':'Demander l’annulation de l’Opération';
+			$reasonLabel=$reopening?'Motif de la demande de réouverture':'Motif de la demande d’annulation';
+			$guidance=$reopening?'Après approbation, l’Opération revient à « En cours » avec ses montants conservés.':'Les montants autorisés et dépensés restent conservés. Une Opération annulée reste verrouillée et ne peut pas être rouverte.';
+			$form='<form class="mjl-exception-form" data-mjl-substantive method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/operations.php">'.mjl_operation_hidden($action,$row->activity_id,$row->rowid,$row->version).'<label>'.$reasonLabel.' <textarea name="reason" maxlength="2000" required></textarea></label><div class="mjl-dialog-actions"><button class="button button-secondary" type="submit">'.$label.'</button></div></form>';
+			print mjl_exception_action(array('id'=>'mjl-operation-exception-'.(int)$row->rowid,'title'=>$title,'context'=>$row->name,'guidance'=>$guidance,'trigger'=>$label),$form);
+			$hasExceptionAction=true;
+		}
+		if($row->status==='CANCELLED')print '<p>Cette Opération est annulée et verrouillée.</p>';
+		elseif($row->status==='COMPLETED')print '<p>Cette Opération est terminée et verrouillée. Une demande approuvée est requise pour la rouvrir.</p>';
+		print '<p><a href="'.DOL_URL_ROOT.'/custom/mjlfinancement/operationrequests.php">Voir les demandes d’exception</a></p></article>';
+	}
+	if($hasExceptionAction)print mjl_exception_dialog();
 }
