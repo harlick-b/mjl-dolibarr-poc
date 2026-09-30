@@ -4,6 +4,7 @@ require_once __DIR__.'/../class/mjlexport.class.php';
 require_once __DIR__.'/mjl_navigation.lib.php';
 require_once __DIR__.'/mjl_page_header.lib.php';
 require_once __DIR__.'/mjl_ui.lib.php';
+require_once __DIR__.'/mjl_report_ui.lib.php';
 
 function mjl_report_http_error($status,$message)
 {
@@ -141,38 +142,35 @@ function mjl_report_page()
 	finally { if ($budgets!==null && !$db->query('SET SESSION max_statement_time='.(float)$budgets['statement_time'].',innodb_lock_wait_timeout='.(int)$budgets['row_wait'].',lock_wait_timeout='.(int)$budgets['metadata_wait'])) { $available=false; http_response_code(503); } }
 	llxHeader('',$title); mjl_navigation_shell_start($user); print '<div class="mjl-workspace">';
 	print mjl_page_header_render($title,array('description'=>'Montants cumulés courants, dans votre périmètre d’accès.','breadcrumb'=>array(array('label'=>$plural,'href'=>DOL_URL_ROOT.'/custom/mjlfinancement/'.($isOperations?'operations.php':'activities.php')),array('label'=>'Rapport'))));
-	print '<nav class="mjl-tabs" aria-label="Type de rapport">';
-	foreach (array('activities'=>'Activités','operations'=>'Opérations','portfolio'=>'Portefeuille') as $key=>$label) print '<a href="'.DOL_URL_ROOT.'/custom/mjlfinancement/reports.php?report='.$key.'"'.($type===$key?' class="mjl-tab-active" aria-current="page"':'').'>'.$label.'</a>';
-	if (in_array(mjl_scope_effective_role_code($user,(int)$conf->entity),array('VALIDATEUR_DEFINITIF','ADMIN_PLATEFORME'),true)) print '<a href="'.DOL_URL_ROOT.'/custom/mjlfinancement/reports.php?report=audit">Journal d’audit</a>';
-	print '</nav>';
+	print mjl_report_ui_tabs($type,in_array(mjl_scope_effective_role_code($user,(int)$conf->entity),array('VALIDATEUR_DEFINITIF','ADMIN_PLATEFORME'),true));
 	if (!$available) print mjl_ui_system_state('unavailable','Rapport indisponible','Les données ne peuvent pas être chargées. Aucun total ni téléchargement n’est disponible.');
 	elseif ($isDetail) mjl_report_detail_preview($detail['document'],$filters,$captured);
 	else {
-		print '<section class="mjl-workspace-section"><h2>Sélection</h2><form class="mjl-activity-form" method="GET"><input type="hidden" name="report" value="'.$type.'"><div class="mjl-form-grid">';
-		foreach (array('q'=>($isOperations||$isPortfolio)?'Recherche d’Activité':'Recherche','date_from'=>'Période à partir du','date_to'=>'Période jusqu’au') as $key=>$label) print '<label for="report-'.$key.'">'.$label.'</label><input id="report-'.$key.'" name="'.$key.'" type="'.($key==='q'?'search':'date').'" maxlength="100" value="'.dol_escape_htmltag($filters[$key]).'">';
+		print '<section class="mjl-workspace-section mjl-report-filter-panel" aria-labelledby="mjl-report-filter-title">'.mjl_report_ui_section_heading('mjl-report-filter-title','Sélection du rapport','Filtres').'<form class="mjl-report-filter-bar" method="GET"><input type="hidden" name="report" value="'.$type.'"><div class="mjl-report-filter-grid">';
+		foreach (array('q'=>($isOperations||$isPortfolio)?'Recherche d’Activité':'Recherche','date_from'=>'Période à partir du','date_to'=>'Période jusqu’au') as $key=>$label) print '<label for="report-'.$key.'"><span>'.$label.'</span><input id="report-'.$key.'" name="'.$key.'" type="'.($key==='q'?'search':'date').'" maxlength="100" value="'.dol_escape_htmltag($filters[$key]).'"></label>';
 		foreach (array_merge(array('partner_id'=>'Partenaire','project_id'=>'Projet'),$isOperations?array('type_id'=>'Type d’opération'):array()) as $key=>$label) {
-			print '<label for="report-'.$key.'">'.$label.'</label><select id="report-'.$key.'" name="'.$key.'"><option value="">Tous</option>';
+			print '<label for="report-'.$key.'"><span>'.$label.'</span><select id="report-'.$key.'" name="'.$key.'"><option value="">Tous</option>';
 			if ($filters[$key]!=='' && !in_array($filters[$key],array_map('strval',array_column($choices[$key],'id')),true)) print '<option selected value="'.dol_escape_htmltag($filters[$key]).'">Référence hors sélection</option>';
 			foreach ($choices[$key] as $choice) print '<option value="'.(int)$choice['id'].'"'.((string)$choice['id']===$filters[$key]?' selected':'').'>'.dol_escape_htmltag($choice['label']).'</option>';
-			print '</select>';
+			print '</select></label>';
 		}
 		$labels=mjl_report_status_labels();
 		foreach (array_merge(array('validation_status'=>array(($isOperations||$isPortfolio)?'État de validation de l’Activité':'État de validation',array('DRAFT','SUBMITTED','PREVALIDATED','RETURNED_SUPERVISOR','RETURNED_VALIDATOR','FINAL_VALIDATED','CANCELLED','ABANDONED')),'execution_status'=>array(($isOperations||$isPortfolio)?'État d’exécution de l’Activité':'État d’exécution',array('NOT_STARTED','UPCOMING','IN_PROGRESS','OVERDUE','COMPLETED','CANCELLED')),'completeness'=>array(($isOperations||$isPortfolio)?'Complétude des dépenses de l’Activité':'Complétude des dépenses',array('NOT_STARTED','PARTIAL','COMPLETE'))),$isOperations?array('operation_status'=>array('État de l’Opération',array('TODO','IN_PROGRESS','COMPLETED','CANCELLED'))):array()) as $key=>$definition) {
-			print '<label for="report-'.$key.'">'.$definition[0].'</label><select id="report-'.$key.'" name="'.$key.'"><option value="">Tous</option>';
+			print '<label for="report-'.$key.'"><span>'.$definition[0].'</span><select id="report-'.$key.'" name="'.$key.'"><option value="">Tous</option>';
 			foreach ($definition[1] as $value) print '<option value="'.$value.'"'.($value===$filters[$key]?' selected':'').'>'.dol_escape_htmltag($key==='completeness' && $value==='NOT_STARTED'?'Non renseignée':$labels[$value]).'</option>';
-			print '</select>';
+			print '</select></label>';
 		}
 		if ($isPortfolio) {
-			print '<label for="report-grouping">Regrouper par</label><select id="report-grouping" name="grouping">';
+			print '<label for="report-grouping"><span>Regrouper par</span><select id="report-grouping" name="grouping">';
 			foreach (array('project'=>'Projet','partner'=>'Partenaire') as $key=>$label) print '<option value="'.$key.'"'.($filters['grouping']===$key?' selected':'').'>'.$label.'</option>';
-			print '</select>';
+			print '</select></label>';
 		}
 		print '</div>';
 		if ($filters['activity_id']!=='') print '<input type="hidden" name="activity_id" value="'.dol_escape_htmltag($filters['activity_id']).'">';
-		print '<button class="butAction" type="submit">Appliquer les filtres</button> <a href="'.dol_escape_htmltag($resetUrl).'">Réinitialiser</a></form><p>La période inclut les Activités dont les dates courantes chevauchent l’intervalle choisi. Les références inactives déjà utilisées restent sélectionnables.</p></section>';
+		print mjl_report_ui_filter_actions($resetUrl).'</form>'.mjl_report_ui_active_filters($type,$filters,$choices).'<p class="mjl-report-description">La période inclut les Activités dont les dates courantes chevauchent l’intervalle choisi. Les références inactives déjà utilisées restent sélectionnables.</p></section>';
 		if ($isOperations) print '<p>Les filtres de type et d’état d’Opération réduisent les lignes affichées, sans recalculer la complétude de l’Activité parente. Écart = dépensé − autorisé ; variation = écart / autorisé, non renseignée si le montant dépensé manque ou si le montant autorisé vaut zéro.</p>';
 		if ($isPortfolio) print '<p>Chaque Activité sélectionnée contribue une seule fois à son groupe. Les dépenses renseignées sont additionnées ; les compteurs signalent les montants manquants. Une annulation conserve les montants validés antérieurs.</p>';
-		print '<section class="mjl-workspace-section"><h2>Téléchargement</h2><p>'.count($rows).' '.($isPortfolio?'groupe(s)':$singular.'(s)').' dans la sélection. L’export inclut toutes les pages.</p>';
+		print '<section class="mjl-workspace-section mjl-report-export-panel" aria-labelledby="mjl-report-export-title">'.mjl_report_ui_section_heading('mjl-report-export-title','Formats officiels','Téléchargement',count($rows).' '.($isPortfolio?'groupe(s)':$singular.'(s)')).'<p class="mjl-report-description">L’export inclut toutes les pages de la sélection courante.</p>';
 		mjl_report_download_form($type,$filters,$captured);
 		print '</section><section class="mjl-workspace-section"><h2>'.($isPortfolio?'Groupes sélectionnés':$plural.' sélectionnées').'</h2>';
 		if (!$rows) print mjl_ui_system_state('filtered-empty',$isPortfolio?'Aucun groupe':'Aucune '.$singular,'Aucune Activité ne correspond à vos filtres et à vos accès.');
@@ -206,9 +204,9 @@ function mjl_report_operation_preview_row(array $row)
 
 function mjl_report_download_form($type,array $filters,$captured)
 {
-	print '<p>Aperçu capturé le '.dol_escape_htmltag($captured).' UTC ; un téléchargement utilise une nouvelle capture.</p><p>'.dol_escape_htmltag(mjl_report_format_notice()).'</p><form method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/reportexport.php"><input type="hidden" name="report" value="'.$type.'"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
+	print '<p>Aperçu capturé le '.dol_escape_htmltag($captured).' UTC ; un téléchargement utilise une nouvelle capture.</p><p>'.dol_escape_htmltag(mjl_report_format_notice()).'</p><form class="mjl-report-export-actions" method="POST" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/reportexport.php"><input type="hidden" name="report" value="'.$type.'"><input type="hidden" name="token" value="'.dol_escape_htmltag(newToken()).'">';
 	foreach ($filters as $key=>$value) if ($key!=='page') print '<input type="hidden" name="'.$key.'" value="'.dol_escape_htmltag($value).'">';
-	foreach (array('pdf'=>'PDF','xlsx'=>'XLSX','csv'=>'CSV') as $format=>$label) print '<button class="butAction" name="format" value="'.$format.'" type="submit">Télécharger '.$label.'</button> ';
+	foreach (array('pdf'=>'PDF','xlsx'=>'XLSX','csv'=>'CSV') as $format=>$label) print '<button class="mjl-action mjl-action-secondary" name="format" value="'.$format.'" type="submit">Télécharger '.$label.'</button> ';
 	print '</form>';
 }
 
@@ -216,7 +214,7 @@ function mjl_report_detail_preview(array $document,array $filters,$captured)
 {
 	print '<p><a href="'.DOL_URL_ROOT.'/custom/mjlfinancement/activities.php?id='.(int)$filters['activity_id'].'">Retour à l’Activité</a></p>';
 	foreach ($document['metadata'] as $text) print '<p>'.dol_escape_htmltag($text).'</p>';
-	print '<section class="mjl-workspace-section"><h2>Téléchargement</h2><p>Une Activité avec toutes ses Opérations courantes.</p>';
+	print '<section class="mjl-workspace-section mjl-report-export-panel"><h2>Téléchargement</h2><p>Une Activité avec toutes ses Opérations courantes.</p>';
 	mjl_report_download_form('activity_detail',$filters,$captured); print '</section>';
 	foreach ($document['sections'] as $section) {
 		print '<section class="mjl-workspace-section"><h2>'.dol_escape_htmltag($section['title']).'</h2>';

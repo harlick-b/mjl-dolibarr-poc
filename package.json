@@ -26,6 +26,9 @@
     "test:vui08": "node tests/runner/run-suite.js vui08",
     "test:vui09": "node tests/runner/run-suite.js vui09",
     "test:vui10": "node tests/runner/run-suite.js vui10",
+    "test:vui11": "node tests/runner/run-suite.js vui11",
+    "test:vui12": "node tests/runner/run-suite.js vui12",
+    "test:vui13": "node tests/runner/run-suite.js vui13",
     "test:manual-accessibility": "node tests/runner/run-suite.js manual-accessibility"
   },
   "devDependencies": {

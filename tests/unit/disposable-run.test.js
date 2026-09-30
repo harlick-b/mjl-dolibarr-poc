@@ -91,6 +91,9 @@ test('maps each public command to explicit durable layers without phase-era targ
   assert.deepEqual(getSuitePlan('rst014a'), ['rst014a']);
   assert.deepEqual(getSuitePlan('manual-accessibility'), ['manual-accessibility']);
   assert.deepEqual(getSuitePlan('phase3c'), ['phase3c']);
+  assert.deepEqual(getSuitePlan('vui11'), ['vui11']);
+  assert.deepEqual(getSuitePlan('vui12'), ['vui12']);
+  assert.deepEqual(getSuitePlan('vui13'), ['vui13']);
   assert.throws(() => getSuitePlan('phase3'), /unknown test mode/i);
 });
 

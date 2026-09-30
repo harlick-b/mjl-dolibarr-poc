@@ -61,9 +61,25 @@ history, audit-report, and technical-administration destinations; it fabricates
 no account or health metrics. VUI-10 Partner/Project management is implemented
 with shared responsive reference tables, current status and parent facts,
 role-aware row actions, progressive create/edit and lifecycle dialogs, shared
-dirty-state protection, and ordinary-form fallback. Project ownership stays immutable
-after creation and the existing lifecycle, permission, token, and entity boundaries remain under
-their current backend owners.
+dirty-state protection, and ordinary-form fallback. Project ownership stays
+immutable after creation and the existing lifecycle, permission, token, and
+entity boundaries remain under their current backend owners. VUI-11 Users and
+invitations is implemented with shared responsive access tables, progressive
+invitation and account-action dialogs, French invitation statuses, exact
+existing guarded forms, real delivery outcomes, dirty-state protection, and
+ordinary-form fallback. Invitation, role, deactivation, revocation, Admin-only,
+token, and entity boundaries remain under their current backend owners.
+VUI-12 history and exports is implemented with shared report navigation,
+responsive filter/date controls, visible active selections, complete-selection
+export actions, and a chronological global-audit presentation. Existing
+server-side filters, cursor and page behavior, report-specific access, audited
+PDF/XLSX/CSV generation, filenames, formats, projections, and active-entity
+boundaries remain under their current backend owners. VUI-13 cross-screen
+consistency is implemented with one shared section-heading owner, one shared
+chronology primitive across contextual and global history, removal of dormant
+report/timeline presentation selectors, and focused structural, responsive,
+accessibility-preference, and four-role boundary checks across completed
+surfaces. No query, workflow, permission, schema, or export contract changed.
 No UI wave has been accepted. The user authorized
 a phased design pass using `docs/inspiration/` for composition and interaction,
 while the approved v3 design tokens remain the visual authority. Reuse the

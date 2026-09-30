@@ -5,6 +5,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_access_ui.lib.php';
 
 if (!mjl_scope_is_platform_admin($user)) {
 	http_response_code(403);
@@ -81,15 +82,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $roles = array_intersect_key(mjl_scope_role_labels(), array_flip(mjl_auth_business_role_codes()));
 $users = mjl_access_users();
 
+$invitations = array();
+$sql = 'SELECT i.rowid, i.status, i.date_sent, i.date_expiry, u.login, u.email FROM '.$db->prefix().'mjlfinancement_invitation i';
+$sql .= ' INNER JOIN '.$db->prefix().'user u ON u.rowid = i.fk_user';
+$sql .= ' WHERE i.entity = '.mjl_auth_entity().' ORDER BY i.rowid DESC LIMIT 50';
+$resql = $db->query($sql);
+if ($resql) {
+	while ($obj = $db->fetch_object($resql)) $invitations[] = (array) $obj;
+}
+
+$inviteValues = array();
+$inviteError = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'invite' && $error !== '') {
+	$inviteValues = array(
+		'login' => GETPOST('login', 'alphanohtml'),
+		'firstname' => GETPOST('firstname', 'restricthtml'),
+		'lastname' => GETPOST('lastname', 'restricthtml'),
+		'email' => GETPOST('email', 'restricthtml'),
+		'role_code' => GETPOST('role_code', 'aZ09'),
+	);
+	$inviteError = $error;
+}
+
 llxHeader('', 'Gestion des accès MJL');
 mjl_navigation_shell_start($user);
-print '<div class="mjl-workspace">';
+print '<div class="mjl-workspace mjl-access-workspace">';
 print mjl_page_header_render(
 	'Gestion des accès MJL',
 	array(
 		'breadcrumb' => array(array('label' => 'Administration')),
 		'description' => 'Invitez les utilisateurs et gérez leur rôle de production.',
 		'context' => array('label' => 'Accès', 'value' => 'Administration'),
+		'primary_action' => array(
+			'label' => 'Inviter un utilisateur',
+			'href' => DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php#mjl-access-invite-dialog',
+		),
 	)
 );
 
@@ -97,84 +124,11 @@ if ($generatedLink !== '') {
 	print '<div class="info">Lien E2E: <code>'.dol_escape_htmltag($generatedLink).'</code></div>';
 }
 
-print '<form method="post" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php">';
-print '<input type="hidden" name="token" value="'.newToken().'">';
-print '<input type="hidden" name="action" value="invite">';
-print '<table class="border centpercent">';
-print '<tr><td><label for="mjl-login">Identifiant</label></td><td><input id="mjl-login" class="flat minwidth300" name="login" required></td></tr>';
-print '<tr><td><label for="mjl-firstname">Prénom</label></td><td><input id="mjl-firstname" class="flat minwidth300" name="firstname" required></td></tr>';
-print '<tr><td><label for="mjl-lastname">Nom</label></td><td><input id="mjl-lastname" class="flat minwidth300" name="lastname" required></td></tr>';
-print '<tr><td><label for="mjl-email">Email</label></td><td><input id="mjl-email" class="flat minwidth300" type="email" name="email" required></td></tr>';
-print '<tr><td><label for="mjl-role">Profil de production</label></td><td>'.mjl_access_role_select('role_code', 'AGENT_SAISIE', $roles, 'mjl-role').'</td></tr>';
-print '</table>';
-print '<div class="tabsAction"><button class="butAction" type="submit">Envoyer l’invitation</button></div>';
-print '</form>';
-
-print '<br>';
-print load_fiche_titre('Utilisateurs MJL', '', '');
-print '<table class="noborder centpercent">';
-print '<tr class="liste_titre"><th>Utilisateur</th><th>Email</th><th>Statut</th><th>Profil</th><th>Actions</th></tr>';
-foreach ($users as $row) {
-	print '<tr class="oddeven">';
-	print '<td>'.dol_escape_htmltag($row['login']).'</td>';
-	print '<td>'.dol_escape_htmltag($row['email']).'</td>';
-	print '<td>'.((int) $row['statut'] === 1 ? 'Actif' : 'Inactif').'</td>';
-	print '<td>'.dol_escape_htmltag($row['role_label']).'</td>';
-	print '<td>';
-	print '<form method="post" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php">';
-	print '<input type="hidden" name="token" value="'.newToken().'">';
-	print '<input type="hidden" name="action" value="update_profile">';
-	print '<input type="hidden" name="user_id" value="'.((int) $row['rowid']).'">';
-	if (!empty($row['native_admin'])) {
-		print '<span class="opacitymedium">Admin natif Dolibarr</span>';
-	} else {
-		print mjl_access_role_select('role_code', $row['role_code'] !== '' ? $row['role_code'] : 'AGENT_SAISIE', $roles);
-		print '<button class="button small" type="submit">Enregistrer</button>';
-	}
-	print '</form>';
-	if ((int) $row['statut'] === 1) {
-		print '<form method="post" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php">';
-		print '<input type="hidden" name="token" value="'.newToken().'">';
-		print '<input type="hidden" name="action" value="deactivate">';
-		print '<input type="hidden" name="user_id" value="'.((int) $row['rowid']).'">';
-		print '<button class="button small" type="submit">Désactiver</button>';
-		print '</form>';
-	}
-	print '</td>';
-	print '</tr>';
-}
-print '</table>';
-
-print '<br>';
-print load_fiche_titre('Invitations récentes', '', '');
-print '<table class="noborder centpercent">';
-print '<tr class="liste_titre"><th>Utilisateur</th><th>Email</th><th>Statut</th><th>Envoi</th><th>Expiration</th><th></th></tr>';
-$sql = 'SELECT i.rowid, i.status, i.date_sent, i.date_expiry, u.login, u.email FROM '.$db->prefix().'mjlfinancement_invitation i';
-$sql .= ' INNER JOIN '.$db->prefix().'user u ON u.rowid = i.fk_user';
-$sql .= ' WHERE i.entity = '.mjl_auth_entity().' ORDER BY i.rowid DESC LIMIT 50';
-$resql = $db->query($sql);
-if ($resql) {
-	while ($obj = $db->fetch_object($resql)) {
-		print '<tr class="oddeven">';
-		print '<td>'.dol_escape_htmltag($obj->login).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->email).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->status).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->date_sent).'</td>';
-		print '<td>'.dol_escape_htmltag($obj->date_expiry).'</td>';
-		print '<td>';
-		if ($obj->status === 'sent') {
-			print '<form method="post" action="'.DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php">';
-			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<input type="hidden" name="action" value="revoke">';
-			print '<input type="hidden" name="id" value="'.((int) $obj->rowid).'">';
-			print '<button class="button small" type="submit">Révoquer</button>';
-			print '</form>';
-		}
-		print '</td>';
-		print '</tr>';
-	}
-}
-print '</table>';
+$pageToken = newToken();
+print mjl_access_ui_users($users, $roles, $pageToken);
+print mjl_access_ui_invitations($invitations, $pageToken);
+print mjl_access_ui_invite_dialog($roles, $pageToken, $inviteValues, $inviteError);
+print mjl_access_ui_action_dialog();
 
 print '</div>';
 mjl_navigation_shell_end();
@@ -201,14 +155,4 @@ function mjl_access_users()
 		}
 	}
 	return $rows;
-}
-
-function mjl_access_role_select($name, $selected, array $roles, $id = '')
-{
-	$html = '<select'.($id !== '' ? ' id="'.dol_escape_htmltag($id).'"' : '').' name="'.dol_escape_htmltag($name).'" required>';
-	foreach ($roles as $code => $label) {
-		$html .= '<option value="'.dol_escape_htmltag($code).'"'.($code === $selected ? ' selected' : '').'>'.dol_escape_htmltag($label).'</option>';
-	}
-	$html .= '</select>';
-	return $html;
 }

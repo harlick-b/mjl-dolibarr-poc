@@ -297,11 +297,11 @@
 			dialog.close();
 		});
 		dialog.querySelector('[data-mjl-unsaved-leave]').addEventListener('click', function () {
-			if (!activeController || !activeController.pendingHref) return;
-			var href = activeController.pendingHref;
+			if (!activeController || typeof activeController.pendingLeave !== 'function') return;
+			var leave = activeController.pendingLeave;
 			activeController.acceptLeave();
 			dialog.close();
-			window.location.assign(href);
+			leave();
 		});
 
 		Array.prototype.forEach.call(forms, function (form) {
@@ -312,11 +312,13 @@
 			var beforeUnloadAttached = false;
 			var controller = {
 				pendingHref: '',
+				pendingLeave: null,
 				restoreTarget: null,
 				acceptLeave: function () {
 					recoveredDirty = false;
 					dirty = false;
 					controller.pendingHref = '';
+					controller.pendingLeave = null;
 					detachBeforeUnload();
 				},
 			};
@@ -357,8 +359,9 @@
 				return true;
 			}
 
-			function promptToLeave(href, restoreTarget) {
+			function promptToLeave(href, restoreTarget, leave) {
 				controller.pendingHref = href;
+				controller.pendingLeave = typeof leave === 'function' ? leave : function () { window.location.assign(href); };
 				controller.restoreTarget = restoreTarget;
 				activeController = controller;
 				dialog.showModal();
@@ -373,7 +376,7 @@
 					event.detail.leave();
 					return;
 				}
-				promptToLeave(event.detail.href || '', event.detail.restoreTarget || null);
+				promptToLeave(event.detail.href || '', event.detail.restoreTarget || null, event.detail.leave);
 			});
 
 			form.addEventListener('input', syncDirtyState);
@@ -719,56 +722,177 @@
 		if (focusTarget) focusTarget.focus();
 	}
 
-	function initReferenceLifecycleDialog(dialog) {
+	function initMovedFormDialog(dialog, options) {
 		if (typeof dialog.showModal !== 'function') return;
-		var triggers = document.querySelectorAll('[data-mjl-reference-lifecycle-open]');
+		var triggers = document.querySelectorAll(options.triggerSelector);
 		var usableTriggers = [];
-		var title = dialog.querySelector('[data-reference-dialog-title]');
-		var context = dialog.querySelector('[data-reference-dialog-context]');
-		var guidance = dialog.querySelector('[data-reference-dialog-guidance]');
-		var host = dialog.querySelector('[data-reference-dialog-form]');
+		var title = dialog.querySelector(options.titleSelector);
+		var context = dialog.querySelector(options.contextSelector);
+		var guidance = dialog.querySelector(options.guidanceSelector);
+		var host = dialog.querySelector(options.hostSelector);
+		var activeTrigger = null;
 		var activeSource = null;
 		var activeForm = null;
 		var activeSubmit = null;
 		var originalSubmitLabel = '';
 
 		Array.prototype.forEach.call(triggers, function (trigger) {
-			var source = document.getElementById(trigger.getAttribute('data-reference-source') || '');
-			if (!source || !source.matches('[data-mjl-reference-lifecycle-source]') || !source.querySelector('form')) return;
-			trigger.classList.add('mjl-reference-lifecycle-trigger-enhanced');
-			source.classList.add('mjl-reference-lifecycle-source-enhanced');
+			var source = document.getElementById(trigger.getAttribute(options.sourceAttribute) || '');
+			if (!source || !source.matches(options.sourceSelector) || !source.querySelector('form')) return;
+			trigger.classList.add(options.triggerEnhancedClass);
+			source.classList.add(options.sourceEnhancedClass);
 			usableTriggers.push(trigger);
+			trigger.addEventListener('click', function (event) {
+				event.preventDefault();
+				activeTrigger = trigger;
+				activeSource = source;
+				activeForm = source.querySelector('form');
+				title.textContent = trigger.getAttribute(options.titleAttribute) || options.defaultTitle;
+				context.textContent = trigger.getAttribute(options.contextAttribute) || '';
+				guidance.textContent = trigger.getAttribute(options.guidanceAttribute) || '';
+				activeSubmit = activeForm.querySelector('button[type="submit"]');
+				if (activeSubmit) {
+					originalSubmitLabel = activeSubmit.textContent;
+					activeSubmit.textContent = trigger.getAttribute(options.confirmAttribute) || originalSubmitLabel;
+				}
+				host.appendChild(activeForm);
+				dialog.showModal();
+				var focusTarget = dialog.querySelector(options.focusTarget);
+				if (focusTarget) focusTarget.focus();
+			});
 		});
 		if (!usableTriggers.length) return;
 		dialog.classList.add('mjl-dialog-enhanced');
 
-		initNativeDialog(dialog, {
-			triggers: usableTriggers,
+		function finishClose() {
+			if (options.resetOnClose && activeForm) activeForm.reset();
+			dialog.close();
+		}
+		function closeRequested(restoreTarget) {
+			if (options.protectDirty) requestDialogFormLeave(activeForm, restoreTarget, finishClose);
+			else finishClose();
+		}
+		Array.prototype.forEach.call(dialog.querySelectorAll(options.closeControl), function (control) {
+			control.addEventListener('click', function () { closeRequested(control); });
+		});
+		dialog.addEventListener('click', function (event) {
+			if (event.target === dialog) closeRequested(document.activeElement);
+		});
+		dialog.addEventListener('cancel', function (event) {
+			event.preventDefault();
+			closeRequested(document.activeElement);
+		});
+		dialog.addEventListener('close', function () {
+			if (activeSubmit) activeSubmit.textContent = originalSubmitLabel;
+			if (activeSource && activeForm) activeSource.appendChild(activeForm);
+			if (activeTrigger && document.contains(activeTrigger)) activeTrigger.focus();
+			activeTrigger = null;
+			activeSource = null;
+			activeForm = null;
+			activeSubmit = null;
+			originalSubmitLabel = '';
+		});
+	}
+
+	function initReferenceLifecycleDialog(dialog) {
+		initMovedFormDialog(dialog, {
+			triggerSelector: '[data-mjl-reference-lifecycle-open]',
+			sourceAttribute: 'data-reference-source',
+			sourceSelector: '[data-mjl-reference-lifecycle-source]',
+			triggerEnhancedClass: 'mjl-reference-lifecycle-trigger-enhanced',
+			sourceEnhancedClass: 'mjl-reference-lifecycle-source-enhanced',
+			titleSelector: '[data-reference-dialog-title]',
+			contextSelector: '[data-reference-dialog-context]',
+			guidanceSelector: '[data-reference-dialog-guidance]',
+			hostSelector: '[data-reference-dialog-form]',
+			titleAttribute: 'data-reference-title',
+			contextAttribute: 'data-reference-context',
+			guidanceAttribute: 'data-reference-guidance',
+			confirmAttribute: 'data-reference-confirm-label',
+			defaultTitle: 'Modifier le statut',
 			closeControl: '[data-mjl-reference-lifecycle-close]',
 			focusTarget: '[data-reference-dialog-form] button[type="submit"]',
-			beforeOpen: function (trigger) {
-				activeSource = document.getElementById(trigger.getAttribute('data-reference-source') || '');
-				activeForm = activeSource ? activeSource.querySelector('form') : null;
-				title.textContent = trigger.getAttribute('data-reference-title') || 'Modifier le statut';
-				context.textContent = trigger.getAttribute('data-reference-context') || '';
-				guidance.textContent = trigger.getAttribute('data-reference-guidance') || '';
-				if (activeForm) {
-					activeSubmit = activeForm.querySelector('button[type="submit"]');
-					if (activeSubmit) {
-						originalSubmitLabel = activeSubmit.textContent;
-						activeSubmit.textContent = trigger.getAttribute('data-reference-confirm-label') || originalSubmitLabel;
-					}
-					host.appendChild(activeForm);
-				}
-			},
-			afterClose: function () {
-				if (activeSubmit) activeSubmit.textContent = originalSubmitLabel;
-				if (activeSource && activeForm) activeSource.appendChild(activeForm);
-				activeSource = null;
-				activeForm = null;
-				activeSubmit = null;
-				originalSubmitLabel = '';
-			}
+			protectDirty: false,
+			resetOnClose: false
+		});
+	}
+
+	function requestDialogFormLeave(form, restoreTarget, leave) {
+		if (!form) {
+			leave();
+			return;
+		}
+		var event = new CustomEvent('mjl:request-leave', {
+			bubbles: false,
+			cancelable: true,
+			detail: { href: '', restoreTarget: restoreTarget, leave: leave }
+		});
+		if (form.dispatchEvent(event)) leave();
+	}
+
+	function initAccessInviteDialog(dialog) {
+		if (typeof dialog.showModal !== 'function') return;
+		var triggers = document.querySelectorAll('a[href$="#mjl-access-invite-dialog"]');
+		if (!triggers.length) return;
+		var form = dialog.querySelector('form[data-mjl-substantive]');
+		var activeTrigger = null;
+		var openOnLoad = dialog.getAttribute('data-mjl-open-on-load') === 'true';
+		dialog.removeAttribute('open');
+		dialog.classList.add('mjl-dialog-enhanced');
+
+		function closeRequested(restoreTarget) {
+			requestDialogFormLeave(form, restoreTarget, function () { form.reset(); dialog.close(); });
+		}
+		Array.prototype.forEach.call(triggers, function (trigger) {
+			trigger.addEventListener('click', function (event) {
+				event.preventDefault();
+				activeTrigger = trigger;
+				dialog.showModal();
+				var focusTarget = dialog.querySelector('[data-mjl-error-summary]') || dialog.querySelector('input, select, textarea, button[type="submit"]');
+				if (focusTarget) focusTarget.focus();
+			});
+		});
+		Array.prototype.forEach.call(dialog.querySelectorAll('[data-mjl-access-invite-close]'), function (control) {
+			control.addEventListener('click', function () { closeRequested(control); });
+		});
+		dialog.addEventListener('click', function (event) {
+			if (event.target === dialog) closeRequested(document.activeElement);
+		});
+		dialog.addEventListener('cancel', function (event) {
+			event.preventDefault();
+			closeRequested(document.activeElement);
+		});
+		dialog.addEventListener('close', function () {
+			if (activeTrigger && document.contains(activeTrigger)) activeTrigger.focus();
+			activeTrigger = null;
+		});
+		if (openOnLoad) {
+			dialog.showModal();
+			var errorTarget = dialog.querySelector('[data-mjl-error-summary]') || dialog.querySelector('input, select, textarea');
+			if (errorTarget) errorTarget.focus();
+		}
+	}
+
+	function initAccessActionDialog(dialog) {
+		initMovedFormDialog(dialog, {
+			triggerSelector: '[data-mjl-access-action-open]',
+			sourceAttribute: 'data-access-source',
+			sourceSelector: '[data-mjl-access-action-source]',
+			triggerEnhancedClass: 'mjl-access-action-trigger-enhanced',
+			sourceEnhancedClass: 'mjl-access-action-source-enhanced',
+			titleSelector: '[data-access-dialog-title]',
+			contextSelector: '[data-access-dialog-context]',
+			guidanceSelector: '[data-access-dialog-guidance]',
+			hostSelector: '[data-access-dialog-form]',
+			titleAttribute: 'data-access-title',
+			contextAttribute: 'data-access-context',
+			guidanceAttribute: 'data-access-guidance',
+			confirmAttribute: 'data-access-confirm-label',
+			defaultTitle: 'Modifier l’accès',
+			closeControl: '[data-mjl-access-action-close]',
+			focusTarget: '[data-access-dialog-form] select, [data-access-dialog-form] input:not([type="hidden"]), [data-access-dialog-form] button[type="submit"]',
+			protectDirty: true,
+			resetOnClose: true
 		});
 	}
 
@@ -783,5 +907,7 @@
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-exception-dialog]'), initExceptionDialog);
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-reference-page-dialog]'), initReferencePageDialog);
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-reference-lifecycle-dialog]'), initReferenceLifecycleDialog);
+		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-access-invite-dialog]'), initAccessInviteDialog);
+		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-access-action-dialog]'), initAccessActionDialog);
 	});
 })();

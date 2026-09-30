@@ -253,3 +253,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   written order; it returns the earliest matching element in DOM order. Scope
   dialog initial-focus selectors to the form host when header controls appear
   before the intended field.
+- `createExecutionFixtureSet()` submits and finalizes Activities unless
+  `finalize: false` is set. A finalized fixture therefore needs both an
+  `AGENT_VERIFICATEUR` and a `VALIDATEUR_DEFINITIF`; omitting the Supervisor
+  fails fixture setup before browser assertions begin.
