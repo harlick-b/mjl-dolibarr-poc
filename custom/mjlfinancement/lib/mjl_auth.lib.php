@@ -24,7 +24,7 @@ function mjl_auth_user_by_email($email, $activeOnly = false)
 	global $db;
 	$email = strtolower(trim((string) $email));
 	if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
-	$sql = 'SELECT rowid FROM '.$db->prefix()."user WHERE LOWER(email) = '".$db->escape($email)."' AND entity = ".mjl_auth_entity();
+	$sql = 'SELECT rowid FROM '.$db->prefix()."user WHERE LOWER(email) = '".$db->escape($email)."' AND entity IN (0,".mjl_auth_entity().')';
 	if ($activeOnly) $sql .= ' AND statut = 1';
 	$sql .= ' ORDER BY rowid ASC LIMIT 2';
 	$resql = $db->query($sql);
@@ -155,6 +155,33 @@ function mjl_auth_send_link_email(User $target, $type, $link)
 	return mjl_email_send($target, $type === 'invitation' ? 'invitation' : 'password_reset', array('link' => $link, 'auth_link_type' => $type), array('object_type' => 'mjlfinancement_auth', 'object_id' => (int) $target->id));
 }
 
+function mjl_auth_password_error($password, $passwordConfirm)
+{
+	if ((string) $password !== (string) $passwordConfirm) return 'Les mots de passe ne correspondent pas.';
+	if (dol_strlen((string) $password) < 8
+		|| !preg_match('/\p{Lu}/u', (string) $password)
+		|| !preg_match('/\p{Ll}/u', (string) $password)
+		|| !preg_match('/\p{N}/u', (string) $password)
+		|| !preg_match('/[^\p{L}\p{N}\s]/u', (string) $password)) {
+		return 'Le mot de passe ne respecte pas les critères requis.';
+	}
+	return '';
+}
+
+function mjl_auth_set_password(User $target, User $actor, $password)
+{
+	global $conf;
+	$hadGenerator = isset($conf->global->USER_PASSWORD_GENERATED);
+	$generator = $hadGenerator ? $conf->global->USER_PASSWORD_GENERATED : null;
+	$conf->global->USER_PASSWORD_GENERATED = '';
+	try {
+		return $target->setPassword($actor, $password, 0, 0);
+	} finally {
+		if ($hadGenerator) $conf->global->USER_PASSWORD_GENERATED = $generator;
+		else unset($conf->global->USER_PASSWORD_GENERATED);
+	}
+}
+
 function mjl_auth_validate_identity_input(array $input)
 {
 	$login = trim(isset($input['login']) ? $input['login'] : '');
@@ -259,10 +286,20 @@ function mjl_auth_invitation_status($selector)
 	return strtotime($row->date_expiry) < dol_now() ? 'expired' : 'valid';
 }
 
+function mjl_auth_invitation_email($selector)
+{
+	global $db;
+	$row = mjl_auth_fetch_invitation_by_selector($selector);
+	if (!$row || mjl_auth_invitation_status($selector) !== 'valid') return '';
+	$target = new User($db);
+	return $target->fetch((int) $row->fk_user) > 0 ? (string) $target->email : '';
+}
+
 function mjl_auth_accept_invitation($selector, $verifier, $password, $passwordConfirm)
 {
 	global $db;
-	if ($password !== $passwordConfirm || dol_strlen($password) < 10) return 'Les mots de passe doivent correspondre et contenir au moins 10 caractères.';
+	$passwordError = mjl_auth_password_error($password, $passwordConfirm);
+	if ($passwordError !== '') return $passwordError;
 	$lock = mjl_auth_named_lock('accept_'.$selector, 5);
 	if ($lock === '') return 'Cette invitation est déjà en cours de traitement.';
 	mjl_auth_disposable_lock_barrier();
@@ -275,7 +312,7 @@ function mjl_auth_accept_invitation($selector, $verifier, $password, $passwordCo
 		$role = mjl_scope_active_role_row((int) $target->id, mjl_auth_entity());
 		if (empty($role) || (string) $role['role_code'] !== (string) $row->role_code || !in_array($row->role_code, mjl_auth_business_role_codes(), true)) throw new RuntimeException('Le rôle de cette invitation a changé. Demandez une nouvelle invitation.');
 		$actor = mjl_auth_system_user();
-		if ($target->setPassword($actor, $password, 0, 0) <= 0) throw new RuntimeException($target->error ?: 'Le mot de passe n’a pas pu être enregistré.');
+		if (mjl_auth_set_password($target, $actor, $password) <= 0) throw new RuntimeException($target->error ?: 'Le mot de passe n’a pas pu être enregistré.');
 		if (!$db->query('UPDATE '.$db->prefix().'user SET statut=1 WHERE rowid='.((int) $target->id).' AND entity='.mjl_auth_entity().' AND admin=0')) throw new RuntimeException($db->lasterror());
 		$sql = 'UPDATE '.$db->prefix()."mjlfinancement_invitation SET status='accepted', token_hash=NULL, date_accepted=".mjl_auth_now_sql().', fk_user_modif='.((int) $target->id).' WHERE rowid='.((int) $row->rowid)." AND status='sent'";
 		if (!$db->query($sql) || mjl_auth_record_event('invitation_accepted', (int) $target->id, (int) $target->id, array('role_code' => $row->role_code)) < 1) throw new RuntimeException('L’activation n’a pas pu être finalisée.');
@@ -364,10 +401,20 @@ function mjl_auth_reset_status($selector)
 	return $row && $row->status === 'sent' && empty($row->date_consumed) && strtotime($row->date_expiry) >= dol_now() ? 'valid' : 'invalid';
 }
 
+function mjl_auth_reset_email($selector)
+{
+	global $db;
+	$row = mjl_auth_fetch_reset_by_selector($selector);
+	if (!$row || mjl_auth_reset_status($selector) !== 'valid') return '';
+	$target = new User($db);
+	return $target->fetch((int) $row->fk_user) > 0 ? (string) $target->email : '';
+}
+
 function mjl_auth_consume_password_reset($selector, $verifier, $password, $passwordConfirm)
 {
 	global $db;
-	if ($password !== $passwordConfirm || dol_strlen($password) < 10) return 'Les mots de passe doivent correspondre et contenir au moins 10 caractères.';
+	$passwordError = mjl_auth_password_error($password, $passwordConfirm);
+	if ($passwordError !== '') return $passwordError;
 	$lock = mjl_auth_named_lock('consume_'.$selector, 5); if ($lock === '') return 'Ce lien est déjà en cours de traitement.';
 	mjl_auth_disposable_lock_barrier();
 	try {
@@ -376,7 +423,7 @@ function mjl_auth_consume_password_reset($selector, $verifier, $password, $passw
 		if (!$row || $row->status !== 'sent' || !empty($row->date_consumed) || strtotime($row->date_expiry) < dol_now() || !hash_equals((string) $row->token_hash, mjl_auth_token_hash($verifier))) throw new RuntimeException('Ce lien de réinitialisation est invalide ou expiré.');
 		$target = new User($db);
 		if ($target->fetch((int) $row->fk_user) <= 0 || (int) $target->statut !== 1 || (int) $target->entity !== mjl_auth_entity() || mjl_scope_effective_role_code($target, mjl_auth_entity()) === '') throw new RuntimeException('Votre accès est désactivé.');
-		if ($target->setPassword(mjl_auth_system_user(), $password, 0, 0) <= 0) throw new RuntimeException($target->error ?: 'Le mot de passe n’a pas pu être enregistré.');
+		if (mjl_auth_set_password($target, mjl_auth_system_user(), $password) <= 0) throw new RuntimeException($target->error ?: 'Le mot de passe n’a pas pu être enregistré.');
 		$sql = 'UPDATE '.$db->prefix()."mjlfinancement_password_reset SET status='consumed', token_hash=NULL, date_consumed=".mjl_auth_now_sql().', fk_user_modif='.((int) $target->id).' WHERE rowid='.((int) $row->rowid)." AND status='sent'";
 		if (!$db->query($sql) || mjl_auth_record_event('password_reset_completed', (int) $target->id, (int) $target->id, array('reset_id' => (int) $row->rowid)) < 1 || !$db->commit('mjl consume reset')) throw new RuntimeException('La réinitialisation n’a pas pu être finalisée.');
 		return '';
@@ -399,4 +446,278 @@ function mjl_auth_e2e_tokens_enabled()
 {
 	return getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
 		&& getDolGlobalString('MJL_AUTH_E2E_EXPOSE_TOKENS') === '1';
+}
+
+function mjl_auth_otp_enabled()
+{
+	return getDolGlobalString('MJL_AUTH_OTP_ENABLED') === '1';
+}
+
+function mjl_auth_otp_table_ready()
+{
+	global $db;
+	$resql = $db->query("SELECT COUNT(*) AS nb FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($db->prefix().'mjlfinancement_login_otp')."'");
+	$row = $resql ? $db->fetch_object($resql) : null;
+	return $row && (int) $row->nb === 1 && getDolGlobalString('MJL_AUTH_FINGERPRINT_KEY') !== '';
+}
+
+function mjl_auth_otp_hash($purpose, $value)
+{
+	$key = getDolGlobalString('MJL_AUTH_FINGERPRINT_KEY');
+	return $key === '' ? '' : hash_hmac('sha256', (string) $purpose."\0".(string) $value, $key);
+}
+
+function mjl_auth_credential_hash(User $target)
+{
+	global $db;
+	$resql = $db->query('SELECT pass_crypted,datelastpassvalidation,flagdelsessionsbefore,email,statut,admin,entity FROM '.$db->prefix().'user WHERE rowid='.((int) $target->id).' LIMIT 1');
+	$row = $resql ? $db->fetch_object($resql) : null;
+	if (!$row) return '';
+	$value = implode('|', array((string) $row->pass_crypted, (string) $row->datelastpassvalidation, (string) $row->flagdelsessionsbefore, strtolower((string) $row->email), (int) $row->statut, (int) $row->admin, (int) $row->entity, mjl_scope_effective_role_code($target, mjl_auth_entity())));
+	return mjl_auth_otp_hash('credential', $value);
+}
+
+function mjl_auth_otp_session_binding()
+{
+	return isset($_SESSION['mjl_otp_binding']) && is_string($_SESSION['mjl_otp_binding']) ? $_SESSION['mjl_otp_binding'] : '';
+}
+
+function mjl_auth_otp_clear_pending_session()
+{
+	foreach (array('mjl_otp_binding','mjl_otp_challenge_id','mjl_otp_user_id','mjl_otp_email','mjl_otp_backtopage') as $key) unset($_SESSION[$key]);
+}
+
+function mjl_auth_clear_native_session()
+{
+	foreach (array('dol_login','dol_logindate','dol_authmode','dol_entity','mjl_otp_verified_challenge_id','mjl_otp_verified_user_id') as $key) unset($_SESSION[$key]);
+}
+
+function mjl_auth_safe_backtopage($value)
+{
+	$value = is_string($value) ? trim($value) : '';
+	if ($value === '' || strpos($value, "\0") !== false || preg_match('#^[a-z][a-z0-9+.-]*:#i', $value) || strpos($value, '//') === 0) return '/custom/mjlfinancement/index.php';
+	$path = parse_url($value, PHP_URL_PATH);
+	if (!is_string($path) || strpos($path, '/custom/mjlfinancement/') !== 0 || strpos($path, '..') !== false) return '/custom/mjlfinancement/index.php';
+	return $value;
+}
+
+function mjl_auth_register_failed_password($email)
+{
+	global $db;
+	$failed = new User($db);
+	$failed->login = substr((string) $email, 0, 255);
+	$failed->context['audit'] = 'ErrorBadLoginPassword - login='.substr((string) $email, 0, 255);
+	$failed->call_trigger('USER_LOGIN_FAILED', $failed);
+}
+
+function mjl_auth_verify_password($email, $password)
+{
+	global $conf, $db;
+	$email = strtolower(trim((string) $email));
+	if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !is_string($password) || $password === '') {
+		mjl_auth_register_failed_password($email);
+		return null;
+	}
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php';
+	$login = checkLoginPassEntity($email, $password, mjl_auth_entity(), array('dolibarr'));
+	if (!$login) {
+		mjl_auth_register_failed_password($email);
+		return null;
+	}
+	$target = new User($db);
+	if ($target->fetch(0, $login, '', 1, -1) <= 0 || (int) $target->statut !== 1 || strtolower((string) $target->email) !== $email) {
+		mjl_auth_register_failed_password($email);
+		return null;
+	}
+	$role = mjl_scope_effective_role_code($target, mjl_auth_entity());
+	if ($role === '') {
+		mjl_auth_register_failed_password($email);
+		return null;
+	}
+	return $target;
+}
+
+function mjl_auth_send_otp_email(User $target, $code)
+{
+	return mjl_email_send($target, 'login_otp', array('code' => (string) $code, 'secret_auth_type' => 'login_otp'), array('object_type' => 'mjlfinancement_auth', 'object_id' => (int) $target->id));
+}
+
+function mjl_auth_start_otp($email, $password, $backtopage = '')
+{
+	global $db;
+	if (!mjl_auth_otp_enabled() || !mjl_auth_otp_table_ready()) return array(false, 'La vérification est temporairement indisponible.');
+	$target = mjl_auth_verify_password($email, $password);
+	if (!$target) return array(false, 'Adresse email ou mot de passe incorrect.');
+	$lock = mjl_auth_named_lock('otp_user_'.((int) $target->id), 5);
+	if ($lock === '') return array(false, 'La vérification est temporairement indisponible.');
+	$binding = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+	$code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+	$challengeId = 0;
+	try {
+		$resql = $db->query('SELECT date_lockout_until FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".mjl_auth_entity().' AND fk_user='.((int) $target->id)." AND status='locked' AND date_lockout_until>".mjl_auth_now_sql().' ORDER BY rowid DESC LIMIT 1');
+		if ($resql && $db->fetch_object($resql)) return array(false, 'Trop de codes incorrects. Réessayez dans quelques minutes.');
+		$db->begin('mjl start login otp');
+		$pendingResult = $db->query('SELECT rowid,credential_hash FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".mjl_auth_entity().' AND fk_user='.((int) $target->id)." AND status='pending' LIMIT 1 FOR UPDATE");
+		$pending = $pendingResult ? $db->fetch_object($pendingResult) : null;
+		if ($pending && hash_equals((string) $pending->credential_hash, mjl_auth_credential_hash($target))) {
+			$challengeId = (int) $pending->rowid;
+			$rebound = $db->query('UPDATE '.$db->prefix().'mjlfinancement_login_otp SET session_hash='.mjl_auth_string_sql(mjl_auth_otp_hash('session', $binding)).' WHERE rowid='.$challengeId." AND status='pending'");
+			if (!$rebound || $db->affected_rows($rebound) !== 1 || !$db->commit('mjl rebind login otp')) throw new RuntimeException();
+			mjl_auth_clear_native_session();
+			mjl_auth_otp_clear_pending_session();
+			session_regenerate_id(true);
+			$_SESSION['mjl_otp_binding'] = $binding;
+			$_SESSION['mjl_otp_challenge_id'] = $challengeId;
+			$_SESSION['mjl_otp_user_id'] = (int) $target->id;
+			$_SESSION['mjl_otp_email'] = (string) $target->email;
+			$_SESSION['mjl_otp_backtopage'] = mjl_auth_safe_backtopage($backtopage);
+			return array(true, '');
+		}
+		if ($pending && !$db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='cancelled',code_hash=NULL WHERE rowid=".((int) $pending->rowid)." AND status='pending'")) throw new RuntimeException();
+		$sql = 'INSERT INTO '.$db->prefix().'mjlfinancement_login_otp (entity,fk_user,status,code_hash,session_hash,credential_hash,attempt_count,resend_count,date_code_issued,date_expiry,date_last_send,date_creation) VALUES (';
+		$sql .= mjl_auth_entity().','.((int) $target->id).",'pending',".mjl_auth_string_sql(mjl_auth_otp_hash('otp:'.$target->id, $code)).','.mjl_auth_string_sql(mjl_auth_otp_hash('session', $binding)).','.mjl_auth_string_sql(mjl_auth_credential_hash($target)).',0,0,'.mjl_auth_now_sql().','.mjl_auth_datetime_sql(dol_now() + 600).','.mjl_auth_now_sql().','.mjl_auth_now_sql().')';
+		if (!$db->query($sql)) throw new RuntimeException();
+		$challengeId = (int) $db->last_insert_id($db->prefix().'mjlfinancement_login_otp');
+		if (mjl_auth_record_event('login_otp_issued', (int) $target->id, (int) $target->id, array('challenge_id' => $challengeId)) < 1 || !$db->commit('mjl start login otp')) throw new RuntimeException();
+		$mail = mjl_auth_send_otp_email($target, $code);
+		if ($mail[0] <= 0) {
+			$db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='delivery_failed',code_hash=NULL WHERE rowid=".$challengeId." AND status='pending'");
+			return array(false, 'Le code ne peut pas être envoyé pour le moment.');
+		}
+		mjl_auth_clear_native_session();
+		mjl_auth_otp_clear_pending_session();
+		session_regenerate_id(true);
+		$_SESSION['mjl_otp_binding'] = $binding;
+		$_SESSION['mjl_otp_challenge_id'] = $challengeId;
+		$_SESSION['mjl_otp_user_id'] = (int) $target->id;
+		$_SESSION['mjl_otp_email'] = (string) $target->email;
+		$_SESSION['mjl_otp_backtopage'] = mjl_auth_safe_backtopage($backtopage);
+		return array(true, '');
+	} catch (Throwable $exception) {
+		$db->rollback('mjl start login otp failed');
+		return array(false, 'La vérification est temporairement indisponible.');
+	} finally {
+		mjl_auth_release_named_lock($lock);
+	}
+}
+
+function mjl_auth_otp_pending_row($forUpdate = false)
+{
+	global $db;
+	$id = isset($_SESSION['mjl_otp_challenge_id']) ? (int) $_SESSION['mjl_otp_challenge_id'] : 0;
+	$userId = isset($_SESSION['mjl_otp_user_id']) ? (int) $_SESSION['mjl_otp_user_id'] : 0;
+	$binding = mjl_auth_otp_session_binding();
+	if ($id <= 0 || $userId <= 0 || $binding === '') return null;
+	$sql = 'SELECT * FROM '.$db->prefix().'mjlfinancement_login_otp WHERE rowid='.$id.' AND entity='.mjl_auth_entity().' AND fk_user='.$userId.' AND session_hash='.mjl_auth_string_sql(mjl_auth_otp_hash('session', $binding)).' LIMIT 1'.($forUpdate ? ' FOR UPDATE' : '');
+	$resql = $db->query($sql);
+	return $resql ? $db->fetch_object($resql) : null;
+}
+
+function mjl_auth_otp_pending()
+{
+	$row = mjl_auth_otp_pending_row(false);
+	return $row && $row->status === 'pending';
+}
+
+function mjl_auth_complete_session(User $target, $challengeId)
+{
+	global $conf;
+	session_regenerate_id(true);
+	$_SESSION['dol_login'] = (string) $target->login;
+	$_SESSION['dol_logindate'] = dol_now('gmt');
+	$_SESSION['dol_authmode'] = 'mjl_email_otp';
+	$_SESSION['dol_entity'] = (int) $conf->entity;
+	$_SESSION['mjl_otp_verified_challenge_id'] = (int) $challengeId;
+	$_SESSION['mjl_otp_verified_user_id'] = (int) $target->id;
+	foreach (array('mjl_otp_challenge_id','mjl_otp_user_id','mjl_otp_email','mjl_otp_backtopage') as $key) unset($_SESSION[$key]);
+}
+
+function mjl_auth_verify_otp($code)
+{
+	global $db;
+	$code = trim((string) $code);
+	if (!preg_match('/^[0-9]{6}$/', $code)) return array(false, 'Code incorrect.');
+	$userId = isset($_SESSION['mjl_otp_user_id']) ? (int) $_SESSION['mjl_otp_user_id'] : 0;
+	$lock = $userId > 0 ? mjl_auth_named_lock('otp_user_'.$userId, 5) : '';
+	if ($lock === '') return array(false, 'Votre session de vérification a expiré.');
+	try {
+		$db->begin('mjl verify login otp');
+		$row = mjl_auth_otp_pending_row(true);
+		if (!$row || $row->status !== 'pending') throw new RuntimeException('Votre session de vérification a expiré.');
+		if (strtotime($row->date_expiry) < dol_now()) { $db->rollback(); return array(false, 'Ce code a expiré.'); }
+		if (!hash_equals((string) $row->code_hash, mjl_auth_otp_hash('otp:'.$userId, $code))) {
+			$attempts = (int) $row->attempt_count + 1;
+			$terminal = $attempts >= 5;
+			$sql = 'UPDATE '.$db->prefix().'mjlfinancement_login_otp SET attempt_count='.$attempts.($terminal ? ",status='locked',code_hash=NULL,date_lockout_until=".mjl_auth_datetime_sql(dol_now() + 600) : '').' WHERE rowid='.((int) $row->rowid)." AND status='pending'";
+			if (!$db->query($sql) || mjl_auth_record_event($terminal ? 'login_otp_locked' : 'login_otp_invalid', $userId, $userId, array('challenge_id' => (int) $row->rowid, 'attempt_count' => $attempts)) < 1 || !$db->commit('mjl reject login otp')) throw new RuntimeException('La vérification est temporairement indisponible.');
+			if ($terminal) mjl_auth_otp_clear_pending_session();
+			return array(false, $terminal ? 'Trop de codes incorrects. Réessayez dans quelques minutes.' : 'Code incorrect.');
+		}
+		$target = new User($db);
+		if ($target->fetch($userId) <= 0 || (int) $target->statut !== 1 || mjl_scope_effective_role_code($target, mjl_auth_entity()) === '' || !hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target))) {
+			$invalidated = $db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='cancelled',code_hash=NULL WHERE rowid=".((int) $row->rowid)." AND status='pending'");
+			if (!$invalidated || mjl_auth_record_event('login_otp_invalidated', $userId, $userId, array('challenge_id' => (int) $row->rowid)) < 1 || !$db->commit('mjl invalidate login otp')) throw new RuntimeException('La vérification est temporairement indisponible.');
+			mjl_auth_otp_clear_pending_session();
+			return array(false, 'Votre session de vérification a expiré.');
+		}
+		$verifiedUpdate = $db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='verified',code_hash=NULL,date_verified=".mjl_auth_now_sql().' WHERE rowid='.((int) $row->rowid)." AND status='pending'");
+		if (!$verifiedUpdate || $db->affected_rows($verifiedUpdate) !== 1) throw new RuntimeException('Votre session de vérification a expiré.');
+		$target->context['audit'] = 'authmode=mjl_email_otp - entity='.mjl_auth_entity();
+		$target->context['authentication_method'] = 'mjl_email_otp';
+		$target->update_last_login_date();
+		if ($target->call_trigger('USER_LOGIN', $target) < 0 || mjl_auth_record_event('login_otp_verified', $userId, $userId, array('challenge_id' => (int) $row->rowid)) < 1 || !$db->commit('mjl verify login otp')) throw new RuntimeException('La vérification est temporairement indisponible.');
+		$backtopage = mjl_auth_safe_backtopage(isset($_SESSION['mjl_otp_backtopage']) ? $_SESSION['mjl_otp_backtopage'] : '');
+		mjl_auth_complete_session($target, (int) $row->rowid);
+		return array(true, $backtopage);
+	} catch (Throwable $exception) {
+		$db->rollback('mjl verify login otp failed');
+		return array(false, $exception->getMessage());
+	} finally {
+		mjl_auth_release_named_lock($lock);
+	}
+}
+
+function mjl_auth_resend_otp()
+{
+	global $db;
+	$userId = isset($_SESSION['mjl_otp_user_id']) ? (int) $_SESSION['mjl_otp_user_id'] : 0;
+	$lock = $userId > 0 ? mjl_auth_named_lock('otp_user_'.$userId, 5) : '';
+	if ($lock === '') return array(false, 'Votre session de vérification a expiré.');
+	try {
+		$db->begin('mjl resend login otp');
+		$row = mjl_auth_otp_pending_row(true);
+		if (!$row || $row->status !== 'pending') throw new RuntimeException('Votre session de vérification a expiré.');
+		if ((int) $row->resend_count >= 3 || strtotime($row->date_last_send) > dol_now() - 60) { $db->rollback(); return array(false, 'Le renvoi est temporairement indisponible.'); }
+		$target = new User($db);
+		if ($target->fetch($userId) <= 0 || (int) $target->statut !== 1 || mjl_scope_effective_role_code($target, mjl_auth_entity()) === '' || !hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target))) {
+			$invalidated = $db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='cancelled',code_hash=NULL WHERE rowid=".((int) $row->rowid)." AND status='pending'");
+			if (!$invalidated || !$db->commit('mjl invalidate login otp resend')) throw new RuntimeException('La vérification est temporairement indisponible.');
+			mjl_auth_otp_clear_pending_session();
+			return array(false, 'Votre session de vérification a expiré.');
+		}
+		do {
+			$code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+			$codeHash = mjl_auth_otp_hash('otp:'.$userId, $code);
+		} while (hash_equals((string) $row->code_hash, $codeHash));
+		$sql = 'UPDATE '.$db->prefix().'mjlfinancement_login_otp SET code_hash='.mjl_auth_string_sql($codeHash).',resend_count=resend_count+1,date_code_issued='.mjl_auth_now_sql().',date_expiry='.mjl_auth_datetime_sql(dol_now() + 600).',date_last_send='.mjl_auth_now_sql().' WHERE rowid='.((int) $row->rowid)." AND status='pending'";
+		if (!$db->query($sql) || !$db->commit('mjl resend login otp')) throw new RuntimeException('La vérification est temporairement indisponible.');
+		$mail = mjl_auth_send_otp_email($target, $code);
+		return $mail[0] > 0 ? array(true, 'Un nouveau code a été envoyé.') : array(false, 'Le code ne peut pas être envoyé pour le moment.');
+	} catch (Throwable $exception) {
+		$db->rollback('mjl resend login otp failed');
+		return array(false, $exception->getMessage());
+	} finally { mjl_auth_release_named_lock($lock); }
+}
+
+function mjl_auth_session_is_otp_verified(User $target)
+{
+	global $db;
+	if (!mjl_auth_otp_enabled()) return true;
+	$id = isset($_SESSION['mjl_otp_verified_challenge_id']) ? (int) $_SESSION['mjl_otp_verified_challenge_id'] : 0;
+	$userId = isset($_SESSION['mjl_otp_verified_user_id']) ? (int) $_SESSION['mjl_otp_verified_user_id'] : 0;
+	$binding = mjl_auth_otp_session_binding();
+	if ($id <= 0 || $userId !== (int) $target->id || $binding === '') return false;
+	$sql = 'SELECT credential_hash FROM '.$db->prefix()."mjlfinancement_login_otp WHERE rowid=".$id.' AND entity='.mjl_auth_entity().' AND fk_user='.$userId." AND status='verified' AND session_hash=".mjl_auth_string_sql(mjl_auth_otp_hash('session', $binding)).' LIMIT 1';
+	$resql = $db->query($sql); $row = $resql ? $db->fetch_object($resql) : null;
+	return $row && hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target));
 }

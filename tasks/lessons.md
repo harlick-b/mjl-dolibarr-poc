@@ -11,6 +11,10 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - Dolibarr core files must not be edited for MJL work; use the custom module,
   documented setup scripts, documentation, disposable test-fixture locations, or a
   documented safe theme boundary.
+- Dolibarr's `afterLogin` hook runs after the native session and `USER_LOGIN`
+  event already exist. A mandatory second factor needs a pre-session custom
+  password endpoint, a native login submission guard, and an `updateSession`
+  check for sessions created before the gate was enabled.
 - UI hiding is not access control. Direct URL and direct POST routes must stay
   guarded server-side.
 - Active Dolibarr entity filtering is mandatory for custom objects, dashboards,

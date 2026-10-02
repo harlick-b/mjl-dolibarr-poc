@@ -5,6 +5,7 @@ module.exports = defineConfig({
   testMatch: [
     'partner-project.spec.js',
     'auth-concurrency.spec.js',
+    'authentication.spec.js',
     'document-containment.spec.js',
     'fixture-isolation.spec.js',
     'reset-boundaries.spec.js',

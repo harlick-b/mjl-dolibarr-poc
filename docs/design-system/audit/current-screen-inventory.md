@@ -18,10 +18,11 @@ repository-visible evidence, not user acceptance.
 | Report downloads | `/custom/mjlfinancement/reportexport.php` | CSRF-protected, audited PDF/XLSX/CSV POST delivery with report-specific access checks. |
 | Workflow audit | `/custom/mjlfinancement/workflowactions.php` | Filtered chronological event history, recorded metadata/details, and audited downloads for Validator/Admin in the active entity. |
 | Admin access | `/custom/mjlfinancement/admin/access.php` | Admin-only responsive user/invitation lists with progressive invitation, role-change, deactivation, and revocation dialogs; real delivery states and ordinary-form fallback. |
-| Invitation acceptance | `/custom/mjlfinancement/invitation.php` | Public token redemption with CSRF protection; no public registration. |
+| Invitation acceptance | `/custom/mjlfinancement/invitation.php` | Shared password-creation form with readonly invited email, five live rules, fragment verifier, and CSRF protection; no public registration. |
 | Documents | `/custom/mjlfinancement/documents.php` | HTTP 403 for every actor and method; no document UI. |
 | Document download | `/custom/mjlfinancement/documentdownload.php` | HTTP 403 for every actor and method; native `/ecm/*`, `/document.php`, and `/viewimage.php` delivery is also denied. |
-| Login/password pages | Dolibarr auth templates/hooks | Native authentication with MJL styling; invitation-only access. |
+| Login verification | `/index.php`, `/custom/mjlfinancement/auth.php` | Configuration-gated email/password screen and six-slot logical OTP input in the shared responsive auth shell. |
+| Password recovery | `/user/passwordforgotten.php` | Generic reset request/invalid-link states and the shared five-rule password form. |
 
 The obsolete finance, expense-validation, exchange-log, and roadmap routes are
 removed. `/custom/mjlfinancement/dpafdashboard.php` remains a denied legacy
@@ -29,5 +30,6 @@ supervision route. Document delivery stays closed unless the user authorizes
 new Phase 4 work.
 
 Signed human accessibility review remains outstanding for active screens and
-states. Production email/base URL and client approval of non-protected copy and
-official outputs also remain outstanding.
+states. The retained technical Admin still needs a unique reachable email
+before OTP can be enabled. Production email/base URL and client approval of
+non-protected copy and official outputs also remain outstanding.

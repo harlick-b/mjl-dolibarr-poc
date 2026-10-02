@@ -57,10 +57,11 @@ async function startSecretRegistry(plan, enroll = registerRunnerSecret) {
     socket.on('end', () => {
       try {
         const request = JSON.parse(input.trim());
+        const minimumSecretLength = request.category === 'login otp' ? 6 : 8;
         if (Object.keys(request).join(',') !== 'capability,category,value'
           || !crypto.timingSafeEqual(Buffer.from(request.capability || ''), Buffer.from(plan.secretRegistryCapability))
           || typeof request.category !== 'string' || !/^[a-z][a-z ]{1,39}$/.test(request.category)
-          || typeof request.value !== 'string' || request.value.length < 8 || request.value.length > 512) throw new Error('invalid');
+          || typeof request.value !== 'string' || request.value.length < minimumSecretLength || request.value.length > 512) throw new Error('invalid');
         enroll(request.category, request.value);
         socket.end('OK\n');
       } catch (_) {
@@ -549,6 +550,8 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/partner-project.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst010a') {
 	args.push('tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+  } else if (target === 'auth') {
+	args.push('tests/e2e/authentication.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst014a') {
     args.push('tests/e2e/fixture-isolation.spec.js', 'tests/e2e/reset-boundaries.spec.js', 'tests/e2e/auth-concurrency.spec.js', 'tests/e2e/partner-project.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst013a') {

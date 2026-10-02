@@ -72,6 +72,7 @@ function getSuitePlan(mode) {
     unit: ['unit'],
     verify: ['verify'],
     e2e: ['e2e'],
+    auth: ['auth'],
     rst003: ['rst003'],
     rst007a: ['rst007a'],
     rst004: ['rst004'],

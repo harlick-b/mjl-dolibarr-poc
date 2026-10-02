@@ -230,7 +230,12 @@ test('secret enrollment resolves only after acknowledged registration and fails 
   const registry = await startSecretRegistry({ secretRegistryCapability: capability }, (category, value) => enrolled.push([category, value]));
   try {
     await registerSecretAt({ port: registry.port, capability }, 'auth selector', 'selector-value');
-    assert.deepEqual(enrolled, [['auth selector', 'selector-value']]);
+    await registerSecretAt({ port: registry.port, capability }, 'login otp', '123456');
+    assert.deepEqual(enrolled, [['auth selector', 'selector-value'], ['login otp', '123456']]);
+    await assert.rejects(
+      registerSecretAt({ port: registry.port, capability }, 'auth verifier', '123456'),
+      /rejected/i,
+    );
     await assert.rejects(
       registerSecretAt({ port: registry.port, capability: 'c'.repeat(32) }, 'auth verifier', 'verifier-value'),
       /rejected/i,

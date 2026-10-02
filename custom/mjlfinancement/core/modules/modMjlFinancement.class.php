@@ -18,7 +18,7 @@ class modMjlFinancement extends DolibarrModules
 		$this->name = preg_replace('/^mod/i', '', get_class($this));
 		$this->description = 'Suivi des projets financés du MJL';
 		$this->descriptionlong = 'Socle MJL réinitialisé : référentiels natifs, projection des activités, accès sur invitation et audit immuable.';
-		$this->version = '0.20.0';
+		$this->version = '0.21.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'money-bill';
 		$this->module_parts = array(
@@ -168,7 +168,7 @@ class modMjlFinancement extends DolibarrModules
 			if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
 				&& getenv('MJL_RST005_INJECT_ACTIVATION_FAILURE') === '1'
 				&& $this->disposableRst005ActivationFailureIsArmed()) return -1;
-			if ($this->ensureRoleInvariantTriggers() < 0) return -1;
+			if ($this->ensureLoginOtpSchema() < 0 || $this->ensureRoleInvariantTriggers() < 0) return -1;
 			if ($this->ensureAuthStateConstraints() < 0 || $this->ensureAuthInvariantTriggers() < 0 || $this->ensureAuthFingerprintKey() < 0) return -1;
 			if ($cleanInstall) {
 				if ($retainPhase2Target) mjl_rst006a_require_target($this->db);
@@ -216,16 +216,39 @@ class modMjlFinancement extends DolibarrModules
 		}
 	}
 
+	private function ensureLoginOtpSchema()
+	{
+		$table = $this->db->prefix().'mjlfinancement_login_otp';
+		$sql = "SELECT COUNT(*) AS nb FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$this->db->escape($table)."'";
+		$resql = $this->db->query($sql);
+		$row = $resql ? $this->db->fetch_object($resql) : null;
+		if (!$row) return -1;
+		if ((int) $row->nb > 0) return 1;
+		$create = 'CREATE TABLE '.$table.' ('
+			.'rowid INTEGER AUTO_INCREMENT PRIMARY KEY, entity INTEGER DEFAULT 1 NOT NULL, fk_user INTEGER NOT NULL, '
+			."status VARCHAR(32) DEFAULT 'pending' NOT NULL, code_hash CHAR(64) DEFAULT NULL, session_hash CHAR(64) NOT NULL, credential_hash CHAR(64) NOT NULL, "
+			."attempt_count INTEGER DEFAULT 0 NOT NULL, resend_count INTEGER DEFAULT 0 NOT NULL, live_user_id INTEGER AS (CASE WHEN status = 'pending' THEN fk_user ELSE NULL END) PERSISTENT, "
+			.'date_code_issued DATETIME NOT NULL, date_expiry DATETIME NOT NULL, date_last_send DATETIME NOT NULL, date_lockout_until DATETIME DEFAULT NULL, date_verified DATETIME DEFAULT NULL, date_creation DATETIME NOT NULL, '
+			."tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, CONSTRAINT chk_mjl_login_otp_status CHECK (status IN ('pending','verified','cancelled','delivery_failed','locked')), "
+			."CONSTRAINT chk_mjl_login_otp_counts CHECK (attempt_count BETWEEN 0 AND 5 AND resend_count BETWEEN 0 AND 3), CONSTRAINT chk_mjl_login_otp_secret CHECK ((status='pending' AND code_hash IS NOT NULL) OR (status<>'pending' AND code_hash IS NULL)), "
+			.'UNIQUE INDEX uk_mjl_login_otp_live_user (entity,live_user_id), INDEX idx_mjl_login_otp_user (entity,fk_user,status), INDEX idx_mjl_login_otp_lockout (entity,fk_user,date_lockout_until), '
+			.'CONSTRAINT fk_mjl_login_otp_user FOREIGN KEY (fk_user) REFERENCES '.$this->db->prefix().'user(rowid)) ENGINE=innodb';
+		return $this->db->query($create) ? 1 : -1;
+	}
+
 	private function ensureAuthInvariantTriggers()
 	{
 		$userTable = $this->db->prefix().'user';
 		$invitation = $this->db->prefix().'mjlfinancement_invitation';
 		$reset = $this->db->prefix().'mjlfinancement_password_reset';
+		$otp = $this->db->prefix().'mjlfinancement_login_otp';
 		$statements = array(
 			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_invitation_bi BEFORE INSERT ON '.$invitation.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 1; DECLARE target_entity INTEGER DEFAULT -1; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR target_admin=1 THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid invitation target\'; END IF; END',
 			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_invitation_bu BEFORE UPDATE ON '.$invitation.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 1; DECLARE target_entity INTEGER DEFAULT -1; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR target_admin=1 OR NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.token_selector<>OLD.token_selector THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid invitation mutation\'; END IF; END',
 			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_reset_bi BEFORE INSERT ON '.$reset.' FOR EACH ROW BEGIN DECLARE target_entity INTEGER DEFAULT -1; SELECT entity INTO target_entity FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid reset target\'; END IF; END',
 			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_reset_bu BEFORE UPDATE ON '.$reset.' FOR EACH ROW BEGIN DECLARE target_entity INTEGER DEFAULT -1; SELECT entity INTO target_entity FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.token_selector<>OLD.token_selector THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid reset mutation\'; END IF; END',
+			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_login_otp_bi BEFORE INSERT ON '.$otp.' FOR EACH ROW BEGIN DECLARE target_entity INTEGER DEFAULT -1; DECLARE target_admin INTEGER DEFAULT 0; SELECT entity,admin INTO target_entity,target_admin FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF NOT ((target_admin=1 AND target_entity=0 AND NEW.entity>=1) OR (target_admin=0 AND target_entity=NEW.entity)) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid OTP target\'; END IF; END',
+			'CREATE OR REPLACE TRIGGER '.$this->db->prefix().'mjlfinancement_login_otp_bu BEFORE UPDATE ON '.$otp.' FOR EACH ROW BEGIN IF NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.credential_hash<>OLD.credential_hash OR (NEW.session_hash<>OLD.session_hash AND NOT (OLD.status=\'pending\' AND NEW.status=\'pending\')) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid OTP mutation\'; END IF; END',
 		);
 		foreach ($statements as $sql) if (!$this->db->query($sql)) return -1;
 		return 1;

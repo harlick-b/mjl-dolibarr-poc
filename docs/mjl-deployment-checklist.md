@@ -14,5 +14,10 @@ their rules and templates also need a decision. The future reverse proxy must
 preserve `Referrer-Policy: same-origin` so application paths and query tokens
 are not sent as cross-origin referrers.
 
+Email OTP must remain disabled until the retained technical administrator has
+a unique reachable email address and a real delivery check succeeds. The
+operator then enables `MJL_AUTH_OTP_ENABLED=1`; no address is inferred or
+invented by setup code.
+
 All values remain `Needs confirmation`. Local Docker settings, disposable test
 fixtures, implemented phases, and passing tests are not production evidence.

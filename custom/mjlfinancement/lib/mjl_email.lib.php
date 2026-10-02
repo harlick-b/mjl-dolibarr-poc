@@ -75,6 +75,8 @@ function mjl_email_render($template, array $context)
 	$activityLabel = mjl_email_plain_text(isset($context['activity_label']) ? $context['activity_label'] : '', 160);
 	$projectRef = mjl_email_plain_text(isset($context['project_ref']) ? $context['project_ref'] : '', 80);
 	$comment = mjl_email_plain_text(isset($context['comment']) ? $context['comment'] : '', 500);
+	$code = isset($context['code']) && preg_match('/^[0-9]{6}$/', (string) $context['code']) ? (string) $context['code'] : '';
+	if ($template === 'login_otp' && $code === '') return false;
 	$subject = '[MJL Financement] '.$definition['subject'].($activityRef !== '' ? ' : '.$activityRef : '');
 	$title = $definition['title'];
 	$message = $definition['message'];
@@ -98,6 +100,7 @@ function mjl_email_render($template, array $context)
 	$body .= $title."\n\n";
 	$body .= 'Bonjour '.$name.",\n\n";
 	$body .= $message."\n\n";
+	if ($code !== '') $body .= $code."\n\n";
 	if ($link !== '') {
 		$body .= $action." :\n".$link."\n\n";
 	}
@@ -245,6 +248,9 @@ function mjl_email_write_test_outbox($template, User $recipient, array $rendered
 		'body' => (string) $rendered['body'],
 		'created_at' => date('c'),
 	);
+	if (isset($context['secret_auth_type']) && $context['secret_auth_type'] === 'login_otp' && isset($context['code'])) {
+		$payload['code'] = (string) $context['code'];
+	}
 	if (isset($context['link'])) {
 		$payload['link'] = mjl_email_absolute_url($context['link']);
 	}
@@ -258,9 +264,9 @@ function mjl_email_write_test_outbox($template, User $recipient, array $rendered
 	}
 
 	mjl_email_store_e2e_const('MJL_EMAIL_E2E_LAST_'.strtoupper((string) $template).'_SUBJECT', $rendered['subject']);
-	// Authentication bodies contain a fragment verifier. Keep that credential
-	// solely in the disposable file outbox instead of duplicating it in SQL.
-	if (empty($context['auth_link_type'])) {
+	// Authentication bodies contain a fragment verifier or login code. Keep the
+	// credential solely in the disposable file outbox instead of SQL.
+	if (empty($context['auth_link_type']) && empty($context['secret_auth_type'])) {
 		mjl_email_store_e2e_const('MJL_EMAIL_E2E_LAST_'.strtoupper((string) $template).'_BODY', $rendered['body']);
 	}
 	mjl_email_store_e2e_const('MJL_EMAIL_E2E_LAST_'.strtoupper((string) $template).'_TO', $recipient->email);

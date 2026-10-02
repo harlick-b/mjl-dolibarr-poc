@@ -6,8 +6,9 @@ This file is current-state evidence only. It does not override
 ## Current local state
 
 The shared local tenant has one native technical administrator and no
-persistent MJL business or access records. The installed custom schema is at
-RST-012; module version 0.20.0 depends on native Third Parties and Projects.
+persistent MJL business or access records. Its installed custom schema remains
+RST-012 at module version 0.20.0; the repository descriptor targets 0.21.0 and
+adds the OTP table on the next module activation. MJL depends on native Third Parties and Projects.
 MJL code lives in `custom/mjlfinancement`. Tests create minimal records in
 isolated disposable tenants and remove those tenants after each run.
 
@@ -22,7 +23,8 @@ isolated disposable tenants and remove those tenants after each run.
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |
 | Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. |
 | Administration technique | Native-Admin link to Dolibarr module administration. |
-| Invitation/reset | Public selector in the query string, secret verifier in the fragment, hash-only storage, same-origin POST redemption, single use, expiry, throttling, CSRF, transaction/audit coupling, and neutral reset-request response. |
+| Authentication | Configuration-gated email/password login followed by a six-digit email code. The password step creates no authenticated Dolibarr session; pending challenges are entity/account scoped, browser bound, hash only, single use, and rate limited. Native login/reset actions and pre-existing unverified sessions are rejected while the gate is active. |
+| Invitation/reset | Shared five-rule password form; token-derived readonly email; public selector in the query string; secret verifier in the fragment; hash-only storage; same-origin POST redemption; single use; expiry; throttling; CSRF; transaction/audit coupling; and neutral reset-request response. |
 | Activities / Operations / Fiche Activité / portfolio / audit reports | Active scoped `reports.php` previews and audited PDF/XLSX/CSV downloads require the current export schema. Audit remains Validator/Admin only; business reports retain role and assignment scope. |
 | Documents | MJL `documents.php` and `documentdownload.php` return dependency-free HTTP 403 for every actor/method; Apache blocks `/ecm/*`, `/document.php`, and `/viewimage.php`. Native ECM storage remains dormant and unchanged. |
 | Alertes | Computed alerts come from current scoped data. |
@@ -42,6 +44,9 @@ records in the shared local tenant:
   `llx_mjlfinancement_reopening_request`
 - `llx_mjlfinancement_operation_type`
 - `llx_mjlfinancement_export_record` (immutable export evidence)
+
+Repository version 0.21.0 adds `llx_mjlfinancement_login_otp` when the module is
+next activated; it is not part of the shared tenant's currently installed schema.
 
 No legacy group membership participates in MJL authorization. Native Admin
 status derives ADMIN_PLATEFORME; business roles are stored only for non-admin,

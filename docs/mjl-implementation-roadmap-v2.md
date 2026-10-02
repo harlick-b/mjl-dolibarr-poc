@@ -26,6 +26,11 @@ unresolved weaknesses and unapproved recommendations.
 - Phase 3C reconciliation and disposable restore checks are implemented. Some
   historical rollback and exact-schema suites conflict with later schemas; the
   gap analysis records this unresolved compatibility debt.
+- The MJL authentication pass is implemented behind `MJL_AUTH_OTP_ENABLED`:
+  email-only password verification, six-digit email OTP, verified-session
+  enforcement, native login/reset bypass guards, and shared invitation/reset
+  password rules. Activation remains an operator action after the retained
+  technical Admin has a unique reachable email and mail delivery works.
 
 These statements describe repository state only. They do not record user
 acceptance or readiness for production.

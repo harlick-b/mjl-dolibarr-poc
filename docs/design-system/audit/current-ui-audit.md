@@ -19,6 +19,9 @@ browser verification for this documentation update.
   progressive invitation and account-action dialogs. It presents the current
   invitation delivery states and preserves Admin-only mutation, existing roles,
   exact guarded forms, and ordinary-form fallback.
+- Login, OTP, invitation, forgotten-password, and reset states use one
+  responsive auth shell with the Inter font, French copy, visible keyboard
+  focus, generic recovery errors, and one logical six-digit OTP input.
 - Activity planning/review, Opération execution, exception requests, contextual
   chronology, and audited PDF/XLSX/CSV reports are present. Report surfaces use
   shared responsive filters, visible active selections, complete-selection
@@ -53,6 +56,7 @@ browser verification for this documentation update.
 | Audit | Responsive chronological event history with recorded metadata/details and complete-selection downloads, restricted to Validator/Admin. | `custom/mjlfinancement/workflowactions.php` |
 | Utilisateurs et accès | Responsive users/invitations, French delivery states, and progressive invitation, role-change, deactivation, and revocation dialogs for Admin only. | `custom/mjlfinancement/admin/access.php` |
 | Invitation | Token redemption outside the app shell. | `custom/mjlfinancement/invitation.php` |
+| Authentication and recovery | Email/password login, six-slot OTP, generic recovery states, and shared five-rule password creation. | `custom/mjlfinancement/auth.php`, `custom/mjlfinancement/core/tpl/*.tpl.php` |
 | Documents | Denial-only routes with no document UI. | `custom/mjlfinancement/documents.php`, `documentdownload.php` |
 
 ## Review boundary

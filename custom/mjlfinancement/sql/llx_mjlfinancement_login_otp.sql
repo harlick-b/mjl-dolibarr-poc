@@ -1,0 +1,22 @@
+CREATE TABLE llx_mjlfinancement_login_otp (
+	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+	entity INTEGER DEFAULT 1 NOT NULL,
+	fk_user INTEGER NOT NULL,
+	status VARCHAR(32) DEFAULT 'pending' NOT NULL,
+	code_hash CHAR(64) DEFAULT NULL,
+	session_hash CHAR(64) NOT NULL,
+	credential_hash CHAR(64) NOT NULL,
+	attempt_count INTEGER DEFAULT 0 NOT NULL,
+	resend_count INTEGER DEFAULT 0 NOT NULL,
+	live_user_id INTEGER AS (CASE WHEN status = 'pending' THEN fk_user ELSE NULL END) PERSISTENT,
+	date_code_issued DATETIME NOT NULL,
+	date_expiry DATETIME NOT NULL,
+	date_last_send DATETIME NOT NULL,
+	date_lockout_until DATETIME DEFAULT NULL,
+	date_verified DATETIME DEFAULT NULL,
+	date_creation DATETIME NOT NULL,
+	tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT chk_mjl_login_otp_status CHECK (status IN ('pending', 'verified', 'cancelled', 'delivery_failed', 'locked')),
+	CONSTRAINT chk_mjl_login_otp_counts CHECK (attempt_count BETWEEN 0 AND 5 AND resend_count BETWEEN 0 AND 3),
+	CONSTRAINT chk_mjl_login_otp_secret CHECK ((status = 'pending' AND code_hash IS NOT NULL) OR (status <> 'pending' AND code_hash IS NULL))
+) ENGINE=innodb;
