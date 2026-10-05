@@ -133,6 +133,14 @@ function mjl_reference_audit($kind, $id, $status, User $actor, $action, $changes
 	return mjl_workflow_audit_insert($types[$kind], (int) $id, (int) $GLOBALS['conf']->entity, $status, $actor, 'VALIDATEUR_DEFINITIF', $action, 'Référence métier mise à jour', $changes, 'WFA-RST003');
 }
 
+function mjl_reference_rollback($label)
+{
+	global $db;
+	if ($db->rollback($label)) return true;
+	if (method_exists($db, 'close')) $db->close();
+	return false;
+}
+
 function mjl_reference_label_from_request()
 {
 	return trim((string) GETPOST('label', 'restricthtml'));
@@ -155,9 +163,9 @@ function mjl_reference_create($kind, $label, $partnerId = 0)
 	global $db, $conf, $user;
 	mjl_reference_require_manage($user);
 	if ($label === '') return array(-1, 'Le libellé est obligatoire.');
-	$db->begin('RST-003 create');
+	if (!$db->begin('RST-003 create')) return array(-1, 'Impossible d’enregistrer la référence.');
 	if (!mjl_reference_lock_current_manager($user)) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 create refused');
 		return array(-1, 'Votre rôle ne permet plus cette action.');
 	}
 	$id = -1;
@@ -172,7 +180,7 @@ function mjl_reference_create($kind, $label, $partnerId = 0)
 	} elseif ($kind === 'project') {
 		$parent = mjl_reference_fetch('partner', (int) $partnerId, true);
 		if (empty($parent) || !mjl_reference_is_active('partner', $parent)) {
-			$db->rollback();
+			mjl_reference_rollback('RST-003 create invalid parent');
 			return array(-1, 'Le Partenaire sélectionné doit être actif.');
 		}
 		for ($attempt = 0; $attempt < 3 && $id <= 0; $attempt++) {
@@ -192,10 +200,13 @@ function mjl_reference_create($kind, $label, $partnerId = 0)
 		$id = $object->create((int) $conf->entity, $label, $user);
 	}
 	if ($id <= 0 || mjl_reference_audit($kind, $id, 'Actif', $user, 'created', array('label' => array('before' => '', 'after' => $label))) <= 0) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 create failed');
 		return array(-1, 'Impossible d’enregistrer la référence.');
 	}
-	$db->commit();
+	if (!$db->commit('RST-003 create')) {
+		mjl_reference_rollback('RST-003 create commit failed');
+		return array(-1, 'Impossible d’enregistrer la référence.');
+	}
 	return array($id, '');
 }
 
@@ -224,9 +235,9 @@ function mjl_reference_update_label($kind, $id, $label, $fingerprint)
 	global $db, $conf, $user;
 	mjl_reference_require_manage($user);
 	if ($label === '') return 'Le libellé est obligatoire.';
-	$db->begin('RST-003 update');
+	if (!$db->begin('RST-003 update')) return 'Impossible d’enregistrer la référence.';
 	if (!mjl_reference_lock_current_manager($user)) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 update refused');
 		return 'Votre rôle ne permet plus cette action.';
 	}
 	if ($kind === 'project') {
@@ -235,16 +246,19 @@ function mjl_reference_update_label($kind, $id, $label, $fingerprint)
 		$row = mjl_reference_fetch($kind, $id, true);
 	}
 	if (empty($row)) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 update missing');
 		mjl_reference_forbidden();
 	}
 	if (!mjl_reference_check_fingerprint($kind, $row, $fingerprint)) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 update stale');
 		return 'Cette référence a été modifiée. Rechargez la page.';
 	}
 	$before = $row[mjl_reference_config($kind)['field']];
 	if ((string) $before === (string) $label) {
-		$db->commit();
+		if (!$db->commit('RST-003 update')) {
+			mjl_reference_rollback('RST-003 update commit failed');
+			return 'Impossible d’enregistrer la référence.';
+		}
 		return '';
 	}
 	if ($kind === 'partner') {
@@ -261,10 +275,13 @@ function mjl_reference_update_label($kind, $id, $label, $fingerprint)
 		$result = $object->updateLabel($id, (int) $conf->entity, $label, $user);
 	}
 	if ($result < 0 || mjl_reference_audit($kind, $id, mjl_reference_is_active($kind, $row) ? 'Actif' : 'Inactif', $user, 'field_changed', array('label' => array('before' => $before, 'after' => $label))) <= 0) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 update failed');
 		return 'Impossible d’enregistrer la référence.';
 	}
-	$db->commit();
+	if (!$db->commit('RST-003 update')) {
+		mjl_reference_rollback('RST-003 update commit failed');
+		return 'Impossible d’enregistrer la référence.';
+	}
 	return '';
 }
 
@@ -272,9 +289,9 @@ function mjl_reference_set_active($kind, $id, $active, $fingerprint)
 {
 	global $db, $conf, $user;
 	mjl_reference_require_manage($user);
-	$db->begin('RST-003 lifecycle');
+	if (!$db->begin('RST-003 lifecycle')) return 'Impossible de modifier le statut.';
 	if (!mjl_reference_lock_current_manager($user)) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 lifecycle refused');
 		return 'Votre rôle ne permet plus cette action.';
 	}
 	if ($kind === 'project') {
@@ -283,15 +300,18 @@ function mjl_reference_set_active($kind, $id, $active, $fingerprint)
 		$row = mjl_reference_fetch($kind, $id, true);
 	}
 	if (empty($row)) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 lifecycle missing');
 		mjl_reference_forbidden();
 	}
 	if (!mjl_reference_check_fingerprint($kind, $row, $fingerprint)) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 lifecycle stale');
 		return 'Cette référence a été modifiée. Rechargez la page.';
 	}
 	if (mjl_reference_is_active($kind, $row) === (bool) $active) {
-		$db->commit();
+		if (!$db->commit('RST-003 lifecycle')) {
+			mjl_reference_rollback('RST-003 lifecycle commit failed');
+			return 'Impossible de modifier le statut.';
+		}
 		return '';
 	}
 	$result = -1;
@@ -299,13 +319,13 @@ function mjl_reference_set_active($kind, $id, $active, $fingerprint)
 		if (!$active) {
 			$projectResult = $db->query('SELECT rowid FROM '.$db->prefix().'projet WHERE entity = '.((int) $conf->entity).' AND fk_soc = '.((int) $id).' AND fk_statut = '.Project::STATUS_VALIDATED.' ORDER BY rowid FOR UPDATE');
 			if (!$projectResult) {
-				$db->rollback();
+				mjl_reference_rollback('RST-003 lifecycle project lock failed');
 				return 'Impossible de verrouiller les Projets.';
 			}
 			while ($projectRow = $db->fetch_object($projectResult)) {
 				$project = new Project($db);
 				if ($project->fetch((int) $projectRow->rowid) <= 0 || $project->setClose($user) <= 0 || mjl_reference_audit('project', (int) $projectRow->rowid, 'Inactif', $user, 'deactivated', array('active' => array('before' => 1, 'after' => 0))) <= 0) {
-					$db->rollback();
+					mjl_reference_rollback('RST-003 lifecycle cascade failed');
 					return 'Impossible de désactiver les Projets liés.';
 				}
 			}
@@ -318,7 +338,7 @@ function mjl_reference_set_active($kind, $id, $active, $fingerprint)
 		}
 	} elseif ($kind === 'project') {
 		if (empty($parent) || ($active && !mjl_reference_is_active('partner', $parent))) {
-			$db->rollback();
+			mjl_reference_rollback('RST-003 lifecycle inactive parent');
 			return 'Le Partenaire du Projet doit être actif.';
 		}
 		$object = new Project($db);
@@ -332,9 +352,12 @@ function mjl_reference_set_active($kind, $id, $active, $fingerprint)
 		$result = $object->setActive($id, (int) $conf->entity, $active, $user);
 	}
 	if ($result < 0 || mjl_reference_audit($kind, $id, $active ? 'Actif' : 'Inactif', $user, $active ? 'activated' : 'deactivated', array('active' => array('before' => $active ? 0 : 1, 'after' => $active ? 1 : 0))) <= 0) {
-		$db->rollback();
+		mjl_reference_rollback('RST-003 lifecycle failed');
 		return 'Impossible de modifier le statut.';
 	}
-	$db->commit();
+	if (!$db->commit('RST-003 lifecycle')) {
+		mjl_reference_rollback('RST-003 lifecycle commit failed');
+		return 'Impossible de modifier le statut.';
+	}
 	return '';
 }
