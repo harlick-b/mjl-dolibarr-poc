@@ -8,6 +8,8 @@ let fixture;
 const emails = Object.create(null);
 const registeredCodes = new Set();
 let searchableTextColumns = null;
+const adminEmail = 'auth.technical-admin@example.test';
+let adminId;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -84,6 +86,9 @@ test.beforeAll(({}, workerInfo) => {
     references: { partners: [], projects: [], operationTypes: [] },
   });
   for (const key of Object.keys(fixture.users)) emails[key] = `${fixture.users[key].login}@example.test`;
+  adminId = Number(scalar('SELECT rowid FROM llx_user WHERE entity=0 AND admin=1 AND statut=1 ORDER BY rowid'));
+  if (!Number.isSafeInteger(adminId) || adminId <= 0) throw new Error('The retained technical Admin is unavailable.');
+  sql(`UPDATE llx_user SET email=${sqlLiteral(adminEmail)} WHERE rowid=${adminId} AND entity=0 AND admin=1`);
   sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_OTP_ENABLED',1,'1','chaine',0,'Disposable Auth verification'),('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Disposable Auth verification'),('MAIN_LOGEVENTS_USER_LOGIN_FAILED',1,'1','chaine',0,'Disposable Auth verification') ON DUPLICATE KEY UPDATE value='1'");
 });
 
@@ -254,6 +259,28 @@ test('existing sessions, native login and native reset actions cannot bypass MJL
     expect(response.headers().location).toContain('/user/passwordforgotten.php');
   }
   expect(scalar(`SELECT pass_crypted FROM llx_user WHERE rowid=${fixture.users.existing.id}`)).toBe(passBefore);
+});
+
+test('the retained technical Admin can complete an active-entity password reset', async ({ page }) => {
+  const password = process.env.MJL_AUTH_PASSWORD_1;
+  await page.goto('/user/passwordforgotten.php');
+  await page.getByLabel('Adresse email').fill(adminEmail);
+  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
+  const link = outbox('password_reset').link;
+  await registerLink(link);
+  expect(scalar(`SELECT CONCAT(entity,':',fk_user,':',status) FROM llx_mjlfinancement_password_reset WHERE fk_user=${adminId} ORDER BY rowid DESC LIMIT 1`)).toBe(`1:${adminId}:sent`);
+
+  await openFragmentLink(page, link);
+  await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(password);
+  await page.getByLabel('Confirmer le mot de passe', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
+  expect(scalar(`SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset WHERE entity=1 AND fk_user=${adminId} ORDER BY rowid DESC LIMIT 1`)).toBe('consumed:NULL');
+
+  await page.getByLabel('Adresse email').fill(adminEmail);
+  await page.getByLabel('Mot de passe', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await expect(page.getByRole('heading', { name: 'Vérification' })).toBeVisible();
+  await registerOtp(outbox('login_otp').code);
 });
 
 test('invitation and reset password rules match on client and server', async ({ page }) => {

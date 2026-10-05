@@ -422,7 +422,9 @@ function mjl_auth_consume_password_reset($selector, $verifier, $password, $passw
 		$row = mjl_auth_fetch_reset_by_selector($selector, true);
 		if (!$row || $row->status !== 'sent' || !empty($row->date_consumed) || strtotime($row->date_expiry) < dol_now() || !hash_equals((string) $row->token_hash, mjl_auth_token_hash($verifier))) throw new RuntimeException('Ce lien de réinitialisation est invalide ou expiré.');
 		$target = new User($db);
-		if ($target->fetch((int) $row->fk_user) <= 0 || (int) $target->statut !== 1 || (int) $target->entity !== mjl_auth_entity() || mjl_scope_effective_role_code($target, mjl_auth_entity()) === '') throw new RuntimeException('Votre accès est désactivé.');
+		if ($target->fetch((int) $row->fk_user) <= 0) throw new RuntimeException('Votre accès est désactivé.');
+		$targetInScope = ((int) $target->admin === 1 && (int) $target->entity === 0) || ((int) $target->admin === 0 && (int) $target->entity === mjl_auth_entity());
+		if ((int) $target->statut !== 1 || !$targetInScope || mjl_scope_effective_role_code($target, mjl_auth_entity()) === '') throw new RuntimeException('Votre accès est désactivé.');
 		if (mjl_auth_set_password($target, mjl_auth_system_user(), $password) <= 0) throw new RuntimeException($target->error ?: 'Le mot de passe n’a pas pu être enregistré.');
 		$sql = 'UPDATE '.$db->prefix()."mjlfinancement_password_reset SET status='consumed', token_hash=NULL, date_consumed=".mjl_auth_now_sql().', fk_user_modif='.((int) $target->id).' WHERE rowid='.((int) $row->rowid)." AND status='sent'";
 		if (!$db->query($sql) || mjl_auth_record_event('password_reset_completed', (int) $target->id, (int) $target->id, array('reset_id' => (int) $row->rowid)) < 1 || !$db->commit('mjl consume reset')) throw new RuntimeException('La réinitialisation n’a pas pu être finalisée.');
