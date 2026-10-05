@@ -42,6 +42,8 @@ Public auth pages emit no-store/referrer restrictions; errors use assertive live
 
 ## Findings
 
-- **HIGH AUTH-F01:** the native entity-0 Admin is accepted by reset application logic but appears rejected by the reset table trigger. Decide whether Admin self-service reset is supported, then align model/trigger and characterize it in a disposable tenant.
+- **RESOLVED AUTH-F01:** reset insert/update and consume now use one exact entity rule: the native entity-0 Admin may own an active-entity reset; a non-admin target must match the reset entity. The focused disposable auth suite passed 12/12, including request, consumption and subsequent Admin password-plus-OTP login.
+- **HIGH AUTH-F03:** MJL delegates password changes to native `User::setPassword()` without forcing `DATABASE_PWD_ENCRYPTED`. When that deployment constant is absent, Dolibarr 23 can populate the legacy cleartext `llx_user.pass` column. Existing retained Admin storage was observed with `pass=NULL`, but future invitation/reset writes remain unsafe until the wrapper enforces encrypted-only storage and a disposable regression asserts `pass IS NULL`.
+- **MEDIUM AUTH-F04:** a valid reset selector alone reveals the full target email before verifier proof. The selector is high entropy and pages set no-referrer/no-store, but masking remains an unapproved privacy correction.
 - **LOW AUTH-F02:** resend commits the replacement OTP before email delivery. A delivery failure invalidates the previous code and can strand the user until cooldown/retry; security remains fail closed.
 - External SMTP delivery, operator email configuration and activation readiness remain unverified.

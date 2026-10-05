@@ -56,4 +56,4 @@ All other listed report, monitoring, dashboard, denial and dynamic-asset endpoin
 
 ## Unresolved runtime evidence
 
-No HTTP route was exercised during this audit. Reachability and behavior above are source-verified; existing E2E specifications provide intended coverage, but the current unit baseline did not complete and Docker-backed suites were not run.
+No HTTP route was exercised during the immutable baseline pass. The closure delta later exercised the password-reset and login/OTP routes in a disposable tenant; the focused suite passed 12/12 and was torn down. Other reachability and behavior above remain source-verified rather than runtime-proven.

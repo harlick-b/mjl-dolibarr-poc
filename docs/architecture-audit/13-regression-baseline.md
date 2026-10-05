@@ -16,6 +16,14 @@ All 31 E2E files were read in full. Several selected files perform substantial i
 
 ## Focused execution evidence
 
+### Audit-closure delta
+
+- `php tests/contracts/reference_transaction_test.php`: PASS. The contract covers failed transaction start for all three reference mutation functions, failed commit including no-op paths, rollback attempts, and connection closure when rollback fails.
+- `npm run test:auth`: PASS, 12/12 in one isolated disposable tenant. The added case proves retained technical Admin request, active-entity reset storage, token consumption, password change and entry into OTP verification. Containers, network and volumes were removed.
+- `php -l` passed for the three changed application PHP files and the new PHP contract. `node --check` passed for the changed E2E spec. `git diff --check` passed before documentation reconciliation.
+
+No shared tenant was mutated. The focused results supersede the original "no auth E2E" and "reference failure behavior uncharacterized" gaps only; they do not erase the broader baseline qualifications below.
+
 The 17 discovered Node unit files were invoked separately with a 20-second ceiling to diagnose the aggregate hang:
 
 - 7 completed successfully: access-audit fail-closed, disposable evidence, disposable fixture request, disposable policy, document containment boundaries, financial preview, and operational script boundary.
@@ -38,7 +46,7 @@ php tests/contracts/<top-level-contract>.php
 
 The first command was run once and interrupted with `Ctrl-C` after more than two minutes (exit 130). Each discovered Node unit file was then run once; there were no retries. Each of the four named top-level contracts was run once. These host-only commands created no disposable tenant, so there was no container setup or cleanup result. Their console results were observed in-session; no durable raw-output artifact was created.
 
-No E2E, disposable-tenant, database mutation, application login, bootstrap, module activation, or shared-tenant operation was performed.
+During the immutable baseline pass, no E2E, disposable-tenant, database mutation, application login, bootstrap, module activation, or shared-tenant operation was performed. The later closure delta ran only the focused disposable auth suite described above; it did not mutate the shared tenant.
 
 ## Coverage map
 
@@ -48,8 +56,8 @@ No E2E, disposable-tenant, database mutation, application login, bootstrap, modu
 | document containment | focused Node assertions passed; guarded routes mapped | Apache loaded configuration not verified |
 | financial preview | focused Node assertions passed | does not prove database write behavior |
 | navigation/page/table presentation | four PHP contracts passed | runner would skip these when an earlier Node file fails or hangs |
-| auth/invitation/reset/OTP | source and state-machine mapping; E2E files exist | no auth E2E run; retained Admin reset contradiction remains |
-| workflows and transactions | source map and extensive test sources | PHP child-process execution was sandbox-limited; no database-backed run |
+| auth/invitation/reset/OTP | focused auth E2E passed 12/12, including retained Admin reset | encrypted-only native password persistence remains a high blocker |
+| workflows and transactions | reference begin/commit/rollback failure contract passed; source map and extensive test sources remain | broader workflow PHP child-process execution was sandbox-limited |
 | exports | source and test bodies specify durable `GENERATED` evidence even after client abort | server `fread()` failure and post-commit cleanup retry behavior remain unresolved |
 | visual design | production frontend fully inspected | focused design assertions currently fail; human accessibility matrix outstanding |
 | multi-entity behavior | entity filters mapped | cron semantics and live schema not verified |

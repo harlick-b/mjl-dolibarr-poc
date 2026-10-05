@@ -16,6 +16,21 @@
 
 Audit documents are excluded from the source manifest so that writing the audit does not recursively change its own denominator. The final reconciliation must reproduce both source manifests or identify and re-audit every changed file.
 
+## Closure delta
+
+The immutable forensic snapshot was committed separately as
+`ca6139b57597a4e9dc32216e167e57f8be53d7d4`. The approved closure changed three
+application files, updated one E2E file and added one contract file. Those five
+files were re-read and are covered by `closure-evidence.md`. Their current
+combined application/test manifest is
+`984ce3aab8d499b4d7acf2d0703b1322ab6bd04bf22d6db65a94561617919b76`;
+the current application-only manifest is
+`894b18928e83a2649990985e6d3b3dc972fef6fbf1633cfd930656f4a50e7eba`.
+The original annex hashes and population counts above intentionally remain the
+audit-snapshot values. The current application tree contains 20,560 lines; the
+new `mjl_reference_rollback()` helper is behavior-mapped in the closure delta
+rather than retroactively inserted into the immutable symbol annex.
+
 The 237 source/test records, including individual SHA-256, byte and line counts, are in [annex-file-fingerprints.tsv](annex-file-fingerprints.tsv). They were generated from the sorted regular files under `custom/mjlfinancement` and `tests`. The combined and application-only manifests are reproduced with:
 
 ```bash

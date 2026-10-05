@@ -4,6 +4,7 @@
 
 - Module 0.21.0 requires PHP 7.4 and Dolibarr 23.0, depends on Third Parties and Projects, registers templates, global assets/hooks, five rights, a top menu and one hourly cron.
 - Clean activation loads SQL, normalizes predecessor objects, installs Activity, planning, execution and export targets, creates invariant triggers, creates OTP/auth state, then calls native module initialization.
+- For an already-enabled tenant, `bootstrap_poc.php` force-initializes the custom module. This is the required deployment path for replacing stored trigger definitions, including the corrected technical-Admin reset invariant; source-only file deployment does not alter an existing database trigger. Clean activation is E2E-covered, while replacement during reactivation remains source-characterized rather than separately executed in this closure.
 - Existing installations are classified through exact RST-006A/RST-006B/RST-012 detectors. A required transition is refused with `MJL guarded migration required`; activation does not silently migrate an unknown/older target.
 - Named `GET_LOCK`/`RELEASE_LOCK` serializes activation for the database/prefix. Unknown schema states fail closed.
 - Disposable test modes intentionally retain predecessor targets and expose failure injection. These branches are verification infrastructure, not production configuration.
@@ -30,6 +31,9 @@
 ## Risks and preservation
 
 - Preserve the schema lock, exact detectors, fail-closed unknown-state behavior, test-only predecessor modes, retained-Admin invariant and data-retaining removal.
-- Partial DDL recovery depends on every intermediate state being recognized; runtime failure-injection evidence was not executed in this audit.
+- **HIGH LIFE-F01:** RST-006B's exact prefix recognizer accepts the stages after the old Operation check is dropped and after each new Operation check is added, but `mjl_rst006b_detect_schema()` returns `UNKNOWN` until a later marker exists. The first four legitimate interrupted DDL states cannot resume. Correct the detector and add failure points after each individual Operation DDL before treating lifecycle verification as gate-sufficient.
+- Historical `rst002b`/`rst006a` runner modes set `MJL_TEST_MODE` only in the host runner environment, not the bootstrap container. Their descriptor retention branches are therefore unreachable through ordinary provisioning; `phase2` also documents why forwarding every mode blindly would be incorrect.
+- A subprocess that exits zero in response to the runner's timeout SIGTERM can currently be reported as successful because exit zero is checked before the elapsed deadline flag.
+- Existing OTP schema is accepted by table existence and named auth checks by constraint name, so a missing live-user unique index or weakened same-name check can survive activation.
 - Do not enable OTP before 0.21 schema/auth triggers exist: the feature fails closed, but login availability can be lost.
 - Cron failure isolation and multi-entity scheduling require decisions before any lifecycle refactor.

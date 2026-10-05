@@ -49,7 +49,7 @@ Exports cross two completion boundaries: durable generation/audit and HTTP deliv
 
 The retained native technical administrator maps to ADMIN. Business accounts derive exactly one effective MJL role in the active entity. Invitations, password reset and OTP store digests or bound state rather than reusable plaintext credentials. Assignment limits Agent visibility. Authorization is layered across UI eligibility, routes, command locks and database invariants.
 
-The target reset trigger conflicts with a reset request for the entity-0 retained Admin when the request uses an active business entity. That source-level contradiction prevents a complete claim for the target authentication lifecycle.
+Password reset stores active-entity rows. Its trigger and consume guard admit the native entity-0 Admin as a narrow exception while retaining exact same-entity rules for non-admin users; the focused disposable flow passes. The remaining authentication blocker is at the native password adapter: MJL does not force encrypted-only storage, so Dolibarr can populate its legacy cleartext password column when the deployment constant is absent.
 
 ## Lifecycle modes
 
@@ -57,6 +57,6 @@ The module detects unavailable, predecessor and current schema states. Activatio
 
 ## Architecture health
 
-The strongest seams are thin guarded routes, one Activity aggregate command, entity-scoped projections, transaction-bound audit, deny-only document boundaries and isolated test fixtures. The main risks are the retained Admin reset contradiction, unchecked reference transaction results, activation interruption complexity, cron failure/entity semantics and verification runners whose names overstate actual discovery. Export streaming has a narrower server-read error-handling gap.
+The strongest seams are thin guarded routes, one Activity aggregate command, entity-scoped projections, transaction-bound audit, deny-only document boundaries and isolated test fixtures. The original Admin-reset and reference-transaction defects are closed. The remaining high risks are legacy cleartext password persistence and the early RST-006B resume gap. Cron failure/entity semantics, runner accuracy, auth-schema drift detection and export read failure are bounded medium risks.
 
 No target architecture is asserted by this audit. Future changes should start from the preservation ledger and gap analysis, characterize the affected trust boundary, and implement only the smallest approved correction.

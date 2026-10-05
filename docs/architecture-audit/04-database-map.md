@@ -47,9 +47,9 @@
 
 | ID | Severity | Finding | Evidence/status |
 | --- | --- | --- | --- |
-| DB-F01 | HIGH | Reference create/rename/lifecycle paths do not check `begin()` or `commit()` results and return success after the call. A driver-level commit failure may be reported as success. | SOURCE: `mjl_reference.lib.php` create 153–199, rename 222–268, lifecycle 271–340 |
-| DB-F02 | HIGH | Native Admin reset eligibility writes an active-entity reset row, while the database trigger requires target-user entity equality. The retained Admin is entity 0, so self-service recovery appears rejected while returning a neutral public response. | SOURCE: `mjl_auth.lib.php` 354–365; module trigger installation around 248; `preserved_admin.lib.php` 15–23 |
+| DB-F01 | RESOLVED | Reference create/rename/lifecycle now fail before writes when outer `begin()` fails, reject every failed commit including no-op paths, attempt rollback, and close the connection if rollback fails. | SOURCE plus passing `tests/contracts/reference_transaction_test.php`; native Dolibarr 23.0.2 driver semantics inspected read-only |
+| DB-F02 | RESOLVED | Reset trigger and consume guard now permit only the native entity-0 Admin exception while preserving same-entity rules for non-admin targets. | SOURCE plus disposable auth E2E 12/12 |
 | DB-F03 | MEDIUM | DDL activation cannot be described as atomic rollback; historical reverse-prefix tests conflict with later schemas. | SOURCE + DOC; runtime recovery unverified |
-| DB-F04 | UNRESOLVED | Native `Societe`/`Project` transaction internals were not fully inspected; preserve call ordering until verified. | native dependency gap |
+| DB-F04 | VERIFIED_WITH_NOTES | Native Dolibarr 23 transaction depth and return behavior were inspected read-only. Nested native calls remain inside the checked MJL outer transaction; external native side effects remain bounded adapter behavior. | native `DoliDB`, `Societe`, and `Project` inspection |
 
 Every query path found for custom business objects includes active entity either directly or through the locked aggregate. The annexes index SQL/PHP database and DDL sites using different lexical categories, but those records are not reconciled to a unique statement denominator or individually reviewed write records; the 100%-write-coverage gate therefore fails.

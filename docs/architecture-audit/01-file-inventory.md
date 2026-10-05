@@ -245,7 +245,7 @@ Evidence kind: `SOURCE`. `VERIFIED` here means the file content was included in 
 ## Reconciliation
 
 - Application/runtime files: **157/157** classified and fully source-inspected across a final complete-file pass (20,535 lines). Earlier subsystem passes remain useful behavior evidence, but the final denominator no longer depends on overlapping assignments.
-- Verification files: **80/80** classified and fully source-inspected, including all 31 E2E files. Test execution remains separately qualified in `13-regression-baseline.md`.
+- Verification files: immutable baseline **80/80** classified and fully source-inspected, including all 31 E2E files. The closure added and fully inspected `tests/contracts/reference_transaction_test.php`, producing a current **81/81** total. Test execution remains separately qualified in `13-regression-baseline.md`.
 - Repository controls (`AGENTS.md`, `CONTEXT.md`, `DESIGN.md`, `README.md`, `docker-compose.yml`, `package.json`, `package-lock.json`, `playwright.config.js`) were inspected separately in the baseline and regression passes.
 - Canonical product and design documents are evidence inputs, not executable application files. Their authority and conflicts are recorded in the topical reports.
 - The six untracked files under `docs/inspiration/auth/` are user-owned visual references. They were fingerprinted as baseline inputs and not treated as executable source.
