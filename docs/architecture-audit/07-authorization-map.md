@@ -28,6 +28,20 @@ The effective role is recomputed from persisted state. An active native Admin ma
 
 These repetitions are D4 intentional security duplication. Consolidation must not reduce the number of trust boundaries.
 
-## Gaps
+## Gate qualification
 
-All principal policy families were traced, but the 281 textual auth/input/redirect sites were not converted into a complete path-by-path denominator. The authorization gate is therefore `FAIL`, despite strong coverage of the critical role and workflow paths.
+All principal policy families were traced. Critical role, assignment,
+no-self-validation, entity, direct-route and database-guard paths are mapped;
+the focused auth and Phase 3A suites exercise the touched runtime paths and
+fail closed on forbidden requests and invalid direct mutations. The 281
+textual auth/input/redirect sites were not converted into a claim of universal
+dynamic execution, so the authorization gate is `PASS WITH QUALIFICATION`.
+
+Invitation acceptance and native reset mutations still use POST forms, CSRF
+tokens and authorization/state guards without an explicit custom POST-only
+check. The custom seams and resulting risk are located and classified as
+BC-017; exact native dispatcher method handling remains a medium follow-up.
+Because
+the existing security checks fail closed without the request token and the
+smallest correction remains local to the current route/hook seams, it is a
+medium route-hardening concern rather than an unresolved architecture boundary.

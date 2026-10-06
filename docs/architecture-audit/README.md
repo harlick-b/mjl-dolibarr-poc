@@ -2,18 +2,18 @@
 
 ## Verdict
 
-**Confidence gate: FAIL — `NOT_READY` for a target-architecture or broad refactor decision.**
+**Confidence gate: PASS — `READY_FOR_PROPOSAL`.**
 
-The two original high-risk findings are resolved with focused regression proof. The closure review also established two additional high blockers: possible legacy cleartext password persistence through native password changes and a non-resumable early RST-006B interruption window. The gate therefore remains `NOT_READY`; it is not held open by either original finding.
+The two original high-risk findings and the two additional blockers discovered during closure are resolved with focused regression proof. No unresolved CRITICAL or HIGH architecture blocker remains. The repository may proceed to a separately requested target-architecture proposal; this verdict does not authorize implementation, production preparation, or create that proposal in this pass.
 
-This result does not mean the current application is unusable. It means the proposed confidence threshold was not met and the evidence does not authorize architecture implementation.
+This result authorizes a separate architecture-proposal task only. It does not establish user acceptance, production readiness, or permission to implement a target architecture.
 
 ## Scope and evidence totals
 
 | Measure | Result |
 | --- | --- |
 | Application-owned files discovered/classified | 157/157 |
-| Application-owned files fully read | immutable snapshot: 157/157, 20,535 lines; current tree: 20,560 lines with all five closure-delta files re-read |
+| Application-owned files fully read | immutable snapshot: 157/157, 20,535 lines; current tree: 20,573 lines with all changed closure files re-read |
 | Verification files discovered/classified | 81/81 after the closure contract was added |
 | Verification files fully read | 81/81 |
 | Verification files partially inspected | 0/81 |
@@ -24,7 +24,7 @@ This result does not mean the current application is unusable. It means the prop
 | Preservation-ledger items | 35 |
 | Confirmed dead items | 0 |
 | Dead/removal candidates | 7 helpers with no discovered live internal entry, 1 schema-only table surface and 9 unresolved/historical groups |
-| High-risk findings | 2 original resolved; 2 newly established and open |
+| High-risk findings | 4 established; 4 resolved; 0 open |
 | Target architecture | deliberately not produced; excluded from this audit |
 
 The exact baseline and source hashes are in [00-baseline.md](00-baseline.md), with per-file records in [annex-file-fingerprints.tsv](annex-file-fingerprints.tsv) and significant records in the [runtime](annex-runtime-symbols.tsv) and [supplemental](annex-supplemental-symbols.tsv) symbol annexes. “Mapped” and “verified” retain the evidence qualifications defined there and do not imply runtime execution.
@@ -35,24 +35,24 @@ The exact baseline and source hashes are in [00-baseline.md](00-baseline.md), wi
 | --- | --- | --- |
 | immutable source baseline recorded | PASS | branch, commit and manifests recorded |
 | every application-owned file discovered and classified | PASS | 157-file inventory |
-| every application-owned file read end to end | PASS | immutable complete-file pass covers 157/157 files and 20,535 lines; all five changed closure files were re-read, producing 20,560 current application lines |
+| every application-owned file read end to end | PASS | immutable complete-file pass covers 157/157 files and 20,535 lines; every changed closure file was re-read, producing 20,573 current application lines |
 | every verification file read end to end | PASS | immutable baseline 80/80 plus the fully read closure contract: 81/81 current files |
-| every important symbol inventoried and reconciled | FAIL | the 1,993 immutable-snapshot records plus the closure helper are recorded, but 1,927 baseline records remain `DEFINITION_INDEXED` rather than end-to-end behavior-mapped |
+| every important symbol inventoried and reconciled | PASS WITH QUALIFICATION | all 1,993 immutable-snapshot records plus the closure helper remain indexed; 1,927 baseline records are definition-indexed rather than claimed as end-to-end behavior proof |
 | every entrypoint mapped | PASS | source mapping covers 18 HTTP routes and 3 dynamic assets |
 | dependency and native boundary mapped | PASS | dependency map and bounded core inspection |
 | request/action flow mapped | PASS | request map covers routes, guards and owners |
-| database ownership and write sites complete | FAIL | ownership is mapped; exhaustive native/custom write-site proof is incomplete |
-| module lifecycle understood | FAIL | state matrix is mapped; early RST-006B interruption recovery and historical runner provisioning remain defective |
-| authentication state machine understood | FAIL | retained Admin reset now passes; encrypted-only native password persistence is not enforced |
-| authorization paths complete | FAIL | primary layers and all source files are mapped; indexed-only symbols and absent runtime route execution prevent a completeness claim |
+| database ownership and architecture-relevant write sites understood | PASS WITH QUALIFICATION | ownership and critical mutation paths are mapped; no claim is made for every incidental native write |
+| module lifecycle understood | PASS WITH QUALIFICATION | the state matrix is mapped and every RST-006B DDL interruption resumes; historical runner provisioning defects remain medium verification debt |
+| authentication state machine understood | PASS | retained Admin reset and encrypted-only invitation/reset password persistence pass in a disposable tenant |
+| authorization paths sufficiently characterized | PASS WITH QUALIFICATION | primary UI, route, command and database layers are mapped and focused runtime checks fail closed; this is not a claim that every indexed symbol was dynamically executed |
 | core business workflows mapped | PASS | source maps planning through reconciliation and exceptions |
-| frontend contract understood | PASS | all 14 production frontend files were read and source contracts mapped; runtime browser proof is separately absent |
+| frontend contract understood | PASS WITH QUALIFICATION | all 14 production frontend files were read and source contracts mapped; Phase 3A passed 27 browser tests, while full-tree runtime coverage remains qualified |
 | duplication classified | PASS | candidates classified without speculative consolidation |
 | dead-code candidates conservatively classified | PASS | no candidate is declared absolutely dead from textual absence alone |
 | standards assessed against applicable sources | PASS | repository, Dolibarr, PHP, JS/CSS and MariaDB considerations recorded |
-| regression baseline trustworthy | FAIL | the two corrected contracts pass, but lifecycle and credential-storage blockers lack corrections and proof |
+| regression baseline sufficient for the first architecture migration waves | PASS WITH QUALIFICATION | the critical transaction/auth contracts and Phase 3A lifecycle/authorization suite pass; broader runner and design-test debt remains recorded |
 | preservation ledger complete for mapped critical behavior | PASS | 35 stable identifiers recorded with evidence qualifications |
-| all high-risk findings resolved or fully bounded | FAIL | both original findings are closed; two newly established blockers remain open |
+| all high-risk findings resolved or fully bounded | PASS | 0 CRITICAL and 0 HIGH findings remain open |
 | current architecture documented | PASS | current-state architecture recorded without inventing a target |
 
 ## High-risk findings
@@ -61,17 +61,14 @@ Resolved:
 
 1. **Retained Admin reset conflict.** Reset triggers and consumption now admit only the entity-0 native Admin into an active-entity reset while retaining exact same-entity rules for business users. The disposable auth suite passed 12/12.
 2. **Reference transaction outcomes.** Reference writes now stop on failed begin, reject failed commits, attempt rollback, and close an uncertain connection after rollback failure. The direct failure contract passed.
-
-Open:
-
-1. **Legacy cleartext password persistence.** MJL does not force Dolibarr's encrypted-only password mode, so invitation/reset password changes can populate `llx_user.pass` when the deployment constant is absent.
-2. **RST-006B early interruption recovery.** The prefix recognizer knows the first operation-check stages, but the top-level detector does not classify them as resumable partial states.
+3. **Legacy cleartext password persistence.** The shared MJL password adapter now temporarily forces Dolibarr's encrypted-only mode for invitation and reset writes, restores the prior runtime setting, and the disposable auth suite proves `llx_user.pass IS NULL` after both flows.
+4. **RST-006B early interruption recovery.** The detector now recognizes every exact early Operation-check prefix as partial. Four new DDL failure points prove resume, exact target verification and rollback through the public Phase 3A suite.
 
 The canonical gap analysis records these as implementation debt. Medium and low risks, including server-side export read handling, cron semantics, activation interruption, global export serialization, retry identity, Apache loaded state and runner safety, are classified in [15-behavior-classification.md](15-behavior-classification.md).
 
 ## Verification outcome
 
-Closure verification added two focused results: `php tests/contracts/reference_transaction_test.php` passed, and `npm run test:auth` passed 12/12 in an isolated disposable tenant with complete teardown. Changed PHP files passed syntax checks. The earlier broad-unit qualifications and four stale design assertions remain recorded; they were not rerun or changed as part of the approved two-fix scope. No shared-tenant write ran.
+Closure verification includes `php tests/contracts/reference_transaction_test.php` passing, `npm run test:auth` passing 12/12 with both encrypted-storage assertions, and `npm run test:phase3a` passing its full migration matrix plus 27/27 Playwright tests. Both disposable tenants completed teardown. Changed PHP and JavaScript files passed syntax checks. The earlier broad-unit qualifications and design-test debt remain recorded; no shared-tenant write ran.
 
 See [13-regression-baseline.md](13-regression-baseline.md) for exact qualifications. The audit deliberately did not convert environment-limited failures into application defects.
 
@@ -95,15 +92,8 @@ See [13-regression-baseline.md](13-regression-baseline.md) for exact qualificati
 16. [Behavior classification](15-behavior-classification.md)
 17. [Current architecture](16-current-architecture.md)
 
-There is intentionally no target-architecture document. Producing one would contradict the failed confidence gate and the user's prior exclusion of that deliverable.
+There is intentionally no target-architecture document. The closure instruction requires proposal work to be a separate subsequent task after this gate passes.
 
 ## Safe next decisions
 
-The next work should be split into narrow, approved corrections rather than one refactor:
-
-1. enforce encrypted-only password persistence through the existing MJL password wrapper and prove `llx_user.pass IS NULL` after invitation and reset;
-2. correct RST-006B early-prefix detection and prove resumption after every operation-check DDL interruption;
-3. preserve the established `GENERATED` artifact contract and test server-side read failure handling;
-4. repair runner discovery and stale design assertions so named verification commands state their real scope.
-
-The first two are architecture-gate blockers. The remaining items are bounded follow-up recommendations. See [closure-evidence.md](closure-evidence.md) for the exact closure delta and final-count report.
+The next authorized architecture task may create the target proposal from this evidence. Server-side export read handling, runner discovery/deadline behavior, historical runner provisioning, auth-schema exactness, cron failure semantics, and stale design assertions remain bounded follow-up recommendations. They must stay visible in the proposal and gap analysis, but none requires choosing a target boundary before design can begin. See [closure-evidence.md](closure-evidence.md) for the exact closure delta and final-count report.

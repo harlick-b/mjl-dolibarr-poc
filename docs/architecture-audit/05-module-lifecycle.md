@@ -31,7 +31,7 @@
 ## Risks and preservation
 
 - Preserve the schema lock, exact detectors, fail-closed unknown-state behavior, test-only predecessor modes, retained-Admin invariant and data-retaining removal.
-- **HIGH LIFE-F01:** RST-006B's exact prefix recognizer accepts the stages after the old Operation check is dropped and after each new Operation check is added, but `mjl_rst006b_detect_schema()` returns `UNKNOWN` until a later marker exists. The first four legitimate interrupted DDL states cannot resume. Correct the detector and add failure points after each individual Operation DDL before treating lifecycle verification as gate-sufficient.
+- **RESOLVED LIFE-F01:** `mjl_rst006b_detect_schema()` now classifies every exact prefix accepted by the RST-006B recognizer as `PARTIAL`. Failure points after dropping the old Operation check and after adding each of the first three replacement checks prove resumption, exact-target verification and rollback through `npm run test:phase3a`.
 - Historical `rst002b`/`rst006a` runner modes set `MJL_TEST_MODE` only in the host runner environment, not the bootstrap container. Their descriptor retention branches are therefore unreachable through ordinary provisioning; `phase2` also documents why forwarding every mode blindly would be incorrect.
 - A subprocess that exits zero in response to the runner's timeout SIGTERM can currently be reported as successful because exit zero is checked before the elapsed deadline flag.
 - Existing OTP schema is accepted by table existence and named auth checks by constraint name, so a missing live-user unique index or weakened same-name check can survive activation.

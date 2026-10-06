@@ -56,4 +56,4 @@ All other listed report, monitoring, dashboard, denial and dynamic-asset endpoin
 
 ## Unresolved runtime evidence
 
-No HTTP route was exercised during the immutable baseline pass. The closure delta later exercised the password-reset and login/OTP routes in a disposable tenant; the focused suite passed 12/12 and was torn down. Other reachability and behavior above remain source-verified rather than runtime-proven.
+No HTTP route was exercised during the immutable baseline pass. The closure waves later exercised password-reset, login/OTP, Activity execution, exception-request and document-denial routes in disposable tenants. Auth passed 12/12 and Phase 3A passed 27/27 browser tests; both tenants were torn down. Other mapped reachability and behavior remain source-verified rather than runtime-proven.

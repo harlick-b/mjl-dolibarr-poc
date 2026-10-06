@@ -19,8 +19,9 @@ All 31 E2E files were read in full. Several selected files perform substantial i
 ### Audit-closure delta
 
 - `php tests/contracts/reference_transaction_test.php`: PASS. The contract covers failed transaction start for all three reference mutation functions, failed commit including no-op paths, rollback attempts, and connection closure when rollback fails.
-- `npm run test:auth`: PASS, 12/12 in one isolated disposable tenant. The added case proves retained technical Admin request, active-entity reset storage, token consumption, password change and entry into OTP verification. Containers, network and volumes were removed.
-- `php -l` passed for the three changed application PHP files and the new PHP contract. `node --check` passed for the changed E2E spec. `git diff --check` passed before documentation reconciliation.
+- `npm run test:auth`: PASS, 12/12 in one isolated disposable tenant. The suite proves retained technical Admin request, active-entity reset storage, token consumption, password change and entry into OTP verification. It also proves the legacy native `pass` column remains `NULL` after both reset and invitation acceptance. Containers, network and volumes were removed.
+- `npm run test:phase3a`: PASS. The runner exercised the complete RST-006B interruption matrix, including four new failure points after the early Operation-check DDL stages, then passed 27/27 Playwright tests covering execution, authorization, database guards and document containment. Containers, network and volumes were removed.
+- `php -l` passed for all changed application PHP files. `node --check` passed for all changed JavaScript files. `git diff --check` passed before documentation reconciliation.
 
 No shared tenant was mutated. The focused results supersede the original "no auth E2E" and "reference failure behavior uncharacterized" gaps only; they do not erase the broader baseline qualifications below.
 
@@ -46,21 +47,22 @@ php tests/contracts/<top-level-contract>.php
 
 The first command was run once and interrupted with `Ctrl-C` after more than two minutes (exit 130). Each discovered Node unit file was then run once; there were no retries. Each of the four named top-level contracts was run once. These host-only commands created no disposable tenant, so there was no container setup or cleanup result. Their console results were observed in-session; no durable raw-output artifact was created.
 
-During the immutable baseline pass, no E2E, disposable-tenant, database mutation, application login, bootstrap, module activation, or shared-tenant operation was performed. The later closure delta ran only the focused disposable auth suite described above; it did not mutate the shared tenant.
+During the immutable baseline pass, no E2E, disposable-tenant, database mutation, application login, bootstrap, module activation, or shared-tenant operation was performed. The later closure waves ran the focused reference contract, disposable auth suite and disposable Phase 3A migration/browser suite described above; none mutated the shared tenant.
 
 ## Coverage map
 
 | Surface | Existing evidence | Gap |
 | --- | --- | --- |
-| access and audit fail-closed behavior | focused Node assertions passed | no runtime request execution in this audit |
+| access and audit fail-closed behavior | focused Node assertions passed; auth and Phase 3A runtime requests reject forbidden access and invalid direct mutations | runtime execution covers focused surfaces rather than every mapped route |
 | document containment | focused Node assertions passed; guarded routes mapped | Apache loaded configuration not verified |
 | financial preview | focused Node assertions passed | does not prove database write behavior |
 | navigation/page/table presentation | four PHP contracts passed | runner would skip these when an earlier Node file fails or hangs |
-| auth/invitation/reset/OTP | focused auth E2E passed 12/12, including retained Admin reset | encrypted-only native password persistence remains a high blocker |
+| auth/invitation/reset/OTP | focused auth E2E passed 12/12, including retained Admin reset and encrypted-only storage after both password-write flows | external email delivery and operator configuration remain outside this gate |
 | workflows and transactions | reference begin/commit/rollback failure contract passed; source map and extensive test sources remain | broader workflow PHP child-process execution was sandbox-limited |
 | exports | source and test bodies specify durable `GENERATED` evidence even after client abort | server `fread()` failure and post-commit cleanup retry behavior remain unresolved |
 | visual design | production frontend fully inspected | focused design assertions currently fail; human accessibility matrix outstanding |
-| multi-entity behavior | entity filters mapped | cron semantics and live schema not verified |
+| lifecycle and Phase 3A execution | exact RST-006B interruption matrix and 27/27 browser checks passed | historical runner provisioning and deadline handling remain medium verification debt |
+| multi-entity behavior | entity filters mapped | cron semantics and live shared schema not verified |
 
 Textual test declarations are an inventory aid only: the tree contains 106 Node-unit `test(...)` declarations and 225 Playwright `test(...)` declarations. These counts do not imply execution, independence, or requirement coverage.
 
@@ -72,4 +74,4 @@ Textual test declarations are an inventory aid only: the tree contains 106 Node-
 - Shared-integrity evidence hashes read-only `SELECT *` snapshots as well as metadata. It should not be weakened to schema-only evidence.
 - `MJL_TEST_RETAIN` was explicitly removed from the environment for the attempted run so a stale value could not retain fixtures.
 
-This baseline is intentionally qualified. It establishes what was executed and observed, not acceptance or production readiness.
+This qualified baseline is sufficient to protect the first architecture proposal and migration-wave design. It establishes what was executed and observed; it does not establish user acceptance or production readiness.

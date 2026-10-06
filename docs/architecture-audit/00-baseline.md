@@ -19,15 +19,15 @@ Audit documents are excluded from the source manifest so that writing the audit 
 ## Closure delta
 
 The immutable forensic snapshot was committed separately as
-`ca6139b57597a4e9dc32216e167e57f8be53d7d4`. The approved closure changed three
-application files, updated one E2E file and added one contract file. Those five
-files were re-read and are covered by `closure-evidence.md`. Their current
-combined application/test manifest is
-`984ce3aab8d499b4d7acf2d0703b1322ab6bd04bf22d6db65a94561617919b76`;
+`ca6139b57597a4e9dc32216e167e57f8be53d7d4`. The closure work changed five
+application files across its two correction waves, added one contract file and
+updated four E2E/runner files. Every changed file was re-read and is covered by
+`closure-evidence.md`. The current combined application/test manifest is
+`36e9bc9c2712df4222cc06bbcee171ebd493fcfc565f4142587b9c3e34783763`;
 the current application-only manifest is
-`894b18928e83a2649990985e6d3b3dc972fef6fbf1633cfd930656f4a50e7eba`.
+`0a03b373302f8132d3ecf86ec69520bc1fcb027f033a176865992f8caeabfdbf`.
 The original annex hashes and population counts above intentionally remain the
-audit-snapshot values. The current application tree contains 20,560 lines; the
+audit-snapshot values. The current application tree contains 20,573 lines; the
 new `mjl_reference_rollback()` helper is behavior-mapped in the closure delta
 rather than retroactively inserted into the immutable symbol annex.
 

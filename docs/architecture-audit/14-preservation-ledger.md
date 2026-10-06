@@ -24,7 +24,7 @@ This ledger names behavior that a future refactor must preserve or replace throu
 | SEC-AUTH-003 | password reset responses do not disclose account existence and are throttled; the retained native Admin can recover through an active-entity reset without weakening business-user entity isolation | auth lifecycle | SOURCE_AND_DISPOSABLE_E2E_VERIFIED |
 | SEC-AUTH-004 | OTP is configuration-gated, short-lived, attempt-limited, resend-limited and bound to the login context | login hook/OTP store | SOURCE_VERIFIED |
 | SEC-AUTH-005 | active OTP state rejects the native login path until verification completes | login hook | SOURCE_VERIFIED |
-| SEC-AUTH-006 | password changes must never persist a reusable cleartext credential in the native legacy password column | auth/native User adapter | REQUIRED; OPEN HIGH blocker |
+| SEC-AUTH-006 | password changes must never persist a reusable cleartext credential in the native legacy password column | auth/native User adapter | VERIFIED; invitation/reset disposable regressions passed |
 | SEC-AUTHZ-001 | native technical Admin maps to ADMIN while business users have exactly one effective MJL role | scope/access layer | SOURCE_VERIFIED |
 | SEC-AUTHZ-002 | role and account changes are Admin-only, transactional and revoke affected credentials | access administration | SOURCE_VERIFIED |
 | SEC-AUTHZ-003 | Agent visibility derives from explicit Activity assignment and active entity | scope/assignment layer | SOURCE_VERIFIED |
@@ -34,10 +34,10 @@ This ledger names behavior that a future refactor must preserve or replace throu
 | DB-001 | active-entity isolation remains a required invariant; mapped critical query paths apply it, with a narrow native entity-0 Admin reset exception stored in the active entity | schema/query layer | SOURCE_AND_DISPOSABLE_E2E_VERIFIED for reset; exhaustive write-site proof unresolved |
 | DB-002 | audit history remains append-only and transaction-bound to the mutation it records; reference writes must not continue outside a failed outer transaction, and a connection whose rollback fails must be closed before reuse | audit writer/triggers | SOURCE_VERIFIED; reference failure and rollback-quarantine contract passed |
 | DB-003 | critical role, immutability and entity invariants remain backed by exact database definitions | triggers/activation | SOURCE_VERIFIED |
-| DB-004 | activation remains resumable and guarded against partial or conflicting schema states | module lifecycle | SOURCE_VERIFIED |
+| DB-004 | activation remains resumable and guarded against partial or conflicting schema states | module lifecycle | VERIFIED; RST-006B interruption matrix passed |
 | LIFE-001 | a clean bootstrap preserves exactly one native technical administrator and no persistent business fixtures | bootstrap | SOURCE_VERIFIED |
 | LIFE-002 | disposable tests create minimal isolated data and tear down their tenant | test runners/fixtures | SOURCE_VERIFIED |
-| LIFE-003 | module activation detects predecessor/current schema instead of silently assuming it | descriptor/readiness | SOURCE_VERIFIED |
+| LIFE-003 | module activation detects predecessor/current schema instead of silently assuming it | descriptor/readiness | VERIFIED; early and later RST-006B prefixes exercised |
 | LIFE-004 | unsupported native modules are disabled only through the documented bootstrap path | bootstrap | SOURCE_VERIFIED |
 
 Any change touching a ledger item needs a focused proof at its actual trust boundary. A UI assertion alone cannot replace a command, database, authorization or document-containment proof.
