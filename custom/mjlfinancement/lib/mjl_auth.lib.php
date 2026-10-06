@@ -173,12 +173,17 @@ function mjl_auth_set_password(User $target, User $actor, $password)
 	global $conf;
 	$hadGenerator = isset($conf->global->USER_PASSWORD_GENERATED);
 	$generator = $hadGenerator ? $conf->global->USER_PASSWORD_GENERATED : null;
+	$hadEncryptedStorage = isset($conf->global->DATABASE_PWD_ENCRYPTED);
+	$encryptedStorage = $hadEncryptedStorage ? $conf->global->DATABASE_PWD_ENCRYPTED : null;
 	$conf->global->USER_PASSWORD_GENERATED = '';
+	$conf->global->DATABASE_PWD_ENCRYPTED = '1';
 	try {
 		return $target->setPassword($actor, $password, 0, 0);
 	} finally {
 		if ($hadGenerator) $conf->global->USER_PASSWORD_GENERATED = $generator;
 		else unset($conf->global->USER_PASSWORD_GENERATED);
+		if ($hadEncryptedStorage) $conf->global->DATABASE_PWD_ENCRYPTED = $encryptedStorage;
+		else unset($conf->global->DATABASE_PWD_ENCRYPTED);
 	}
 }
 

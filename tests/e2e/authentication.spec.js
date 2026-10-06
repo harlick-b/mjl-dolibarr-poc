@@ -275,6 +275,7 @@ test('the retained technical Admin can complete an active-entity password reset'
   await page.getByLabel('Confirmer le mot de passe', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   expect(scalar(`SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset WHERE entity=1 AND fk_user=${adminId} ORDER BY rowid DESC LIMIT 1`)).toBe('consumed:NULL');
+  expect(scalar(`SELECT pass IS NULL FROM llx_user WHERE rowid=${adminId}`)).toBe('1');
 
   await page.getByLabel('Adresse email').fill(adminEmail);
   await page.getByLabel('Mot de passe', { exact: true }).fill(password);
@@ -332,6 +333,7 @@ test('accepting an invitation clears an existing authenticated session', async (
   await page.getByLabel('Confirmer le mot de passe', { exact: true }).fill('Abcdef1!');
   await page.getByRole('button', { name: 'Enregistrer le mot de passe' }).click();
   await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
+  expect(scalar("SELECT pass IS NULL FROM llx_user WHERE login='auth.invitation.session' AND entity=1")).toBe('1');
   await page.goto('/custom/mjlfinancement/index.php');
   await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
 });
