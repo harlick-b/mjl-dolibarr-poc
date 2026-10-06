@@ -32,6 +32,15 @@ stop and surface the contradiction.
 | Implementation state and unfinished phases | `docs/mjl-implementation-roadmap-v2.md` |
 | Frozen target architecture boundaries and migration-wave contracts | `docs/architecture-audit/17-target-architecture-proposal.md` |
 
+## Review candidates
+
+The following document is discoverable for review but is not yet canonical and
+authorizes no implementation:
+
+| Candidate | Status |
+| --- | --- |
+| `docs/mjl-engineering-standard-v1.md` | `STANDARD_READY_FOR_REVIEW`; W0 and W1–W7 remain `NOT_AUTHORIZED` |
+
 Completed plans and reports are recoverable from Git history and are not active
 guidance. `docs/mjl-current-app-functional-map.md` records current-state
 evidence only. Unresolved weaknesses and unapproved recommendations belong in
