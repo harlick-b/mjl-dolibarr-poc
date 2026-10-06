@@ -1,7 +1,7 @@
 # MJL Engineering Standard v1 — independent review
 
-> This document preserves the original independent-review record. Section 33
-> records the later focused correction disposition and re-review result.
+> This document preserves the original independent-review record. Sections 33
+> and 34 record the later correction disposition and formal focused re-review.
 
 ## 1. Executive verdict
 
@@ -420,3 +420,53 @@ Focused re-review result: **PASS**. The three original MEDIUM findings are
 resolved, leaving 0 CRITICAL, 0 HIGH, 0 MEDIUM and 0 LOW findings in this
 focused scope. The candidate remains `STANDARD_READY_FOR_REVIEW`; this result
 does not freeze it and authorizes neither W0 nor W1–W7.
+
+## 34. Formal focused independent re-review
+
+This 2026-10-06 review independently rechecked only the three corrected
+findings, their neighboring contracts and the affected practical scenarios. It
+did not repeat the full original audit. The reviewed Engineering Standard
+SHA-256 remained
+`fa41a8143229f70eac4508785a4f397b01e70e8d3c808017f43a3e14d1ecf3ff`.
+
+| Review stage | Result |
+| --- | --- |
+| initial independent review | `STANDARD_REVISION_REQUIRED`; three MEDIUM findings |
+| focused correction | STD-REV-001 through STD-REV-003 addressed |
+| formal focused independent re-review | `STANDARD_APPROVED_FOR_FREEZE` |
+
+| Re-review target | Result | Adversarial conclusion |
+| --- | --- | --- |
+| native Dolibarr transaction depth | CLEAR | characterized native ownership cannot erase the explicit owner, authorize nested MJL ownership or waive failure propagation |
+| MJL fail-closed transaction semantics | CLEAR | checked begin/commit, rollback quarantine, no-op handling and false-success prevention remain intact |
+| activation versus guarded CLI recovery | CLEAR | activation refuses upgrade/partial/unknown states; guarded CLI alone applies or resumes a supported predecessor/prefix |
+| BC-019 | PASS | early RST-006B prefixes, interruption checkpoints, recovery and target verification remain explicit |
+| frozen callback/resource seams | CLEAR | only characterized Dolibarr or documented frozen MJL seams with application-controlled targets remain permitted |
+| uncontrolled request-selected invocation | PROHIBITED | raw request data cannot select arbitrary functions, classes, methods, callbacks, include paths or PHP files |
+| BC-018 | PASS | every MJL invitation/reset password write retains the encrypted-only adapter and `llx_user.pass IS NULL` contract |
+| technical Admin reset | PASS | active-entity isolation and the narrow retained entity-0 native Admin exception remain unchanged |
+| reference transaction | PASS | failed begin/write/commit and rollback uncertainty remain fail closed on mutating and no-op paths |
+| Dolibarr compatibility | PASS | native transaction, activation, guarded CLI and callback conventions remain compatible |
+
+| Practical scenario | Result |
+| --- | --- |
+| A — transactional reference write and characterized native context | CLEAR |
+| B — activation refusal and guarded CLI interruption recovery | CLEAR |
+| C — finite callback/resource dispatch versus arbitrary request target | CLEAR |
+
+The nearby contradiction scan found no stale transaction, lifecycle or dynamic
+invocation rule that reintroduced the resolved ambiguity. The original
+findings, corrections, evidence and `RESOLVED` statuses remain visible in
+section 33. Frozen architecture responsibilities, dependency direction,
+preservation mappings, migration waves, auth ownership and DB ownership remain
+unchanged.
+
+**Findings:** No actionable findings. Counts are 0 CRITICAL, 0 HIGH, 0 MEDIUM
+and 0 LOW. Result: `NO_ARCHITECTURE_DRIFT`.
+
+```text
+STANDARD_APPROVED_FOR_FREEZE
+```
+
+This approval does not freeze the Engineering Standard and authorizes neither
+W0 nor W1–W7. Formal freeze remains a separate explicit documentation task.
