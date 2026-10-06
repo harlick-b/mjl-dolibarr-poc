@@ -37,9 +37,9 @@ stop and surface the contradiction.
 The following document is discoverable for review but is not yet canonical and
 authorizes no implementation:
 
-| Candidate | Status |
-| --- | --- |
-| `docs/mjl-engineering-standard-v1.md` | `STANDARD_READY_FOR_REVIEW`; W0 and W1–W7 remain `NOT_AUTHORIZED` |
+| Candidate | Review evidence | Status |
+| --- | --- | --- |
+| `docs/mjl-engineering-standard-v1.md` | `docs/mjl-engineering-standard-v1-review.md`; three findings resolved and focused re-review passed | `STANDARD_READY_FOR_REVIEW`; not frozen; W0 and W1–W7 remain `NOT_AUTHORIZED` |
 
 Completed plans and reports are recoverable from Git history and are not active
 guidance. `docs/mjl-current-app-functional-map.md` records current-state

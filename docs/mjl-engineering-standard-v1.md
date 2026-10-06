@@ -183,8 +183,13 @@ updates that baseline.
   programming failure MAY throw at a seam whose caller maps it once.
 - Comments/PHPDoc SHOULD explain interface invariants, non-obvious ordering,
   compatibility and failure modes—not restate syntax.
-- Dynamic invocation or registration MUST be retained only where required by a
-  characterized Dolibarr interface and MUST be included in reachability review.
+- Dynamic invocation or registration MAY remain only at a characterized
+  Dolibarr interface or a documented frozen MJL callback/resource seam whose
+  targets are controlled by application code. Finite internal dispatch MAY map
+  validated request values to known handlers, but authorization remains
+  independent of that selection. Raw request values MUST NOT directly select
+  arbitrary functions, classes, methods, callbacks, include paths or PHP files.
+  Every retained dynamic target MUST be included in reachability review.
 
 Native parameter/return types MAY be added gradually only when PHP 7.4,
 Dolibarr callback signatures and all callers are proved compatible. PHPDoc MAY
@@ -242,11 +247,25 @@ The following distinction is mandatory:
    characterized current behavior. It MUST NOT claim or silently introduce the
    stronger contract without separate behavioral approval and proof.
 
-One workflow command owns the outer business transaction. A callee MAY join it
-only through an explicitly transaction-participating operation that never
-begins, commits or rolls back and propagates failure. Nested transaction
-ownership is not a public feature. Success audit belongs in the mutation
-transaction; a post-commit audit MUST NOT substitute for it.
+One workflow command owns the outer MJL business transaction. An MJL-owned
+callee MAY join it only through an explicitly transaction-participating
+operation that never begins, commits or rolls back and propagates failure.
+Nested MJL transaction ownership is not a public feature.
+
+A native Dolibarr call whose transaction-depth behavior is already
+characterized MAY execute inside that owner and MUST retain the verified native
+depth and failure contract. MJL code MUST NOT blindly open, commit or roll back
+a transaction boundary it does not own. This is a narrow native-adapter
+exception, not permission for ambiguous MJL ownership; every new native adapter
+MUST be characterized before it participates in an owned transaction.
+Conversely, where a characterized Dolibarr interface invokes an MJL operation
+inside an already native-owned transaction context, that MJL operation MUST be
+explicitly non-owning and respect the verified native ownership, depth and
+failure contract. This conditional rule does not authorize a new integration
+seam.
+
+Success audit belongs in the mutation transaction; a post-commit audit MUST NOT
+substitute for it.
 
 Feature read modules may own bounded read-only snapshots. They MUST own and
 restore isolation, statement/lock budgets, checked begin/commit and failure
@@ -325,13 +344,25 @@ An authorized migration MUST:
   reversible code unit; code rollback MUST NOT be described as undoing
   committed DDL.
 
-Retry/resume always begins by re-detecting persisted database truth. Exact
-target performs no migration DDL and only verifies/returns through the permitted
-entrypoint; a supported predecessor begins the guarded transition; an exact
-known prefix resumes at its next verified step; unknown or non-contiguous state
-refuses. In-memory progress or a previous process's success claim MUST NOT
-substitute for detection. “Idempotent” MUST NOT be used to imply that arbitrary
-DDL replay or transaction rollback is safe.
+Activation dispatch and guarded CLI migration recovery are distinct interfaces:
+
+- Activation installs only from a genuinely empty state. At the exact supported
+  current state it verifies the schema, performs the retained auth/trigger
+  initialization and replacement, then performs native module initialization.
+  An exact older state requiring an upgrade, a partial state, or an
+  unknown/conflicting state MUST refuse activation. Recognizing a resumable
+  prefix MUST NOT cause activation to apply or resume it.
+- Guarded CLI migration recovery is an explicit maintenance path, not ordinary
+  activation or an alternate application bootstrap. It alone MAY apply a
+  supported predecessor or resume an exact known prefix, and MUST retain its
+  existing entrypoint guard, lock, authorization/preflight, ordered checkpoints
+  and postcondition verification. Exact target verifies without migration DDL;
+  unknown or non-contiguous state refuses before writes.
+
+Every guarded CLI retry/resume begins by re-detecting persisted database truth.
+In-memory progress or a previous process's success claim MUST NOT substitute for
+detection. “Idempotent” MUST NOT be used to imply that arbitrary DDL replay or
+transaction rollback is safe.
 
 BC-019 remains explicit: every early RST-006B Operation-check prefix accepted
 by `mjl_rst006b_is_known_prefix()` MUST be classified as partial by
@@ -628,11 +659,13 @@ contracts; examples do not authorize new functions or markup.
 | new Activity mutation | deep Activity command; handler route policy plus locked command authorization; command-owned transaction/SQL/audit; workflow, authz, DB and fault tests |
 | proposed shared helper | `.lib.php` only if pure/stable/reused with one owner; deletion test; no generic helper file |
 | new JS behavior | documented `data-mjl-*` producer/consumer contract, server remains authoritative, fallback and focused frontend test |
-| migration work | guarded CLI/activation owner, exact-state/prefix refusal, lock/checkpoints/resume/target proof; BC-019 retained |
+| migration work | activation installs only empty or initializes exact current and refuses older/partial/unknown; guarded CLI alone applies/resumes supported predecessor/prefix with lock/checkpoints/target proof; BC-019 retained |
 | password reset change | auth owner/private adapters, entity/Admin rules, token contract, BC-018 `pass IS NULL`, auth E2E |
 | duplicate permission checks | classify D3 versus D4 and trust seams before consolidation; retain route/command/DB defense in depth |
+| transactional reference write | MJL owner checks begin/commit/rollback and prevents false success; MJL participants do not own nested boundaries; characterized native depth remains a narrow adapter exception |
+| callback/resource dispatch | documented Dolibarr or frozen MJL seam with application-controlled targets is allowed; finite request mapping uses known handlers and separate authorization; raw request-selected execution is forbidden |
 
-All six scenarios have an unambiguous owner, prohibited shortcuts and evidence
+All eight scenarios have an unambiguous owner, prohibited shortcuts and evidence
 gate. No architecture amendment is required to publish this review candidate.
 
 ## 24. Traceability
