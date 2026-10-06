@@ -33,8 +33,8 @@ function planningCommand(actorId, expression) {
 async function login(page, loginName) {
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
-  await page.getByLabel('Mot de passe').fill(loginName==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+  await page.getByLabel('Mot de passe', { exact: true }).fill(loginName==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
   await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 
@@ -447,17 +447,20 @@ test('guarded execution and exception routes expose only role-appropriate contro
   await expect(requestCard.getByText('Version actuelle de la cible',{exact:true}).locator('..')).toContainText(String(Number(requestedTargetVersion)+1));
   await expect(requestCard.getByText('Version actuelle de la cible',{exact:true}).locator('..')).toContainText('cible modifiée');
   await expect(agentPage.getByRole('button', { name: /Approuver|Rejeter/ })).toHaveCount(0);
-  await requestCard.getByRole('button',{name:'Retirer la demande'}).click();
+  await requestCard.getByRole('link',{name:'Retirer la demande'}).click();
+  await agentPage.getByRole('dialog').getByRole('button',{name:'Retirer la demande'}).click();
   await expect(agentPage).toHaveURL(/operationrequests\.php\?result=OK/);
   expect(sql(`SELECT status FROM llx_mjlfinancement_cancellation_request WHERE rowid=${visibleRequest.request_id}`)).toBe('WITHDRAWN');
   expect(command({action:'update',actorId:fixture.users.agent.id,activityId:fixture.activities.execution.activity_id,operationId:visibleRequestTarget.rowid,expectedVersion:String(Number(requestedTargetVersion)+1),input:{status:'IN_PROGRESS',spent_amount:'200',observation:null}}).code).toBe('OK');
   await agentPage.goto(`/custom/mjlfinancement/activities.php?id=${fixture.activities.execution.activity_id}`);
   await expect(agentPage.locator('main')).toHaveCount(1);
-  for (const label of ['Montant autorisé actif','Montant autorisé annulé','Dépenses actives','Dépenses annulées','Montants dépensés manquants','Opérations annulées incomplètes']) await expect(agentPage.getByText(label,{exact:true})).toBeVisible();
-  await expect(agentPage.getByText('Montant autorisé actif',{exact:true}).locator('..')).toContainText('300 F CFA');
+  for (const label of ['Montant autorisé validé','Autorisations actives','Dépenses actives','Écart actif','Variance active','Complétude financière']) await expect(agentPage.getByText(label,{exact:true})).toBeVisible();
+  await expect(agentPage.getByText('Montant autorisé validé',{exact:true}).locator('..')).toContainText('300 F CFA');
+  await expect(agentPage.getByText('Autorisations actives',{exact:true}).locator('..')).toContainText('300 F CFA');
   await expect(agentPage.getByText('Dépenses actives',{exact:true}).locator('..')).toContainText('200 F CFA');
-  await expect(agentPage.getByText('Montants dépensés manquants',{exact:true}).locator('..')).toContainText('0');
-  await expect(agentPage.getByText(/Opération zéro.*dépensé : 0 F CFA/)).toBeVisible();
+  await expect(agentPage.getByText('Complétude financière',{exact:true}).locator('..')).toContainText('Dépenses complètes');
+  await agentPage.getByRole('tab',{name:'Opérations (2)'}).click();
+  await expect(agentPage.getByRole('row').filter({hasText:'Opération zéro'})).toContainText('0 F CFA');
   const target=fixture.activities.execution;const forged=await agentContext.request.post('/custom/mjlfinancement/operations.php',{form:{action:'update_execution',activity_id:String(target.activity_id),operation_id:String(target.operations[0].rowid),version:'1',status:'COMPLETED',spent_amount:'0',observation:'Forgé'}});expect(forged.status()).toBe(403);
   await agentContext.close();
 
@@ -465,8 +468,9 @@ test('guarded execution and exception routes expose only role-appropriate contro
   const supervisorPage = await supervisorContext.newPage();
   await login(supervisorPage, 'phase3a.execution.supervisor');
   await supervisorPage.goto('/custom/mjlfinancement/activities.php?q=Planification_');
-  await expect(supervisorPage.locator('main article')).toHaveCount(1);
-  await expect(supervisorPage.getByRole('link', { name: /^ACT-\d+ · Planification_conservée$/ })).toBeVisible();
+  const activityRow=supervisorPage.getByRole('row').filter({hasText:'Planification_conservée'});
+  await expect(activityRow).toHaveCount(1);
+  await expect(activityRow.getByRole('link', { name: 'Planification_conservée' })).toBeVisible();
   await supervisorPage.goto('/custom/mjlfinancement/operations.php');
   await expect(supervisorPage.getByRole('button', { name: 'Enregistrer l’exécution' })).toHaveCount(0);
   await supervisorPage.goto('/custom/mjlfinancement/operationrequests.php');
@@ -481,7 +485,9 @@ test('guarded execution and exception routes expose only role-appropriate contro
   await validatorPage.goto('/custom/mjlfinancement/operationrequests.php?status=');
   await expect(validatorPage.getByRole('heading', { name: 'Demandes d’exception' })).toBeVisible();
   await validatorPage.goto(`/custom/mjlfinancement/activities.php?id=${fixture.activities['activity-cancel'].activity_id}`);
-  for(const [label,value]of [['Complétude financière','Partiellement renseignée'],['Montant autorisé actif','100 F CFA'],['Montant autorisé annulé','100 F CFA'],['Dépenses actives','100 F CFA'],['Dépenses annulées','Non renseigné'],['Montants dépensés manquants','1'],['Opérations annulées incomplètes','1']])await expect(validatorPage.getByText(label,{exact:true}).locator('..')).toContainText(value);
+  for(const [label,value]of [['Montant autorisé validé','200 F CFA'],['Autorisations actives','100 F CFA'],['Dépenses actives','100 F CFA'],['Complétude financière','Dépenses partielles']])await expect(validatorPage.getByText(label,{exact:true}).locator('..')).toContainText(value);
+  await expect(validatorPage.getByText('Autorisations actives',{exact:true}).locator('..')).toContainText('Annulées : 100 F CFA');
+  await expect(validatorPage.getByText('Dépenses actives',{exact:true}).locator('..')).toContainText('Annulées : Non renseigné · 1 manquante(s)');
   await validatorContext.close();
 
   const adminContext=await browser.newContext();const adminPage=await adminContext.newPage();await login(adminPage,'admin');for(const route of ['/custom/mjlfinancement/operations.php','/custom/mjlfinancement/operationrequests.php']){const response=await adminPage.goto(route);expect(response.status()).toBe(403);expect(await response.text()).toBe('Forbidden');}await adminContext.close();

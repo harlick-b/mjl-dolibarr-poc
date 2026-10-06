@@ -188,8 +188,7 @@ function mjl_rst006b_detect_schema(DoliDB $db)
 	if ($target) return RST006B_SCHEMA_TARGET;
 	try { mjl_rst006a_require_target($db); if (!$hasCancellation && !$hasReopening) return RST006B_SCHEMA_PREDECESSOR; }
 	catch (Throwable $ignored) {}
-	if ($hasCancellation || $hasReopening || mjl_rst006b_constraint_exists($db, $operation, 'chk_mjl_operation_execution_shape') || mjl_rst006b_constraint_exists($db, $activity, 'chk_mjl_activity_rst006b_phase3a')) return mjl_rst006b_is_known_prefix($db)?RST006B_SCHEMA_PARTIAL:RST006B_SCHEMA_UNKNOWN;
-	return RST006B_SCHEMA_UNKNOWN;
+	return mjl_rst006b_is_known_prefix($db) ? RST006B_SCHEMA_PARTIAL : RST006B_SCHEMA_UNKNOWN;
 }
 
 function mjl_rst006b_activity_shape_check()
@@ -250,13 +249,22 @@ function mjl_rst006b_install_target(DoliDB $db)
 	foreach (array('chk_mjl_operation_phase2','chk_mjl_operation_execution_status','chk_mjl_operation_spent_amount','chk_mjl_operation_observation','chk_mjl_operation_execution_shape') as $name) if (mjl_rst006b_constraint_exists($db, $operation, $name) && $name === 'chk_mjl_operation_phase2') {
 		if (!$db->query('ALTER TABLE '.$operation.' DROP CONSTRAINT '.$name)) throw new RuntimeException('Unable to replace Phase 2 Operation constraint.');
 	}
+	mjl_rst006b_failpoint('operation-phase2-dropped');
 	$operationChecks = array(
 		'chk_mjl_operation_execution_status' => "status IN ('TODO','IN_PROGRESS','COMPLETED','CANCELLED')",
 		'chk_mjl_operation_spent_amount' => 'spent_amount IS NULL OR spent_amount >= 0',
 		'chk_mjl_operation_observation' => "observation IS NULL OR observation REGEXP '[^[:space:]]'",
 		'chk_mjl_operation_execution_shape' => "(spent_amount IS NULL OR spent_amount=authorized_amount OR (observation IS NOT NULL AND observation REGEXP '[^[:space:]]')) AND (status<>'COMPLETED' OR spent_amount IS NOT NULL)",
 	);
-	foreach ($operationChecks as $name => $expression) if (!mjl_rst006b_constraint_exists($db, $operation, $name) && !$db->query('ALTER TABLE '.$operation.' ADD CONSTRAINT '.$name.' CHECK ('.$expression.')')) throw new RuntimeException('Unable to add '.$name.': '.$db->lasterror());
+	$operationFailpoints = array(
+		'chk_mjl_operation_execution_status' => 'operation-execution-status-added',
+		'chk_mjl_operation_spent_amount' => 'operation-spent-amount-added',
+		'chk_mjl_operation_observation' => 'operation-observation-added',
+	);
+	foreach ($operationChecks as $name => $expression) {
+		if (!mjl_rst006b_constraint_exists($db, $operation, $name) && !$db->query('ALTER TABLE '.$operation.' ADD CONSTRAINT '.$name.' CHECK ('.$expression.')')) throw new RuntimeException('Unable to add '.$name.': '.$db->lasterror());
+		if (isset($operationFailpoints[$name])) mjl_rst006b_failpoint($operationFailpoints[$name]);
+	}
 	mjl_rst006b_failpoint('operation-checks');
 	foreach (array('chk_mjl_activity_rst006a_phase2','chk_mjl_activity_validation_status') as $name) if (mjl_rst006b_constraint_exists($db, $activity, $name) && !$db->query('ALTER TABLE '.$activity.' DROP CONSTRAINT '.$name)) throw new RuntimeException('Unable to replace '.$name.'.');
 	if (!mjl_rst006b_constraint_exists($db, $activity, 'chk_mjl_activity_validation_status') && !$db->query("ALTER TABLE $activity ADD CONSTRAINT chk_mjl_activity_validation_status CHECK (validation_status IN ('DRAFT','ABANDONED','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED','CANCELLED'))")) throw new RuntimeException('Unable to enable Activity cancellation status.');

@@ -18,8 +18,8 @@ function fixtureAction(action) {
 async function login(page, loginName) {
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
-  await page.getByLabel('Mot de passe').fill(loginName === 'admin' ? adminPassword : testPassword);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+  await page.getByLabel('Mot de passe', { exact: true }).fill(loginName === 'admin' ? adminPassword : testPassword);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
   await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 

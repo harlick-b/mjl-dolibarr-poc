@@ -42,8 +42,8 @@ foreach (array_slice($argv, 1) as $argument) {
 }
 try {
 	$disposable=mjl_rst006b_disposable_tenant_attested($db);$shared=mjl_rst006b_shared_cutover_attested();
-	$failurePoints=array_merge(
-		array('operation-checks','activity-checks'),
+		$failurePoints=array_merge(
+			array('operation-phase2-dropped','operation-execution-status-added','operation-spent-amount-added','operation-observation-added','operation-checks','activity-checks'),
 		array_map(function($index){return 'cancellation_request-fk-'.str_pad((string)$index,2,'0',STR_PAD_LEFT);},range(1,4)),
 		array('cancellation_request'),
 		array_map(function($index){return 'reopening_request-fk-'.str_pad((string)$index,2,'0',STR_PAD_LEFT);},range(1,5)),
