@@ -4,9 +4,60 @@
 
 **Confidence gate: PASS — `READY_FOR_PROPOSAL`.**
 
-The two original high-risk findings and the two additional blockers discovered during closure are resolved with focused regression proof. No unresolved CRITICAL or HIGH architecture blocker remains. The repository may proceed to a separately requested target-architecture proposal; this verdict does not authorize implementation, production preparation, or create that proposal in this pass.
+The two original high-risk findings and the two additional blockers discovered
+during closure are resolved with focused regression proof. No unresolved
+CRITICAL or HIGH architecture blocker remains. The audit gate authorized a
+separate target-architecture proposal task; the completed audit itself still
+does not authorize implementation or production preparation.
 
-This result authorizes a separate architecture-proposal task only. It does not establish user acceptance, production readiness, or permission to implement a target architecture.
+The separately requested [target architecture](17-target-architecture-proposal.md)
+is now the authoritative frozen baseline with status `ARCHITECTURE_FROZEN`.
+Freeze does not establish feature acceptance, authorize implementation or an
+Engineering Standard, or establish production readiness.
+
+The [independent architecture review](18-independent-architecture-review.md)
+is complete: **`ARCHITECTURE_REVISION_REQUIRED`**. Its required corrections
+remain preserved as the original review record. Document 17 has since been
+revised for AR-REV-001 through AR-REV-007. Separate standards and specification
+correction reviews now pass with no actionable findings. The revised proposal
+was then explicitly frozen. Document 18 remains historical evidence of the
+pre-correction verdict; it was not rewritten into a passing review.
+
+```text
+FORENSIC AUDIT: PASS
+        ↓
+AUDIT CLOSURE: PASS
+        ↓
+READY_FOR_PROPOSAL
+        ↓
+TARGET ARCHITECTURE PROPOSAL
+        ↓
+INDEPENDENT REVIEW: ARCHITECTURE_REVISION_REQUIRED
+        ↓
+AR-REV-001–007 CORRECTIONS
+        ↓
+STANDARDS + SPECIFICATION CORRECTION REVIEWS: PASS
+        ↓
+ARCHITECTURE_FROZEN
+```
+
+## Frozen target architecture baseline
+
+| Field | Frozen value |
+| --- | --- |
+| Architecture status | `ARCHITECTURE_FROZEN` |
+| Architecture document | `docs/architecture-audit/17-target-architecture-proposal.md` |
+| Architecture SHA-256 | `b32655df213a5d5f8cc2e4b4cd1bf6f7aa4c6b6ec5d3ac4273ae9759ff6d9b9c` |
+| Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
+| Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
+| Preservation requirements | 35/35 mapped |
+| Migration units | W0 prerequisite plus seven migration waves W1–W7; all `NOT_AUTHORIZED` |
+| Investigation simulations | 6/6 reconciled |
+| Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
+| Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
+
+The freeze commit is repository history and may be reported after creation; it
+is not embedded here because a commit cannot contain its own final hash.
 
 ## Scope and evidence totals
 
@@ -25,7 +76,7 @@ This result authorizes a separate architecture-proposal task only. It does not e
 | Confirmed dead items | 0 |
 | Dead/removal candidates | 7 helpers with no discovered live internal entry, 1 schema-only table surface and 9 unresolved/historical groups |
 | High-risk findings | 4 established; 4 resolved; 0 open |
-| Target architecture | deliberately not produced; excluded from this audit |
+| Target architecture | frozen in `17-target-architecture-proposal.md`; not implemented |
 
 The exact baseline and source hashes are in [00-baseline.md](00-baseline.md), with per-file records in [annex-file-fingerprints.tsv](annex-file-fingerprints.tsv) and significant records in the [runtime](annex-runtime-symbols.tsv) and [supplemental](annex-supplemental-symbols.tsv) symbol annexes. “Mapped” and “verified” retain the evidence qualifications defined there and do not imply runtime execution.
 
@@ -91,9 +142,19 @@ See [13-regression-baseline.md](13-regression-baseline.md) for exact qualificati
 15. [Preservation ledger](14-preservation-ledger.md)
 16. [Behavior classification](15-behavior-classification.md)
 17. [Current architecture](16-current-architecture.md)
-
-There is intentionally no target-architecture document. The closure instruction requires proposal work to be a separate subsequent task after this gate passes.
+18. [Frozen target architecture](17-target-architecture-proposal.md) — the
+    authoritative architecture baseline; not implementation authorization
+19. [Independent architecture review](18-independent-architecture-review.md) —
+    immutable original review; `ARCHITECTURE_REVISION_REQUIRED` at that review
+    point. The correction-review status is recorded above.
 
 ## Safe next decisions
 
-The next authorized architecture task may create the target proposal from this evidence. Server-side export read handling, runner discovery/deadline behavior, historical runner provisioning, auth-schema exactness, cron failure semantics, and stale design assertions remain bounded follow-up recommendations. They must stay visible in the proposal and gap analysis, but none requires choosing a target boundary before design can begin. See [closure-evidence.md](closure-evidence.md) for the exact closure delta and final-count report.
+The architecture is frozen. W0 and W1–W7 remain unauthorized.
+Server-side export read handling, runner discovery/deadline behavior,
+historical runner provisioning, auth-schema exactness, cron failure semantics,
+and stale design assertions remain bounded findings in the proposal and gap
+analysis. The next expected documentation phase is a separately requested MJL
+Engineering Standard v1; this freeze does not create or authorize it. See
+[closure-evidence.md](closure-evidence.md) for the exact closure delta and
+final-count report.

@@ -30,6 +30,7 @@ stop and surface the contradiction.
 | States, transitions, and guards | `docs/mjl-status-and-transition-model-v2.md` |
 | Target entities, fields, and invariants | `docs/mjl-data-dictionary-v2.md` |
 | Implementation state and unfinished phases | `docs/mjl-implementation-roadmap-v2.md` |
+| Frozen target architecture boundaries and migration-wave contracts | `docs/architecture-audit/17-target-architecture-proposal.md` |
 
 Completed plans and reports are recoverable from Git history and are not active
 guidance. `docs/mjl-current-app-functional-map.md` records current-state
