@@ -109,8 +109,6 @@ test('v3 interactive-state and compact-control contracts are explicit in runtime
   const appCss = fs.readFileSync(path.join(root, 'custom/mjlfinancement/css/mjl_app.css.php'), 'utf8');
   const authCss = fs.readFileSync(path.join(root, 'custom/mjlfinancement/css/mjl_auth.css.php'), 'utf8');
 
-  const referenceRoutes = fs.readFileSync(path.join(root, 'custom/mjlfinancement/lib/mjl_reference_route.lib.php'), 'utf8');
-
   assert.match(appCss, /@media \(hover: hover\)[\s\S]*\.mjl-card-link:hover/);
   assert.match(appCss, /@media \(hover: hover\)[\s\S]*\.mjl-nav-card:hover/);
   assert.match(appCss, /\.mjl-card-link:active/);
@@ -141,7 +139,6 @@ test('v3 interactive-state and compact-control contracts are explicit in runtime
   assert.match(appCss, /\.mjl-navigation-trigger[^{]*\{[^}]*box-sizing:\s*border-box[^}]*height:\s*var\(--mjl-control-compact\)\s*!important/s);
   assert.match(appCss, /@media \(any-pointer: coarse\)[\s\S]*\.mjl-navigation-trigger[^{]*\{[^}]*min-height:\s*var\(--mjl-touch-target\)\s*!important/s);
   assert.match(authCss, /\.mjl-auth-brand h1\s*\{[^}]*line-height:\s*2rem;/s);
-  assert.match(referenceRoutes, /<tr class="oddeven mjl-row-interactive">/);
   const mobileRule = appCss.indexOf('@media (max-width: 768px)');
   const protectedRow = appCss.indexOf('.mjl-operational-table tr.mjl-row-interactive > td', mobileRule);
   assert.ok(mobileRule >= 0, 'mobile operational-table rule is missing');

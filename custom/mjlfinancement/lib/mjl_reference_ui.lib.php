@@ -7,7 +7,7 @@ require_once __DIR__.'/mjl_ui.lib.php';
  * Presentation helpers for Partner and Project reference screens.
  *
  * Data selection, authorization, lifecycle eligibility, request handling, and
- * fingerprints remain owned by mjl_reference_route and mjl_reference.
+ * fingerprints remain owned by the reference HTTP/route and data modules.
  */
 
 function mjl_reference_ui_list($kind, $config, $rows, $canManage)

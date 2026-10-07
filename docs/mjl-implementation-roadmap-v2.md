@@ -14,10 +14,12 @@ unresolved weaknesses and unapproved recommendations.
 
 ## Current implementation state
 
-- The W0 architecture-migration prerequisite is complete. The reference-list
-  GET seam now has direct no-role, native Admin, and anonymous fail-closed
-  characterization, and disposable-runner deadlines remain failed after a
-  late child exit 0. W1–W7 remain unauthorized.
+- The W0 architecture-migration prerequisite is complete. W1 is complete for
+  the Partner and Project empty-action list GETs: both stable roots hand off to
+  one reference HTTP handler, which preserves direct authorization and
+  entity-scoped reads, prepares list data, and renders through the dedicated
+  reference template. Operation Types and all detail/create/edit/lifecycle/
+  recovery/POST paths remain on the prior route. W2–W7 remain unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

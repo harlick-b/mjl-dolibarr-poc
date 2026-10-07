@@ -46,8 +46,8 @@ does not authorize implementation.
 | `docs/architecture-audit/18-independent-architecture-review.md` | immutable historical review; `ARCHITECTURE_REVISION_REQUIRED` at that review point | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 
 The preservation ledger remains 35/35 mapped. W0 is a prerequisite, not a
-migration wave, and is `W0_COMPLETE`. W1–W7 are seven migration waves and each
-remains `NOT_AUTHORIZED`. Any future work must consult the applicable
+migration wave, and is `W0_COMPLETE`. W1 is `W1_COMPLETE`; W2–W7 remain
+`NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
 
@@ -61,7 +61,8 @@ verification completed successfully.
 
 ```text
 W0_COMPLETE
-W1–W7_NOT_AUTHORIZED
+W1_COMPLETE
+W2–W7_NOT_AUTHORIZED
 ```
 
 W0 completion does not authorize W1 or any later migration wave. The subsequent
@@ -69,11 +70,12 @@ documentation-only W1 readiness review is recorded in
 `docs/mjl-w1-readiness-review.md`. The user resolved its scope blocker through
 DEC-061: Partner and Project empty-action list GETs form one shared W1 slice;
 Operation Type and all detail/create/edit/lifecycle/recovery/POST paths are
-excluded. The focused re-review verdict is `W1_READY_FOR_AUTHORIZATION`.
+excluded. The focused re-review verdict was `W1_READY_FOR_AUTHORIZATION`.
+The user subsequently authorized that exact slice, and DEC-062 records its
+verified implementation and completion.
 
 ```text
-W1_READY_FOR_AUTHORIZATION
-W1: NOT_AUTHORIZED
+W1_COMPLETE
 W2–W7: NOT_AUTHORIZED
 ```
 

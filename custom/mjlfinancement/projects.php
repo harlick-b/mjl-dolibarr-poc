@@ -1,8 +1,13 @@
 <?php
 
 require '../../main.inc.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_reference_route.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/reference/mjl_reference_http.lib.php';
 
-mjl_reference_require_read($user);
-mjl_reference_route('project');
+$request = array(
+	'method' => strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')),
+	'action' => (string) GETPOST('action', 'alphanohtml'),
+	'query_has_id' => array_key_exists('id', $_GET),
+	'post_has_id' => array_key_exists('id', $_POST),
+);
+mjl_reference_http_handle('project', $user, $request);
 $db->close();

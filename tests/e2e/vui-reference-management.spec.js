@@ -33,6 +33,22 @@ test.beforeAll(() => {
 			operationTypes: [],
 		},
 	});
+	createUserReferenceFixtureSet({
+		namespace: 'vui10.references.e2',
+		entity: 2,
+		users: [
+			{ key: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+		],
+		references: {
+			partners: [
+				{ key: 'partner-cross', label: 'Partenaire VUI10 autre entité' },
+			],
+			projects: [
+				{ key: 'project-cross', label: 'Projet VUI10 autre entité', partnerKey: 'partner-cross' },
+			],
+			operationTypes: [],
+		},
+	});
 });
 
 async function expectAuthenticatedListDenied(page, route, kind, protectedLabel) {
@@ -65,6 +81,7 @@ test('shared Partner and Project lists expose current facts and role-aware actio
 	await expect(partnerList.getByRole('columnheader', { name: 'Actions' })).toBeVisible();
 	const partnerRow = partnerList.locator('[data-reference-row]').filter({ hasText: 'Partenaire VUI10 principal' });
 	await expect(partnerRow.locator('.mjl-status-pill')).toHaveText('Actif');
+	await expect(partnerList).not.toContainText('Partenaire VUI10 autre entité');
 	await partnerRow.locator('summary[aria-label^="Actions pour Partenaire VUI10 principal"]').click();
 	await expect(partnerRow.getByRole('menuitem', { name: 'Consulter' })).toBeVisible();
 	await expect(partnerRow.getByRole('menuitem', { name: 'Modifier' })).toBeVisible();
@@ -76,6 +93,7 @@ test('shared Partner and Project lists expose current facts and role-aware actio
 	const projectRow = projectList.locator('[data-reference-row]').filter({ hasText: 'Projet VUI10 principal' });
 	await expect(projectRow).toContainText('Partenaire VUI10 principal');
 	await expect(projectRow.locator('.mjl-status-pill')).toHaveText('Actif');
+	await expect(projectList).not.toContainText('Projet VUI10 autre entité');
 	await page.screenshot({ path: testInfo.outputPath('projects-validator-desktop.png'), fullPage: true });
 
 	await signIn(page, 'agent');

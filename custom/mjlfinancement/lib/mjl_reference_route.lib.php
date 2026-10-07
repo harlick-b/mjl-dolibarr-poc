@@ -36,7 +36,10 @@ function mjl_reference_route($kind)
 	print '<div class="mjl-workspace">';
 	if ($action === 'create' || $action === 'edit') mjl_reference_render_form($kind, $config, $row, $action, $recovery);
 	elseif ($id > 0) mjl_reference_render_detail($kind, $config, $row);
-	else mjl_reference_render_list($kind, $config);
+	else {
+		if ($kind !== 'operation_type') mjl_reference_forbidden();
+		mjl_reference_render_operation_type_list($config);
+	}
 	print '</div>';
 	mjl_navigation_shell_end();
 	llxFooter();
@@ -97,17 +100,13 @@ function mjl_reference_redirect($config, $id = 0, $action = '', $handle = '')
 	exit;
 }
 
-function mjl_reference_render_list($kind, $config)
+function mjl_reference_render_operation_type_list($config)
 {
 	global $user;
 	$options = array('description' => 'Gérer les références métier de l’espace MJL.');
 	if (mjl_reference_can_manage($user)) $options['primary_action'] = array('label' => 'Créer un '.$config['singular'], 'href' => DOL_URL_ROOT.'/custom/mjlfinancement/'.$config['route'].'.php?action=create');
 	print mjl_page_header_render($config['title'], $options);
-	$rows = mjl_reference_list($kind);
-	if (in_array($kind, array('partner', 'project'), true)) {
-		print mjl_reference_ui_list($kind, $config, $rows, mjl_reference_can_manage($user));
-		return;
-	}
+	$rows = mjl_reference_list('operation_type');
 	print '<section class="mjl-workspace-section">';
 	if (!$rows) print mjl_ui_system_state('initial-empty', 'Aucune référence', 'Aucun élément n’est encore enregistré.');
 	else {

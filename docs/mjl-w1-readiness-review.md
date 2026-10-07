@@ -19,6 +19,10 @@ authoritative focused amendment layered over the unchanged frozen baseline.
 The analysis below consolidates the requested readiness evidence for the
 now-exact Partner/Project boundary.
 
+Post-review state: the user later authorized this exact slice, and DEC-062
+records its verified implementation as `W1_COMPLETE`. The readiness verdict
+below remains the pre-implementation gate that supported that authorization.
+
 ## 2. Verified authority and W0 baseline
 
 | Authority | Verified result |
@@ -289,18 +293,19 @@ focused amendment recorded as DEC-061. This amendment changes only W1's root
 cardinality and exact selected surface. It does not change target owners,
 dependency direction, preservation semantics, wave order, or the exclusions
 above. No Engineering Standard amendment and no further architecture amendment
-are required. W1 implementation remains separately authorization-gated.
+are required. At this review point W1 implementation remained separately
+authorization-gated; DEC-062 records its later authorization and completion.
 
-## 13. Final readiness state
+## 13. Final readiness verdict and subsequent state
 
 ```text
 W0_COMPLETE
 W1_READY_FOR_AUTHORIZATION
-W1: NOT_AUTHORIZED
+SUBSEQUENT_STATE: W1_COMPLETE (DEC-062)
 W2–W7: NOT_AUTHORIZED
 ```
 
 Pre-authorization blockers: **0**. Non-blocking W1 risks: **6**.
 
-The next possible action is a separate explicit W1 implementation
-authorization. This readiness verdict does not begin W1.
+The readiness verdict itself did not begin W1. The later explicit authorization
+and completed implementation are recorded by DEC-062; W2 remains unauthorized.
