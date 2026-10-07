@@ -170,7 +170,9 @@ The architecture is frozen. W0 and W1–W7 remain unauthorized.
 Server-side export read handling, runner discovery/deadline behavior,
 historical runner provisioning, auth-schema exactness, cron failure semantics,
 and stale design assertions remain bounded findings in the proposal and gap
-analysis. The Engineering Standard is frozen, but this does not authorize its
-implementation. The next phase is a separately requested W0 readiness review,
-not W0 implementation. See [closure-evidence.md](closure-evidence.md) for the
-exact architecture-closure delta and final-count report.
+analysis. The Engineering Standard is frozen, and the separately requested W0
+readiness review is complete with verdict `W0_READY_FOR_AUTHORIZATION`; neither
+state authorizes implementation. W0 remains `NOT_AUTHORIZED`. The next possible
+step is a separate explicit W0 implementation authorization, not W0 or W1
+execution. See [closure-evidence.md](closure-evidence.md) for the exact
+architecture-closure delta and final-count report.

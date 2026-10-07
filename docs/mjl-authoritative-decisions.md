@@ -51,6 +51,16 @@ and each remains `NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
 
+## W0 readiness gate
+
+The documentation-only W0 readiness review is recorded in
+`docs/mjl-w0-readiness-review.md` with verdict
+`W0_READY_FOR_AUTHORIZATION`.
+
+Readiness is not authorization. W0 remains `NOT_AUTHORIZED`, and W1–W7 each
+remain `NOT_AUTHORIZED`. Only a later explicit W0 implementation authorization
+may begin the bounded prerequisite.
+
 Completed plans and reports are recoverable from Git history and are not active
 guidance. `docs/mjl-current-app-functional-map.md` records current-state
 evidence only. Unresolved weaknesses and unapproved recommendations belong in
