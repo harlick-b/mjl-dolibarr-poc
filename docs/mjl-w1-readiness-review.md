@@ -3,19 +3,21 @@
 ## 1. Executive verdict
 
 ```text
-W1_NOT_READY
+W1_READY_FOR_AUTHORIZATION
 ```
 
-W1 is not ready for implementation authorization because the frozen contract
-requires one reference root adapter but does not identify which of the three
-current roots is the pilot. W0 characterized Partner and Project behavior but
-did not make that selection, and no other current authority does so.
+The user resolved W1-BLK-001 by approving Partner and Project list GETs as one
+shared W1 presentation slice. Operation Type and every detail, create, edit,
+lifecycle, recovery, and POST path remain outside W1. This focused architecture
+amendment is recorded as DEC-061 and supersedes only document 17's literal
+“one root adapter” wording for W1.
 
-This review is documentation-only. It does not authorize W1, change the frozen
-architecture or Engineering Standard, or modify runtime, tests, schema,
-tooling, dependencies, or CI. The analysis below consolidates the requested
-readiness evidence; route-dependent details remain explicitly conditional on
-resolution of W1-BLK-001.
+This review is documentation-only. It does not authorize W1, edit the frozen
+architecture baseline file or its hash, amend the Engineering Standard, or
+modify runtime, tests, schema, tooling, dependencies, or CI. DEC-061 is the
+authoritative focused amendment layered over the unchanged frozen baseline.
+The analysis below consolidates the requested readiness evidence for the
+now-exact Partner/Project boundary.
 
 ## 2. Verified authority and W0 baseline
 
@@ -27,20 +29,21 @@ resolution of W1-BLK-001.
 | W0 baseline | commit `bccf5a708aec25f98499bed6b7da3f607c0541d5`; `W0_COMPLETE` |
 | Preservation ledger | 35/35 identifiers present |
 | Review baseline | branch `main`; clean worktree before documentation edits |
-| Authorization | W1 and W2–W7 remain `NOT_AUTHORIZED` |
+| Focused W1 amendment | DEC-061: Partner + Project empty-action list GETs form one shared slice; all other reference paths excluded. |
+| Authorization | W1 is ready for later authorization but remains `NOT_AUTHORIZED`; W2–W7 remain `NOT_AUTHORIZED`. |
 
 W0 supplies the required Partner/Project allowed and direct-denial
 characterization, stable VUI-10 discovery, BC-020 sticky timeout behavior, the
 two PHP contracts, and disposable integrity/teardown evidence. No W0
 implementation file is changed by this review.
 
-## 3. Exact frozen W1 contract
+## 3. Exact W1 contract after DEC-061
 
-| Contract element | Frozen result |
+| Contract element | Authoritative result |
 | --- | --- |
 | Purpose | Prove the target request path with one reference-list GET extraction and no core-write change. |
-| Scope | Separate handler, prepared view data, and template for one reference-list GET while keeping root URL and output contract. |
-| Affected | One root adapter, shared route/list-render responsibility, presentation helpers, and the existing shell/form-effect dependencies used by that request. |
+| Scope | Separate handler, prepared view data, and template for the Partner and Project empty-action list GETs while keeping both root URLs and output contracts. |
+| Affected | `partners.php` and `projects.php`, their shared route/list-render responsibility, presentation helpers, and existing shell/form-effect dependencies used by those requests. |
 | Target path | Root adapter -> handler -> unchanged policy/read -> prepared data -> pure presenter/template. |
 | Allowed | Responsibility movement, equivalent markup, temporary dual DOM hooks inside the bounded wave. |
 | Forbidden | Query, role, filter, URL, label, workflow, command, schema, or functional redesign. |
@@ -50,27 +53,27 @@ implementation file is changed by this review.
 | Exit | Identical authorized/forbidden outcomes and usable rendering; selected old list-render path removed rather than retained in parallel. |
 | W2 dependency | The handler/prepared-data/pure-template pattern is accepted before the Activity extraction. |
 
-The named “reference-list GET surface” fixes the responsibility boundary: W1
-is the selected root's empty-action list GET only. Detail, create/edit,
-recovery for form actions, and POST dispatch remain delegated unchanged to the
-legacy route during W1. The unresolved question is which singular root receives
-that cutover.
+The amended boundary is exact: W1 contains the Partner and Project empty-action
+list GETs together because they share one presentation branch and W0 evidence.
+Operation Type and every detail, create/edit, lifecycle, recovery, and POST
+path remain delegated unchanged to the legacy route.
 
 ## 4. Current-to-target responsibility and traceability
 
 | Current file/symbol | Current responsibility | Target owner/action | Preservation | Protection |
 | --- | --- | --- | --- | --- |
-| selected one of `partners.php`, `projects.php`, `operationtypes.php` | bootstrap, direct read guard, shared route call, DB close | keep stable URL/bootstrap/close, capture context, and call one handler; remove the root-owned `mjl_reference_require_read()` call at atomic cutover | RT-001/002, SEC-AUTHZ-001/004 | direct denial and list outcome in selected disposable gate |
-| `mjl_reference_route()` empty-action GET branch | method/action validation, selection of list path, shell ownership | new handler invokes `mjl_reference_require_read()` before both its list path and any delegation to unchanged legacy paths; move only selected list dispatch to `lib/reference/mjl_reference_http.lib.php` | RT-002/003 | focused dispatch/denial characterization plus VUI-10 |
+| `partners.php` and `projects.php` | bootstrap, direct read guard, shared route call, DB close | keep stable URLs/bootstrap/close, capture context, and call one shared handler; remove both root-owned `mjl_reference_require_read()` calls at atomic cutover | RT-001/002, SEC-AUTHZ-001/004 | direct denial and list outcomes in VUI-10 |
+| `mjl_reference_route()` Partner/Project empty-action GET branch | method/action validation, list-path selection, shell ownership | new handler invokes `mjl_reference_require_read()` before its list path or delegation; move only Partner/Project list dispatch to `lib/reference/mjl_reference_http.lib.php` | RT-002/003 | focused dispatch/denial characterization plus VUI-10 |
 | `mjl_reference_render_list()` | management eligibility, page-header options, list read, render invocation | handler prepares explicit eligibility/header/list data; remove the selected old list-render branch at cutover | RT-002/014, SEC-AUTHZ-004, DB-001 | prepared-data contract plus VUI-10 |
-| `mjl_reference_ui_list()` selected-kind path | escaped Partner/Project table, empty state, actions, DOM/ARIA hooks | pure presentation helper and `tpl/reference/*`; no DB/session/request/policy access | frontend contract, RT-014 | focused presentation contract plus VUI-10 |
+| `mjl_reference_ui_list()` Partner/Project paths | escaped tables, empty state, actions, DOM/ARIA hooks | pure shared presentation helper and `tpl/reference/*`; no DB/session/request/policy access | frontend contract, RT-014 | focused presentation contract plus VUI-10 |
 | `mjl_reference_config()`, `mjl_reference_can_manage()`, `mjl_reference_list()` | fixed vocabulary, eligibility, entity-scoped read SQL | retained behavior; called through the selected handler/read seam, with no query redesign | SEC-AUTHZ-001/004, DB-001, RT-014 | source review, cross-entity characterization, VUI-10 |
 | `mjl_navigation_shell_start/end()` and feedback helpers | combined shell policy/readiness, session-backed feedback drain, and direct shell HTML output | `POSSIBLE_WITH_JUSTIFICATION`: introduce the smallest prepared-shell/feedback seam the handler can invoke before pure rendering, with legacy wrappers delegating to it; do not redesign navigation | RT-003 | characterize drain/order and identical shell output before changing ownership |
 
 Audit finding D-01/D-13 maps the mixed shared route to the handler and
-presentation targets above. No responsibility is orphaned after the root is
-selected: non-list requests remain on the existing route; the selected list
-has one new authoritative path; reference writes remain W3.
+presentation targets above. No responsibility is orphaned after the amended
+slice is implemented: non-list requests and Operation Type remain on the existing route;
+the Partner/Project list slice has one new authoritative path; reference writes
+remain W3.
 
 Likely new/populated targets are
 `lib/reference/mjl_reference_http.lib.php`, a narrowly named prepared-data or
@@ -84,10 +87,10 @@ not redesign targets.
 
 | Candidate | Classification |
 | --- | --- |
-| One explicitly selected root's empty-action list GET | `REQUIRED_FOR_W1` after W1-BLK-001 resolution |
+| Partner and Project empty-action list GETs as one shared slice | `REQUIRED_FOR_W1` |
 | Handler, prepared view data, pure selected list template, atomic cutover, old selected list-path removal | `REQUIRED_FOR_W1` |
 | Smallest selected-surface characterization, prepared shell/feedback seam, and stale source-location assertion update | `ALLOWED_IF_NECESSARY` |
-| Other reference roots and all detail/create/edit/POST paths | `PROTECTED` / `NOT_W1` |
+| Operation Type and all detail/create/edit/lifecycle/recovery/POST paths | `PROTECTED` / `NOT_W1` |
 | Reference create/update/lifecycle commands, transactions, locks and audit | `DEFER_TO_W3` / `PROHIBITED_IN_W1` |
 | Activity, auth, monitoring/dashboard, reporting/export, lifecycle, cron, hooks and document work | `DEFER_TO_LATER_WAVE` |
 | Query/filter/role/URL/label/markup behavior redesign, schema, dependencies, CI, general cleanup | `PROHIBITED_IN_W1` |
@@ -96,8 +99,8 @@ not redesign targets.
 Authentication/session semantics, effective-role meanings, active-entity
 isolation, native Admin behavior, frontend producer/consumer contracts, W0
 runner semantics, and all business workflows remain functionally unchanged.
-Authorization invocation moves from the selected root into its one handler at
-cutover. The handler must guard both the new list path and delegated legacy
+Authorization invocation moves from both selected roots into their shared
+handler at cutover. The handler must guard both new list paths and delegated legacy
 paths before query, mutation dispatch, or rendering; semantics do not change.
 
 ## 6. Preservation impact — all 35 requirements
@@ -116,7 +119,7 @@ because W1 moves no write owner.
 
 | ID | Current enforcement | Target/migration step | Verification | Rollback concern |
 | --- | --- | --- | --- | --- |
-| RT-001 | selected root loads `main.inc.php`, calls route, closes DB | root keeps bootstrap/close and makes one handler handoff | syntax plus selected route/VUI-10 | revert root and handler as one unit |
+| RT-001 | Partner/Project roots load `main.inc.php`, call route, close DB | both roots keep bootstrap/close and make one shared handler handoff | syntax plus both routes in VUI-10 | revert roots and handler as one unit |
 | RT-002 | root guard plus shared method/action/direct checks | handler owns `mjl_reference_require_read()` and selected dispatch before all delegated/new paths | direct no-role/Admin/anonymous denial and data absence | restore root guard and legacy call together |
 | RT-003 | shared route owns method/action, adjacent tokens/recovery; shell helpers drain feedback | non-list token/recovery paths stay unchanged; any prepared shell/feedback seam completes effects before template | PHP form contract plus focused effect/order proof if helper changes | compatibility wrapper and handler revert together |
 | RT-010 | not invoked by current reference list | introduce no monitoring read dependency | source/dependency review | none beyond source revert |
@@ -132,7 +135,7 @@ because W1 moves no write owner.
 | Area | Readiness result |
 | --- | --- |
 | Authorization | Semantics understood: active same-entity Agent/Supervisor/Validator read; Validator alone receives management eligibility; native Admin/no-role denied. Ownership relocation only. |
-| Database | Read-only impact. Selected table depends on the unresolved root: native `llx_societe`, native `llx_projet` with same-entity Partner join, or custom `llx_mjlfinancement_operation_type`. No write, DDL, snapshot or transaction. |
+| Database | Read-only impact on native `llx_societe` and `llx_projet` with the same-entity Partner join. Operation Type is excluded. No write, DDL, snapshot or transaction. |
 | Transaction | Not applicable to the list GET. Reference begin/commit/rollback/quarantine behavior is untouched. |
 | Globals/input | Root captures Dolibarr `$db`, `$user`, active entity and request context for the handler. Handler owns method/action normalization. Existing retained reads may keep their characterized Dolibarr globals; no new hidden global is introduced. |
 | Session | No template access. If W1 changes shell ownership, the smallest prepared-shell/feedback seam drains session feedback and computes shell values before pure rendering; existing wrappers preserve other callers. |
@@ -143,13 +146,13 @@ Known Partner/Project producer/consumer hooks include
 `[data-mjl-reference-list]`, `[data-reference-row]`,
 `.mjl-reference-table`, `.mjl-row-interactive`, `.mjl-table-link`, and the
 action-menu hooks consumed by `mjl_components.js`, application CSS, VUI-10 and
-design-system source assertions. Every producer/consumer for the selected root
+design-system source assertions. Every producer/consumer for the Partner/Project slice
 must move in one unit; temporary dual hooks must be gone at exit.
 
 Dependency direction is valid and has no identified cycle:
 
 ```text
-selected root adapter
+Partner/Project root adapters
   -> reference HTTP handler
      -> retained policy/read seam
      -> prepared reference view data
@@ -158,18 +161,18 @@ selected root adapter
 
 ## 8. Coexistence, cutover, rollback and recovery
 
-The model is `COEXISTENCE_WITH_CONSTRAINTS` until the selected root is cut
-over. Only the selected root's empty-action GET may use the new handler;
+The model is `COEXISTENCE_WITH_CONSTRAINTS` until both selected roots are cut
+over. Only Partner/Project empty-action GETs may use the new handler;
 non-list requests continue through the legacy route after the handler performs
 the same read guard. There must be no double execution: the root calls one
 handler, its dispatch chooses one path, and only the new path renders the
 selected list after cutover.
 
-Cutover is an atomic source change for the selected root/list branch. The
-superseded selected branch in `mjl_reference_render_list()` and selected
-presentation path must be removed in the same bounded unit, while paths still
-used by other roots remain. Rollback is `SOURCE_REVERT_SAFE`: switch the root
-dispatch back and restore the removed branch in the same revert. No data/schema
+Cutover is an atomic source change for both roots and their shared list branch.
+The superseded Partner/Project branch in `mjl_reference_render_list()` and
+presentation path must be removed in the same bounded unit, while the Operation
+Type path remains. Rollback is `SOURCE_REVERT_SAFE`: switch both root dispatches
+back and restore the removed branch in the same revert. No data/schema
 state changes, so no DB restore or special forward-recovery machinery is
 needed. A normal forward fix is credible if a post-merge presentation defect
 is found.
@@ -178,7 +181,7 @@ is found.
 
 | Check/evidence | W1 role | When/blocking |
 | --- | --- | --- |
-| Partner/Project direct denial and allowed list behavior | hard prerequisite for those candidate roots | W0 satisfied; must remain green after cutover |
+| Partner/Project direct denial and allowed list behavior | hard prerequisite for the amended shared slice | W0 satisfied; must remain green after cutover |
 | BC-020 sticky timeout and explicit VUI-10 discovery | reliable test-environment prerequisite | W0 satisfied; protect runner, do not modify it |
 | `php tests/contracts/table_presentation_test.php` | shared table/output contract | pre/post implementation; blocking |
 | `php tests/contracts/project_form_security_test.php` | adjacent form/token regression | pre/post implementation; blocking where shared route changes |
@@ -189,9 +192,8 @@ is found.
 | fresh server-log inspection after route run | route failure evidence | post-cutover; blocking for unexplained errors |
 | `git diff --check` and status/diff review | bounded diff/docs | before commit; blocking |
 
-If Operation Type is selected, VUI-10 does not currently characterize that
-list, so the smallest disposable Operation Type list/denial proof must precede
-movement and the final gate must explicitly discover it.
+Operation Type is excluded from W1, so its missing VUI-10 characterization does
+not block this wave and must not be added as W1 work.
 
 BC-005 and BC-006 aggregate-runner debt are `DEFERRED_BEYOND_W1`; exact VUI-10
 discovery separately satisfies this selected gate. BC-007 is
@@ -210,7 +212,7 @@ for this documentation-only review.
 Target successful request after selection:
 
 ```text
-selected stable root GET with empty action
+Partner or Project stable root GET with empty action
 -> Dolibarr bootstrap/login
 -> reference handler method/action normalization
 -> direct read authorization
@@ -223,7 +225,7 @@ selected stable root GET with empty action
 Representative denial path:
 
 ```text
-native Admin or authenticated no-role selected-root GET
+native Admin or authenticated no-role Partner/Project GET
 -> Dolibarr bootstrap
 -> reference handler direct policy
 -> HTTP 403 before list query/template
@@ -239,9 +241,9 @@ error distinction it did not receive, and no new log may expose secrets.
 
 ## 11. Entry, exit, W2 dependency and conditional implementation skeleton
 
-Entry is incomplete only because the root is unselected. After resolution it
-requires matching frozen hashes, W0 complete, 35/35 present, clean/known diff,
-one named root, the mapping above specialized to that root, and no new blocker.
+Entry is satisfied for later authorization: frozen hashes match, W0 is complete,
+35/35 identifiers remain, the Partner/Project shared slice and exclusions are
+explicit, the mapping is complete, and no blocker remains.
 
 W1 exit requires one authoritative selected list path, old selected render
 ownership removed, all other reference paths unchanged, authorization/entity/
@@ -253,25 +255,25 @@ W2 depends only on W1 proving the stable adapter -> handler -> prepared data ->
 pure template pattern and its behavior-preserving cutover. W1 must not create
 Activity abstractions or move Activity code.
 
-Conditional steps after the root decision:
+Proposed implementation steps after explicit W1 authorization:
 
-1. specialize this mapping and add only missing selected-root characterization;
+1. add only the missing Partner/Project cross-entity characterization;
 2. add the reference handler/prepared-data/template owners without changing
    the authoritative path;
-3. cut the selected empty-action GET atomically to the new handler;
-4. remove the superseded selected list renderer/path while keeping other roots
+3. cut both Partner and Project empty-action GETs atomically to the new handler;
+4. remove the superseded Partner/Project list branch while keeping other roots
    and non-list requests intact;
 5. run the focused command set, independently review the bounded diff, reconcile
    status, and stop before W2.
 
-Expected budget is one root edit, the two current shared reference libraries
+Expected budget is two root edits, the two current shared reference libraries
 as needed, a small `lib/reference/` and `tpl/reference/` target set, focused
 tests, and concise status docs. Dramatic growth, shared query redesign, or
 write-path edits trigger a scope stop. Bounded characterization, additive
 owners, atomic cutover/removal, and status may be separate coherent commits;
 no arbitrary commit count is imposed.
 
-## 12. Risks, blocker and amendment check
+## 12. Risks, blocker and amendment outcome
 
 | ID | Risk | Likelihood / impact | Mitigation | Blocks now? |
 | --- | --- | --- | --- | --- |
@@ -282,53 +284,23 @@ no arbitrary commit count is imposed.
 | W1-RSK-005 | Source-location test preserves obsolete file placement. | High / Low | update/remove only stale location assertion; retain behavior proof | No |
 | W1-RSK-006 | Scope expands into writes, W2 or deferred debt. | Medium / High | file/symbol boundary and lean checkpoint | No |
 
-### W1-BLK-001
-
-**Area:** Wave target selection.
-
-**Evidence:** Frozen W1 says “reference-list GET surface” and “one root
-adapter.” Current source has three independent roots calling the same
-parameterized route. W0 characterized Partner and Project but selected neither,
-and did not characterize Operation Type through VUI-10.
-
-**Problem:** The review cannot identify the exact root without inventing a
-migration-wave scope choice.
-
-**Why it blocks W1:** The choice changes the entrypoint, table/query branch,
-template shape, preservation proof, missing characterization, file budget and
-atomic cutover unit.
-
-**Required resolution:** The user must explicitly select Partner, Project, or
-Operation Type as the singular W1 pilot, then request a focused readiness
-re-review. A grouped multi-root wave requires architecture review because it
-exceeds the literal one-root contract.
-
-Architecture amendment required: **NO** for selecting one root within the
-existing contract.
-
-Engineering Standard amendment required: **NO**.
-
-Runtime change required before authorization: **NO**.
-
-Test/characterization required before authorization: **NO**; any selected-root
-gap is the first test-first step of the later authorized wave, before movement.
-
-Re-review required: **YES**.
-
-The target architecture and Engineering Standard require no amendment for the
-bounded one-root/list-only interpretation. Selecting multiple roots or a wider
-HTTP/write unit would require architecture review before authorization.
+W1-BLK-001 is resolved by the user's explicit Partner+Project selection and the
+focused amendment recorded as DEC-061. This amendment changes only W1's root
+cardinality and exact selected surface. It does not change target owners,
+dependency direction, preservation semantics, wave order, or the exclusions
+above. No Engineering Standard amendment and no further architecture amendment
+are required. W1 implementation remains separately authorization-gated.
 
 ## 13. Final readiness state
 
 ```text
 W0_COMPLETE
-W1_NOT_READY
+W1_READY_FOR_AUTHORIZATION
 W1: NOT_AUTHORIZED
 W2–W7: NOT_AUTHORIZED
 ```
 
-Pre-authorization blockers: **1**. Non-blocking W1 risks: **6**.
+Pre-authorization blockers: **0**. Non-blocking W1 risks: **6**.
 
-The next action is an explicit selection of the one W1 reference root followed
-by a focused readiness re-review. It is not W1 implementation.
+The next possible action is a separate explicit W1 implementation
+authorization. This readiness verdict does not begin W1.

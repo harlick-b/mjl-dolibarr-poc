@@ -66,13 +66,13 @@ W1–W7_NOT_AUTHORIZED
 
 W0 completion does not authorize W1 or any later migration wave. The subsequent
 documentation-only W1 readiness review is recorded in
-`docs/mjl-w1-readiness-review.md` with verdict `W1_NOT_READY`. Before W1 can be
-re-reviewed, the user must select the single reference root for the frozen
-bounded list-GET cutover; no runtime or test change is authorized by that
-review.
+`docs/mjl-w1-readiness-review.md`. The user resolved its scope blocker through
+DEC-061: Partner and Project empty-action list GETs form one shared W1 slice;
+Operation Type and all detail/create/edit/lifecycle/recovery/POST paths are
+excluded. The focused re-review verdict is `W1_READY_FOR_AUTHORIZATION`.
 
 ```text
-W1_NOT_READY
+W1_READY_FOR_AUTHORIZATION
 W1: NOT_AUTHORIZED
 W2–W7: NOT_AUTHORIZED
 ```
