@@ -19,7 +19,12 @@ unresolved weaknesses and unapproved recommendations.
   one reference HTTP handler, which preserves direct authorization and
   entity-scoped reads, prepares list data, and renders through the dedicated
   reference template. Operation Types and all detail/create/edit/lifecycle/
-  recovery/POST paths remain on the prior route. W2–W7 remain unauthorized.
+  recovery/POST paths remain on the prior route. W2 is complete for the full
+  `activities.php` GET/POST surface and its Activity-specific monitoring list,
+  read, and render branch: the root has one HTTP-handler handoff, reads and
+  audit chronology have explicit owners, prepared views render through Activity
+  templates, and the superseded Activity route/render owners are removed. W3–W7
+  remain unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

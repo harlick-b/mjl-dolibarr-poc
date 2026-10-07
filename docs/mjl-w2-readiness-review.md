@@ -5,15 +5,15 @@
 ```text
 W0_COMPLETE
 W1_COMPLETE
-W2_READY_FOR_AUTHORIZATION
-W2: NOT_AUTHORIZED
+W2_COMPLETE
 W3–W7: NOT_AUTHORIZED
 ```
 
-W2 is ready for a later, explicit implementation authorization. This review is
-documentation-only: it changes no PHP, JavaScript, CSS, template, test, schema,
-tenant, or runtime behavior. Readiness does not authorize W2 and does not imply
-feature acceptance or production readiness.
+This document remains the W2 pre-authorization evidence and traceability
+ledger. The user subsequently authorized its exact bounded slice, and every
+constrained characterization, cutover gate, disposable Phase 2 check, and final
+independent review passed. Completion does not imply feature acceptance or
+production readiness and authorizes no W3 work.
 
 ## Review basis and confidence
 
@@ -27,11 +27,11 @@ feature acceptance or production readiness.
 | Preservation baseline | all 35 identifiers remain present; W2 maps the 15 identifiers named below |
 | Current-state sources | Activity root, route/form/access libraries, Activity and monitoring classes, monitoring route, browser module, focused suites, current UI audits |
 
-Confidence is **high** for authorization readiness. The route, owner, security,
-data, session-effect, presentation, frontend, verification and rollback seams
-are identifiable at the post-W1 baseline. The remaining missing proof is
-bounded and is explicitly required as characterization before movement inside
-an authorized W2; it does not require a product or architecture decision.
+Confidence was **high** for authorization readiness. The route, owner,
+security, data, session-effect, presentation, frontend, verification and
+rollback seams were identifiable at the post-W1 baseline. The bounded proof
+identified here was added before the corresponding responsibilities moved and
+passed again after cutover; no product or architecture amendment was needed.
 
 ## Exact W2 boundary
 
@@ -330,7 +330,7 @@ Coverage reconciliation is **COMPLETE**.
 | DB-004 | NOT_TOUCHED | activation/lifecycle unchanged |
 | LIFE-001 | NOT_TOUCHED | clean bootstrap unchanged |
 | LIFE-002 | NOT_TOUCHED | no review-time tenant; later E2E retains disposable runner/teardown |
-| LIFE-003 | NOT_TOUCHED | detector implementation unchanged; RT-011 route selection only preserved |
+| LIFE-003 | NOT_TOUCHED | shared lifecycle/readiness behavior unchanged; T08A exposes the same finite probe for G04 characterization only |
 | LIFE-004 | NOT_TOUCHED | unsupported module bootstrap excluded |
 
 All directly affected/at-risk items have target enforcement and a concrete
@@ -667,7 +667,7 @@ bounded substep applied again after correcting its source/test defect.
 
 Pre-authorization blockers: **0**. Non-blocking bounded risks: **7**.
 
-## Final readiness state
+## Final implementation state
 
 The frozen W2 scope, affected routes/actions, current and target owners,
 preservation IDs, security and data boundaries, session effects, frontend
@@ -676,6 +676,6 @@ criteria are explicit. No architecture or Engineering Standard amendment is
 needed.
 
 ```text
-W2_READY_FOR_AUTHORIZATION
-W2: NOT_AUTHORIZED
+W2_COMPLETE
+W3–W7: NOT_AUTHORIZED
 ```

@@ -8,6 +8,14 @@ function mjl_monitoring_readiness()
 	global $db;
 	static $state = null;
 	if ($state !== null) return $state;
+	$state=mjl_monitoring_readiness_probe($db);
+	return $state;
+}
+
+/** Finite readiness probe; injectable target assertion keeps the detector behavior testable. */
+function mjl_monitoring_readiness_probe($db, $requireTarget = null)
+{
+	if ($requireTarget === null) $requireTarget = function ($targetDb) { mjl_rst012_require_target($targetDb); };
 	$state=-1; $budget=null;
 	try {
 		$res=$db->query('SELECT @@session.max_statement_time AS statement_time');
@@ -17,7 +25,7 @@ function mjl_monitoring_readiness()
 		$res=$db->query("SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($db->prefix().'mjlfinancement_export_record')."'");
 		if (!$res || !($row=$db->fetch_object($res))) return $state;
 		if ((int)$row->n===0) $state=0;
-		else { mjl_rst012_require_target($db); $state=1; }
+		else { $requireTarget($db); $state=1; }
 	} catch (Throwable $exception) { $state=-1; }
 	finally { if ($budget!==null && !$db->query('SET SESSION max_statement_time='.$budget)) $state=-1; }
 	return $state;

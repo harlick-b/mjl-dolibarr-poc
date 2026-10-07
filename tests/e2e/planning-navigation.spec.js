@@ -10,8 +10,8 @@ let crossEntityFixture;
 async function login(page, login, loginPassword = login === 'admin' ? adminPassword : password) {
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(login);
-  await page.getByLabel('Mot de passe').fill(loginPassword);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+  await page.getByRole('textbox', { name: 'Mot de passe' }).fill(loginPassword);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
 }
 
 function command(actorId, expression) {
@@ -85,6 +85,7 @@ test('Planification navigation, operation list, and chronology are human-readabl
   await expect(page.getByRole('link', { name: 'Précédent' })).toBeVisible();
   await expect(page.locator('#mjl-primary-navigation').getByRole('link', { name: 'Activités' })).toBeVisible();
   await page.goto('/custom/mjlfinancement/activities.php?id=' + fixture.activities.draft.activity_id);
+  await page.getByRole('tab', { name: 'Historique', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Chronologie' })).toBeVisible();
   await expect(page.getByText('Activité créée')).toBeVisible();
   await expect(page.getByText('Structure mise à jour')).toBeVisible();
@@ -99,6 +100,7 @@ test('Planification navigation, operation list, and chronology are human-readabl
 
   const additional = await browser.newContext(); const additionalPage = await additional.newPage(); await login(additionalPage, fixture.users.additional.login);
   await additionalPage.goto('/custom/mjlfinancement/activities.php?id=' + fixture.activities.draft.activity_id);
+  await additionalPage.getByRole('tab', { name: 'Historique', exact: true }).click();
   await expect(additionalPage.getByText('Agent ajouté')).toBeVisible();
   const removedAssignment = assignmentCommand(fixture.users.validator.id, fixture.activities.draft.activity_id, edited.version, 'REMOVE_ADDITIONAL', fixture.users.additional.id);
   expect(removedAssignment.code).toBe('OK');

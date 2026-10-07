@@ -107,8 +107,8 @@ function oneOperationStructure(name, amount, dateStart = '2032-01-01') {
 async function login(page, loginName) {
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
-  await page.getByLabel('Mot de passe').fill(password);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+  await page.getByRole('textbox', { name: 'Mot de passe' }).fill(password);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
   await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 
@@ -173,10 +173,10 @@ test('guarded Activity UI is French-first, assignment-scoped, and uses one route
   await login(page, 'rst006a.primary.agent');
   await page.goto('/custom/mjlfinancement/activities.php');
   await expect(page.getByRole('heading', { name: 'Activités' })).toBeVisible();
-  await expect(page.getByText(createdReference)).toBeVisible();
+  await expect(page.locator('.mjl-activity-list-row small').filter({ hasText: createdReference }).first()).toBeVisible();
   await page.goto('/custom/mjlfinancement/activities.php?action=create');
   await expect(page.getByRole('group', { name: '1. Informations générales' })).toBeVisible();
-  await expect(page.getByRole('group', { name: '4. Vérification' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Vérification budgétaire' })).toBeVisible();
   await expect(page.locator('script[src*="activities.js"]')).toHaveCount(1);
   await context.close();
 });
@@ -399,12 +399,12 @@ for (const scenario of LIST_PAGE_CASES) test(scenario.name, async ({ browser }) 
   await login(page, 'rst006a.primary.supervisor');
   const query = new URLSearchParams({ q: scenario.query, ...(scenario.page > 1 ? { page: String(scenario.page) } : {}) });
   await page.goto(`/custom/mjlfinancement/activities.php?${query}`);
-  const activityLinks = page.getByRole('link', { name: /^ACT-\d+/ });
-  await expect(activityLinks).toHaveCount(scenario.count);
+  const activityRows = page.locator('.mjl-activity-list-row');
+  await expect(activityRows).toHaveCount(scenario.count);
   await expect(page.getByRole('link', { name: 'Précédent' })).toHaveCount(scenario.previous ? 1 : 0);
   await expect(page.getByRole('link', { name: 'Suivant' })).toHaveCount(scenario.next ? 1 : 0);
-  const references = await activityLinks.allTextContents();
-  expect(references).toEqual([...references].sort().reverse());
+  const activityIds = await activityRows.evaluateAll((rows) => rows.map((row) => Number(row.getAttribute('data-activity'))));
+  expect(activityIds).toEqual([...activityIds].sort((left, right) => right - left));
   await context.close();
 });
 
@@ -423,7 +423,7 @@ for (const scenario of LITERAL_SEARCH_CASES) test(scenario.name, async ({ browse
   const page = await context.newPage();
   await login(page, 'rst006a.primary.supervisor');
   await page.goto(`/custom/mjlfinancement/activities.php?q=${encodeURIComponent(scenario.query)}`);
-  await expect(page.getByRole('link', { name: /^ACT-\d+/ })).toHaveCount(1);
+  await expect(page.locator('.mjl-activity-list-row')).toHaveCount(1);
   await expect(page.getByText(scenario.label)).toBeVisible();
   await context.close();
 });
@@ -434,7 +434,7 @@ test('unrelated presentation parameters are ignored while filters remain effecti
   await login(page, 'rst006a.primary.supervisor');
   const response = await page.goto('/custom/mjlfinancement/activities.php?q=Pagination&mainmenu=project&leftmenu=ignored');
   expect(response.status()).toBe(200);
-  await expect(page.getByRole('link', { name: /^ACT-\d+/ })).toHaveCount(50);
+  await expect(page.locator('.mjl-activity-list-row')).toHaveCount(50);
   await context.close();
 });
 
@@ -479,8 +479,8 @@ test('no-role, inactive, unassigned, and Admin actors cannot cross Activity acce
     const page = await context.newPage();
     await page.goto('/index.php');
     await page.getByLabel('Identifiant').fill(loginName);
-    await page.getByLabel('Mot de passe').fill(loginName === 'admin' ? (process.env.DOLI_ADMIN_PASSWORD || 'Admin1234') : password);
-    await page.getByRole('button', { name: 'Connexion' }).click();
+    await page.getByRole('textbox', { name: 'Mot de passe' }).fill(loginName === 'admin' ? (process.env.DOLI_ADMIN_PASSWORD || 'Admin1234') : password);
+    await page.getByRole('button', { name: 'Se connecter' }).click();
     const response = await page.goto('/custom/mjlfinancement/activities.php');
     expect(response.status()).toBe(403);
     await context.close();
@@ -522,8 +522,8 @@ test('missing CSRF and replayed contextual submissions fail with exact mutation 
   await page.selectOption('[name="project_id"]', String(fixture.projects.project));
   await page.fill('[name="name"]', 'Preuve CSRF et rejeu');
   await page.fill('[name="description"]', 'Soumission contextuelle à usage unique');
-  await page.fill('[name="date_start"]', '2032-01-01');
-  await page.fill('[name="date_end"]', '2032-12-31');
+  await page.getByLabel('Date de début').fill('01/01/2032');
+  await page.getByLabel('Date de fin incluse').fill('31/12/2032');
   await page.fill('[name="authorized_amount"]', '1000');
   await page.fill('[name="operation_name[]"]', 'Opération contextuelle');
   await page.selectOption('[name="operation_type_id[]"]', String(fixture.operationTypes.type));

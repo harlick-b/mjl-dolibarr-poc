@@ -2,6 +2,22 @@
 
 if (!defined('MJL_ACTIVITY_RECOVERY_MAX_BYTES')) define('MJL_ACTIVITY_RECOVERY_MAX_BYTES', 65536);
 
+function mjl_activity_context($action, $id, $revision, $version, $user, $entity)
+{
+	return array('user_id'=>(int)$user->id,'entity'=>(int)$entity,'route'=>'activities','form'=>'activity','action'=>$action,'object_id'=>(int)$id,'revision_id'=>(int)$revision,'version'=>(int)$version);
+}
+
+/** Issue exactly the effects for forms selected by the handler. */
+function mjl_activity_prepare_form_effects(array $forms, $user, $entity)
+{
+	$effects=array();
+	foreach($forms as$key=>$form){
+		list($action,$id,$revision,$version)=$form;
+		$effects[$key]=array('csrf'=>newToken(),'submission'=>mjl_form_submission_issue(mjl_activity_context($action,$id,$revision,$version,$user,$entity)));
+	}
+	return $effects;
+}
+
 /** Activity-specific recovery adapter. It stores typed editable text only. */
 function mjl_activity_recovery_store(array $structure, $objectId, $view)
 {
