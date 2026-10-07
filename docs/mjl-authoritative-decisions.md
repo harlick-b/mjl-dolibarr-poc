@@ -46,7 +46,8 @@ does not authorize implementation.
 | `docs/architecture-audit/18-independent-architecture-review.md` | immutable historical review; `ARCHITECTURE_REVISION_REQUIRED` at that review point | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 
 The preservation ledger remains 35/35 mapped. W0 is a prerequisite, not a
-migration wave, and is `W0_COMPLETE`. W1 is `W1_COMPLETE`; W2–W7 remain
+migration wave, and is `W0_COMPLETE`. W1 is `W1_COMPLETE`. The documentation-
+only W2 review found W2 `READY_FOR_AUTHORIZATION`, but W2–W7 remain
 `NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
@@ -77,6 +78,19 @@ verified implementation and completion.
 ```text
 W1_COMPLETE
 W2–W7: NOT_AUTHORIZED
+```
+
+The post-W1 W2 readiness review is recorded in
+`docs/mjl-w2-readiness-review.md`. Its exact boundary is the complete
+`activities.php` GET and POST surface plus the Activity-specific monitoring
+list/read/render branch. Operation and request-queue handlers, command/query
+internals, dashboards, alerts and all later waves are excluded. The review
+verdict is `W2_READY_FOR_AUTHORIZATION`; it did not authorize implementation.
+
+```text
+W2_READY_FOR_AUTHORIZATION
+W2: NOT_AUTHORIZED
+W3–W7: NOT_AUTHORIZED
 ```
 
 Completed plans and reports are recoverable from Git history and are not active
