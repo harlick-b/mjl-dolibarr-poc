@@ -64,8 +64,18 @@ W0_COMPLETE
 W1–W7_NOT_AUTHORIZED
 ```
 
-W0 completion does not authorize W1 or any later migration wave. The next
-possible phase is a separately requested W1 readiness review.
+W0 completion does not authorize W1 or any later migration wave. The subsequent
+documentation-only W1 readiness review is recorded in
+`docs/mjl-w1-readiness-review.md` with verdict `W1_NOT_READY`. Before W1 can be
+re-reviewed, the user must select the single reference root for the frozen
+bounded list-GET cutover; no runtime or test change is authorized by that
+review.
+
+```text
+W1_NOT_READY
+W1: NOT_AUTHORIZED
+W2–W7: NOT_AUTHORIZED
+```
 
 Completed plans and reports are recoverable from Git history and are not active
 guidance. `docs/mjl-current-app-functional-map.md` records current-state

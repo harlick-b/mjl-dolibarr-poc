@@ -57,7 +57,7 @@ STANDARD_FROZEN
 | Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
 | Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Preservation requirements | 35/35 mapped |
-| Migration units | W0 prerequisite is `W0_COMPLETE`; seven migration waves W1–W7 remain `NOT_AUTHORIZED` |
+| Migration units | W0 prerequisite is `W0_COMPLETE`; W1 readiness is `W1_NOT_READY`; W1–W7 remain `NOT_AUTHORIZED` |
 | Investigation simulations | 6/6 reconciled |
 | Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
 | Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
@@ -73,7 +73,7 @@ is not embedded here because a commit cannot contain its own final hash.
 | Engineering Standard document | `docs/mjl-engineering-standard-v1.md` |
 | Engineering Standard SHA-256 | `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
 | Review history | `docs/mjl-engineering-standard-v1-review.md`; initial `STANDARD_REVISION_REQUIRED`, three corrected MEDIUM findings, then `STANDARD_APPROVED_FOR_FREEZE` |
-| Implementation state | W0 prerequisite is `W0_COMPLETE`; W1–W7 migration waves remain `NOT_AUTHORIZED` |
+| Implementation state | W0 prerequisite is `W0_COMPLETE`; W1 readiness is `W1_NOT_READY`; W1–W7 migration waves remain `NOT_AUTHORIZED` |
 
 ## Scope and evidence totals
 
@@ -171,7 +171,9 @@ Server-side export read handling, runner discovery/deadline behavior,
 historical runner provisioning, auth-schema exactness, cron failure semantics,
 and stale design assertions remain bounded findings in the proposal and gap
 analysis. The Engineering Standard is frozen, and the bounded W0 prerequisite
-is `W0_COMPLETE`. This does not authorize W1. The next possible phase is a
-separately requested W1 readiness review, not W1 implementation. See
+is `W0_COMPLETE`. The W1 readiness review returned `W1_NOT_READY` because the
+frozen wave does not select the single reference root. The next action is user
+scope clarification and a focused W1 readiness re-review, not W1
+implementation. See
 [closure-evidence.md](closure-evidence.md) for the exact architecture-closure
 delta and final-count report.
