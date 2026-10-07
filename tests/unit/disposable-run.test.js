@@ -91,6 +91,7 @@ test('maps each public command to explicit durable layers without phase-era targ
   assert.deepEqual(getSuitePlan('rst014a'), ['rst014a']);
   assert.deepEqual(getSuitePlan('manual-accessibility'), ['manual-accessibility']);
   assert.deepEqual(getSuitePlan('phase3c'), ['phase3c']);
+  assert.deepEqual(getSuitePlan('vui10'), ['vui10']);
   assert.deepEqual(getSuitePlan('vui11'), ['vui11']);
   assert.deepEqual(getSuitePlan('vui12'), ['vui12']);
   assert.deepEqual(getSuitePlan('vui13'), ['vui13']);
@@ -183,6 +184,30 @@ test('cancellable subprocess deadlines terminate and await the child', async () 
     /timed out/i,
   );
   assert.ok(Date.now() - started < 2500);
+});
+
+test('elapsed subprocess deadlines remain failures after a handled termination exits zero', async () => {
+  await assert.rejects(
+    runCommand(process.execPath, [
+      '-e',
+      "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000);",
+    ], { quiet: true, timeoutMs: 500 }),
+    (error) => {
+      assert.match(error.message, /timed out/i);
+      assert.equal(error.exitCode, 0);
+      return true;
+    },
+  );
+});
+
+test('subprocess exit status remains authoritative before the deadline', async () => {
+  await assert.doesNotReject(
+    runCommand(process.execPath, ['-e', 'process.exit(0);'], { quiet: true, timeoutMs: 3000 }),
+  );
+  await assert.rejects(
+    runCommand(process.execPath, ['-e', 'process.exit(7);'], { quiet: true, timeoutMs: 3000 }),
+    /exit 7/i,
+  );
 });
 
 test('every reachable outcome discards a secret-bearing artifact before reporting', () => {

@@ -228,7 +228,7 @@ function runCommand(command, args, options = {}) {
         if (stdout.length) process.stdout.write(sanitizeOutput(stdout.toString('utf8'), allSecretValues()));
         if (stderr.length) process.stderr.write(sanitizeOutput(stderr.toString('utf8'), allSecretValues()));
       }
-      if (code === 0 && !(options.rejectStderr && stderr.length)) {
+      if (!timedOut && code === 0 && !(options.rejectStderr && stderr.length)) {
         resolve(output);
         return;
       }

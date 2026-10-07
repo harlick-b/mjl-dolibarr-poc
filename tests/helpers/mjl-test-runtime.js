@@ -27,8 +27,8 @@ async function login(page, username, password = defaultPassword) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(username);
-  await page.getByLabel('Mot de passe').fill(password);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+  await page.getByLabel('Mot de passe', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
   await page.waitForLoadState('domcontentloaded');
 }
 

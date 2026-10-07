@@ -340,3 +340,19 @@ W1–W7: NOT_AUTHORIZED
 
 The next possible task is a separate explicit W0 implementation authorization.
 No implementation is authorized by this review.
+
+## 19. Implementation outcome
+
+The user subsequently authorized the exact bounded prerequisite described by
+this review. W0 added the direct Partner and Project list-GET characterization,
+made timeout state authoritative after late child exit 0, repaired only the
+login-selector drift blocking the selected gate, and passed the two PHP
+contracts, focused runner unit tests, and disposable VUI-10 gate with teardown.
+
+```text
+W0_COMPLETE
+W1–W7: NOT_AUTHORIZED
+```
+
+The next possible phase is a separate W1 readiness review, not W1
+implementation.

@@ -46,20 +46,26 @@ does not authorize implementation.
 | `docs/architecture-audit/18-independent-architecture-review.md` | immutable historical review; `ARCHITECTURE_REVISION_REQUIRED` at that review point | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 
 The preservation ledger remains 35/35 mapped. W0 is a prerequisite, not a
-migration wave, and remains `NOT_AUTHORIZED`. W1–W7 are seven migration waves
-and each remains `NOT_AUTHORIZED`. Any future work must consult the applicable
+migration wave, and is `W0_COMPLETE`. W1–W7 are seven migration waves and each
+remains `NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
 
-## W0 readiness gate
+## W0 prerequisite state
 
 The documentation-only W0 readiness review is recorded in
 `docs/mjl-w0-readiness-review.md` with verdict
-`W0_READY_FOR_AUTHORIZATION`.
+`W0_READY_FOR_AUTHORIZATION`. The user then explicitly authorized the bounded
+prerequisite, and its focused characterization, runner correction, and required
+verification completed successfully.
 
-Readiness is not authorization. W0 remains `NOT_AUTHORIZED`, and W1–W7 each
-remain `NOT_AUTHORIZED`. Only a later explicit W0 implementation authorization
-may begin the bounded prerequisite.
+```text
+W0_COMPLETE
+W1–W7_NOT_AUTHORIZED
+```
+
+W0 completion does not authorize W1 or any later migration wave. The next
+possible phase is a separately requested W1 readiness review.
 
 Completed plans and reports are recoverable from Git history and are not active
 guidance. `docs/mjl-current-app-functional-map.md` records current-state

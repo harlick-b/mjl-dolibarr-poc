@@ -19,6 +19,7 @@ test.beforeAll(() => {
 			{ key: 'agent', role: 'AGENT_SAISIE' },
 			{ key: 'supervisor', role: 'AGENT_VERIFICATEUR' },
 			{ key: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+			{ key: 'norole', role: null },
 		],
 		references: {
 			partners: [
@@ -33,6 +34,26 @@ test.beforeAll(() => {
 		},
 	});
 });
+
+async function expectAuthenticatedListDenied(page, route, kind, protectedLabel) {
+	const response = await page.goto(`/custom/mjlfinancement/${route}.php`);
+	expect(response.status()).toBe(403);
+	await expect(page.locator(`[data-mjl-reference-list="${kind}"]`)).toHaveCount(0);
+	await expect(page.locator('body')).not.toContainText(protectedLabel);
+}
+
+async function expectAnonymousListDenied(browser, route, kind, protectedLabel) {
+	const context = await browser.newContext();
+	try {
+		const page = await context.newPage();
+		await page.goto(`/custom/mjlfinancement/${route}.php`);
+		await expect(page.getByLabel('Identifiant')).toBeVisible();
+		await expect(page.locator(`[data-mjl-reference-list="${kind}"]`)).toHaveCount(0);
+		await expect(page.locator('body')).not.toContainText(protectedLabel);
+	} finally {
+		await context.close();
+	}
+}
 
 test('shared Partner and Project lists expose current facts and role-aware actions', async ({ page }, testInfo) => {
 	await signIn(page, 'validator');
@@ -67,6 +88,28 @@ test('shared Partner and Project lists expose current facts and role-aware actio
 	await page.goto('/custom/mjlfinancement/projects.php');
 	await expect(page.getByRole('link', { name: 'Créer un Projet' })).toHaveCount(0);
 	await expect(page.locator('[data-mjl-action-menu]')).toHaveCount(0);
+});
+
+test('direct unauthorized Partner list GET fails closed without returning Partner data', async ({ page, browser }) => {
+	await signIn(page, 'norole');
+	await expectAuthenticatedListDenied(page, 'partners', 'partner', 'Partenaire VUI10 principal');
+
+	await login(page, 'admin', process.env.DOLI_ADMIN_PASSWORD || 'Admin1234');
+	await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+	await expectAuthenticatedListDenied(page, 'partners', 'partner', 'Partenaire VUI10 principal');
+
+	await expectAnonymousListDenied(browser, 'partners', 'partner', 'Partenaire VUI10 principal');
+});
+
+test('direct unauthorized Project list GET fails closed without returning Project data', async ({ page, browser }) => {
+	await signIn(page, 'norole');
+	await expectAuthenticatedListDenied(page, 'projects', 'project', 'Projet VUI10 principal');
+
+	await login(page, 'admin', process.env.DOLI_ADMIN_PASSWORD || 'Admin1234');
+	await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+	await expectAuthenticatedListDenied(page, 'projects', 'project', 'Projet VUI10 principal');
+
+	await expectAnonymousListDenied(browser, 'projects', 'project', 'Projet VUI10 principal');
 });
 
 test('create and edit use the shared dialog while Project ownership remains immutable', async ({ page }) => {
