@@ -2,11 +2,11 @@
 
 ## Status and authority
 
-**Standard status: `STANDARD_READY_FOR_REVIEW`.**
+**Standard status: `STANDARD_FROZEN`.**
 
-This document is a review candidate derived from the frozen MJL target
-architecture. It is not yet a frozen canonical standard, does not amend the
-architecture, and authorizes no implementation, W0 prerequisite work, W1–W7
+This document is the authoritative MJL Engineering Standard v1 for
+implementation work governed by the frozen MJL target architecture. It does
+not amend that architecture. Standard freeze does not authorize W0 or any
 migration wave, production work, dependency change, or tooling rollout.
 
 The frozen architecture remains
@@ -45,12 +45,12 @@ The repository authority router controls precedence. For engineering work:
 1. the user's latest explicit instruction;
 2. `docs/mjl-authoritative-decisions.md`;
 3. the canonical document for the affected subject, including the frozen
-   architecture for architecture boundaries and migration-wave contracts;
+   architecture for architecture boundaries and migration-wave contracts and
+   this frozen standard for implementation and review rules;
 4. the approved v3 design package for visual presentation only;
 5. gap analysis and current-state evidence;
 6. existing code and tests as current-state evidence only;
-7. this review-candidate standard until it is separately frozen;
-8. applicable Dolibarr and generic language/tool conventions.
+7. applicable Dolibarr and generic language/tool conventions.
 
 This document MUST NOT override a canonical business, permission, workflow,
 data, scope or architecture decision. An irreconcilable conflict MUST stop the
@@ -539,17 +539,28 @@ forbidden.
 ## 18. Documentation, amendments and Git
 
 Code changes MUST update the canonical owner of any changed business,
-permission, workflow, data or implementation-state fact. Frozen architecture
-changes only through explicit pre-implementation amendment. Preservation
-mapping changes require architecture review. Ordinary implementation details
-do not edit the frozen architecture or this standard merely to narrate code.
+permission, workflow, data or implementation-state fact. The frozen
+architecture answers how MJL is structured; this standard answers how changes
+within that structure are implemented and reviewed. Implementation code MUST
+NOT silently redefine either authority.
 
-Material changes include responsibility ownership, dependency direction,
-security seam, transaction owner, lifecycle architecture, preservation mapping
-or major wave ordering. They require an approved architecture amendment or ADR
-before implementation. Private extraction, local names/algorithms, a small
-helper within an approved owner and local test refactoring are non-material if
-all interfaces and behavior remain preserved.
+An approved architecture amendment or ADR is required before a change to
+responsibility ownership, dependency direction, an architectural boundary,
+transaction or authorization ownership architecture, lifecycle ownership,
+preservation mapping, or major migration sequencing. If the architecture
+remains unchanged but a normative implementation rule in this standard must
+change—including transaction handling, authorization enforcement, DB access,
+`.lib.php` or entrypoint responsibility, template or JS/DOM contracts,
+migration safety, lifecycle behavior, required verification, or review
+requirements—an Engineering Standard amendment is required before
+implementation. A preservation-mapping change also requires architecture
+review.
+
+Ordinary implementation choices already permitted by both authorities need no
+amendment. Private extraction, local names/algorithms, a small helper within an
+approved owner and local test refactoring are non-material if all interfaces
+and behavior remain preserved. Documentation MUST NOT create amendment
+ceremony merely to narrate such local details.
 
 Architecture migration commits SHOULD be bounded and omit unrelated cleanup.
 Functional correction MUST NOT be hidden inside structural movement. Existing
@@ -666,7 +677,7 @@ contracts; examples do not authorize new functions or markup.
 | callback/resource dispatch | documented Dolibarr or frozen MJL seam with application-controlled targets is allowed; finite request mapping uses known handlers and separate authorization; raw request-selected execution is forbidden |
 
 All eight scenarios have an unambiguous owner, prohibited shortcuts and evidence
-gate. No architecture amendment is required to publish this review candidate.
+gate. The formal freeze introduced no architecture amendment.
 
 ## 24. Traceability
 
@@ -698,9 +709,10 @@ gate. No architecture amendment is required to publish this review candidate.
 - [x] W0 and W1–W7 terminology correct;
 - [x] no architecture redesign or implementation authorization introduced.
 
-The checks above establish readiness for independent review only. They do not
-freeze this standard.
+The checks above established readiness for independent review. The preserved
+review history records the initial revision requirement, three corrections and
+the focused independent approval that preceded this formal freeze.
 
 ```text
-STANDARD_READY_FOR_REVIEW
+STANDARD_FROZEN
 ```

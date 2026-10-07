@@ -30,16 +30,26 @@ stop and surface the contradiction.
 | States, transitions, and guards | `docs/mjl-status-and-transition-model-v2.md` |
 | Target entities, fields, and invariants | `docs/mjl-data-dictionary-v2.md` |
 | Implementation state and unfinished phases | `docs/mjl-implementation-roadmap-v2.md` |
+| Architecture preservation requirements | `docs/architecture-audit/14-preservation-ledger.md` |
 | Frozen target architecture boundaries and migration-wave contracts | `docs/architecture-audit/17-target-architecture-proposal.md` |
+| Implementation and review rules within the frozen architecture | `docs/mjl-engineering-standard-v1.md` |
 
-## Review candidates
+## Frozen engineering baselines
 
-The following document is discoverable for review but is not yet canonical and
-authorizes no implementation:
+The architecture and Engineering Standard are frozen authorities. Their freeze
+does not authorize implementation.
 
-| Candidate | Review evidence | Status |
+| Authority | Status | SHA-256 / evidence |
 | --- | --- | --- |
-| `docs/mjl-engineering-standard-v1.md` | `docs/mjl-engineering-standard-v1-review.md`; formal focused independent re-review approved | `STANDARD_APPROVED_FOR_FREEZE`; not frozen; W0 and W1–W7 remain `NOT_AUTHORIZED` |
+| `docs/architecture-audit/17-target-architecture-proposal.md` | `ARCHITECTURE_FROZEN` | `b32655df213a5d5f8cc2e4b4cd1bf6f7aa4c6b6ec5d3ac4273ae9759ff6d9b9c` |
+| `docs/mjl-engineering-standard-v1.md` | `STANDARD_FROZEN` | `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e`; review history: `docs/mjl-engineering-standard-v1-review.md` |
+| `docs/architecture-audit/18-independent-architecture-review.md` | immutable historical review; `ARCHITECTURE_REVISION_REQUIRED` at that review point | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
+
+The preservation ledger remains 35/35 mapped. W0 is a prerequisite, not a
+migration wave, and remains `NOT_AUTHORIZED`. W1–W7 are seven migration waves
+and each remains `NOT_AUTHORIZED`. Any future work must consult the applicable
+business/preservation authority, then the frozen architecture and Engineering
+Standard, and finally the roadmap for the currently authorized migration state.
 
 Completed plans and reports are recoverable from Git history and are not active
 guidance. `docs/mjl-current-app-functional-map.md` records current-state

@@ -12,8 +12,10 @@ does not authorize implementation or production preparation.
 
 The separately requested [target architecture](17-target-architecture-proposal.md)
 is now the authoritative frozen baseline with status `ARCHITECTURE_FROZEN`.
-Freeze does not establish feature acceptance, authorize implementation or an
-Engineering Standard, or establish production readiness.
+The separately reviewed [Engineering Standard](../mjl-engineering-standard-v1.md)
+is also frozen with status `STANDARD_FROZEN`. Neither freeze establishes
+feature acceptance, authorizes implementation, or establishes production
+readiness.
 
 The [independent architecture review](18-independent-architecture-review.md)
 is complete: **`ARCHITECTURE_REVISION_REQUIRED`**. Its required corrections
@@ -39,6 +41,10 @@ AR-REV-001–007 CORRECTIONS
 STANDARDS + SPECIFICATION CORRECTION REVIEWS: PASS
         ↓
 ARCHITECTURE_FROZEN
+        ↓
+ENGINEERING STANDARD REVIEW + CORRECTIONS: PASS
+        ↓
+STANDARD_FROZEN
 ```
 
 ## Frozen target architecture baseline
@@ -58,6 +64,16 @@ ARCHITECTURE_FROZEN
 
 The freeze commit is repository history and may be reported after creation; it
 is not embedded here because a commit cannot contain its own final hash.
+
+## Frozen Engineering Standard baseline
+
+| Field | Frozen value |
+| --- | --- |
+| Engineering Standard status | `STANDARD_FROZEN` |
+| Engineering Standard document | `docs/mjl-engineering-standard-v1.md` |
+| Engineering Standard SHA-256 | `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
+| Review history | `docs/mjl-engineering-standard-v1-review.md`; initial `STANDARD_REVISION_REQUIRED`, three corrected MEDIUM findings, then `STANDARD_APPROVED_FOR_FREEZE` |
+| Implementation authorization | W0 prerequisite and W1–W7 migration waves remain `NOT_AUTHORIZED` |
 
 ## Scope and evidence totals
 
@@ -154,7 +170,7 @@ The architecture is frozen. W0 and W1–W7 remain unauthorized.
 Server-side export read handling, runner discovery/deadline behavior,
 historical runner provisioning, auth-schema exactness, cron failure semantics,
 and stale design assertions remain bounded findings in the proposal and gap
-analysis. The next expected documentation phase is a separately requested MJL
-Engineering Standard v1; this freeze does not create or authorize it. See
-[closure-evidence.md](closure-evidence.md) for the exact closure delta and
-final-count report.
+analysis. The Engineering Standard is frozen, but this does not authorize its
+implementation. The next phase is a separately requested W0 readiness review,
+not W0 implementation. See [closure-evidence.md](closure-evidence.md) for the
+exact architecture-closure delta and final-count report.
