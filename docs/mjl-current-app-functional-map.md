@@ -15,13 +15,13 @@ isolated disposable tenants and remove those tenants after each run.
 | Surface | Current behavior |
 | --- | --- |
 | Accueil | Active financial-first dashboard with role-projected totals, alerts, and permitted-action queues. |
-| Partenaires, Projets, Types d’Opération | Same-entity business-role reads; Validator-only activation/deactivation and mutation. |
+| Partenaires, Projets, Types d’Opération | Same-entity business-role reads; Validator-only activation/deactivation and mutation. One deep reference command owns create, label-update, and lifecycle writes. |
 | Activities | Entity-scoped planning/review aggregate plus active derived execution status, financial completeness/totals, and guarded Activity cancellation request. |
 | Opérations | Active 50-row execution list: current Assigned Agents enter explicit spending/observations and request exceptions; Supervisor/Validator read; Admin denied. |
 | Demandes d’exception | Active bounded cancellation/reopening list with Agent withdrawal and Validator decision controls in MJL navigation. |
 | Activity chronology | Detail/review pages show sanitized execution, request, assignment, automatic-transition and single-Activity export summaries, with stable 50-event cursors. Active entity/current assignment remain enforced; Admin denied. Oversized or unavailable details remain explicit. |
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |
-| Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. |
+| Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. One deep access command owns standalone role/deactivation writes; invitation preparation uses its non-transaction-owning participant inside the authentication caller transaction. |
 | Administration technique | Native-Admin link to Dolibarr module administration. |
 | Authentication | Configuration-gated email/password login followed by a six-digit email code. The password step creates no authenticated Dolibarr session; pending challenges are entity/account scoped, browser bound, hash only, single use, and rate limited. Native login/reset actions and pre-existing unverified sessions are rejected while the gate is active. |
 | Invitation/reset | Shared five-rule password form; token-derived readonly email; public selector in the query string; secret verifier in the fragment; hash-only storage; same-origin POST redemption; single use; expiry; throttling; CSRF; transaction/audit coupling; and neutral reset-request response. |

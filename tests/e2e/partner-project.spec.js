@@ -20,8 +20,8 @@ async function login(page, loginName, userPassword = loginName === 'admin' ? nat
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
-  await page.getByLabel('Mot de passe').fill(userPassword);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+  await page.getByLabel('Mot de passe', { exact: true }).fill(userPassword);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
   await expect(page.getByLabel('Identifiant')).toHaveCount(0);
   await expect(page.locator('a[href*="logout.php"]')).not.toHaveCount(0);
 }

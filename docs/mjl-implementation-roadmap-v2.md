@@ -23,8 +23,11 @@ unresolved weaknesses and unapproved recommendations.
   `activities.php` GET/POST surface and its Activity-specific monitoring list,
   read, and render branch: the root has one HTTP-handler handoff, reads and
   audit chronology have explicit owners, prepared views render through Activity
-  templates, and the superseded Activity route/render owners are removed. W3–W7
-  remain unauthorized.
+  templates, and the superseded Activity route/render owners are removed. W3 is
+  complete: one deep reference command owns reference writes, one deep access
+  command owns standalone access writes, and invitation preparation uses the
+  access command as a non-transaction-owning participant. Superseded procedural
+  writers are removed. W4–W7 remain unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

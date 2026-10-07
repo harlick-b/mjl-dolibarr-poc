@@ -57,9 +57,13 @@ function databasePlaintextHits(value) {
   return scalar(`SELECT COUNT(*) FROM (${scans.join(' UNION ALL ')}) AS all_database_text WHERE INSTR(COALESCE(value,''),${sqlLiteral(value)}) > 0`);
 }
 
-async function issueInvitation(login, email) {
+function issueInvitationResult(login, email) {
   const request = JSON.stringify({ operation: 'issue', login, email, barrier: '' });
-  const result = JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/auth-parallel-worker.php'], { encoding: 'utf8', env: process.env, input: request }).trim());
+  return JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/auth-parallel-worker.php'], { encoding: 'utf8', env: process.env, input: request }).trim());
+}
+
+async function issueInvitation(login, email) {
+  const result = issueInvitationResult(login, email);
   if (!Array.isArray(result) || typeof result[0] !== 'string' || !result[0].includes('#verifier=')) throw new Error('Invitation worker failed.');
   await registerLink(result[0]);
   return result[0];
@@ -315,6 +319,22 @@ test('invitation and reset password rules match on client and server', async ({ 
   await page.getByRole('button', { name: 'Se connecter' }).click();
   await expect(page.getByRole('heading', { name: 'Vérification' })).toBeVisible();
   await registerOtp(outbox('login_otp').code);
+});
+
+test('invitation audit failure after role assignment rolls back the complete preparation', async () => {
+  const login = 'auth.invitation.rollback';
+  sql("CREATE TRIGGER llx_mjlfinancement_audit_event_fail_insert BEFORE INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected post-role audit failure'");
+  try {
+    const result = issueInvitationResult(login, 'auth.invitation.rollback@example.test');
+    expect(result[0]).toBe('');
+    expect(scalar(`SELECT COUNT(*) FROM llx_user WHERE login=${sqlLiteral(login)}`)).toBe('0');
+    expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_user_role r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login=${sqlLiteral(login)}`)).toBe('0');
+    expect(scalar(`SELECT COUNT(*) FROM llx_user_rights r JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login=${sqlLiteral(login)}`)).toBe('0');
+    expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login=${sqlLiteral(login)}`)).toBe('0');
+    expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event a JOIN llx_user u ON u.rowid=a.object_id WHERE u.login=${sqlLiteral(login)}`)).toBe('0');
+  } finally {
+    sql('DROP TRIGGER IF EXISTS llx_mjlfinancement_audit_event_fail_insert');
+  }
 });
 
 test('accepting an invitation clears an existing authenticated session', async ({ page }) => {

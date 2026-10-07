@@ -51,25 +51,28 @@ function check($condition, $message) { if (!$condition) throw new RuntimeExcepti
 try {
 	$db = new ReferenceFakeDb();
 	$db->beginResult = false;
-	check(mjl_reference_create('operation_type', 'Type')[0] < 0, 'create must fail when begin fails');
-	check(mjl_reference_update_label('operation_type', 5, 'Stable', str_repeat('a', 64)) !== '', 'update must fail when begin fails');
-	check(mjl_reference_set_active('operation_type', 5, true, str_repeat('a', 64)) !== '', 'lifecycle must fail when begin fails');
+	$command = new MjlReferenceCommand($db, $user, 1);
+	check($command->create('operation_type', 'Type')[0] < 0, 'create must fail when begin fails');
+	check($command->updateLabel('operation_type', 5, 'Stable', str_repeat('a', 64)) !== '', 'update must fail when begin fails');
+	check($command->setActive('operation_type', 5, true, str_repeat('a', 64)) !== '', 'lifecycle must fail when begin fails');
 
 	$db = new ReferenceFakeDb();
 	$db->commitResult = false;
-	check(mjl_reference_create('operation_type', 'Type')[0] < 0, 'create must fail when commit fails');
+	$command = new MjlReferenceCommand($db, $user, 1);
+	check($command->create('operation_type', 'Type')[0] < 0, 'create must fail when commit fails');
 	$row = array('rowid' => 5, 'entity' => 1, 'label' => 'Stable', 'is_active' => 1, 'tms' => '2026-01-01 00:00:00');
 	$fingerprint = mjl_reference_fingerprint('operation_type', $row);
-	check(mjl_reference_update_label('operation_type', 5, 'Stable', $fingerprint) !== '', 'no-op update must fail when commit fails');
-	check(mjl_reference_set_active('operation_type', 5, true, $fingerprint) !== '', 'no-op lifecycle must fail when commit fails');
-	check(mjl_reference_update_label('operation_type', 5, 'Changed', $fingerprint) !== '', 'mutating update must fail when commit fails');
-	check(mjl_reference_set_active('operation_type', 5, false, $fingerprint) !== '', 'mutating lifecycle must fail when commit fails');
+	check($command->updateLabel('operation_type', 5, 'Stable', $fingerprint) !== '', 'no-op update must fail when commit fails');
+	check($command->setActive('operation_type', 5, true, $fingerprint) !== '', 'no-op lifecycle must fail when commit fails');
+	check($command->updateLabel('operation_type', 5, 'Changed', $fingerprint) !== '', 'mutating update must fail when commit fails');
+	check($command->setActive('operation_type', 5, false, $fingerprint) !== '', 'mutating lifecycle must fail when commit fails');
 	check($db->rollbackCount === 5, 'each uncertain commit must request rollback');
 
 	$db = new ReferenceFakeDb();
 	$db->commitResult = false;
 	$db->rollbackResult = false;
-	check(mjl_reference_create('operation_type', 'Type')[0] < 0, 'rollback uncertainty must fail');
+	$command = new MjlReferenceCommand($db, $user, 1);
+	check($command->create('operation_type', 'Type')[0] < 0, 'rollback uncertainty must fail');
 	check($db->closed, 'a connection with an uncertain rollback must be closed');
 	print "reference transaction contract passed\n";
 } finally {

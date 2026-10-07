@@ -35,14 +35,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}
 	} elseif ($action === 'update_profile') {
 		$targetUserId = GETPOSTINT('user_id');
-		$profile = mjl_scope_assign_access_profile($targetUserId, GETPOST('role_code', 'aZ09'), $user, mjl_auth_entity(), 'admin_access', 'Modification administrateur');
+		$accessCommand = new MjlAccessCommand($db, mjl_auth_entity());
+		$profile = $accessCommand->assignProfile($targetUserId, GETPOST('role_code', 'aZ09'), $user, 'admin_access', 'Modification administrateur');
 		if ($profile[0] < 0) {
 			$error = $profile[1];
 		} else {
 			$message = $profile[1];
 		}
 	} elseif ($action === 'deactivate') {
-		$result = mjl_scope_deactivate_access(GETPOSTINT('user_id'), $user, mjl_auth_entity());
+		$accessCommand = new MjlAccessCommand($db, mjl_auth_entity());
+		$result = $accessCommand->deactivate(GETPOSTINT('user_id'), $user);
 		if ($result[0] < 0) {
 			$error = $result[1];
 		} else {

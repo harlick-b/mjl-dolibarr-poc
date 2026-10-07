@@ -4,6 +4,7 @@ require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_email.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_audit.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlaccesscommand.class.php';
 
 function mjl_auth_entity() { global $conf; return max(1, (int) $conf->entity); }
 function mjl_auth_business_role_codes() { return array('AGENT_SAISIE', 'AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'); }
@@ -242,7 +243,8 @@ function mjl_auth_issue_invitation(array $input, User $actor)
 		$sql = 'UPDATE '.$db->prefix().'user SET statut=0, admin=0 WHERE rowid='.((int) $target->id).' AND entity='.mjl_auth_entity().' AND admin=0';
 		if (!$db->query($sql)) throw new RuntimeException($db->lasterror());
 		$target->statut = 0; $target->status = 0; $target->admin = 0;
-		if (mjl_scope_assign_access_profile((int) $target->id, $data['role_code'], $actor, mjl_auth_entity(), 'invitation', 'Invitation administrateur')[0] < 0) throw new RuntimeException('Attribution du rôle impossible.');
+		$accessCommand = new MjlAccessCommand($db, mjl_auth_entity());
+		if ($accessCommand->assignProfileInTransaction((int) $target->id, $data['role_code'], $actor, 'invitation', 'Invitation administrateur')[0] < 0) throw new RuntimeException('Attribution du rôle impossible.');
 		$sql = 'UPDATE '.$db->prefix()."mjlfinancement_invitation SET status='revoked', token_hash=NULL, date_revoked=".mjl_auth_now_sql().', fk_user_revoked='.((int) $actor->id).' WHERE entity='.mjl_auth_entity().' AND fk_user='.((int) $target->id)." AND status IN ('pending_send','sent')";
 		if (!$db->query($sql)) throw new RuntimeException($db->lasterror());
 		list($selector, $verifier) = mjl_auth_token_pair();

@@ -6,6 +6,7 @@ require '/var/www/html/main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_audit.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlaccesscommand.class.php';
 
 function phase1_behavior_fail($message)
 {
@@ -44,8 +45,9 @@ if (!$db->query($sql)) phase1_behavior_fail('Could not create rollback-only serv
 $actorId = (int) $db->last_insert_id($db->prefix().'user');
 $actor = new User($db);
 if ($actor->fetch($actorId) <= 0) phase1_behavior_fail('Could not load rollback-only service actor.');
-$profile = mjl_scope_assign_access_profile($actorId, 'AGENT_SAISIE', $actor, 1, 'phase1_verifier', 'denied');
-$deactivation = mjl_scope_deactivate_access($actorId, $actor, 1);
+$accessCommand = new MjlAccessCommand($db, 1);
+$profile = $accessCommand->assignProfile($actorId, 'AGENT_SAISIE', $actor, 'phase1_verifier', 'denied');
+$deactivation = $accessCommand->deactivate($actorId, $actor);
 if ((int) $profile[0] !== -1 || (int) $deactivation[0] !== -1) phase1_behavior_fail('Account lifecycle service accepted a non-Admin actor.');
 $db->rollback('Phase 1 service authorization verifier');
 

@@ -46,8 +46,7 @@ does not authorize implementation.
 | `docs/architecture-audit/18-independent-architecture-review.md` | immutable historical review; `ARCHITECTURE_REVISION_REQUIRED` at that review point | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 
 The preservation ledger remains 35/35 mapped. W0 is a prerequisite, not a
-migration wave, and is `W0_COMPLETE`. W1 and W2 are `COMPLETE`. The
-documentation-only W3 review found W3 `READY_FOR_AUTHORIZATION`, but W3–W7
+migration wave, and is `W0_COMPLETE`. W1, W2, and W3 are `COMPLETE`. W4–W7
 remain `NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
@@ -64,7 +63,8 @@ verification completed successfully.
 W0_COMPLETE
 W1_COMPLETE
 W2_COMPLETE
-W3–W7_NOT_AUTHORIZED
+W3_COMPLETE
+W4–W7_NOT_AUTHORIZED
 ```
 
 W0 completion does not authorize W1 or any later migration wave. The subsequent
@@ -78,7 +78,9 @@ verified implementation and completion.
 
 ```text
 W1_COMPLETE
-W2–W7: NOT_AUTHORIZED
+W2_COMPLETE
+W3_COMPLETE
+W4–W7: NOT_AUTHORIZED
 ```
 
 The post-W1 W2 readiness review and its traceability ledger are recorded in
@@ -93,7 +95,8 @@ work.
 
 ```text
 W2_COMPLETE
-W3–W7: NOT_AUTHORIZED
+W3_COMPLETE
+W4–W7: NOT_AUTHORIZED
 ```
 
 The post-W2 W3 readiness review is recorded in
@@ -101,12 +104,13 @@ The post-W2 W3 readiness review is recorded in
 write ownership: deep reference/access commands, retained HTTP/native behavior,
 and the atomic invitation-caller switch to a transaction-participating access
 operation. Reference reads/UI, authentication ownership, schema, Activity/W2,
-tooling and later waves are excluded. The verdict does not authorize runtime
-implementation.
+tooling and later waves are excluded. The user subsequently authorized that
+exact slice. The deep commands, caller cutovers, legacy-writer retirement,
+transaction/failure characterization, disposable behavioral gates, and final
+independent reviews completed successfully.
 
 ```text
-W3_READY_FOR_AUTHORIZATION
-W3: NOT_AUTHORIZED
+W3_COMPLETE
 W4–W7: NOT_AUTHORIZED
 ```
 

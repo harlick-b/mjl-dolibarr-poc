@@ -53,7 +53,7 @@ function mjl_reference_context($config, $action, $id)
 
 function mjl_reference_route_post($kind, $config, $id, $action)
 {
-	global $user;
+	global $db, $conf, $user;
 	mjl_reference_require_manage($user);
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) mjl_reference_forbidden('Invalid security token');
 	$expectedId = $action === 'create' ? 0 : (int) $id;
@@ -61,12 +61,17 @@ function mjl_reference_route_post($kind, $config, $id, $action)
 	$label = mjl_reference_label_from_request();
 	$error = '';
 	$resultId = $expectedId;
-	if ($action === 'create') {
-		list($resultId, $error) = mjl_reference_create($kind, $label, GETPOSTINT('partner_id'));
-	} elseif ($action === 'update') {
-		$error = mjl_reference_update_label($kind, $expectedId, $label, GETPOST('fingerprint', 'alphanohtml'));
-	} else {
-		$error = mjl_reference_set_active($kind, $expectedId, $action === 'activate', GETPOST('fingerprint', 'alphanohtml'));
+	$command = new MjlReferenceCommand($db, $user, (int) $conf->entity);
+	try {
+		if ($action === 'create') {
+			list($resultId, $error) = $command->create($kind, $label, GETPOSTINT('partner_id'));
+		} elseif ($action === 'update') {
+			$error = $command->updateLabel($kind, $expectedId, $label, GETPOST('fingerprint', 'alphanohtml'));
+		} else {
+			$error = $command->setActive($kind, $expectedId, $action === 'activate', GETPOST('fingerprint', 'alphanohtml'));
+		}
+	} catch (MjlReferenceCommandForbidden $exception) {
+		mjl_reference_forbidden();
 	}
 	if ($error !== '') {
 		$values = array('label' => $label);

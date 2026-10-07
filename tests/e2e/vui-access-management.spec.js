@@ -112,6 +112,57 @@ test('failed invitation delivery is presented without a usable link', async ({ p
 	}
 });
 
+test('standalone access writes roll back when their business audit cannot be stored', async ({ page }) => {
+	await signIn(page, 'admin', process.env.DOLI_ADMIN_PASSWORD || 'Admin1234');
+	const profileUserId = fixture.users.supervisor.id;
+	const profileBefore = scalar(`SELECT CONCAT(
+		(SELECT role_code FROM llx_mjlfinancement_user_role WHERE entity=1 AND fk_user=${profileUserId} AND is_active=1), '|',
+		COALESCE((SELECT GROUP_CONCAT(fk_id ORDER BY fk_id) FROM llx_user_rights WHERE entity=1 AND fk_user=${profileUserId}), ''), '|',
+		(SELECT COUNT(*) FROM llx_mjlfinancement_invitation WHERE entity=1 AND fk_user=${profileUserId} AND status IN ('pending_send','sent')), '|',
+		(SELECT COUNT(*) FROM llx_mjlfinancement_password_reset WHERE entity=1 AND fk_user=${profileUserId} AND status IN ('pending_send','sent'))
+	)`);
+	sql("CREATE TRIGGER w3_access_audit_failure BEFORE INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected W3 access audit failure'");
+	try {
+		await page.goto('/custom/mjlfinancement/admin/access.php');
+		const row = page.locator('[data-access-user-row]').filter({ hasText: fixture.users.supervisor.login });
+		await row.getByRole('button', { name: 'Modifier le profil', exact: true }).click();
+		const dialog = page.getByRole('dialog', { name: 'Modifier le profil' });
+		await dialog.getByLabel('Profil de production').selectOption('VALIDATEUR_DEFINITIF');
+		await dialog.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+	} finally {
+		sql('DROP TRIGGER IF EXISTS w3_access_audit_failure');
+	}
+	const profileAfter = scalar(`SELECT CONCAT(
+		(SELECT role_code FROM llx_mjlfinancement_user_role WHERE entity=1 AND fk_user=${profileUserId} AND is_active=1), '|',
+		COALESCE((SELECT GROUP_CONCAT(fk_id ORDER BY fk_id) FROM llx_user_rights WHERE entity=1 AND fk_user=${profileUserId}), ''), '|',
+		(SELECT COUNT(*) FROM llx_mjlfinancement_invitation WHERE entity=1 AND fk_user=${profileUserId} AND status IN ('pending_send','sent')), '|',
+		(SELECT COUNT(*) FROM llx_mjlfinancement_password_reset WHERE entity=1 AND fk_user=${profileUserId} AND status IN ('pending_send','sent'))
+	)`);
+	expect(profileAfter).toBe(profileBefore);
+
+	const deactivateUserId = fixture.users.validator.id;
+	const deactivateBefore = scalar(`SELECT CONCAT(
+		(SELECT statut FROM llx_user WHERE rowid=${deactivateUserId}), '|',
+		(SELECT COUNT(*) FROM llx_mjlfinancement_user_role WHERE entity=1 AND fk_user=${deactivateUserId} AND is_active=1), '|',
+		COALESCE((SELECT GROUP_CONCAT(fk_id ORDER BY fk_id) FROM llx_user_rights WHERE entity=1 AND fk_user=${deactivateUserId}), '')
+	)`);
+	sql("CREATE TRIGGER w3_access_audit_failure BEFORE INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected W3 access audit failure'");
+	try {
+		await page.goto('/custom/mjlfinancement/admin/access.php');
+		const row = page.locator('[data-access-user-row]').filter({ hasText: fixture.users.validator.login });
+		await row.getByRole('button', { name: 'Désactiver', exact: true }).click();
+		await page.getByRole('dialog', { name: 'Désactiver l’utilisateur' }).getByRole('button', { name: 'Confirmer la désactivation', exact: true }).click();
+	} finally {
+		sql('DROP TRIGGER IF EXISTS w3_access_audit_failure');
+	}
+	const deactivateAfter = scalar(`SELECT CONCAT(
+		(SELECT statut FROM llx_user WHERE rowid=${deactivateUserId}), '|',
+		(SELECT COUNT(*) FROM llx_mjlfinancement_user_role WHERE entity=1 AND fk_user=${deactivateUserId} AND is_active=1), '|',
+		COALESCE((SELECT GROUP_CONCAT(fk_id ORDER BY fk_id) FROM llx_user_rights WHERE entity=1 AND fk_user=${deactivateUserId}), '')
+	)`);
+	expect(deactivateAfter).toBe(deactivateBefore);
+});
+
 test('role change and deactivation use one shared action dialog', async ({ page }) => {
 	await signIn(page, 'admin', process.env.DOLI_ADMIN_PASSWORD || 'Admin1234');
 	await page.goto('/custom/mjlfinancement/admin/access.php');
