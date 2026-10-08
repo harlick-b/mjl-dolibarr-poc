@@ -57,7 +57,7 @@ STANDARD_FROZEN
 | Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
 | Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Preservation requirements | 35/35 mapped |
-| Migration units | W0, W1, W2, and W3 are complete; W4–W7 remain `NOT_AUTHORIZED` |
+| Migration units | W0, W1, W2, and W3 are complete; W4 is `READY_FOR_AUTHORIZATION` but remains `NOT_AUTHORIZED`; W5–W7 remain `NOT_AUTHORIZED` |
 | Investigation simulations | 6/6 reconciled |
 | Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
 | Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
@@ -73,12 +73,13 @@ is not embedded here because a commit cannot contain its own final hash.
 | Engineering Standard document | `docs/mjl-engineering-standard-v1.md` |
 | Engineering Standard SHA-256 | `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
 | Review history | `docs/mjl-engineering-standard-v1-review.md`; initial `STANDARD_REVISION_REQUIRED`, three corrected MEDIUM findings, then `STANDARD_APPROVED_FOR_FREEZE` |
-| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; W4–W7 migration waves remain `NOT_AUTHORIZED` |
+| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; W4 is readiness-reviewed but W4–W7 remain `NOT_AUTHORIZED` |
 
-The [W3 readiness review](../mjl-w3-readiness-review.md) supplied the canonical
-execution ledger. The user authorized that exact scope; its deep reference and
-access commands, non-owning invitation participant, focused gates, and final
-independent reviews completed successfully as `W3_COMPLETE`.
+The documentation-only [W4 readiness review](../mjl-w4-readiness-review.md)
+maps the authentication ownership split and concludes
+`W4_READY_FOR_AUTHORIZATION`. It does not authorize W4 implementation. W3's
+deep reference/access commands and non-owning invitation participant remain
+the completed input baseline.
 
 ## Scope and evidence totals
 
@@ -171,7 +172,8 @@ See [13-regression-baseline.md](13-regression-baseline.md) for exact qualificati
 
 ## Safe next decisions
 
-The architecture is frozen. W0, W1, W2, and W3 are complete. W4–W7 remain
+The architecture is frozen. W0, W1, W2, and W3 are complete. W4 is
+`READY_FOR_AUTHORIZATION` but remains `NOT_AUTHORIZED`; W5–W7 remain
 unauthorized.
 Server-side export read handling, runner discovery/deadline behavior,
 historical runner provisioning, auth-schema exactness, cron failure semantics,

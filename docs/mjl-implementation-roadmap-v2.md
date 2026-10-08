@@ -27,7 +27,9 @@ unresolved weaknesses and unapproved recommendations.
   complete: one deep reference command owns reference writes, one deep access
   command owns standalone access writes, and invitation preparation uses the
   access command as a non-transaction-owning participant. Superseded procedural
-  writers are removed. W4–W7 remain unauthorized.
+  writers are removed. The documentation-only W4 readiness review concludes
+  `W4_READY_FOR_AUTHORIZATION`; its pre-movement characterization and exact
+  schema constraints remain unresolved by design. W4–W7 remain unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

@@ -46,7 +46,8 @@ does not authorize implementation.
 | `docs/architecture-audit/18-independent-architecture-review.md` | immutable historical review; `ARCHITECTURE_REVISION_REQUIRED` at that review point | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 
 The preservation ledger remains 35/35 mapped. W0 is a prerequisite, not a
-migration wave, and is `W0_COMPLETE`. W1, W2, and W3 are `COMPLETE`. W4–W7
+migration wave, and is `W0_COMPLETE`. W1, W2, and W3 are `COMPLETE`. The
+documentation-only W4 review found W4 `READY_FOR_AUTHORIZATION`, but W4–W7
 remain `NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
@@ -112,6 +113,20 @@ independent reviews completed successfully.
 ```text
 W3_COMPLETE
 W4–W7: NOT_AUTHORIZED
+```
+
+The post-W3 W4 readiness review is recorded in
+`docs/mjl-w4-readiness-review.md`. Its exact boundary is authentication
+responsibility ownership: one cohesive auth command, one private procedural
+session adapter, stable routes/hooks/templates, preserved W3 access
+participation and role vocabulary, and removal of the email-to-auth capture
+callback. Its constrained characterization and exact-schema rows must resolve
+before movement or cutover. The verdict does not authorize implementation.
+
+```text
+W4_READY_FOR_AUTHORIZATION
+W4: NOT_AUTHORIZED
+W5–W7: NOT_AUTHORIZED
 ```
 
 Completed plans and reports are recoverable from Git history and are not active
