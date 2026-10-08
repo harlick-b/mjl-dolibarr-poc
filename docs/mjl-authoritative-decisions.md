@@ -46,8 +46,9 @@ does not authorize implementation.
 | `docs/architecture-audit/18-independent-architecture-review.md` | immutable historical review; `ARCHITECTURE_REVISION_REQUIRED` at that review point | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 
 The preservation ledger remains 35/35 mapped. W0 is a prerequisite, not a
-migration wave, and is `W0_COMPLETE`. W1, W2, W3, and W4 are `COMPLETE`.
-W5–W7 remain `NOT_AUTHORIZED`. Any future work must consult the applicable
+migration wave, and is `W0_COMPLETE`. W1, W2, W3, and W4 are `COMPLETE`. The
+documentation-only W5 review found W5 `READY_FOR_AUTHORIZATION`, but W5–W7
+remain `NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
 
@@ -130,6 +131,20 @@ requirements completed without an architecture or Engineering Standard amendment
 ```text
 W4_COMPLETE
 W5–W7: NOT_AUTHORIZED
+```
+
+The post-W4 W5 readiness review is recorded in
+`docs/mjl-w5-readiness-review.md`. Its exact boundary is reporting/export
+ownership separation, an independently mergeable dashboard/index/alerts move
+onto the W2 monitoring-read module, and only directly proven frontend
+producer/consumer changes. `MjlMonitoring` remains the query owner. Six
+constraints must resolve before their affected movement or cutover; none is a
+pre-authorization blocker. The verdict does not authorize implementation.
+
+```text
+W5_READY_FOR_AUTHORIZATION
+W5: NOT_AUTHORIZED
+W6–W7: NOT_AUTHORIZED
 ```
 
 Completed plans and reports are recoverable from Git history and are not active

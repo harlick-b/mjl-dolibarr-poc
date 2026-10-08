@@ -30,7 +30,11 @@ unresolved weaknesses and unapproved recommendations.
   writers are removed. W4 is complete: one cohesive authentication command owns
   invitation, reset, and OTP orchestration; one private session adapter owns
   session storage; session validity is pure; access policy has one explicit
-  owner; and email test capture remains email-owned. W5–W7 remain unauthorized.
+  owner; and email test capture remains email-owned. The documentation-only W5
+  review concludes `W5_READY_FOR_AUTHORIZATION` for the bounded report/export,
+  dashboard/alerts, and proven frontend-contract ownership work. Its six
+  pre-movement/cutover constraints remain unresolved by design. W5–W7 remain
+  unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and
