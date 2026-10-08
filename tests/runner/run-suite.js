@@ -888,7 +888,7 @@ async function main() {
         await runPlaywright(plan, layer, controller.signal);
       }
       else if (['rst007a', 'rst004', 'rst008', 'rst009a', 'rst010a', 'rst014a', 'rst013a'].includes(layer)) {
-        await runPhase1Verification(plan, controller.signal);
+		if (layer !== 'rst008') await runPhase1Verification(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
       }
       else if (layer === 'rst002b') {

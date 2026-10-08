@@ -11,16 +11,14 @@ header('Referrer-Policy: no-referrer');
 $selector = GETPOST('selector', 'alphanohtml');
 $action = GETPOST('action', 'aZ09');
 $error = '';
-if ($action === 'accept') {
+if ($action === 'accept' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		$error = 'Le jeton de sécurité est invalide. Veuillez recharger la page.';
 	} else {
-		$error = mjl_auth_accept_invitation($selector, GETPOST('verifier', 'restricthtml'), GETPOST('newpass1', 'password'), GETPOST('newpass2', 'password'));
+		$error = mjl_auth_command()->acceptInvitation($selector, GETPOST('verifier', 'restricthtml'), GETPOST('newpass1', 'password'), GETPOST('newpass2', 'password'));
 		if ($error === '') {
-			mjl_auth_clear_native_session();
-			mjl_auth_otp_clear_pending_session();
-			session_regenerate_id(true);
-			$_SESSION['dol_loginmesg'] = 'Votre mot de passe a été défini. Vous pouvez vous connecter.';
+			mjl_auth_session_cancel();
+			mjl_auth_session_set_login_message('Votre mot de passe a été défini. Vous pouvez vous connecter.');
 			header('Location: '.DOL_URL_ROOT.'/index.php');
 			exit;
 		}

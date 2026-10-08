@@ -1,16 +1,15 @@
 <?php
 if (empty($conf) || !is_object($conf)) { print "Error, template page can't be called as URL"; exit(1); }
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth_ui.lib.php';
 header('Cache-Control: no-store, private');
 header('Referrer-Policy: no-referrer');
 
-$selector = GETPOST('mjlselector', 'alphanohtml');
-$status = mjl_auth_reset_status($selector);
-$email = $status === 'valid' ? mjl_auth_reset_email($selector) : '';
-$error = empty($_SESSION['mjl_reset_error']) ? '' : $_SESSION['mjl_reset_error'];
-unset($_SESSION['mjl_reset_error']);
+$mjlResetView = isset($GLOBALS['mjl_auth_reset_view']) && is_array($GLOBALS['mjl_auth_reset_view']) ? $GLOBALS['mjl_auth_reset_view'] : array();
+$selector = isset($mjlResetView['selector']) ? (string) $mjlResetView['selector'] : '';
+$status = isset($mjlResetView['status']) ? (string) $mjlResetView['status'] : 'invalid';
+$email = isset($mjlResetView['email']) ? (string) $mjlResetView['email'] : '';
+$error = isset($mjlResetView['error']) ? (string) $mjlResetView['error'] : '';
 
 $usable = $status === 'valid' && $email !== '';
 mjl_auth_ui_start('Nouveau mot de passe · MJL', $usable ? 'Réinitialiser mon mot de passe' : 'Lien indisponible', $usable ? 'Choisissez un nouveau mot de passe.' : '', 'mjl-reset-title');

@@ -1,11 +1,10 @@
 <?php
 if (empty($conf) || !is_object($conf)) { print "Error, template page can't be called as URL"; exit(1); }
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
-$otpEnabled = mjl_auth_otp_enabled();
-$otpReady = !$otpEnabled || mjl_auth_otp_table_ready();
-$loginValue = $otpEnabled && isset($_SESSION['mjl_auth_login_email']) ? (string) $_SESSION['mjl_auth_login_email'] : (string) $login;
-unset($_SESSION['mjl_auth_login_email']);
+$mjlLoginView = isset($GLOBALS['mjl_auth_login_view']) && is_array($GLOBALS['mjl_auth_login_view']) ? $GLOBALS['mjl_auth_login_view'] : array();
+$otpEnabled = !empty($mjlLoginView['otp_enabled']);
+$otpReady = !$otpEnabled || !empty($mjlLoginView['otp_ready']);
+$loginValue = $otpEnabled && !empty($mjlLoginView['email']) ? (string) $mjlLoginView['email'] : (string) $login;
 $php_self = $otpEnabled ? DOL_URL_ROOT.'/custom/mjlfinancement/auth.php' : (empty($php_self) ? dol_escape_htmltag($_SERVER['PHP_SELF']) : $php_self);
 top_htmlhead('', 'Connexion · MJL', 0, 0, array('/core/js/dst.js', '/custom/mjlfinancement/js/mjl_auth.js'), array('/custom/mjlfinancement/css/mjl_auth.css.php'), 1, 1);
 ?>
@@ -25,7 +24,7 @@ top_htmlhead('', 'Connexion · MJL', 0, 0, array('/core/js/dst.js', '/custom/mjl
 					<input type="hidden" name="token" value="<?php print newToken(); ?>">
 					<?php if ($otpEnabled) { ?>
 						<input type="hidden" name="action" value="login">
-						<input type="hidden" name="backtopage" value="<?php print dol_escape_htmltag(GETPOST('backtopage', 'restricthtml')); ?>">
+						<input type="hidden" name="backtopage" value="<?php print dol_escape_htmltag(isset($mjlLoginView['backtopage']) ? (string) $mjlLoginView['backtopage'] : ''); ?>">
 					<?php } else { ?>
 						<input type="hidden" name="actionlogin" value="login"><input type="hidden" name="loginfunction" value="loginfunction">
 					<?php } ?>

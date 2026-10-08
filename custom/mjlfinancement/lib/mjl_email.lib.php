@@ -211,21 +211,24 @@ function mjl_email_context_value($value)
 
 function mjl_email_e2e_enabled()
 {
-	global $db;
-	if (getenv('MJL_DISPOSABLE_TEST_TENANT') !== '1') return false;
+	return mjl_auth_e2e_tokens_enabled();
+}
 
-	if (function_exists('mjl_auth_e2e_tokens_enabled')) {
-		return mjl_auth_e2e_tokens_enabled();
-	}
+function mjl_auth_e2e_tokens_enabled()
+{
+	return getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
+		&& getDolGlobalString('MJL_AUTH_E2E_EXPOSE_TOKENS') === '1';
+}
 
-	$sql = 'SELECT value FROM '.$db->prefix()."const WHERE name = 'MJL_AUTH_E2E_EXPOSE_TOKENS'";
-	$sql .= ' AND entity IN (0, '.mjl_email_entity().') ORDER BY entity DESC, rowid DESC LIMIT 1';
-	$resql = $db->query($sql);
-	if (!$resql) {
-		return false;
-	}
-	$obj = $db->fetch_object($resql);
-	return $obj && (string) $obj->value === '1';
+function mjl_auth_write_test_outbox($type, $userId, $link)
+{
+	if (!mjl_auth_e2e_tokens_enabled()) return false;
+	if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' && getDolGlobalString('MJL_AUTH_E2E_FAIL_AUTH_OUTBOX') === '1') return false;
+	$dir = DOL_DATA_ROOT.'/mjlfinancement/auth-test-outbox';
+	if (!is_dir($dir)) dol_mkdir($dir);
+	if (!is_writable($dir)) return false;
+	$payload = json_encode(array('type' => $type, 'user_id' => (int) $userId, 'link' => $link, 'created_at' => date('c')), JSON_UNESCAPED_SLASHES);
+	return file_put_contents($dir.'/latest-'.$type.'.json', $payload, LOCK_EX) !== false;
 }
 
 function mjl_email_write_test_outbox($template, User $recipient, array $rendered, array $context)
@@ -271,7 +274,7 @@ function mjl_email_write_test_outbox($template, User $recipient, array $rendered
 	}
 	mjl_email_store_e2e_const('MJL_EMAIL_E2E_LAST_'.strtoupper((string) $template).'_TO', $recipient->email);
 
-	if (isset($context['auth_link_type']) && isset($context['link']) && function_exists('mjl_auth_write_test_outbox')) {
+	if (isset($context['auth_link_type']) && isset($context['link'])) {
 		if (!mjl_auth_write_test_outbox($context['auth_link_type'], (int) $recipient->id, $context['link'])) {
 			return false;
 		}

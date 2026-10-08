@@ -13,6 +13,7 @@ if (!mjl_auth_otp_enabled()) {
 }
 
 $action = GETPOST('action', 'aZ09');
+$authCommand = mjl_auth_command();
 $error = '';
 $notice = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -20,27 +21,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = 'Le jeton de sécurité est invalide. Veuillez recharger la page.';
 	} elseif ($action === 'login') {
 		$emailInput = strtolower(trim(GETPOST('email', 'restricthtml')));
-		$_SESSION['mjl_auth_login_email'] = $emailInput;
-		$result = mjl_auth_start_otp($emailInput, GETPOST('password', 'password'), GETPOST('backtopage', 'restricthtml'));
+		mjl_auth_session_remember_login_email($emailInput);
+		$result = $authCommand->startOtp($emailInput, GETPOST('password', 'password'), GETPOST('backtopage', 'restricthtml'));
 		if ($result[0]) {
 			header('Location: '.DOL_URL_ROOT.'/custom/mjlfinancement/auth.php');
 			exit;
 		}
 		$error = $result[1];
 	} elseif ($action === 'verify' && mjl_auth_otp_pending()) {
-		$result = mjl_auth_verify_otp(GETPOST('code', 'alphanohtml'));
+		$result = $authCommand->verifyOtp(GETPOST('code', 'alphanohtml'));
 		if ($result[0]) {
 			header('Location: '.DOL_URL_ROOT.$result[1]);
 			exit;
 		}
 		$error = $result[1];
 	} elseif ($action === 'resend' && mjl_auth_otp_pending()) {
-		$result = mjl_auth_resend_otp();
+		$result = $authCommand->resendOtp();
 		$result[0] ? $notice = $result[1] : $error = $result[1];
 	} elseif ($action === 'cancel') {
-		mjl_auth_clear_native_session();
-		mjl_auth_otp_clear_pending_session();
-		session_regenerate_id(true);
+		mjl_auth_session_cancel();
 		header('Location: '.DOL_URL_ROOT.'/index.php');
 		exit;
 	} else {
@@ -49,12 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (!mjl_auth_otp_pending()) {
-	$_SESSION['dol_loginmesg'] = $error !== '' ? $error : 'Votre session de vérification a expiré.';
+	mjl_auth_session_set_login_message($error !== '' ? $error : 'Votre session de vérification a expiré.');
 	header('Location: '.DOL_URL_ROOT.'/index.php');
 	exit;
 }
 
-$email = isset($_SESSION['mjl_otp_email']) ? (string) $_SESSION['mjl_otp_email'] : '';
+$email = mjl_auth_session_pending_email();
 $at = strrpos($email, '@');
 $masked = $at === false ? '' : substr($email, 0, 1).str_repeat('•', max(4, $at - 1)).substr($email, $at);
 

@@ -236,6 +236,10 @@ debugging discoveries. Do not add one-off observations or generic advice.
   current installed schema before exercising older behavior. Reapplying an
   obsolete predecessor migration can fail before the compatibility behavior
   runs, even when that behavior remains valid on the current target.
+- A focused historical runner must not execute an unrelated predecessor
+  verifier before its selected current-purpose tests. Reconcile stale selectors
+  and preflights to the active route/template contract so the named gate proves
+  its declared oracle rather than obsolete setup ceremony.
 - A new aggregate gate should cover only evidence that existing public suites
   do not already own. Keep established regressions as separate committed-source
   commands; composing them into the new gate obscures coverage and multiplies

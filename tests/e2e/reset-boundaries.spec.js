@@ -62,8 +62,8 @@ async function login(page, loginName, loginPassword = loginName === 'admin' ? ad
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
-	await page.getByLabel('Mot de passe').fill(loginPassword);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+	await page.locator('#password').fill(loginPassword);
+	await page.locator('form#login button[type="submit"]').click();
   await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 
@@ -444,7 +444,7 @@ test('[RST-008] invitation and reset credentials enforce lifecycle invalidation 
   await profileDialog.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_invitation i INNER JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='phase1.e2e.invited' ORDER BY i.rowid DESC LIMIT 1")).toBe('revoked:NULL');
   await page.goto(invitationLink);
-  await expect(page.locator('body')).toContainText('révoquée');
+  await expect(page.locator('body')).toContainText('Lien indisponible');
 
   await page.goto('/custom/mjlfinancement/admin/access.php');
   await page.getByRole('link', { name: 'Inviter un utilisateur' }).click();
@@ -460,28 +460,28 @@ test('[RST-008] invitation and reset credentials enforce lifecycle invalidation 
   invitationVerifier = new URL(invitationLink, page.url()).hash.slice('#verifier='.length);
 
   await page.goto(invitationLink.replace(invitationVerifier, 'invalid-verifier'));
-  await page.getByLabel('Mot de passe', { exact: true }).fill(invitationPassword);
+  await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(invitationPassword);
   await page.getByLabel('Confirmer le mot de passe').fill(invitationPassword);
-  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Enregistrer le mot de passe' }).click();
   await expect(page.locator('body')).toContainText('invalide ou expirée');
 
   await page.goto(invitationLink);
   await expect(page).not.toHaveURL(/#verifier=/);
-  await expect(page.getByLabel('Code secret de l’invitation')).toHaveValue(invitationVerifier);
-  await page.getByLabel('Mot de passe', { exact: true }).fill(invitationPassword);
+  await expect(page.locator('#verifier')).toHaveValue(invitationVerifier);
+  await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(invitationPassword);
   await page.getByLabel('Confirmer le mot de passe').fill(invitationPassword);
-  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
-  await expect(page.locator('body')).toContainText('Votre accès est activé');
+  await page.getByRole('button', { name: 'Enregistrer le mot de passe' }).click();
+  await expect(page.locator('body')).toContainText('Votre mot de passe a été défini');
   expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_invitation i INNER JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='phase1.e2e.invited' ORDER BY i.rowid DESC LIMIT 1")).toBe('accepted:NULL');
 
   await page.goto(invitationLink);
-  await expect(page.locator('body')).toContainText('déjà été acceptée');
+  await expect(page.locator('body')).toContainText('Lien indisponible');
   await login(page, 'phase1.e2e.invited', invitationPassword);
 
   await page.goto('/user/logout.php');
   await page.goto('/user/passwordforgotten.php');
-  await page.getByLabel('Adresse e-mail').fill('phase1.invited@example.test');
-  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
+  await page.getByLabel('Adresse email').fill('phase1.invited@example.test');
+  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
   await expect(page.locator('body')).toContainText('Si un compte correspond');
   const resetLink = outbox('password_reset').link;
   await registerLinkSecrets(resetLink);
@@ -489,28 +489,28 @@ test('[RST-008] invitation and reset credentials enforce lifecycle invalidation 
   const resetVerifier = new URL(resetLink).hash.slice('#verifier='.length);
   await page.goto(resetLink);
   await expect(page).not.toHaveURL(/#verifier=/);
-  await expect(page.getByLabel('Code secret de réinitialisation')).toHaveValue(resetVerifier);
+  await expect(page.locator('#verifier')).toHaveValue(resetVerifier);
 	await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(resetPassword);
   await page.getByLabel('Confirmer le mot de passe').fill(resetPassword);
-  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click();
+  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
   expect(scalar("SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset r INNER JOIN llx_user u ON u.rowid=r.fk_user WHERE u.login='phase1.e2e.invited' ORDER BY r.rowid DESC LIMIT 1")).toBe('consumed:NULL');
   await page.goto(resetLink);
-  await expect(page.locator('body')).toContainText('invalide ou expiré');
+  await expect(page.locator('body')).toContainText('Lien indisponible');
   await login(page, 'phase1.e2e.invited', resetPassword);
 
   await page.goto('/user/logout.php');
   await page.goto('/user/passwordforgotten.php');
-  await page.getByLabel('Adresse e-mail').fill('phase1.invited@example.test');
-  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
+  await page.getByLabel('Adresse email').fill('phase1.invited@example.test');
+  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
   const expiringResetLink = outbox('password_reset').link;
   await registerLinkSecrets(expiringResetLink);
   sql("UPDATE llx_mjlfinancement_password_reset r INNER JOIN llx_user u ON u.rowid=r.fk_user SET r.date_expiry=DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE u.login='phase1.e2e.invited' AND r.status='sent'");
   await page.goto(expiringResetLink);
-  await expect(page.locator('body')).toContainText('invalide ou expiré');
+  await expect(page.locator('body')).toContainText('Lien indisponible');
 
   await page.goto('/user/passwordforgotten.php');
-  await page.getByLabel('Adresse e-mail').fill('phase1.invited@example.test');
-  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
+  await page.getByLabel('Adresse email').fill('phase1.invited@example.test');
+  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
   const revokedByDeactivationLink = outbox('password_reset').link;
   await registerLinkSecrets(revokedByDeactivationLink);
   await login(page, 'phase1.e2e.invited', resetPassword);
@@ -527,6 +527,6 @@ test('[RST-008] invitation and reset credentials enforce lifecycle invalidation 
   await expect(page.locator('.mjl-module-shell')).toHaveCount(0);
   if (denied.status() === 200) await expect(page.getByLabel('Identifiant')).toBeVisible();
   await page.goto(revokedByDeactivationLink);
-  await expect(page.locator('body')).toContainText('invalide ou expiré');
+  await expect(page.locator('body')).toContainText('Lien indisponible');
   await adminContext.close();
 });

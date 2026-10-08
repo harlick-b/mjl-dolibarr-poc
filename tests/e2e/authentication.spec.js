@@ -62,6 +62,18 @@ function issueInvitationResult(login, email) {
   return JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/auth-parallel-worker.php'], { encoding: 'utf8', env: process.env, input: request }).trim());
 }
 
+function requestResetResult(email) {
+  const request = JSON.stringify({ operation: 'reset', email, barrier: '' });
+  return JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/auth-parallel-worker.php'], { encoding: 'utf8', env: process.env, input: request }).trim());
+}
+
+async function ownedSessionKeys(page) {
+  const cookie = (await page.context().cookies()).find((candidate) => candidate.name.includes('DOLSESSID'));
+  if (!cookie) return [];
+  const source = "$_COOKIE[$argv[1]]=$argv[2]; define('NOLOGIN',1); require '/var/www/html/main.inc.php'; echo json_encode(array_values(array_filter(array_keys($_SESSION), function ($key) { return in_array($key, array('dol_login','dol_logindate','dol_authmode','dol_entity','dol_loginmesg'), true) || strpos($key, 'mjl_otp_') === 0; })));";
+  return JSON.parse(execFileSync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '-r', source, cookie.name, cookie.value], { encoding: 'utf8', env: process.env }).trim());
+}
+
 async function issueInvitation(login, email) {
   const result = issueInvitationResult(login, email);
   if (!Array.isArray(result) || typeof result[0] !== 'string' || !result[0].includes('#verifier=')) throw new Error('Invitation worker failed.');
@@ -107,6 +119,8 @@ test('password verification stays unauthenticated until a single-use email code 
   await page.getByLabel('Mot de passe', { exact: true }).fill('Incorrect1!');
   await page.getByRole('button', { name: 'Se connecter' }).click();
   await expect(page.getByLabel('Adresse email')).toHaveValue(emails.success);
+	await page.reload();
+	await expect(page.getByLabel('Adresse email')).toHaveValue('');
   expect(Number(scalar("SELECT COUNT(*) FROM llx_events WHERE type='USER_LOGIN_FAILED'")) - failedLoginsBefore).toBe(1);
   await startLogin(page, 'success');
   await page.goto('/custom/mjlfinancement/index.php');
@@ -263,6 +277,140 @@ test('existing sessions, native login and native reset actions cannot bypass MJL
     expect(response.headers().location).toContain('/user/passwordforgotten.php');
   }
   expect(scalar(`SELECT pass_crypted FROM llx_user WHERE rowid=${fixture.users.existing.id}`)).toBe(passBefore);
+});
+
+test('invitation and reset mutations reject direct GET requests without changing credentials', async ({ page }) => {
+  const invitationEmail = 'auth.method.invitation@example.test';
+  const invitationLink = await issueInvitation('auth.method.invitation', invitationEmail);
+  const invitationUrl = new URL(invitationLink, process.env.MJL_BASE_URL);
+  const invitationSelector = invitationUrl.searchParams.get('selector');
+  const invitationVerifier = invitationUrl.hash.slice('#verifier='.length);
+  await openFragmentLink(page, invitationLink);
+  const invitationToken = await page.locator('#mjl-invitation-accept input[name="token"]').inputValue();
+  const invitationGet = new URL('/custom/mjlfinancement/invitation.php', process.env.MJL_BASE_URL);
+  for (const [key, value] of Object.entries({ action: 'accept', selector: invitationSelector, verifier: invitationVerifier, newpass1: 'Abcdef1!', newpass2: 'Abcdef1!', token: invitationToken })) invitationGet.searchParams.set(key, value);
+  const invitationResponse = await page.context().request.get(invitationGet.href, { maxRedirects: 0 });
+  expect(invitationResponse.status()).toBe(200);
+  expect(scalar("SELECT CONCAT(u.statut,':',i.status,':',IF(i.token_hash IS NULL,'NULL','HASH')) FROM llx_user u JOIN llx_mjlfinancement_invitation i ON i.fk_user=u.rowid WHERE u.login='auth.method.invitation' ORDER BY i.rowid DESC LIMIT 1")).toBe('0:sent:HASH');
+
+  await page.goto('/user/passwordforgotten.php');
+  await page.getByLabel('Adresse email').fill(emails.existing);
+  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
+  const resetLink = outbox('password_reset').link;
+  await registerLink(resetLink);
+  const resetUrl = new URL(resetLink, process.env.MJL_BASE_URL);
+  const resetSelector = resetUrl.searchParams.get('mjlselector');
+  const resetVerifier = resetUrl.hash.slice('#verifier='.length);
+  await openFragmentLink(page, resetLink);
+  const resetToken = await page.locator('#mjl-password-reset input[name="token"]').inputValue();
+  const passBefore = scalar(`SELECT pass_crypted FROM llx_user WHERE rowid=${fixture.users.existing.id}`);
+  const resetGet = new URL('/user/passwordforgotten.php', process.env.MJL_BASE_URL);
+  for (const [key, value] of Object.entries({ setnewpassword: '1', action: 'mjl_validate_password_reset', mjlselector: resetSelector, verifier: resetVerifier, newpass1: 'Abcdef1!', newpass2: 'Abcdef1!', token: resetToken })) resetGet.searchParams.set(key, value);
+  const resetResponse = await page.context().request.get(resetGet.href, { maxRedirects: 0 });
+  expect([200, 302, 303]).toContain(resetResponse.status());
+  expect(scalar(`SELECT CONCAT(status,':',IF(token_hash IS NULL,'NULL','HASH')) FROM llx_mjlfinancement_password_reset WHERE entity=1 AND fk_user=${fixture.users.existing.id} ORDER BY rowid DESC LIMIT 1`)).toBe('sent:HASH');
+  expect(scalar(`SELECT pass_crypted FROM llx_user WHERE rowid=${fixture.users.existing.id}`)).toBe(passBefore);
+});
+
+test('a reset selector alone exposes the current full email until privacy behavior is separately authorized', async ({ page }) => {
+  await page.goto('/user/passwordforgotten.php');
+  await page.getByLabel('Adresse email').fill(emails.changed);
+  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
+  const resetUrl = new URL(outbox('password_reset').link, process.env.MJL_BASE_URL);
+  await page.goto(`/user/passwordforgotten.php?setnewpassword=1&mjlselector=${encodeURIComponent(resetUrl.searchParams.get('mjlselector'))}`);
+  await expect(page.getByText(emails.changed, { exact: true })).toBeVisible();
+});
+
+test('delivery capture failure and post-send result persistence failure retain their distinct states', async () => {
+  sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_E2E_FAIL_AUTH_OUTBOX',1,'1','chaine',0,'W4 capture failure') ON DUPLICATE KEY UPDATE value='1'");
+  try {
+    const captureFailure = issueInvitationResult('auth.delivery.capture', 'auth.delivery.capture@example.test');
+    expect(captureFailure[0]).toBe('');
+    expect(scalar("SELECT CONCAT(i.status,':',IFNULL(i.token_hash,'NULL')) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='auth.delivery.capture' ORDER BY i.rowid DESC LIMIT 1")).toBe('send_failed:NULL');
+	const resetCaptureFailure = requestResetResult(emails.lock);
+	expect(resetCaptureFailure[0]).toBeNull();
+	expect(scalar(`SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset WHERE entity=1 AND fk_user=${fixture.users.lock.id} ORDER BY rowid DESC LIMIT 1`)).toBe('send_failed:NULL');
+  } finally {
+    sql("DELETE FROM llx_const WHERE name='MJL_AUTH_E2E_FAIL_AUTH_OUTBOX' AND entity=1");
+  }
+
+  sql("CREATE TRIGGER llx_mjl_w4_invitation_result_fail BEFORE UPDATE ON llx_mjlfinancement_invitation FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected post-send result failure'");
+  try {
+    const resultFailure = issueInvitationResult('auth.delivery.result', 'auth.delivery.result@example.test');
+    expect(resultFailure[0]).toBe('');
+    expect(resultFailure[1]).toContain('résultat de l’envoi');
+    expect(scalar("SELECT CONCAT(i.status,':',IF(i.token_hash IS NULL,'NULL','HASH')) FROM llx_mjlfinancement_invitation i JOIN llx_user u ON u.rowid=i.fk_user WHERE u.login='auth.delivery.result' ORDER BY i.rowid DESC LIMIT 1")).toBe('pending_send:HASH');
+    expect(scalar("SELECT COUNT(*) FROM llx_mjlfinancement_audit_event a JOIN llx_user u ON u.rowid=a.object_id WHERE u.login='auth.delivery.result' AND a.action='invitation_issued'")).toBe('1');
+  } finally {
+    sql('DROP TRIGGER IF EXISTS llx_mjl_w4_invitation_result_fail');
+  }
+
+  sql("CREATE TRIGGER llx_mjl_w4_reset_result_fail BEFORE UPDATE ON llx_mjlfinancement_password_reset FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected post-send result failure'");
+  try {
+	const resetResultFailure = requestResetResult(emails.resend);
+	expect(resetResultFailure[0]).toBeNull();
+	expect(scalar(`SELECT CONCAT(status,':',IF(token_hash IS NULL,'NULL','HASH')) FROM llx_mjlfinancement_password_reset WHERE entity=1 AND fk_user=${fixture.users.resend.id} ORDER BY rowid DESC LIMIT 1`)).toBe('pending_send:HASH');
+	expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE object_type='mjlfinancement_user' AND object_id=${fixture.users.resend.id} AND action='password_reset_requested'`)).toBe('1');
+  } finally {
+	sql('DROP TRIGGER IF EXISTS llx_mjl_w4_reset_result_fail');
+  }
+});
+
+test('OTP persistence commits before a failed session completion and authentication stays closed', async ({ page }) => {
+  await startLogin(page, 'changed');
+  const code = outbox('login_otp').code;
+  await registerOtp(code);
+  sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_E2E_FAIL_SESSION_COMPLETION',1,'1','chaine',0,'W4 ordering proof') ON DUPLICATE KEY UPDATE value='1'");
+  try {
+    await page.getByLabel('Code de vérification').fill(code);
+    await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
+    expect(scalar(`SELECT CONCAT(status,':',IFNULL(code_hash,'NULL')) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.changed.id} ORDER BY rowid DESC LIMIT 1`)).toBe('verified:NULL');
+    await page.goto('/custom/mjlfinancement/index.php');
+    await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
+  } finally {
+    sql("DELETE FROM llx_const WHERE name='MJL_AUTH_E2E_FAIL_SESSION_COMPLETION' AND entity=1");
+  }
+});
+
+test('credential changes invalidate a verified session through the native hook', async ({ page }) => {
+  await startLogin(page, 'policy');
+  const code = outbox('login_otp').code;
+  await registerOtp(code);
+  await page.getByLabel('Code de vérification').fill(code);
+  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+  await expect(page).toHaveURL(/\/custom\/mjlfinancement\/index\.php$/);
+	expect((await ownedSessionKeys(page)).sort()).toEqual([
+	  'dol_authmode', 'dol_entity', 'dol_login', 'dol_logindate', 'mjl_otp_binding',
+	  'mjl_otp_verified_challenge_id', 'mjl_otp_verified_user_id',
+	].sort());
+  const cookieBefore = (await page.context().cookies()).find((cookie) => cookie.name.includes('DOLSESSID'));
+  sql(`UPDATE llx_mjlfinancement_user_role SET role_code='AGENT_VERIFICATEUR' WHERE entity=1 AND fk_user=${fixture.users.policy.id} AND is_active=1`);
+  await page.goto('/custom/mjlfinancement/index.php');
+  await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
+  const cookieAfter = (await page.context().cookies()).find((cookie) => cookie.name.includes('DOLSESSID'));
+  expect(cookieAfter && cookieBefore && cookieAfter.value).not.toBe(cookieBefore.value);
+	expect(await ownedSessionKeys(page)).toEqual(['dol_loginmesg']);
+});
+
+test('weakened OTP schema is refused without runtime repair', async ({ page }) => {
+  sql('ALTER TABLE llx_mjlfinancement_login_otp DROP INDEX uk_mjl_login_otp_live_user');
+  try {
+    await page.goto('/index.php');
+    await expect(page.getByText('La connexion est temporairement indisponible.')).toBeVisible();
+    expect(scalar("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_login_otp' AND INDEX_NAME='uk_mjl_login_otp_live_user'")).toBe('0');
+  } finally {
+    sql('ALTER TABLE llx_mjlfinancement_login_otp ADD UNIQUE INDEX uk_mjl_login_otp_live_user (entity,live_user_id)');
+  }
+
+  sql('ALTER TABLE llx_mjlfinancement_login_otp DROP CONSTRAINT chk_mjl_login_otp_counts, ADD CONSTRAINT chk_mjl_login_otp_counts CHECK (attempt_count BETWEEN 0 AND 6 AND resend_count BETWEEN 0 AND 3)');
+  try {
+	await page.goto('/index.php');
+	await expect(page.getByText('La connexion est temporairement indisponible.')).toBeVisible();
+	expect(scalar("SELECT CHECK_CLAUSE LIKE '%BETWEEN 0 AND 6%' FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='llx_mjlfinancement_login_otp' AND CONSTRAINT_NAME='chk_mjl_login_otp_counts'")).toBe('1');
+  } finally {
+	sql('ALTER TABLE llx_mjlfinancement_login_otp DROP CONSTRAINT chk_mjl_login_otp_counts, ADD CONSTRAINT chk_mjl_login_otp_counts CHECK (attempt_count BETWEEN 0 AND 5 AND resend_count BETWEEN 0 AND 3)');
+  }
 });
 
 test('the retained technical Admin can complete an active-entity password reset', async ({ page }) => {

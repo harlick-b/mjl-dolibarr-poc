@@ -23,7 +23,7 @@ class ActionsMjlfinancement extends CommonHookActions
 	public function beforeLoginAuthentication($parameters, &$object, &$action, $hookmanager)
 	{
 		if (!mjl_auth_otp_enabled() || GETPOST('actionlogin', 'aZ09') !== 'login') return 0;
-		$_SESSION['dol_loginmesg'] = 'Utilisez le formulaire de connexion MJL.';
+		mjl_auth_session_set_login_message('Utilisez le formulaire de connexion MJL.');
 		return -1;
 	}
 
@@ -31,24 +31,46 @@ class ActionsMjlfinancement extends CommonHookActions
 	{
 		global $user;
 		if (!mjl_auth_otp_enabled() || empty($user->id) || mjl_auth_session_is_otp_verified($user)) return 0;
-		foreach (array_keys($_SESSION) as $key) unset($_SESSION[$key]);
-		session_regenerate_id(true);
-		$_SESSION['dol_loginmesg'] = 'Votre session doit être vérifiée de nouveau.';
+		mjl_auth_session_invalidate('Votre session doit être vérifiée de nouveau.');
 		header('Location: '.DOL_URL_ROOT.'/index.php');
 		exit;
 	}
 
 	public function afterLoginFailed($parameters, &$object, &$action, $hookmanager)
 	{
-		if (empty($_SESSION['dol_loginmesg'])) {
+		if (mjl_auth_session_login_message() === '') {
 			return 0;
 		}
 
-		$message = (string) $_SESSION['dol_loginmesg'];
+		$message = mjl_auth_session_login_message();
 		if (stripos($message, 'invalid') !== false || stripos($message, 'password change') !== false || stripos($message, 'SessionInvalidated') !== false) {
-			$_SESSION['dol_loginmesg'] = 'Votre session a expire pour des raisons de securite. Veuillez vous reconnecter.';
+			mjl_auth_session_set_login_message('Votre session a expire pour des raisons de securite. Veuillez vous reconnecter.');
 		}
 
+		return 0;
+	}
+
+	public function getLoginPageOptions($parameters, &$object, &$action, $hookmanager)
+	{
+		$GLOBALS['mjl_auth_login_view'] = array(
+			'otp_enabled' => mjl_auth_otp_enabled(),
+			'otp_ready' => !mjl_auth_otp_enabled() || mjl_auth_otp_table_ready(),
+			'email' => mjl_auth_session_consume_login_email(''),
+			'backtopage' => GETPOST('backtopage', 'restricthtml'),
+		);
+		return 0;
+	}
+
+	public function getPasswordForgottenPageOptions($parameters, &$object, &$action, $hookmanager)
+	{
+		$selector = GETPOST('mjlselector', 'alphanohtml');
+		$status = mjl_auth_reset_status($selector);
+		$GLOBALS['mjl_auth_reset_view'] = array(
+			'selector' => $selector,
+			'status' => $status,
+			'email' => $status === 'valid' ? mjl_auth_reset_email($selector) : '',
+			'error' => mjl_auth_session_consume_reset_error(),
+		);
 		return 0;
 	}
 
@@ -57,41 +79,40 @@ class ActionsMjlfinancement extends CommonHookActions
 		if (empty($parameters['currentcontext']) || strpos($parameters['currentcontext'], 'passwordforgottenpage') === false) {
 			return 0;
 		}
-
 		if (in_array($action, array('buildnewpassword', 'validatenewpassword'), true)) {
 			header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php');
 			exit;
 		}
 
 		if ($action === 'mjl_build_password_reset') {
+			if ($_SERVER['REQUEST_METHOD'] !== 'POST') return 0;
 			if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 				mjl_auth_record_event('password_reset_bad_csrf', null, null, 'ip_hash='.mjl_auth_client_ip_hash().mjl_auth_e2e_context_suffix());
 				header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?mjl_reset_requested=1');
 				exit;
 			}
 			$email = GETPOST('email', 'restricthtml');
-			mjl_auth_create_password_reset($email);
+			mjl_auth_command()->createPasswordReset($email);
 			header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?mjl_reset_requested=1');
 			exit;
 		}
 
 		if ($action === 'mjl_validate_password_reset') {
+			if ($_SERVER['REQUEST_METHOD'] !== 'POST') return 0;
 			$selector = GETPOST('mjlselector', 'alphanohtml');
 			if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
-				$_SESSION['mjl_reset_error'] = 'Le jeton de securite est invalide. Veuillez recharger la page.';
+				mjl_auth_session_set_reset_error('Le jeton de securite est invalide. Veuillez recharger la page.');
 				header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlselector='.urlencode($selector));
 				exit;
 			}
-			$error = mjl_auth_consume_password_reset($selector, GETPOST('verifier', 'restricthtml'), GETPOST('newpass1', 'password'), GETPOST('newpass2', 'password'));
+			$error = mjl_auth_command()->consumePasswordReset($selector, GETPOST('verifier', 'restricthtml'), GETPOST('newpass1', 'password'), GETPOST('newpass2', 'password'));
 			if ($error === '') {
-				mjl_auth_clear_native_session();
-				mjl_auth_otp_clear_pending_session();
-				session_regenerate_id(true);
-				$_SESSION['dol_loginmesg'] = 'Votre mot de passe a ete mis a jour. Vous pouvez vous connecter.';
+				mjl_auth_session_cancel();
+				mjl_auth_session_set_login_message('Votre mot de passe a ete mis a jour. Vous pouvez vous connecter.');
 				header('Location: '.DOL_URL_ROOT.'/index.php');
 				exit;
 			}
-			$_SESSION['mjl_reset_error'] = $error;
+			mjl_auth_session_set_reset_error($error);
 			header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlselector='.urlencode($selector));
 			exit;
 		}

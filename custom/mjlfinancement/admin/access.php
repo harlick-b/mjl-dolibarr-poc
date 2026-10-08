@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
 		$error = 'Jeton de sécurité invalide.';
 	} elseif ($action === 'invite') {
-		$result = mjl_auth_issue_invitation(array(
+		$result = mjl_auth_command()->issueInvitation(array(
 			'login' => GETPOST('login', 'alphanohtml'),
 			'firstname' => GETPOST('firstname', 'restricthtml'),
 			'lastname' => GETPOST('lastname', 'restricthtml'),
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			$message = $result[1];
 		}
 	} elseif ($action === 'revoke') {
-		$revokeResult = mjl_auth_revoke_invitation(GETPOSTINT('id'), $user);
+		$revokeResult = mjl_auth_command()->revokeInvitation(GETPOSTINT('id'), $user);
 		if ($revokeResult[0] >= 0) {
 			$message = $revokeResult[1];
 		} else {

@@ -11,6 +11,7 @@ $scope = source($root, 'custom/mjlfinancement/lib/mjl_scope.lib.php');
 $accessRoute = source($root, 'custom/mjlfinancement/admin/access.php');
 $accessCommand = source($root, 'custom/mjlfinancement/class/mjlaccesscommand.class.php');
 $auth = source($root, 'custom/mjlfinancement/lib/mjl_auth.lib.php');
+$authCommand = source($root, 'custom/mjlfinancement/class/mjlauthcommand.class.php');
 $productionSources = '';
 $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root.'/custom/mjlfinancement'));
 foreach ($iterator as $file) {
@@ -40,13 +41,14 @@ check(strpos($reference, "require_once __DIR__.'/../class/mjlreferencecommand.cl
 check(preg_match_all('/class\s+MjlAccessCommand\s*\{/', $accessCommand) === 1, 'access command owner missing');
 check(substr_count($accessRoute, 'new MjlAccessCommand(') === 2, 'Admin access route must reach the command for both actions');
 check(strpos($accessRoute, '->assignProfile(') !== false && strpos($accessRoute, '->deactivate(') !== false, 'Admin access command calls missing');
-check(substr_count($auth, 'new MjlAccessCommand(') === 1, 'invitation must construct one access command');
-check(substr_count($auth, '->assignProfileInTransaction(') === 1, 'invitation must reach the transaction participant once');
+check(substr_count($authCommand, 'new MjlAccessCommand(') === 1, 'invitation must construct one access command');
+check(substr_count($authCommand, '->assignProfileInTransaction(') === 1, 'invitation must reach the transaction participant once');
 check(strpos($accessCommand, 'mjl_auth_record_event') === false, 'access command must not depend on the auth writer');
 check(strpos($auth, "require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlaccesscommand.class.php'") !== false, 'auth production include chain must load the access command');
+check(strpos($auth, "require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlauthcommand.class.php'") !== false, 'auth production include chain must load the W4 command');
 check(strpos($accessRoute, "require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php'") !== false, 'Admin production include chain must load auth and the access command');
 
-foreach (array($referenceRoute, $referenceCommand, $accessRoute, $accessCommand, $auth) as $reachableSource) {
+foreach (array($referenceRoute, $referenceCommand, $accessRoute, $accessCommand, $auth, $authCommand) as $reachableSource) {
 	check(strpos($reachableSource, 'call_user_func') === false, 'W3 production path contains dynamic function dispatch');
 }
 
