@@ -4,6 +4,13 @@
 
 **Standard status: `STANDARD_FROZEN`.**
 
+The frozen Standard includes the narrow DEC-066 amendment approved on
+2026-10-08. For the W5 read-only report and audit preview snapshots only, an
+unsuccessful rollback preserves the characterized generic unavailable/HTTP 503
+outcome instead of introducing a distinct rollback-failure result. This does
+not relax any mutation, durable export-evidence, or future transaction-
+hardening requirement.
+
 This document is the authoritative MJL Engineering Standard v1 for
 implementation work governed by the frozen MJL target architecture. It does
 not amend that architecture. Standard freeze does not authorize W0 or any
@@ -270,6 +277,16 @@ substitute for it.
 Feature read modules may own bounded read-only snapshots. They MUST own and
 restore isolation, statement/lock budgets, checked begin/commit and failure
 results on every path. Handlers and templates MUST NOT own those snapshots.
+
+For the W5 report and audit preview snapshot relocation, the read owner MUST
+attempt rollback after a snapshot failure and MUST continue to attempt exact
+database-session budget restoration. If that rollback attempt itself reports
+failure, the handler MUST preserve the current generic unavailable/HTTP 503
+outcome: it exposes no partial rows, totals, or download action and does not
+invent a distinct `READ_ROLLBACK_FAILED` result. This is an explicitly approved
+preservation exception for those two read-only preview paths. It MUST NOT be
+applied to mutation transactions, export authorization/audit/export-record
+transactions, the checked reference-write seam, or any new owner.
 
 ## 9. Authentication and session standard
 

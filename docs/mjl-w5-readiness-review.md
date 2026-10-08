@@ -1,9 +1,20 @@
 # MJL W5 Readiness Review
 
-Status: `W5_READY_FOR_AUTHORIZATION`
+Original readiness verdict: `W5_READY_FOR_AUTHORIZATION`
+
+Current governance status: `W5_FAILED`; re-execution is not authorized by the
+DEC-066 documentation amendment.
 
 This is a documentation-only pre-authorization review. It does not authorize
 W5, runtime changes, test changes, schema changes, or any later wave.
+
+Post-review amendment DEC-066 resolves the T02 rollback-result assumption.
+For W5 report and audit preview snapshots, rollback remains attempted, but a
+rollback call that reports failure preserves the existing generic unavailable/
+HTTP 503 result. It does not produce a distinct rollback-failure outcome. Exact
+session-budget restoration remains required, and no partial report content or
+download action may be exposed. This amendment does not authorize or resume
+runtime implementation.
 
 ## 1. Executive verdict
 
@@ -29,8 +40,8 @@ split. Authorization may permit creating those proofs, but no selected
 responsibility may move until its gate passes.
 
 ```text
-W5_READY_FOR_AUTHORIZATION
-W5: NOT_AUTHORIZED
+W5_FAILED
+W5 RE-EXECUTION: NOT_AUTHORIZED
 W6-W7: NOT_AUTHORIZED
 ```
 
@@ -39,7 +50,7 @@ W6-W7: NOT_AUTHORIZED
 | Authority | Verified value |
 | --- | --- |
 | Frozen architecture | `b32655df213a5d5f8cc2e4b4cd1bf6f7aa4c6b6ec5d3ac4273ae9759ff6d9b9c` |
-| Frozen Engineering Standard | `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
+| Frozen Engineering Standard | `b24021ac52a55f5a9921801aac8d100d9238268c55b3775875a0709132fb9560` after DEC-066; original freeze hash `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
 | Independent review | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Post-W4 baseline | `2ccbc37c76c1a752f92eeb813621af3a8bbb345c` |
 | Earlier baselines | W0 `bccf5a708aec25f98499bed6b7da3f607c0541d5`; W1 `03aad09`; W2 `143f89e2285e860cdaa45fd6d6580c74b39556aa`; W3 `ee4afa8d7b7ff6af98f0b5c7b70a071ce96c3dd6` |
@@ -156,7 +167,7 @@ W5-dependency row; `A10` = frozen W6 contract.
 | ID | Type | Concern | Authority | Current evidence / state / owner | Target / action | Preservation | Depends on | Must precede | Group | Gates | Transition / recovery / W6 | Status / constraint |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | T01 | ROUTE | report preview HTTP | A1,A4,A6 | `reports.php` -> `mjl_report_page`; route owner | thin root + report handler; DELEGATE | RT-001/002/014 | T04,T23,T27,T28 | T05,T32,T33,T31 | CG-W5-01 | G01,G04 | mixed route > selected handler > handler; SR; none | R |
-| T02 | RESPONSIBILITY | preview snapshot | A1,A2,A4,A6 | inline `mjl_report_page`; route lib owns transaction/budgets | procedural report read; MOVE | RT-010/011,DB-001/002 | T04,T25,T27,T28 | T03,T05,T32,T31 | CG-W5-01 | G01,G05 | route lib > selected read > read module; SR; none | C: fault/budget proof before movement/cutover |
+| T02 | RESPONSIBILITY | preview snapshot | A1,A2,A4,A6 | inline `mjl_report_page`; route lib owns transaction/budgets | procedural report read; MOVE | RT-010/011,DB-001/002 | T04,T25,T27,T28 | T03,T05,T32,T31 | CG-W5-01 | G01,G05 | route lib > selected read > read module; SR; none | C: fault/budget proof, including DEC-066 rollback-failure oracle, before movement/cutover |
 | T03 | DATA_FLOW | preview projections/choices | A1,A4,A5 | `MjlMonitoring` + report helpers; scoped query owner | read delegates retained query owner; RETAIN/DELEGATE | RT-010/014,DB-001 | T02,T25 | T05,T07,T35,T31 | CG-W5-01 | G02,G03,G05 | mixed caller > same query owner > same owner; SR; none | R |
 | T04 | RESPONSIBILITY | validation/fixed builder map | A1,A2,A6 | validation helper and fixed five-type map; report route owner | handler/read boundary; MOVE | RT-002/010/014 | T23,T27,T28 | T01,T02,T06,T35,T31 | CG-W5-01/02 | G01,G03,G04 | mixed lib > handler input owner > handler; SR; none | R |
 | T05 | RESPONSIBILITY | report preview presentation | A1,A2,A3,A6 | route/UI helpers emit HTML; presentation owner | prepared presenter/templates; EXTRACT | RT-001/002,frontend | T01,T02,T03,T32 | T20,T21,T24,T31 | CG-W5-01 | G01,G04 | mixed render > selected presenter > template; SR; none | R |
@@ -182,7 +193,7 @@ W5-dependency row; `A10` = frozen W6 contract.
 | T25 | INVARIANT | role/entity/assignment scope | A2,A4,A5 | policies, `MjlMonitoring`, fresh locks | same policies/query/locks; GUARD | SEC-AUTHZ-001/003/004,DB-001 | T26-T28 | T02,T03,T07,T10,T16,T31 | groups 1-3 | G02,G05,G07 | current > same > same; SR | R |
 | T26 | INVARIANT | post-W4 auth/session | A9,A5 | W4 owners at HEAD | unchanged; NONE/GUARD | SEC-AUTH-001-006 | none | T25,T31 | none | G00,G08 | W4 > W4 > W4; N/A | R |
 | T27 | GOVERNANCE | architecture amendment | frozen architecture/W5 | frozen hash and contract | none; NONE | all | none | T01-T26,T29-T35 | none | G00 | frozen > frozen > frozen; N/A | R: amendment NO |
-| T28 | GOVERNANCE | Standard amendment | frozen Standard | frozen hash/module vocabulary | none; NONE | all | none | T01-T26,T29-T35 | none | G00 | frozen > frozen > frozen; N/A | R: amendment NO |
+| T28 | GOVERNANCE | Standard amendment | original review found none; DEC-066 later amended only the T02 rollback-failure oracle | amended frozen hash/module vocabulary | documentation amendment only; no runtime move | all | none | T01-T26,T29-T35 | none | G00 | original frozen Standard > DEC-066 amended frozen Standard; N/A | R: amendment YES — DEC-066 |
 | T29 | DEPENDENCY | W4-produced W5 dependency | A9,A1 | none in W4 ledger/W5 prerequisites | none; NONE | none | T27,T28 | none | none | G00 | stable baseline only; N/A | NA: 0/0 with evidence |
 | T30 | W6_DEPENDENCY | W5-produced W6 dependency | A10,A4 | W6 names no W5 outcome | none; NONE | RT-011/DB-004 guard | T19,T27,T28 | none | none | G00,G08 | no produced interface; N/A | NA: 0/0; preserve caller inventory |
 | T31 | TRANSITION | cutover/recovery | A2,A6 | compatible source/schema; current owners | group-atomic cutover; GUARD | all affected | T01-T28,T32-T35 | none | CG-W5-01-04 | G01-G08 | old sole > selected sole > target sole; SR/forward fix | R |
@@ -294,9 +305,11 @@ never executes old and new generation independently.
 
 Transaction ownership is complete:
 
-- Report preview: report-read module begins, commits, rolls back, and restores
-  all changed session budgets. Failed begin/commit/read fails closed; rollback
-  failure and restoration failure surface.
+- Report and audit preview: the report-read module begins, commits, attempts
+  rollback, and restores all changed session budgets. Failed begin/commit/read
+  fails closed. Under DEC-066, rollback-call failure preserves the generic
+  unavailable/HTTP 503 outcome; restoration failure also produces the generic
+  unavailable/HTTP 503 outcome. Neither exposes partial content or downloads.
 - Monitoring dashboard/alerts: W2 monitoring-read module owns the same bounded
   snapshot. `MjlMonitoring` owns SQL, not transaction orchestration.
 - Export capture: generation owner retains the repeatable-read snapshot.
@@ -361,7 +374,7 @@ logs do not replace the export audit record.
 | G02 | T02,T03,T16,T19,T25 | `php tests/contracts/activity_ownership_test.php && php tests/contracts/activity_read_ownership_test.php` | W2 read owner, snapshot failure/rollback/budget restoration, readiness and scoped query owner remain exact | production W2 read/source contract | PRE_W5_BASELINE + POST_CUTOVER; host/DB doubles | none | Yes |
 | G03 | T03,T08,T09,T18 | `node --test tests/unit/report-format.test.js tests/unit/export-spool.test.js tests/unit/monitoring-reports.test.js` | exact/null-safe French formats, formula-safe cells, bounded private spool/lock/cleanup, projection/alert rules | Node -> PHP production helpers | FOCUSED_IMPLEMENTATION; host temp files | temporary files | Yes when touched |
 | G04 | T01,T05,T06,T20-T24 | `npm run test:vui12` after replacing stale test-only `Connexion` selector with `Se connecter` | report navigation, filters, URLs, forms, formats, audit visibility, responsive/no-JS presentation and CSRF POST remain usable | disposable browser -> real routes | PRE_MOVE_CHARACTERIZATION + POST_CUTOVER; disposable tenant | isolated fixtures | Yes |
-| G05 | T02-T13,T16,T19,T24,T25,T31 | `npm run test:phase3b`, explicitly selected | scoped repeatable previews, all report types/formats, fresh locked authorization, durable evidence, private artifacts, unavailable/foreign/revoked behavior, session budgets and teardown | disposable browser/fixture -> real DB/routes/classes | CUTOVER + DISPOSABLE_E2E | isolated fixtures/export rows | Yes for moved snapshot/auth/evidence |
+| G05 | T02-T13,T16,T19,T24,T25,T31 | `npm run test:phase3b`, explicitly selected, with focused T02 rollback-failure injection at the production read seam | scoped repeatable previews, all report types/formats, fresh locked authorization, durable evidence, private artifacts, unavailable/foreign/revoked behavior, session budgets and teardown; rollback-call failure yields generic unavailable/HTTP 503, exposes no partial rows/totals/download, attempts budget restoration, and emits no distinct rollback-failure result | disposable browser/fixture -> real DB/routes/classes | PRE_MOVE_CHARACTERIZATION + CUTOVER + DISPOSABLE_E2E | isolated fixtures/export rows | Yes for moved snapshot/auth/evidence |
 | G06 | T12,T13 | `npm run test:phase3b` after extending `tests/e2e/export-recovery.spec.js` with server-side read-failure injection | `fread() === false` is observed as failed/incomplete delivery; no false complete response; already committed `GENERATED` evidence is unchanged; stream/spool resources close | real export route with injectable delivery seam | PRE_MOVE_CHARACTERIZATION + CUTOVER; disposable tenant | isolated export/evidence | Yes before T12 move |
 | G07 | T14-T21,T24,T25 | `npm run test:vui09` after stale selector repair and focused alerts-page assertions | role/assignment/entity-scoped dashboard and alerts, Admin/no-role denial, filters/URLs/empty/unavailable states and visible behavior remain exact; teardown succeeds | disposable browser -> real index/alerts/read | PRE_MOVE_CHARACTERIZATION + CUTOVER | isolated fixtures | Yes before monitoring move |
 | G08 | all changed rows | `node --test tests/unit/design-system-v3.test.js` only if CSS changes; `php -l <each changed PHP>`; `node --check <each changed JS>`; `git diff --check`; ownership/exclusion searches | touched CSS matches approved v3; files parse; no forbidden owners/schema/auth/lifecycle/tooling changes; old selected path removed | exact diff files/source | FOCUSED_IMPLEMENTATION + DOCUMENTATION_DIFF; host | source only | Yes as applicable |
@@ -371,7 +384,7 @@ Missing characterization classifications:
 | Missing evidence | Classification | Ledger rows |
 | --- | --- | --- |
 | stale `Connexion` selector in the three selected browser files | MUST_ADD_BEFORE_MOVEMENT | T16 plus G04-G07 baseline |
-| report preview begin/commit/read/restore faults at target seam | MUST_ADD_BEFORE_MOVEMENT | T02 |
+| report/audit preview begin/commit/read/rollback-call/restore faults at target seam, with the DEC-066 generic unavailable/HTTP 503 rollback oracle | MUST_ADD_BEFORE_MOVEMENT | T02 |
 | BC-003 server-side delivery read failure | MUST_ADD_BEFORE_MOVEMENT | T12 |
 | focused alerts-page assertions in VUI09 | MUST_ADD_BEFORE_MOVEMENT | T16,T18 |
 | producer/consumer proof for selected hook | MUST_ADD_BEFORE_MOVEMENT | T20 |
@@ -573,7 +586,7 @@ constraints remain solely in the master ledger.
 | unsafe coexistence / non-credible recovery | 0 / 0 |
 | ambiguous transaction ownership / authorization semantics | 0 / 0 |
 | post-W4 auth/session conflicts | 0 |
-| architecture / Standard amendment | NO / NO |
+| architecture / Standard amendment | NO / YES — DEC-066 (post-review, documentation only) |
 | cross-cutting blocking risks | 0 |
 | W5 scope | CLEAR |
 | entry / exit derivable | YES / YES |
@@ -605,7 +618,8 @@ Final mutation report:
 
 ```text
 Frozen architecture modified: NO
-Frozen Engineering Standard modified: NO
+Frozen Engineering Standard modified during the original readiness review: NO
+Post-review Engineering Standard amendment: YES — DEC-066
 Independent architecture review modified: NO
 W0 implementation modified: NO
 W1 implementation modified: NO
