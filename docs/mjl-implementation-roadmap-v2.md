@@ -42,11 +42,12 @@ unresolved weaknesses and unapproved recommendations.
   passed. DEC-068 closed the four W6 prerequisites: exact historical
   predecessor provisioning, activation-time exact auth-schema refusal, the
   RST-012 transition matrix, and descriptor lifecycle characterization. W6 is
-  not complete: DEC-069 records `W6_FAILED` before movement because the W6
+  not complete: DEC-069 records `W6_FAILED` before movement because the first W6
   authorization prohibited lifecycle-ownership movement while the frozen W6
   ledger requires lifecycle delegation. No W6 runtime owner moved, no cutover
-  occurred, and W7 remains unauthorized. A corrected scope/authority decision
-  is required before another W6 attempt.
+  occurred. DEC-070 now authorizes the exact frozen delegation from clean named
+  baseline `725821a` under the amended Standard hash `b24021ac...`; all other
+  W6 constraints remain in force and W7 remains unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

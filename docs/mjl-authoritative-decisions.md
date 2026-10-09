@@ -53,9 +53,12 @@ separately re-authorized the same bounded scope. W5 is now `W5_COMPLETE` under
 DEC-067. DEC-068 records the separately authorized closure of BC-021,
 activation-time BC-022, the RST-012 transition matrix, and descriptor state
 characterization. That readiness verdict was followed by an explicit W6
-authorization whose hard prohibition on lifecycle-ownership movement conflicts
-with the frozen W6 delegation ledger. DEC-069 therefore records
-`W6_FAILED` before any W6 movement or cutover; W7 remains `NOT_AUTHORIZED`.
+authorization whose hard prohibition on lifecycle-ownership movement conflicted
+with the frozen W6 delegation ledger. DEC-069 records that attempt as
+`W6_FAILED` before movement. The user then resolved all three blockers through
+DEC-070: retain and authorize the exact frozen W6 delegation, use the DEC-066
+Standard hash `b24021ac...`, and use commit `725821a` as the clean named
+prerequisite baseline. W6 is now `AUTHORIZED`; W7 remains `NOT_AUTHORIZED`.
 Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
@@ -75,7 +78,7 @@ W2_COMPLETE
 W3_COMPLETE
 W4_COMPLETE
 W5_COMPLETE
-W6_FAILED_PRE_MOVEMENT
+W6_AUTHORIZED_FROM_725821a
 W7_NOT_AUTHORIZED
 ```
 
@@ -173,9 +176,14 @@ post-W5 source and the DEC-068 prerequisite closure. Its verdict is
 implementation: it simultaneously required the frozen ledger and prohibited
 the lifecycle-ownership movement that ledger requires. Under its own conflict
 rule, DEC-069 records `W6_SCOPE_CONFLICT` and `W6_FAILED` before movement.
+DEC-070 supersedes only those conflicting authorization inputs: it authorizes
+the frozen lifecycle delegation from clean prerequisite baseline `725821a`,
+recognizes the amended Standard hash `b24021ac...`, preserves every frozen W6
+constraint, and authorizes no W7 work.
 
 ```text
-W6_FAILED
+W6_AUTHORIZED
+Baseline: 725821a
 Lifecycle ownership moved: NO
 W7: NOT_AUTHORIZED
 ```

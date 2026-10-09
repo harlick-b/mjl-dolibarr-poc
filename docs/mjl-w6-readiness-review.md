@@ -1,5 +1,20 @@
 # MJL W6 readiness review
 
+## Current implementation authorization
+
+```text
+W6_AUTHORIZED
+Baseline: 725821a6a70f3ca158f55517a6a2386257d62277
+Engineering Standard: b24021ac52a55f5a9921801aac8d100d9238268c55b3775875a0709132fb9560
+W7 authorized: NO
+```
+
+DEC-070 supersedes the three conflicting inputs from the failed first attempt.
+It retains the frozen W6 architecture and authorizes the exact delegation in
+T03–T08, T14–T17, and T24 plus dependent T18–T20 closure. Every other ledger
+constraint, gate, preservation requirement, and exclusion remains unchanged.
+Implementation must stop before W7.
+
 ## Post-authorization implementation outcome
 
 ```text
