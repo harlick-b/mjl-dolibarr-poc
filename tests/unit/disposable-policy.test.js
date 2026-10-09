@@ -30,6 +30,7 @@ function validConfig() {
           MJL_DISPOSABLE_PROJECT_NAME: expected.projectName,
           MJL_DISPOSABLE_RUN_SENTINEL: expected.sentinel,
           MJL_TEST_USER_PASSWORD: expected.testUserPassword,
+          MJL_LIFECYCLE_BOOTSTRAP_PROFILE: '',
         },
         ports: [{ target: 80, published: String(expected.port), protocol: 'tcp', host_ip: '127.0.0.1' }],
         volumes: [

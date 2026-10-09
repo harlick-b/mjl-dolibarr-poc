@@ -13,6 +13,10 @@ const RST005_TARGET_ORACLE_SHA256 = '8eb99ee99c6dc748bd368e925e9938ccf086291d264
 // no other retained-schema variation is accepted.
 const RST005_RETAINED_SCHEMA_SHA256_PHASE1 = 'a1bfd62fb82e64da5f554e30caac306eef25549895f5a9674a1785781cb0c008';
 const RST005_RETAINED_SCHEMA_SHA256_CLEAN = 'e2409271a246b152af6da1e7d320826436abb663dcc086f866af0339af395ae6';
+// Current clean SQL includes exact invitation/reset constraints that post-date
+// RST-005. Only attested disposable historical profiles may recognize this
+// form after removing successor tables; shared operational callers may not.
+const RST005_RETAINED_SCHEMA_SHA256_CLEAN_AUTH = 'f97d4e0cfcda4d5cfaac18d2ffd33896ecb7aae3f0d61afa1cd268bed4c72b50';
 const RST002B_RETAINED_SCHEMA_SHA256_PHASE1 = 'f41ea1932b79b858fbad0a81ef19704d4f624ab08e5c32424b69c8abf3069c2b';
 const RST002B_RETAINED_SCHEMA_SHA256_CLEAN = 'b77cfe444e368d4f0fd1df2edadb81a0d6265311bcf2b86badfe3e79ae6658e5';
 const RST002B_RETAINED_SCHEMA_SHA256_CLEAN_ALTERNATE = '40c2111960430cdbf804a26bb3e0da172ca65d93fd829a7873c172c80fd620bc';
@@ -200,7 +204,9 @@ function mjl_rst005_require_retained_schema(DoliDB $db)
 function mjl_rst005_assert_retained_schema_digest(DoliDB $db)
 {
 	$digest = mjl_rst005_retained_schema_digest($db);
-	if (!hash_equals(RST005_RETAINED_SCHEMA_SHA256_PHASE1, $digest) && !hash_equals(RST005_RETAINED_SCHEMA_SHA256_CLEAN, $digest)) throw new RuntimeException('The retained MJL schema does not match either sealed RST-005 physical form: '.$digest);
+	$profile = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' ? (string) getenv('MJL_LIFECYCLE_BOOTSTRAP_PROFILE') : '';
+	$allowDisposableAuthForm = in_array($profile, array('rst002b', 'rst006a'), true) && hash_equals(RST005_RETAINED_SCHEMA_SHA256_CLEAN_AUTH, $digest);
+	if (!hash_equals(RST005_RETAINED_SCHEMA_SHA256_PHASE1, $digest) && !hash_equals(RST005_RETAINED_SCHEMA_SHA256_CLEAN, $digest) && !$allowDisposableAuthForm) throw new RuntimeException('The retained MJL schema does not match a sealed RST-005 physical form: '.$digest);
 }
 
 function mjl_rst005_expected_columns($flavour)

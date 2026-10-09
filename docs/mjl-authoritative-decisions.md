@@ -50,9 +50,13 @@ migration wave, and is `W0_COMPLETE`. W1, W2, W3, and W4 are `COMPLETE`. The
 documentation-only W5 review found W5 `READY_FOR_AUTHORIZATION`. After the
 pre-movement stop, DEC-066 amended the blocking assumption and the user
 separately re-authorized the same bounded scope. W5 is now `W5_COMPLETE` under
-DEC-067. The documentation-only W6 review concluded `W6_NOT_READY` because
-BC-021, activation-time BC-022, the RST-012 transition matrix, and the
-descriptor state matrix remain open. W6–W7 remain `NOT_AUTHORIZED`. Any future work must consult the applicable
+DEC-067. DEC-068 records the separately authorized closure of BC-021,
+activation-time BC-022, the RST-012 transition matrix, and descriptor state
+characterization. That readiness verdict was followed by an explicit W6
+authorization whose hard prohibition on lifecycle-ownership movement conflicts
+with the frozen W6 delegation ledger. DEC-069 therefore records
+`W6_FAILED` before any W6 movement or cutover; W7 remains `NOT_AUTHORIZED`.
+Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
 
@@ -71,7 +75,8 @@ W2_COMPLETE
 W3_COMPLETE
 W4_COMPLETE
 W5_COMPLETE
-W6–W7_NOT_AUTHORIZED
+W6_FAILED_PRE_MOVEMENT
+W7_NOT_AUTHORIZED
 ```
 
 W0 completion does not authorize W1 or any later migration wave. The subsequent
@@ -163,12 +168,15 @@ W6–W7: NOT_AUTHORIZED
 The post-W5 W6 readiness review is recorded in
 `docs/mjl-w6-readiness-review.md`. It reconciles the amended Standard hash, the
 exact lifecycle-delegation boundary, 35/35 preservation requirements, and the
-post-W5 source. Its verdict is `W6_NOT_READY`; it authorizes no runtime, test,
-tooling, schema, data, or W7 change.
+post-W5 source and the DEC-068 prerequisite closure. Its verdict is
+`W6_READY_FOR_AUTHORIZATION`. The later authorization did not permit a valid
+implementation: it simultaneously required the frozen ledger and prohibited
+the lifecycle-ownership movement that ledger requires. Under its own conflict
+rule, DEC-069 records `W6_SCOPE_CONFLICT` and `W6_FAILED` before movement.
 
 ```text
-W6_NOT_READY
-W6: NOT_AUTHORIZED
+W6_FAILED
+Lifecycle ownership moved: NO
 W7: NOT_AUTHORIZED
 ```
 

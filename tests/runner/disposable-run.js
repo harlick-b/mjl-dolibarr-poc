@@ -66,6 +66,15 @@ function sanitizeOutput(value, literalSecrets = []) {
     .replace(/((?:password|passwd|api[_-]?key|token|secret)\s*[:=]\s*)[^\s]+/gi, '$1[REDACTED]');
 }
 
+function getLifecycleBootstrapProfile(mode) {
+  return Object.freeze({
+    rst002b: 'rst002b',
+    rst006a: 'rst006a',
+    rst012: 'rst006b',
+    phase3a: 'rst006b',
+  })[mode] || '';
+}
+
 function getSuitePlan(mode) {
   const plans = {
     all: ['unit', 'verify', 'e2e'],
@@ -84,6 +93,7 @@ function getSuitePlan(mode) {
     rst014a: ['rst014a'],
     rst002b: ['rst002b'],
     rst006a: ['rst006a'],
+    rst012: ['rst012'],
     phase2: ['phase2'],
 	phase3a: ['phase3a'],
 	phase3b: ['phase3b'],
@@ -111,6 +121,7 @@ function getSuitePlan(mode) {
 
 module.exports = {
   createRunPlan,
+  getLifecycleBootstrapProfile,
   getSuitePlan,
   sanitizeOutput,
 };

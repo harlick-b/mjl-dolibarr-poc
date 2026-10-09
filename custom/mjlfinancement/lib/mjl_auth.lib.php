@@ -259,10 +259,9 @@ function mjl_auth_schema_normalize($value)
 	return preg_replace('/[`\\s]+/', '', $value);
 }
 
-function mjl_auth_otp_table_ready()
+function mjl_auth_otp_table_schema_ready()
 {
 	global $db;
-	if (getDolGlobalString('MJL_AUTH_FINGERPRINT_KEY') === '') return false;
 	$table = $db->prefix().'mjlfinancement_login_otp';
 	$quotedTable = "'".$db->escape($table)."'";
 
@@ -353,6 +352,11 @@ function mjl_auth_otp_table_ready()
 	while ($trigger = $db->fetch_object($resql)) $actualTriggers[(string) $trigger->TRIGGER_NAME] = array((string) $trigger->ACTION_TIMING, (string) $trigger->EVENT_MANIPULATION, mjl_auth_schema_normalize($trigger->ACTION_STATEMENT));
 	ksort($expectedTriggers); ksort($actualTriggers);
 	return $actualTriggers === $expectedTriggers;
+}
+
+function mjl_auth_otp_table_ready()
+{
+	return getDolGlobalString('MJL_AUTH_FINGERPRINT_KEY') !== '' && mjl_auth_otp_table_schema_ready();
 }
 
 function mjl_auth_otp_hash($purpose, $value)

@@ -1,25 +1,55 @@
 # MJL W6 readiness review
 
-## Executive verdict
+## Post-authorization implementation outcome
 
 ```text
-W6_NOT_READY
+W6_FAILED
+W6_SCOPE_CONFLICT
+Lifecycle ownership moved: NO
+W7 authorized: NO
 ```
 
-This documentation-only review does not authorize or implement W6 or W7. The
-W6 boundary is clear, but four authorization blockers remain:
+The readiness verdict below is the pre-authorization result. The later W6
+authorization required conformance to the frozen architecture and ledger while
+also making **no lifecycle ownership movement** a hard W6 boundary. Those
+requirements cannot both be met: T03–T08, T14–T17, and T24 require lifecycle
+delegation, while T18–T20 and T29 require the dependent resource, call-graph,
+and status closure. The authorization's own scope-conflict rule therefore
+requires `W6_FAILED`, not a silent reinterpretation.
 
-1. BC-021 has no explicit, verified predecessor provisioning for the retained
-   `rst002b` and `rst006a` modes.
-2. BC-022 is closed for normal authentication runtime, but module activation
-   can still accept an existing weakened OTP table.
-3. RST-012 has exact detector/installer mechanics but no maintained
-   interruption, resume, malformed-prefix, and empty-rollback matrix.
-4. Descriptor-level clean, current-reactivation, older-state-refusal, and
-   partial-state-refusal behavior is not characterized as one lifecycle seam.
+Failure occurred before CG3, runtime edits, movement, or cutover. T03 is the
+controlling failed ownership row; T04–T08, T14–T20, and T24 were blocked and
+not advanced. T29 is satisfied by recording this failed outcome. The last safe
+state is the reviewed DEC-068 prerequisite baseline. G00 fails for T01/T29 as
+written: the authorization names the original
+Standard hash `a47f2d...`, while DEC-066's authoritative amended Standard is
+`b24021...`, and the reviewed prerequisite diff has not yet become the clean
+named baseline required before movement. A corrected authority decision must
+recognize the amended Standard, establish the intended baseline, and either
+permit the frozen W6 delegation or amend and re-freeze the W6 target before
+re-authorization.
 
-These are frozen prerequisites or evidence required before authorizing a
-high-risk ownership move. They are `BLOCKED`, not post-authorization promises.
+## Readiness verdict at authorization
+
+```text
+W6_READY_FOR_AUTHORIZATION
+```
+
+This re-review does not authorize or implement W6 or W7. The W6 boundary is
+clear, and the four authorization prerequisites are now closed:
+
+1. BC-021 uses narrow disposable profiles and exact-verifies the retained
+   `rst002b` and `rst006a` predecessors before their matrices.
+2. Module activation calls the schema-only half of the exact OTP detector
+   before any repair helper and refuses missing indexes or weakened checks
+   without mutation while retaining fingerprint-key initialization.
+3. RST-012 has a maintained four-boundary interruption, resume,
+   malformed-prefix, and empty-rollback matrix.
+4. Descriptor clean/current/older/partial/unknown states are characterized
+   through one schema-and-trigger fingerprint seam with lock-release proof.
+
+The prerequisite implementation stays outside the W6 ownership move. W6 still
+requires a separate explicit authorization.
 
 ## Authority and post-W5 baseline
 
@@ -30,7 +60,7 @@ high-risk ownership move. They are `BLOCKED`, not post-authorization promises.
 | Original Standard hash | `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e`; historical after DEC-066 |
 | Historical independent review | SHA-256 `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Current implementation baseline | branch `main`; commit `2b05a78`; W0-W5 complete |
-| Current authorization | W6 and W7 `NOT_AUTHORIZED` |
+| Authorization at readiness snapshot | W6 and W7 `NOT_AUTHORIZED` |
 | Preservation inventory | 35/35 present |
 
 The pasted brief repeated the original Standard hash. DEC-066 amended the
@@ -133,16 +163,14 @@ fixtures; and all W7 cleanup.
 | Stylelint | unavailable/not required | separate tooling decision | NO | YES | W0 tooling inventory |
 | dependency upgrades | no W6 dependency need | separate maintenance task | NO | YES | package/lock excluded |
 | CI changes | no repository CI/W6 need | separate tooling task | NO | YES | CI mutation 0 |
-| general formatting | no behavior/evidence need | separate maintenance task | NO | YES | diff limited to docs |
+| general formatting | no behavior/evidence need | separate maintenance task | NO | YES | diff limited to scoped blocker files and status docs |
 | unrelated defects | latest authority + lean checkpoint | owning future task | NO | YES | gap analysis retains debt |
 
 ## Current-state discrepancy routing
 
-Blockers have one canonical home: BLK-01 is ledger row T11, BLK-02 is T22,
-BLK-03 is T17, and BLK-04 is T05. Those rows contain the source evidence,
-amendment decision, required characterization, re-review requirement, and
-unlock condition. Other tables only cross-reference those rows and do not
-create independent blocker records.
+The former blockers retain one canonical history: BLK-01 is ledger row T11,
+BLK-02 is T22, BLK-03 is T17, and BLK-04 is T05. Those rows now record their
+source evidence and closure. Other tables only cross-reference those rows.
 
 The old lifecycle audit is stale where it says BC-020 is open: W0 fixed sticky
 timeout results. It is incomplete where it treats BC-022 as wholly unresolved:
@@ -161,24 +189,24 @@ canonical ledger and supplies every mandatory field for every ID.
 | T02 | DEPENDENCY | W5 baseline | `2b05a78` | NONE | RT-010/012 | CG0/G00 | NOT_APPLICABLE: no W5 product |
 | T03 | RESPONSIBILITY | descriptor orchestration | embedded `init()` | DELEGATE | RT-011,DB-004,LIFE-003 | T04-T25/CG3/G08-G10/SR | READY_WITH_CONSTRAINTS |
 | T04 | TRANSITION | clean install | descriptor | DELEGATE | DB-003/004,LIFE-001/003 | T05/CG2-3/G06,G08/SR,DR | READY_WITH_CONSTRAINTS |
-| T05 | TRANSITION | current reactivation | descriptor/source-only evidence | DELEGATE | RT-011,DB-004,LIFE-003 | BLK-04/CG2-3/G06,G08/SR,DR | BLOCKED |
+| T05 | TRANSITION | current reactivation | focused descriptor matrix | DELEGATE | RT-011,DB-004,LIFE-003 | CG2-3/G06,G08/SR,DR | READY_WITH_CONSTRAINTS |
 | T06 | TRANSITION | older-state refusal | descriptor | DELEGATE | RT-011,DB-004,LIFE-003 | T05,T11/CG2-3/G01,G02,G06 | READY_WITH_CONSTRAINTS |
 | T07 | TRANSITION | malformed-state refusal | descriptor fallback | DELEGATE | RT-011,DB-003/004,LIFE-003 | T05,T17/CG2-3/G03-G06 | READY_WITH_CONSTRAINTS |
 | T08 | INVARIANT | lifecycle lock | descriptor | DELEGATE | DB-004,LIFE-003 | CG3/G06,G08/SR | READY_WITH_CONSTRAINTS |
 | T09 | INVARIANT | guarded diagnostic | descriptor | RETAIN | RT-011,LIFE-003 | CG3/G06,G08/SR | READY |
 | T10 | DEPENDENCY | BC-020 | W0 runner fix | RETAIN | LIFE-002 | CG1/G07 | READY |
-| T11 | DEPENDENCY | RST-002B predecessor | missing explicit profile | GUARD | DB-003/004,LIFE-002/003 | BLK-01/CG1/G01,G07/DR | BLOCKED |
-| T12 | DEPENDENCY | RST-006A predecessor | unreachable retain selector | GUARD | DB-003/004,LIFE-002/003 | T11/CG1/G02,G07/DR | READY_WITH_CONSTRAINTS |
+| T11 | DEPENDENCY | RST-002B predecessor | explicit exact profile | GUARD | DB-003/004,LIFE-002/003 | CG1/G01,G07/DR | READY |
+| T12 | DEPENDENCY | RST-006A predecessor | explicit exact profile | GUARD | DB-003/004,LIFE-002/003 | T11/CG1/G02,G07/DR | READY |
 | T13 | RESPONSIBILITY | RST-005 tooling | retained current scripts | RETAIN | DB-003/004,LIFE-003 | source inventory | READY |
 | T14 | RESPONSIBILITY | RST-002B lifecycle | exact library/CLI | DELEGATE | RT-011,DB-003/004,LIFE-003 | T11/CG3/G01,G08/SR,DR | READY_WITH_CONSTRAINTS |
 | T15 | RESPONSIBILITY | RST-006A lifecycle | exact library/CLI | DELEGATE | RT-011,DB-003/004,LIFE-003 | T12/CG3/G02,G08/SR,DR | READY_WITH_CONSTRAINTS |
 | T16 | RESPONSIBILITY | RST-006B lifecycle | exact full prefix matrix | DELEGATE | RT-011,DB-003/004,LIFE-003 | CG3/G03,G08/SR,DR | READY |
-| T17 | RESPONSIBILITY | RST-012 lifecycle | exact mechanics/no matrix | DELEGATE | RT-011,DB-003/004,LIFE-003 | BLK-03/CG2-3/G04,G08/SR,DR | BLOCKED |
+| T17 | RESPONSIBILITY | RST-012 lifecycle | exact maintained matrix | DELEGATE | RT-011,DB-003/004,LIFE-003 | CG2-3/G04,G08/SR,DR | READY_WITH_CONSTRAINTS |
 | T18 | DATA_FLOW | base SQL path | descriptor `_load_tables` | RETAIN | DB-003/004,LIFE-001 | CG3/G08,G09/SR | READY_WITH_CONSTRAINTS |
 | T19 | DATA_FLOW | RST-012 SQL path | `__DIR__/schema/rst012_report.sql` | RETAIN | DB-003/004,LIFE-003 | T17/CG3/G04,G09/SR | READY_WITH_CONSTRAINTS |
 | T20 | DEPENDENCY | includes/runtime callers | inventoried call graph | GUARD | RT-011/014,DB-004 | CG3/G08-G10/SR | READY_WITH_CONSTRAINTS |
 | T21 | INVARIANT | runtime OTP readiness | exact W4 detector | RETAIN | RT-011,SEC-AUTH-004,DB-003/004 | CG2-3/G05,G08 | READY |
-| T22 | TRANSITION | activation auth schema | descriptor accepts weak existing table | GUARD | DB-003/004,LIFE-001/003 | BLK-02/CG2-3/G05,G06/SR,DR | BLOCKED |
+| T22 | TRANSITION | activation auth schema | exact schema detector before ensure helpers | GUARD | DB-003/004,LIFE-001/003 | CG2-3/G05,G06/SR,DR | READY_WITH_CONSTRAINTS |
 | T23 | INVARIANT | auth triggers/constraints/key | descriptor `ensure*` | RETAIN | RT-014,DB-003,LIFE-001 | T22/CG3/G05,G06,G08 | READY_WITH_CONSTRAINTS |
 | T24 | RESPONSIBILITY | native remove/init | descriptor | DELEGATE | RT-014,LIFE-001/003 | T04-T23/CG3/G06,G08/SR | READY_WITH_CONSTRAINTS |
 | T25 | INVARIANT | failure injection | attested descriptor branches | RETAIN | LIFE-002/003 | CG3/G06,G08/SR,DR | READY_WITH_CONSTRAINTS |
@@ -190,14 +218,14 @@ canonical ledger and supplies every mandatory field for every ID.
 | T31 | GOVERNANCE | architecture amendment check | frozen architecture unchanged | NONE | all | CG0/G00 | READY |
 | T32 | GOVERNANCE | Engineering Standard amendment check | amended frozen Standard unchanged | NONE | all | CG0/G00 | READY |
 
-Totals: 32 rows; `READY` 12; `READY_WITH_CONSTRAINTS` 15; `BLOCKED` 4;
-`NOT_APPLICABLE` 1. Constrained rows resolve before affected movement or
-completion and do not substitute for blockers.
+Totals: 32 rows; `READY` 14; `READY_WITH_CONSTRAINTS` 17; `BLOCKED` 0;
+`NOT_APPLICABLE` 1. Constrained rows resolve before affected W6 movement or
+completion.
 
 | Constrained rows | Before authorization | Before movement | Before cutover | Before completion |
 | --- | --- | --- | --- | --- |
 | T03,T04,T06-T08,T12,T14,T15,T18,T19,T20,T23,T24,T25 | NO | YES | YES | YES |
-| T29 | NO | YES: requires a later explicit authorization after blockers close | YES | YES |
+| T29 | NO | YES: requires a separate explicit W6 authorization | YES | YES |
 
 ### Canonical ledger field matrix
 
@@ -213,24 +241,24 @@ dependency exists, with evidence stated in the row.
 | T02 | DEPENDENCY | W5 baseline | D66/67,A17 | HEAD parent `2b05a78` | VERIFIED_AT_HEAD | W5 owners | none | NONE | RT-010/012 | none | T03 | CG0 | NO | G00 | PRE | N/A | N/A-0/0: W6 names no W5 product | NOT_APPLICABLE | no frozen W5 product |
 | T03 | RESPONSIBILITY | descriptor orchestration | A17 | `modMjlFinancement::init` | VERIFIED_AT_HEAD | descriptor | thin descriptor + delegated current-path lifecycle owner | DELEGATE | RT-011,DB-004,LIFE-003 | T04-T25 | T29 | CG3 | NO | G08-G10 | X | SR | none | READY_WITH_CONSTRAINTS | G01-G09 before movement |
 | T04 | TRANSITION | clean install | A17,P14 | descriptor clean branch | VERIFIED_AT_HEAD | descriptor | delegated lifecycle owner | DELEGATE | DB-003/004,LIFE-001/003 | T05,T18,T22,T26 | T03 | CG2/3 | NO | G06,G08 | PRE/X/POST | SR/DR | none | READY_WITH_CONSTRAINTS | T05 descriptor-matrix blocker first |
-| T05 | TRANSITION | current reactivation and descriptor state matrix | A17,P14 | descriptor current branch; matrix absent | DISCREPANCY | descriptor | delegated lifecycle owner | DELEGATE | RT-011,DB-004,LIFE-003 | T21-T24 | T03 | CG2/3 | NO | G05,G06,G08 | PRE/X/POST | SR/DR | none | BLOCKED | BLK-04 canonical: amendment NO; characterize clean/current/older/partial/unknown fingerprints + lock release; re-review YES; unlock when G06 passes |
+| T05 | TRANSITION | current reactivation and descriptor state matrix | A17,P14 | clean/current/older/partial/unknown fingerprint and lock-release characterization | VERIFIED_AT_HEAD | descriptor | delegated lifecycle owner | DELEGATE | RT-011,DB-004,LIFE-003 | T21-T24 | T03 | CG2/3 | NO | G05,G06,G08 | PRE/X/POST | SR/DR | none | READY_WITH_CONSTRAINTS | BLK-04 closed; preserve G06 through movement |
 | T06 | TRANSITION | older-state refusal | A17,P14 | RST-006A/B guarded refusal | DISCREPANCY | descriptor | delegated lifecycle owner | DELEGATE | RT-011,DB-004,LIFE-003 | T05,T11,T12 | T03 | CG2/3 | NO | G01,G02,G06 | PRE/X/POST | SR/DR | none | READY_WITH_CONSTRAINTS | T05/T11 first |
 | T07 | TRANSITION | malformed-state refusal | A17,P14 | descriptor fallback | DISCREPANCY | descriptor | delegated lifecycle owner | DELEGATE | RT-011,DB-003/004,LIFE-003 | T05,T14-T17 | T03 | CG2/3 | NO | G03-G06 | PRE/X/POST | SR/DR | none | READY_WITH_CONSTRAINTS | T05/T17 first |
 | T08 | INVARIANT | lifecycle lock | A17,P14 | descriptor GET/RELEASE_LOCK | VERIFIED_AT_HEAD | descriptor | delegated lifecycle owner | DELEGATE | DB-004,LIFE-003 | T04-T07 | T29 | CG3 | NO | G06,G08 | X | SR | none | READY_WITH_CONSTRAINTS | prove release before movement |
 | T09 | INVARIANT | guarded diagnostic | A17 | error/log/stderr | VERIFIED_AT_HEAD | descriptor | descriptor boundary | RETAIN | RT-011,LIFE-003 | T06,T07 | T29 | CG3 | NO | G06,G08 | X | SR | none | READY | diagnostics may improve only |
 | T10 | DEPENDENCY | BC-020 | A17,W0 | timeout exit-zero regression | VERIFIED_AT_HEAD | runner | runner | RETAIN | LIFE-002 | none | T11,T12 | CG1 | NO | G07 | PRE/POST | SR | none | READY | fixed in W0 |
-| T11 | DEPENDENCY | historical predecessor profiles | A17 | RST-002B absent; RST-006A selector not in container | DISCREPANCY | runner/bootstrap | runner-owned explicit profiles | GUARD | DB-003/004,LIFE-002/003 | T10 | T12,T14,T15 | CG1 | NO | G01,G02,G07 | PRE | SR/DR | none | BLOCKED | BLK-01 canonical: amendment NO; provision/exact-verify both maintained baselines; re-review YES; unlock when G01/G02/G07 pass |
-| T12 | DEPENDENCY | RST-006A predecessor | A17 | selector not in container | DISCREPANCY | runner/bootstrap | runner-owned explicit profile | GUARD | DB-003/004,LIFE-002/003 | T11 | T15 | CG1 | NO | G02,G07 | PRE | SR/DR | none | READY_WITH_CONSTRAINTS | T11 owns BLK-01 |
+| T11 | DEPENDENCY | historical predecessor profiles | A17 | narrow profiles provision and exact-verify RST-002B/RST-006A | VERIFIED_AT_HEAD | runner/bootstrap | runner-owned explicit profiles | GUARD | DB-003/004,LIFE-002/003 | T10 | T12,T14,T15 | CG1 | NO | G01,G02,G07 | PRE | SR/DR | none | READY | BLK-01 closed; broad `MJL_TEST_MODE` remains outside the container |
+| T12 | DEPENDENCY | RST-006A predecessor | A17 | narrow exact profile | VERIFIED_AT_HEAD | runner/bootstrap | runner-owned explicit profile | GUARD | DB-003/004,LIFE-002/003 | T11 | T15 | CG1 | NO | G02,G07 | PRE | SR/DR | none | READY | preserve exact verification |
 | T13 | RESPONSIBILITY | RST-005 tooling | A17 | retained scripts/launcher | VERIFIED_AT_HEAD | RST-005 tooling | same | RETAIN | DB-003/004,LIFE-003 | none | T14 | none | NO | G08,G09 | PRE/POST | N/A | none | READY | must not move |
 | T14 | RESPONSIBILITY | RST-002B lifecycle | A17,P14 | exact library + guarded CLI | VERIFIED_AT_HEAD | current library/CLI | same behind delegation | DELEGATE | RT-011,DB-003/004,LIFE-003 | T11 | T03 | CG3 | NO | G01,G08 | X | SR/DR | none | READY_WITH_CONSTRAINTS | T11 first |
 | T15 | RESPONSIBILITY | RST-006A lifecycle | A17,P14 | exact library + guarded CLI | VERIFIED_AT_HEAD | current library/CLI | same behind delegation | DELEGATE | RT-011,DB-003/004,LIFE-003 | T12 | T03 | CG3 | NO | G02,G08 | X | SR/DR | none | READY_WITH_CONSTRAINTS | T12 first |
 | T16 | RESPONSIBILITY | RST-006B lifecycle | A17,P14 | exact full prefix matrix | VERIFIED_AT_HEAD | current library/CLI | same behind delegation | DELEGATE | RT-011,DB-003/004,LIFE-003 | none | T03 | CG3 | NO | G03,G08 | X | SR/DR | none | READY | preserve BC-019 |
-| T17 | RESPONSIBILITY | RST-012 lifecycle | A17,P14 | exact mechanics; no runner matrix | DISCREPANCY | current library/CLI | same behind delegation | DELEGATE | RT-011,DB-003/004,LIFE-003 | none | T03,T19 | CG2/3 | NO | G04,G08 | PRE/X/POST | SR/DR | none | BLOCKED | BLK-03 canonical: amendment NO; characterize four prefixes/resume/malformed refusal/empty rollback; re-review YES; unlock when G04 passes |
+| T17 | RESPONSIBILITY | RST-012 lifecycle | A17,P14 | four exact interruption/resume/rollback boundaries plus mutation-free malformed refusal | VERIFIED_AT_HEAD | current library/CLI | same behind delegation | DELEGATE | RT-011,DB-003/004,LIFE-003 | none | T03,T19 | CG2/3 | NO | G04,G08 | PRE/X/POST | SR/DR | none | READY_WITH_CONSTRAINTS | BLK-03 closed; retain matrix through movement |
 | T18 | DATA_FLOW | base SQL resource | A17 | `/mjlfinancement/sql/` | VERIFIED_AT_HEAD | descriptor/native loader | same | RETAIN | DB-003/004,LIFE-001 | T04 | T03 | CG3 | NO | G08,G09 | X | SR | none | READY_WITH_CONSTRAINTS | loading proof before movement |
 | T19 | DATA_FLOW | RST-012 SQL resource | A17 | `schema/rst012_report.sql` | VERIFIED_AT_HEAD | RST-012 library | same | RETAIN | DB-003/004,LIFE-003 | T17 | T03 | CG3 | NO | G04,G09 | X | SR | none | READY_WITH_CONSTRAINTS | resource proof before movement |
 | T20 | DEPENDENCY | includes/runtime callers | A17 | enumerated detector consumers | VERIFIED_AT_HEAD | current callers/includes | same call graph to delegated owner | GUARD | RT-011/014,DB-004 | T14-T19 | T29 | CG3 | NO | G08-G10 | X | SR | none | READY_WITH_CONSTRAINTS | exact source closure |
 | T21 | INVARIANT | runtime OTP readiness | W4,P14 | exact schema detector | VERIFIED_AT_HEAD | auth library | same | RETAIN | RT-011,SEC-AUTH-004,DB-003/004 | none | T22 | CG2/3 | NO | G05,G08 | PRE/POST | SR | none | READY | normal runtime exact |
-| T22 | TRANSITION | activation auth schema | A17,P14 | existing weak table accepted | DISCREPANCY | descriptor ensure helpers | delegated exact refusal | GUARD | DB-003/004,LIFE-001/003 | T21 | T03,T23 | CG2/3 | NO | G05,G06 | PRE/X/POST | SR/DR | none | BLOCKED | BLK-02 canonical: amendment NO; narrow exact fail-closed guard/no repair; re-review YES; unlock when G05/G06 pass |
+| T22 | TRANSITION | activation auth schema | A17,P14 | schema-only exact detector runs before ensure helpers; weak states refuse mutation-free and missing key initialization remains intact | VERIFIED_AT_HEAD | descriptor plus auth detector | delegated exact refusal | GUARD | DB-003/004,LIFE-001/003 | T21 | T03,T23 | CG2/3 | NO | G05,G06 | PRE/X/POST | SR/DR | none | READY_WITH_CONSTRAINTS | BLK-02 closed; no schema repair path added |
 | T23 | INVARIANT | auth trigger/constraint/key order | P14 | descriptor ensure helpers | VERIFIED_AT_HEAD | descriptor | delegated lifecycle owner | RETAIN | RT-014,DB-003,LIFE-001 | T22 | T03 | CG3 | NO | G05,G06,G08 | X | SR | none | READY_WITH_CONSTRAINTS | activation exactness first |
 | T24 | RESPONSIBILITY | native remove/init sequence | A17,P14 | descriptor `_remove/_init` | VERIFIED_AT_HEAD | descriptor | descriptor orchestration | DELEGATE | RT-014,LIFE-001/003 | T04-T23 | T29 | CG3 | NO | G06,G08 | X | SR | none | READY_WITH_CONSTRAINTS | reactivation oracle first |
 | T25 | INVARIANT | disposable failure injection | A17,P14 | two attested branches | VERIFIED_AT_HEAD | descriptor/test runner | same | RETAIN | LIFE-002/003 | T04 | T29 | CG3 | NO | G06,G08 | X | SR/DR | none | READY_WITH_CONSTRAINTS | no production selector |
@@ -353,19 +381,19 @@ operational actions below are the complete W6 action population.
 | Responsibility | Current owner evidence | Classification | Reason / required action |
 | --- | --- | --- | --- |
 | activation orchestration | descriptor `init()` | CONFIRMED | embedded and reachable; W6 target is delegation |
-| clean/current/older/unknown classification | descriptor + exact RST libraries | INCOMPLETE | owners known; descriptor matrix missing (BLK-04) |
-| RST-002B transition | retained library/CLI | INCOMPLETE | owner confirmed; predecessor provisioning wrong (BLK-01) |
-| RST-006A transition | retained library/CLI | INCOMPLETE | owner confirmed; predecessor provisioning wrong (BLK-01) |
+| clean/current/older/unknown classification | descriptor + exact RST libraries | CONFIRMED | focused fingerprint/refusal/lock matrix now maintained |
+| RST-002B transition | retained library/CLI | CONFIRMED | narrow profile provisions and exact-verifies the predecessor |
+| RST-006A transition | retained library/CLI | CONFIRMED | narrow profile provisions and exact-verifies the predecessor |
 | RST-006B transition | retained library/CLI | CONFIRMED | exact maintained matrix exists |
-| RST-012 transition | retained library/CLI | INCOMPLETE | owner confirmed; transition matrix absent (BLK-03) |
+| RST-012 transition | retained library/CLI | CONFIRMED | four interruption prefixes, resume, rollback, and malformed refusal maintained |
 | runtime OTP readiness | `mjl_auth_otp_table_ready()` | CONFIRMED | exact read-only detector and W4 refusal proof |
-| activation OTP readiness | descriptor ensure helpers | INCORRECT | weakened existing table accepted (BLK-02) |
+| activation OTP readiness | descriptor + exact auth detector | CONFIRMED | weakened existing table refuses before ensure helpers |
 | lifecycle lock/error boundary | descriptor | CONFIRMED | GET/RELEASE lock and catch/finally mapped |
 | native initialization/deactivation | descriptor + Dolibarr module base | CONFIRMED | `_init/_remove` order mapped |
 | bootstrap/native disablement | `bootstrap_poc.php` | CONFIRMED | bootstrap-only owner mapped |
 | runtime detector consumers | Activity/auth/report/monitoring owners | CONFIRMED | call sites inventoried; change only in atomic closure |
 | SQL/include/resource loading | descriptor and retained libraries | CONFIRMED | both SQL roots and include model mapped; G09 protects |
-| runner profiles/isolation | runner + disposable fixtures | INCORRECT | isolation sound, historical profile selection wrong (BLK-01) |
+| runner profiles/isolation | runner + disposable fixtures | CONFIRMED | only named lifecycle profiles enter the disposable container |
 
 #### PRE / TRANSITION / POST owner roles
 
@@ -388,12 +416,12 @@ Admin behavior, no-self-validation, and resource scope remain unchanged.
 | Ledger ID | Table/query/write | Current owner | Target owner | Impact | Transaction owner | Compatibility | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | T08 | `GET_LOCK`/`RELEASE_LOCK` | descriptor | delegated lifecycle under descriptor | NONE | descriptor lifecycle | exact name/scope/order | READY_WITH_CONSTRAINTS |
-| T04,T18 | native bulk SQL load | descriptor + `_load_tables` | same through delegation | NONE | native loader/implicit DDL | byte/path identical | BLOCKED by G06 |
-| T11,T14 | RST-002B DDL/detector queries | retained library/CLI | same | NONE | guarded CLI; implicit DDL | exact predecessor/prefix | BLOCKED by BLK-01 |
-| T12,T15 | RST-006A DDL/detector queries | retained library/CLI | same | NONE | guarded CLI; implicit DDL | exact predecessor/prefix | BLOCKED by BLK-01 |
+| T04,T18 | native bulk SQL load | descriptor + `_load_tables` | same through delegation | NONE | native loader/implicit DDL | byte/path identical | READY_WITH_CONSTRAINTS |
+| T11,T14 | RST-002B DDL/detector queries | retained library/CLI | same | NONE | guarded CLI; implicit DDL | exact predecessor/prefix | READY_WITH_CONSTRAINTS |
+| T12,T15 | RST-006A DDL/detector queries | retained library/CLI | same | NONE | guarded CLI; implicit DDL | exact predecessor/prefix | READY_WITH_CONSTRAINTS |
 | T16 | RST-006B DDL/detector queries | retained library/CLI | same | NONE | guarded CLI; implicit DDL | full matrix retained | READY |
-| T17,T19 | RST-012 table/triggers/resource | retained library/CLI | same | NONE | guarded CLI; implicit DDL | exact prefix/resource | BLOCKED by BLK-03 |
-| T21,T22,T23 | OTP/auth definitions and key | descriptor + auth detector | exact detector + delegated lifecycle | NONE | activation lifecycle/native DB | no repair/new DDL | BLOCKED by BLK-02 |
+| T17,T19 | RST-012 table/triggers/resource | retained library/CLI | same | NONE | guarded CLI; implicit DDL | exact prefix/resource | READY_WITH_CONSTRAINTS |
+| T21,T22,T23 | OTP/auth definitions and key | descriptor + auth detector | exact detector + delegated lifecycle | NONE | activation lifecycle/native DB | no repair/new DDL | READY_WITH_CONSTRAINTS |
 | T24,T27 | native module metadata/init/remove | descriptor/native module | same through thin descriptor | NONE | native Dolibarr | exact call order/data retention | READY_WITH_CONSTRAINTS |
 
 No query, read, write, transaction, or schema ownership change is authorized.
@@ -530,7 +558,8 @@ restore requirements. A partial CG3 source revert is not credible.
 
 ## Verification matrix
 
-These are future known execution paths; none ran in this documentation review.
+These remain the known W6 execution paths. The prerequisite portions of
+G01/G02/G04-G07 ran during this re-review; W6 movement gates remain future.
 
 | Gate ID | Ledger IDs protected | Exact command/test | Oracle | Failure proven | Execution path | Stage | Environment | Mutation class | Blocking? |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -538,15 +567,32 @@ These are future known execution paths; none ran in this documentation review.
 | G01 | T06,T11,T14,T28 | `npm run test:rst002b` | exact RST-002B predecessor first; 12 forward + 12 rollback points resume; malformed state leaves fingerprint unchanged | wrong predecessor, non-resumable prefix, mutation-before-refusal | npm -> `run-suite.js rst002b` -> disposable Compose -> CLI/verifier/E2E | PRE_MOVE_CHARACTERIZATION | isolated disposable tenant | TEST_DB_MUTATION | YES |
 | G02 | T06,T12,T15,T28 | `npm run test:rst006a` | exact RST-006A predecessor first; 43 forward + 43 rollback points resume; malformed definitions leave fingerprint unchanged | wrong predecessor, prefix loss, weakened exact detector | npm -> runner `rst006a` -> disposable Compose -> CLI/verifier/E2E | PRE_MOVE_CHARACTERIZATION | isolated disposable tenant | TEST_DB_MUTATION | YES |
 | G03 | T16,T28 | `npm run test:phase3a` | every maintained RST-006B prefix resumes/verifies/rolls back; exact mutations refuse | BC-019 regression or weak exact definition | npm -> runner `phase3a` -> disposable CLI + Playwright | POST_CUTOVER_REGRESSION | isolated disposable tenant | TEST_DB_MUTATION | YES |
-| G04 | T07,T17,T19,T28 | future extended `npm run test:phase3b` | verified RST-006B predecessor; forward-001..004 report exact prefix, resume, verify and empty-rollback; malformed prefix is mutation-free | missing/broken RST-012 transition or resource | npm -> runner `phase3b` -> existing RST-012 CLI -> Playwright | PRE_MOVE_CHARACTERIZATION then POST_CUTOVER_REGRESSION | isolated disposable tenant | TEST_DB_MUTATION | YES |
-| G05 | T21-T23 | future extended `npm run test:auth` | exact runtime/activation accepted; missing index/weakened check/current/older/partial states refuse without repair | BC-022 activation acceptance or auth-runtime drift | npm -> runner `auth` -> bootstrap/auth Playwright + DB fingerprint | PRE_MOVE_CHARACTERIZATION then POST_CUTOVER_REGRESSION | isolated disposable tenant | TEST_DB_MUTATION | YES |
-| G06 | T04-T08,T22-T26 | future descriptor cases under `npm run test:auth` | clean/current/older/partial/unknown exact result; before/after schema/trigger hash; lock released | descriptor state drift, mutation-before-refusal, lock leak | npm -> runner `auth` lifecycle setup -> bootstrap descriptor -> DB evidence | PRE_MOVE_CHARACTERIZATION then POST_CUTOVER_REGRESSION | isolated disposable tenant | TEST_DB_MUTATION | YES |
+| G04 | T07,T17,T19,T28 | `npm run test:rst012` | verified RST-006B predecessor; forward-001..004 report exact prefix, resume, verify and empty-rollback; malformed prefix is mutation-free | missing/broken RST-012 transition or resource | npm -> runner `rst012` -> existing RST-012 CLI | PRE_MOVE_CHARACTERIZATION and POST_CUTOVER_REGRESSION | isolated disposable tenant | TEST_DB_MUTATION | YES |
+| G05 | T21-T23 | extended `npm run test:auth` | exact runtime/activation accepted; missing index/weakened check/current/older/partial states refuse without repair | BC-022 activation acceptance or auth-runtime drift | npm -> runner `auth` -> bootstrap/auth Playwright + DB fingerprint | PRE_MOVE_CHARACTERIZATION then POST_CUTOVER_REGRESSION | isolated disposable tenant | TEST_DB_MUTATION | YES |
+| G06 | T04-T08,T22-T26 | descriptor cases under `npm run test:auth` | clean/current/older/partial/unknown exact result; before/after schema/trigger hash; lock released | descriptor state drift, mutation-before-refusal, lock leak | npm -> runner `auth` lifecycle setup -> bootstrap descriptor -> DB evidence | PRE_MOVE_CHARACTERIZATION then POST_CUTOVER_REGRESSION | isolated disposable tenant | TEST_DB_MUTATION | YES |
 | G07 | T10-T12,T28 | `node --test tests/unit/disposable-run.test.js tests/unit/disposable-policy.test.js tests/unit/w6-lifecycle-profile.test.js` (third file added only by blocker-closing unit) | timeout sticky; only named profiles emitted; port 8080 rejected; teardown plan exact | broad mode leak, false timeout success, unsafe tenant | Node test runner -> runner/profile modules; no Compose | FOCUSED_IMPLEMENTATION | host temporary files only | TEST_FILESYSTEM_ONLY | YES if runner changes |
 | G08 | T03-T27 | future `php tests/contracts/w6_lifecycle_ownership_test.php`; `php -l <each changed PHP>` | one orchestrator/schema authority; old embedded owners absent; signatures load; syntax valid | dual owner, duplicate schema model, broken PHP | host PHP contract -> source text/reflection; host syntax parser | FOCUSED_IMPLEMENTATION and POST_CUTOVER_REGRESSION | host/read-only | READ_ONLY | YES |
 | G09 | T18-T20 | future `php tests/contracts/w6_lifecycle_loading_test.php` | every changed include/caller resolves; `/mjlfinancement/sql/` and `schema/rst012_report.sql` exist and remain referenced from their retained owners | broken include, callback, dynamic path, or SQL lookup | host PHP contract -> repository paths/source graph | PRE_MOVE_CHARACTERIZATION then POST_CUTOVER_REGRESSION | host/read-only | READ_ONLY | YES |
 | G10 | T03,T20,T29 | independent review of `git diff <authorized-baseline>...HEAD` against AGENTS/Standard and W6 authorization | zero actionable Standards findings and zero Spec findings | standards breach or scope mismatch | committed diff -> independent Standards agent + independent Spec agent | POST_CUTOVER_REGRESSION | read-only repository review | READ_ONLY | YES |
 
-G01, G02, G04, G05, and G06 are `MUST_ADD_BEFORE_AUTHORIZATION`. Runtime
+Prerequisite execution evidence on 2026-10-09:
+
+- G01: the exact RST-002B predecessor, full forward/rollback matrix, malformed
+  recovery, and the 9-case current-target browser characterization passed in
+  split disposable runs.
+- G02: the exact RST-006A predecessor, all 43 forward and 43 rollback points,
+  malformed-state checks, and the 42-case current-target browser
+  characterization passed.
+- G04: the focused `npm run test:rst012` gate passed the exact RST-006B
+  predecessor, all four RST-012 interruption cycles, malformed-prefix refusal,
+  final target verification, shared-state proof, and teardown. The 112-case
+  Phase 3B browser suite remains separate regression coverage.
+- G05/G06: `npm run test:auth` passed the descriptor matrix and 19/19 auth
+  cases, including missing-index and weakened-check refusal before mutation.
+- G07: the three focused Node files passed 29/29. PHP and Node syntax checks and
+  `git diff --check` also passed.
+
+G01, G02, G04, G05, and G06 are now maintained prerequisite gates. Runtime
 refusal/cache/budget and include/loading/resource checkpoints for a changed call
 graph are `MUST_ADD_BEFORE_MOVEMENT`; the final ownership contract is
 `MUST_ADD_BEFORE_CUTOVER`.
@@ -565,10 +611,10 @@ BC-007 is `NOT_RELEVANT` and its dormant shared-port test must not run.
 | BC-006 incomplete discovery | A17 | every W6 gate names its path | T28,T29 | W6_GUARD | NO |
 | BC-007 dormant shared-port test | A17 | not selected; prohibited to run | T28 | DEFER | NO |
 | BC-020 timeout exit-zero | A17/W0 | fixed prerequisite to preserve | T10 | RETAIN | NO |
-| BC-021 wrong historical baseline | A17 | frozen prerequisite | T06,T11,T12,T14,T15 | CLOSE_BEFORE_AUTHORIZATION | YES, BLK-01 |
-| BC-022 weak activation auth schema | A17/W4 evidence | runtime half fixed; activation half open | T21-T23 | CLOSE_BEFORE_AUTHORIZATION | YES, BLK-02 |
-| RST-012 missing matrix | A17 | exact mechanics need maintained proof | T07,T17,T19 | CLOSE_BEFORE_AUTHORIZATION | YES, BLK-03 |
-| descriptor state characterization | A17 | required before extraction | T04-T08,T24-T26 | CLOSE_BEFORE_AUTHORIZATION | YES, BLK-04 |
+| BC-021 wrong historical baseline | A17 | exact named profiles and verification implemented | T06,T11,T12,T14,T15 | CLOSED | NO |
+| BC-022 weak activation auth schema | A17/W4 evidence | exact activation refusal implemented | T21-T23 | CLOSED | NO |
+| RST-012 missing matrix | A17 | exact maintained matrix implemented | T07,T17,T19 | CLOSED | NO |
+| descriptor state characterization | A17 | focused lifecycle matrix implemented | T04-T08,T24-T26 | CLOSED | NO |
 | cron multi-entity/fail-fast semantics | gap analysis | outside lifecycle delegation | none | DEFER | NO |
 | broad-suite cost W2-RSK-007 | prior W2 risk | named focused gates only | T28,T29 | DEFER | NO |
 
@@ -600,7 +646,7 @@ authority, and reachability proof—so W6 removes none of these candidates.
 W6 produces no frozen W7 artifact: 0/0 hard dependencies. W7 remains
 `NOT_AUTHORIZED`.
 
-Blocking ledger conditions are BLK-01 through BLK-04. Six non-blocking risks remain:
+BLK-01 through BLK-04 are closed. Six non-blocking risks remain:
 include/resource breakage; partial source rollback; diagnostic drift; test-mode
 leakage; false atomic-DDL claims; and broad-suite cost without a W6 oracle.
 
@@ -615,18 +661,17 @@ leakage; false atomic-DDL claims; and broad-suite cost without a W6 oracle.
 | RSK-W6-09 | T04,T14-T18,T22 | false atomic-DDL/rollback claim | Medium | High | per-row recovery view; guarded resume/DR | NO |
 | RSK-W6-10 | T10,T28,T29 | broad-suite cost without oracle | Medium | Low | named gates; defer W2-RSK-007/BC-005 | NO |
 
-The four authorization blockers exist only in canonical ledger rows T11, T22,
-T17, and T05 respectively. No blocker needs an architecture or Standard
-amendment. Each needs its recorded executable proof and a fresh readiness
-review; documentation wording alone cannot close it.
+The four authorization blockers formerly recorded in T11, T22, T17, and T05
+are closed by executable proof. No architecture or Standard amendment was
+required.
 
 Future skeleton, not authorization:
 
 | Step | Ledger IDs | Action | Likely files | Preconditions | Verification gates | Cutover group | Recovery |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | T10-T12,T28 | define narrow runner-owned predecessor profiles and exact verification | runner, disposable override/profile, focused runner unit | separately authorized blocker-closing unit | G01,G02,G07 | CG1 | source revert + DR |
-| 2 | T04-T07,T17,T21-T23 | add RST-012/descriptor characterization and narrowly correct activation to fail closed through the existing exact detector; no DDL, repair, or ownership migration | descriptor or one current lifecycle PHP seam, runner, existing phase3b/auth specs, focused contracts | separately authorized prerequisite guard unit + step 1 exact baselines | G04-G06,G09 | CG2 | complete prerequisite SR + DR |
-| 3 | T01,T29 | perform fresh readiness review and obtain explicit W6 authorization | readiness/status docs only | BLK-01-04 closed | G00 | CG0 | doc correction |
+| 1 | T10-T12,T28 | narrow runner-owned predecessor profiles and exact verification | runner, disposable override/profile, focused runner unit | complete | G01,G02,G07 | CG1 | source revert + DR |
+| 2 | T04-T07,T17,T21-T23 | RST-012/descriptor characterization and exact activation refusal | descriptor, runner, focused RST-012/auth gates | complete | G04-G06 | CG2 | complete prerequisite SR + DR |
+| 3 | T01,T29 | obtain explicit W6 authorization | authority/status docs only | BLK-01-04 closed | G00 | CG0 | doc correction |
 | 4 | T03,T08-T09,T13-T27 | delegate exact lifecycle logic with complete caller/include/resource closure | descriptor, one current-path lifecycle seam, only necessary callers/includes | step 3 authorization | G03-G09 | CG3 | complete SR; guarded DR only |
 | 5 | T29,T30 | run final gates/reviews, reconcile status, stop before W7 | focused contracts/status docs | step 4 complete | G00-G10 | CG4 | correct source and rerun |
 
@@ -640,11 +685,11 @@ Future skeleton, not authorization:
 | tests added/modified | 3-6 | 2-5 |
 | documentation modified | 2-4 | 3-5 status/readiness files |
 
-These are spread-detection estimates, not arbitrary limits. The separately
-authorized blocker-closing prerequisite may make only the narrow activation
-fail-closed PHP correction required by BLK-02; it must not change DDL, repair
-schema, or move lifecycle ownership. Later W6 remains the descriptor plus one
-current-path seam and only necessary caller/include changes.
+These are spread-detection estimates, not arbitrary limits. The completed
+prerequisite made only the narrow activation refusal and disposable lifecycle
+changes required by BLK-01 through BLK-04; it did not repair schema or move
+lifecycle ownership. Later W6 remains the descriptor plus one current-path seam
+and only necessary caller/include changes.
 Any framework/config/dependency/schema/UI addition, generalized helper, or
 unrelated cleanup triggers a new lean-scope review.
 
@@ -653,10 +698,10 @@ unrelated cleanup triggers a new lean-scope review.
 | Criterion | Required state |
 | --- | --- |
 | W0-W5 | COMPLETE |
-| authority hashes and DEC-066/067 | verified/current |
+| authority hashes and DEC-066/067/068 | verified/current |
 | BLK-01 through BLK-04 | closed by passing G01,G02,G04-G07 evidence |
 | preservation ledger | 35/35 mapped with no unsupported exception |
-| worktree/baseline | named clean commit and no unrelated changes |
+| worktree/baseline | reviewed blocker-closing diff; establish a clean named baseline before W6 movement |
 | authorization | new explicit user authorization after readiness re-review |
 
 ### Future W6 exit criteria
@@ -682,9 +727,10 @@ unrelated cleanup triggers a new lean-scope review.
 
 | Pass | Questions applied | New findings | Findings invalidated | Readiness impact | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| A — Completeness | missing responsibility/owner/action/DB/frontend/Dolibarr/preservation/exclusion | initial compressed ledger, preservation, exclusion, gate, coexistence, and recovery evidence was insufficient; expanded in this review | claim that grouped summaries alone established exact denominators | verdict remains NOT_READY; report completeness restored | PASS: no new material gap on final pass |
-| B — Safety | dual authority, transaction/auth drift, DEC-066, coexistence, rollback, audit, characterization, false-positive gates | identified canonical blocker rows T11/T22/T17/T05 and need for per-row recovery/failure ownership | possible READY_WITH_CONSTRAINTS treatment of frozen prerequisites | four ledger conditions block authorization | PASS: no blocker hidden as constraint |
+| A — Completeness | missing responsibility/owner/action/DB/frontend/Dolibarr/preservation/exclusion | initial compressed ledger, preservation, exclusion, gate, coexistence, and recovery evidence was insufficient; expanded in the initial review | claim that grouped summaries alone established exact denominators | initial verdict stayed NOT_READY; report completeness restored | PASS: no new material gap on final pass |
+| B — Safety | dual authority, transaction/auth drift, DEC-066, coexistence, rollback, audit, characterization, false-positive gates | identified canonical blocker rows T11/T22/T17/T05 and need for per-row recovery/failure ownership | possible READY_WITH_CONSTRAINTS treatment of frozen prerequisites | four ledger conditions blocked initial authorization | PASS: prerequisites were not hidden as constraints |
 | C — Scope discipline | W5/W7 leakage, generic refactor/tooling/design/auth/monitoring cleanup, deferred debt absorption | stale gap wording could permit retirement; corrected to retain historical support | assumption that remaining debt belongs in W6 because only W6/W7 remain | documentation only; 24/24 exclusions explicit | PASS: no unauthorized scope |
+| D — Prerequisite re-review | exact predecessors, activation refusal, RST-012 matrix, descriptor states, lean scope | BLK-01 through BLK-04 closed by focused executable evidence | initial `W6_NOT_READY` status | W6 becomes READY_FOR_AUTHORIZATION; ownership move remains unauthorized | PASS: no remaining authorization blocker |
 
 ## Independent and mechanical reviews
 
@@ -697,8 +743,8 @@ Standards review: PASS
 Specification review: PASS
 ```
 
-Those passes validate this review, not W6 readiness. No architecture or
-Engineering Standard amendment is required.
+Those passes validate the prerequisite re-review and its readiness verdict. No
+architecture or Engineering Standard amendment is required.
 
 | Mechanical condition | Result |
 | --- | --- |
@@ -706,7 +752,7 @@ Engineering Standard amendment is required.
 | preservation | 35/35 |
 | ledger/gates/cutovers | 32/32, 11/11, 5/5 |
 | unresolved authority conflicts | 0 |
-| current-state discrepancy rows / canonical blockers | 7 / 4 |
+| current-state discrepancy rows / canonical blockers | 2 / 0 |
 | missing scope / extra scope | 0 / 0 |
 | cycles / unowned / dual authority | 0 / 0 / 0 |
 | preservation without target enforcement/verification | 0 / 0 |
@@ -715,8 +761,8 @@ Engineering Standard amendment is required.
 | ambiguous transactions/authorization | 0 / 0 |
 | DEC-066 / post-W5 ownership conflicts | 0 / 0 |
 | amendments required | NO / NO |
-| blocking ledger conditions / cross-cutting blocking risks / non-blocking risks | 4 / 0 / 6 |
-| frozen prerequisites satisfied | NO |
+| blocking ledger conditions / cross-cutting blocking risks / non-blocking risks | 0 / 0 / 6 |
+| frozen prerequisites satisfied | YES |
 
 ## Final report
 
@@ -736,9 +782,9 @@ W5 -> W6 explicit dependency: NONE_DEFINED
 Preservation requirements: 35 / 35
 Exact W6 scope: CLEAR
 Master ledger rows: 32
-Rows READY: 12
-Rows READY_WITH_CONSTRAINTS: 15
-Rows BLOCKED: 4
+Rows READY: 14
+Rows READY_WITH_CONSTRAINTS: 17
+Rows BLOCKED: 0
 Rows NOT_APPLICABLE: 1
 Coverage reconciliation: COMPLETE
 Authoritative scope coverage: 10 / 10
@@ -755,7 +801,7 @@ Cutover-group coverage: 5 / 5
 W7 dependency coverage: 0 / 0
 Exclusion coverage: 24 / 24
 Unresolved authority conflicts: 0
-Current-state discrepancies: 7
+Current-state discrepancies: 2
 Missing authoritative scope items: 0
 Unauthorized extra scope items: 0
 Dependency graph: VALID
@@ -782,24 +828,24 @@ Standards review: PASS
 Specification review: PASS
 Cross-cutting blocking risks: 0
 Non-blocking risks: 6
-Runtime files modified: 0
-Test files modified: 0
+Runtime files modified: 3
+Test files modified: 8
 W0 implementation modified: NO
 W1 implementation modified: NO
 W2 implementation modified: NO
 W3 implementation modified: NO
 W4 implementation modified: NO
 W5 implementation modified: NO
-Tooling/config modified: 0
+Tooling/config modified: 2 (`package.json` command and disposable test override)
 Dependencies modified: 0
 CI modified: 0
 W6 authorized: NO
 W7 authorized: NO
-Final verdict: W6_NOT_READY
+Final verdict: W6_READY_FOR_AUTHORIZATION
 Review document: docs/mjl-w6-readiness-review.md
 ```
 
-The next permissible work is a separately authorized prerequisite guard and
-characterization unit resolving BLK-01 through BLK-04. It may narrowly correct
-activation-time exact-schema refusal but must not change DDL, repair schema, or
-move lifecycle ownership. Stop before W6 delegation and before W7.
+This final-report block is the pre-authorization readiness snapshot. The
+current implementation outcome is `W6_FAILED` under DEC-069. The next
+permissible work is authority reconciliation and a new W6 authorization; work
+must stop before W7.

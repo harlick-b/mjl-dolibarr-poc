@@ -9,7 +9,7 @@ const { spawn } = require('node:child_process');
 const { chromium } = require('playwright');
 
 const { assertCleanupComplete, assertDisposableConfig } = require('./disposable-policy');
-const { createRunPlan, getSuitePlan, sanitizeOutput } = require('./disposable-run');
+const { createRunPlan, getLifecycleBootstrapProfile, getSuitePlan, sanitizeOutput } = require('./disposable-run');
 const { scanArtifacts, streamTreeDigest } = require('./disposable-evidence');
 const { registerSecretAt } = require('../helpers/mjl-test-runtime');
 
@@ -241,7 +241,7 @@ function runCommand(command, args, options = {}) {
   });
 }
 
-function composeEnvironment(plan, sourceRoot = repositoryRoot) {
+function composeEnvironment(plan, sourceRoot = repositoryRoot, bootstrapProfile = getLifecycleBootstrapProfile(mode)) {
   return {
     ...process.env,
     COMPOSE_PROJECT_NAME: plan.projectName,
@@ -252,6 +252,7 @@ function composeEnvironment(plan, sourceRoot = repositoryRoot) {
     MJL_EVIDENCE_ROOT: plan.evidenceRoot,
     MJL_PLAYWRIGHT_OUTPUT_DIR: path.join(plan.artifactRoot, 'playwright'),
     MJL_TEST_MODE: mode,
+    MJL_LIFECYCLE_BOOTSTRAP_PROFILE: bootstrapProfile,
     MJL_DISPOSABLE_RUN_SENTINEL: plan.sentinel,
     MJL_TEST_USER_PASSWORD: plan.testUserPassword,
     MJL_AUTH_PASSWORD_1: plan.lifecyclePasswords[0],
@@ -265,7 +266,7 @@ function composeEnvironment(plan, sourceRoot = repositoryRoot) {
 async function compose(plan, args, options = {}) {
   return runCommand('docker', ['compose', ...args], {
     ...options,
-    env: composeEnvironment(plan, options.sourceRoot),
+    env: composeEnvironment(plan, options.sourceRoot, options.bootstrapProfile),
   });
 }
 
@@ -306,17 +307,114 @@ async function provisionDisposableDatabaseClient(plan, signal) {
   await compose(plan, ['exec', '-T', 'mariadb', 'sh', '-ceu', 'umask 077; mkdir -p /run/mjl-test; target=/run/mjl-test/client.cnf; temporary=/run/mjl-test/client.cnf.new; printf "[client]\\nuser=%s\\npassword=%s\\n[client_root]\\nuser=root\\npassword=%s\\n" "$MYSQL_USER" "$MYSQL_PASSWORD" "$MYSQL_ROOT_PASSWORD" > "$temporary"; chmod 0600 "$temporary"; mv "$temporary" "$target"'], { quiet: true, signal });
 }
 
-async function provision(plan, signal) {
-  const resolved = await compose(plan, ['config', '--format', 'json'], { quiet: true, signal });
+async function provision(plan, signal, bootstrapProfile = getLifecycleBootstrapProfile(mode)) {
+  const resolved = await compose(plan, ['config', '--format', 'json'], { quiet: true, signal, bootstrapProfile });
   assertDisposableConfig(JSON.parse(resolved), plan);
-  await compose(plan, ['up', '-d'], { signal });
+  await compose(plan, ['up', '-d'], { signal, bootstrapProfile });
   await waitUntilReady(plan, signal);
-  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'], { quiet: true, signal });
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'], { quiet: true, signal, bootstrapProfile });
   await provisionDisposableFixtureControls(plan, signal);
+  const exactVerifier = {
+    rst002b: ['/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=verify', '--confirm=RST-002B'],
+    rst006a: ['/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php', '--mode=verify'],
+    rst006b: ['/var/www/html/custom/mjlfinancement/scripts/rst006b_execution.php', '--mode=verify'],
+  }[bootstrapProfile];
+  if (exactVerifier) await compose(plan, ['exec', '-T', 'dolibarr', 'php', ...exactVerifier], { quiet: true, signal });
 }
 
 async function databaseSql(plan, statement, options = {}) {
   return compose(plan, ['exec', '-T', 'mariadb', 'mariadb', '--defaults-extra-file=/run/mjl-test/client.cnf', ...(options.scalar ? ['-N', '-B'] : []), 'dolidb'], { ...options, input: `${statement}\n` });
+}
+
+async function descriptorStructureFingerprint(plan, signal) {
+  const statement = [
+    "SELECT CONCAT('B|',TABLE_NAME,'|',TABLE_TYPE,'|',COALESCE(ENGINE,''),'|',COALESCE(ROW_FORMAT,''),'|',COALESCE(TABLE_COLLATION,'')) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'llx_mjlfinancement\\_%' ORDER BY TABLE_NAME",
+    "SELECT CONCAT('C|',TABLE_NAME,'|',ORDINAL_POSITION,'|',COLUMN_NAME,'|',COLUMN_TYPE,'|',IS_NULLABLE,'|',COALESCE(COLUMN_DEFAULT,'<null>'),'|',EXTRA,'|',COALESCE(GENERATION_EXPRESSION,'')) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'llx_mjlfinancement\\_%' ORDER BY TABLE_NAME,ORDINAL_POSITION",
+    "SELECT CONCAT('I|',TABLE_NAME,'|',INDEX_NAME,'|',SEQ_IN_INDEX,'|',NON_UNIQUE,'|',INDEX_TYPE,'|',COLUMN_NAME,'|',COALESCE(SUB_PART,0)) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'llx_mjlfinancement\\_%' ORDER BY TABLE_NAME,INDEX_NAME,SEQ_IN_INDEX",
+    "SELECT CONCAT('K|',tc.TABLE_NAME,'|',tc.CONSTRAINT_NAME,'|',tc.CONSTRAINT_TYPE,'|',COALESCE(cc.CHECK_CLAUSE,'')) FROM information_schema.TABLE_CONSTRAINTS tc LEFT JOIN information_schema.CHECK_CONSTRAINTS cc ON cc.CONSTRAINT_SCHEMA=tc.CONSTRAINT_SCHEMA AND cc.TABLE_NAME=tc.TABLE_NAME AND cc.CONSTRAINT_NAME=tc.CONSTRAINT_NAME WHERE tc.CONSTRAINT_SCHEMA=DATABASE() AND tc.TABLE_NAME LIKE 'llx_mjlfinancement\\_%' ORDER BY tc.TABLE_NAME,tc.CONSTRAINT_NAME",
+    "SELECT CONCAT('U|',TABLE_NAME,'|',CONSTRAINT_NAME,'|',ORDINAL_POSITION,'|',COLUMN_NAME,'|',COALESCE(REFERENCED_TABLE_NAME,''),'|',COALESCE(REFERENCED_COLUMN_NAME,'')) FROM information_schema.KEY_COLUMN_USAGE WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'llx_mjlfinancement\\_%' ORDER BY TABLE_NAME,CONSTRAINT_NAME,ORDINAL_POSITION",
+    "SELECT CONCAT('R|',TABLE_NAME,'|',CONSTRAINT_NAME,'|',UNIQUE_CONSTRAINT_NAME,'|',MATCH_OPTION,'|',UPDATE_RULE,'|',DELETE_RULE) FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'llx_mjlfinancement\\_%' ORDER BY TABLE_NAME,CONSTRAINT_NAME",
+    "SELECT CONCAT('T|',TRIGGER_NAME,'|',EVENT_OBJECT_TABLE,'|',ACTION_TIMING,'|',EVENT_MANIPULATION,'|',ACTION_STATEMENT) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE LIKE 'llx_mjlfinancement\\_%' ORDER BY TRIGGER_NAME",
+  ].join(';');
+  const output = await databaseSql(plan, statement, { quiet: true, scalar: true, signal });
+  return crypto.createHash('sha256').update(output).digest('hex');
+}
+
+async function assertDescriptorLockReleased(plan, signal) {
+  const free = (await databaseSql(plan, "SELECT IS_FREE_LOCK(CONCAT('mjl:rst002b:',LEFT(SHA2(CONCAT(DATABASE(),':','llx_'),256),46)))", { quiet: true, scalar: true, signal })).trim();
+  if (free !== '1') throw new Error('Module activation advisory lock was not released.');
+}
+
+async function expectDescriptorRefusalWithoutMutation(plan, label, signal) {
+  const before = await descriptorStructureFingerprint(plan, signal);
+  const output = await expectComposeFailure(plan, ['exec', '-T', '-e', 'MJL_LIFECYCLE_BOOTSTRAP_PROFILE=', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'], label, { signal });
+  if (!output.includes('Failed to activate modMjlFinancement')) throw new Error(`${label} failed for the wrong reason.`);
+  const after = await descriptorStructureFingerprint(plan, signal);
+  if (after !== before) throw new Error(`${label} mutated schema or triggers before refusal.`);
+  await assertDescriptorLockReleased(plan, signal);
+}
+
+async function runDescriptorLifecycleCharacterization(plan, signal) {
+  const bootstrap = ['exec', '-T', '-e', 'MJL_LIFECYCLE_BOOTSTRAP_PROFILE=', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/bootstrap_poc.php'];
+  const rst012 = '/var/www/html/custom/mjlfinancement/scripts/rst012_export_schema.php';
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', rst012, '--mode=verify'], { signal });
+  await assertDescriptorLockReleased(plan, signal);
+
+  const currentBefore = await descriptorStructureFingerprint(plan, signal);
+  await compose(plan, bootstrap, { quiet: true, signal });
+  if (await descriptorStructureFingerprint(plan, signal) !== currentBefore) throw new Error('Current descriptor reactivation changed schema or triggers.');
+  await assertDescriptorLockReleased(plan, signal);
+  await databaseSql(plan, "DELETE FROM llx_const WHERE name='MJL_AUTH_FINGERPRINT_KEY' AND entity IN (0,1)", { signal });
+  await compose(plan, bootstrap, { quiet: true, signal });
+  if ((await databaseSql(plan, "SELECT COUNT(*) FROM llx_const WHERE name='MJL_AUTH_FINGERPRINT_KEY' AND entity IN (0,1) AND value<>''", { quiet: true, scalar: true, signal })).trim() !== '1') throw new Error('Exact OTP activation did not restore the retained fingerprint key initialization.');
+
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', rst012, '--mode=rollback', '--confirm=RST-012'], { signal });
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', rst012, '--mode=verify-predecessor'], { signal });
+  await expectDescriptorRefusalWithoutMutation(plan, 'Descriptor older-state refusal', signal);
+
+  const interrupted = await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', rst012, '--mode=apply', '--confirm=RST-012', '--failure-point=forward-001'], 'Descriptor partial-state setup', { signal });
+  if (!interrupted.includes('Injected RST-012 interruption after forward-001')) throw new Error('Descriptor partial-state setup failed for the wrong reason.');
+  await expectDescriptorRefusalWithoutMutation(plan, 'Descriptor partial-state refusal', signal);
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', rst012, '--mode=apply', '--confirm=RST-012'], { signal });
+
+  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_export_record ADD INDEX idx_mjl_rst012_unknown (report_type)', { signal });
+  await expectDescriptorRefusalWithoutMutation(plan, 'Descriptor unknown-state refusal', signal);
+  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_export_record DROP INDEX idx_mjl_rst012_unknown', { signal });
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', rst012, '--mode=verify'], { signal });
+
+  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_login_otp DROP INDEX uk_mjl_login_otp_live_user', { signal });
+  await expectDescriptorRefusalWithoutMutation(plan, 'Descriptor missing OTP index refusal', signal);
+  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_login_otp ADD UNIQUE INDEX uk_mjl_login_otp_live_user (entity,live_user_id)', { signal });
+
+  await databaseSql(plan, "ALTER TABLE llx_mjlfinancement_login_otp DROP CONSTRAINT chk_mjl_login_otp_counts, ADD CONSTRAINT chk_mjl_login_otp_counts CHECK (attempt_count BETWEEN 0 AND 6 AND resend_count BETWEEN 0 AND 3)", { signal });
+  await expectDescriptorRefusalWithoutMutation(plan, 'Descriptor weakened OTP check refusal', signal);
+  await databaseSql(plan, "ALTER TABLE llx_mjlfinancement_login_otp DROP CONSTRAINT chk_mjl_login_otp_counts, ADD CONSTRAINT chk_mjl_login_otp_counts CHECK (attempt_count BETWEEN 0 AND 5 AND resend_count BETWEEN 0 AND 3)", { signal });
+  await compose(plan, bootstrap, { quiet: true, signal });
+}
+
+async function runRst012TransitionMatrix(plan, signal) {
+  const script = '/var/www/html/custom/mjlfinancement/scripts/rst012_export_schema.php';
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=verify-predecessor'], { signal });
+  for (const failurePoint of ['forward-001', 'forward-002', 'forward-003', 'forward-004']) {
+    const output = await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=apply', '--confirm=RST-012', `--failure-point=${failurePoint}`], `RST-012 ${failurePoint}`, { signal });
+    if (!output.includes(`Injected RST-012 interruption after ${failurePoint}`)) throw new Error(`RST-012 ${failurePoint} failed for the wrong reason.`);
+    const prefix = (await compose(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=prefix'], { quiet: true, signal })).trim();
+    if (prefix !== failurePoint) throw new Error(`RST-012 ${failurePoint} reported ${prefix}.`);
+    await compose(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=apply', '--confirm=RST-012'], { signal });
+    await compose(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=verify'], { signal });
+    await compose(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=rollback', '--confirm=RST-012'], { signal });
+    await compose(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=verify-predecessor'], { signal });
+  }
+
+  await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=apply', '--confirm=RST-012', '--failure-point=forward-001'], 'RST-012 malformed-prefix setup', { signal });
+  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_export_record ADD INDEX idx_mjl_rst012_unexpected (report_type)', { signal });
+  const malformedBefore = await descriptorStructureFingerprint(plan, signal);
+  const refusal = await expectComposeFailure(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=apply', '--confirm=RST-012'], 'RST-012 malformed prefix', { signal });
+  if (!refusal.includes('RST012_UNKNOWN_SCHEMA')) throw new Error('RST-012 malformed prefix was not classified as unknown.');
+  if (await descriptorStructureFingerprint(plan, signal) !== malformedBefore) throw new Error('RST-012 malformed-prefix refusal mutated schema or triggers.');
+  await databaseSql(plan, 'ALTER TABLE llx_mjlfinancement_export_record DROP INDEX idx_mjl_rst012_unexpected', { signal });
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=apply', '--confirm=RST-012'], { signal });
+  await compose(plan, ['exec', '-T', 'dolibarr', 'php', script, '--mode=verify'], { signal });
 }
 
 async function captureDisposableEvidence(plan, signal, applicationRunning = true) {
@@ -810,7 +908,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || vuiModes.has(mode) || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst012' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || vuiModes.has(mode) || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       if (mode === 'phase3c') {
@@ -891,6 +989,10 @@ async function main() {
 		if (layer !== 'rst008') await runPhase1Verification(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
       }
+      else if (layer === 'auth') {
+        await runDescriptorLifecycleCharacterization(plan, controller.signal);
+        await runPlaywright(plan, layer, controller.signal);
+      }
       else if (layer === 'rst002b') {
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
         for (const failurePoint of [
@@ -925,6 +1027,8 @@ async function main() {
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=rollback', '--confirm=RST-002B'], { signal: controller.signal });
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/rst002b_activity_assignment.php', '--mode=apply', '--confirm=RST-002B'], { signal: controller.signal });
         await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_assignment.php'], { signal: controller.signal });
+		await cleanup(plan);
+		await provision(plan, controller.signal, '');
         await runPlaywright(plan, layer, controller.signal);
       }
       else if (layer === 'phase2') {
@@ -935,6 +1039,9 @@ async function main() {
 	  else if (vuiModes.has(layer)) {
 		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], {signal: controller.signal});
 		await runPlaywright(plan,layer,controller.signal);
+	  }
+	  else if (layer === 'rst012') {
+		await runRst012TransitionMatrix(plan, controller.signal);
 	  }
 	  else if (layer === 'phase3b') {
 		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], {signal: controller.signal});
@@ -1058,7 +1165,11 @@ async function main() {
 		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/rst006a_activity_planning.php','--mode=apply','--confirm=RST-006A'], { signal: controller.signal });
 		  await compose(plan, ['exec','-T','dolibarr','php','/var/www/html/custom/mjlfinancement/scripts/verification/schema/activity_planning.php'], { signal: controller.signal });
 		}
-		if (!selectedDdlPoint) await runPlaywright(plan, layer, controller.signal);
+		if (!selectedDdlPoint) {
+		  await cleanup(plan);
+		  await provision(plan, controller.signal, '');
+		  await runPlaywright(plan, layer, controller.signal);
+		}
       }
       else if (layer === 'phase3c') {
 		await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], {signal: controller.signal});
@@ -1076,7 +1187,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || vuiModes.has(mode) || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst012' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || vuiModes.has(mode) || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

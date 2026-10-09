@@ -39,10 +39,14 @@ unresolved weaknesses and unapproved recommendations.
   generic unavailable/HTTP 503 response. `MjlMonitoring`, durable export
   generation/evidence, shared Operation/request branches, formats, filters,
   filenames, CSS/JS, schema, and authentication remain unchanged. All W5 gates
-  passed. The documentation-only W6 review found W6 `NOT_READY`: historical
-  predecessor provisioning (BC-021), activation-time exact auth-schema
-  recognition, the RST-012 transition matrix, and the descriptor lifecycle
-  state matrix must be closed before authorization. W6–W7 remain unauthorized.
+  passed. DEC-068 closed the four W6 prerequisites: exact historical
+  predecessor provisioning, activation-time exact auth-schema refusal, the
+  RST-012 transition matrix, and descriptor lifecycle characterization. W6 is
+  not complete: DEC-069 records `W6_FAILED` before movement because the W6
+  authorization prohibited lifecycle-ownership movement while the frozen W6
+  ledger requires lifecycle delegation. No W6 runtime owner moved, no cutover
+  occurred, and W7 remains unauthorized. A corrected scope/authority decision
+  is required before another W6 attempt.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

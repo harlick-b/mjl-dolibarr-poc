@@ -57,7 +57,7 @@ STANDARD_FROZEN
 | Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
 | Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Preservation requirements | 35/35 mapped |
-| Migration units | W0–W5 are complete; the earlier authorized W5 attempt ended `W5_FAILED` before cutover, DEC-066 amended its rollback oracle, and DEC-067 records the later re-authorized completion; W6 is readiness-reviewed as `W6_NOT_READY`; W6–W7 remain `NOT_AUTHORIZED` |
+| Migration units | W0–W5 are complete; the earlier authorized W5 attempt ended `W5_FAILED` before cutover, DEC-066 amended its rollback oracle, and DEC-067 records the later re-authorized completion; DEC-068 closed the W6 prerequisites; DEC-069 records `W6_FAILED` before movement because its authorization contradicted the frozen lifecycle-delegation ledger; W7 remains `NOT_AUTHORIZED` |
 | Investigation simulations | 6/6 reconciled |
 | Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
 | Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
@@ -73,7 +73,7 @@ is not embedded here because a commit cannot contain its own final hash.
 | Engineering Standard document | `docs/mjl-engineering-standard-v1.md` |
 | Engineering Standard SHA-256 | `b24021ac52a55f5a9921801aac8d100d9238268c55b3775875a0709132fb9560` after DEC-066; original freeze hash `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
 | Review history | `docs/mjl-engineering-standard-v1-review.md`; initial `STANDARD_REVISION_REQUIRED`, three corrected MEDIUM findings, then `STANDARD_APPROVED_FOR_FREEZE` |
-| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; `W4_COMPLETE`; `W5_COMPLETE` under DEC-067; W6–W7 are `NOT_AUTHORIZED` |
+| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; `W4_COMPLETE`; `W5_COMPLETE` under DEC-067; `W6_FAILED` before movement under DEC-069; W7 is `NOT_AUTHORIZED` |
 
 The documentation-only [W5 readiness review](../mjl-w5-readiness-review.md)
 maps the report/export, dashboard/alerts, and directly proven frontend-contract
@@ -81,14 +81,15 @@ ownership work and concluded `W5_READY_FOR_AUTHORIZATION`. W5 was subsequently
 authorized, but its pre-movement review ended `W5_FAILED`. DEC-066 then amended
 only the report/audit preview rollback-failure oracle to preserve the current
 generic unavailable/HTTP 503 behavior. The user later re-authorized the same
-bounded W5 scope, completed under DEC-067. W6–W7 remain unauthorized. W4's
+bounded W5 scope, completed under DEC-067. W4's
 authentication ownership remains the completed input baseline.
 
-The documentation-only [W6 readiness review](../mjl-w6-readiness-review.md)
-found the lifecycle-delegation boundary clear but returned `W6_NOT_READY`.
-BC-021, activation-time BC-022, the RST-012 transition matrix, and descriptor
-state characterization remain authorization blockers. No W6 implementation is
-authorized.
+The [W6 readiness review](../mjl-w6-readiness-review.md) found the lifecycle
+delegation boundary clear. DEC-068 closed BC-021, activation-time BC-022, the
+RST-012 transition matrix, and descriptor state characterization, producing
+`W6_READY_FOR_AUTHORIZATION`. The subsequent authorization prohibited the
+lifecycle-ownership movement required by that frozen ledger, so DEC-069 records
+`W6_SCOPE_CONFLICT` and `W6_FAILED` before any movement. W7 is unauthorized.
 
 ## Scope and evidence totals
 
@@ -182,9 +183,11 @@ See [13-regression-baseline.md](13-regression-baseline.md) for exact qualificati
 ## Safe next decisions
 
 The architecture is frozen. W0–W5 are complete; W5 completion is recorded by
-DEC-067. W6 is `W6_NOT_READY`, and W6–W7 remain unauthorized. Runner discovery/deadline behavior,
-historical runner provisioning, auth-schema exactness, cron failure semantics,
-and stale design assertions remain bounded findings in the proposal and gap
+DEC-067. DEC-068 records the pre-authorization W6 readiness result; DEC-069
+records `W6_FAILED` before movement because the supplied authorization
+contradicted the frozen lifecycle-delegation ledger. W7 remains unauthorized.
+Runner discovery/deadline behavior, cron failure semantics, and
+stale design assertions remain bounded findings in the proposal and gap
 analysis. The Engineering Standard is frozen, and the bounded W0 prerequisite
 is `W0_COMPLETE`. DEC-061 defines the Partner and Project empty-action list
 GETs as the shared W1 slice and excludes Operation Type plus all non-list and

@@ -92,6 +92,8 @@ function assertDisposableConfig(config, expected) {
   invariant(environment.MJL_DISPOSABLE_PROJECT_NAME === expected.projectName, 'Disposable project environment must match the created project.');
   invariant(environment.MJL_DISPOSABLE_RUN_SENTINEL === expected.sentinel, 'Disposable sentinel environment must match the run plan.');
   invariant(environment.MJL_TEST_USER_PASSWORD === expected.testUserPassword, 'Disposable test password must match the runner-created credential.');
+  invariant(['', 'rst002b', 'rst006a', 'rst006b'].includes(environment.MJL_LIFECYCLE_BOOTSTRAP_PROFILE), 'Disposable lifecycle bootstrap profile is invalid.');
+  invariant(!Object.hasOwn(environment, 'MJL_TEST_MODE'), 'The broad host test mode must not enter the disposable application container.');
   invariant(Array.isArray(mariadb.tmpfs) && mariadb.tmpfs.length === 1 && String(mariadb.tmpfs[0]) === '/run/mjl-test:size=1m,mode=0700,noexec,nosuid,nodev', 'MariaDB client credentials must use the exact hardened disposable tmpfs.');
 
   const ports = (dolibarr.ports || []).filter((port) => Number(port.target) === 80);

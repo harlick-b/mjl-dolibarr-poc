@@ -15,8 +15,8 @@ async function login(page, loginName, credential = password) {
   await page.goto('/user/logout.php').catch(() => {});
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(loginName);
-  await page.getByLabel('Mot de passe').fill(credential);
-  await page.getByRole('button', { name: 'Connexion' }).click();
+  await page.getByRole('textbox', { name: 'Mot de passe' }).fill(credential);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
   await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 
