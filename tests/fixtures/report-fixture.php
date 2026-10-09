@@ -43,10 +43,10 @@ if ($action==='chronology-fixtures') {
 if ($action==='recovery' || $action==='abandon') { require __DIR__.'/export-recovery-fixture.php'; exit; }
 if ($action==='spool-state') {print json_encode(array_values(array_diff(scandir('/tmp/mjlfinancement-exports'),array('.','..','generation.lock'))));exit;}
 if ($action==='delivery') {
- require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_report_route.lib.php';
+ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/reporting/mjl_reporting_http.lib.php';
  $_SESSION['token']=newToken();
  $_SERVER['REQUEST_METHOD']='POST';$_FILES=array();$_POST=array('token'=>currentToken(),'format'=>'csv','activity_id'=>(string)$request['activityId']);
- ob_start();print 'INCIDENTAL_DIAGNOSTIC';mjl_report_export_http();exit;
+ ob_start();print 'INCIDENTAL_DIAGNOSTIC';mjl_reporting_export_http($db,$user,1,$_POST,$_FILES,$_SERVER['REQUEST_METHOD']);exit;
 }
 if ($action==='remove') {
  $res=$db->query('SELECT version FROM '.$db->prefix().'mjlfinancement_activity WHERE entity=1 AND rowid='.(int)$request['activityId']);

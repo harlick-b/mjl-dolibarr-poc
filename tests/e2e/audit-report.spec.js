@@ -9,8 +9,8 @@ function sql(statement){return cp.execFileSync('docker',['compose','exec','-T','
 async function login(page,key='agent'){
  await page.context().clearCookies();
  await page.goto('/index.php');await page.getByLabel('Identifiant').fill(key==='admin'?'admin':fixture.users[key].login);
- await page.getByLabel('Mot de passe').fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
- await page.getByRole('button',{name:'Connexion'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+ await page.getByRole('textbox',{name:'Mot de passe',exact:true}).fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
+ await page.getByRole('button',{name:'Se connecter'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 function command(request){const result=runExecutionFixtureCommand({entity:1,localDate:'2026-09-09',...request});expect(result.code).toBe('OK');return result;}
 async function download(page,format='CSV'){const pending=page.waitForEvent('download');await page.getByRole('button',{name:`Télécharger ${format}`,exact:true}).click();const file=await pending;return {file,bytes:fs.readFileSync(await file.path())};}

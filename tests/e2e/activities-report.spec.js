@@ -9,8 +9,8 @@ function evidence() {return sql("SELECT (SELECT COUNT(*) FROM llx_mjlfinancement
 function sql(statement) {return cp.execFileSync('docker',['compose','exec','-T','mariadb','mariadb','--defaults-extra-file=/run/mjl-test/client.cnf','-N','-B','dolidb'],{encoding:'utf8',env:process.env,input:statement+'\n'}).trim();}
 async function login(page,key='agent') {
  await page.goto('/index.php');await page.getByLabel('Identifiant').fill(key==='admin'?'admin':fixture.users[key].login);
- await page.getByLabel('Mot de passe').fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
- await page.getByRole('button',{name:'Connexion'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+ await page.getByRole('textbox',{name:'Mot de passe',exact:true}).fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
+ await page.getByRole('button',{name:'Se connecter'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 test.beforeAll(()=>{
  cp.execFileSync('docker',['compose','exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/report-fixture.php','install'],{env:process.env,stdio:'pipe'});

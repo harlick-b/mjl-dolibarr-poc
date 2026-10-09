@@ -10,8 +10,8 @@ async function login(page, role = 'agent') {
 	await page.context().clearCookies();
 	await page.goto('/index.php');
 	await page.getByLabel('Identifiant').fill(role === 'admin' ? 'admin' : fixture.users[role].login);
-	await page.getByLabel('Mot de passe').fill(role === 'admin' ? (process.env.DOLI_ADMIN_PASSWORD || 'Admin1234') : process.env.MJL_TEST_USER_PASSWORD);
-	await page.getByRole('button', { name: 'Connexion' }).click();
+	await page.getByRole('textbox', {name: 'Mot de passe', exact: true}).fill(role === 'admin' ? (process.env.DOLI_ADMIN_PASSWORD || 'Admin1234') : process.env.MJL_TEST_USER_PASSWORD);
+	await page.getByRole('button', { name: 'Se connecter' }).click();
 	await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 
@@ -74,6 +74,25 @@ test('business roles receive scoped dashboard composition from existing projecti
 	const progressPanel = page.locator('[aria-labelledby="mjl-dashboard-progress-title"]');
 	await expect(progressPanel.getByRole('progressbar')).toHaveCount(0);
 	await expect(progressPanel.getByText('Aucune Activité', { exact: true })).toBeVisible();
+});
+
+test('alerts route preserves scoped filters, empty state, and direct authorization', async ({ page }) => {
+	await login(page, 'agent');
+	let response = await page.goto('/custom/mjlfinancement/alerts.php?q=VUI09');
+	expect(response.status()).toBe(200);
+	await expect(page.getByRole('heading', { name: 'Alertes', exact: true })).toBeVisible();
+	await expect(page.locator('[data-alert="SPENDING_MISSING"]')).toContainText('Opération visible');
+	await expect(page.locator('main')).not.toContainText('Activité portefeuille seulement');
+	await expect(page.locator('#monitor-q')).toHaveValue('VUI09');
+	await expect(page).toHaveURL(/alerts\.php\?q=VUI09/);
+
+	await page.goto('/custom/mjlfinancement/alerts.php?q=VUI09-absent');
+	await expect(page.getByText('Aucune alerte', { exact: true })).toBeVisible();
+	await expect(page.locator('[data-alert]')).toHaveCount(0);
+
+	await login(page, 'admin');
+	response = await page.goto('/custom/mjlfinancement/alerts.php?q=VUI09');
+	expect(response.status()).toBe(403);
 });
 
 test('Supervisor and Validator dashboard queues expose only their current review action', async ({ page }) => {

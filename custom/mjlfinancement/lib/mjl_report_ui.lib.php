@@ -37,7 +37,7 @@ function mjl_report_ui_active_filter_items($type,array $filters,array $choices=a
 		return $items;
 	}
 	foreach (array('partner_id'=>'Partenaire','project_id'=>'Projet','type_id'=>'Type d’Opération') as $key=>$label) if (($filters[$key]??'')!=='') $add($key,$label,mjl_report_ui_choice_label($filters[$key],$choices[$key]??array()));
-	$labels=mjl_report_status_labels();
+	$labels=mjl_monitoring_status_labels();
 	foreach (array('validation_status'=>'État de validation','execution_status'=>'État d’exécution','operation_status'=>'État de l’Opération') as $key=>$label) if (($filters[$key]??'')!=='') $add($key,$label,$labels[$filters[$key]]??$filters[$key]);
 	if (($filters['completeness']??'')!=='') $add('completeness','Complétude des dépenses',($filters['completeness']==='NOT_STARTED'?'Non renseignée':($labels[$filters['completeness']]??$filters['completeness'])));
 	if (($filters['activity_id']??'')!=='') $add('activity_id','Activité','N° '.$filters['activity_id']);

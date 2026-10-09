@@ -75,6 +75,36 @@ class MjlMonitoring
 		return $result;
 	}
 
+	public function referenceChoices($includeTypes = false)
+	{
+		$where = $this->activityWhere(mjl_monitoring_filters(array()));
+		$from = ' FROM '.$this->table('activity').' a';
+		$choices = array();
+		$references = array(
+			'partner_id' => array('fk_partner', 'societe', 's', 'nom'),
+			'project_id' => array('fk_project', 'projet', 'p', 'title'),
+		);
+		foreach ($references as $key => $reference) {
+			list($foreignKey, $table, $alias, $label) = $reference;
+			$selection = 'SELECT DISTINCT a.'.$foreignKey.' AS id,'.$alias.'.'.$label.' AS label'.$from
+				.' JOIN '.$this->db->prefix().$table.' '.$alias.' ON '.$alias.'.entity=a.entity AND '.$alias.'.rowid=a.'.$foreignKey
+				.' WHERE '.$where;
+			$stats = $this->rows('SELECT COUNT(*) AS n,COALESCE(SUM(OCTET_LENGTH(label)+64),0) AS bytes FROM ('.$selection.') selected')[0];
+			if ((int) $stats['n'] > 10000 || (int) $stats['bytes'] > self::SOURCE_LIMIT) throw new RuntimeException('SOURCE_LIMIT');
+			$choices[$key] = $this->rows($selection.' ORDER BY label');
+		}
+		if ($includeTypes) {
+			$selection = 'SELECT DISTINCT t.rowid AS id,t.label'.$from
+				.' JOIN '.$this->table('operation').' o ON o.entity=a.entity AND o.fk_activity=a.rowid AND o.date_removed IS NULL'
+				.' JOIN '.$this->table('operation_type').' t ON t.entity=o.entity AND t.rowid=o.fk_operation_type'
+				.' WHERE '.$where;
+			$stats = $this->rows('SELECT COUNT(*) AS n,COALESCE(SUM(OCTET_LENGTH(label)+64),0) AS bytes FROM ('.$selection.') selected')[0];
+			if ((int) $stats['n'] > 10000 || (int) $stats['bytes'] > self::SOURCE_LIMIT) throw new RuntimeException('SOURCE_LIMIT');
+			$choices['type_id'] = $this->rows($selection.' ORDER BY label');
+		}
+		return $choices;
+	}
+
 	public function operations(array $activities,array $filters)
 	{
 		$rows=array();foreach($activities as $activity) foreach($activity['operations'] as $operation) {

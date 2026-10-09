@@ -30,15 +30,16 @@ unresolved weaknesses and unapproved recommendations.
   writers are removed. W4 is complete: one cohesive authentication command owns
   invitation, reset, and OTP orchestration; one private session adapter owns
   session storage; session validity is pure; access policy has one explicit
-  owner; and email test capture remains email-owned. The documentation-only W5
-  review concludes `W5_READY_FOR_AUTHORIZATION` for the bounded report/export,
-  dashboard/alerts, and proven frontend-contract ownership work. Its six
-  pre-movement/cutover constraints remain unresolved by design. DEC-066 now
-  defines the T02 rollback-failure oracle: preserve the current generic
-  unavailable/HTTP 503 result for report/audit previews while still attempting
-  rollback and exact session-budget restoration. The prior W5 execution stopped
-  with `W5_FAILED` before cutover, and this documentation amendment does not
-  authorize re-execution. W6–W7 remain unauthorized.
+  owner; and email test capture remains email-owned. W5 is complete under
+  DEC-067: report and audit previews now have selected HTTP, bounded read, and
+  presentation owners; export delivery has an explicit checked stream owner;
+  and only dashboard/index/alerts moved onto the retained W2 monitoring-read
+  module. DEC-066 governs read-only preview rollback-call failure: rollback and
+  exact budget restoration remain attempted while the public result stays the
+  generic unavailable/HTTP 503 response. `MjlMonitoring`, durable export
+  generation/evidence, shared Operation/request branches, formats, filters,
+  filenames, CSS/JS, schema, and authentication remain unchanged. All W5 gates
+  passed, and W6–W7 remain unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

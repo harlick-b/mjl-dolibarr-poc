@@ -241,7 +241,7 @@ function mjl_activity_http_handle($db, $user, $entity, array $request)
 				$source['validation_status'] = $source['status'];
 				unset($source['status']);
 			}
-			try { $filters = mjl_report_validate_request('activities','csv',$source); }
+			try { $filters = mjl_monitoring_validate_request($source); }
 			catch (InvalidArgumentException $exception) { mjl_activity_filter_bad_request(); }
 		}
 		try { $list = mjl_monitoring_read_activity_list($db,$user,$entity,$filters,$readiness); }

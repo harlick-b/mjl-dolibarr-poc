@@ -9,8 +9,8 @@ function sql(statement){return cp.execFileSync('docker',['compose','exec','-T','
 async function login(page,key='agent'){
  await page.context().clearCookies();
  await page.goto('/index.php');await page.getByLabel('Identifiant').fill(key==='admin'?'admin':fixture.users[key].login);
- await page.getByLabel('Mot de passe').fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
- await page.getByRole('button',{name:'Connexion'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+ await page.getByRole('textbox',{name:'Mot de passe',exact:true}).fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
+ await page.getByRole('button',{name:'Se connecter'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 function command(request){const result=runExecutionFixtureCommand({entity:1,localDate:'2026-09-09',...request});expect(result.code).toBe('OK');return result;}
 function records(bytes){const rows=JSON.parse(cp.execFileSync('python3',['-c','import csv,json,sys; print(json.dumps(list(csv.reader(sys.stdin,delimiter=";"))))'],{input:bytes,encoding:'utf8'}));const index=rows.findIndex(row=>row.includes('Nature du montant autorisé'));return rows.slice(index+1).filter(row=>row.length===rows[index].length).map(row=>Object.fromEntries(rows[index].map((name,i)=>[name,row[i]])));}
@@ -43,8 +43,8 @@ test('Agent filters Operations after complete parent calculation and exports onl
  await login(page);await page.goto('/custom/mjlfinancement/operations.php');await page.getByRole('link',{name:'Suivi des Opérations et téléchargements'}).click();
  await expect(page.getByRole('heading',{name:'Suivi des Opérations',exact:true})).toBeVisible();
  await page.getByLabel('Recherche d’Activité',{exact:true}).fill('Activité aux dépenses partielles');
- await page.getByLabel('Complétude des dépenses de l’Activité',{exact:true}).selectOption('PARTIAL');
- await page.getByLabel('Type d’opération',{exact:true}).selectOption(String(fixture.operationTypes.known));
+ await page.locator('#report-completeness').selectOption('PARTIAL');
+ await page.locator('#report-type_id').selectOption(String(fixture.operationTypes.known));
  await page.getByRole('button',{name:'Appliquer les filtres'}).click();
  await expect(page.getByRole('heading',{name:'Dépense explicitement nulle',exact:true})).toBeVisible();
  await expect(page.getByRole('heading',{name:'Dépense non renseignée',exact:true})).toHaveCount(0);
@@ -74,7 +74,7 @@ test('Supervisor report preserves completed children and validated amounts insid
  await login(page,'supervisor');await page.goto(`/custom/mjlfinancement/reports.php?report=operations&activity_id=${fixture.activities.cancelled.activity_id}`);
  let result=await download(page);let rows=records(result.bytes);expect(rows).toHaveLength(2);
  expect(rows.map(row=>row['Nature du montant autorisé'])).toEqual(['Validée','Validée']);expect(rows.map(row=>row['État de l’Opération'])).toEqual(['Terminée','Annulée']);expect(rows.map(row=>row['Montant dépensé (FCFA)'])).toEqual(['40','']);expect(rows[1]['Variation (%)']).toBe('');
- await page.getByLabel('État de l’Opération',{exact:true}).selectOption('CANCELLED');await page.getByRole('button',{name:'Appliquer les filtres'}).click();result=await download(page);rows=records(result.bytes);expect(rows).toHaveLength(1);expect(rows[0]['Opération']).toBe('Annulée sans dépense');expect(evidence(result.bytes)).toBe(`operations|[${fixture.activities.cancelled.activity_id}]|1`);
+ await page.locator('#report-operation_status').selectOption('CANCELLED');await page.getByRole('button',{name:'Appliquer les filtres'}).click();result=await download(page);rows=records(result.bytes);expect(rows).toHaveLength(1);expect(rows[0]['Opération']).toBe('Annulée sans dépense');expect(evidence(result.bytes)).toBe(`operations|[${fixture.activities.cancelled.activity_id}]|1`);
 });
 test('pending proposal and missing spending retain their distinct meaning',async({page})=>{
  await login(page);await page.goto(`/custom/mjlfinancement/reports.php?report=operations&activity_id=${fixture.activities.proposal.activity_id}`);
@@ -101,7 +101,7 @@ test('inactive operation types remain filterable on mobile without JavaScript',a
  sql(`UPDATE llx_mjlfinancement_operation_type SET is_active=0 WHERE rowid=${fixture.operationTypes.known}`);
  const context=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}});
  try {const page=await context.newPage();await login(page);await page.goto(`/custom/mjlfinancement/reports.php?report=operations&activity_id=${fixture.activities.mixed.activity_id}`);
- await page.getByLabel('Type d’opération',{exact:true}).selectOption(String(fixture.operationTypes.known));await page.getByRole('button',{name:'Appliquer les filtres'}).click();await expect(page.getByRole('heading',{name:'Dépense explicitement nulle',exact:true})).toBeVisible();await page.mouse.move(0,0);await page.screenshot({path:testInfo.outputPath('operations-report-mobile.png'),fullPage:true});
+ await page.locator('#report-type_id').selectOption(String(fixture.operationTypes.known));await page.getByRole('button',{name:'Appliquer les filtres'}).click();await expect(page.getByRole('heading',{name:'Dépense explicitement nulle',exact:true})).toBeVisible();await page.mouse.move(0,0);await page.screenshot({path:testInfo.outputPath('operations-report-mobile.png'),fullPage:true});
  const {bytes}=await download(page);expect(records(bytes)).toHaveLength(1);
  } finally {await context.close();sql(`UPDATE llx_mjlfinancement_operation_type SET is_active=1 WHERE rowid=${fixture.operationTypes.known}`);}
 });

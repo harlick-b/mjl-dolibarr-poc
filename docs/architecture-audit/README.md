@@ -57,7 +57,7 @@ STANDARD_FROZEN
 | Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
 | Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Preservation requirements | 35/35 mapped |
-| Migration units | W0, W1, W2, W3, and W4 are complete; the authorized W5 run ended `W5_FAILED` before cutover and DEC-066 does not authorize re-execution; W6–W7 remain `NOT_AUTHORIZED` |
+| Migration units | W0–W5 are complete; the earlier authorized W5 attempt ended `W5_FAILED` before cutover, DEC-066 amended its rollback oracle, and DEC-067 records the later re-authorized completion; W6–W7 remain `NOT_AUTHORIZED` |
 | Investigation simulations | 6/6 reconciled |
 | Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
 | Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
@@ -73,15 +73,16 @@ is not embedded here because a commit cannot contain its own final hash.
 | Engineering Standard document | `docs/mjl-engineering-standard-v1.md` |
 | Engineering Standard SHA-256 | `b24021ac52a55f5a9921801aac8d100d9238268c55b3775875a0709132fb9560` after DEC-066; original freeze hash `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
 | Review history | `docs/mjl-engineering-standard-v1-review.md`; initial `STANDARD_REVISION_REQUIRED`, three corrected MEDIUM findings, then `STANDARD_APPROVED_FOR_FREEZE` |
-| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; `W4_COMPLETE`; `W5_FAILED`; W5 re-execution and W6–W7 are `NOT_AUTHORIZED` |
+| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; `W4_COMPLETE`; `W5_COMPLETE` under DEC-067; W6–W7 are `NOT_AUTHORIZED` |
 
 The documentation-only [W5 readiness review](../mjl-w5-readiness-review.md)
 maps the report/export, dashboard/alerts, and directly proven frontend-contract
 ownership work and concluded `W5_READY_FOR_AUTHORIZATION`. W5 was subsequently
 authorized, but its pre-movement review ended `W5_FAILED`. DEC-066 then amended
 only the report/audit preview rollback-failure oracle to preserve the current
-generic unavailable/HTTP 503 behavior; it does not authorize re-execution.
-W4's authentication ownership remains the completed input baseline.
+generic unavailable/HTTP 503 behavior. The user later re-authorized the same
+bounded W5 scope, completed under DEC-067. W6–W7 remain unauthorized. W4's
+authentication ownership remains the completed input baseline.
 
 ## Scope and evidence totals
 
@@ -139,7 +140,7 @@ Resolved:
 3. **Legacy cleartext password persistence.** The shared MJL password adapter now temporarily forces Dolibarr's encrypted-only mode for invitation and reset writes, restores the prior runtime setting, and the disposable auth suite proves `llx_user.pass IS NULL` after both flows.
 4. **RST-006B early interruption recovery.** The detector now recognizes every exact early Operation-check prefix as partial. Four new DDL failure points prove resume, exact target verification and rollback through the public Phase 3A suite.
 
-The canonical gap analysis records these as implementation debt. Medium and low risks, including server-side export read handling, cron semantics, activation interruption, global export serialization, retry identity, Apache loaded state and runner safety, are classified in [15-behavior-classification.md](15-behavior-classification.md).
+The canonical gap analysis records remaining implementation debt. Medium and low risks, including cron semantics, activation interruption, global export serialization, retry identity, Apache loaded state and runner safety, are classified in [15-behavior-classification.md](15-behavior-classification.md). W5 resolved the server-side export-read handling gap.
 
 ## Verification outcome
 
@@ -174,10 +175,8 @@ See [13-regression-baseline.md](13-regression-baseline.md) for exact qualificati
 
 ## Safe next decisions
 
-The architecture is frozen. W0, W1, W2, W3, and W4 are complete. W5 is
-`READY_FOR_AUTHORIZATION` but remains `NOT_AUTHORIZED`; W6–W7 remain
-unauthorized.
-Server-side export read handling, runner discovery/deadline behavior,
+The architecture is frozen. W0–W5 are complete; W5 completion is recorded by
+DEC-067. W6–W7 remain unauthorized. Runner discovery/deadline behavior,
 historical runner provisioning, auth-schema exactness, cron failure semantics,
 and stale design assertions remain bounded findings in the proposal and gap
 analysis. The Engineering Standard is frozen, and the bounded W0 prerequisite

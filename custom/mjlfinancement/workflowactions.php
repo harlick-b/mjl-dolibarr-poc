@@ -6,9 +6,10 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.p
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_ui.lib.php';
 
 if (!mjl_navigation_policy_allows($user, 'audit_read')) { http_response_code(403); accessforbidden(); }
-require_once __DIR__.'/lib/mjl_report_route.lib.php';
 if (mjl_rst002b_table_exists($db,$db->prefix().'mjlfinancement_export_record')) {
-	$_GET['report']='audit'; mjl_report_page(); exit;
+	require_once __DIR__.'/lib/reporting/mjl_reporting_http.lib.php';
+	$reportRequest=$_GET; $reportRequest['report']='audit';
+	mjl_reporting_preview_http($db,$user,(int)$conf->entity,$reportRequest,$_SERVER['REQUEST_METHOD']??'GET'); exit;
 }
 $objectType = GETPOST('object_type', 'alphanohtml');
 $action = GETPOST('audit_action', 'alphanohtml');

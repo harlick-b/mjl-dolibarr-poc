@@ -95,8 +95,16 @@ test('source payload is rejected before audit rows are fetched',()=>{
  expect(result).toEqual({code:'SOURCE_LIMIT',delivered:0,transaction_opened:0,budgets_restored:true,spool_descriptors:0,lock_released:true,final_commits:0});expect(evidence()).toEqual(before);clean();success(command('recovery',request()));
 });
 
+test('a server-side delivery read failure preserves committed evidence and closes resources',()=>{
+ const before=evidence();const result=command('recovery',request('delivery-read'));
+ expect(result).toEqual({code:'EXPORT_DELIVERY_READ_FAILED',delivered:0,transaction_opened:0,budgets_restored:true,spool_descriptors:0,lock_released:true,final_commits:1});
+ expect(evidence()).toEqual(before.map(n=>n+1));
+ expect(sql("SELECT CONCAT(r.status,':',a.action,':',a.result) FROM llx_mjlfinancement_export_record r JOIN llx_mjlfinancement_audit_event a ON a.rowid=r.fk_audit_event AND a.entity=r.entity AND a.object_ref=r.ref ORDER BY r.rowid DESC LIMIT 1")).toBe('GENERATED:EXPORT_GENERATED:SUCCESS');
+ clean();success(command('recovery',request()));clean();
+});
+
 test('a throttled client abort preserves GENERATED evidence and no named artifact',async({page})=>{
- await page.goto('/index.php');await page.getByLabel('Identifiant').fill(fixture.users.agent.login);await page.getByLabel('Mot de passe').fill(process.env.MJL_TEST_USER_PASSWORD);await page.getByRole('button',{name:'Connexion'}).click();
+ await page.goto('/index.php');await page.getByLabel('Identifiant').fill(fixture.users.agent.login);await page.getByRole('textbox',{name:'Mot de passe',exact:true}).fill(process.env.MJL_TEST_USER_PASSWORD);await page.getByRole('button',{name:'Se connecter'}).click();
  await page.goto('/custom/mjlfinancement/reports.php');const token=await page.locator('form[action$="reportexport.php"] input[name="token"]').inputValue();
  const cookie=(await page.context().cookies()).map(c=>`${c.name}=${c.value}`).join('; ');const before=evidence();
  const config=`url = "${process.env.MJL_BASE_URL}/custom/mjlfinancement/reportexport.php"\ncookie = "${cookie}"\ndata = "${new URLSearchParams({token,format:'pdf',activity_id:String(fixture.activities.owned.activity_id)})}"\n`;
@@ -106,4 +114,3 @@ test('a throttled client abort preserves GENERATED evidence and no named artifac
  expect(result.status).toBe(28);const [status,received]=result.stdout.trim().split(' ').map(Number);expect(status).toBe(200);expect(received).toBeGreaterThan(0);
  expect(evidence()).toEqual(before.map(n=>n+1));const [state,bytes]=sql('SELECT status,byte_count FROM llx_mjlfinancement_export_record ORDER BY rowid DESC LIMIT 1').split('\t');expect(state).toBe('GENERATED');expect(received).toBeLessThan(Number(bytes));clean();
 });
-

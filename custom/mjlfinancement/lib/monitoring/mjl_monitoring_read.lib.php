@@ -127,13 +127,6 @@ function mjl_monitoring_read_report_available($db)
 	return mjl_rst002b_table_exists($db, $db->prefix().'mjlfinancement_export_record');
 }
 
-function mjl_monitoring_read_reference_choices($db,$reader)
-{
-	$where=$reader->activityWhere(mjl_monitoring_filters(array()));$from=' FROM '.$db->prefix().'mjlfinancement_activity a';$choices=array();
-	foreach(array('partner_id'=>array('fk_partner','societe','s','nom'),'project_id'=>array('fk_project','projet','p','title'))as$key=>$ref){list($fk,$table,$alias,$label)=$ref;$selection='SELECT DISTINCT a.'.$fk.' AS id,'.$alias.'.'.$label.' AS label'.$from.' JOIN '.$db->prefix().$table.' '.$alias.' ON '.$alias.'.entity=a.entity AND '.$alias.'.rowid=a.'.$fk.' WHERE '.$where;$stats=$reader->rows('SELECT COUNT(*) AS n,COALESCE(SUM(OCTET_LENGTH(label)+64),0) AS bytes FROM ('.$selection.') selected')[0];if((int)$stats['n']>10000||(int)$stats['bytes']>MjlMonitoring::SOURCE_LIMIT)throw new RuntimeException('SOURCE_LIMIT');$choices[$key]=$reader->rows($selection.' ORDER BY label');}
-	return $choices;
-}
-
 function mjl_monitoring_read_activity_context($db, $user, $entity, array $row)
 {
 	$id = (int) $row['rowid'];
@@ -161,7 +154,40 @@ function mjl_monitoring_read_activity_list($db, $user, $entity, array $filters, 
 	return mjl_monitoring_read_snapshot($db, function () use ($db, $user, $entity, $filters) {
 		$reader = new MjlMonitoring($db, $user, (int) $entity);
 		$rows = $reader->activities($filters);
-		try { $choices = mjl_monitoring_read_reference_choices($db,$reader); } catch (Throwable $exception) { $choices = null; }
+		try { $choices = $reader->referenceChoices(); } catch (Throwable $exception) { $choices = null; }
 		return array('mode' => 'target', 'rows' => $rows, 'choices' => $choices, 'role' => $reader->role(), 'date' => $reader->date());
+	}, 'mjl monitoring', true);
+}
+
+/** W5 read owner for dashboard and alerts only. */
+function mjl_monitoring_read_page($db, $user, $entity, $surface, array $filters)
+{
+	if (!in_array($surface, array('home', 'alerts'), true)) throw new InvalidArgumentException('INVALID_MONITORING_SURFACE');
+	return mjl_monitoring_read_snapshot($db, function () use ($db, $user, $entity, $surface, $filters) {
+		$reader = new MjlMonitoring($db, $user, (int) $entity);
+		$activities = $reader->activities($filters);
+		try { $choices = $reader->referenceChoices(); }
+		catch (Throwable $exception) { $choices = null; }
+
+		$workActivities = null;
+		$requests = null;
+		if ($surface === 'home') {
+			try {
+				$workActivities = $reader->reviewFacts($activities);
+				$requests = $reader->requests($workActivities, 'PENDING');
+			} catch (Throwable $exception) {
+				$workActivities = null;
+				$requests = null;
+			}
+		}
+
+		return array(
+			'activities' => $activities,
+			'choices' => $choices,
+			'work_activities' => $workActivities,
+			'requests' => $requests,
+			'role' => $reader->role(),
+			'date' => $reader->date(),
+		);
 	}, 'mjl monitoring', true);
 }

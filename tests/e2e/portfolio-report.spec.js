@@ -9,8 +9,8 @@ function sql(statement){return cp.execFileSync('docker',['compose','exec','-T','
 async function login(page,key='agent'){
  await page.context().clearCookies();
  await page.goto('/index.php');await page.getByLabel('Identifiant').fill(key==='admin'?'admin':fixture.users[key].login);
- await page.getByLabel('Mot de passe').fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
- await page.getByRole('button',{name:'Connexion'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+ await page.getByRole('textbox',{name:'Mot de passe',exact:true}).fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
+ await page.getByRole('button',{name:'Se connecter'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 function command(request){const result=runExecutionFixtureCommand({entity:1,localDate:'2026-09-09',...request});expect(result.code).toBe('OK');return result;}
 async function download(page,format='CSV'){const pending=page.waitForEvent('download');await page.getByRole('button',{name:`Télécharger ${format}`,exact:true}).click();const file=await pending;return {file,bytes:fs.readFileSync(await file.path())};}
@@ -48,7 +48,7 @@ print(json.dumps({'rows':len(r)-1,'cells':{h[''.join(filter(str.isalpha,c.get('r
 });
 test('portfolio filters complete Activities before grouping and preserves grouping in downloads and reset',async({page})=>{
  await login(page,'supervisor');await page.goto(url+'&q=Portefeuille%20&grouping=partner&validation_status=FINAL_VALIDATED');let r=rows((await download(page)).bytes);expect(r[0].Activités).toBe('4');expect(r[0]['Propositions courantes non validées (FCFA)']).toBe('');
- await page.getByLabel('Complétude des dépenses de l’Activité',{exact:true}).selectOption('COMPLETE');await page.getByRole('button',{name:'Appliquer les filtres'}).click();r=rows((await download(page)).bytes);expect(r).toHaveLength(1);expect(r[0].Activités).toBe('1');expect(r[0]['Montants validés, annulations incluses (FCFA)']).toBe('100');
+ await page.locator('#report-completeness').selectOption('COMPLETE');await page.getByRole('button',{name:'Appliquer les filtres'}).click();r=rows((await download(page)).bytes);expect(r).toHaveLength(1);expect(r[0].Activités).toBe('1');expect(r[0]['Montants validés, annulations incluses (FCFA)']).toBe('100');
  await page.getByRole('link',{name:'Réinitialiser',exact:true}).click();expect(new URL(page.url()).searchParams.get('report')).toBe('portfolio');await expect(page.getByLabel('Regrouper par')).toHaveValue('project');
 });
 test('portfolio denies Admin and roleless users and excludes foreign and unassigned Activities',async({page})=>{

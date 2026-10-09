@@ -265,3 +265,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   `finalize: false` is set. A finalized fixture therefore needs both an
   `AGENT_VERIFICATEUR` and a `VALIDATEUR_DEFINITIF`; omitting the Supervisor
   fails fixture setup before browser assertions begin.
+- A scoped detail read must prove that exactly one parent is visible before
+  querying its children. Otherwise an absent or unauthorized parent can fail
+  in a child query first and turn the intended authorization-safe 403 into a
+  generic 503.

@@ -22,6 +22,7 @@ class MjlMonitoring {
 	public function date() { return self::$date; }
 	public function activityWhere($filters) { return 'a.entity=3'; }
 	public function rows($sql) { foreach(self::$rowsBySql as$needle=>$rows)if(strpos($sql,$needle)!==false)return$rows;throw new RuntimeException('UNEXPECTED_QUERY'); }
+	public function referenceChoices($includeTypes=false) { return array('partner_id'=>$this->rows('SELECT DISTINCT a.fk_partner'),'project_id'=>$this->rows('SELECT DISTINCT a.fk_project')); }
 }
 function mjl_scope_effective_role_code($user) { return 'AGENT_SAISIE'; }
 function mjl_monitoring_activity_actions($activity,$role,$actorId,$date) { return array('edit'=>false,'review'=>$role==='AGENT_VERIFICATEUR','abandon'=>false,'return'=>false,'restore'=>false,'execution'=>false); }

@@ -79,14 +79,9 @@ function mjl_report_activity_columns()
 	return $columns;
 }
 
-function mjl_report_status_labels()
-{
-	return array('DRAFT'=>'Brouillon','SUBMITTED'=>'Soumise','PREVALIDATED'=>'Prévalidée','RETURNED_SUPERVISOR'=>'Retournée par le superviseur','RETURNED_VALIDATOR'=>'Retournée par le validateur','FINAL_VALIDATED'=>'Validée définitivement','CANCELLED'=>'Annulée','ABANDONED'=>'Abandonnée','NOT_STARTED'=>'Non commencée','UPCOMING'=>'À venir','IN_PROGRESS'=>'En cours','OVERDUE'=>'En retard','COMPLETED'=>'Terminée','PARTIAL'=>'Partielle','COMPLETE'=>'Complète','TODO'=>'À faire');
-}
-
 function mjl_report_activity_records(array $activities)
 {
-	$labels=mjl_report_status_labels();
+	$labels=mjl_monitoring_status_labels();
 	foreach($activities as &$activity) {
 		$names=array();
 		foreach($activity['assignments']??array() as $assignment) {
@@ -135,7 +130,7 @@ function mjl_report_operation_columns()
 function mjl_report_operation_records(array $operations)
 {
 	mjl_report_memory_headroom(count($operations)*2048+8388608);
-	$labels=mjl_report_status_labels();
+	$labels=mjl_monitoring_status_labels();
 	foreach ($operations as &$operation) {
 		$variance=mjl_monitoring_variance($operation['spent_amount'],$operation['authorized_amount']);
 		$operation['difference']=$variance['difference'];

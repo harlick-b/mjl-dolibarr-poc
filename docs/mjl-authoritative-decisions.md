@@ -47,10 +47,10 @@ does not authorize implementation.
 
 The preservation ledger remains 35/35 mapped. W0 is a prerequisite, not a
 migration wave, and is `W0_COMPLETE`. W1, W2, W3, and W4 are `COMPLETE`. The
-documentation-only W5 review found W5 `READY_FOR_AUTHORIZATION`. W5 was then
-authorized, but its pre-movement review ended `W5_FAILED` before any cutover.
-DEC-066 amends the blocking assumption; W5 re-execution is not authorized by
-that documentation amendment. W6–W7 remain `NOT_AUTHORIZED`. Any future work must consult the applicable
+documentation-only W5 review found W5 `READY_FOR_AUTHORIZATION`. After the
+pre-movement stop, DEC-066 amended the blocking assumption and the user
+separately re-authorized the same bounded scope. W5 is now `W5_COMPLETE` under
+DEC-067. W6–W7 remain `NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
 
@@ -68,7 +68,7 @@ W1_COMPLETE
 W2_COMPLETE
 W3_COMPLETE
 W4_COMPLETE
-W5_FAILED; RE-EXECUTION_NOT_AUTHORIZED
+W5_COMPLETE
 W6–W7_NOT_AUTHORIZED
 ```
 
@@ -141,16 +141,20 @@ The post-W4 W5 readiness review is recorded in
 ownership separation, an independently mergeable dashboard/index/alerts move
 onto the W2 monitoring-read module, and only directly proven frontend
 producer/consumer changes. `MjlMonitoring` remains the query owner. Six
-constraints must resolve before their affected movement or cutover; none is a
-pre-authorization blocker. DEC-066 resolves the T02 contract ambiguity by
+constraints had to resolve before their affected movement or cutover. DEC-066
+resolved the T02 contract ambiguity by
 preserving the existing generic unavailable/HTTP 503 result when rollback
 reports failure on a read-only report/audit preview. Rollback and exact session-
 budget restoration are still attempted; no partial content or download action
-is exposed. The amendment does not resume the stopped W5 implementation.
+is exposed. The user then explicitly re-authorized the existing W5 scope. The
+report/audit handler-read-presentation split, export-delivery seam, and
+dashboard/index/alerts move to W2 monitoring-read completed with all focused
+contracts and G00–G08 runtime/source gates passing. `MjlMonitoring` remains the
+query owner, durable export meaning is unchanged, no CSS/JS or schema changed,
+and execution stopped before W6.
 
 ```text
-W5_FAILED
-W5 RE-EXECUTION: NOT_AUTHORIZED
+W5_COMPLETE
 W6–W7: NOT_AUTHORIZED
 ```
 

@@ -10,8 +10,8 @@ async function login(page, role = 'validator') {
 	await page.context().clearCookies();
 	await page.goto('/index.php');
 	await page.getByLabel('Identifiant').fill(role === 'admin' ? 'admin' : fixture.users[role].login);
-	await page.getByLabel('Mot de passe').fill(role === 'admin' ? (process.env.DOLI_ADMIN_PASSWORD || 'Admin1234') : process.env.MJL_TEST_USER_PASSWORD);
-	await page.getByRole('button', { name: 'Connexion' }).click();
+	await page.getByRole('textbox', {name: 'Mot de passe', exact: true}).fill(role === 'admin' ? (process.env.DOLI_ADMIN_PASSWORD || 'Admin1234') : process.env.MJL_TEST_USER_PASSWORD);
+	await page.getByRole('button', { name: 'Se connecter' }).click();
 	await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 

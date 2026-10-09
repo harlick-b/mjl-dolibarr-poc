@@ -53,6 +53,11 @@ function mjl_monitoring_labels()
 	return array('initial_amount'=>'Propositions initiales soumises','pending_amount'=>'Propositions courantes non validées','validated_amount'=>'Montants validés, annulations incluses','active_authorized_amount'=>'Autorisations validées des Opérations non annulées','cancelled_authorized_amount'=>'Autorisations validées des Opérations annulées','active_spent_amount'=>'Dépenses renseignées des Opérations non annulées','cancelled_spent_amount'=>'Dépenses renseignées des Opérations annulées','total_spent_amount'=>'Dépenses renseignées','missing_spent_count'=>'Montants dépensés non renseignés','cancelled_incomplete_count'=>'Opérations annulées non renseignées','activity_count'=>'Activités','operation_count'=>'Opérations');
 }
 
+function mjl_monitoring_status_labels()
+{
+	return array('DRAFT'=>'Brouillon','SUBMITTED'=>'Soumise','PREVALIDATED'=>'Prévalidée','RETURNED_SUPERVISOR'=>'Retournée par le superviseur','RETURNED_VALIDATOR'=>'Retournée par le validateur','FINAL_VALIDATED'=>'Validée définitivement','CANCELLED'=>'Annulée','ABANDONED'=>'Abandonnée','NOT_STARTED'=>'Non commencée','UPCOMING'=>'À venir','IN_PROGRESS'=>'En cours','OVERDUE'=>'En retard','COMPLETED'=>'Terminée','PARTIAL'=>'Partielle','COMPLETE'=>'Complète','TODO'=>'À faire');
+}
+
 /** Canonical decimals, not human presentation strings. */
 function mjl_monitoring_variance($spent, $authorized)
 {
@@ -98,6 +103,15 @@ function mjl_monitoring_filters(array $source, $audit = false)
 	if ($defaults['page']==='') $defaults['page']='1';
 	if (strlen($defaults['page'])>6 || (int)$defaults['page']>200000) throw new InvalidArgumentException('INVALID_FILTER');
 	return $defaults;
+}
+
+function mjl_monitoring_validate_request(array $source, $includeOperations = false)
+{
+	$filters = mjl_monitoring_filters($source);
+	foreach ($source as $key => $value) if (!array_key_exists($key, $filters)) throw new InvalidArgumentException('INVALID_FILTER');
+	if (!$includeOperations && ($filters['type_id'] !== '' || $filters['operation_status'] !== '')) throw new InvalidArgumentException('INVALID_FILTER');
+	if (isset($source['grouping']) && $source['grouping'] !== 'project') throw new InvalidArgumentException('INVALID_FILTER');
+	return $filters;
 }
 
 /** Calendar warnings are computed at read time; editability is supplied by current access policy. */

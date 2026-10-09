@@ -2,19 +2,21 @@
 
 Original readiness verdict: `W5_READY_FOR_AUTHORIZATION`
 
-Current governance status: `W5_FAILED`; re-execution is not authorized by the
-DEC-066 documentation amendment.
+Current governance status: `W5_COMPLETE` under DEC-067. W6 remains
+`NOT_AUTHORIZED`.
 
-This is a documentation-only pre-authorization review. It does not authorize
-W5, runtime changes, test changes, schema changes, or any later wave.
+This document began as the documentation-only pre-authorization review and now
+also records the bounded W5 completion state. It does not authorize W6 or any
+later wave.
 
 Post-review amendment DEC-066 resolves the T02 rollback-result assumption.
 For W5 report and audit preview snapshots, rollback remains attempted, but a
 rollback call that reports failure preserves the existing generic unavailable/
 HTTP 503 result. It does not produce a distinct rollback-failure outcome. Exact
 session-budget restoration remains required, and no partial report content or
-download action may be exposed. This amendment does not authorize or resume
-runtime implementation.
+download action may be exposed. The amendment alone did not authorize runtime
+implementation; the user's later explicit re-authorization did so without
+changing the W5 scope.
 
 ## 1. Executive verdict
 
@@ -31,19 +33,24 @@ gates, cutover groups, exclusions, and recovery paths have known denominators.
 There are no blocked rows, authority conflicts, or current-state
 discrepancies.
 
-Six rows are `READY_WITH_CONSTRAINTS`. Their conditions are hard stops before
-the affected movement or cutover, not pre-authorization requirements: report
-snapshot fault characterization; BC-003 server-side delivery-read failure;
-the conditional BC-013 retry decision; stale browser-login selector repair;
-focused alerts coverage; and producer/consumer proof before a frontend or CSS
-split. Authorization may permit creating those proofs, but no selected
-responsibility may move until its gate passes.
+The six `READY_WITH_CONSTRAINTS` rows were resolved before their affected
+cutovers: report snapshot faults and DEC-066 behavior were characterized;
+BC-003 has a real server-side delivery-read oracle; BC-013 semantics remained
+untouched; stale browser selectors were reconciled to proven current UI;
+the actual alerts route gained focused coverage; and no product CSS/JavaScript
+pair required migration.
 
 ```text
-W5_FAILED
-W5 RE-EXECUTION: NOT_AUTHORIZED
+W5_COMPLETE
 W6-W7: NOT_AUTHORIZED
 ```
+
+Completion evidence: four focused W5 contracts passed; focused report, spool,
+and monitoring units passed 31/31; VUI12 passed 3/3; Phase 3B passed 112/112,
+including the production delivery-read failure seam; VUI09 passed 5/5,
+including the actual alerts route; PHP/JavaScript syntax, ownership, exclusion,
+design, and diff checks passed. No CSS, JavaScript product asset, schema,
+authentication, Operation/request ownership, or W6 behavior changed.
 
 ## 2. Authority baseline
 

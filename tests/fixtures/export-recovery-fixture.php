@@ -96,8 +96,14 @@ class MjlRecoveryExport extends MjlExport
  }
 }
 
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/reporting/mjl_export_delivery.lib.php';
+class MjlRecoveryReadFailureDelivery extends MjlExportDelivery
+{
+ protected function readChunk($stream,$length) { return false; }
+}
+
 $mode=$request['mode']??'normal';
-if (!in_array($mode,array('normal','open','hash','artifact','pdf-rows','source','unlink','hard-crash','renderer','rows','bytes','cell','memory','deadline','deadline-after-commit','snapshot','before-commit','after-commit','uncertain-uncommitted','uncertain-false','uncertain-throw'),true)) exit(4);
+if (!in_array($mode,array('normal','open','hash','artifact','pdf-rows','source','unlink','hard-crash','renderer','rows','bytes','cell','memory','deadline','deadline-after-commit','snapshot','before-commit','after-commit','uncertain-uncommitted','uncertain-false','uncertain-throw','delivery-read'),true)) exit(4);
 $db->close();
 $db=new MjlRecoveryDatabase('mysqli',$dolibarr_main_db_host,$dolibarr_main_db_user,$dolibarr_main_db_pass,$dolibarr_main_db_name,$dolibarr_main_db_port);
 $db->mode=$mode;
@@ -129,7 +135,11 @@ try {
   }
   return $data;
  });
- $bytes=stream_get_contents($artifact['stream']);
+ if($mode==='delivery-read') {
+  ob_start();
+  try { (new MjlRecoveryReadFailureDelivery())->deliver($artifact,'csv'); }
+  finally { $bytes=ob_get_clean(); }
+ } else $bytes=stream_get_contents($artifact['stream']);
  $result=array('code'=>'SUCCESS','ref'=>$artifact['ref'],'bytes'=>strlen($bytes),'sha256'=>hash('sha256',$bytes));
 } catch(Throwable $e) { $result=array('code'=>$e->getMessage(),'delivered'=>0); }
 finally {

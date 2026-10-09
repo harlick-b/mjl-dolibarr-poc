@@ -6,8 +6,8 @@ test.describe.configure({mode:'serial'});
 async function login(page,key='agent') {
  await page.context().clearCookies(); await page.goto('/index.php');
  await page.getByLabel('Identifiant').fill(key==='admin'?'admin':fixture.users[key].login);
- await page.getByLabel('Mot de passe').fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
- await page.getByRole('button',{name:'Connexion'}).click(); await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+ await page.getByRole('textbox',{name:'Mot de passe',exact:true}).fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
+ await page.getByRole('button',{name:'Se connecter'}).click(); await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 test.beforeAll(()=>{
  cp.execFileSync('docker',['compose','exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/report-fixture.php','install'],{env:process.env,stdio:'pipe'});

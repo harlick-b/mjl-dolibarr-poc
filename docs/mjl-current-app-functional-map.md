@@ -14,7 +14,7 @@ isolated disposable tenants and remove those tenants after each run.
 
 | Surface | Current behavior |
 | --- | --- |
-| Accueil | Active financial-first dashboard with role-projected totals, alerts, and permitted-action queues. |
+| Accueil | Active financial-first dashboard with role-projected totals, alerts, and permitted-action queues. Its GET handler consumes the W2 monitoring-read owner and renders a prepared monitoring view. |
 | Partenaires, Projets, Types d’Opération | Same-entity business-role reads; Validator-only activation/deactivation and mutation. One deep reference command owns create, label-update, and lifecycle writes. |
 | Activities | Entity-scoped planning/review aggregate plus active derived execution status, financial completeness/totals, and guarded Activity cancellation request. |
 | Opérations | Active 50-row execution list: current Assigned Agents enter explicit spending/observations and request exceptions; Supervisor/Validator read; Admin denied. |
@@ -25,9 +25,9 @@ isolated disposable tenants and remove those tenants after each run.
 | Administration technique | Native-Admin link to Dolibarr module administration. |
 | Authentication | One cohesive auth command owns configuration-gated email/password, six-digit OTP, invitation, and reset orchestration. One private adapter owns session mutation and a pure policy decides validity. The password step creates no authenticated session; pending challenges remain entity/account scoped, browser bound, hash only, single use, and rate limited. Native bypasses and weakened OTP schemas fail closed. |
 | Invitation/reset | Shared five-rule password form; token-derived readonly email; public selector in the query string; secret verifier in the fragment; hash-only storage; POST-only mutation with CSRF; single use; expiry; throttling; caller-owned transaction/audit coupling; neutral reset-request response; and email-owned delivery capture. |
-| Activities / Operations / Fiche Activité / portfolio / audit reports | Active scoped `reports.php` previews and audited PDF/XLSX/CSV downloads require the current export schema. Audit remains Validator/Admin only; business reports retain role and assignment scope. |
+| Activities / Operations / Fiche Activité / portfolio / audit reports | Active scoped `reports.php` previews delegate to selected report/audit HTTP, bounded read, and presentation owners. Audited PDF/XLSX/CSV generation retains `MjlExport`; checked HTTP stream delivery is separately owned. Audit remains Validator/Admin only; business reports retain role and assignment scope. |
 | Documents | MJL `documents.php` and `documentdownload.php` return dependency-free HTTP 403 for every actor/method; Apache blocks `/ecm/*`, `/document.php`, and `/viewimage.php`. Native ECM storage remains dormant and unchanged. |
-| Alertes | Computed alerts come from current scoped data. |
+| Alertes | Computed alerts come from the W2 monitoring-read owner through the selected alerts GET handler and prepared template. |
 
 ## Persistent custom tables
 

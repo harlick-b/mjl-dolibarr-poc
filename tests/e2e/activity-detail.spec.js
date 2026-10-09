@@ -9,8 +9,8 @@ function sql(statement){return cp.execFileSync('docker',['compose','exec','-T','
 async function login(page,key='agent'){
  await page.context().clearCookies();
  await page.goto('/index.php');await page.getByLabel('Identifiant').fill(key==='admin'?'admin':fixture.users[key].login);
- await page.getByLabel('Mot de passe').fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
- await page.getByRole('button',{name:'Connexion'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
+ await page.getByRole('textbox',{name:'Mot de passe',exact:true}).fill(key==='admin'?(process.env.DOLI_ADMIN_PASSWORD||'Admin1234'):process.env.MJL_TEST_USER_PASSWORD);
+ await page.getByRole('button',{name:'Se connecter'}).click();await expect(page.getByLabel('Identifiant')).toHaveCount(0);
 }
 function command(request){const result=runExecutionFixtureCommand({entity:1,localDate:'2026-09-09',...request});expect(result.code).toBe('OK');return result;}
 async function download(page,format='CSV'){const pending=page.waitForEvent('download');await page.getByRole('button',{name:`Télécharger ${format}`,exact:true}).click();const file=await pending;return {file,bytes:fs.readFileSync(await file.path())};}
@@ -24,7 +24,7 @@ test.beforeAll(()=>{
 const detailUrl=key=>`/custom/mjlfinancement/reports.php?report=activity_detail&activity_id=${fixture.activities[key].activity_id}`;
 function csvSections(bytes){const rows=JSON.parse(cp.execFileSync('python3',['-c','import csv,json,sys; print(json.dumps(list(csv.reader(sys.stdin,delimiter=";"))))'],{input:bytes,encoding:'utf8'}));return ['Informations générales et affectations','Synthèse financière','Opérations courantes complètes'].map(title=>{const i=rows.findIndex(row=>row.length===1&&row[0]===title);expect(i).toBeGreaterThan(-1);const headers=rows[i+1],values=[];for(let j=i+2;j<rows.length&&rows[j].length===headers.length;j++)values.push(Object.fromEntries(headers.map((h,k)=>[h,rows[j][k]])));return values;});}
 test('Fiche contextual entry shows complete information, assignments and all Operations',async({page})=>{
- await login(page);await page.goto(`/custom/mjlfinancement/activities.php?id=${fixture.activities.mixed.activity_id}`);await page.getByRole('link',{name:'Fiche Activité et téléchargements',exact:true}).click();
+ await login(page);await page.goto(`/custom/mjlfinancement/activities.php?id=${fixture.activities.mixed.activity_id}`);await page.getByRole('link',{name:'Fiche et téléchargements',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Fiche Activité',exact:true})).toBeVisible();await expect(page.getByText('Dépense explicitement nulle',{exact:true})).toBeVisible();await expect(page.getByText('Dépense non renseignée',{exact:true})).toBeVisible();await expect(page.getByText('Description détaillée\n<script>texte non exécutable</script>',{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Appliquer les filtres'})).toHaveCount(0);await page.getByRole('link',{name:'Retour à l’Activité'}).click();await expect(page).toHaveURL(new RegExp(`activities.php\\?id=${fixture.activities.mixed.activity_id}$`));
 });
