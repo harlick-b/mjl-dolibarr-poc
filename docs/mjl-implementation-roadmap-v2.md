@@ -39,7 +39,10 @@ unresolved weaknesses and unapproved recommendations.
   generic unavailable/HTTP 503 response. `MjlMonitoring`, durable export
   generation/evidence, shared Operation/request branches, formats, filters,
   filenames, CSS/JS, schema, and authentication remain unchanged. All W5 gates
-  passed, and W6–W7 remain unauthorized.
+  passed. The documentation-only W6 review found W6 `NOT_READY`: historical
+  predecessor provisioning (BC-021), activation-time exact auth-schema
+  recognition, the RST-012 transition matrix, and the descriptor lifecycle
+  state matrix must be closed before authorization. W6–W7 remain unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

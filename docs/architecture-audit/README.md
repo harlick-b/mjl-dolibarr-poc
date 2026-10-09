@@ -57,7 +57,7 @@ STANDARD_FROZEN
 | Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
 | Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Preservation requirements | 35/35 mapped |
-| Migration units | W0–W5 are complete; the earlier authorized W5 attempt ended `W5_FAILED` before cutover, DEC-066 amended its rollback oracle, and DEC-067 records the later re-authorized completion; W6–W7 remain `NOT_AUTHORIZED` |
+| Migration units | W0–W5 are complete; the earlier authorized W5 attempt ended `W5_FAILED` before cutover, DEC-066 amended its rollback oracle, and DEC-067 records the later re-authorized completion; W6 is readiness-reviewed as `W6_NOT_READY`; W6–W7 remain `NOT_AUTHORIZED` |
 | Investigation simulations | 6/6 reconciled |
 | Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
 | Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
@@ -83,6 +83,12 @@ only the report/audit preview rollback-failure oracle to preserve the current
 generic unavailable/HTTP 503 behavior. The user later re-authorized the same
 bounded W5 scope, completed under DEC-067. W6–W7 remain unauthorized. W4's
 authentication ownership remains the completed input baseline.
+
+The documentation-only [W6 readiness review](../mjl-w6-readiness-review.md)
+found the lifecycle-delegation boundary clear but returned `W6_NOT_READY`.
+BC-021, activation-time BC-022, the RST-012 transition matrix, and descriptor
+state characterization remain authorization blockers. No W6 implementation is
+authorized.
 
 ## Scope and evidence totals
 
@@ -176,7 +182,7 @@ See [13-regression-baseline.md](13-regression-baseline.md) for exact qualificati
 ## Safe next decisions
 
 The architecture is frozen. W0–W5 are complete; W5 completion is recorded by
-DEC-067. W6–W7 remain unauthorized. Runner discovery/deadline behavior,
+DEC-067. W6 is `W6_NOT_READY`, and W6–W7 remain unauthorized. Runner discovery/deadline behavior,
 historical runner provisioning, auth-schema exactness, cron failure semantics,
 and stale design assertions remain bounded findings in the proposal and gap
 analysis. The Engineering Standard is frozen, and the bounded W0 prerequisite

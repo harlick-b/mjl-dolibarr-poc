@@ -50,7 +50,9 @@ migration wave, and is `W0_COMPLETE`. W1, W2, W3, and W4 are `COMPLETE`. The
 documentation-only W5 review found W5 `READY_FOR_AUTHORIZATION`. After the
 pre-movement stop, DEC-066 amended the blocking assumption and the user
 separately re-authorized the same bounded scope. W5 is now `W5_COMPLETE` under
-DEC-067. W6–W7 remain `NOT_AUTHORIZED`. Any future work must consult the applicable
+DEC-067. The documentation-only W6 review concluded `W6_NOT_READY` because
+BC-021, activation-time BC-022, the RST-012 transition matrix, and the
+descriptor state matrix remain open. W6–W7 remain `NOT_AUTHORIZED`. Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
 
@@ -156,6 +158,18 @@ and execution stopped before W6.
 ```text
 W5_COMPLETE
 W6–W7: NOT_AUTHORIZED
+```
+
+The post-W5 W6 readiness review is recorded in
+`docs/mjl-w6-readiness-review.md`. It reconciles the amended Standard hash, the
+exact lifecycle-delegation boundary, 35/35 preservation requirements, and the
+post-W5 source. Its verdict is `W6_NOT_READY`; it authorizes no runtime, test,
+tooling, schema, data, or W7 change.
+
+```text
+W6_NOT_READY
+W6: NOT_AUTHORIZED
+W7: NOT_AUTHORIZED
 ```
 
 Completed plans and reports are recoverable from Git history and are not active
