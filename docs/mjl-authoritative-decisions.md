@@ -62,6 +62,9 @@ prerequisite baseline. The exact delegation and all W6 gates then completed
 under DEC-070. W6 is now `W6_COMPLETE`. The documentation-only W7 review found
 the frozen two-wrapper removal `W7_READY_FOR_AUTHORIZATION`; DEC-071 then
 authorized and completed that exact retirement. W7 is now `W7_COMPLETE`.
+DEC-072 defines and passes the final architecture-migration reconciliation, so
+`MIGRATION_COMPLETE: YES`. This status does not claim application acceptance
+or production readiness.
 Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
@@ -83,6 +86,9 @@ W4_COMPLETE
 W5_COMPLETE
 W6_COMPLETE
 W7_COMPLETE
+MIGRATION_COMPLETE: YES
+APPLICATION_ACCEPTANCE: NOT_CLAIMED
+PRODUCTION_READINESS: NOT_CLAIMED
 ```
 
 W0 completion does not authorize W1 or any later migration wave. The subsequent
@@ -203,13 +209,21 @@ dynamic-registration/include proof. The containing library, its read-access
 functions, all action-specific and locked authorization, every other cleanup
 candidate, and every W0-W6 owner remain unchanged. PHP syntax, the focused
 access/audit unit gate, disposable VUI03 3/3, and final independent reviews
-passed. W7 is complete; no `MIGRATION_COMPLETE` state is created.
+passed. W7 completion itself created no `MIGRATION_COMPLETE` state. DEC-072
+subsequently defined and passed the separate final reconciliation.
 
 ```text
 W6_COMPLETE
 W7_COMPLETE
-MIGRATION_COMPLETE: NO
+MIGRATION_COMPLETE: YES
+APPLICATION_ACCEPTANCE: NOT_CLAIMED
+PRODUCTION_READINESS: NOT_CLAIMED
 ```
+
+The executed reconciliation and its bounded residual classification are in
+`docs/mjl-final-migration-reconciliation.md`. They close only the frozen
+architecture migration. Development remains unfinished; application acceptance
+and production readiness remain separate, unclaimed workstreams.
 
 Completed plans and reports are recoverable from Git history and are not active
 guidance. `docs/mjl-current-app-functional-map.md` records current-state

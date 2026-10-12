@@ -54,7 +54,12 @@ unresolved weaknesses and unapproved recommendations.
   library, its read helpers, current route/command authorization, all other
   cleanup candidates, and every completed-wave owner remain unchanged. This
   closes the numbered architecture waves without recording user acceptance,
-  production readiness, or a separate migration-completion state.
+  production readiness, or an automatic migration-completion state. DEC-072
+  separately reconciled all wave completions, frozen hashes, 35/35 preservation,
+  current governance, and bounded residuals. Its binary gate passed with zero
+  migration blockers, so the frozen architecture migration is now
+  `MIGRATION_COMPLETE: YES`. Application acceptance and production readiness
+  remain `NOT_CLAIMED`.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

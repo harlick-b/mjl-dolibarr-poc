@@ -57,7 +57,7 @@ STANDARD_FROZEN
 | Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
 | Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Preservation requirements | 35/35 mapped |
-| Migration units | W0–W7 are complete; DEC-070 completed the exact frozen W6 delegation and DEC-071 removed only the two frozen W7 Activity-access wrapper candidates after reachability proof |
+| Migration units | W0–W7 are complete; DEC-072 final reconciliation passed with zero migration blockers; `MIGRATION_COMPLETE: YES` concerns architecture migration only |
 | Investigation simulations | 6/6 reconciled |
 | Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
 | Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
@@ -189,7 +189,9 @@ See [13-regression-baseline.md](13-regression-baseline.md) for exact qualificati
 
 The architecture and Engineering Standard are frozen. W0–W7 are complete: W5
 under DEC-067, W6 under DEC-070, and the two-wrapper W7 retirement under
-DEC-071. This status records neither acceptance nor `MIGRATION_COMPLETE`.
+DEC-071. DEC-072 then passed the separate final reconciliation and records
+`MIGRATION_COMPLETE: YES`; application acceptance and production readiness
+remain unclaimed.
 Runner discovery/deadline behavior, cron failure semantics, and
 stale design assertions remain bounded findings in the proposal and gap
 analysis. The bounded W0 prerequisite is `W0_COMPLETE`. DEC-061 defines the
