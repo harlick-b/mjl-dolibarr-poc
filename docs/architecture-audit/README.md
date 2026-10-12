@@ -57,7 +57,7 @@ STANDARD_FROZEN
 | Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
 | Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Preservation requirements | 35/35 mapped |
-| Migration units | W0–W5 are complete; DEC-068 closed the W6 prerequisites; DEC-069 records the first W6 attempt as `W6_FAILED` before movement; DEC-070 re-authorizes the exact frozen W6 delegation from clean baseline `725821a` under amended Standard hash `b24021ac...`; W7 remains `NOT_AUTHORIZED` |
+| Migration units | W0–W6 are complete; DEC-070 completed the exact frozen W6 delegation from clean baseline `725821a` under amended Standard hash `b24021ac...`; the documentation-only W7 review is `W7_READY_FOR_AUTHORIZATION`, while W7 remains `NOT_AUTHORIZED` |
 | Investigation simulations | 6/6 reconciled |
 | Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
 | Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
@@ -73,7 +73,7 @@ is not embedded here because a commit cannot contain its own final hash.
 | Engineering Standard document | `docs/mjl-engineering-standard-v1.md` |
 | Engineering Standard SHA-256 | `b24021ac52a55f5a9921801aac8d100d9238268c55b3775875a0709132fb9560` after DEC-066; original freeze hash `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
 | Review history | `docs/mjl-engineering-standard-v1-review.md`; initial `STANDARD_REVISION_REQUIRED`, three corrected MEDIUM findings, then `STANDARD_APPROVED_FOR_FREEZE` |
-| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; `W4_COMPLETE`; `W5_COMPLETE` under DEC-067; W6 is `AUTHORIZED` under DEC-070; W7 is `NOT_AUTHORIZED` |
+| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; `W4_COMPLETE`; `W5_COMPLETE` under DEC-067; `W6_COMPLETE` under DEC-070; W7 is `READY_FOR_AUTHORIZATION` but `NOT_AUTHORIZED` |
 
 The documentation-only [W5 readiness review](../mjl-w5-readiness-review.md)
 maps the report/export, dashboard/alerts, and directly proven frontend-contract
@@ -89,9 +89,11 @@ delegation boundary clear. DEC-068 closed BC-021, activation-time BC-022, the
 RST-012 transition matrix, and descriptor state characterization, producing
 `W6_READY_FOR_AUTHORIZATION`. The subsequent authorization prohibited the
 lifecycle-ownership movement required by that frozen ledger, so DEC-069 records
-`W6_SCOPE_CONFLICT` and `W6_FAILED` before any movement. DEC-070 resolves those
-inputs and authorizes the exact frozen delegation from clean baseline
-`725821a`. W7 is unauthorized.
+`W6_SCOPE_CONFLICT` and `W6_FAILED` before any movement. DEC-070 resolved those
+inputs, and the exact frozen delegation completed from clean baseline
+`725821a`. The [W7 readiness review](../mjl-w7-readiness-review.md) limits the
+final wave to the two named unused Activity-access wrappers and concludes
+`W7_READY_FOR_AUTHORIZATION`; W7 remains unauthorized.
 
 ## Scope and evidence totals
 

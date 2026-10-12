@@ -48,7 +48,12 @@ unresolved weaknesses and unapproved recommendations.
   delegates once to the existing current-path lifecycle seam and retains native
   `_remove`/`_init` orchestration. Exact lifecycle behavior, schema, resources,
   auth rules, and prior-wave owners remain unchanged. W6 is complete; W7
-  remains unauthorized.
+  remains unauthorized. Its documentation-only readiness review found the
+  frozen candidate clear and `W7_READY_FOR_AUTHORIZATION`: a future explicit
+  authorization may remove only the unused
+  `mjl_activity_access_can_mutate()` / `mjl_activity_access_require_mutation()`
+  pair after the named reachability proof. All other cleanup candidates and
+  every completed-wave owner remain outside W7.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and
