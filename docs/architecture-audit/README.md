@@ -57,7 +57,7 @@ STANDARD_FROZEN
 | Historical independent review | `docs/architecture-audit/18-independent-architecture-review.md` |
 | Independent review SHA-256 | `3b0a4fe46a9ea5bc666c32d997ddb98ef430f47594bb152a738f1aa9d8f8919f` |
 | Preservation requirements | 35/35 mapped |
-| Migration units | W0–W6 are complete; DEC-070 completed the exact frozen W6 delegation from clean baseline `725821a` under amended Standard hash `b24021ac...`; the documentation-only W7 review is `W7_READY_FOR_AUTHORIZATION`, while W7 remains `NOT_AUTHORIZED` |
+| Migration units | W0–W7 are complete; DEC-070 completed the exact frozen W6 delegation and DEC-071 removed only the two frozen W7 Activity-access wrapper candidates after reachability proof |
 | Investigation simulations | 6/6 reconciled |
 | Current actionable architecture findings | 0 CRITICAL, 0 HIGH, none from the final correction reviews |
 | Pre-freeze Git baseline | branch `main`, commit `d7da3aa74b784a4f385e33120210cc860837b6eb` |
@@ -73,7 +73,7 @@ is not embedded here because a commit cannot contain its own final hash.
 | Engineering Standard document | `docs/mjl-engineering-standard-v1.md` |
 | Engineering Standard SHA-256 | `b24021ac52a55f5a9921801aac8d100d9238268c55b3775875a0709132fb9560` after DEC-066; original freeze hash `a47f2d942172a4685b02efce027ca04c0a2361f258ebd8c0b776117c97f8f62e` |
 | Review history | `docs/mjl-engineering-standard-v1-review.md`; initial `STANDARD_REVISION_REQUIRED`, three corrected MEDIUM findings, then `STANDARD_APPROVED_FOR_FREEZE` |
-| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; `W4_COMPLETE`; `W5_COMPLETE` under DEC-067; `W6_COMPLETE` under DEC-070; W7 is `READY_FOR_AUTHORIZATION` but `NOT_AUTHORIZED` |
+| Implementation state | `W0_COMPLETE`; `W1_COMPLETE`; `W2_COMPLETE`; `W3_COMPLETE`; `W4_COMPLETE`; `W5_COMPLETE` under DEC-067; `W6_COMPLETE` under DEC-070; `W7_COMPLETE` under DEC-071 |
 
 The documentation-only [W5 readiness review](../mjl-w5-readiness-review.md)
 maps the report/export, dashboard/alerts, and directly proven frontend-contract
@@ -91,9 +91,10 @@ RST-012 transition matrix, and descriptor state characterization, producing
 lifecycle-ownership movement required by that frozen ledger, so DEC-069 records
 `W6_SCOPE_CONFLICT` and `W6_FAILED` before any movement. DEC-070 resolved those
 inputs, and the exact frozen delegation completed from clean baseline
-`725821a`. The [W7 readiness review](../mjl-w7-readiness-review.md) limits the
-final wave to the two named unused Activity-access wrappers and concludes
-`W7_READY_FOR_AUTHORIZATION`; W7 remains unauthorized.
+`725821a`. The [W7 readiness review](../mjl-w7-readiness-review.md) limited the
+final wave to the two named unused Activity-access wrappers. DEC-071 authorized
+and completed their proof-backed removal without changing the surrounding
+library or any prior-wave owner.
 
 ## Scope and evidence totals
 
@@ -110,9 +111,9 @@ final wave to the two named unused Activity-access wrappers and concludes
 | Database tables mapped at ownership level | 17 custom and 7 named primary native tables; additional native module/cron tables are materially used and not individually reconciled |
 | Preservation-ledger items | 35 |
 | Confirmed dead items | 0 |
-| Dead/removal candidates | 7 helpers with no discovered live internal entry, 1 schema-only table surface and 9 unresolved/historical groups |
+| Dead/removal candidates | immutable audit snapshot: 7 helpers with no discovered live internal entry; W7 retired 2, leaving 5 helper candidates plus 1 schema-only table surface and 9 unresolved/historical groups |
 | High-risk findings | 4 established; 4 resolved; 0 open |
-| Target architecture | frozen in `17-target-architecture-proposal.md`; not implemented |
+| Target architecture | frozen in `17-target-architecture-proposal.md`; W0–W7 complete |
 
 The exact baseline and source hashes are in [00-baseline.md](00-baseline.md), with per-file records in [annex-file-fingerprints.tsv](annex-file-fingerprints.tsv) and significant records in the [runtime](annex-runtime-symbols.tsv) and [supplemental](annex-supplemental-symbols.tsv) symbol annexes. “Mapped” and “verified” retain the evidence qualifications defined there and do not imply runtime execution.
 
@@ -186,15 +187,13 @@ See [13-regression-baseline.md](13-regression-baseline.md) for exact qualificati
 
 ## Safe next decisions
 
-The architecture is frozen. W0–W5 are complete; W5 completion is recorded by
-DEC-067. DEC-068 records the pre-authorization W6 readiness result; DEC-069
-records `W6_FAILED` before movement because the supplied authorization
-contradicted the frozen lifecycle-delegation ledger. DEC-070 re-authorizes the
-exact frozen W6 delegation from clean baseline `725821a`. W7 remains unauthorized.
+The architecture and Engineering Standard are frozen. W0–W7 are complete: W5
+under DEC-067, W6 under DEC-070, and the two-wrapper W7 retirement under
+DEC-071. This status records neither acceptance nor `MIGRATION_COMPLETE`.
 Runner discovery/deadline behavior, cron failure semantics, and
 stale design assertions remain bounded findings in the proposal and gap
-analysis. The Engineering Standard is frozen, and the bounded W0 prerequisite
-is `W0_COMPLETE`. DEC-061 defines the Partner and Project empty-action list
+analysis. The bounded W0 prerequisite is `W0_COMPLETE`. DEC-061 defines the
+Partner and Project empty-action list
 GETs as the shared W1 slice and excludes Operation Type plus all non-list and
 mutating reference paths. DEC-062 records that slice as `W1_COMPLETE` after its
 focused contracts and disposable VUI-10 gate passed. W2 completion is recorded

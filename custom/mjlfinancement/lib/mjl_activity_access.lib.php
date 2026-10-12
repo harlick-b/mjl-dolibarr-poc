@@ -57,11 +57,3 @@ function mjl_activity_access_can_read(User $targetUser, $entity = null)
 	if ($entity !== null && (int) $entity !== (int) $conf->entity) return false;
 	return mjl_activity_access_can_enter_list($targetUser);
 }
-
-function mjl_activity_access_can_mutate(User $targetUser, $entity = null)
-{
-	global $conf;
-	if ($entity !== null && (int) $entity !== (int) $conf->entity) return false;
-	return mjl_scope_is_input_agent($targetUser, (int) $conf->entity) || mjl_scope_is_verifier($targetUser, (int) $conf->entity) || mjl_scope_is_final_validator($targetUser, (int) $conf->entity);
-}
-function mjl_activity_access_require_mutation(User $targetUser, $entity = null) { if (!mjl_activity_access_can_mutate($targetUser, $entity)) { http_response_code(403); accessforbidden(); } }

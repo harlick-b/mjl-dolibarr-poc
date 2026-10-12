@@ -1,6 +1,24 @@
 # MJL W7 readiness review
 
-## Verdict
+## Current implementation outcome
+
+```text
+W7_COMPLETE
+Baseline: 3208bfc75f408de8d924c5668b80ec8af505ec11
+Migration complete: NO
+```
+
+DEC-071 authorized exactly the two-wrapper retirement defined below. The two
+definitions were removed together from the retained access library. G01 found
+no remaining candidate symbol in `custom` or `tests` and no dynamic
+registration target; G02 PHP syntax passed; G03 passed 1/1; and disposable G04
+passed 3/3 with complete tenant teardown. G00 remained exact and G05 completed
+with zero actionable Standards or Specification findings. No test, route,
+schema, data, transaction, lifecycle, frontend, tooling, dependency, or other
+cleanup candidate changed. W7 completion does not declare the application or
+architecture migration accepted, production-ready, or `MIGRATION_COMPLETE`.
+
+## Readiness verdict at authorization
 
 ```text
 W7_READY_FOR_AUTHORIZATION
@@ -8,6 +26,10 @@ Baseline: 038eed4343f683d96a7ccb00d6de5128f9e3c8ef
 W7 authorized: NO
 Migration complete: NO
 ```
+
+Everything from this heading onward is the pre-authorization control snapshot.
+Its `W7 authorized: NO`, ledger statuses, and future-tense instructions describe
+the baseline before DEC-071 execution; the current outcome is recorded above.
 
 W7 is ready only as the frozen candidate-sized removal of
 `mjl_activity_access_can_mutate()` and

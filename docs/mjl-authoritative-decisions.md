@@ -59,9 +59,9 @@ with the frozen W6 delegation ledger. DEC-069 records that attempt as
 DEC-070: retain and authorize the exact frozen W6 delegation, use the DEC-066
 Standard hash `b24021ac...`, and use commit `725821a` as the clean named
 prerequisite baseline. The exact delegation and all W6 gates then completed
-under DEC-070. W6 is now `W6_COMPLETE`. The documentation-only W7 review
-found the frozen two-wrapper removal `W7_READY_FOR_AUTHORIZATION`; W7 remains
-`NOT_AUTHORIZED`.
+under DEC-070. W6 is now `W6_COMPLETE`. The documentation-only W7 review found
+the frozen two-wrapper removal `W7_READY_FOR_AUTHORIZATION`; DEC-071 then
+authorized and completed that exact retirement. W7 is now `W7_COMPLETE`.
 Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.
@@ -82,7 +82,7 @@ W3_COMPLETE
 W4_COMPLETE
 W5_COMPLETE
 W6_COMPLETE
-W7_NOT_AUTHORIZED
+W7_COMPLETE
 ```
 
 W0 completion does not authorize W1 or any later migration wave. The subsequent
@@ -194,21 +194,20 @@ Lifecycle ownership delegated: YES, exactly as frozen
 W7: NOT_AUTHORIZED
 ```
 
-The post-W6 W7 readiness review is recorded in
+The post-W6 W7 readiness review and implementation outcome are recorded in
 `docs/mjl-w7-readiness-review.md`. It corrects the pasted brief's historical
 Standard hash and W6 ownership wording, then applies the lean frozen boundary:
 only `mjl_activity_access_can_mutate()` and
-`mjl_activity_access_require_mutation()` may be removed after repository and
+`mjl_activity_access_require_mutation()` were removed after repository and
 dynamic-registration/include proof. The containing library, its read-access
 functions, all action-specific and locked authorization, every other cleanup
-candidate, and every W0-W6 owner remain unchanged. The verdict is
-`W7_READY_FOR_AUTHORIZATION`; it authorizes no implementation and creates no
-`MIGRATION_COMPLETE` state.
+candidate, and every W0-W6 owner remain unchanged. PHP syntax, the focused
+access/audit unit gate, disposable VUI03 3/3, and final independent reviews
+passed. W7 is complete; no `MIGRATION_COMPLETE` state is created.
 
 ```text
 W6_COMPLETE
-W7_READY_FOR_AUTHORIZATION
-W7_NOT_AUTHORIZED
+W7_COMPLETE
 MIGRATION_COMPLETE: NO
 ```
 
