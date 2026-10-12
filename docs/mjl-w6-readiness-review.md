@@ -3,7 +3,7 @@
 ## Current implementation authorization
 
 ```text
-W6_AUTHORIZED
+W6_COMPLETE
 Baseline: 725821a6a70f3ca158f55517a6a2386257d62277
 Engineering Standard: b24021ac52a55f5a9921801aac8d100d9238268c55b3775875a0709132fb9560
 W7 authorized: NO
@@ -18,33 +18,37 @@ Implementation must stop before W7.
 ## Post-authorization implementation outcome
 
 ```text
-W6_FAILED
-W6_SCOPE_CONFLICT
-Lifecycle ownership moved: NO
+W6_COMPLETE
+Lifecycle ownership delegated: YES, exactly as authorized by DEC-070
 W7 authorized: NO
 ```
 
-The readiness verdict below is the pre-authorization result. The later W6
-authorization required conformance to the frozen architecture and ledger while
-also making **no lifecycle ownership movement** a hard W6 boundary. Those
-requirements cannot both be met: T03–T08, T14–T17, and T24 require lifecycle
-delegation, while T18–T20 and T29 require the dependent resource, call-graph,
-and status closure. The authorization's own scope-conflict rule therefore
-requires `W6_FAILED`, not a silent reinterpretation.
+DEC-070 resolved the three conflicts recorded by DEC-069 before implementation:
+it authorized the exact frozen delegation, recognized Standard hash
+`b24021ac...`, and named prerequisite baseline `725821a`. The descriptor now
+contains one orchestration call to `mjl_lifecycle_prepare()` and retains the
+native `_remove`/`_init` sequence. The existing activity schema installer seam
+owns the moved activation logic. Exact detectors/installers, lock behavior,
+failure injection, SQL-resource locations, states, DDL, auth behavior, and
+guarded entrypoints are unchanged.
 
-Failure occurred before CG3, runtime edits, movement, or cutover. T03 is the
-controlling failed ownership row; T04–T08, T14–T20, and T24 were blocked and
-not advanced. T29 is satisfied by recording this failed outcome. The last safe
-state is the reviewed DEC-068 prerequisite baseline. G00 fails for T01/T29 as
-written: the authorization names the original
-Standard hash `a47f2d...`, while DEC-066's authoritative amended Standard is
-`b24021...`, and the reviewed prerequisite diff has not yet become the clean
-named baseline required before movement. A corrected authority decision must
-recognize the amended Standard, establish the intended baseline, and either
-permit the frozen W6 delegation or amend and re-freeze the W6 target before
-re-authorization.
+G01–G07 passed their maintained disposable or focused paths. G08 and G09 pass
+the new ownership/loading contracts and PHP syntax checks. G10 completed with
+zero actionable Standards or Specification findings. G00 confirms frozen
+hashes, traceable scope, documentation reconciliation, and diff integrity.
+All disposable tenants created by the W6 verification runs were removed.
+Pre-existing historical Docker test resources remain outside this wave and
+were not mutated. T03–T08, T14–T20, T23–T25, and T29 are verified complete;
+retained and not-applicable rows remain unchanged. W7 is not authorized.
 
 ## Readiness verdict at authorization
+
+Everything from this heading through the historical final-report block below is
+the immutable pre-authorization readiness snapshot. Within that bounded
+snapshot, terms such as “current,” row statuses, “future” gates, counts, and
+implementation skeleton describe the state before DEC-070 execution; they are
+not active post-W6 instructions. The current outcome is recorded above and in
+the post-snapshot completion block at the end of this document.
 
 ```text
 W6_READY_FOR_AUTHORIZATION
@@ -860,7 +864,23 @@ Final verdict: W6_READY_FOR_AUTHORIZATION
 Review document: docs/mjl-w6-readiness-review.md
 ```
 
-This final-report block is the pre-authorization readiness snapshot. The
-current implementation outcome is `W6_FAILED` under DEC-069. The next
-permissible work is authority reconciliation and a new W6 authorization; work
-must stop before W7.
+This final-report block is the historical pre-authorization readiness snapshot.
+DEC-069 remains the record of the failed first attempt; DEC-070 superseded its
+blocking inputs and governs the completed implementation recorded at the top of
+this document.
+
+```text
+W6 implementation: COMPLETE
+Final W6 status: W6_COMPLETE
+Authorized baseline: 725821a
+Required ledger rows implemented and verified: ALL
+Failed or blocked ledger rows: 0
+Verification gates: G00-G10 PASS
+Cutover groups: CG0-CG4 COMPLETE
+Unowned or dual-authority responsibilities: 0
+Lifecycle delegation: exact frozen delegation complete
+Behavior, DDL, state, auth, and SQL-resource changes: 0
+Preservation requirements: 35 / 35
+Architecture / Standard amendment required: NO / NO
+W7 work performed / authorized: NO / NO
+```

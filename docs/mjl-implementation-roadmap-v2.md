@@ -41,13 +41,14 @@ unresolved weaknesses and unapproved recommendations.
   filenames, CSS/JS, schema, and authentication remain unchanged. All W5 gates
   passed. DEC-068 closed the four W6 prerequisites: exact historical
   predecessor provisioning, activation-time exact auth-schema refusal, the
-  RST-012 transition matrix, and descriptor lifecycle characterization. W6 is
-  not complete: DEC-069 records `W6_FAILED` before movement because the first W6
-  authorization prohibited lifecycle-ownership movement while the frozen W6
-  ledger requires lifecycle delegation. No W6 runtime owner moved, no cutover
-  occurred. DEC-070 now authorizes the exact frozen delegation from clean named
-  baseline `725821a` under the amended Standard hash `b24021ac...`; all other
-  W6 constraints remain in force and W7 remains unauthorized.
+  RST-012 transition matrix, and descriptor lifecycle characterization.
+  DEC-069 records the first W6 attempt as failed before movement. DEC-070 then
+  authorized and completed the exact frozen delegation from clean named
+  baseline `725821a` under amended Standard hash `b24021ac...`: the descriptor
+  delegates once to the existing current-path lifecycle seam and retains native
+  `_remove`/`_init` orchestration. Exact lifecycle behavior, schema, resources,
+  auth rules, and prior-wave owners remain unchanged. W6 is complete; W7
+  remains unauthorized.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and

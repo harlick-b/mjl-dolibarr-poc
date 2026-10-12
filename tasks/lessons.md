@@ -195,6 +195,10 @@ debugging discoveries. Do not add one-off observations or generic advice.
   Freeze source during these runs (or use an isolated fixed checkout); editing
   code concurrently invalidates isolation evidence even when the database and
   document storage remain untouched.
+- A migration gate's browser phase may intentionally run after rollback to a
+  historical predecessor. Match assertions to that exact endpoint and use the
+  returned fixture identifier for navigation; target-mode labels or markup can
+  be stale even when the application and migration behavior are correct.
 
 - For literal multiline report text, the installed `dol_escape_htmltag()`
   defaults are not lossless: they turn LF into literal backslash-n, and can

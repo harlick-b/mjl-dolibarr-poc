@@ -822,3 +822,199 @@ function mjl_rst005_require_target_objects(DoliDB $db, $table = null)
 	if ((int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND EVENT_OBJECT_TABLE='".$db->escape($table)."'") !== count($triggers)) throw new RuntimeException('Unexpected RST-005 trigger.');
 	return true;
 }
+
+function mjl_lifecycle_disposable_activation_failure_is_armed(DoliDB $db)
+{
+	$sql = "SELECT value FROM ".$db->prefix()."const WHERE name='MJL_RST_PHASE1_ACTIVATION_FAILURE_INJECTION'";
+	$sql .= ' AND entity IN (0, 1) ORDER BY entity DESC, rowid DESC LIMIT 1';
+	$resql = $db->query($sql);
+	$row = $resql ? $db->fetch_object($resql) : null;
+	return $row && (string) $row->value === '1';
+}
+
+function mjl_lifecycle_disposable_rst005_activation_failure_is_armed(DoliDB $db)
+{
+	$sql = "SELECT value FROM ".$db->prefix()."const WHERE name='MJL_RST005_ACTIVATION_FAILURE_INJECTION'";
+	$sql .= ' AND entity=0 ORDER BY rowid DESC LIMIT 1';
+	$resql = $db->query($sql);
+	$row = $resql ? $db->fetch_object($resql) : null;
+	return $row && (string) $row->value === '1';
+}
+
+function mjl_lifecycle_ensure_role_invariant_triggers(DoliDB $db)
+{
+	try {
+		mjl_rst002b_install_role_invariant_triggers($db, mjl_rst002b_table_exists($db, mjl_rst002b_assignment_table($db)));
+		return 1;
+	} catch (Throwable $exception) {
+		return -1;
+	}
+}
+
+function mjl_lifecycle_ensure_login_otp_schema(DoliDB $db)
+{
+	$table = $db->prefix().'mjlfinancement_login_otp';
+	$sql = "SELECT COUNT(*) AS nb FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($table)."'";
+	$resql = $db->query($sql);
+	$row = $resql ? $db->fetch_object($resql) : null;
+	if (!$row) return -1;
+	if ((int) $row->nb > 0) return 1;
+	$create = 'CREATE TABLE '.$table.' ('
+		.'rowid INTEGER AUTO_INCREMENT PRIMARY KEY, entity INTEGER DEFAULT 1 NOT NULL, fk_user INTEGER NOT NULL, '
+		."status VARCHAR(32) DEFAULT 'pending' NOT NULL, code_hash CHAR(64) DEFAULT NULL, session_hash CHAR(64) NOT NULL, credential_hash CHAR(64) NOT NULL, "
+		."attempt_count INTEGER DEFAULT 0 NOT NULL, resend_count INTEGER DEFAULT 0 NOT NULL, live_user_id INTEGER AS (CASE WHEN status = 'pending' THEN fk_user ELSE NULL END) PERSISTENT, "
+		.'date_code_issued DATETIME NOT NULL, date_expiry DATETIME NOT NULL, date_last_send DATETIME NOT NULL, date_lockout_until DATETIME DEFAULT NULL, date_verified DATETIME DEFAULT NULL, date_creation DATETIME NOT NULL, '
+		."tms TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, CONSTRAINT chk_mjl_login_otp_status CHECK (status IN ('pending','verified','cancelled','delivery_failed','locked')), "
+		."CONSTRAINT chk_mjl_login_otp_counts CHECK (attempt_count BETWEEN 0 AND 5 AND resend_count BETWEEN 0 AND 3), CONSTRAINT chk_mjl_login_otp_secret CHECK ((status='pending' AND code_hash IS NOT NULL) OR (status<>'pending' AND code_hash IS NULL)), "
+		.'UNIQUE INDEX uk_mjl_login_otp_live_user (entity,live_user_id), INDEX idx_mjl_login_otp_user (entity,fk_user,status), INDEX idx_mjl_login_otp_lockout (entity,fk_user,date_lockout_until), '
+		.'CONSTRAINT fk_mjl_login_otp_user FOREIGN KEY (fk_user) REFERENCES '.$db->prefix().'user(rowid)) ENGINE=innodb';
+	return $db->query($create) ? 1 : -1;
+}
+
+function mjl_lifecycle_ensure_auth_invariant_triggers(DoliDB $db)
+{
+	$userTable = $db->prefix().'user';
+	$invitation = $db->prefix().'mjlfinancement_invitation';
+	$reset = $db->prefix().'mjlfinancement_password_reset';
+	$otp = $db->prefix().'mjlfinancement_login_otp';
+	$statements = array(
+		'CREATE OR REPLACE TRIGGER '.$db->prefix().'mjlfinancement_invitation_bi BEFORE INSERT ON '.$invitation.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 1; DECLARE target_entity INTEGER DEFAULT -1; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR target_admin=1 THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid invitation target\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$db->prefix().'mjlfinancement_invitation_bu BEFORE UPDATE ON '.$invitation.' FOR EACH ROW BEGIN DECLARE target_admin INTEGER DEFAULT 1; DECLARE target_entity INTEGER DEFAULT -1; SELECT admin, entity INTO target_admin, target_entity FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF target_entity<>NEW.entity OR target_admin=1 OR NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.token_selector<>OLD.token_selector THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid invitation mutation\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$db->prefix().'mjlfinancement_reset_bi BEFORE INSERT ON '.$reset.' FOR EACH ROW BEGIN DECLARE target_entity INTEGER DEFAULT -1; DECLARE target_admin INTEGER DEFAULT 0; SELECT entity,admin INTO target_entity,target_admin FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF NOT ((target_admin=1 AND target_entity=0 AND NEW.entity>=1) OR (target_admin=0 AND target_entity=NEW.entity)) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid reset target\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$db->prefix().'mjlfinancement_reset_bu BEFORE UPDATE ON '.$reset.' FOR EACH ROW BEGIN DECLARE target_entity INTEGER DEFAULT -1; DECLARE target_admin INTEGER DEFAULT 0; SELECT entity,admin INTO target_entity,target_admin FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF NOT ((target_admin=1 AND target_entity=0 AND NEW.entity>=1) OR (target_admin=0 AND target_entity=NEW.entity)) OR NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.token_selector<>OLD.token_selector THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid reset mutation\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$db->prefix().'mjlfinancement_login_otp_bi BEFORE INSERT ON '.$otp.' FOR EACH ROW BEGIN DECLARE target_entity INTEGER DEFAULT -1; DECLARE target_admin INTEGER DEFAULT 0; SELECT entity,admin INTO target_entity,target_admin FROM '.$userTable.' WHERE rowid=NEW.fk_user; IF NOT ((target_admin=1 AND target_entity=0 AND NEW.entity>=1) OR (target_admin=0 AND target_entity=NEW.entity)) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid OTP target\'; END IF; END',
+		'CREATE OR REPLACE TRIGGER '.$db->prefix().'mjlfinancement_login_otp_bu BEFORE UPDATE ON '.$otp.' FOR EACH ROW BEGIN IF NEW.entity<>OLD.entity OR NEW.fk_user<>OLD.fk_user OR NEW.credential_hash<>OLD.credential_hash OR (NEW.session_hash<>OLD.session_hash AND NOT (OLD.status=\'pending\' AND NEW.status=\'pending\')) THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Invalid OTP mutation\'; END IF; END',
+	);
+	foreach ($statements as $sql) if (!$db->query($sql)) return -1;
+	return 1;
+}
+
+function mjl_lifecycle_ensure_auth_state_constraints(DoliDB $db)
+{
+	$definitions = array(
+		'mjlfinancement_invitation' => array(
+			'chk_mjl_invitation_credential_state' => "((status IN ('pending_send', 'sent') AND token_hash IS NOT NULL) OR (status IN ('accepted', 'revoked', 'send_failed') AND token_hash IS NULL))",
+			'chk_mjl_invitation_terminal_date' => "((status IN ('pending_send', 'sent') AND date_accepted IS NULL AND date_revoked IS NULL) OR (status = 'accepted' AND date_accepted IS NOT NULL) OR (status IN ('revoked', 'send_failed') AND date_revoked IS NOT NULL))",
+		),
+		'mjlfinancement_password_reset' => array(
+			'chk_mjl_reset_credential_state' => "((status IN ('pending_send', 'sent') AND token_hash IS NOT NULL AND date_consumed IS NULL) OR (status IN ('consumed', 'send_failed', 'revoked') AND token_hash IS NULL AND date_consumed IS NOT NULL))",
+		),
+	);
+	foreach ($definitions as $table => $constraints) foreach ($constraints as $name => $expression) {
+		$sql = "SELECT COUNT(*) AS nb FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($db->prefix().$table)."' AND CONSTRAINT_NAME='".$db->escape($name)."'";
+		$resql = $db->query($sql);
+		$row = $resql ? $db->fetch_object($resql) : null;
+		if (!$row) return -1;
+		if ((int) $row->nb === 0 && !$db->query('ALTER TABLE '.$db->prefix().$table.' ADD CONSTRAINT '.$name.' CHECK '.$expression)) return -1;
+	}
+	return 1;
+}
+
+function mjl_lifecycle_ensure_auth_fingerprint_key(DoliDB $db)
+{
+	$sql = 'SELECT rowid FROM '.$db->prefix()."const WHERE name='MJL_AUTH_FINGERPRINT_KEY' AND entity=0 LIMIT 1";
+	$resql = $db->query($sql);
+	if (!$resql) return -1;
+	if ($db->num_rows($resql) > 0) return 1;
+	$value = bin2hex(random_bytes(32));
+	$sql = 'INSERT INTO '.$db->prefix()."const (name,value,type,visible,note,entity) VALUES ('MJL_AUTH_FINGERPRINT_KEY','".$db->escape($value)."','chaine',0,'HMAC key for non-reversible auth fingerprints',0)";
+	return $db->query($sql) ? 1 : -1;
+}
+
+function mjl_lifecycle_prepare(DoliDB $db, callable $loadTables, callable $finalize)
+{
+	$prefix = mjl_rst005_prefix($db);
+	$activity = $prefix.'mjlfinancement_activity';
+	$lockName = 'mjl:rst002b:'.substr(hash('sha256', (string) mjl_rst005_scalar($db, 'SELECT DATABASE()').':'.$prefix), 0, 46);
+	$migrationRequired = false;
+	$cleanInstall = false;
+	$bootstrapProfile = getenv('MJL_DISPOSABLE_TEST_TENANT') === '1' ? (string) getenv('MJL_LIFECYCLE_BOOTSTRAP_PROFILE') : '';
+	if (!in_array($bootstrapProfile, array('', 'rst002b', 'rst006a', 'rst006b'), true)) return array('result' => -1, 'error' => '');
+	$retainRst002bTarget = $bootstrapProfile === 'rst002b';
+	$retainRst006aTarget = $bootstrapProfile === 'rst006a';
+	$retainRst006bTarget = $bootstrapProfile === 'rst006b';
+	$retainPreAuthHistoricalTarget = $retainRst002bTarget || $retainRst006aTarget;
+	if ((int) mjl_rst005_scalar($db, "SELECT GET_LOCK('".$db->escape($lockName)."',0)") !== 1) return array('result' => -1, 'error' => '');
+	try {
+		$tableCount = (int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$db->escape($activity)."'");
+		if ($tableCount === 0) {
+			$cleanInstall = true;
+			$customCount = (int) mjl_rst005_scalar($db, "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE '".$db->escape($prefix)."mjlfinancement\\_%'");
+			if ($customCount !== 0) return array('result' => -1, 'error' => '');
+			$result = $loadTables('/mjlfinancement/sql/');
+			if ($result < 0) return array('result' => -1, 'error' => '');
+			foreach (array('reopening_request','cancellation_request') as $suffix) {
+				$table=$prefix.'mjlfinancement_'.$suffix;
+				if (mjl_rst002b_table_exists($db,$table) && !$db->query('DROP TABLE '.$table)) throw new RuntimeException('Unable to normalize the clean RST-006B bootstrap: '.$db->lasterror());
+			}
+			foreach (array('review_decision','revision_contributor','activity_revision','operation','activity_reference_sequence') as $suffix) {
+				$table=$prefix.'mjlfinancement_'.$suffix;
+				if (mjl_rst002b_table_exists($db,$table) && !$db->query('DROP TABLE '.$table)) throw new RuntimeException('Unable to normalize the clean RST-006A bootstrap: '.$db->lasterror());
+			}
+			if ($retainPreAuthHistoricalTarget) {
+				$table=$prefix.'mjlfinancement_login_otp';
+				if (mjl_rst002b_table_exists($db,$table) && !$db->query('DROP TABLE '.$table)) throw new RuntimeException('Unable to normalize the clean RST-002B bootstrap: '.$db->lasterror());
+			}
+			foreach (array(mjl_rst005_insert_trigger_sql($prefix,$activity),mjl_rst002b_activity_update_trigger_sql($db)) as $sql) {
+				if (!$db->query($sql)) throw new RuntimeException('Unable to install the clean Activity predecessor guard: '.$db->lasterror());
+			}
+			mjl_rst002b_install_assignment_triggers($db);
+			mjl_rst002b_install_role_invariant_triggers($db, true);
+			if ($retainRst002bTarget) {
+				mjl_rst002b_require_target_objects($db);
+			} else {
+				mjl_rst006a_install_target($db);
+				mjl_rst006a_require_target($db);
+				if (!$retainRst006aTarget) {
+					mjl_rst006b_install_target($db); mjl_rst006b_require_target($db);
+					if (!$retainRst006bTarget) { mjl_rst012_install($db); mjl_rst012_require_target($db); }
+				}
+			}
+		} else {
+			$phase3aSchema = mjl_rst006b_detect_schema($db);
+			if ($phase3aSchema === RST006B_SCHEMA_TARGET) {
+				mjl_rst006b_require_target($db);
+				$reportTable=$prefix.'mjlfinancement_export_record';
+				if ($retainRst006bTarget) {
+					if (mjl_rst002b_table_exists($db,$reportTable)) return array('result' => -1, 'error' => '');
+				} elseif (mjl_rst002b_table_exists($db,$reportTable)) mjl_rst012_require_target($db);
+				else $migrationRequired = true;
+			}
+			elseif (($schema = mjl_rst006a_detect_schema($db)) === RST006A_SCHEMA_TARGET) {
+				mjl_rst006a_require_target($db);
+				if (!$retainRst006aTarget) $migrationRequired = true;
+			} elseif ($retainRst002bTarget) mjl_rst002b_require_target_objects($db);
+			else return array('result' => -1, 'error' => '');
+		}
+		if ($migrationRequired) {
+			$error = 'MJL guarded migration required.';
+			if (PHP_SAPI === 'cli') fwrite(STDERR, $error.PHP_EOL);
+			return array('result' => -1, 'error' => $error);
+		}
+		if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
+			&& getenv('MJL_RST_PHASE1_INJECT_ACTIVATION_FAILURE') === '1'
+			&& mjl_lifecycle_disposable_activation_failure_is_armed($db)) return array('result' => -1, 'error' => '');
+		if (getenv('MJL_DISPOSABLE_TEST_TENANT') === '1'
+			&& getenv('MJL_RST005_INJECT_ACTIVATION_FAILURE') === '1'
+			&& mjl_lifecycle_disposable_rst005_activation_failure_is_armed($db)) return array('result' => -1, 'error' => '');
+		if (!$retainPreAuthHistoricalTarget) {
+			$otpTable = $prefix.'mjlfinancement_login_otp';
+			if (!$cleanInstall && mjl_rst002b_table_exists($db, $otpTable) && !mjl_auth_otp_table_schema_ready()) return array('result' => -1, 'error' => '');
+			if (mjl_lifecycle_ensure_login_otp_schema($db) < 0 || mjl_lifecycle_ensure_role_invariant_triggers($db) < 0) return array('result' => -1, 'error' => '');
+			if (mjl_lifecycle_ensure_auth_state_constraints($db) < 0 || mjl_lifecycle_ensure_auth_invariant_triggers($db) < 0 || mjl_lifecycle_ensure_auth_fingerprint_key($db) < 0) return array('result' => -1, 'error' => '');
+		}
+		if ($cleanInstall) {
+			if ($retainRst002bTarget) mjl_rst002b_require_target_objects($db);
+			elseif ($retainRst006aTarget) mjl_rst006a_require_target($db);
+			elseif ($retainRst006bTarget) mjl_rst006b_require_target($db);
+			else mjl_rst012_require_target($db);
+		}
+		return array('result' => $finalize(), 'error' => '');
+	} catch (Throwable $exception) {
+		dol_syslog('RST-002B module activation refused: '.$exception->getMessage(), LOG_ERR);
+		if (PHP_SAPI === 'cli') fwrite(STDERR, 'RST-002B module activation refused: '.$exception->getMessage().PHP_EOL);
+		return array('result' => -1, 'error' => '');
+	} finally {
+		$db->query("SELECT RELEASE_LOCK('".$db->escape($lockName)."')");
+	}
+}
