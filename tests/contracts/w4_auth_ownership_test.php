@@ -28,7 +28,11 @@ foreach (array('issueInvitation','acceptInvitation','revokeInvitation','createPa
 	w4Check(preg_match_all('/public function\s+'.preg_quote($method, '/').'\s*\(/', $command) === 1, 'auth command method missing: '.$method);
 }
 w4Check(substr_count($command, '->assignProfileInTransaction(') === 1, 'invitation must retain the W3 transaction participant');
-w4Check(strpos($command, "begin('mjl issue invitation')") !== false && strpos($command, "commit('mjl issue invitation')") !== false, 'auth command must own invitation transaction orchestration');
+w4Check(strpos($command, "beginTransaction('mjl issue invitation')") !== false && strpos($command, "commit('mjl issue invitation')") !== false, 'auth command must own invitation transaction orchestration');
+w4Check(substr_count($command, '$db->begin(') === 1, 'auth transaction starts must pass through one checked owner-local helper');
+w4Check(substr_count($command, '$this->beginTransaction(') === 10, 'every auth transaction start must be checked');
+w4Check(substr_count($command, '$db->rollback(') === 1, 'auth rollback requests must pass through one owner-local quarantine helper');
+w4Check(substr_count($command, '$this->rollbackTransaction(') >= 10, 'auth transaction failures must use checked rollback handling');
 
 $legacy = array(
 	'mjl_auth_issue_invitation' => 'issueInvitation',

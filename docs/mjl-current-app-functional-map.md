@@ -6,9 +6,9 @@ This file is current-state evidence only. It does not override
 ## Current local state
 
 The shared local tenant has one native technical administrator and no
-persistent MJL business or access records. Its installed custom schema remains
-RST-012 at module version 0.20.0; the repository descriptor targets 0.21.0 and
-adds the OTP table on the next module activation. MJL depends on native Third Parties and Projects.
+persistent MJL business or access records. Module version 0.21.0 is activated
+through the non-seeding bootstrap path, and its exact RST-012 OTP schema is
+installed empty. MJL depends on native Third Parties and Projects.
 MJL code lives in `custom/mjlfinancement`. Tests create minimal records in
 isolated disposable tenants and remove those tenants after each run.
 
@@ -44,9 +44,7 @@ records in the shared local tenant:
   `llx_mjlfinancement_reopening_request`
 - `llx_mjlfinancement_operation_type`
 - `llx_mjlfinancement_export_record` (immutable export evidence)
-
-Repository version 0.21.0 adds `llx_mjlfinancement_login_otp` when the module is
-next activated; it is not part of the shared tenant's currently installed schema.
+- `llx_mjlfinancement_login_otp` (installed by the 0.21.0 activation and empty)
 
 No legacy group membership participates in MJL authorization. Native Admin
 status derives ADMIN_PLATEFORME; business roles are stored only for non-admin,

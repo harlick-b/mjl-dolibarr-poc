@@ -148,7 +148,7 @@ function mjl_activity_http_handle($db, $user, $entity, array $request)
 	elseif($action==='edit')$allowedGetKeys=array('action','id','result','recovery');
 	elseif($action==='review')$allowedGetKeys=array('action','id','result','chronology_cursor');
 	elseif($id!=='')$allowedGetKeys=array('action','id','result','chronology_cursor');
-	elseif($readiness!==0)$allowedGetKeys=array_keys($get);
+	elseif($readiness!==0)$allowedGetKeys=array('action','q','partner_id','project_id','activity_id','validation_status','execution_status','completeness','type_id','operation_status','date_from','date_to','grouping','page','status','result');
 	else$allowedGetKeys=array('action','q','status','project_id','page','result');
 	if (array_key_exists('chronology_cursor',$get) && mjl_activity_decimal('chronology_cursor',$get)==='') mjl_activity_bad_request();
 	$allowedGetKeys=array_merge($allowedGetKeys,array('mainmenu','leftmenu'));

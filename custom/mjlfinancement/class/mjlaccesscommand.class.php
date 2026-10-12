@@ -16,13 +16,17 @@ class MjlAccessCommand
 	{
 		list($target, $error) = $this->profileTarget($userId, $roleCode, $actor);
 		if (!$target) return array(-1, $error);
-		$this->db->begin('mjl access profile');
+		if (!$this->begin('mjl access profile')) return array(-1, 'Impossible d’enregistrer le profil.');
 		$result = $this->applyProfile((int) $userId, (string) $roleCode, $actor, (string) $source, (string) $note);
 		if ($result[0] < 0) {
-			$this->db->rollback('mjl access profile failed');
+			$this->rollback('mjl access profile failed');
 			return $result;
 		}
-		if (!$this->db->commit('mjl access profile')) return array(-1, $this->db->lasterror());
+		if (!$this->db->commit('mjl access profile')) {
+			$error = $this->db->lasterror();
+			$this->rollback('mjl access profile commit failed');
+			return array(-1, $error);
+		}
 		return $result;
 	}
 
@@ -43,14 +47,30 @@ class MjlAccessCommand
 		if ($target->fetch($userId) <= 0 || (int) $target->entity !== $this->entity) return array(-1, 'Utilisateur introuvable dans cette entite.');
 		if (mjl_scope_is_platform_admin($target, $this->entity) && $this->activePlatformAdminCount($userId) <= 0) return array(-1, 'Au moins un administrateur plateforme actif doit rester.');
 
-		$this->db->begin('mjl deactivate access');
+		if (!$this->begin('mjl deactivate access')) return array(-1, 'Impossible de désactiver cet accès.');
 		$result = $this->applyDeactivation($userId, $actor);
 		if ($result[0] < 0) {
-			$this->db->rollback('mjl deactivate access failed');
+			$this->rollback('mjl deactivate access failed');
 			return $result;
 		}
-		if (!$this->db->commit('mjl deactivate access')) return array(-1, $this->db->lasterror());
+		if (!$this->db->commit('mjl deactivate access')) {
+			$error = $this->db->lasterror();
+			$this->rollback('mjl deactivate access commit failed');
+			return array(-1, $error);
+		}
 		return $result;
+	}
+
+	private function begin($label)
+	{
+		return (bool) $this->db->begin($label);
+	}
+
+	private function rollback($label)
+	{
+		if ($this->db->rollback($label)) return true;
+		if (method_exists($this->db, 'close')) $this->db->close();
+		return false;
 	}
 
 	private function profileTarget($userId, $roleCode, User $actor)

@@ -456,8 +456,8 @@ test('guarded execution and exception routes expose only role-appropriate contro
   expect(command({action:'update',actorId:fixture.users.agent.id,activityId:fixture.activities.execution.activity_id,operationId:visibleRequestTarget.rowid,expectedVersion:String(Number(requestedTargetVersion)+1),input:{status:'IN_PROGRESS',spent_amount:'200',observation:null}}).code).toBe('OK');
   await agentPage.goto(`/custom/mjlfinancement/activities.php?id=${fixture.activities.execution.activity_id}`);
   await expect(agentPage.locator('main')).toHaveCount(1);
-  for (const label of ['Montant autorisé proposé','Autorisations actives','Dépenses actives','Écart actif','Variance active','Complétude financière']) await expect(agentPage.getByText(label,{exact:true})).toBeVisible();
-  await expect(agentPage.getByText('Montant autorisé proposé',{exact:true}).locator('..')).toContainText('300 F CFA');
+  for (const label of ['Montant autorisé validé','Autorisations actives','Dépenses actives','Écart actif','Variance active','Complétude financière']) await expect(agentPage.getByText(label,{exact:true})).toBeVisible();
+  await expect(agentPage.getByText('Montant autorisé validé',{exact:true}).locator('..')).toContainText('300 F CFA');
   await expect(agentPage.getByText('Autorisations actives',{exact:true}).locator('..')).toContainText('300 F CFA');
   await expect(agentPage.getByText('Dépenses actives',{exact:true}).locator('..')).toContainText('200 F CFA');
   await expect(agentPage.getByText('Complétude financière',{exact:true}).locator('..')).toContainText('Dépenses complètes');
@@ -472,7 +472,7 @@ test('guarded execution and exception routes expose only role-appropriate contro
   await supervisorPage.goto('/custom/mjlfinancement/activities.php?q=Planification_');
   const activityRow=supervisorPage.getByRole('row').filter({hasText:'Planification_conservée'});
   await expect(activityRow).toHaveCount(1);
-  await expect(activityRow.getByRole('link')).toHaveAttribute('href',`/custom/mjlfinancement/activities.php?id=${retainedPlanning.activity_id}`);
+  await expect(activityRow.getByRole('link',{name:'Planification_conservée'})).toHaveAttribute('href',`/custom/mjlfinancement/activities.php?id=${retainedPlanning.activity_id}`);
   await supervisorPage.goto('/custom/mjlfinancement/operations.php');
   await expect(supervisorPage.getByRole('button', { name: 'Enregistrer l’exécution' })).toHaveCount(0);
   await supervisorPage.goto('/custom/mjlfinancement/operationrequests.php');
@@ -487,7 +487,7 @@ test('guarded execution and exception routes expose only role-appropriate contro
   await validatorPage.goto('/custom/mjlfinancement/operationrequests.php?status=');
   await expect(validatorPage.getByRole('heading', { name: 'Demandes d’exception' })).toBeVisible();
   await validatorPage.goto(`/custom/mjlfinancement/activities.php?id=${fixture.activities['activity-cancel'].activity_id}`);
-  for(const [label,value]of [['Montant autorisé proposé','200 F CFA'],['Autorisations actives','100 F CFA'],['Dépenses actives','100 F CFA'],['Complétude financière','Dépenses partielles']])await expect(validatorPage.getByText(label,{exact:true}).locator('..')).toContainText(value);
+  for(const [label,value]of [['Montant autorisé validé','200 F CFA'],['Autorisations actives','100 F CFA'],['Dépenses actives','100 F CFA'],['Complétude financière','Dépenses partielles']])await expect(validatorPage.getByText(label,{exact:true}).locator('..')).toContainText(value);
   await expect(validatorPage.getByText('Autorisations actives',{exact:true}).locator('..')).toContainText('Annulées : 100 F CFA');
   await expect(validatorPage.getByText('Dépenses actives',{exact:true}).locator('..')).toContainText('Annulées : Non renseigné · 1 manquante(s)');
   await validatorContext.close();

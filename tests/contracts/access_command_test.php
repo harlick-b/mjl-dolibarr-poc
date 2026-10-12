@@ -37,6 +37,8 @@ class AccessFakeDb
 	public $beginCount = 0;
 	public $commitCount = 0;
 	public $rollbackCount = 0;
+	public $closeCount = 0;
+	public $mutationCount = 0;
 	public $transaction_opened = 0;
 	public $targetEntity = 1;
 	public $activityTableCount = 0;
@@ -48,8 +50,10 @@ class AccessFakeDb
 	public function begin($label = '') { $this->beginCount++; if ($this->beginResult) $this->transaction_opened++; return $this->beginResult ? 1 : 0; }
 	public function commit($label = '') { $this->commitCount++; if ($this->commitResult && $this->transaction_opened > 0) $this->transaction_opened--; return $this->commitResult ? 1 : 0; }
 	public function rollback($label = '') { $this->rollbackCount++; if ($this->rollbackResult && $this->transaction_opened > 0) $this->transaction_opened--; return $this->rollbackResult ? 1 : 0; }
+	public function close() { $this->closeCount++; $this->transaction_opened = 0; }
 	public function query($sql)
 	{
+		if (preg_match('/^(?:INSERT|UPDATE|DELETE)\b/i', ltrim($sql))) $this->mutationCount++;
 		if ($this->failureNeedle !== '' && strpos($sql, $this->failureNeedle) !== false) return false;
 		if (preg_match('/SELECT entity, admin, statut FROM llx_user WHERE rowid = ([0-9]+)/', $sql, $match)) {
 			$id = (int) $match[1];
@@ -121,13 +125,19 @@ $db = newAccessDb();
 $db->beginResult = false;
 $command = new MjlAccessCommand($db, 1);
 $result = $command->assignProfile(2, 'AGENT_SAISIE', $actor, 'test', 'characterization');
-check($result[0] < 0 && $db->rollbackCount === 1, 'unchecked begin must still fail through the audit contract');
+check($result[0] < 0 && $db->mutationCount === 0 && $db->commitCount === 0 && $db->rollbackCount === 0, 'failed profile begin must stop before mutation');
 
 $db = newAccessDb();
 $db->commitResult = false;
 $command = new MjlAccessCommand($db, 1);
 $result = $command->assignProfile(2, 'AGENT_SAISIE', $actor, 'test', 'characterization');
-check($result[0] < 0 && $db->rollbackCount === 0, 'current access commit-failure outcome changed');
+check($result[0] < 0 && $db->rollbackCount === 1 && $db->transaction_opened === 0, 'profile commit failure must request rollback');
+
+$db = newAccessDb();
+$db->commitResult = false;
+$db->rollbackResult = false;
+$result = (new MjlAccessCommand($db, 1))->assignProfile(2, 'AGENT_SAISIE', $actor, 'test', 'characterization');
+check($result[0] < 0 && $db->rollbackCount === 1 && $db->closeCount === 1, 'uncertain profile rollback must quarantine the connection');
 
 foreach (array('UPDATE llx_mjlfinancement_user_role', 'INSERT INTO llx_mjlfinancement_user_role', 'SELECT id FROM llx_rights_def', 'INSERT INTO llx_user_rights', 'UPDATE llx_mjlfinancement_invitation', 'UPDATE llx_mjlfinancement_password_reset') as $needle) {
 	$db = newAccessDb();
@@ -147,13 +157,18 @@ $db = newAccessDb();
 $db->rollbackResult = false;
 $accessAuditResult = -1;
 $result = (new MjlAccessCommand($db, 1))->assignProfile(2, 'AGENT_SAISIE', $actor);
-check($result[0] < 0 && $db->rollbackCount === 1 && $db->transaction_opened === 1, 'profile rollback-failure outcome changed');
+check($result[0] < 0 && $db->rollbackCount === 1 && $db->closeCount === 1 && $db->transaction_opened === 0, 'profile rollback failure must quarantine the connection');
 
 $db = newAccessDb();
 $command = new MjlAccessCommand($db, 1);
 $result = $command->deactivate(2, $actor);
 check($result === array(1, 'Acces desactive.'), 'deactivation success contract changed');
 check($db->beginCount === 1 && $db->commitCount === 1 && $db->rollbackCount === 0, 'deactivation transaction ownership changed');
+
+$db = newAccessDb();
+$db->beginResult = false;
+$result = (new MjlAccessCommand($db, 1))->deactivate(2, $actor);
+check($result[0] < 0 && $db->mutationCount === 0 && $db->commitCount === 0 && $db->rollbackCount === 0, 'failed deactivation begin must stop before mutation');
 
 foreach (array('UPDATE llx_user SET statut', 'UPDATE llx_mjlfinancement_user_role', 'UPDATE llx_mjlfinancement_invitation', 'UPDATE llx_mjlfinancement_password_reset', 'DELETE ur FROM llx_user_rights') as $needle) {
 	$db = newAccessDb();

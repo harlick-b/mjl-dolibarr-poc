@@ -64,7 +64,13 @@ the frozen two-wrapper removal `W7_READY_FOR_AUTHORIZATION`; DEC-071 then
 authorized and completed that exact retirement. W7 is now `W7_COMPLETE`.
 DEC-072 defines and passes the final architecture-migration reconciliation, so
 `MIGRATION_COMPLETE: YES`. This status does not claim application acceptance
-or production readiness.
+or production readiness. DEC-073 records the subsequent bounded technical
+revalidation: the Activity GET allowlist and access/authentication transaction
+start handling were corrected, 0.21.0 was activated through the non-seeding
+path, and the focused Activity, authentication, and complete maintained E2E
+gates passed. Role-based UAT and manual accessibility sign-off remain
+outstanding, so application acceptance and production readiness remain
+unclaimed.
 Any future work must consult the applicable
 business/preservation authority, then the frozen architecture and Engineering
 Standard, and finally the roadmap for the currently authorized migration state.

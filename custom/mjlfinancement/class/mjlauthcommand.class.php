@@ -8,6 +8,7 @@ class MjlAuthCommand
 	private $entity;
 	private $fingerprintReady;
 	private $failSessionCompletion;
+	private $connectionUsable = true;
 
 	public function __construct($db, $conf, $entity, $fingerprintReady, $failSessionCompletion)
 	{
@@ -41,7 +42,7 @@ class MjlAuthCommand
 			$currentInvitationId = mjl_auth_live_credential_max_id('mjlfinancement_invitation', $currentIds);
 			if ($currentInvitationId < 0) throw new RuntimeException('Configuration de sécurité indisponible.');
 			if ((empty($beforeIds) && !empty($currentIds)) || $currentInvitationId > $beforeInvitationId) throw new RuntimeException('Une invitation concurrente est déjà en cours.');
-			$db->begin('mjl issue invitation');
+			if (!$this->beginTransaction('mjl issue invitation')) return array('', 'Configuration de sécurité indisponible.', 0);
 			$byLogin = mjl_auth_user_by_login($data['login']);
 			$byEmail = mjl_auth_user_by_email($data['email']);
 			if ($byLogin && $byEmail && (int) $byLogin->id !== (int) $byEmail->id) throw new RuntimeException('Cette adresse e-mail est déjà utilisée.');
@@ -72,17 +73,17 @@ class MjlAuthCommand
 			if (!$db->commit('mjl issue invitation')) throw new RuntimeException($db->lasterror());
 			$link = '/custom/mjlfinancement/invitation.php?selector='.rawurlencode($selector).'#verifier='.rawurlencode($verifier);
 			$mail = mjl_auth_send_link_email($target, 'invitation', $link);
-			$db->begin('mjl invitation delivery');
+			if (!$this->beginTransaction('mjl invitation delivery')) return array('', 'Le résultat de l’envoi n’a pas pu être enregistré.', (int) $target->id);
 			$status = $mail[0] > 0 ? 'sent' : 'send_failed';
 			$sql = 'UPDATE '.$db->prefix().'mjlfinancement_invitation SET status='.mjl_auth_string_sql($status).($status === 'sent' ? ', date_sent='.mjl_auth_now_sql() : ', token_hash=NULL, date_revoked='.mjl_auth_now_sql()).', fk_user_modif='.((int) $actor->id).' WHERE rowid='.$invitationId." AND status='pending_send'";
 			$resql = $db->query($sql);
 			if (!$resql || $db->affected_rows($resql) !== 1 || mjl_auth_record_event($status === 'sent' ? 'invitation_sent' : 'invitation_send_failed', (int) $target->id, (int) $actor->id, array('invitation_id' => $invitationId)) < 1 || !$db->commit('mjl invitation delivery')) {
-				$db->rollback('mjl invitation delivery failed');
+				$this->rollbackTransaction('mjl invitation delivery failed');
 				return array('', 'Le résultat de l’envoi n’a pas pu être enregistré.', (int) $target->id);
 			}
 			return array($status === 'sent' && mjl_auth_e2e_tokens_enabled() ? $link : '', $mail[0] > 0 ? '' : 'Échec de l’envoi.', (int) $target->id);
 		} catch (RuntimeException $exception) {
-			$db->rollback('mjl issue invitation failed');
+			$this->rollbackTransaction('mjl issue invitation failed');
 			return array('', $exception->getMessage(), $target ? (int) $target->id : 0);
 		} finally {
 			foreach (array_reverse($locks) as $lock) $this->releaseNamedLock($lock);
@@ -98,7 +99,7 @@ class MjlAuthCommand
 		if ($lock === '') return 'Cette invitation est déjà en cours de traitement.';
 		mjl_auth_disposable_lock_barrier();
 		try {
-			$db->begin('mjl accept invitation');
+			if (!$this->beginTransaction('mjl accept invitation')) return 'L’activation n’a pas pu être finalisée.';
 			$row = mjl_auth_fetch_invitation_by_selector($selector, true);
 			if (!$row || $row->status !== 'sent' || strtotime($row->date_expiry) < dol_now() || empty($row->token_hash) || !hash_equals((string) $row->token_hash, mjl_auth_token_hash($verifier))) throw new RuntimeException('Cette invitation est invalide ou expirée.');
 			$target = new User($db);
@@ -113,7 +114,7 @@ class MjlAuthCommand
 			if (!$db->commit('mjl accept invitation')) throw new RuntimeException($db->lasterror());
 			return '';
 		} catch (RuntimeException $exception) {
-			$db->rollback('mjl accept invitation failed');
+			$this->rollbackTransaction('mjl accept invitation failed');
 			return $exception->getMessage();
 		} finally {
 			$this->releaseNamedLock($lock);
@@ -124,11 +125,11 @@ class MjlAuthCommand
 	{
 		$db = $this->db;
 		if (!mjl_scope_is_platform_admin($actor, $this->entity)) return array(-1, 'Action interdite.');
-		$db->begin('mjl revoke invitation');
+		if (!$this->beginTransaction('mjl revoke invitation')) return array(-1, 'Cette invitation ne peut pas être révoquée.');
 		$sql = 'UPDATE '.$db->prefix()."mjlfinancement_invitation SET status='revoked', token_hash=NULL, date_revoked=".mjl_auth_now_sql().', fk_user_revoked='.((int) $actor->id).', fk_user_modif='.((int) $actor->id).' WHERE entity='.$this->entity.' AND rowid='.((int) $invitationId)." AND status IN ('pending_send','sent')";
 		$resql = $db->query($sql);
 		if (!$resql || $db->affected_rows($resql) !== 1 || mjl_auth_record_event('invitation_revoked', null, (int) $actor->id, array('invitation_id' => (int) $invitationId)) < 1 || !$db->commit('mjl revoke invitation')) {
-			$db->rollback('mjl revoke invitation failed');
+			$this->rollbackTransaction('mjl revoke invitation failed');
 			return array(-1, 'Cette invitation ne peut pas être révoquée.');
 		}
 		return array(1, 'Invitation révoquée.');
@@ -152,7 +153,7 @@ class MjlAuthCommand
 		try {
 			$currentResetId = mjl_auth_live_credential_max_id('mjlfinancement_password_reset', array((int) $target->id));
 			if ($currentResetId < 0 || $currentResetId > $beforeResetId) return null;
-			$db->begin('mjl request reset');
+			if (!$this->beginTransaction('mjl request reset')) return null;
 			if (!$db->query('UPDATE '.$db->prefix()."mjlfinancement_password_reset SET status='revoked', token_hash=NULL, date_consumed=".mjl_auth_now_sql().' WHERE entity='.$this->entity.' AND fk_user='.((int) $target->id)." AND status IN ('pending_send','sent')")) throw new RuntimeException();
 			list($selector, $verifier) = mjl_auth_token_pair();
 			$sql = 'INSERT INTO '.$db->prefix()."mjlfinancement_password_reset (entity,fk_user,status,token_selector,token_hash,date_expiry,date_creation,fk_user_creat) VALUES (".$this->entity.','.((int) $target->id).",'pending_send',".mjl_auth_string_sql($selector).','.mjl_auth_string_sql(mjl_auth_token_hash($verifier)).','.mjl_auth_datetime_sql(dol_now() + 3600).','.mjl_auth_now_sql().','.((int) $target->id).')';
@@ -161,12 +162,12 @@ class MjlAuthCommand
 			if (mjl_auth_record_event('password_reset_requested', (int) $target->id, $actorUserId, array('email_fingerprint' => $emailHash, 'ip_fingerprint' => $ipHash)) < 1 || !$db->commit('mjl request reset')) throw new RuntimeException();
 			$link = '/user/passwordforgotten.php?setnewpassword=1&mjlselector='.rawurlencode($selector).'#verifier='.rawurlencode($verifier);
 			$mail = mjl_auth_send_link_email($target, 'password_reset', $link);
-			$db->begin('mjl reset delivery');
+			if (!$this->beginTransaction('mjl reset delivery')) return null;
 			$status = $mail[0] > 0 ? 'sent' : 'send_failed';
 			$sql = 'UPDATE '.$db->prefix().'mjlfinancement_password_reset SET status='.mjl_auth_string_sql($status).($status === 'send_failed' ? ',token_hash=NULL,date_consumed='.mjl_auth_now_sql() : '').' WHERE rowid='.$id." AND status='pending_send'";
-			if (!$db->query($sql) || mjl_auth_record_event($status === 'sent' ? 'password_reset_sent' : 'password_reset_send_failed', (int) $target->id, $actorUserId, array('reset_id' => $id)) < 1 || !$db->commit('mjl reset delivery')) { $db->rollback(); return null; }
+			if (!$db->query($sql) || mjl_auth_record_event($status === 'sent' ? 'password_reset_sent' : 'password_reset_send_failed', (int) $target->id, $actorUserId, array('reset_id' => $id)) < 1 || !$db->commit('mjl reset delivery')) { $this->rollbackTransaction('mjl reset delivery failed'); return null; }
 			return $status === 'sent' && mjl_auth_e2e_tokens_enabled() ? $link : null;
-		} catch (RuntimeException $exception) { $db->rollback(); return null; }
+		} catch (RuntimeException $exception) { $this->rollbackTransaction('mjl request reset failed'); return null; }
 		finally { $this->releaseNamedLock($lock); }
 	}
 
@@ -178,7 +179,7 @@ class MjlAuthCommand
 		$lock = $this->namedLock('consume_'.$selector, 5); if ($lock === '') return 'Ce lien est déjà en cours de traitement.';
 		mjl_auth_disposable_lock_barrier();
 		try {
-			$db->begin('mjl consume reset');
+			if (!$this->beginTransaction('mjl consume reset')) return 'La réinitialisation n’a pas pu être finalisée.';
 			$row = mjl_auth_fetch_reset_by_selector($selector, true);
 			if (!$row || $row->status !== 'sent' || !empty($row->date_consumed) || strtotime($row->date_expiry) < dol_now() || !hash_equals((string) $row->token_hash, mjl_auth_token_hash($verifier))) throw new RuntimeException('Ce lien de réinitialisation est invalide ou expiré.');
 			$target = new User($db);
@@ -189,7 +190,7 @@ class MjlAuthCommand
 			$sql = 'UPDATE '.$db->prefix()."mjlfinancement_password_reset SET status='consumed', token_hash=NULL, date_consumed=".mjl_auth_now_sql().', fk_user_modif='.((int) $target->id).' WHERE rowid='.((int) $row->rowid)." AND status='sent'";
 			if (!$db->query($sql) || mjl_auth_record_event('password_reset_completed', (int) $target->id, (int) $target->id, array('reset_id' => (int) $row->rowid)) < 1 || !$db->commit('mjl consume reset')) throw new RuntimeException('La réinitialisation n’a pas pu être finalisée.');
 			return '';
-		} catch (RuntimeException $exception) { $db->rollback(); return $exception->getMessage(); }
+		} catch (RuntimeException $exception) { $this->rollbackTransaction('mjl consume reset failed'); return $exception->getMessage(); }
 		finally { $this->releaseNamedLock($lock); }
 	}
 
@@ -207,7 +208,7 @@ class MjlAuthCommand
 		try {
 			$resql = $db->query('SELECT date_lockout_until FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".$this->entity.' AND fk_user='.((int) $target->id)." AND status='locked' AND date_lockout_until>".mjl_auth_now_sql().' ORDER BY rowid DESC LIMIT 1');
 			if ($resql && $db->fetch_object($resql)) return array(false, 'Trop de codes incorrects. Réessayez dans quelques minutes.');
-			$db->begin('mjl start login otp');
+			if (!$this->beginTransaction('mjl start login otp')) return array(false, 'La vérification est temporairement indisponible.');
 			$pendingResult = $db->query('SELECT rowid,credential_hash FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".$this->entity.' AND fk_user='.((int) $target->id)." AND status='pending' LIMIT 1 FOR UPDATE");
 			$pending = $pendingResult ? $db->fetch_object($pendingResult) : null;
 			if ($pending && hash_equals((string) $pending->credential_hash, mjl_auth_credential_hash($target))) {
@@ -231,7 +232,7 @@ class MjlAuthCommand
 			mjl_auth_session_begin_pending($binding, $challengeId, $target, mjl_auth_safe_backtopage($backtopage));
 			return array(true, '');
 		} catch (Throwable $exception) {
-			$db->rollback('mjl start login otp failed');
+			$this->rollbackTransaction('mjl start login otp failed');
 			return array(false, 'La vérification est temporairement indisponible.');
 		} finally {
 			$this->releaseNamedLock($lock);
@@ -247,10 +248,10 @@ class MjlAuthCommand
 		$lock = $userId > 0 ? $this->namedLock('otp_user_'.$userId, 5) : '';
 		if ($lock === '') return array(false, 'Votre session de vérification a expiré.');
 		try {
-			$db->begin('mjl verify login otp');
+			if (!$this->beginTransaction('mjl verify login otp')) return array(false, 'La vérification est temporairement indisponible.');
 			$row = mjl_auth_otp_pending_row(true);
 			if (!$row || $row->status !== 'pending') throw new RuntimeException('Votre session de vérification a expiré.');
-			if (strtotime($row->date_expiry) < dol_now()) { $db->rollback(); return array(false, 'Ce code a expiré.'); }
+			if (strtotime($row->date_expiry) < dol_now()) { $this->rollbackTransaction('mjl expired login otp'); return array(false, 'Ce code a expiré.'); }
 			if (!hash_equals((string) $row->code_hash, mjl_auth_otp_hash('otp:'.$userId, $code))) {
 				$attempts = (int) $row->attempt_count + 1;
 				$terminal = $attempts >= 5;
@@ -276,7 +277,7 @@ class MjlAuthCommand
 			mjl_auth_session_complete($target, (int) $row->rowid, $this->entity, $this->failSessionCompletion);
 			return array(true, $backtopage);
 		} catch (Throwable $exception) {
-			$db->rollback('mjl verify login otp failed');
+			$this->rollbackTransaction('mjl verify login otp failed');
 			return array(false, $exception->getMessage());
 		} finally {
 			$this->releaseNamedLock($lock);
@@ -290,10 +291,10 @@ class MjlAuthCommand
 		$lock = $userId > 0 ? $this->namedLock('otp_user_'.$userId, 5) : '';
 		if ($lock === '') return array(false, 'Votre session de vérification a expiré.');
 		try {
-			$db->begin('mjl resend login otp');
+			if (!$this->beginTransaction('mjl resend login otp')) return array(false, 'La vérification est temporairement indisponible.');
 			$row = mjl_auth_otp_pending_row(true);
 			if (!$row || $row->status !== 'pending') throw new RuntimeException('Votre session de vérification a expiré.');
-			if ((int) $row->resend_count >= 3 || strtotime($row->date_last_send) > dol_now() - 60) { $db->rollback(); return array(false, 'Le renvoi est temporairement indisponible.'); }
+			if ((int) $row->resend_count >= 3 || strtotime($row->date_last_send) > dol_now() - 60) { $this->rollbackTransaction('mjl resend login otp refused'); return array(false, 'Le renvoi est temporairement indisponible.'); }
 			$target = new User($db);
 			if ($target->fetch($userId) <= 0 || (int) $target->statut !== 1 || mjl_scope_effective_role_code($target, $this->entity) === '' || !hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target))) {
 				$invalidated = $db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='cancelled',code_hash=NULL WHERE rowid=".((int) $row->rowid)." AND status='pending'");
@@ -310,7 +311,7 @@ class MjlAuthCommand
 			$mail = mjl_auth_send_otp_email($target, $code);
 			return $mail[0] > 0 ? array(true, 'Un nouveau code a été envoyé.') : array(false, 'Le code ne peut pas être envoyé pour le moment.');
 		} catch (Throwable $exception) {
-			$db->rollback('mjl resend login otp failed');
+			$this->rollbackTransaction('mjl resend login otp failed');
 			return array(false, $exception->getMessage());
 		} finally { $this->releaseNamedLock($lock); }
 	}
@@ -324,10 +325,26 @@ class MjlAuthCommand
 		return $row && (int) $row->locked === 1 ? $name : '';
 	}
 
+	private function beginTransaction($label)
+	{
+		if (!$this->connectionUsable) return false;
+		$db = $this->db;
+		return (bool) $db->begin($label);
+	}
+
+	private function rollbackTransaction($label)
+	{
+		$db = $this->db;
+		if ($db->rollback($label)) return true;
+		$this->connectionUsable = false;
+		if (method_exists($db, 'close')) $db->close();
+		return false;
+	}
+
 	private function releaseNamedLock($name)
 	{
 		$db = $this->db;
-		if ($name !== '') $db->query('SELECT RELEASE_LOCK('.mjl_auth_string_sql($name).')');
+		if ($this->connectionUsable && $name !== '') $db->query('SELECT RELEASE_LOCK('.mjl_auth_string_sql($name).')');
 	}
 
 	private function identityLocks($login, $email)

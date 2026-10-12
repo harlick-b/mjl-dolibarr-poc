@@ -59,7 +59,11 @@ unresolved weaknesses and unapproved recommendations.
   current governance, and bounded residuals. Its binary gate passed with zero
   migration blockers, so the frozen architecture migration is now
   `MIGRATION_COMPLETE: YES`. Application acceptance and production readiness
-  remain `NOT_CLAIMED`.
+  remain `NOT_CLAIMED`. The post-migration technical revalidation fixed the
+  Activity GET allowlist and access/authentication transaction-start handling,
+  activated 0.21.0 through the non-seeding path, and passed the focused Activity
+  gate, authentication gate, and complete maintained E2E batches. Role-based
+  UAT and manual accessibility sign-off remain outstanding.
 - Phase 0 authority and reset structure are implemented.
 - Phase 1 foundations are implemented: effective roles, invitations and account
   lifecycle, Partenaires, Projets, Types d’opération, audit, navigation, and
@@ -75,8 +79,10 @@ unresolved weaknesses and unapproved recommendations.
 - The MJL authentication pass is implemented behind `MJL_AUTH_OTP_ENABLED`:
   email-only password verification, six-digit email OTP, verified-session
   enforcement, native login/reset bypass guards, and shared invitation/reset
-  password rules. Activation remains an operator action after the retained
-  technical Admin has a unique reachable email and mail delivery works.
+  password rules. Version 0.21.0 and its exact empty OTP schema are installed
+  locally through the non-seeding activation path. Enabling OTP remains an
+  operator action after the retained technical Admin has a unique reachable
+  email and mail delivery works.
 
 These statements describe repository state only. They do not record user
 acceptance or readiness for production.
