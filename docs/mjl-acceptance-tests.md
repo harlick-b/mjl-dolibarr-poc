@@ -30,6 +30,7 @@ isolation, security boundaries, and data integrity.
 
 - `npm run test:unit` for fast source contracts;
 - `npm run test:verify` for the current isolated schema verifier;
+- `npm run test:spending` for isolated expense submission, approval, reversals, terminal corrections, approved totals and completion guards;
 - `npm run test:auth` for the disposable login OTP, session, recovery, and native-bypass boundaries;
 - `npm run test:rst012` for the focused RST-012 interruption, resume, rollback, and malformed-state matrix;
 - `npm run test:vui03` for the focused disposable Activities-list browser checks;

@@ -29,7 +29,9 @@ reconciliation, and external audit execution.
 
 Document containment remains active. Phase 4 planning is requested, but runtime
 implementation and containment cutover require separate explicit authorization.
-Accounting waits for approved rules and examples. Official Partner reporting
+Additional Phase 5 accounting structure waits for approved rules and examples.
+Current spending records are accounting entries governed by section 15.
+Official Partner reporting
 waits for approved templates and mappings.
 
 ## 2. Product Reset
@@ -266,10 +268,45 @@ freeze independently of UI state.
 
 ## 15. Opération Execution Data
 
-Spent amount starts null and may be explicitly zero. Only currently assigned
-Agents update spent amount, Opération status, and execution observation.
-Supervisor and Validator consult but do not edit. Every committed change is
-audited and protected against stale writes.
+Spent amount starts null and is derived from approved expense entries; it is
+not directly editable. Currently assigned Agents record and submit separate
+expenses, update Opération status and execution observation, and request
+corrections. The Validator approves expenses and corrections without editing
+the submitted amounts. Every committed change is audited and protected
+against stale writes.
+
+Current spending records are accounting entries (DEC-076). Explicit approval by the Validateur définitif
+validates a spending entry and makes it immutable. Activity budget
+validation, saving an amount, and marking an Opération complete do not themselves
+approve spending. After spending approval, ordinary edit/delete is forbidden;
+correction preserves the original entry and uses linked, audited reversal and
+correcting entries. Reopening an Opération must not unlock approved spending.
+
+Only the Validateur définitif approves spending; self-approval is forbidden.
+No Supervisor preapproval step is required by this decision.
+
+DEC-077 authorizes implementation of separate expense entries within each
+Opération, explicitly submitted by an assigned Agent. The Validateur définitif
+approves each expense independently. A correction request supplies a reason
+and replacement amount; the Validator approves the linked full reversal and
+replacement together, atomically. Until approval, the original amount remains
+effective. Displayed `Montant dépensé` and financial exports count only approved
+expenses; draft/submitted amounts are shown separately. Completion requires
+all expenses approved, or an explicit approved zero-spending declaration.
+Accounting corrections remain permitted after completion/cancellation without reopening or changing execution status.
+Agents assigned immediately before entire Activity cancellation retain access
+only to the expense-correction workflow, based on the recorded cancellation
+assignment removals. They do not regain ordinary Activity access or editing.
+
+Expenses are drafted, explicitly submitted, then approved or rejected by an
+independent Validator. Submitted amounts cannot be edited during review.
+Draft/submitted candidates may be withdrawn without deleting their evidence.
+Rejected candidates are preserved and may be replaced by a new draft; rejected
+and withdrawn candidates do not count as approved spending or pending expenses.
+Draft contributors and submitters cannot approve their own entry after a role
+change. Correction pairs follow the same separation of duties.
+
+Implementation and verification are in progress; no acceptance is implied.
 
 ## 16. Financial Calculation and Display
 
@@ -281,7 +318,7 @@ Variance % = ((Montant dépensé - Montant autorisé) / Montant autorisé) * 100
 Variance displays two decimals. Valid calculated zero displays `-`. Positive
 values include `+`; negative values include `-`. Missing spent amount displays
 `Non renseigné`. The symbol `-` never means missing information. Observation
-is required when spent differs from authorized.
+is required at completion when approved spending differs from authorized.
 
 XLSX keeps ordinary amounts, zero, and percentages numeric, using number formats for
 display. DEC-056 permits exact text for values beyond safe spreadsheet precision,
@@ -297,9 +334,12 @@ uses `F CFA`, for example `1 500 000 F CFA`.
 ## 18. Opération Lifecycle
 
 Opération states are À faire, En cours, Terminée, and Annulée. Completion is
-forbidden while spent amount is null. Explicit zero permits completion only
-with an observation because it differs from the positive authorized amount.
-A completed Opération is locked. A cancelled Opération cannot reopen in the
+forbidden while spent amount is null or any expense is awaiting approval.
+All expenses must be approved. If nothing was spent, an explicit zero-spending
+declaration requires approval; an observation is required because zero differs
+from the positive authorized amount.
+A completed Opération is locked for operational editing; the separately
+approved accounting correction workflow remains available. A cancelled Opération cannot reopen in the
 first release.
 
 ## 19. Cancellation Requests
@@ -329,7 +369,9 @@ Activity is cancelled, not completed.
 An assigned Agent may request reopening of a completed Opération. Only the
 Validator approves or rejects. One pending request is allowed. The requester
 may withdraw. Approval fails on version change and, when approved, returns the
-Opération to `En cours`, after which assigned Agents may edit execution.
+Opération to `En cours`, after which assigned Agents may edit execution,
+subject to section 15: approved spending entries remain immutable. The current
+implementation does not yet enforce that separate accounting boundary.
 Activity status is recalculated. Cancelled Opérations cannot reopen. Every event is audited.
 Reopening requests use PENDING, APPROVED, REJECTED, and WITHDRAWN states and
 store Opération, target version, requester, reason/date, reviewer, decision,

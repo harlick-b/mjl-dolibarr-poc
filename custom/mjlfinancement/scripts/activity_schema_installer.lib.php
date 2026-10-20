@@ -1009,6 +1009,11 @@ function mjl_lifecycle_prepare(DoliDB $db, callable $loadTables, callable $final
 			elseif ($retainRst006bTarget) mjl_rst006b_require_target($db);
 			else mjl_rst012_require_target($db);
 		}
+		if ($bootstrapProfile === '') {
+			if ($cleanInstall) mjl_spending_install($db);
+			elseif (mjl_spending_present($db)) mjl_spending_require_target($db);
+			else return array('result' => -1, 'error' => 'MJL spending migration required: run scripts/install_spending.php.');
+		}
 		return array('result' => $finalize(), 'error' => '');
 	} catch (Throwable $exception) {
 		dol_syslog('RST-002B module activation refused: '.$exception->getMessage(), LOG_ERR);

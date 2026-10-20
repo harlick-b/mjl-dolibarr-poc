@@ -44,7 +44,7 @@ if($operation==='submit')$result=$command->submitRevision($request['activity_id'
 elseif($operation==='abandon')$result=$command->abandonDraft($request['activity_id'],$request['version'],$actor,$request['reason']);
 elseif($operation==='request-cancel')$result=$command->requestCancellation('OPERATION',$request['operation_id'],$request['version'],$request['reason'],$actor);
 elseif($operation==='complete-and-request-reopen'){
-	$completed=$command->updateOperationExecution($request['activity_id'],$request['operation_id'],$request['version'],array('status'=>'COMPLETED','spent_amount'=>'100','observation'=>null),$actor);
+	$completed=$command->updateOperationExecution($request['activity_id'],$request['operation_id'],$request['version'],array('status'=>'COMPLETED','observation'=>null),$actor);
 	$result=$completed['code']==='OK'?$command->requestReopening($request['operation_id'],(string)$completed['operation_version'],$request['reason'],$actor):$completed;
 	$result['completion_code']=$completed['code'];
 }

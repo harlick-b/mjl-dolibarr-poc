@@ -2,7 +2,7 @@ const {test,expect}=require('@playwright/test');
 const cp=require('node:child_process');
 const fs=require('node:fs');
 const crypto=require('node:crypto');
-const {createExecutionFixtureSet,runExecutionFixtureCommand}=require('../helpers/execution-fixture');
+const {createExecutionFixtureSet,runExecutionFixtureCommand, approveFixtureExpense }=require('../helpers/execution-fixture');
 let fixture,foreign;
 test.describe.configure({mode:'serial'});
 function evidence() {return sql("SELECT (SELECT COUNT(*) FROM llx_mjlfinancement_export_record),(SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='EXPORT_GENERATED')");}
@@ -138,7 +138,7 @@ test('download distinguishes unknown spending from explicit zero',async({page})=
  const rows=JSON.parse(cp.execFileSync('python3',['-c','import csv,json,sys; print(json.dumps(list(csv.reader(sys.stdin,delimiter=";"))))'],{input:bytes,encoding:'utf8'}));
  const headers=rows.find(r=>r[0]==='Référence Activité');const record=rows.find(r=>r[1]==='Activité rapport visible');return Object.fromEntries(headers.map((key,i)=>[key,record[i]]));}
  const unknown=await row();
- const result=runExecutionFixtureCommand({action:'update',entity:1,actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,localDate:'2026-09-09',input:{status:'IN_PROGRESS',spent_amount:'0',observation:'Aucune dépense engagée'}});expect(result.code).toBe('OK');
+ const result=runExecutionFixtureCommand({action:'update',entity:1,localDate:'2026-09-09',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId: operation.rowid, expectedVersion: approveFixtureExpense({ operationId: operation.rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '0' }), input: {status:'IN_PROGRESS',observation:'Aucune dépense engagée'}});expect(result.code).toBe('OK');
  const zero=await row();
  expect(unknown['Dépenses renseignées (FCFA)']).not.toBe('0');expect(zero['Dépenses renseignées (FCFA)']).toBe('0');
 });

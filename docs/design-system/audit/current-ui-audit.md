@@ -6,6 +6,10 @@ browser verification for this documentation update.
 
 ## Current findings
 
+- The expense approval screen is implemented using existing workspace/cards,
+  labeled ordinary forms and bounded pagination. Focused workflow/export browser
+  checks passed; visual and manual accessibility acceptance remain outstanding.
+
 - The custom-module workspace is the primary MJL interface. Business screens
   use French-first labels, scoped data, guarded actions, and shared presentation
   contracts for amounts, dates, feedback, and status.

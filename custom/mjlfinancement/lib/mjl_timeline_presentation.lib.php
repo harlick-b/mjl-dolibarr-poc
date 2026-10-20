@@ -26,6 +26,11 @@ function mjl_timeline_present_event(array $row)
 		'ASSIGNMENT_ADDED'=>'Agent ajouté',
 		'ASSIGNMENT_REMOVED'=>'Agent retiré',
 		'PRIMARY_TRANSFERRED'=>'Responsabilité principale transférée',
+		'EXPENSE_DRAFT_SAVED'=>'Brouillon de dépense enregistré',
+		'EXPENSE_SUBMITTED'=>'Dépense soumise',
+		'EXPENSE_APPROVED'=>'Dépense approuvée',
+		'EXPENSE_REJECTED'=>'Dépense rejetée',
+		'EXPENSE_WITHDRAWN'=>'Dépense retirée',
 		'OPERATION_EXECUTION_UPDATED'=>'Exécution de l’Opération modifiée',
 		'OPERATION_CANCELLED'=>'Opération annulée',
 		'OPERATION_REOPENED'=>'Opération rouverte',
@@ -47,7 +52,7 @@ function mjl_timeline_present_event(array $row)
 	$new = $decode($row['new_values_json'] ?? null);
 	$details = array();
 	// Only the named scalar fields below may enter ordinary chronology.
-	foreach (array($context,$previous,$new) as $payload) foreach (array('reference','target_agent_id','revision_number','decision','requested_amount','target_agent_name','source','status','spent_amount','observation','execution_status','request_id','target_type','report_type','format') as $key) {
+	foreach (array($context,$previous,$new) as $payload) foreach (array('reference','target_agent_id','revision_number','decision','requested_amount','target_agent_name','source','status','spent_amount','observation','execution_status','request_id','target_type','report_type','format','expense_id','original_id','reversal_id','amount') as $key) {
 		if (array_key_exists($key,$payload) && !is_scalar($payload[$key]) && $payload[$key]!==null) $malformed=true;
 	}
 	if ($malformed) $context=$previous=$new=array();
@@ -83,6 +88,13 @@ function mjl_timeline_present_event(array $row)
 			};
 			$details[]=$label.' : '.$format($previous[$key]).' → '.$format($new[$key]);
 		}
+	}
+	if(str_starts_with($action,'EXPENSE_')){
+		if(!empty($context['expense_id']))$details[]='Dépense n° '.(int)$context['expense_id'];
+		if(!empty($context['original_id']))$details[]='Écriture d’origine n° '.(int)$context['original_id'];
+		if(!empty($context['reversal_id']))$details[]='Contrepassation n° '.(int)$context['reversal_id'];
+		if(isset($new['amount'])||isset($previous['amount']))$details[]='Montant : '.mjl_format_money($new['amount']??$previous['amount']);
+		if(!empty($row['reason']))$details[]=(string)$row['reason'];
 	}
 	if (str_starts_with($action,'CANCELLATION_') || str_starts_with($action,'REOPENING_')) {
 		if (!empty($context['request_id'])) $details[]='Demande n° '.(int)$context['request_id'];

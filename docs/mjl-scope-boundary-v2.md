@@ -53,6 +53,15 @@ runtime active entity (`$conf->entity`) only.
 
 ### Phase 5: accounting entries
 
+Current spending records already count as accounting entries. Their explicit
+approval by the Validateur définitif and post-approval immutability requirement applies now
+(functional specification section 15, DEC-076); it is not deferred to Phase 5.
+DEC-077 authorizes separate expense entries and their approval/correction
+workflow now. Only approved expenses count in totals; completion requires
+approved expenses or an explicit approved zero-spending declaration. Accounting
+corrections remain permitted after completion/cancellation without reopening
+or changing execution status.
+
 Implementation is blocked until approved entry structure, accounts, journals,
 budget codes, dates, roles, validation, correction, reversal, closing,
 reconciliation, document dependencies, and real examples exist.

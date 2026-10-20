@@ -29,4 +29,25 @@ function createExecutionFixtureSet(request) {
 
 function runExecutionFixtureCommand(request) { return runFixture('activity-command-fixture.php', request); }
 
-module.exports = { createExecutionFixtureSet, runExecutionFixtureCommand };
+// Explicit setup through the real approval commands; never used to adapt an
+// execution mutation or bypass a permission/stale-version assertion.
+function approveFixtureExpense({ entity = 1, operationId, agentId, validatorId, amount, localDate = '2026-09-04' }) {
+  const { scalar } = require('./mjl-test-runtime');
+  const version = scalar(`SELECT version FROM llx_mjlfinancement_operation WHERE entity=${Number(entity)} AND rowid=${Number(operationId)}`);
+  const draft = runExecutionFixtureCommand({
+    entity, localDate, action: 'expense-save', actorId: agentId, operationId,
+    expenseId: '0', expectedVersion: version,
+    input: { label: 'Dépense approuvée de vérification', expense_date: localDate, amount, original_id: null, reason: null },
+  });
+  if (draft.code !== 'OK') throw new Error(`Expense fixture creation failed: ${draft.code}`);
+  let expenseVersion = draft.expense_version;
+  for (const [decision, actorId] of [['SUBMITTED', agentId], ['APPROVED', validatorId]]) {
+    const result = runExecutionFixtureCommand({ entity, localDate, action: 'expense-transition', actorId, operationId,
+      expenseId: String(draft.expense_id), expectedVersion: String(expenseVersion), decision, reason: '' });
+    if (result.code !== 'OK') throw new Error(`Expense fixture ${decision} failed: ${result.code}`);
+    expenseVersion = result.expense_version;
+  }
+  return scalar(`SELECT version FROM llx_mjlfinancement_operation WHERE entity=${Number(entity)} AND rowid=${Number(operationId)}`);
+}
+
+module.exports = { createExecutionFixtureSet, runExecutionFixtureCommand, approveFixtureExpense };

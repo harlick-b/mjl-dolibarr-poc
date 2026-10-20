@@ -1,6 +1,6 @@
 const {test,expect}=require('@playwright/test');
 const cp=require('node:child_process');
-const {createExecutionFixtureSet,runExecutionFixtureCommand}=require('../helpers/execution-fixture');
+const {createExecutionFixtureSet,runExecutionFixtureCommand, approveFixtureExpense }=require('../helpers/execution-fixture');
 let fixture;
 test.describe.configure({mode:'serial'});
 async function login(page,key='agent') {
@@ -51,7 +51,7 @@ test('filtered browsing and report links preserve the complete parent selection'
 test('stale requests stay visible for closure without an approval control',async({page})=>{
  const a=fixture.activities.owned, o=a.operations[0];
  const r=runExecutionFixtureCommand({entity:1,localDate:'2026-09-10',action:'request-cancel',actorId:fixture.users.agent.id,targetType:'OPERATION',targetId:o.rowid,expectedVersion:o.version,reason:'Demande de suivi'});expect(r.code).toBe('OK');
- const u=runExecutionFixtureCommand({entity:1,localDate:'2026-09-10',action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId:o.rowid,expectedVersion:o.version,input:{status:'IN_PROGRESS',spent_amount:'0',observation:'Aucune dépense'}});expect(u.code).toBe('OK');
+ const u=runExecutionFixtureCommand({entity:1,localDate:'2026-09-10',action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId: o.rowid, expectedVersion: approveFixtureExpense({ operationId: o.rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '0' }), input: {status:'IN_PROGRESS',observation:'Aucune dépense'}});expect(u.code).toBe('OK');
  await login(page,'validator');await page.goto('/custom/mjlfinancement/index.php?q=Suivi');
  const item=page.locator('[data-work="CANCELLATION-'+r.request_id+'"]');await expect(item).toContainText('À clôturer');await item.getByRole('link',{name:'Ouvrir'}).click();
  await expect(page.locator('.mjl-operation-card')).toHaveCount(1);await expect(page.getByRole('link',{name:'Approuver',exact:true})).toHaveCount(0);await expect(page.getByRole('link',{name:'Rejeter',exact:true})).toBeVisible();

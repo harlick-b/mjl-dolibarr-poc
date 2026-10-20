@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const childProcess = require('node:child_process');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
-const { createExecutionFixtureSet, runExecutionFixtureCommand } = require('../helpers/execution-fixture');
+const { createExecutionFixtureSet, runExecutionFixtureCommand, approveFixtureExpense } = require('../helpers/execution-fixture');
 
 const statuses = ['TODO','IN_PROGRESS','COMPLETED','CANCELLED'];
 const EXECUTION_TRANSITIONS = Object.freeze(statuses.flatMap((from) => statuses.map((to) => Object.freeze({
@@ -97,6 +97,20 @@ test.beforeAll(() => {
     ...['TODO','IN_PROGRESS'].flatMap((from)=>['TODO','IN_PROGRESS','COMPLETED','CANCELLED'].map((to)=>({key:`${from}-${to}`.toLowerCase(),agentKey:'agent',partnerKey:'partner',projectKey:'project',name:`Transition ${from} vers ${to}`,description:'Matrice exhaustive des transitions.',dateStart:'2026-09-05',dateEnd:'2026-09-30',authorizedAmount:'100',operations:[{name:`Opération ${from} vers ${to}`,typeKey:'type',authorizedAmount:'100'}]}))),
   ]});
   validation=createExecutionFixtureSet({namespace:'phase3a.validation',entity:1,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'partner',label:'Partenaire validation Phase 3A'}],projects:[{key:'project',label:'Projet validation Phase 3A',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type validation Phase 3A'}]},activities:[{key:'rollback',finalize:false,agentKey:'agent',partnerKey:'partner',projectKey:'project',name:'Validation atomique Phase 3A',description:'Le premier événement dérivé est transactionnel.',dateStart:'2026-09-05',dateEnd:'2026-09-30',authorizedAmount:'100',operations:[{name:'Opération validation atomique',typeKey:'type',authorizedAmount:'100'}]}]});
+
+  // Completion fixtures require independently approved accounting evidence.
+  const approve = (set, key, index, amount) => {
+    const op = set.activities[key].operations[index];
+    op.version = approveFixtureExpense({ operationId: op.rowid, agentId: set.users.agent.id, validatorId: set.users.validator.id, amount });
+  };
+  approve(fixture, 'execution', 0, '0');
+  approve(fixture, 'execution', 1, '200');
+  approve(fixture, 'maximum', 0, '9223372036854775807');
+  approve(fixture, 'activity-cancel', 0, '100');
+  for (const key of Object.keys(matrix.activities)) approve(matrix, key, 0, '100');
+  for (const key of ['cross-exception', 'cross-race', 'completed-activity-cancel', 'missed-transition', 'parent-race']) {
+    for (let index=0; index<edge.activities[key].operations.length; index++) approve(edge, key, index, '100');
+  }
 });
 
 test('definitive validation records one transactional execution baseline', () => {
@@ -119,13 +133,13 @@ test('definitive validation records one transactional execution baseline', () =>
 test('Assigned Agent preserves explicit zero, completed Operations lock, and visible audit', async ({ page }) => {
   const activity = fixture.activities.execution;
   const operation = activity.operations[0];
-  const rejected = command({ action: 'update', actorId: fixture.users.agent.id, activityId: activity.activity_id, operationId: operation.rowid, expectedVersion: operation.version, input: { status: 'COMPLETED', spent_amount: '0', observation: null } });
+  const rejected = command({ action: 'update', actorId: fixture.users.agent.id, activityId: activity.activity_id, operationId: operation.rowid, expectedVersion: operation.version, input: { status: 'COMPLETED', observation: null } });
   expect(rejected.code).toBe('CONFLICT');
-  const completed = command({ action: 'update', actorId: fixture.users.agent.id, activityId: activity.activity_id, operationId: operation.rowid, expectedVersion: operation.version, input: { status: 'COMPLETED', spent_amount: '0', observation: 'Aucune dépense engagée' } });
+  const completed = command({ action: 'update', actorId: fixture.users.agent.id, activityId: activity.activity_id, operationId: operation.rowid, expectedVersion: operation.version, input: { status: 'COMPLETED', observation: 'Aucune dépense engagée' } });
   expect(completed.code).toBe('OK');
   expect(sql(`SELECT CONCAT(IF(spent_amount IS NULL,'NULL',spent_amount),'|',status,'|',observation) FROM llx_mjlfinancement_operation WHERE rowid=${operation.rowid}`)).toBe('0|COMPLETED|Aucune dépense engagée');
   expect(sql(`SELECT target_version FROM llx_mjlfinancement_audit_event WHERE operation_id=${operation.rowid} AND action='OPERATION_EXECUTION_UPDATED' ORDER BY rowid DESC LIMIT 1`)).toBe(String(operation.version));
-  const locked = command({ action: 'update', actorId: fixture.users.agent.id, activityId: activity.activity_id, operationId: operation.rowid, expectedVersion: completed.operation_version, input: { status: 'COMPLETED', spent_amount: '1', observation: 'Tentative' } });
+  const locked = command({ action: 'update', actorId: fixture.users.agent.id, activityId: activity.activity_id, operationId: operation.rowid, expectedVersion: completed.operation_version, input: { status: 'COMPLETED', observation: 'Tentative' } });
   expect(locked.code).toBe('CONFLICT');
   await login(page, fixture.users.validator.login);
   const response = await page.goto('/custom/mjlfinancement/workflowactions.php?audit_action=OPERATION_EXECUTION_UPDATED');
@@ -152,13 +166,11 @@ test('Phase 3A guards preserve version-only planning saves with inactive retaine
 
 test('execution accepts reordered exact input, overspend evidence, and the BIGINT maximum', () => {
   const maximum=fixture.activities.maximum;const operation=maximum.operations[0];
-  const reordered=command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{observation:null,status:'IN_PROGRESS',spent_amount:null}});
+  const reordered=command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{observation:null,status:'IN_PROGRESS'}});
   expect(reordered.code).toBe('OK');
-  const unchanged=command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:reordered.operation_version,input:{status:'IN_PROGRESS',spent_amount:null,observation:null}});expect(unchanged.code).toBe('OK');
-  expect(command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:unchanged.operation_version,input:{status:'TODO',spent_amount:null,observation:null}}).code).toBe('CONFLICT');
-  const missingObservation=command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:unchanged.operation_version,input:{status:'COMPLETED',spent_amount:'9223372036854775806',observation:null}});
-  expect(missingObservation.code).toBe('CONFLICT');
-  const completed=command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:unchanged.operation_version,input:{status:'COMPLETED',spent_amount:'9223372036854775807',observation:null}});
+  const unchanged=command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:reordered.operation_version,input:{status:'IN_PROGRESS',observation:null}});expect(unchanged.code).toBe('OK');
+  expect(command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:unchanged.operation_version,input:{status:'TODO',observation:null}}).code).toBe('CONFLICT');
+  const completed=command({action:'update',actorId:fixture.users.agent.id,activityId:maximum.activity_id,operationId:operation.rowid,expectedVersion:unchanged.operation_version,input:{status:'COMPLETED',observation:null}});
   expect(completed.code).toBe('OK');
   expect(sql(`SELECT CONCAT(spent_amount,'|',status) FROM llx_mjlfinancement_operation WHERE rowid=${operation.rowid}`)).toBe('9223372036854775807|COMPLETED');
 });
@@ -167,12 +179,12 @@ test('Execution permissions and optimistic locking fail without audit', () => {
   const activity=fixture.activities.execution; const operation=activity.operations[1];
   const before=Number(sql(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE operation_id=${operation.rowid}`));
   for(const key of ['agent2','supervisor','validator','norole']){
-    const denied=command({ action:'update', actorId:fixture.users[key].id, activityId:activity.activity_id, operationId:operation.rowid, expectedVersion:operation.version, input:{status:'IN_PROGRESS',spent_amount:'200',observation:null} });
+    const denied=command({ action:'update', actorId:fixture.users[key].id, activityId:activity.activity_id, operationId:operation.rowid, expectedVersion:operation.version, input:{status:'IN_PROGRESS',observation:null} });
     expect(denied.code).toBe('FORBIDDEN');
   }
-  const saved=command({ action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'IN_PROGRESS',spent_amount:'200',observation:null} });
+  const saved=command({ action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'IN_PROGRESS',observation:null} });
   expect(saved.code).toBe('OK');
-  const stale=command({ action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'IN_PROGRESS',spent_amount:'200',observation:null} });
+  const stale=command({ action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'IN_PROGRESS',observation:null} });
   expect(stale.code).toBe('STALE_VERSION');
   expect(Number(sql(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE operation_id=${operation.rowid}`))).toBe(before+1);
 });
@@ -191,13 +203,13 @@ test('the maintained matrix executes every direct Operation source/target pair',
   const outcomes=new Map();
   for(const from of ['TODO','IN_PROGRESS'])for(const to of ['TODO','IN_PROGRESS','COMPLETED','CANCELLED']){
     const activity=matrix.activities[`${from}-${to}`.toLowerCase()];const operation=activity.operations[0];let version=String(operation.version);
-    if(from==='IN_PROGRESS'){const prepared=command({action:'update',actorId:matrix.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:version,input:{status:'IN_PROGRESS',spent_amount:'100',observation:null}});expect(prepared.code).toBe('OK');version=String(prepared.operation_version);}
-    const result=command({action:'update',actorId:matrix.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:version,input:{status:to,spent_amount:'100',observation:null}});outcomes.set(`${from}->${to}`,result.code);
+    if(from==='IN_PROGRESS'){const prepared=command({action:'update',actorId:matrix.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:version,input:{status:'IN_PROGRESS',observation:null}});expect(prepared.code).toBe('OK');version=String(prepared.operation_version);}
+    const result=command({action:'update',actorId:matrix.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:version,input:{status:to,observation:null}});outcomes.set(`${from}->${to}`,result.code);
   }
   const completed=matrix.activities['todo-completed'];const completedOperation=completed.operations[0];const completedVersion=sql(`SELECT version FROM llx_mjlfinancement_operation WHERE rowid=${completedOperation.rowid}`);
-  for(const to of ['TODO','IN_PROGRESS','COMPLETED','CANCELLED'])outcomes.set(`COMPLETED->${to}`,command({action:'update',actorId:matrix.users.agent.id,activityId:completed.activity_id,operationId:completedOperation.rowid,expectedVersion:completedVersion,input:{status:to,spent_amount:'100',observation:null}}).code);
+  for(const to of ['TODO','IN_PROGRESS','COMPLETED','CANCELLED'])outcomes.set(`COMPLETED->${to}`,command({action:'update',actorId:matrix.users.agent.id,activityId:completed.activity_id,operationId:completedOperation.rowid,expectedVersion:completedVersion,input:{status:to,observation:null}}).code);
   const cancelled=fixture.activities['operation-cancel'];const cancelledOperation=cancelled.operations[0];const cancelledVersion=sql(`SELECT version FROM llx_mjlfinancement_operation WHERE rowid=${cancelledOperation.rowid}`);
-  for(const to of ['TODO','IN_PROGRESS','COMPLETED','CANCELLED'])outcomes.set(`CANCELLED->${to}`,command({action:'update',actorId:fixture.users.agent.id,activityId:cancelled.activity_id,operationId:cancelledOperation.rowid,expectedVersion:cancelledVersion,input:{status:to,spent_amount:'100',observation:null}}).code);
+  for(const to of ['TODO','IN_PROGRESS','COMPLETED','CANCELLED'])outcomes.set(`CANCELLED->${to}`,command({action:'update',actorId:fixture.users.agent.id,activityId:cancelled.activity_id,operationId:cancelledOperation.rowid,expectedVersion:cancelledVersion,input:{status:to,observation:null}}).code);
   for(const transition of EXECUTION_TRANSITIONS)expect(outcomes.get(`${transition.from}->${transition.to}`),`${transition.from}->${transition.to}`).toBe(transition.outcome);
 });
 
@@ -239,7 +251,7 @@ test('request reasons, request versions, withdrawal, rejection, and terminal imm
 test('a pending cancellation excludes a reopening request on the same Operation', () => {
   const activity=edge.activities['cross-exception'];const operation=activity.operations[0];
   const cancellation=command({action:'request-cancel',actorId:edge.users.agent.id,targetType:'OPERATION',targetId:operation.rowid,expectedVersion:operation.version,reason:'Exception encore en attente'});expect(cancellation.code).toBe('OK');
-  const completed=command({action:'update',actorId:edge.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'COMPLETED',spent_amount:'100',observation:null}});expect(completed.code).toBe('OK');
+  const completed=command({action:'update',actorId:edge.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'COMPLETED',observation:null}});expect(completed.code).toBe('OK');
   expect(command({action:'request-reopen',actorId:edge.users.agent.id,operationId:operation.rowid,expectedVersion:completed.operation_version,reason:'Exception croisée'}).code).toBe('CONFLICT');
   expect(command({action:'decide-cancel',actorId:fixture.users.validator.id,requestId:cancellation.request_id,expectedVersion:cancellation.request_version,decision:'REJECTED',reason:'Cible terminée entre-temps'}).code).toBe('OK');
 });
@@ -282,12 +294,12 @@ test('pre-validation Activity cancellation remains execution not started', () =>
 });
 
 test('Activity cancellation approval is stale after any Operation consequence changes', () => {
-  const activity=fixture.activities['stale-aggregate'];const operation=activity.operations[0];const request=command({action:'request-cancel',actorId:fixture.users.agent.id,targetType:'ACTIVITY',targetId:activity.activity_id,expectedVersion:String(activity.version),reason:'Demande liée à l’agrégat exact'});expect(request.code).toBe('OK');expect(command({action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'IN_PROGRESS',spent_amount:'100',observation:null}}).code).toBe('OK');const stale=command({action:'decide-cancel',actorId:fixture.users.validator.id,requestId:request.request_id,expectedVersion:request.request_version,decision:'APPROVED',reason:'Tentative sur agrégat modifié'});expect(stale.code).toBe('STALE_VERSION');expect(sql(`SELECT status FROM llx_mjlfinancement_cancellation_request WHERE rowid=${request.request_id}`)).toBe('PENDING');expect(command({action:'decide-cancel',actorId:fixture.users.validator.id,requestId:request.request_id,expectedVersion:request.request_version,decision:'REJECTED',reason:'Rejet de la demande devenue obsolète'}).code).toBe('OK');
+  const activity=fixture.activities['stale-aggregate'];const operation=activity.operations[0];const request=command({action:'request-cancel',actorId:fixture.users.agent.id,targetType:'ACTIVITY',targetId:activity.activity_id,expectedVersion:String(activity.version),reason:'Demande liée à l’agrégat exact'});expect(request.code).toBe('OK');expect(command({action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'IN_PROGRESS',observation:null}}).code).toBe('OK');const stale=command({action:'decide-cancel',actorId:fixture.users.validator.id,requestId:request.request_id,expectedVersion:request.request_version,decision:'APPROVED',reason:'Tentative sur agrégat modifié'});expect(stale.code).toBe('STALE_VERSION');expect(sql(`SELECT status FROM llx_mjlfinancement_cancellation_request WHERE rowid=${request.request_id}`)).toBe('PENDING');expect(command({action:'decide-cancel',actorId:fixture.users.validator.id,requestId:request.request_id,expectedVersion:request.request_version,decision:'REJECTED',reason:'Rejet de la demande devenue obsolète'}).code).toBe('OK');
 });
 
 test('Activity cancellation preserves completed Operations and ends every assignment', () => {
   const activity=fixture.activities['activity-cancel'];const completedOperation=activity.operations[0];const unfinishedOperation=activity.operations[1];
-  const complete=command({action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:completedOperation.rowid,expectedVersion:completedOperation.version,input:{status:'COMPLETED',spent_amount:'100',observation:null}});expect(complete.code).toBe('OK');
+  const complete=command({action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:completedOperation.rowid,expectedVersion:completedOperation.version,input:{status:'COMPLETED',observation:null}});expect(complete.code).toBe('OK');
   const childRequest=command({action:'request-cancel',actorId:fixture.users.agent2.id,targetType:'OPERATION',targetId:unfinishedOperation.rowid,expectedVersion:unfinishedOperation.version,reason:'Demande enfant à conserver'});expect(childRequest.code).toBe('OK');
   const currentVersion=sql(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${activity.activity_id}`);
   const request=command({action:'request-cancel',actorId:fixture.users.agent.id,targetType:'ACTIVITY',targetId:activity.activity_id,expectedVersion:currentVersion,reason:'Arrêt du financement'});expect(request.code).toBe('OK');
@@ -303,7 +315,7 @@ test('Activity cancellation preserves completed Operations and ends every assign
 test('explicit Activity cancellation overrides an already completed Activity', () => {
   const activity=edge.activities['completed-activity-cancel'];
   for(const operation of activity.operations){
-    const completed=command({action:'update',actorId:edge.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'COMPLETED',spent_amount:'100',observation:null}});
+    const completed=command({action:'update',actorId:edge.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'COMPLETED',observation:null}});
     expect(completed.code).toBe('OK');
   }
   expect(command({action:'reconcile',activityId:activity.activity_id,localDate:'2026-09-05'})).toMatchObject({code:'OK',execution_status:'COMPLETED'});
@@ -318,7 +330,7 @@ test('explicit Activity cancellation overrides an already completed Activity', (
 
 test('a mutation records a missed date transition before its own derived transition', () => {
   const activity=edge.activities['missed-transition'];const operation=activity.operations[0];
-  const completed=command({action:'update',actorId:edge.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,localDate:'2026-10-01',input:{status:'COMPLETED',spent_amount:'100',observation:null}});
+  const completed=command({action:'update',actorId:edge.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,localDate:'2026-10-01',input:{status:'COMPLETED',observation:null}});
   expect(completed.code).toBe('OK');
   expect(sql(`SELECT GROUP_CONCAT(CONCAT(state_before,'>',state_after,':',JSON_UNQUOTE(JSON_EXTRACT(context_json,'$.source'))) ORDER BY rowid SEPARATOR '|') FROM llx_mjlfinancement_audit_event WHERE activity_id=${activity.activity_id} AND action='ACTIVITY_EXECUTION_STATUS_CHANGED'`)).toBe('NOT_STARTED>UPCOMING:FINAL_VALIDATION|UPCOMING>OVERDUE:MUTATION_CATCH_UP|OVERDUE>COMPLETED:OPERATION');
 });
@@ -335,7 +347,7 @@ test('Activity cancellation rolls back request, Activity, Operations, assignment
 
 test('parent Activity cancellation makes a pending reopening stale', () => {
   const activity=edge.activities['parent-race'];const operation=activity.operations[0];
-  const completed=command({action:'update',actorId:edge.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'COMPLETED',spent_amount:'100',observation:null}});expect(completed.code).toBe('OK');
+  const completed=command({action:'update',actorId:edge.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status:'COMPLETED',observation:null}});expect(completed.code).toBe('OK');
   const reopening=command({action:'request-reopen',actorId:edge.users.agent.id,operationId:operation.rowid,expectedVersion:completed.operation_version,reason:'Réouverture en attente'});expect(reopening.code).toBe('OK');
   const cancellation=command({action:'request-cancel',actorId:edge.users.agent.id,targetType:'ACTIVITY',targetId:activity.activity_id,expectedVersion:activity.version,reason:'Annulation du parent'});expect(cancellation.code).toBe('OK');
   expect(command({action:'decide-cancel',actorId:fixture.users.validator.id,requestId:cancellation.request_id,expectedVersion:cancellation.request_version,decision:'APPROVED',reason:'Le parent est annulé'}).code).toBe('OK');
@@ -360,14 +372,14 @@ test('Completed Operation reopening returns to in progress and recalculates once
 
 test('entity isolation and audit failure both fail closed without business mutation', () => {
   const other=secondary.activities.execution;const otherOperation=other.operations[0];
-  const isolated=command({action:'update',actorId:fixture.users.agent.id,activityId:other.activity_id,operationId:otherOperation.rowid,expectedVersion:otherOperation.version,input:{status:'IN_PROGRESS',spent_amount:'100',observation:null}});
+  const isolated=command({action:'update',actorId:fixture.users.agent.id,activityId:other.activity_id,operationId:otherOperation.rowid,expectedVersion:otherOperation.version,input:{status:'IN_PROGRESS',observation:null}});
   expect(isolated.code).toBe('NOT_FOUND');
   expect(sql(`SELECT CONCAT(status,'|',version) FROM llx_mjlfinancement_operation WHERE entity=2 AND rowid=${otherOperation.rowid}`)).toBe(`TODO|${otherOperation.version}`);
 
   const activity=fixture.activities.execution;const operation=activity.operations[1];const before=sql(`SELECT CONCAT(status,'|',spent_amount,'|',version) FROM llx_mjlfinancement_operation WHERE rowid=${operation.rowid}`);const version=before.split('|')[2];
   sql('RENAME TABLE llx_mjlfinancement_audit_event TO llx_mjlfinancement_audit_event_unavailable');
   try {
-    const failed=command({action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:version,input:{status:'COMPLETED',spent_amount:'200',observation:null}});
+    const failed=command({action:'update',actorId:fixture.users.agent.id,activityId:activity.activity_id,operationId:operation.rowid,expectedVersion:version,input:{status:'COMPLETED',observation:null}});
     expect(failed.code).toBe('FAILED');
   } finally {
     sql('RENAME TABLE llx_mjlfinancement_audit_event_unavailable TO llx_mjlfinancement_audit_event');
@@ -378,10 +390,10 @@ test('entity isolation and audit failure both fail closed without business mutat
 test('removed assignments, malformed identifiers, cross-parent targets, and foreign references are isolated', () => {
   const removed=edge.activities['removed-agent'];const removedOperation=removed.operations[0];
   sql(`UPDATE llx_mjlfinancement_activity_assignment SET date_end=NOW() WHERE entity=1 AND fk_activity=${removed.activity_id} AND fk_user=${edge.users.agent2.id} AND date_end IS NULL`);
-  expect(command({action:'update',actorId:edge.users.agent2.id,activityId:removed.activity_id,operationId:removedOperation.rowid,expectedVersion:removedOperation.version,input:{status:'IN_PROGRESS',spent_amount:'100',observation:null}}).code).toBe('FORBIDDEN');
-  expect(command({action:'update',actorId:edge.users.agent.id,activityId:'1x',operationId:removedOperation.rowid,expectedVersion:removedOperation.version,input:{status:'IN_PROGRESS',spent_amount:'100',observation:null}}).code).toBe('INVALID_INPUT');
+  expect(command({action:'update',actorId:edge.users.agent2.id,activityId:removed.activity_id,operationId:removedOperation.rowid,expectedVersion:removedOperation.version,input:{status:'IN_PROGRESS',observation:null}}).code).toBe('FORBIDDEN');
+  expect(command({action:'update',actorId:edge.users.agent.id,activityId:'1x',operationId:removedOperation.rowid,expectedVersion:removedOperation.version,input:{status:'IN_PROGRESS',observation:null}}).code).toBe('INVALID_INPUT');
   const other=fixture.activities.execution;
-  expect(command({action:'update',actorId:fixture.users.agent.id,activityId:other.activity_id,operationId:removedOperation.rowid,expectedVersion:removedOperation.version,input:{status:'IN_PROGRESS',spent_amount:'100',observation:null}}).code).toBe('NOT_FOUND');
+  expect(command({action:'update',actorId:fixture.users.agent.id,activityId:other.activity_id,operationId:removedOperation.rowid,expectedVersion:removedOperation.version,input:{status:'IN_PROGRESS',observation:null}}).code).toBe('NOT_FOUND');
   expect(()=>sql(`INSERT INTO llx_mjlfinancement_operation (entity,fk_activity,fk_operation_type,name,authorized_amount,status,version,date_creation,fk_user_creat,fk_user_modif) VALUES (1,${other.activity_id},999999,'Référence étrangère',1,'TODO',1,NOW(),${edge.users.agent.id},${edge.users.agent.id})`)).toThrow();
 });
 
@@ -427,19 +439,19 @@ test('guarded execution and exception routes expose only role-appropriate contro
   const visibleRequestTarget=fixture.activities.execution.operations[1];
   const nullableForm=agentPage.locator(`form:has(input[name="operation_id"][value="${visibleRequestTarget.rowid}"]):has(input[name="action"][value="update_execution"])`);
   await nullableForm.locator('select[name="status"]').selectOption('IN_PROGRESS');
-  await nullableForm.locator('input[name="spent_amount"]').fill('');
+  await expect(nullableForm.locator('input[name="spent_amount"]')).toHaveCount(0);
   await nullableForm.locator('textarea[name="observation"]').fill('');
   await nullableForm.getByRole('button',{name:'Enregistrer l’exécution'}).click();
   await expect(agentPage).toHaveURL(/result=OK/);
-  expect(sql(`SELECT IF(spent_amount IS NULL,'NULL',spent_amount) FROM llx_mjlfinancement_operation WHERE rowid=${visibleRequestTarget.rowid}`)).toBe('NULL');
+  expect(sql(`SELECT IF(spent_amount IS NULL,'NULL',spent_amount) FROM llx_mjlfinancement_operation WHERE rowid=${visibleRequestTarget.rowid}`)).toBe('200');
   const invalidSnapshot=sql(`SELECT CONCAT(status,'|',IF(spent_amount IS NULL,'NULL',spent_amount),'|',version,'|',(SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE operation_id=${visibleRequestTarget.rowid})) FROM llx_mjlfinancement_operation WHERE rowid=${visibleRequestTarget.rowid}`);
   for(const malformedAmount of ['abc','9223372036854775808']){
     const form=agentPage.locator(`form:has(input[name="operation_id"][value="${visibleRequestTarget.rowid}"]):has(input[name="action"][value="update_execution"])`);const value=async(name)=>form.locator(`input[name="${name}"]`).inputValue();
-    const response=await agentContext.request.post('/custom/mjlfinancement/operations.php',{maxRedirects:0,form:{token:await value('token'),mjl_submission:await value('mjl_submission'),action:'update_execution',activity_id:await value('activity_id'),operation_id:await value('operation_id'),version:await value('version'),status:'IN_PROGRESS',spent_amount:malformedAmount,observation:'Ne doit pas muter'}});expect(response.status()).toBe(303);expect(response.headers().location).toContain('result=INVALID_INPUT');expect(sql(`SELECT CONCAT(status,'|',IF(spent_amount IS NULL,'NULL',spent_amount),'|',version,'|',(SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE operation_id=${visibleRequestTarget.rowid})) FROM llx_mjlfinancement_operation WHERE rowid=${visibleRequestTarget.rowid}`)).toBe(invalidSnapshot);await agentPage.reload();
+    const response=await agentContext.request.post('/custom/mjlfinancement/operations.php',{maxRedirects:0,form:{token:await value('token'),mjl_submission:await value('mjl_submission'),action:'update_execution',activity_id:await value('activity_id'),operation_id:await value('operation_id'),version:await value('version'),status:'IN_PROGRESS',spent_amount:malformedAmount,observation:'Ne doit pas muter'}});expect(response.status()).toBe(403);expect(sql(`SELECT CONCAT(status,'|',IF(spent_amount IS NULL,'NULL',spent_amount),'|',version,'|',(SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE operation_id=${visibleRequestTarget.rowid})) FROM llx_mjlfinancement_operation WHERE rowid=${visibleRequestTarget.rowid}`)).toBe(invalidSnapshot);await agentPage.reload();
   }
   const requestedTargetVersion=sql(`SELECT version FROM llx_mjlfinancement_operation WHERE rowid=${visibleRequestTarget.rowid}`);
   const visibleRequest=command({action:'request-cancel',actorId:fixture.users.agent.id,targetType:'OPERATION',targetId:visibleRequestTarget.rowid,expectedVersion:requestedTargetVersion,reason:'Libellé français visible'});expect(visibleRequest.code).toBe('OK');
-  expect(command({action:'update',actorId:fixture.users.agent.id,activityId:fixture.activities.execution.activity_id,operationId:visibleRequestTarget.rowid,expectedVersion:requestedTargetVersion,input:{status:'IN_PROGRESS',spent_amount:null,observation:null}}).code).toBe('OK');
+  expect(command({action:'update',actorId:fixture.users.agent.id,activityId:fixture.activities.execution.activity_id,operationId:visibleRequestTarget.rowid,expectedVersion:requestedTargetVersion,input:{status:'IN_PROGRESS',observation:null}}).code).toBe('OK');
   await agentPage.goto('/custom/mjlfinancement/operationrequests.php?type=CANCELLATION&status=PENDING');
   await expect(agentPage.locator('main')).toHaveCount(1);
   await expect(agentPage.getByRole('heading', { name: 'Demandes d’exception' })).toBeVisible();
@@ -453,7 +465,7 @@ test('guarded execution and exception routes expose only role-appropriate contro
   await agentPage.getByRole('dialog').getByRole('button',{name:'Retirer la demande'}).click();
   await expect(agentPage).toHaveURL(/operationrequests\.php\?result=OK/);
   expect(sql(`SELECT status FROM llx_mjlfinancement_cancellation_request WHERE rowid=${visibleRequest.request_id}`)).toBe('WITHDRAWN');
-  expect(command({action:'update',actorId:fixture.users.agent.id,activityId:fixture.activities.execution.activity_id,operationId:visibleRequestTarget.rowid,expectedVersion:String(Number(requestedTargetVersion)+1),input:{status:'IN_PROGRESS',spent_amount:'200',observation:null}}).code).toBe('OK');
+  expect(command({action:'update',actorId:fixture.users.agent.id,activityId:fixture.activities.execution.activity_id,operationId:visibleRequestTarget.rowid,expectedVersion:String(Number(requestedTargetVersion)+1),input:{status:'IN_PROGRESS',observation:null}}).code).toBe('OK');
   await agentPage.goto(`/custom/mjlfinancement/activities.php?id=${fixture.activities.execution.activity_id}`);
   await expect(agentPage.locator('main')).toHaveCount(1);
   for (const label of ['Montant autorisé validé','Autorisations actives','Dépenses actives','Écart actif','Variance active','Complétude financière']) await expect(agentPage.getByText(label,{exact:true})).toBeVisible();
@@ -463,7 +475,7 @@ test('guarded execution and exception routes expose only role-appropriate contro
   await expect(agentPage.getByText('Complétude financière',{exact:true}).locator('..')).toContainText('Dépenses complètes');
   await agentPage.getByRole('tab',{name:'Opérations (2)'}).click();
   await expect(agentPage.getByRole('row').filter({hasText:'Opération zéro'})).toContainText('0 F CFA');
-  const target=fixture.activities.execution;const forged=await agentContext.request.post('/custom/mjlfinancement/operations.php',{form:{action:'update_execution',activity_id:String(target.activity_id),operation_id:String(target.operations[0].rowid),version:'1',status:'COMPLETED',spent_amount:'0',observation:'Forgé'}});expect(forged.status()).toBe(403);
+  const target=fixture.activities.execution;const forged=await agentContext.request.post('/custom/mjlfinancement/operations.php',{form:{action:'update_execution',activity_id:String(target.activity_id),operation_id:String(target.operations[0].rowid),version:'1',status:'COMPLETED',observation:'Forgé'}});expect(forged.status()).toBe(403);
   await agentContext.close();
 
   const supervisorContext = await browser.newContext();

@@ -37,6 +37,18 @@ disables unsafe native workspace modules. It creates no users, roles, groups,
 Partners, Projects, business records, documents, or sample data. The shared
 local tenant remains empty except for one native technical administrator.
 
+The spending approval migration is installed locally and verified by six focused
+workflow/export checks. Fresh module installation
+includes its schema. Existing tenants must run the guarded migration before
+reactivation:
+
+```bash
+docker compose exec -T dolibarr php /var/www/html/custom/mjlfinancement/scripts/install_spending.php
+```
+
+It refuses existing manually recorded spending rather than inventing approval.
+The shared tenant retains one administrator and no business or sample records.
+
 Target tests create their own minimal records only inside isolated disposable
 tenants and remove those tenants after the run. A new persistent demonstration
 dataset is deferred until all implementation phases are complete.

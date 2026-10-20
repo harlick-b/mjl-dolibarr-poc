@@ -29,14 +29,43 @@ exactly balanced total is accepted.
 | State | Allowed next state | Guard |
 | --- | --- | --- |
 | À faire | En cours | Activity definitively validated; assigned Agent |
-| À faire | Terminée | Explicit spent amount; observation if different |
+| À faire | Terminée | All expenses approved or approved zero-spending declaration; observation if different |
 | À faire | Annulée | Approved current-version cancellation request |
-| En cours | Terminée | Explicit spent amount; observation if different |
+| En cours | Terminée | All expenses approved or approved zero-spending declaration; observation if different |
 | En cours | Annulée | Approved current-version cancellation request |
 | Terminée | En cours | Approved current-version reopening request |
 | Annulée | None | Terminal in first release |
 
 `Terminée` and `Annulée` Opérations cannot be edited directly.
+
+## Spending Approval Boundary
+
+Current spending records are accounting entries. Explicit approval by the Validateur définitif
+makes an entry immutable; neither Activity validation nor Opération completion
+constitutes that approval. Reopening must not make approved spending editable.
+Corrections require linked reversal/correcting entries preserving the original.
+
+Self-approval is forbidden. DEC-076 defines this boundary; DEC-077 authorizes
+the implemented separate expense submissions within each
+Opération and approval of full reversal/replacement pairs together. The original
+amount remains effective until correction approval. Only approved expenses
+count in spending totals and exports. Completion requires all expenses approved,
+or an approved explicit zero-spending declaration. Accounting corrections remain permitted after completion/cancellation without
+reopening or changing execution status. After entire Activity cancellation,
+Agents assigned immediately before that cancellation retain correction-only
+access. Overall variance explanation is required at completion.
+
+| Expense state | Allowed next state | Actor / guard |
+| --- | --- | --- |
+| DRAFT | DRAFT, SUBMITTED, WITHDRAWN | Authorized Agent; version matches |
+| SUBMITTED | APPROVED, REJECTED | Independent Validator; exact immutable submission; rejection reason |
+| SUBMITTED | WITHDRAWN | Authorized Agent; version matches |
+| APPROVED | None | Immutable; corrections create linked reversal/replacement |
+| REJECTED, WITHDRAWN | None | Preserved; excluded from approved totals and pending expenses |
+
+A correction approval posts the replacement and full reversal in the same
+transaction. No original approved record is updated. Six focused workflow/export
+checks passed; this is implementation evidence, not user acceptance.
 
 ## Cancellation Request State
 

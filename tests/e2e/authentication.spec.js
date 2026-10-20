@@ -105,11 +105,11 @@ test.beforeAll(({}, workerInfo) => {
   adminId = Number(scalar('SELECT rowid FROM llx_user WHERE entity=0 AND admin=1 AND statut=1 ORDER BY rowid'));
   if (!Number.isSafeInteger(adminId) || adminId <= 0) throw new Error('The retained technical Admin is unavailable.');
   sql(`UPDATE llx_user SET email=${sqlLiteral(adminEmail)} WHERE rowid=${adminId} AND entity=0 AND admin=1`);
-  sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_OTP_ENABLED',1,'1','chaine',0,'Disposable Auth verification'),('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Disposable Auth verification'),('MAIN_LOGEVENTS_USER_LOGIN_FAILED',1,'1','chaine',0,'Disposable Auth verification') ON DUPLICATE KEY UPDATE value='1'");
+  sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_OTP_ENABLED',1,'1','chaine',0,'Disposable Auth verification'),('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Disposable Auth verification') ON DUPLICATE KEY UPDATE value='1'");
 });
 
 test.afterAll(() => {
-  sql("DELETE FROM llx_const WHERE name IN ('MJL_AUTH_OTP_ENABLED','MAIN_LOGEVENTS_USER_LOGIN_FAILED') AND entity=1");
+  sql("DELETE FROM llx_const WHERE name='MJL_AUTH_OTP_ENABLED' AND entity=1");
 });
 
 test('password verification stays unauthenticated until a single-use email code succeeds', async ({ page }) => {
@@ -213,6 +213,19 @@ test('resend invalidates the prior code, keeps attempts, and stops after three s
   await page.getByRole('button', { name: 'Renvoyer le code' }).click();
   await expect(page.getByText('Le renvoi est temporairement indisponible.')).toBeVisible();
   expect(scalar(`SELECT CONCAT(attempt_count,':',resend_count) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.resend.id} AND status='pending'`)).toBe('1:3');
+
+  const exhaustedId = scalar(`SELECT rowid FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.resend.id} AND status='pending'`);
+  await startLogin(page, 'resend');
+  expect(scalar(`SELECT CONCAT(rowid,':',attempt_count,':',resend_count) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.resend.id} AND status='pending'`)).toBe(`${exhaustedId}:1:3`);
+  sql(`UPDATE llx_mjlfinancement_login_otp SET date_expiry=DATE_SUB(NOW(), INTERVAL 1 SECOND) WHERE rowid=${exhaustedId}`);
+  await startLogin(page, 'resend');
+  const replacementCode = outbox('login_otp').code;
+  await registerOtp(replacementCode);
+  expect(scalar(`SELECT CONCAT(status,':',code_hash IS NULL) FROM llx_mjlfinancement_login_otp WHERE rowid=${exhaustedId}`)).toBe('cancelled:1');
+  expect(scalar(`SELECT CONCAT(COUNT(*),':',MAX(attempt_count),':',MAX(resend_count)) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.resend.id} AND status='pending'`)).toBe('1:0:0');
+  await page.getByLabel('Code de vérification').fill(replacementCode);
+  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+  await expect(page).toHaveURL(/\/custom\/mjlfinancement\/index\.php$/);
 });
 
 test('an expired code keeps the OTP screen available and resend issues a usable replacement', async ({ page }) => {

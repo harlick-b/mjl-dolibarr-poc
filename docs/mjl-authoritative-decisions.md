@@ -83,13 +83,24 @@ implementation is not authorized and document routes remain deny-all.
   exact revision. Self-validation remains forbidden.
 - Missing financial information is never zero. XOF amounts use integer-safe
   storage.
+- Current spending records are accounting entries. Explicit Validateur définitif approval
+  makes them immutable, separately from Activity budget validation and Opération
+  completion. Corrections require linked reversal/correcting entries preserving
+  the original (DEC-076). Self-approval is forbidden. DEC-077 authorizes implementation:
+  separate expenses within each Opération; Agent submission; Validator approval
+  of linked full reversal/replacement together. Only approved expenses count in spending totals and exports. Completion
+  requires all expenses approved, or an approved explicit zero-spending declaration. Authentication fixes come first; mail must be supplied and delivery
+  verified before enabling OTP. REST API is the next workstream, with its
+  consumers, endpoints and authentication scope still to define. Overall variance
+  explanation is required at completion. Agents assigned immediately before
+  entire Activity cancellation retain correction-only access.
 - Operational outputs require French-labeled PDF and XLSX; audited CSV is
   supplemental.
 - Document business behavior remains behind the current containment boundary.
   Phase 4 planning is requested and owned by
   `docs/mjl-phase4-contextual-document-management.md`; implementation still
-  requires separate authorization. Accounting and official Partner reports
-  remain deferred pending user decisions.
+  requires separate authorization. Additional Phase 5 accounting structure and
+  official Partner reports remain deferred pending user decisions.
 - The Phase 4 Admin document exception is read-only and non-mutating in
   the runtime active Dolibarr entity (`$conf->entity`) only.
 

@@ -78,8 +78,8 @@ Activity references come from an entity-scoped monotonic sequence and use
 | Name | Yes | Opération name |
 | Type identifier | Yes | Active type at creation; preserved historically |
 | Authorized amount | Yes | Positive integer XOF amount |
-| Spent amount | No | Null until explicitly entered; zero allowed |
-| Observation | Conditional | Required when spent differs from authorized |
+| Spent amount | No | Derived from approved expense entries only; null before approval; explicit approved zero-spending declaration allowed |
+| Observation | Conditional | Required at completion when approved spending differs from authorized |
 | Execution status | Yes | À faire, En cours, Terminée, or Annulée |
 | Version | Yes | Optimistic-lock value |
 | Created/updated metadata | Yes | Actor and timestamps |
@@ -87,6 +87,23 @@ Activity references come from an entity-scoped monotonic sequence and use
 An Opération is never physically deleted. Before revision 1, removal creates
 an immutable remover/timestamp tombstone excluded from balances and snapshots.
 After revision 1, removal waits for RST-006B cancellation.
+
+## Expense entry (DEC-077)
+
+Each expense has an immutable identity and belongs to exactly one Opération
+in the active entity. It records label, expense date, integer XOF amount, state,
+author/contributors, submission and decision timestamps, reviewer, optional
+original-entry link and correction reason. An assigned
+Agent records and explicitly submits it to the Validateur définitif. Approval
+makes the entry immutable. Draft/submitted amounts remain separate from approved
+spending totals and exports. Self-approval is forbidden.
+
+A correction identifies the original approved entry, a reason and replacement
+amount. Validator approval atomically posts a linked full reversal and replacement;
+the original remains unchanged and effective until that approval. Completion
+requires all expenses approved, including an explicit zero-spending declaration
+if nothing was spent. Accounting corrections remain permitted after completion/cancellation without
+reopening or changing execution status.
 
 ## Activity Assignment
 

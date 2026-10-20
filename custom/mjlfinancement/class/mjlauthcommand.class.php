@@ -209,9 +209,9 @@ class MjlAuthCommand
 			$resql = $db->query('SELECT date_lockout_until FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".$this->entity.' AND fk_user='.((int) $target->id)." AND status='locked' AND date_lockout_until>".mjl_auth_now_sql().' ORDER BY rowid DESC LIMIT 1');
 			if ($resql && $db->fetch_object($resql)) return array(false, 'Trop de codes incorrects. Réessayez dans quelques minutes.');
 			if (!$this->beginTransaction('mjl start login otp')) return array(false, 'La vérification est temporairement indisponible.');
-			$pendingResult = $db->query('SELECT rowid,credential_hash FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".$this->entity.' AND fk_user='.((int) $target->id)." AND status='pending' LIMIT 1 FOR UPDATE");
+			$pendingResult = $db->query('SELECT rowid,credential_hash,date_expiry FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".$this->entity.' AND fk_user='.((int) $target->id)." AND status='pending' LIMIT 1 FOR UPDATE");
 			$pending = $pendingResult ? $db->fetch_object($pendingResult) : null;
-			if ($pending && hash_equals((string) $pending->credential_hash, mjl_auth_credential_hash($target))) {
+			if ($pending && strtotime($pending->date_expiry) >= dol_now() && hash_equals((string) $pending->credential_hash, mjl_auth_credential_hash($target))) {
 				$challengeId = (int) $pending->rowid;
 				$rebound = $db->query('UPDATE '.$db->prefix().'mjlfinancement_login_otp SET session_hash='.mjl_auth_string_sql(mjl_auth_otp_hash('session', $binding)).' WHERE rowid='.$challengeId." AND status='pending'");
 				if (!$rebound || $db->affected_rows($rebound) !== 1 || !$db->commit('mjl rebind login otp')) throw new RuntimeException();

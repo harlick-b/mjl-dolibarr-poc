@@ -19,7 +19,8 @@ isolated disposable tenants and remove those tenants after each run.
 | Accueil | Active financial-first dashboard with role-projected totals, alerts, and permitted-action queues. Its GET handler consumes the W2 monitoring-read owner and renders a prepared monitoring view. |
 | Partenaires, Projets, Types d’Opération | Same-entity business-role reads; Validator-only activation/deactivation and mutation. One deep reference command owns create, label-update, and lifecycle writes. |
 | Activities | Entity-scoped planning/review aggregate plus active derived execution status, financial completeness/totals, and guarded Activity cancellation request. |
-| Opérations | Active 50-row execution list: current Assigned Agents enter explicit spending/observations and request exceptions; Supervisor/Validator read; Admin denied. |
+| Opérations | Active 50-row execution list: current Assigned Agents enter status/observations and request exceptions; Supervisor/Validator read; Admin denied. Direct spending edits are replaced by the approval workflow below. |
+| Dépenses | Separate draft/submitted expenses per Opération, independent Validator approval, immutable approved entries and linked full reversal/replacement. Approved totals feed existing projections. Former Agents removed by Activity cancellation have correction-only access. The schema is installed locally; six focused workflow/export checks passed. |
 | Demandes d’exception | Active bounded cancellation/reopening list with Agent withdrawal and Validator decision controls in MJL navigation. |
 | Activity chronology | Detail/review pages show sanitized execution, request, assignment, automatic-transition and single-Activity export summaries, with stable 50-event cursors. Active entity/current assignment remain enforced; Admin denied. Oversized or unavailable details remain explicit. |
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |

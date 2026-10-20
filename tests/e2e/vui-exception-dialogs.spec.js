@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { createExecutionFixtureSet, runExecutionFixtureCommand } = require('../helpers/execution-fixture');
+const { createExecutionFixtureSet, runExecutionFixtureCommand, approveFixtureExpense } = require('../helpers/execution-fixture');
 const { login, scalar } = require('../helpers/mjl-test-runtime');
 
 let fixture;
@@ -73,30 +73,26 @@ test.beforeAll(() => {
   const cancellation = fixture.activities['activity-cancel'];
   let result = command({
     action: 'update', actorId: fixture.users.agent.id, activityId: cancellation.activity_id,
-    operationId: cancellation.operations[0].rowid, expectedVersion: cancellation.operations[0].version,
-    input: { status: 'COMPLETED', spent_amount: '80', observation: 'Dépense finale conservée' },
+    operationId: cancellation.operations[0].rowid, expectedVersion: approveFixtureExpense({ operationId: cancellation.operations[0].rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '80' }), input: { status: 'COMPLETED', observation: 'Dépense finale conservée' },
   });
   if (result.code !== 'OK') throw new Error('VUI-08 completed Operation setup failed.');
   result = command({
     action: 'update', actorId: fixture.users.agent.id, activityId: cancellation.activity_id,
-    operationId: cancellation.operations[1].rowid, expectedVersion: cancellation.operations[1].version,
-    input: { status: 'IN_PROGRESS', spent_amount: '50', observation: 'Dépense active conservée' },
+    operationId: cancellation.operations[1].rowid, expectedVersion: approveFixtureExpense({ operationId: cancellation.operations[1].rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '50' }), input: { status: 'IN_PROGRESS', observation: 'Dépense active conservée' },
   });
   if (result.code !== 'OK') throw new Error('VUI-08 active Operation setup failed.');
 
   const reopening = fixture.activities.reopen;
   result = command({
     action: 'update', actorId: fixture.users.agent.id, activityId: reopening.activity_id,
-    operationId: reopening.operations[0].rowid, expectedVersion: reopening.operations[0].version,
-    input: { status: 'COMPLETED', spent_amount: '75', observation: 'Montant à préserver' },
+    operationId: reopening.operations[0].rowid, expectedVersion: approveFixtureExpense({ operationId: reopening.operations[0].rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '75' }), input: { status: 'COMPLETED', observation: 'Montant à préserver' },
   });
   if (result.code !== 'OK') throw new Error('VUI-08 reopening setup failed.');
 
   const operationCancellation = fixture.activities['operation-cancel'];
   result = command({
     action: 'update', actorId: fixture.users.agent.id, activityId: operationCancellation.activity_id,
-    operationId: operationCancellation.operations[0].rowid, expectedVersion: operationCancellation.operations[0].version,
-    input: { status: 'IN_PROGRESS', spent_amount: '25', observation: 'Montant ciblé conservé' },
+    operationId: operationCancellation.operations[0].rowid, expectedVersion: approveFixtureExpense({ operationId: operationCancellation.operations[0].rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '25' }), input: { status: 'IN_PROGRESS', observation: 'Montant ciblé conservé' },
   });
   if (result.code !== 'OK') throw new Error('VUI-08 Operation cancellation setup failed.');
 
@@ -121,8 +117,7 @@ test.beforeAll(() => {
   });
   const staleUpdate = command({
     action: 'update', actorId: fixture.users.agent.id, activityId: stale.activity_id,
-    operationId: stale.operations[0].rowid, expectedVersion: stale.operations[0].version,
-    input: { status: 'IN_PROGRESS', spent_amount: '0', observation: 'Version modifiée' },
+    operationId: stale.operations[0].rowid, expectedVersion: approveFixtureExpense({ operationId: stale.operations[0].rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '0' }), input: { status: 'IN_PROGRESS', observation: 'Version modifiée' },
   });
   if (staleRequest.code !== 'OK' || staleUpdate.code !== 'OK') throw new Error('VUI-08 stale request setup failed.');
   staleRequestId = staleRequest.request_id;

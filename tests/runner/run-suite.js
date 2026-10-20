@@ -648,6 +648,8 @@ async function runPlaywright(plan, target, signal) {
     args.push('tests/e2e/partner-project.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst010a') {
 	args.push('tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
+  } else if (target === 'spending') {
+    args.push('tests/e2e/spending.spec.js', '--config=playwright.config.js');
   } else if (target === 'auth') {
 	args.push('tests/e2e/authentication.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst014a') {
@@ -989,6 +991,10 @@ async function main() {
 		if (layer !== 'rst008') await runPhase1Verification(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
       }
+      else if (layer === 'spending') {
+        await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/install_spending.php'], { signal: controller.signal });
+        await runPlaywright(plan, layer, controller.signal);
+      }
       else if (layer === 'auth') {
         await runDescriptorLifecycleCharacterization(plan, controller.signal);
         await runPlaywright(plan, layer, controller.signal);
@@ -1076,6 +1082,7 @@ async function main() {
 		  ['table collation','ALTER TABLE llx_mjlfinancement_reopening_request CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_bin','ALTER TABLE llx_mjlfinancement_reopening_request CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci'],
 		];
 		for(const [category,mutate,restore]of mutations){await databaseSql(plan,mutate,{signal:controller.signal});await expectComposeFailure(plan,verifier,`RST-006B exact ${category}`,{signal:controller.signal});await databaseSql(plan,restore,{signal:controller.signal});await compose(plan,verifier,{signal:controller.signal});}
+		await compose(plan, ['exec', '-T', 'dolibarr', 'php', '/var/www/html/custom/mjlfinancement/scripts/install_spending.php'], { signal: controller.signal });
 		await runPlaywright(plan, layer, controller.signal);
 	  }
       else if (layer === 'rst006a') {

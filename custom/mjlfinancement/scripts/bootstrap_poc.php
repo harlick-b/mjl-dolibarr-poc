@@ -9,7 +9,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_native_modules.lib.php';
 require_once __DIR__.'/preserved_admin.lib.php';
 
-global $db, $user;
+global $db, $user, $conf;
 
 function mjl_bootstrap_fail($message)
 {
@@ -53,6 +53,11 @@ foreach ($modules as $module) {
 $nativeCleanupErrors = mjl_native_modules_disable_workspace_modules('mjl_bootstrap_out');
 if (!empty($nativeCleanupErrors)) {
 	mjl_bootstrap_fail('Unable to disable unsafe native modules: '.implode('; ', $nativeCleanupErrors));
+}
+
+// Native password throttling counts these events; its recorder is opt-in.
+if (dolibarr_set_const($db, 'MAIN_LOGEVENTS_USER_LOGIN_FAILED', '1', 'chaine', 0, 'Record failed logins for native authentication throttling', (int) $conf->entity) <= 0) {
+	mjl_bootstrap_fail('Unable to enable failed-login recording.');
 }
 
 mjl_bootstrap_out('MJL module activation completed without creating users, roles, groups, Partners, Projects, business records, documents, or sample data.');

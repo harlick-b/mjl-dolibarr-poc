@@ -82,7 +82,10 @@ unresolved weaknesses and unapproved recommendations.
   password rules. Version 0.21.0 and its exact empty OTP schema are installed
   locally through the non-seeding activation path. The retained technical Admin now has a configured email. OTP enablement
   was requested on 2026-10-20 but remains blocked by missing mail transport
-  and delivery verification.
+  and delivery verification. DEC-077 adds native failed-login recording to setup
+  (also applied locally) and replaces expired OTP challenges on fresh password
+  login. Focused authentication verification passed 19/19, including expiry with
+  exhausted resends; transaction and syntax checks passed.
 
 These statements describe repository state only. They do not record user
 acceptance or readiness for production.
@@ -158,6 +161,29 @@ design-system README; deferred backend dependencies are in the gap analysis.
 
 ## Unfinished product work
 
+### Current spending: accounting approval and immutability
+
+DEC-076 makes explicit Validateur définitif approval the immutability boundary for current
+spending entries. The schema is installed in the empty local tenant. Six focused browser/command
+checks passed for approval, atomic correction, completion, isolation, cancellation
+access and exports.
+DEC-077 authorizes implementation
+of separate expense entries within each Opération and Validator-approved full
+reversal/replacement pairs. Totals/exports count only approved expenses, and
+completion requires approval (including an explicit zero-spending declaration).
+Accounting corrections remain permitted after completion/cancellation without reopening or changing execution status. This requirement applies to current
+spending independently of the additional Phase 5 accounting structure. Overall
+budget-variance observation is required at completion; each expense/correction
+retains its description/reason. Broader historical suites and manual accessibility
+sign-off were not run; these checks establish neither acceptance nor production readiness.
+
+### REST API: next workstream
+
+DEC-077 records REST API implementation after authentication fixes and spending
+approval/reversal. There is no implemented MJL REST API today; native API remains
+disabled. Consumers, endpoint scope and authentication must be defined before
+implementation. Phase 4 remains separately deferred.
+
 ### Phase 4: Documents
 
 Planning was requested on 2026-10-12. The consolidated scope, domain model,
@@ -168,7 +194,7 @@ containment boundary until a separately reviewed slice and cutover are approved.
 
 ### Phase 5: Accounting
 
-Accounting remains blocked until the user supplies or accepts its structure,
+Additional accounting structure remains blocked until the user supplies or accepts its structure,
 classifications, roles, validation, correction, reconciliation, dependencies,
 and representative examples.
 

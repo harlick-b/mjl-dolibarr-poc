@@ -2,7 +2,7 @@ const {test,expect}=require('@playwright/test');
 const cp=require('node:child_process');
 const fs=require('node:fs');
 const crypto=require('node:crypto');
-const {createExecutionFixtureSet,runExecutionFixtureCommand}=require('../helpers/execution-fixture');
+const {createExecutionFixtureSet,runExecutionFixtureCommand, approveFixtureExpense }=require('../helpers/execution-fixture');
 let fixture,foreign;
 test.describe.configure({mode:'serial'});
 function sql(statement){return cp.execFileSync('docker',['compose','exec','-T','mariadb','mariadb','--defaults-extra-file=/run/mjl-test/client.cnf','-N','-B','dolidb'],{env:process.env,encoding:'utf8',input:statement+'\n',stdio:['pipe','pipe','pipe']}).trim();}
@@ -32,7 +32,7 @@ test.beforeAll(()=>{
  activity('hidden','Activité réservée à un autre Agent','30',[{name:'Opération hors affectation',typeKey:'known',authorizedAmount:'30'}],{agentKey:'other'}),
  ]});
  for(const [key,spent,status,observation] of [['mixed','0','IN_PROGRESS','Aucune dépense engagée'],['maximum','9223372036854775806','IN_PROGRESS','=SUM(1,2)\nÉcart justifié'],['cancelled','40','COMPLETED',null]]){
- const parent=fixture.activities[key],operation=parent.operations[0];command({action:'update',actorId:fixture.users.agent.id,activityId:parent.activity_id,operationId:operation.rowid,expectedVersion:operation.version,input:{status,spent_amount:spent,observation}});
+ const parent=fixture.activities[key],operation=parent.operations[0];command({action:'update',actorId:fixture.users.agent.id,activityId:parent.activity_id,operationId: operation.rowid, expectedVersion: approveFixtureExpense({ operationId: operation.rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: spent }), input: {status,observation}});
  }
  const parent=fixture.activities.cancelled;
  const request=command({action:'request-cancel',actorId:fixture.users.agent.id,targetType:'ACTIVITY',targetId:parent.activity_id,expectedVersion:sql(`SELECT version FROM llx_mjlfinancement_activity WHERE rowid=${parent.activity_id}`),reason:'Annulation conservant les travaux achevés'});

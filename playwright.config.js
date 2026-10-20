@@ -13,6 +13,7 @@ module.exports = defineConfig({
     'activity-planning.spec.js',
     'planning-navigation.spec.js',
     'activity-execution.spec.js',
+    'spending.spec.js',
     'monitoring.spec.js',
     'activities-report.spec.js',
     'export-recovery.spec.js',

@@ -1,6 +1,6 @@
 const {test,expect}=require('@playwright/test');
 const cp=require('node:child_process');
-const {createExecutionFixtureSet,runExecutionFixtureCommand}=require('../helpers/execution-fixture');
+const {createExecutionFixtureSet,runExecutionFixtureCommand, approveFixtureExpense }=require('../helpers/execution-fixture');
 let fixture,foreign,probes;
 test.describe.configure({mode:'serial'});
 function sql(statement){return cp.execFileSync('docker',['compose','exec','-T','mariadb','mariadb','--defaults-extra-file=/run/mjl-test/client.cnf','-N','-B','dolidb'],{env:process.env,encoding:'utf8',input:statement+'\n',stdio:['pipe','pipe','pipe']}).trim();}
@@ -16,7 +16,7 @@ test.beforeAll(()=>{
  const spec=(namespace,entity)=>({namespace,entity,users:[{key:'agent',role:'AGENT_SAISIE'},{key:'other',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'},{key:'validator',role:'VALIDATEUR_DEFINITIF'},{key:'norole',role:null}],references:{partners:[{key:'partner',label:'Partenaire chronologie'}],projects:[{key:'project',label:'Projet chronologie',partnerKey:'partner'}],operationTypes:[{key:'type',label:'Type chronologie'}]},activities:['main','other'].map(key=>({key,agentKey:key==='main'?'agent':'other',partnerKey:'partner',projectKey:'project',name:'Chronologie '+key,description:'Historique contextualisé.',dateStart:'2026-09-05',dateEnd:'2026-09-30',authorizedAmount:'100',operations:[{name:'Opération historique',typeKey:'type',authorizedAmount:'100'}]}))});
  fixture=createExecutionFixtureSet(spec('phase3b.timeline',1));foreign=createExecutionFixtureSet(spec('phase3b.timeline-ext',2));
  const a=fixture.activities.main,o=a.operations[0];
- command({action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId:o.rowid,expectedVersion:version('operation',o.rowid),input:{status:'IN_PROGRESS',spent_amount:'0',observation:'Première ligne\nDeuxième ligne {"password":"PRIVATE CHRONOLOGY VALUE"}'}});
+ command({action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId: o.rowid, expectedVersion: approveFixtureExpense({ operationId: o.rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '0' }), input: {status:'IN_PROGRESS',observation:'Première ligne\nDeuxième ligne {"password":"PRIVATE CHRONOLOGY VALUE"}'}});
  const r=command({action:'request-cancel',actorId:fixture.users.agent.id,targetType:'OPERATION',targetId:o.rowid,expectedVersion:version('operation',o.rowid),reason:'Motif chronologique'});
  command({action:'decide-cancel',actorId:fixture.users.validator.id,requestId:r.request_id,expectedVersion:r.request_version,decision:'REJECTED',reason:'Poursuite de l’exécution'});
 });
@@ -33,7 +33,7 @@ test('only genuinely single-Activity business exports appear in ordinary chronol
 test('chronology cursor covers every event once, including equal timestamps and a newly appended event',async({page})=>{
  probes=probe('audit-fixtures');await login(page,'supervisor');await page.goto(url());await showTimeline(page);await expect(timeline(page).locator('li[data-event-id]')).toHaveCount(50);
  const seen=await timeline(page).locator('li[data-event-id]').evaluateAll(nodes=>nodes.map(n=>Number(n.dataset.eventId)));
- const a=fixture.activities.main,o=a.operations[0];command({action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId:o.rowid,expectedVersion:version('operation',o.rowid),input:{status:'IN_PROGRESS',spent_amount:'1',observation:'Événement ajouté entre les pages'}});
+ const a=fixture.activities.main,o=a.operations[0];command({action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId: o.rowid, expectedVersion: approveFixtureExpense({ operationId: o.rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '1' }), input: {status:'IN_PROGRESS',observation:'Événement ajouté entre les pages'}});
  await page.getByRole('navigation',{name:'Pagination de la chronologie'}).getByRole('link',{name:'Suivant'}).click();
  const remaining=await timeline(page).locator('li[data-event-id]').evaluateAll(nodes=>nodes.map(n=>Number(n.dataset.eventId)));
  expect(new Set([...seen,...remaining]).size).toBe(seen.length+remaining.length);for(const id of probes)expect([...seen,...remaining]).toContain(id);await expect(timeline(page)).toContainText('Événement ajouté entre les pages');

@@ -50,6 +50,7 @@ Partner assignment is not an authorization model. The current
 | Manage Partner/Project/Opération types | No | No | Yes | Technical import support only |
 | Add/remove/transfer Activity assignments | No | No | Yes | No |
 | Enter Opération execution data | If currently assigned | No | No | No |
+| Approve spending entry | No | No | Yes, no self-approval | No |
 | Request or withdraw cancellation/reopening | If currently assigned | No | No | No |
 | Decide cancellation/reopening | No | No | Yes | No |
 | Export complete audit | No | No | Yes | Yes |
@@ -62,6 +63,19 @@ Partner assignment is not an authorization model. The current
 | Manage document categories | No | No | Yes | Technical import support only |
 | Browse scoped document library | Assigned Activity scope | Read all in active entity | Read all in active entity | Read current documents in active entity only |
 | Recover historical document version | No | No | Yes, reason required and separately audited | Yes, reason required and separately audited |
+
+Spending approval is a separate decision from Activity validation and Opération
+completion (DEC-076). It makes the accounting entry immutable. The role is
+confirmed. Under DEC-077, assigned Agents submit separate expenses and request
+corrections; the Validator approves each expense and each full reversal/replacement
+pair. Self-approval is forbidden for both initial entries and corrections. This
+permission is a target requirement, not a claim of implemented functionality.
+
+Assigned Agents draft, submit and withdraw expense candidates. Validators
+approve or reject exact submissions; all draft contributors and the submitter
+are excluded from reviewing their own entry. Following entire Activity
+cancellation, Agents assigned immediately before cancellation retain only
+expense-correction access, not ordinary Activity access or editing.
 
 ## Separation of Duties
 

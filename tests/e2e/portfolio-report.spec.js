@@ -2,7 +2,7 @@ const {test,expect}=require('@playwright/test');
 const cp=require('node:child_process');
 const fs=require('node:fs');
 const crypto=require('node:crypto');
-const {createExecutionFixtureSet,runExecutionFixtureCommand}=require('../helpers/execution-fixture');
+const {createExecutionFixtureSet,runExecutionFixtureCommand, approveFixtureExpense }=require('../helpers/execution-fixture');
 let fixture,foreign;
 test.describe.configure({mode:'serial'});
 function sql(statement){return cp.execFileSync('docker',['compose','exec','-T','mariadb','mariadb','--defaults-extra-file=/run/mjl-test/client.cnf','-N','-B','dolidb'],{env:process.env,encoding:'utf8',input:statement+'\n',stdio:['pipe','pipe','pipe']}).trim();}
@@ -21,7 +21,7 @@ test.beforeAll(()=>{
  fixture=createExecutionFixtureSet(specification('phase3b.portfolio',1));foreign=createExecutionFixtureSet(specification('phase3b.portfolio-ext',2));
  const draft=JSON.parse(cp.execFileSync('docker',['compose','exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/activity-fixture.php'],{env:process.env,encoding:'utf8',stdio:['pipe','pipe','pipe'],input:JSON.stringify({entity:1,activities:[{key:'draft',actorId:fixture.users.agent.id,partnerId:fixture.partners.partner,projectId:fixture.projects.mixed,name:'Portefeuille brouillon',description:'Non soumis.',dateStart:'2026-09-05',dateEnd:'2026-09-30',authorizedAmount:'20',submit:false,operations:[{name:'Opération brouillon',typeId:fixture.operationTypes.type,authorizedAmount:'20'}]}]})})).draft;
  fixture={...fixture,activities:{...fixture.activities,draft}};
- const a=fixture.activities.zero;command({action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId:a.operations[0].rowid,expectedVersion:a.operations[0].version,input:{status:'IN_PROGRESS',spent_amount:'0',observation:'Aucune dépense engagée'}});
+ const a=fixture.activities.zero;command({action:'update',actorId:fixture.users.agent.id,activityId:a.activity_id,operationId: a.operations[0].rowid, expectedVersion: approveFixtureExpense({ operationId: a.operations[0].rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '0' }), input: {status:'IN_PROGRESS',observation:'Aucune dépense engagée'}});
 });
 const url='/custom/mjlfinancement/reports.php?report=portfolio';
 function rows(bytes){const data=JSON.parse(cp.execFileSync('python3',['-c','import csv,json,sys; print(json.dumps(list(csv.reader(sys.stdin,delimiter=";"))))'],{input:bytes,encoding:'utf8'}));const i=data.findIndex(row=>row.includes('Activités')&&row.includes('Opérations'));return data.slice(i+1).filter(row=>row.length===data[i].length).map(row=>Object.fromEntries(data[i].map((name,k)=>[name,row[k]])));}

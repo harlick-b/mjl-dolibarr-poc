@@ -5,6 +5,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_execution.lib.php
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/scripts/rst006b_schema.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlcancellationrequest.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlreopeningrequest.class.php';
+require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/spending/mjl_spending_policy.lib.php';
 
 /** Deep aggregate module for every RST-006A Activity mutation. */
 class MjlActivityCommand
@@ -179,9 +180,8 @@ class MjlActivityCommand
 	public function updateOperationExecution($activityId, $operationId, $expectedOperationVersion, array $input, User $actor)
 	{
 		if (!$this->decimalId($activityId) || !$this->decimalId($operationId) || !$this->decimalId($expectedOperationVersion)
-			|| count($input) !== 3 || array_diff(array_keys($input), array('status','spent_amount','observation'))
+			|| count($input) !== 2 || array_diff(array_keys($input), array('status','observation'))
 			|| !in_array($input['status'], array('TODO','IN_PROGRESS','COMPLETED'), true)
-			|| ($input['spent_amount'] !== null && !$this->decimalAmount($input['spent_amount'], true))
 			|| ($input['observation'] !== null && !$this->text($input['observation'], 2000, false))) return $this->outcome('INVALID_INPUT');
 		$observation = $input['observation'] === null || trim($input['observation']) === '' ? null : $this->normalized(trim($input['observation']));
 		return $this->transaction(function () use ($activityId, $operationId, $expectedOperationVersion, $input, $observation, $actor) {
@@ -195,15 +195,18 @@ class MjlActivityCommand
 			if (!$operation) return $this->reject('NOT_FOUND');
 			if ((string) $operation['version'] !== (string) $expectedOperationVersion) return $this->reject('STALE_VERSION');
 			if (in_array($operation['status'], array('COMPLETED','CANCELLED'), true) || !$this->executionTransitionAllowed($operation['status'], $input['status'])) return $this->reject('CONFLICT');
-			if ($input['status'] === 'COMPLETED' && $input['spent_amount'] === null) return $this->reject('CONFLICT');
-			if ($input['spent_amount'] !== null && (string) $input['spent_amount'] !== (string) $operation['authorized_amount'] && $observation === null) return $this->reject('CONFLICT');
+			mjl_spending_require_target($this->db);
+			$entries=$this->lockExpenses($operationId);if($entries===false)return $this->reject('FAILED');
+			if ($input['status'] === 'COMPLETED') {
+				if($operation['spent_amount']===null || ((string)$operation['spent_amount']!==(string)$operation['authorized_amount'] && $observation===null))return $this->reject('CONFLICT');
+				foreach($entries as $entry)if(in_array($entry['status'],array('DRAFT','SUBMITTED'),true))return $this->reject('CONFLICT');
+			}
 			$beforeStatus = $this->synchronizeExecutionStatusBeforeMutation($activity, $operations, $actor);
 			if ($beforeStatus === null) return $this->reject('FAILED');
-			$spentSql = $input['spent_amount'] === null ? 'NULL' : (string) $input['spent_amount'];
 			$observationSql = $observation === null ? 'NULL' : "'".$this->db->escape($observation)."'";
-			$sql = 'UPDATE '.$this->table('operation')." SET status='".$this->db->escape($input['status'])."',spent_amount=$spentSql,observation=$observationSql,version=version+1,fk_user_modif=".$auth['id'].' WHERE entity='.$this->entity.' AND rowid='.(int)$operationId.' AND version='.(int)$expectedOperationVersion;
+			$sql = 'UPDATE '.$this->table('operation')." SET status='".$this->db->escape($input['status'])."',observation=$observationSql,version=version+1,fk_user_modif=".$auth['id'].' WHERE entity='.$this->entity.' AND rowid='.(int)$operationId.' AND version='.(int)$expectedOperationVersion;
 			$res = $this->db->query($sql); if (!$res || $this->db->affected_rows($res) !== 1) return $this->reject('STALE_VERSION');
-			$afterOperation = $operation; $afterOperation['status']=$input['status']; $afterOperation['spent_amount']=$input['spent_amount']; $afterOperation['observation']=$observation; $afterOperation['version']=(int)$operation['version']+1;
+			$afterOperation = $operation; $afterOperation['status']=$input['status']; $afterOperation['observation']=$observation; $afterOperation['version']=(int)$operation['version']+1;
 			$afterOperations = $this->replaceOperation($operations, $afterOperation);
 			if (!$this->auditExecution($activity, $actor, 'OPERATION_EXECUTION_UPDATED', $operation['status'], $input['status'], $operation, $afterOperation, (int)$operationId, array(), '', (int)$operation['version'])) return $this->reject('FAILED');
 			$afterStatus = mjl_execution_project_status($activity, $afterOperations, call_user_func($this->calendar));
@@ -211,6 +214,106 @@ class MjlActivityCommand
 			return array_merge($this->accept($activityId, (int)$activity['version'], $activity['fk_current_revision']), array('operation_id'=>(int)$operationId,'operation_version'=>(int)$afterOperation['version']));
 		}, true);
 	}
+
+	public function saveExpense($operationId, $expenseId, $expectedVersion, array $input, User $actor)
+	{
+		if (!$this->decimalId($operationId) || !$this->decimalAmount($expenseId) || !$this->decimalId($expectedVersion)
+			|| count($input)!==5 || array_diff(array_keys($input),array('label','expense_date','amount','original_id','reason'))
+			|| !$this->text($input['label'],255,true) || !$this->decimalAmount($input['amount'])
+			|| !is_string($input['expense_date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/',$input['expense_date'])
+			|| !checkdate((int)substr($input['expense_date'],5,2),(int)substr($input['expense_date'],8,2),(int)substr($input['expense_date'],0,4))
+			|| ($input['original_id']!==null && !$this->decimalId($input['original_id']))
+			|| ($input['reason']!==null && !$this->text($input['reason'],2000,true))
+			|| ($input['original_id']!==null && $input['reason']===null)) return $this->outcome('INVALID_INPUT');
+		$premise=$this->readOperationPremise($operationId); if(!$premise)return $this->outcome('NOT_FOUND');
+		return $this->transaction(function()use($operationId,$expenseId,$expectedVersion,$input,$actor,$premise){
+			mjl_spending_require_target($this->db);
+			$auth=$this->lockActor($actor);$activity=$this->lockActivity($premise['fk_activity']);
+			if(!$auth||$auth['role']!=='AGENT_SAISIE'||!$activity)return $this->reject('FORBIDDEN');
+			$assignments=$this->lockAssignments($activity['rowid']);$operations=$this->lockOperations($activity['rowid']);
+			if($assignments===false||$operations===false)return $this->reject('FAILED');
+			$operation=$this->operationById($operations,$operationId);
+			if(!$operation||empty($activity['latest_validated_amount'])||(!$this->containsAssignment($assignments,$auth['id'])&&!(
+				!empty($activity['is_cancelled'])&&$input['original_id']!==null&&mjl_spending_was_cancellation_agent($this->db,$this->entity,$activity['rowid'],$auth['id'])
+			)))return $this->reject('FORBIDDEN');
+			$entries=$this->lockExpenses($operationId);if($entries===false)return $this->reject('FAILED');
+			$original=$input['original_id']===null?null:$this->expenseById($entries,$input['original_id']);
+			if($input['original_id']!==null && (!$original||!$this->correctableExpense($entries,$original)))return $this->reject('CONFLICT');
+			if($original===null && (!empty($activity['is_cancelled'])||in_array($operation['status'],array('COMPLETED','CANCELLED'),true)))return $this->reject('CONFLICT');
+			$entry=$expenseId==='0'?null:$this->expenseById($entries,$expenseId);
+			if($expenseId!=='0'&&(!$entry||$entry['status']!=='DRAFT'||(string)$entry['version']!==$expectedVersion))return $this->reject('STALE_VERSION');
+			if($entry && (string)$entry['fk_original']!==(string)$input['original_id'])return $this->reject('CONFLICT');
+			if(!$entry && (string)$operation['version']!==$expectedVersion)return $this->reject('STALE_VERSION');
+			$contributors=$entry?json_decode($entry['contributors'],true):array();$contributors[]= $auth['id'];$contributors=array_values(array_unique($contributors));sort($contributors,SORT_NUMERIC);
+			$values="label='".$this->db->escape($this->normalized(trim($input['label'])))."',expense_date='".$input['expense_date']."',amount=".$input['amount'].",reason=".($input['reason']===null?'NULL':"'".$this->db->escape($this->normalized(trim($input['reason'])))."'").",contributors='".$this->db->escape(json_encode($contributors))."'";
+			if($entry){$sql='UPDATE '.$this->table('expense').' SET '.$values.',version=version+1 WHERE entity='.$this->entity.' AND rowid='.(int)$expenseId.' AND version='.(int)$expectedVersion;}
+			else{$sql='INSERT INTO '.$this->table('expense')." SET entity=".$this->entity.',fk_operation='.(int)$operationId.",kind='EXPENSE',status='DRAFT',fk_original=".($original?(int)$original['rowid']:'NULL').',fk_author='.$auth['id'].',date_creation=NOW(),version=1,'.$values;}
+			if(!$this->db->query($sql))return $this->reject('CONFLICT');
+			$id=$entry?(int)$expenseId:(int)$this->db->last_insert_id($this->table('expense'));
+			if(!$this->auditExecution($activity,$actor,'EXPENSE_DRAFT_SAVED',$entry?'DRAFT':'','DRAFT',$entry?:array(),$input,(int)$operationId,array('expense_id'=>$id)))return $this->reject('FAILED');
+			return array('code'=>'OK','expense_id'=>$id,'expense_version'=>$entry?(int)$entry['version']+1:1);
+		},true);
+	}
+
+	public function transitionExpense($operationId,$expenseId,$expectedVersion,$decision,$reason,User $actor)
+	{
+		if(!$this->decimalId($operationId)||!$this->decimalId($expenseId)||!$this->decimalId($expectedVersion)
+			||!in_array($decision,array('SUBMITTED','WITHDRAWN','APPROVED','REJECTED'),true)
+			||!is_string($reason)||($reason!==''&&!$this->text($reason,2000,true))||($decision==='REJECTED'&&trim($reason)===''))return $this->outcome('INVALID_INPUT');
+		$premise=$this->readOperationPremise($operationId);if(!$premise)return $this->outcome('NOT_FOUND');
+		return $this->transaction(function()use($operationId,$expenseId,$expectedVersion,$decision,$reason,$actor,$premise){
+			mjl_spending_require_target($this->db);
+			$auth=$this->lockActor($actor);$activity=$this->lockActivity($premise['fk_activity']);
+			$review=in_array($decision,array('APPROVED','REJECTED'),true);
+			if(!$auth||!$activity||$auth['role']!==($review?'VALIDATEUR_DEFINITIF':'AGENT_SAISIE'))return $this->reject('FORBIDDEN');
+			$assignments=$this->lockAssignments($activity['rowid']);$operations=$this->lockOperations($activity['rowid']);
+			if($assignments===false||$operations===false)return $this->reject('FAILED');
+			$operation=$this->operationById($operations,$operationId);
+			if(!$operation)return $this->reject('FORBIDDEN');
+			$currentAssignment=$this->containsAssignment($assignments,$auth['id']);
+			$entries=$this->lockExpenses($operationId);if($entries===false)return $this->reject('FAILED');
+			$entry=$this->expenseById($entries,$expenseId);
+			if(!$entry||(string)$entry['version']!==$expectedVersion)return $this->reject('STALE_VERSION');
+			if(!$review&&!$currentAssignment&&!(
+				!empty($activity['is_cancelled'])&&$entry['fk_original']!==null&&mjl_spending_was_cancellation_agent($this->db,$this->entity,$activity['rowid'],$auth['id'])
+			))return $this->reject('FORBIDDEN');
+			if(($review&&$entry['status']!=='SUBMITTED')||($decision==='SUBMITTED'&&$entry['status']!=='DRAFT')||($decision==='WITHDRAWN'&&!in_array($entry['status'],array('DRAFT','SUBMITTED'),true)))return $this->reject('CONFLICT');
+			$contributors=json_decode($entry['contributors'],true);
+			if($review&&in_array($auth['id'],$contributors,true))return $this->reject('FORBIDDEN');
+			$original=$entry['fk_original']===null?null:$this->expenseById($entries,$entry['fk_original']);
+			if(in_array($decision,array('SUBMITTED','APPROVED'),true)){
+				if($entry['fk_original']!==null&&(!$original||!$this->correctableExpense($entries,$original)))return $this->reject('CONFLICT');
+				if($original===null&&(!empty($activity['is_cancelled'])||in_array($operation['status'],array('COMPLETED','CANCELLED'),true)))return $this->reject('CONFLICT');
+			}
+			$extra='';
+			if($decision==='SUBMITTED'){$contributors[]=$auth['id'];$contributors=array_values(array_unique($contributors));sort($contributors,SORT_NUMERIC);$extra=",date_submitted=NOW(),contributors='".$this->db->escape(json_encode($contributors))."'";}
+			if($review)$extra=',fk_reviewer='.$auth['id'].",date_decided=NOW(),decision_reason=".($reason===''?'NULL':"'".$this->db->escape($this->normalized(trim($reason)))."'");
+			$res=$this->db->query('UPDATE '.$this->table('expense')." SET status='$decision',version=version+1".$extra.' WHERE entity='.$this->entity.' AND rowid='.(int)$expenseId.' AND version='.(int)$expectedVersion);
+			if(!$res||$this->db->affected_rows($res)!==1)return $this->reject('STALE_VERSION');
+			$reversalId=null;
+			if($decision==='APPROVED'){
+				if($original){
+					$reversal='INSERT INTO '.$this->table('expense')." (entity,fk_operation,kind,label,expense_date,amount,status,fk_original,reason,contributors,fk_author,fk_reviewer,date_creation,date_submitted,date_decided,version) SELECT entity,fk_operation,'REVERSAL',label,expense_date,-".$original['amount'].",'APPROVED',fk_original,reason,contributors,fk_author,fk_reviewer,NOW(),date_submitted,NOW(),1 FROM ".$this->table('expense').' WHERE entity='.$this->entity.' AND rowid='.(int)$expenseId;
+					if(!$this->db->query($reversal))return $this->reject('CONFLICT');
+					$reversalId=(int)$this->db->last_insert_id($this->table('expense'));
+				}
+				$res=$this->db->query('SELECT SUM(amount) AS total FROM '.$this->table('expense')." WHERE entity=".$this->entity.' AND fk_operation='.(int)$operationId." AND status='APPROVED'");$sum=$res?$this->db->fetch_object($res):null;
+				if(!$sum||!$this->decimalAmount((string)$sum->total))return $this->reject('CONFLICT');
+				$res=$this->db->query('UPDATE '.$this->table('operation').' SET spent_amount='.(string)$sum->total.',version=version+1,fk_user_modif='.$auth['id'].' WHERE entity='.$this->entity.' AND rowid='.(int)$operationId.' AND version='.(int)$operation['version']);
+				if(!$res||$this->db->affected_rows($res)!==1)return $this->reject('STALE_VERSION');
+			}
+			if(!$this->auditExecution($activity,$actor,'EXPENSE_'.$decision,$entry['status'],$decision,$entry,array('expense_id'=>(int)$expenseId,'status'=>$decision,'reversal_id'=>$reversalId),(int)$operationId,array('expense_id'=>(int)$expenseId,'original_id'=>$entry['fk_original'],'reversal_id'=>$reversalId),$reason))return $this->reject('FAILED');
+			return array('code'=>'OK','expense_id'=>(int)$expenseId,'expense_version'=>(int)$entry['version']+1,'reversal_id'=>$reversalId);
+		},true);
+	}
+
+	private function lockExpenses($operationId)
+	{
+		$res=$this->db->query('SELECT * FROM '.$this->table('expense').' WHERE entity='.$this->entity.' AND fk_operation='.(int)$operationId.' ORDER BY rowid FOR UPDATE');
+		if(!$res)return false;$rows=array();while($row=$this->db->fetch_object($res))$rows[]=(array)$row;return $rows;
+	}
+	private function expenseById(array $entries,$id){foreach($entries as $entry)if((string)$entry['rowid']===(string)$id)return $entry;return null;}
+	private function correctableExpense(array $entries,array $original){if($original['status']!=='APPROVED'||$original['kind']!=='EXPENSE')return false;foreach($entries as $entry)if($entry['kind']==='REVERSAL'&&(string)$entry['fk_original']===(string)$original['rowid'])return false;return true;}
 
 	public function requestCancellation($targetType, $targetId, $expectedTargetVersion, $reason, User $actor)
 	{

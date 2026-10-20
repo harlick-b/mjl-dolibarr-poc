@@ -30,6 +30,7 @@ function mjl_navigation_registry()
 		array('id' => 'planification', 'label' => 'Planification', 'order' => 25, 'items' => array(
 			mjl_navigation_leaf('planification', 'activities', 'Activités', '/custom/mjlfinancement/activities.php', 10, 'planning_read'),
 			mjl_navigation_leaf('planification', 'operations', 'Opérations', '/custom/mjlfinancement/operations.php', 20, 'planning_read'),
+			mjl_navigation_leaf('planification', 'expenses', 'Dépenses', '/custom/mjlfinancement/expenses.php', 25, 'planning_read'),
 			mjl_navigation_leaf('planification', 'requests', 'Demandes d’exception', '/custom/mjlfinancement/operationrequests.php', 30, 'monitoring_read'),
 		)),
 		array('id' => 'controle', 'label' => 'Contrôle', 'order' => 30, 'items' => array(

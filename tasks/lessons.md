@@ -274,3 +274,12 @@ debugging discoveries. Do not add one-off observations or generic advice.
   querying its children. Otherwise an absent or unauthorized parent can fail
   in a child query first and turn the intended authorization-safe 403 into a
   generic 503.
+
+- Native Dolibarr password throttling counts `USER_LOGIN_FAILED` events, but
+  recording requires `MAIN_LOGEVENTS_USER_LOGIN_FAILED=1`. Verify setup through
+  an actual wrong-password event; enabling the recorder inside the test fixture
+  masks a missing application setting.
+- For OTP recovery, test expiry together with exhausted resends and a fresh
+  password login. Testing expiry and resend caps separately missed a permanent
+  pending-challenge trap; live challenge counters and active lockouts must still
+  survive re-login.

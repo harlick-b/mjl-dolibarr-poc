@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__.'/rst006a_schema.lib.php';
+require_once __DIR__.'/spending_schema.lib.php';
 
 const RST006B_SCHEMA_PREDECESSOR = 'RST-006A';
 const RST006B_SCHEMA_TARGET = 'RST-006B';
@@ -38,7 +39,7 @@ function mjl_rst006b_request_checks(DoliDB $db)
 	);
 }
 
-function mjl_rst006b_table_contracts(DoliDB $db)
+function mjl_rst006b_table_contracts(DoliDB $db, $spending = null)
 {
 	$p=$db->prefix();$phase2=mjl_rst006a_new_table_contracts($db);
 	$operation=$phase2['operation'];unset($operation['checks']['chk_mjl_operation_phase2']);
@@ -46,6 +47,7 @@ function mjl_rst006b_table_contracts(DoliDB $db)
 	$operation['checks']['chk_mjl_operation_spent_amount']='spent_amount IS NULL OR spent_amount >= 0';
 	$operation['checks']['chk_mjl_operation_observation']="observation IS NULL OR observation REGEXP '[^[:space:]]'";
 	$operation['checks']['chk_mjl_operation_execution_shape']="(spent_amount IS NULL OR spent_amount=authorized_amount OR observation IS NOT NULL AND observation REGEXP '[^[:space:]]') AND (status<>'COMPLETED' OR spent_amount IS NOT NULL)";
+	if ($spending === null ? mjl_spending_present($db) : $spending) $operation['checks']['chk_mjl_operation_execution_shape']=mjl_spending_shape_check();
 	$activity=mjl_rst006a_activity_contract($db);unset($activity['checks']['chk_mjl_activity_rst006a_phase2']);
 	$activity['checks']['chk_mjl_activity_validation_status']="validation_status IN ('DRAFT','ABANDONED','SUBMITTED','RETURNED_SUPERVISOR','PREVALIDATED','RETURNED_VALIDATOR','FINAL_VALIDATED','CANCELLED')";
 	$activity['checks']['chk_mjl_activity_rst006b_phase3a']=mjl_rst006b_activity_shape_check();
@@ -70,7 +72,7 @@ function mjl_rst006b_table_contracts(DoliDB $db)
 	return array('activity'=>$activity,'operation'=>$operation,'activity_reference_sequence'=>$phase2['activity_reference_sequence'],'activity_revision'=>$phase2['activity_revision'],'revision_contributor'=>$phase2['revision_contributor'],'review_decision'=>$phase2['review_decision'],'cancellation_request'=>$cancellation,'reopening_request'=>$reopening);
 }
 
-function mjl_rst006b_trigger_contract_maps(DoliDB $db)
+function mjl_rst006b_trigger_contract_maps(DoliDB $db, $spending = null)
 {
 	$p=$db->prefix();$tables=array($p.'mjlfinancement_activity',$p.'mjlfinancement_activity_assignment');
 	foreach(mjl_rst006a_suffixes()as$suffix)$tables[]=mjl_rst006a_table($db,$suffix);
@@ -82,7 +84,10 @@ function mjl_rst006b_trigger_contract_maps(DoliDB $db)
 	foreach($old as$sql)mjl_rst006b_add_trigger_contract($predecessor,$sql);
 	$replacementNames=array($p.'mjl_activity_rst006a_bu',$p.'mjl_activity_assignment_bi',$p.'mjl_operation_rst006a_bi',$p.'mjl_operation_rst006a_bu');
 	foreach($old as$sql){$clean=str_replace('`','',$sql);if(!preg_match('/^CREATE(?: OR REPLACE)? TRIGGER ([A-Za-z][A-Za-z0-9_]*) /',$clean,$match)||!in_array($match[1],$replacementNames,true))mjl_rst006b_add_trigger_contract($target,$sql);}
-	foreach(mjl_rst006b_guard_statements($db)as$sql)mjl_rst006b_add_trigger_contract($target,$sql);
+	foreach(mjl_rst006b_guard_statements($db)as$sql){
+		if(($spending === null ? mjl_spending_present($db) : $spending) && strpos($sql,'mjl_operation_rst006b_bu ')!==false)$sql=mjl_spending_operation_guard($db,$sql);
+		mjl_rst006b_add_trigger_contract($target,$sql);
+	}
 	return array('predecessor'=>$predecessor,'target'=>$target);
 }
 

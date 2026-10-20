@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('node:child_process');
-const { createExecutionFixtureSet, runExecutionFixtureCommand } = require('../helpers/execution-fixture');
+const { createExecutionFixtureSet, runExecutionFixtureCommand, approveFixtureExpense } = require('../helpers/execution-fixture');
 const { login } = require('../helpers/mjl-test-runtime');
 
 let fixture;
@@ -27,7 +27,7 @@ test.beforeAll(() => {
     ],
   });
   const operation = fixture.activities.owned.operations[0];
-  const result = runExecutionFixtureCommand({ entity: 1, localDate: '2026-09-10', action: 'update', actorId: fixture.users.agent.id, activityId: fixture.activities.owned.activity_id, operationId: operation.rowid, expectedVersion: operation.version, input: { status: 'IN_PROGRESS', spent_amount: '0', observation: 'Dépense nulle\nMontant confirmé' } });
+  const result = runExecutionFixtureCommand({ entity: 1, localDate: '2026-09-10', action: 'update', actorId: fixture.users.agent.id, activityId: fixture.activities.owned.activity_id, operationId: operation.rowid, expectedVersion: approveFixtureExpense({ operationId: operation.rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '0' }), input: { status: 'IN_PROGRESS', observation: 'Dépense nulle\nMontant confirmé' } });
   expect(result.code).toBe('OK');
 });
 

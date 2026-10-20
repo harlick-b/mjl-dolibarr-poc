@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { createExecutionFixtureSet, runExecutionFixtureCommand } = require('../helpers/execution-fixture');
+const { createExecutionFixtureSet, runExecutionFixtureCommand, approveFixtureExpense } = require('../helpers/execution-fixture');
 const { login } = require('../helpers/mjl-test-runtime');
 
 let fixture;
@@ -35,16 +35,14 @@ test.beforeAll(() => {
   const result = runExecutionFixtureCommand({
     entity: 1, localDate: '2026-09-29', action: 'update',
     actorId: fixture.users.agent.id, activityId: activity.activity_id,
-    operationId: operation.rowid, expectedVersion: operation.version,
-    input: { status: 'IN_PROGRESS', spent_amount: '125', observation: 'Mission réalisée\nJustificatifs contrôlés' },
+    operationId: operation.rowid, expectedVersion: approveFixtureExpense({ operationId: operation.rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '125' }), input: { status: 'IN_PROGRESS', observation: 'Mission réalisée\nJustificatifs contrôlés' },
   });
   if (result.code !== 'OK') throw new Error('VUI-07 execution fixture update failed.');
   const zeroOperation = activity.operations[2];
   const zeroResult = runExecutionFixtureCommand({
     entity: 1, localDate: '2026-09-29', action: 'update',
     actorId: fixture.users.agent.id, activityId: activity.activity_id,
-    operationId: zeroOperation.rowid, expectedVersion: zeroOperation.version,
-    input: { status: 'IN_PROGRESS', spent_amount: '0', observation: 'Aucune dépense engagée' },
+    operationId: zeroOperation.rowid, expectedVersion: approveFixtureExpense({ operationId: zeroOperation.rowid, agentId: fixture.users.agent.id, validatorId: fixture.users.validator.id, amount: '0' }), input: { status: 'IN_PROGRESS', observation: 'Aucune dépense engagée' },
   });
   if (zeroResult.code !== 'OK') throw new Error('VUI-07 zero execution fixture update failed.');
 });

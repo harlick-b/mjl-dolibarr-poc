@@ -12,6 +12,7 @@ repository-visible evidence, not user acceptance.
 | Types d’Opération | `/custom/mjlfinancement/operationtypes.php` | Entity-scoped reference list and forms; Validator mutation, no hard deletion. |
 | Activities | `/custom/mjlfinancement/activities.php` | Planning, review, execution/completeness summaries, chronology, and contextual cancellation requests; assignment and role guards, Admin denied. |
 | Opérations | `/custom/mjlfinancement/operations.php` | Execution cards and exception forms; current Assigned Agents mutate, Supervisor/Validator read, Admin denied. |
+| Dépenses | `/custom/mjlfinancement/expenses.php` | Bounded Operation/expense lists, ordinary draft and decision forms; assigned Agent submission, independent Validator approval, linked corrections. Agents removed by Activity cancellation retain correction-only access. Admin denied. |
 | Demandes d’exception | `/custom/mjlfinancement/operationrequests.php` | Filtered cancellation/reopening list; current requester withdrawal, Validator decisions, Supervisor reads, Admin denied. |
 | Alertes | `/custom/mjlfinancement/alerts.php` | Computed alerts under entity and role/assignment scope; Admin denied. |
 | Rapports | `/custom/mjlfinancement/reports.php` | Shared responsive filters, visible active selections, scoped previews, and complete-selection export actions for Activities, Opérations, Fiche Activité, portfolio, and Validator/Admin audit. |

@@ -104,9 +104,23 @@ _Avoid_: Business superuser, reviewer, reference-data manager
 ## Execution
 
 **Montant dépensé**:
-Explicit XOF amount entered for an Opération after definitive validation; it
-may be null or explicitly zero.
+Sum of approved expense entries for an Opération after definitive validation.
+Draft/submitted amounts are separate. Missing information remains null; zero
+requires an explicit approved zero-spending declaration.
 _Avoid_: Inferring zero from missing information
+
+**Écriture de dépense**:
+Individual expense within one Opération, explicitly submitted by an Agent
+and treated as an accounting entry. Validateur définitif approval makes it
+immutable. Corrections preserve the original and use a linked full reversal
+and replacement approved together; the original amount remains effective
+until that approval.
+_Avoid_: Editable validated spending, audit history as a substitute for an immutable entry
+
+**Approbation de dépense**:
+Explicit decision by the Validateur définitif validating a spending entry, distinct from Activity
+budget validation and Opération completion.
+_Avoid_: Treating a saved amount or a completed Opération as accounting approval
 
 **Écart**:
 Difference between an Opération's spent amount and authorized amount.
@@ -120,6 +134,12 @@ _Avoid_: Activity execution status, cancellation as proof of completeness
 Derived operational state calculated from validation, dates, cancellation,
 and Opération terminal states.
 _Avoid_: Validation status, manually edited Activity execution status
+
+**Contrepassation de dépense**:
+Immutable entry offsetting the full amount of one approved expense. It is
+approved atomically with a linked replacement; it never deletes or edits the
+original. Accounting corrections do not reopen operational execution.
+_Avoid_: Editing an approved amount, deleting financial history
 
 ## Exception workflows
 
