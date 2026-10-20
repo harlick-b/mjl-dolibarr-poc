@@ -8,7 +8,9 @@ This file is current-state evidence only. It does not override
 The shared local tenant has one native technical administrator and no
 persistent MJL business or access records. Module version 0.21.0 is activated
 through the non-seeding bootstrap path, and its exact RST-012 OTP schema is
-installed empty. MJL depends on native Third Parties and Projects.
+installed empty. The retained Admin has a configured email and password; OTP
+remains disabled pending a working mail transport and delivery verification
+(local check: 2026-10-20). MJL depends on native Third Parties and Projects.
 MJL code lives in `custom/mjlfinancement`. Tests create minimal records in
 isolated disposable tenants and remove those tenants after each run.
 

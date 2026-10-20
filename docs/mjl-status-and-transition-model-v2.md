@@ -94,5 +94,7 @@ Cancellation never supplies a missing amount and never implies completeness.
 
 ## Future Documents
 
-There is no active MJL document lifecycle. Current document delivery remains
-denied; future states require a fresh user request and scope review.
+There is no active MJL document lifecycle. Phase 4 planning defines append-only
+`PUBLISHED`, `SUPERSEDED`, and `WITHDRAWN` events in
+`docs/mjl-phase4-contextual-document-management.md`. Current document delivery
+remains denied until a separately authorized implementation and cutover.

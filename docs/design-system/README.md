@@ -21,8 +21,8 @@ document-policy, CSV/XLSX-only, and PDF-prohibition statements are superseded.
 
 ## Post-cadrage UI implementation map
 
-`docs/inspiration/` supplies the target screen composition and interaction
-examples. The approved v3 tokens govern palette, typography, spacing,
+`docs/inspiration/` contains optional local composition and interaction
+references. It is ignored by Git and is not required in a fresh checkout. The approved v3 tokens govern palette, typography, spacing,
 dimensions, and accessibility where the examples differ. The prototype HTML is
 a visual reference, not application code or a source of permissions, records,
 or workflow state. Demo controls and sample records do not enter the runtime.
@@ -75,9 +75,8 @@ not silently rewrite normative artifacts.
 Runtime CSS and tests remain code-owned conformance mappings and do not
 independently redefine the approved tokens or design decisions.
 
-The validation report is the sole append-only exception inside the approved
-package. New executed evidence may be appended, but prior results may never be
-rewritten or deleted.
+Completed validation reports are retained in Git history. The roadmap and
+current UI audit own implementation state and outstanding review needs.
 
 ## Authoritative paths
 
@@ -88,7 +87,6 @@ rewritten or deleted.
 - [Design assumptions](approved/v3/docs/design/design-assumptions.md)
 - [Design decisions](approved/v3/docs/design/design-decisions.md)
 - [Component inventory](approved/v3/docs/design/component-inventory.md)
-- [Design validation and migration ledger](approved/v3/docs/design/design-validation-report.md)
 - [Base tokens](approved/v3/design-tokens/tokens.json)
 - [Semantic tokens](approved/v3/design-tokens/semantic-tokens.json)
 - [Token documentation](approved/v3/design-tokens/README.md)

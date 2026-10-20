@@ -154,6 +154,32 @@ Partner-specific output generated from an approved versioned template and
 preserved as an immutable snapshot.
 _Avoid_: Generic operational export labeled official
 
+## Contextual document evidence
+
+**Document justificatif contextuel**:
+Supporting evidence attached to exactly one Projet, Activité, or Opération and
+delivered only through guarded MJL routes.
+_Avoid_: Partenaire attachment, public link, raw ECM document
+
+**Catégorie documentaire**:
+Stable entity-scoped classification whose changes create immutable rule
+revisions; its initial values are client input.
+_Avoid_: Type d'Opération, mutable requirement setting
+
+**Série documentaire**:
+Stable identity for one item of evidence, containing append-only immutable
+versions and at most one current published version.
+_Avoid_: Folder, replaceable file row
+
+**Version documentaire**:
+Immutable accepted file in a document series.
+_Avoid_: Overwritten upload, editable original
+
+**Retrait documentaire**:
+Reasoned, audited, irreversible removal of a current version from current use,
+without physical deletion of its historical evidence.
+_Avoid_: Delete, restore as current, silent hide
+
 ## Local data lifecycle
 
 **Administrateur technique conservé**:

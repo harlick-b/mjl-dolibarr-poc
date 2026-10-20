@@ -30,6 +30,6 @@ supervision route. Document delivery stays closed unless the user authorizes
 new Phase 4 work.
 
 Signed human accessibility review remains outstanding for active screens and
-states. The retained technical Admin still needs a unique reachable email
-before OTP can be enabled. Production email/base URL and client approval of
+states. The retained technical Admin has a configured email; mail transport and
+delivery verification remain required before OTP can be enabled. Production email/base URL and client approval of
 non-protected copy and official outputs also remain outstanding.

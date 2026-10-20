@@ -18,10 +18,9 @@ migration wave, production work, dependency change, or tooling rollout.
 
 The frozen architecture remains
 `docs/architecture-audit/17-target-architecture-proposal.md`, SHA-256
-`b32655df213a5d5f8cc2e4b4cd1bf6f7aa4c6b6ec5d3ac4273ae9759ff6d9b9c`.
-Document 18 remains historical review evidence with verdict
-`ARCHITECTURE_REVISION_REQUIRED`; the later correction reviews passed before
-the architecture freeze.
+`0adda9f7816d02ce5fc5c5290786d52efe7f74dff0931be4c94034859304f8c7`.
+Completed review evidence is retained in Git history. DEC-075 updates obsolete
+status and provenance text only; all technical rules remain unchanged.
 
 ## 1. Scope and normative language
 
@@ -625,30 +624,11 @@ when:
 
 ## 21. W0 and W1–W7 governance
 
-W0 is a prerequisite, not a migration wave. It is `NOT_AUTHORIZED`, incomplete,
-and may later be authorized only to add/repair the smallest focused
-characterization required by the first selected responsibility, with isolated
-fixtures and no runtime behavior change.
-
-W1–W7 are seven separately authorization-gated migration waves. Each future
-wave MUST verify its document-17 prerequisites, map affected preservation IDs,
-characterize before movement, implement one bounded responsibility slice, run
-focused after-checks, preserve a credible rollback/forward unit, meet its exit
-criteria and receive clean review. This standard does not reproduce or approve
-their scopes.
-
-Current state:
-
-```text
-W0: NOT_AUTHORIZED
-W1: NOT_AUTHORIZED
-W2: NOT_AUTHORIZED
-W3: NOT_AUTHORIZED
-W4: NOT_AUTHORIZED
-W5: NOT_AUTHORIZED
-W6: NOT_AUTHORIZED
-W7: NOT_AUTHORIZED
-```
+W0 was the characterization prerequisite; W1–W7 were the separately authorized
+migration waves. All are complete, with final reconciliation recorded by
+DEC-072. The roadmap owns current implementation state. Historical wave gates
+are not new work obligations. Future work requires its own authorized scope
+and the smallest relevant checks under the current acceptance-test guidance.
 
 ## 22. Illustrative patterns
 
@@ -726,8 +706,8 @@ gate. The formal freeze introduced no architecture amendment.
 - [x] W0 and W1–W7 terminology correct;
 - [x] no architecture redesign or implementation authorization introduced.
 
-The checks above established readiness for independent review. The preserved
-review history records the initial revision requirement, three corrections and
+The checks above established readiness for independent review. Git
+history records the initial revision requirement, three corrections and
 the focused independent approval that preceded this formal freeze.
 
 ```text

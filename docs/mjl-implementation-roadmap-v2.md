@@ -80,9 +80,9 @@ unresolved weaknesses and unapproved recommendations.
   email-only password verification, six-digit email OTP, verified-session
   enforcement, native login/reset bypass guards, and shared invitation/reset
   password rules. Version 0.21.0 and its exact empty OTP schema are installed
-  locally through the non-seeding activation path. Enabling OTP remains an
-  operator action after the retained technical Admin has a unique reachable
-  email and mail delivery works.
+  locally through the non-seeding activation path. The retained technical Admin now has a configured email. OTP enablement
+  was requested on 2026-10-20 but remains blocked by missing mail transport
+  and delivery verification.
 
 These statements describe repository state only. They do not record user
 acceptance or readiness for production.
@@ -160,9 +160,11 @@ design-system README; deferred backend dependencies are in the gap analysis.
 
 ### Phase 4: Documents
 
-Document behavior remains behind the current containment boundary. Phase 4
-is unrequested; its requirements need a fresh user request and scope review
-before implementation.
+Planning was requested on 2026-10-12. The consolidated scope, domain model,
+security boundary, lean sequence, acceptance criteria, and unresolved decisions
+are in `docs/mjl-phase4-contextual-document-management.md`. Implementation is
+not authorized. Document behavior remains behind the current deny-all
+containment boundary until a separately reviewed slice and cutover are approved.
 
 ### Phase 5: Accounting
 

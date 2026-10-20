@@ -6,10 +6,10 @@ This is implementation-debt evidence beneath the canonical v2 documents.
 | --- | --- | --- |
 | One transactional audit | Append-only entity-scoped audit table, transaction-bound writer, and sanitized Activity chronology exist. | Later object adapters remain owned by their phases. |
 | No obsolete finance core | Finance schemas, loaders, routes, reports, and update SQL are removed; RST-006A planning and RST-006B execution are active on the empty local tenant. | No Phase 3A gap. |
-| Invitation-only access and login verification | Business-role-only invitation/reset lifecycle and configuration-gated email OTP login are implemented; groups/scopes are not authorization inputs. | Enabling OTP requires a unique reachable address for the retained technical Admin, working email delivery, and explicit `MJL_AUTH_OTP_ENABLED=1`. Production email/base URL/secrets remain operator confirmations. |
+| Invitation-only access and login verification | Business-role-only invitation/reset lifecycle and configuration-gated email OTP login are implemented; groups/scopes are not authorization inputs. | Local check on 2026-10-20: the retained Admin has a unique configured email, but OTP remains disabled. No SMTP server/credentials are configured, the sender is a placeholder, and the container has no sendmail executable. Configure mail and verify delivery before setting `MJL_AUTH_OTP_ENABLED=1`. Production email/base URL/secrets remain operator confirmations. |
 | Dashboards, browsing and navigation | Role-specific dashboards, computed alerts, scoped browsing, permission-aware action queues, financial disclosure, and Alertes/Rapports/exception navigation are implemented behind RST-012 readiness. Admin receives supported access, audit, and technical destinations without fabricated metrics. | User acceptance remains outstanding. |
 | Activity execution and exceptions | Module 0.21.0 provides integer-XOF execution, terminal locks, version-bound cancellation/reopening, Activity cancellation cascade, pure projections, and hourly reconciliation through the aggregate command. | The unsigned 170-combination human accessibility review remains a production/release blocker. |
-| Documents/accounting/official outputs | Current custom document endpoints deny every method without storage access, and deployment rules block native document paths. | Authorized document delivery, accounting and official-output decisions remain deferred to a fresh Phase 4 request. |
+| Documents/accounting/official outputs | Current custom document endpoints deny every method without storage access, and deployment rules block native document paths. | Phase 4 document planning is defined in `docs/mjl-phase4-contextual-document-management.md`; implementation remains unauthorized and its listed client/operator decisions remain open. Accounting and official-output decisions remain deferred to their own gates. |
 | Persistent empty tenant | Exactly one native Admin; target/custom business tables remain empty. | Disposable factories expand only with their owning feature units. |
 | W5 reporting and monitoring ownership | Selected report/audit HTTP, bounded read, presentation, and stream-delivery owners are active. Dashboard/index/alerts consume W2 monitoring-read; `MjlMonitoring`, durable export generation/evidence, and shared Operation/request branches remain retained owners. | No W5 ownership gap or later-wave regression. |
 | Historical reverse-prefix gates | BC-021 is closed: `rst002b` and `rst006a` receive narrow disposable bootstrap profiles and exact verification before their matrices. The broad host `MJL_TEST_MODE` is not forwarded. | Preserve the named profiles and exact gates after W6. |
@@ -21,9 +21,8 @@ This is implementation-debt evidence beneath the canonical v2 documents.
 
 ## Forensic architecture audit findings
 
-The source baseline and evidence qualifications are recorded in
-`docs/architecture-audit/`. These items are implementation debt, not approved
-work:
+The completed forensic audit is retained in Git history. Its unresolved
+findings below are implementation debt, not approved work:
 
 | Area | Current evidence | Gap / required decision |
 | --- | --- | --- |

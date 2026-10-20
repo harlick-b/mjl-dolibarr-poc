@@ -45,10 +45,11 @@ data is not part of Phases 1 through 6. Test-only records may exist solely insid
 
 ### Phase 4: contextual document management
 
-Phase 4 is unrequested. A fresh user request and scope review must define its
-requirements before implementation. Current document routes and native delivery
-paths remain denied. Any future Admin document exception is read-only and
-non-mutating within the runtime active entity (`$conf->entity`) only.
+Phase 4 planning is requested. Its current planning contract is
+`docs/mjl-phase4-contextual-document-management.md`. Runtime implementation is
+not authorized: current document routes and native delivery paths remain
+denied. The Admin document exception is read-only and non-mutating within the
+runtime active entity (`$conf->entity`) only.
 
 ### Phase 5: accounting entries
 

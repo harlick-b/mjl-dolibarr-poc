@@ -4,23 +4,18 @@
 
 **Architecture status: `ARCHITECTURE_FROZEN`.**
 
-The architecture defined by this document is the authoritative MJL target
-architecture baseline. Architecture freeze does not authorize implementation,
-production preparation, an Engineering Standard, or any file, schema, runtime
-or migration change. W0 remains an unauthorized characterization prerequisite;
-W1–W7 remain unauthorized migration proposals until the user separately
-authorizes each applicable wave.
+The architecture defined by this document remains authoritative. W0 and W1–W7
+are complete; DEC-072 records the completed migration. Freeze does not authorize
+new implementation or production work. Current state belongs in the roadmap.
 
-The baseline was derived from the `READY_FOR_PROPOSAL` audit gate and the
-completed forensic audit, especially the [dependency map](02-dependency-map.md),
-[request map](03-request-map.md), [database map](04-database-map.md), [module
-lifecycle](05-module-lifecycle.md), [authentication state](06-authentication-state.md),
-[authorization map](07-authorization-map.md), [business workflows](08-business-workflows.md),
-[frontend contracts](09-frontend-contracts.md), [duplication report](10-duplication-report.md),
-[regression baseline](13-regression-baseline.md), [preservation ledger](14-preservation-ledger.md),
-[behavior classification](15-behavior-classification.md), and [current
-architecture](16-current-architecture.md). Current product authority remains
-in `docs/mjl-authoritative-decisions.md` and its canonical documents.
+The completed forensic audit and migration reviews are available in Git history.
+The [preservation ledger](14-preservation-ledger.md) remains active. Product
+authority comes from `docs/mjl-authoritative-decisions.md` and its canonical
+owners. Historical diagnosis, wave contracts, and correction matrices below
+explain the frozen design; they are not a pending execution plan. Current
+unresolved issues belong in `docs/mjl-current-vs-target-gap-analysis.md`.
+DEC-075 removes obsolete documentation references without changing technical
+contracts or Phase 4's denial-adapter boundary.
 
 The baseline uses **module**, **interface**, **implementation**, **seam**, and
 **adapter** in the codebase-design sense. A module is justified only where its
@@ -775,7 +770,7 @@ indefinitely is not a goal.
 | BC-020 timeout accepts zero exit | runner seam | correct before deadline-aware gate is relied upon | LIFE-002 |
 | BC-021 historical modes provision wrong target | runner/lifecycle compatibility | define each maintained baseline before lifecycle move/retirement | RT-011, LIFE-003 |
 | BC-022 weakened auth schema accepted | lifecycle security seam | exact-definition check or explicit repair policy required before auth lifecycle extraction exits | DB-003/004, SEC-AUTH-004 |
-| AUTH-F04 reset selector exposes full email before verifier proof (`06-authentication-state.md`) | reset presentation and selector lookup seam | masking remains an unapproved correction; preserve the current behavior during extraction, record it in W4 characterization, and reconsider when reset presentation/privacy changes are explicitly approved | no new compatibility requirement to retain the exposure permanently; SEC-AUTH-003 neutral request behavior is separate |
+| AUTH-F04 reset selector exposes full email before verifier proof (historical authentication audit) | reset presentation and selector lookup seam | masking remains an unapproved correction; preserve the current behavior during extraction, record it in W4 characterization, and reconsider when reset presentation/privacy changes are explicitly approved | no new compatibility requirement to retain the exposure permanently; SEC-AUTH-003 neutral request behavior is separate |
 
 There are no unresolved CRITICAL or HIGH audit findings. Medium findings are
 not treated as authorization to change behavior; the table specifies which
@@ -1279,8 +1274,8 @@ Adversarial result:
 Every audited critical responsibility and all 35 preservation requirements
 have an approved target owner; no unresolved CRITICAL or HIGH architecture
 finding remains after the correction reviews. The frozen design is incremental,
-Dolibarr-native, and deliberately does not authorize implementation. W0 and
-W1–W7 are all `NOT_AUTHORIZED` until separately approved.
+Dolibarr-native, and does not authorize additional implementation. W0 and
+W1–W7 are complete; consult the roadmap for current work.
 
 ```text
 ARCHITECTURE_FROZEN

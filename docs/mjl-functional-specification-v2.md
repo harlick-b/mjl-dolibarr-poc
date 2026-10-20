@@ -27,8 +27,8 @@ Core scope excludes PTA negotiation, fund requests, receipt of funds, TDR
 approval, Partner authorization messages, e-Tresor payment processing, bank
 reconciliation, and external audit execution.
 
-Document containment remains active unless the user explicitly requests and
-accepts a future Phase 4 implementation after a fresh scope review.
+Document containment remains active. Phase 4 planning is requested, but runtime
+implementation and containment cutover require separate explicit authorization.
 Accounting waits for approved rules and examples. Official Partner reporting
 waits for approved templates and mappings.
 
@@ -432,10 +432,12 @@ verification selection and reporting guidance.
 ## 30. Future Document Scope
 
 Document delivery remains behind the current containment boundary. Phase 4
-requires a fresh user request and scope review. The only retained future Admin
-permission boundary is read-only and non-mutating within the runtime active
-Dolibarr entity (`$conf->entity`). Detailed Phase 4 design is not current
-implementation authority.
+planning is now requested, and its consolidated contract is
+`docs/mjl-phase4-contextual-document-management.md`. The Admin permission
+boundary remains read-only and non-mutating within the runtime active Dolibarr
+entity (`$conf->entity`). The planning brief is not runtime implementation
+authority; document routes remain deny-all until a separately authorized
+cutover.
 
 ## Phase 3B Monitoring and Export Clarifications (DEC-056)
 
