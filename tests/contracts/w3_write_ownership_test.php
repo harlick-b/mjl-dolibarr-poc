@@ -5,7 +5,7 @@ function source($root, $path) { return file_get_contents($root.'/'.$path); }
 function check($condition, $message) { if (!$condition) throw new RuntimeException($message); }
 
 $reference = source($root, 'custom/mjlfinancement/lib/mjl_reference.lib.php');
-$referenceRoute = source($root, 'custom/mjlfinancement/lib/mjl_reference_route.lib.php');
+$referenceRoute = source($root, 'custom/mjlfinancement/lib/api/mjl_api_references.lib.php');
 $referenceCommand = source($root, 'custom/mjlfinancement/class/mjlreferencecommand.class.php');
 $scope = source($root, 'custom/mjlfinancement/lib/mjl_scope.lib.php');
 $accessRoute = source($root, 'custom/mjlfinancement/admin/access.php');

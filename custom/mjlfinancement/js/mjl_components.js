@@ -897,7 +897,7 @@
 		});
 	}
 
-	window.mjlInitPartnerComponents = function (root) {
+	window.mjlInitReferenceComponents = function (root) {
 		initTableActionMenus(root.querySelectorAll('[data-mjl-action-menu]'));
 		initSubstantiveForms(root.querySelectorAll('form[data-mjl-substantive]'));
 		Array.prototype.forEach.call(root.querySelectorAll('[data-mjl-reference-page-dialog]'), initReferencePageDialog);

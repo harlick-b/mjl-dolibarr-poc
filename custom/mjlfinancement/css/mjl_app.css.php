@@ -2055,6 +2055,11 @@ a.tmenu[href^="/api/"] {
 .mjl-reference-table { margin: 0; }
 .mjl-reference-table .mjl-status-pill { margin-top: 0; }
 .mjl-reference-table td:last-child { white-space: nowrap; }
+@media (max-width: 768px) {
+	.mjl-module-shell .mjl-reference-table tr.mjl-row-interactive > td {
+		height: auto;
+	}
+}
 .mjl-reference-detail {
 	background: var(--mjl-color-surface);
 	border: 1px solid var(--mjl-color-border-subtle);

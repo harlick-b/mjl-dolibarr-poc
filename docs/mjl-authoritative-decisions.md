@@ -23,7 +23,7 @@ stop and surface the contradiction.
 
 | Subject | Canonical document |
 | --- | --- |
-| REST action inventory and wire contract | `docs/mjl-rest-api-contract.md`, `docs/mjl-rest-api.openapi.yaml` (target coverage; authentication/Partenaires slice implemented) |
+| REST action inventory and wire contract | `docs/mjl-rest-api-contract.md`, `docs/mjl-rest-api.openapi.yaml` (target coverage; authentication/all reference screens implemented) |
 | Complete business rules | `docs/mjl-functional-specification-v2.md` |
 | Decision history and provenance | `docs/mjl-decision-register-v2.md` |
 | Core, excluded, and gated scope | `docs/mjl-scope-boundary-v2.md` |
@@ -93,7 +93,7 @@ implementation is not authorized and document routes remain deny-all.
   requires all expenses approved, or an approved explicit zero-spending declaration. Authentication fixes come first; mail must be supplied and delivery
   verified before enabling OTP. DEC-078 defines REST API as the backend foundation
   for web/PWA clients, covering all available MJL actions and using login plus
-  OTP. Migrate the existing interface progressively as API features are delivered. Migrated screens require JavaScript (DEC-080).
+  OTP. Migrate the existing interface progressively as API features are delivered. Migrated screens require JavaScript (DEC-080). DEC-082 authorizes Projets and Types d’Opération migration; OTP remains disabled.
   Scope includes MJL business features and MJL administration; native Dolibarr
   technical administration and external integrations are excluded. Approved session
   limits are 24 hours of inactivity or 24 hours total, whichever comes first;

@@ -2,7 +2,7 @@ openapi: 3.1.1
 info:
   title: MJL REST API
   version: 0.1.0-draft
-  description: Full target contract with authentication and Partenaires implemented (DEC-080).
+  description: Full target contract with authentication and all three reference screens implemented (DEC-080/082).
     Other operations remain pending. See mjl-rest-api-contract.md for migration state and behavior.
     SessionCookie denotes the native DOLSESSID_ cookie with a deployment-specific suffix;
     browser clients use the server-issued HttpOnly cookie without hard-coding its name.
@@ -410,7 +410,7 @@ paths:
   /submission-tokens:
     post:
       operationId: issueSubmissionToken
-      x-implementation-status: implemented-partners-only
+      x-implementation-status: implemented-references-only
       summary: Prepare one existing one-use submission context
       tags:
       - Transport
@@ -446,7 +446,7 @@ paths:
         '503': {$ref: '#/components/responses/Error503'}
         '405': {$ref: '#/components/responses/Error405'}
       description: Just in time; current helper20 pending/7200s TTL, additionally bounded by authenticated
-        session. Not a business mutation or an idempotency replay store.
+        session. Currently accepts only the nine Partner, Project and Operation Type mutation operation IDs; Validator only. Not a business mutation or an idempotency replay store.
       parameters:
       - {$ref: '#/components/parameters/csrf'}
       requestBody:
@@ -700,7 +700,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: false
       responses:
@@ -739,7 +739,7 @@ paths:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:
@@ -778,7 +778,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: false
       responses:
@@ -813,7 +813,7 @@ paths:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:
@@ -854,7 +854,7 @@ paths:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:
@@ -891,7 +891,7 @@ paths:
   /projects:
     get:
       operationId: listProjects
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: List projects
       tags:
       - References
@@ -899,7 +899,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: false
       responses:
@@ -933,13 +933,13 @@ paths:
       - {$ref: '#/components/parameters/query_partner_id'}
     post:
       operationId: createProject
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Create Project
       tags:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:
@@ -970,7 +970,7 @@ paths:
   /projects/{id}:
     get:
       operationId: getProject
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Read Project
       tags:
       - References
@@ -978,7 +978,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: false
       responses:
@@ -1007,13 +1007,13 @@ paths:
         schema: {$ref: '#/components/schemas/Id'}
     patch:
       operationId: renameProject
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Rename Project
       tags:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:
@@ -1048,13 +1048,13 @@ paths:
   /projects/{id}/activation:
     put:
       operationId: setProjectActive
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Activate/deactivate Project
       tags:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:
@@ -1091,7 +1091,7 @@ paths:
   /operation-types:
     get:
       operationId: listOperationTypes
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: List operation-types
       tags:
       - References
@@ -1099,7 +1099,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: false
       responses:
@@ -1132,13 +1132,13 @@ paths:
       - {$ref: '#/components/parameters/query_page'}
     post:
       operationId: createOperationType
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Create OperationType
       tags:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:
@@ -1169,7 +1169,7 @@ paths:
   /operation-types/{id}:
     get:
       operationId: getOperationType
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Read OperationType
       tags:
       - References
@@ -1177,7 +1177,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: false
       responses:
@@ -1206,13 +1206,13 @@ paths:
         schema: {$ref: '#/components/schemas/Id'}
     patch:
       operationId: renameOperationType
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Rename OperationType
       tags:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:
@@ -1247,13 +1247,13 @@ paths:
   /operation-types/{id}/activation:
     put:
       operationId: setOperationTypeActive
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Activate/deactivate OperationType
       tags:
       - References
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_references.lib.php
       x-rollout-stage: 1
       x-submission-token: true
       responses:

@@ -290,3 +290,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   history: a neutral reset response can leave the previous outbox message intact.
   Use a fresh tenant to verify reset delivery, rather than treating that stale
   outbox as the response to the latest request.
+
+- For REST forms that navigate immediately after saving, assert the mutation
+  response status, then wait for the detail URL and read its ID. Reading the old
+  browser response body after navigation can fail with `Network.getResponseBody`
+  even when the save succeeded; the Partner test already demonstrates the stable pattern.

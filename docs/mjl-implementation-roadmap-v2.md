@@ -14,12 +14,11 @@ unresolved weaknesses and unapproved recommendations.
 
 ## Current implementation state
 
-- The W0 architecture-migration prerequisite is complete. W1 is complete for
-  the Partner and Project empty-action list GETs: both stable roots hand off to
-  one reference HTTP handler, which preserves direct authorization and
-  entity-scoped reads, prepares list data, and renders through the dedicated
-  reference template. Operation Types and all detail/create/edit/lifecycle/
-  recovery/POST paths remain on the prior route. W2 is complete for the full
+- The W0 prerequisite and W1 reference migration are complete. DEC-080/082 now
+  supersede the former reference form/presentation paths: all three reference
+  roots render a shared REST shell, scoped reads remain reference-owned, and
+  the existing reference command owns writes. Legacy reference POST/render
+  handlers are removed. W2 is complete for the full
   `activities.php` GET/POST surface and its Activity-specific monitoring list,
   read, and render branch: the root has one HTTP-handler handoff, reads and
   audit chronology have explicit owners, prepared views render through Activity
@@ -121,7 +120,7 @@ history, audit-report, and technical-administration destinations; it fabricates
 no account or health metrics. VUI-10 Partner/Project management is implemented
 with shared responsive reference tables, current status and parent facts,
 role-aware row actions, progressive create/edit and lifecycle dialogs, shared
-dirty-state protection, and ordinary-form fallback. Project ownership stays
+dirty-state protection, and JavaScript-required REST clients (DEC-080/082). Project ownership stays
 immutable after creation and the existing lifecycle, permission, token, and
 entity boundaries remain under their current backend owners. VUI-11 Users and
 invitations is implemented with shared responsive access tables, progressive
@@ -184,7 +183,7 @@ approval/reversal. DEC-078 sets the API as the backend foundation for web/PWA
 clients, covering all available MJL actions with login plus OTP. The existing
 interface migrates progressively with each feature. MJL administration is
 included; native Dolibarr technical administration is excluded.
-There are no external integrations for now. Authentication and Partenaires REST adapters are implemented (DEC-080); native API remains disabled. Phase 4 remains separately deferred.
+There are no external integrations for now. Authentication, Partenaires, Projets and Types d’Opération REST adapters are implemented (DEC-080/082); native API remains disabled. Phase 4 remains separately deferred.
 
 Approved session policy (user confirmation on 2026-10-21, DEC-081): expire after 24
 hours of inactivity or 24 hours total, whichever comes first, and require login
@@ -198,14 +197,14 @@ The 2026-10-21 source inventory and target wire contract are defined in
 [`mjl-rest-api.openapi.yaml`](mjl-rest-api.openapi.yaml): 75 operations covering
 current MJL actions and necessary session/submission-token adapters. The contract
 preserves command ownership, scoped reads, fingerprints/versions, one-use
-submissions, correction-only access and audited binary exports. The first runtime slice implements authentication, recovery, Partenaires and shared API/HTML session expiry. OpenAPI schema
+submissions, correction-only access and audited binary exports. The implemented slices cover authentication, recovery, all three reference screens and shared API/HTML session expiry. OpenAPI schema
 validation and operation/source/security-header consistency checks passed;
-independent spec/security/read-projection reviews were reconciled. Runtime checks for the first slice cover authentication, recovery, expiry, Partner transactions, role/entity denial and mobile use.
+independent spec/security/read-projection reviews were reconciled. Runtime checks for the first slice cover authentication, recovery, expiry, Partner transactions, role/entity denial and mobile use. Six focused migration/regression checks now cover all reference screens, immutable Project ownership, inactive-parent refusal, stale/replayed writes, audit rollback, mobile and JavaScript-disabled states. A focused browser layout check also verifies wrapped mobile reference labels remain inside their cells.
 
 Proposed API delivery stages (separate from product Phase 4):
 
-1. Authentication/session/recovery and reference data; start with Partenaires as
-   the first fully migrated screen. Verify native cookie/routing integration.
+1. Authentication/session/recovery and all reference data: implemented. OTP stays
+   disabled until mail is configured and delivery verified.
 2. Activities, assignments, planning, review and chronology.
 3. Operations, expenses, accounting corrections and exception workflows.
 4. Dashboards, alerts, audit, previews and exports.

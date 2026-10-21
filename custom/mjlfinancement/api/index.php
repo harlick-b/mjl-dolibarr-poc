@@ -12,10 +12,10 @@ try {
  // NOLOGIN skips this native guard; preserve configured exact-address restrictions.
  if (!empty($dolibarr_main_restrict_ip) && !in_array($_SERVER['REMOTE_ADDR'] ?? '', array_map('trim', explode(',', $dolibarr_main_restrict_ip)), true)) mjl_api_fail(403, 'forbidden');
  require_once dirname(__DIR__).'/lib/api/mjl_api_auth.lib.php';
- require_once dirname(__DIR__).'/lib/api/mjl_api_partners.lib.php';
+ require_once dirname(__DIR__).'/lib/api/mjl_api_references.lib.php';
  if($request['method']!=='GET')mjl_api_csrf();
  if(strpos($request['path'],'/auth/')===0)$response=mjl_api_auth($request);
- else $response=mjl_api_partners($request,mjl_api_actor(true));
+ else $response=mjl_api_references($request,mjl_api_actor(true));
  mjl_api_reply($response[0],$response[1]??null);
 } catch(MjlApiError $error){mjl_api_error($error->status,$error->apiCode);}
 catch(Throwable $error){error_log('MJL REST request failed ('.get_class($error).').');mjl_api_error(503,'unavailable');}

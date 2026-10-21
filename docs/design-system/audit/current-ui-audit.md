@@ -6,6 +6,11 @@ browser verification for this documentation update.
 
 ## Current findings
 
+- All three reference screens now use the shared REST client. Focused browser
+  checks cover their forms, lifecycle actions, mobile layout and JavaScript-required
+  states. Mobile reference cells expand for wrapped labels instead of inheriting
+  a fixed native row height. Human accessibility acceptance remains outstanding.
+
 - The expense approval screen is implemented using existing workspace/cards,
   labeled ordinary forms and bounded pagination. Focused workflow/export browser
   checks passed; visual and manual accessibility acceptance remain outstanding.
@@ -18,7 +23,7 @@ browser verification for this documentation update.
   data. Admin sees only supported access, audit, and technical destinations.
 - Partner and Project management uses shared responsive tables and progressive
   form/lifecycle dialogs while retaining current role reads, Validator-only
-  mutation, immutable Project ownership. Partenaires uses REST and requires JavaScript; Projets retains ordinary forms until its REST migration.
+  mutation, immutable Project ownership. All three reference screens use REST and require JavaScript, with shared responsive tables, form/lifecycle dialogs and unsaved-form protection.
 - Admin access uses shared responsive user and invitation tables with
   progressive invitation and account-action dialogs. It presents the current
   invitation delivery states and preserves Admin-only mutation, existing roles,

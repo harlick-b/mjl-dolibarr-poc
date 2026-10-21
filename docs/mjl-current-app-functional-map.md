@@ -10,14 +10,14 @@ persistent MJL business or access records. Module version 0.21.0 is activated
 through the non-seeding bootstrap path, and its exact RST-012 OTP schema is
 installed empty. The retained Admin has a configured email and password; OTP
 remains disabled pending a working mail transport and delivery verification
-(local check: 2026-10-20). MJL depends on native Third Parties and Projects.
+(local check: 2026-10-21). MJL depends on native Third Parties and Projects.
 MJL code lives in `custom/mjlfinancement`. Tests create minimal records in
 isolated disposable tenants and remove those tenants after each run.
 
 | Surface | Current behavior |
 | --- | --- |
 | Accueil | Active financial-first dashboard with role-projected totals, alerts, and permitted-action queues. Its GET handler consumes the W2 monitoring-read owner and renders a prepared monitoring view. |
-| Partenaires, Projets, Types d’Opération | Partenaires now reads and writes through the custom REST API; JavaScript required. Projets/Types retain their HTML adapters. Same-entity business-role reads; Validator-only activation/deactivation and mutation. One deep reference command owns create, label-update, and lifecycle writes. |
+| Partenaires, Projets, Types d’Opération | All three screens read and write through the custom REST API and require JavaScript. Shared responsive lists/dialogs replace the former HTML mutation/render handlers. Same-entity business-role reads; Validator-only activation/deactivation and mutation. One deep reference command owns create, label-update, and lifecycle writes. |
 | Activities | Entity-scoped planning/review aggregate plus active derived execution status, financial completeness/totals, and guarded Activity cancellation request. |
 | Opérations | Active 50-row execution list: current Assigned Agents enter status/observations and request exceptions; Supervisor/Validator read; Admin denied. Direct spending edits are replaced by the approval workflow below. |
 | Dépenses | Separate draft/submitted expenses per Opération, independent Validator approval, immutable approved entries and linked full reversal/replacement. Approved totals feed existing projections. Former Agents removed by Activity cancellation have correction-only access. The schema is installed locally; six focused workflow/export checks passed. |

@@ -42,6 +42,7 @@ class MjlReferenceCommand
 		} elseif ($kind === 'project') {
 			$parent = $this->fetchReference('partner', (int) $partnerId, true);
 			if (empty($parent) || !$this->isActive('partner', $parent)) {
+				$this->outcomeCode='INACTIVE_PARENT';
 				$this->rollback('RST-003 create invalid parent');
 				return array(-1, 'Le Partenaire sélectionné doit être actif.');
 			}
@@ -185,6 +186,7 @@ class MjlReferenceCommand
 			}
 		} elseif ($kind === 'project') {
 			if (empty($parent) || ($active && !$this->isActive('partner', $parent))) {
+				$this->outcomeCode='INACTIVE_PARENT';
 				$this->rollback('RST-003 lifecycle inactive parent');
 				return 'Le Partenaire du Projet doit être actif.';
 			}

@@ -22,8 +22,8 @@ async function alterClock(context,startedAgo,activeAgo){
  execFileSync('docker',['compose','exec','-T','--user','www-data','dolibarr','php','-r',source],{input:JSON.stringify({...cookie,started:startedAgo,active:activeAgo}),stdio:['pipe','pipe','pipe']});
 }
 test.beforeAll(()=>{
- fixture=createUserReferenceFixtureSet({namespace,entity:1,users:[{key:'validator',role:'VALIDATEUR_DEFINITIF'},{key:'agent',role:'AGENT_SAISIE'}],references:{partners:[{key:'parent',label:'API Parent'}],projects:[{key:'child',label:'API Projet',partnerKey:'parent'}],operationTypes:[]}});
- foreign=createUserReferenceFixtureSet({namespace:namespace+'x',entity:2,users:[{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'foreign',label:'API autre entité'}],projects:[],operationTypes:[]}});
+ fixture=createUserReferenceFixtureSet({namespace,entity:1,users:[{key:'validator',role:'VALIDATEUR_DEFINITIF'},{key:'agent',role:'AGENT_SAISIE'},{key:'supervisor',role:'AGENT_VERIFICATEUR'}],references:{partners:[{key:'parent',label:'API Parent'}],projects:[{key:'child',label:'API Projet',partnerKey:'parent'}],operationTypes:[]}});
+ foreign=createUserReferenceFixtureSet({namespace:namespace+'x',entity:2,users:[{key:'validator',role:'VALIDATEUR_DEFINITIF'}],references:{partners:[{key:'foreign',label:'API autre entité'}],projects:[{key:'foreignproject',label:'Projet autre entité',partnerKey:'foreign'}],operationTypes:[{key:'foreigntype',label:'Type autre entité'}]}});
  sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_OTP_ENABLED',1,'1','chaine',0,'Disposable API verification'),('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Disposable API verification') ON DUPLICATE KEY UPDATE value='1'");
 });
 test.afterAll(()=>{sql("DELETE FROM llx_const WHERE name IN ('MJL_AUTH_OTP_ENABLED','MJL_AUTH_E2E_EXPOSE_TOKENS') AND entity=1; DROP TRIGGER IF EXISTS api_audit_failure;");});
@@ -123,7 +123,7 @@ test('Admin cannot read business references; mobile Partner screen and REST logo
  try {
   expect((await send(page.request,'/auth/login',{email:'api.admin@example.test',password:nativeAdminPassword})).status()).toBe(202);
   expect((await send(page.request,'/auth/otp/verify',{code:await otp()})).status()).toBe(200);
-  expect((await page.request.get(root+'/partners')).status()).toBe(403);
+  for (const path of ['/partners','/projects','/operation-types']) expect((await page.request.get(root+path)).status()).toBe(403);
   await send(page.request,'/auth/session',undefined,'DELETE');
   await login(page.request);
   const noJs=await browser.newContext({javaScriptEnabled:false,storageState:await context.storageState()});
@@ -141,4 +141,134 @@ test('logout preserves the session and input when an unsaved-change warning is c
  await expect(page.getByRole('heading',{name:'Modifications non enregistrées'})).toBeVisible();await page.getByRole('button',{name:'Continuer la saisie',exact:true}).click();
  expect((await session(page.request)).state).toBe('authenticated');await expect(page.getByLabel('Libellé')).toHaveValue('Saisie non enregistrée');
  await page.locator('[data-mjl-api-logout]').evaluate(button=>button.click());await page.getByRole('button',{name:'Quitter sans enregistrer',exact:true}).click();await expect(page.getByRole('heading',{name:'Connexion',exact:true})).toBeVisible();expect((await page.request.get(root+'/partners')).status()).toBe(401);
+});
+
+test('Project REST screen preserves immutable parent, lifecycle, filters and stale protection', async ({page}) => {
+ await login(page.request);
+ const parentToken=await token(page.request,'createPartner');
+ const parentResponse=await send(page.request,'/partners',{label:'Parent du projet REST'},'POST',parentToken);
+ const parentId=(await parentResponse.json()).data.id;
+ await page.goto('/custom/mjlfinancement/projects.php?action=create');
+ await page.getByLabel('Libellé').fill('Projet REST');
+ await page.getByRole('combobox',{name:'Partenaire',exact:true}).selectOption(parentId);
+ const created=page.waitForResponse(r=>r.url().endsWith('/projects')&&r.request().method()==='POST');
+ await page.getByRole('button',{name:'Enregistrer',exact:true}).click();
+ const createResponse=await created;expect(createResponse.status()).toBe(201);
+ await expect(page).toHaveURL(/projects.php\?id=\d+$/);
+ const id=new URL(page.url()).searchParams.get('id');
+ await expect(page.locator('.mjl-reference-detail')).toContainText('Parent du projet REST');
+ const original=(await (await page.request.get(root+'/projects/'+id)).json()).data;
+ expect(original.partner_id).toBe(parentId);expect(original.active).toBe(true);expect(original.ref).toBeTruthy();
+ await page.getByRole('link',{name:'Modifier',exact:true}).click();
+ await expect(page.locator('select[name=partner_id]')).toHaveCount(0);
+ await page.getByLabel('Libellé').fill('Projet REST renommé');
+ await page.getByRole('button',{name:'Enregistrer',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Projet REST renommé',exact:true})).toBeVisible();
+ const row=(await (await page.request.get(root+'/projects/'+id)).json()).data;
+ expect(row.partner_id).toBe(parentId);expect(row.ref).toBe(original.ref);
+ const stale=await token(page.request,'renameProject',id);
+ expect((await send(page.request,'/projects/'+id,{label:'Ancienne saisie',fingerprint:original.fingerprint},'PATCH',stale)).status()).toBe(409);
+ const immutable=await token(page.request,'renameProject',id);
+ expect((await send(page.request,'/projects/'+id,{label:'Déplacement interdit',partner_id:String(fixture.partners.parent),fingerprint:row.fingerprint},'PATCH',immutable)).status()).toBe(400);
+ const filtered=(await (await page.request.get(root+'/projects?partner_id='+parentId)).json()).data;
+ expect(filtered.map(p=>p.id)).toEqual([id]);
+ await page.getByRole('button',{name:'Désactiver',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmer la désactivation',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Activer',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Activer',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmer l’activation',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Désactiver',exact:true})).toBeVisible();
+ const parent=(await (await page.request.get(root+'/partners/'+parentId)).json()).data;
+ const deactivateParent=await token(page.request,'setPartnerActive',parentId);
+ expect((await send(page.request,'/partners/'+parentId+'/activation',{active:false,fingerprint:parent.fingerprint},'PUT',deactivateParent)).status()).toBe(200);
+ const closed=(await (await page.request.get(root+'/projects/'+id)).json()).data;expect(closed.active).toBe(false);
+ const reopen=await token(page.request,'setProjectActive',id);
+ expect((await send(page.request,'/projects/'+id+'/activation',{active:true,fingerprint:closed.fingerprint},'PUT',reopen)).status()).toBe(422);
+ const invalidParent=await token(page.request,'createProject');
+ expect((await send(page.request,'/projects',{label:'Projet refusé',partner_id:parentId},'POST',invalidParent)).status()).toBe(422);
+ expect((await page.request.post('/custom/mjlfinancement/projects.php',{form:{action:'create',label:'Bypass'}})).status()).toBeGreaterThanOrEqual(400);
+});
+
+test('Operation Type REST screen creates, renames and changes lifecycle with responsive and no-JS states', async ({page,context,browser},testInfo) => {
+ await login(page.request);
+ await page.goto('/custom/mjlfinancement/operationtypes.php?action=create');
+ await page.getByLabel('Libellé').fill('Type REST');
+ const created=page.waitForResponse(r=>r.url().endsWith('/operation-types')&&r.request().method()==='POST');
+ await page.getByRole('button',{name:'Enregistrer',exact:true}).click();
+ const response=await created;expect(response.status()).toBe(201);
+ await expect(page).toHaveURL(/operationtypes.php\?id=\d+$/);
+ await page.getByRole('link',{name:'Modifier',exact:true}).click();
+ await page.getByLabel('Libellé').fill('Type REST renommé');
+ await page.getByRole('button',{name:'Enregistrer',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Type REST renommé',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Désactiver',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmer la désactivation',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Activer',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Activer',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmer l’activation',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Désactiver',exact:true})).toBeVisible();
+ await page.setViewportSize({width:390,height:844});
+ for (const [route,title] of [['projects','Projets'],['operationtypes','Types d’Opération']]) {
+  await page.goto('/custom/mjlfinancement/'+route+'.php');
+  await expect(page.getByRole('table',{name:title,exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath(route+'-mobile.png'),fullPage:true});
+ }
+ const noJs=await browser.newContext({javaScriptEnabled:false,storageState:await context.storageState()});
+ try {
+  const fallback=await noJs.newPage();
+  for (const route of ['projects','operationtypes']) {
+   await fallback.goto(process.env.MJL_BASE_URL+'/custom/mjlfinancement/'+route+'.php');
+   await expect(fallback.locator('body')).toContainText('JavaScript est nécessaire pour utiliser cet écran.');
+   await expect(fallback.getByRole('table')).toHaveCount(0);
+  }
+ } finally {await noJs.close();}
+ expect((await page.request.post('/custom/mjlfinancement/operationtypes.php',{form:{action:'create',label:'Bypass'}})).status()).toBeGreaterThanOrEqual(400);
+});
+test('Reference REST additions enforce role/entity scope, token binding, stale writes and audit rollback', async ({request}) => {
+ await login(request);
+ const resources=[];
+ for (const [path,operation,body] of [
+  ['/projects','Project',{label:'Projet sécurité REST',partner_id:String(fixture.partners.parent)}],
+  ['/operation-types','OperationType',{label:'Type sécurité REST'}]
+ ]) {
+  const crossToken=await token(request,'createPartner');
+  expect((await send(request,path,body,'POST',crossToken)).status()).toBe(403);
+  const t=await token(request,'create'+operation);
+  const response=await send(request,path,body,'POST',t);expect(response.status()).toBe(201);
+  const id=(await response.json()).data.id;
+  expect((await send(request,path,body,'POST',t)).status()).toBe(403);
+  const original=(await (await request.get(root+path+'/'+id)).json()).data;
+  const rename=await token(request,'rename'+operation,id);
+  expect((await send(request,path+'/'+id,{label:body.label+' modifié',fingerprint:original.fingerprint},'PATCH',rename)).status()).toBe(200);
+  const stale=await token(request,'rename'+operation,id);
+  expect((await send(request,path+'/'+id,{label:body.label,fingerprint:original.fingerprint},'PATCH',stale)).status()).toBe(409);
+  sql("CREATE TRIGGER api_audit_failure BEFORE INSERT ON llx_mjlfinancement_audit_event FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Injected audit failure'");
+  try {
+   const current=(await (await request.get(root+path+'/'+id)).json()).data;
+   const broken=await token(request,'rename'+operation,id);
+   expect((await send(request,path+'/'+id,{label:'Must roll back',fingerprint:current.fingerprint},'PATCH',broken)).status()).toBe(503);
+   expect((await (await request.get(root+path+'/'+id)).json()).data.label).toBe(body.label+' modifié');
+  } finally {sql('DROP TRIGGER api_audit_failure');}
+  const current=(await (await request.get(root+path+'/'+id)).json()).data;
+  const deactivate=await token(request,'set'+operation+'Active',id);
+  expect((await send(request,path+'/'+id+'/activation',{active:false,fingerprint:current.fingerprint},'PUT',deactivate)).status()).toBe(200);
+  resources.push({path,operation,id});
+ }
+ expect((await request.get(root+'/projects/'+foreign.projects.foreignproject)).status()).toBe(404);
+ expect((await request.get(root+'/operation-types/'+foreign.operationTypes.foreigntype)).status()).toBe(404);
+ const foreignParent=await token(request,'createProject');
+ expect((await send(request,'/projects',{label:'Cross entity',partner_id:String(foreign.partners.foreign)},'POST',foreignParent)).status()).toBe(422);
+ await send(request,'/auth/session',undefined,'DELETE');
+ for (const role of ['agent','supervisor']) {
+  await login(request,role);
+  for (const {path,operation,id} of resources) {
+   expect((await request.get(root+path+'/'+id)).status()).toBe(404);
+   const rows=(await (await request.get(root+path)).json()).data;
+   expect(rows.every(row=>row.active&&row.id!==id)).toBe(true);
+   expect((await send(request,'/submission-tokens',{operation_id:'create'+operation,path_parameters:{}})).status()).toBe(403);
+   expect((await send(request,path,{label:'Forbidden'},'POST','not-a-token')).status()).toBe(403);
+  }
+  await send(request,'/auth/session',undefined,'DELETE');
+ }
 });

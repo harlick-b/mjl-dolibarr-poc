@@ -75,21 +75,21 @@ form actions map to these operations; transport changes do not add business righ
 | `changeUserRole` | `PATCH /admin/users/{user_id}/role` | Change effective business role | T | `admin/access.php` |
 | `deactivateUser` | `POST /admin/users/{user_id}/deactivation` | Deactivate user access | T | `admin/access.php` |
 | `revokeInvitation` | `POST /admin/invitations/{invitation_id}/revocation` | Revoke invitation | T | `admin/access.php` |
-| `listPartners` | `GET /partners` | List partners | B | `lib/mjl_reference_route.lib.php` |
-| `getPartner` | `GET /partners/{id}` | Read Partner | B | `lib/mjl_reference_route.lib.php` |
-| `createPartner` | `POST /partners` | Create Partner | V | `lib/mjl_reference_route.lib.php` |
-| `renamePartner` | `PATCH /partners/{id}` | Rename Partner | V | `lib/mjl_reference_route.lib.php` |
-| `setPartnerActive` | `PUT /partners/{id}/activation` | Activate/deactivate Partner | V | `lib/mjl_reference_route.lib.php` |
-| `listProjects` | `GET /projects` | List projects | B | `lib/mjl_reference_route.lib.php` |
-| `getProject` | `GET /projects/{id}` | Read Project | B | `lib/mjl_reference_route.lib.php` |
-| `createProject` | `POST /projects` | Create Project | V | `lib/mjl_reference_route.lib.php` |
-| `renameProject` | `PATCH /projects/{id}` | Rename Project | V | `lib/mjl_reference_route.lib.php` |
-| `setProjectActive` | `PUT /projects/{id}/activation` | Activate/deactivate Project | V | `lib/mjl_reference_route.lib.php` |
-| `listOperationTypes` | `GET /operation-types` | List operation-types | B | `lib/mjl_reference_route.lib.php` |
-| `getOperationType` | `GET /operation-types/{id}` | Read OperationType | B | `lib/mjl_reference_route.lib.php` |
-| `createOperationType` | `POST /operation-types` | Create OperationType | V | `lib/mjl_reference_route.lib.php` |
-| `renameOperationType` | `PATCH /operation-types/{id}` | Rename OperationType | V | `lib/mjl_reference_route.lib.php` |
-| `setOperationTypeActive` | `PUT /operation-types/{id}/activation` | Activate/deactivate OperationType | V | `lib/mjl_reference_route.lib.php` |
+| `listPartners` | `GET /partners` | List partners | B | `lib/api/mjl_api_references.lib.php` |
+| `getPartner` | `GET /partners/{id}` | Read Partner | B | `lib/api/mjl_api_references.lib.php` |
+| `createPartner` | `POST /partners` | Create Partner | V | `lib/api/mjl_api_references.lib.php` |
+| `renamePartner` | `PATCH /partners/{id}` | Rename Partner | V | `lib/api/mjl_api_references.lib.php` |
+| `setPartnerActive` | `PUT /partners/{id}/activation` | Activate/deactivate Partner | V | `lib/api/mjl_api_references.lib.php` |
+| `listProjects` | `GET /projects` | List projects | B | `lib/api/mjl_api_references.lib.php` |
+| `getProject` | `GET /projects/{id}` | Read Project | B | `lib/api/mjl_api_references.lib.php` |
+| `createProject` | `POST /projects` | Create Project | V | `lib/api/mjl_api_references.lib.php` |
+| `renameProject` | `PATCH /projects/{id}` | Rename Project | V | `lib/api/mjl_api_references.lib.php` |
+| `setProjectActive` | `PUT /projects/{id}/activation` | Activate/deactivate Project | V | `lib/api/mjl_api_references.lib.php` |
+| `listOperationTypes` | `GET /operation-types` | List operation-types | B | `lib/api/mjl_api_references.lib.php` |
+| `getOperationType` | `GET /operation-types/{id}` | Read OperationType | B | `lib/api/mjl_api_references.lib.php` |
+| `createOperationType` | `POST /operation-types` | Create OperationType | V | `lib/api/mjl_api_references.lib.php` |
+| `renameOperationType` | `PATCH /operation-types/{id}` | Rename OperationType | V | `lib/api/mjl_api_references.lib.php` |
+| `setOperationTypeActive` | `PUT /operation-types/{id}/activation` | Activate/deactivate OperationType | V | `lib/api/mjl_api_references.lib.php` |
 | `listActivities` | `GET /activities` | List current visible Activities | B | `lib/activity/mjl_activity_http.lib.php` |
 | `getActivity` | `GET /activities/{activity_id}` | Read Activity and current structure | B | `lib/activity/mjl_activity_http.lib.php` |
 | `createActivity` | `POST /activities` | Create draft or create-and-submit atomically | A | `lib/activity/mjl_activity_http.lib.php` |
@@ -429,13 +429,18 @@ browser storage. Protected API routes fail closed while OTP is disabled; the
 native technical administrator login remains available for local configuration.
 
 `GET /auth/session` and submission-token issuance do not extend idle time.
-Successful Partner reads/writes and foreground protected HTML requests do.
+Successful reference reads/writes and foreground protected HTML requests do.
 Invitation/reset inspection requires the full link proof before disclosing an
 email. Authenticated and pending logout use `DELETE /auth/session`.
 
 Mail configuration and verified delivery remain outstanding before enabling OTP.
-Projects, Types d’Opération, MJL administration, Activities, spending and reporting
-REST adapters remain pending. Phase 4 is unchanged. Other command adapters still
+Partenaires, Projets and Types d’Opération now use REST for lists, details, creation,
+renaming and activation. Projects support the `partner_id` list filter; their
+parent and technical reference remain immutable. Invalid/inactive parents return
+422 `inactive_parent`; the command checks the parent under its existing locks.
+Submission tokens cover these nine reference mutations. The superseded reference
+POST/render handlers are removed. MJL administration, Activities, spending and
+reporting REST adapters remain pending. Phase 4 is unchanged. Other command adapters still
 need their own typed mappings and focused authorization/data-integrity checks.
 The gap analysis owns unresolved work; tests establish behavior, not acceptance.
 
