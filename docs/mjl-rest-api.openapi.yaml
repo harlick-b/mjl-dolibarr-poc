@@ -1,0 +1,5356 @@
+openapi: 3.1.1
+info:
+  title: MJL REST API
+  version: 0.1.0-draft
+  description: Full target contract with authentication and Partenaires implemented (DEC-080).
+    Other operations remain pending. See mjl-rest-api-contract.md for migration state and behavior.
+    SessionCookie denotes the native DOLSESSID_ cookie with a deployment-specific suffix;
+    browser clients use the server-issued HttpOnly cookie without hard-coding its name.
+servers:
+- url: /custom/mjlfinancement/api/index.php/v1
+  description: Custom-module front controller; PATH_INFO verified in Docker. No native Dolibarr API dependency.
+security:
+- SessionCookie: []
+paths:
+  /auth/session:
+    get:
+      operationId: getSession
+      x-implementation-status: implemented
+      summary: Session, OTP state and CSRF bootstrap
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Session, OTP state and CSRF bootstrap
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Session'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: 200 anonymous for no session; 401 session_expired for expired previously authenticated
+        session. This inspection never renews idle timeout.
+      security: []
+    delete:
+      operationId: logout
+      x-implementation-status: implemented
+      summary: Cancel pending login or log out
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '204':
+          description: Cancel pending login or log out
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: CSRF required even for logout. Clear server authentication/pending state and expire
+        cookie; no response body.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+  /auth/login:
+    post:
+      operationId: login
+      x-implementation-status: implemented
+      summary: Verify email/password and begin OTP
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '202':
+          description: Verify email/password and begin OTP
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Session'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Native password verifier and failed-login recorder; no protected session until OTP.
+        503 authentication_unavailable if OTP is disabled or mail is unavailable.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Login'}
+  /auth/otp/verify:
+    post:
+      operationId: verifyOtp
+      x-implementation-status: implemented
+      summary: Verify pending OTP
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Verify pending OTP
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Session'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Browser-bound pending session required. Successful verification rotates session and
+        begins 86400s idle/86400s absolute clocks.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OtpCode'}
+  /auth/otp/resend:
+    post:
+      operationId: resendOtp
+      x-implementation-status: implemented
+      summary: Resend pending OTP
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Resend pending OTP
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Session'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Browser-bound pending session; preserve 60s cooldown, maximum3 resends,10min expiry
+        and live counters.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+  /auth/invitations/inspect:
+    post:
+      operationId: inspectInvitation
+      x-implementation-status: implemented
+      summary: Inspect invitations link
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Inspect invitations link
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/LinkInspection'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Inspect does not consume. Acceptance/reset does not authenticate; fresh login+OTP follows.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LinkProof'}
+  /auth/invitations/accept:
+    post:
+      operationId: acceptInvitation
+      x-implementation-status: implemented
+      summary: Accept invitations link
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Accept invitations link
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Acknowledgement'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Inspect does not consume. Acceptance/reset does not authenticate; fresh login+OTP follows.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordLink'}
+  /auth/password-resets/inspect:
+    post:
+      operationId: inspectPasswordReset
+      x-implementation-status: implemented
+      summary: Inspect password-resets link
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Inspect password-resets link
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/LinkInspection'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Inspect does not consume. Acceptance/reset does not authenticate; fresh login+OTP follows.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LinkProof'}
+  /auth/password-resets/consume:
+    post:
+      operationId: consumePasswordReset
+      x-implementation-status: implemented
+      summary: Consume password-resets link
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Consume password-resets link
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Acknowledgement'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Inspect does not consume. Acceptance/reset does not authenticate; fresh login+OTP follows.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordLink'}
+  /auth/password-resets:
+    post:
+      operationId: requestPasswordReset
+      x-implementation-status: implemented
+      summary: Request password reset
+      tags:
+      - Authentication
+      x-roles: []
+      x-source: custom/mjlfinancement/class/mjlauthcommand.class.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '202':
+          description: Request password reset
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Acknowledgement'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Same acknowledgement for unknown account, throttle or delivery outcome. Never disclose
+        whether an account exists.
+      security: []
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+              required:
+              - email
+  /submission-tokens:
+    post:
+      operationId: issueSubmissionToken
+      x-implementation-status: implemented-partners-only
+      summary: Prepare one existing one-use submission context
+      tags:
+      - Transport
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/lib/mjl_form_submission.lib.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Prepare one existing one-use submission context
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/SubmissionToken'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Just in time; current helper20 pending/7200s TTL, additionally bounded by authenticated
+        session. Not a business mutation or an idempotency replay store.
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SubmissionTokenRequest'}
+  /admin/users:
+    get:
+      operationId: listUsers
+      x-implementation-status: pending
+      summary: List scoped MJL users
+      tags:
+      - Access
+      x-roles:
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/admin/access.php
+      x-rollout-stage: 5
+      x-submission-token: false
+      responses:
+        '200':
+          description: List scoped MJL users
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/UserSummary'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/query_page'}
+  /admin/invitations:
+    get:
+      operationId: listInvitations
+      x-implementation-status: pending
+      summary: List scoped invitations
+      tags:
+      - Access
+      x-roles:
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/admin/access.php
+      x-rollout-stage: 5
+      x-submission-token: false
+      responses:
+        '200':
+          description: List scoped invitations
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Invitation'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/query_page'}
+    post:
+      operationId: inviteUser
+      x-implementation-status: pending
+      summary: Invite or reinvite inactive user
+      tags:
+      - Access
+      x-roles:
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/admin/access.php
+      x-rollout-stage: 5
+      x-submission-token: false
+      responses:
+        '201':
+          description: Invite or reinvite inactive user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InvitationResult'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Reuse issueInvitation; no direct activation.503 invitation_delivery_failed may follow
+        committed inactive account/token preparation; operator can reissue. Never return raw invitation
+        link.
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Invite'}
+  /admin/users/{user_id}/role:
+    patch:
+      operationId: changeUserRole
+      x-implementation-status: pending
+      summary: Change effective business role
+      tags:
+      - Access
+      x-roles:
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/admin/access.php
+      x-rollout-stage: 5
+      x-submission-token: false
+      responses:
+        '200':
+          description: Change effective business role
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Recheck active assignments and native-admin incompatibility under existing access-command
+        locks.
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                role_code: {$ref: '#/components/schemas/BusinessRole'}
+              required:
+              - role_code
+  /admin/users/{user_id}/deactivation:
+    post:
+      operationId: deactivateUser
+      x-implementation-status: pending
+      summary: Deactivate user access
+      tags:
+      - Access
+      x-roles:
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/admin/access.php
+      x-rollout-stage: 5
+      x-submission-token: false
+      responses:
+        '200':
+          description: Deactivate user access
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: No self-deactivation or deactivation with active assignments. No independent reactivation
+        endpoint.
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+  /admin/invitations/{invitation_id}/revocation:
+    post:
+      operationId: revokeInvitation
+      x-implementation-status: pending
+      summary: Revoke invitation
+      tags:
+      - Access
+      x-roles:
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/admin/access.php
+      x-rollout-stage: 5
+      x-submission-token: false
+      responses:
+        '200':
+          description: Revoke invitation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Retain existing terminal no-op semantics; acceptance-in-progress cannot be revoked.
+      parameters:
+      - name: invitation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+  /partners:
+    get:
+      operationId: listPartners
+      x-implementation-status: implemented
+      summary: List partners
+      tags:
+      - References
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: List partners
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Reference'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Agent/Supervisor active-only; Validator includes inactive. Stable label,id ascending.
+        Optional project parent filter also serves create form.
+      parameters:
+      - {$ref: '#/components/parameters/query_page'}
+    post:
+      operationId: createPartner
+      x-implementation-status: implemented
+      summary: Create Partner
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '201':
+          description: Create Partner
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReferenceCreate'}
+  /partners/{id}:
+    get:
+      operationId: getPartner
+      x-implementation-status: implemented
+      summary: Read Partner
+      tags:
+      - References
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Read Partner
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Reference'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+    patch:
+      operationId: renamePartner
+      x-implementation-status: implemented
+      summary: Rename Partner
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '200':
+          description: Rename Partner
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReferenceRename'}
+  /partners/{id}/activation:
+    put:
+      operationId: setPartnerActive
+      x-implementation-status: implemented
+      summary: Activate/deactivate Partner
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '200':
+          description: Activate/deactivate Partner
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Partner deactivation also closes active Projects atomically; Partner reactivation does
+        not reopen them. Project parent immutable.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReferenceState'}
+  /projects:
+    get:
+      operationId: listProjects
+      x-implementation-status: pending
+      summary: List projects
+      tags:
+      - References
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: List projects
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Reference'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Agent/Supervisor active-only; Validator includes inactive. Stable label,id ascending.
+        Optional project parent filter also serves create form.
+      parameters:
+      - {$ref: '#/components/parameters/query_page'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+    post:
+      operationId: createProject
+      x-implementation-status: pending
+      summary: Create Project
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '201':
+          description: Create Project
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProjectCreate'}
+  /projects/{id}:
+    get:
+      operationId: getProject
+      x-implementation-status: pending
+      summary: Read Project
+      tags:
+      - References
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Read Project
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Reference'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+    patch:
+      operationId: renameProject
+      x-implementation-status: pending
+      summary: Rename Project
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '200':
+          description: Rename Project
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReferenceRename'}
+  /projects/{id}/activation:
+    put:
+      operationId: setProjectActive
+      x-implementation-status: pending
+      summary: Activate/deactivate Project
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '200':
+          description: Activate/deactivate Project
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Partner deactivation also closes active Projects atomically; Partner reactivation does
+        not reopen them. Project parent immutable.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReferenceState'}
+  /operation-types:
+    get:
+      operationId: listOperationTypes
+      x-implementation-status: pending
+      summary: List operation-types
+      tags:
+      - References
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: List operation-types
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Reference'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Agent/Supervisor active-only; Validator includes inactive. Stable label,id ascending.
+        Optional project parent filter also serves create form.
+      parameters:
+      - {$ref: '#/components/parameters/query_page'}
+    post:
+      operationId: createOperationType
+      x-implementation-status: pending
+      summary: Create OperationType
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '201':
+          description: Create OperationType
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReferenceCreate'}
+  /operation-types/{id}:
+    get:
+      operationId: getOperationType
+      x-implementation-status: pending
+      summary: Read OperationType
+      tags:
+      - References
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: false
+      responses:
+        '200':
+          description: Read OperationType
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Reference'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+    patch:
+      operationId: renameOperationType
+      x-implementation-status: pending
+      summary: Rename OperationType
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '200':
+          description: Rename OperationType
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReferenceRename'}
+  /operation-types/{id}/activation:
+    put:
+      operationId: setOperationTypeActive
+      x-implementation-status: pending
+      summary: Activate/deactivate OperationType
+      tags:
+      - References
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_reference_route.lib.php
+      x-rollout-stage: 1
+      x-submission-token: true
+      responses:
+        '200':
+          description: Activate/deactivate OperationType
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Partner deactivation also closes active Projects atomically; Partner reactivation does
+        not reopen them. Project parent immutable.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReferenceState'}
+  /activities:
+    get:
+      operationId: listActivities
+      x-implementation-status: pending
+      summary: List current visible Activities
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: false
+      responses:
+        '200':
+          description: List current visible Activities
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Activity'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                  totals: {$ref: '#/components/schemas/FinancialSummary'}
+                required:
+                - data
+                - pagination
+                - totals
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+      - {$ref: '#/components/parameters/query_page'}
+    post:
+      operationId: createActivity
+      x-implementation-status: pending
+      summary: Create draft or create-and-submit atomically
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: true
+      responses:
+        '201':
+          description: Create draft or create-and-submit atomically
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ActivityCreate'}
+  /activities/{activity_id}:
+    get:
+      operationId: getActivity
+      x-implementation-status: pending
+      summary: Read Activity and current structure
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: false
+      responses:
+        '200':
+          description: Read Activity and current structure
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Activity'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+  /activities/{activity_id}/structure:
+    put:
+      operationId: replaceActivityStructure
+      x-implementation-status: pending
+      summary: Save complete editable Activity structure
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: true
+      responses:
+        '200':
+          description: Save complete editable Activity structure
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ActivityStructure'}
+  /activities/{activity_id}/submissions:
+    post:
+      operationId: submitActivity
+      x-implementation-status: pending
+      summary: Submit/resubmit Activity
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: true
+      responses:
+        '200':
+          description: Submit/resubmit Activity
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/VersionInput'}
+  /activities/{activity_id}/abandonment:
+    post:
+      operationId: abandonActivity
+      x-implementation-status: pending
+      summary: Abandon draft
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: true
+      responses:
+        '200':
+          description: Abandon draft
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReasonInput'}
+  /activities/{activity_id}/restoration:
+    post:
+      operationId: restoreActivity
+      x-implementation-status: pending
+      summary: Restore draft with primary Agent
+      tags:
+      - Activities
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: true
+      responses:
+        '200':
+          description: Restore draft with primary Agent
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Restore'}
+  /activities/{activity_id}/assignment-changes:
+    post:
+      operationId: changeAssignment
+      x-implementation-status: pending
+      summary: Add/remove/transfer assignment
+      tags:
+      - Activities
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: true
+      responses:
+        '200':
+          description: Add/remove/transfer assignment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AssignmentChange'}
+  /activities/{activity_id}/cancellation-requests:
+    post:
+      operationId: requestActivityCancellation
+      x-implementation-status: pending
+      summary: Request Activity cancellation
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: true
+      responses:
+        '200':
+          description: Request Activity cancellation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReasonInput'}
+  /assignment-agents:
+    get:
+      operationId: listAssignmentAgents
+      x-implementation-status: pending
+      summary: Eligible Agents for assignment/restoration
+      tags:
+      - Activities
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: false
+      responses:
+        '200':
+          description: Eligible Agents for assignment/restoration
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/AssignmentAgent'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/query_page'}
+  /activities/{activity_id}/review:
+    get:
+      operationId: getActivityReview
+      x-implementation-status: pending
+      summary: Read current immutable revision and decisions
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: false
+      responses:
+        '200':
+          description: Read current immutable revision and decisions
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Review'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Current revision only, as existing review screen. No new historical-revision browser.
+        Agent uses current Activity detail and sanitized timeline.
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+  /activities/{activity_id}/revisions/{revision_id}/decisions:
+    post:
+      operationId: reviewActivity
+      x-implementation-status: pending
+      summary: Prevalidate, validate or return exact revision
+      tags:
+      - Activities
+      x-roles:
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-rollout-stage: 2
+      x-submission-token: true
+      responses:
+        '200':
+          description: Prevalidate, validate or return exact revision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - name: revision_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReviewDecision'}
+  /activities/{activity_id}/timeline:
+    get:
+      operationId: getActivityTimeline
+      x-implementation-status: pending
+      summary: Read sanitized Activity chronology
+      tags:
+      - Audit
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/audit/mjl_audit_timeline_read.lib.php
+      x-rollout-stage: 2
+      x-submission-token: false
+      responses:
+        '200':
+          description: Read sanitized Activity chronology
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/TimelineEvent'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/CursorPage'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: 50 events, chronological event_date,id order. Cursor is last event ID, resolved in
+        same visible Activity.
+      parameters:
+      - name: activity_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/query_cursor'}
+  /operations:
+    get:
+      operationId: listOperations
+      x-implementation-status: pending
+      summary: List visible Operations
+      tags:
+      - Operations
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: false
+      responses:
+        '200':
+          description: List visible Operations
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Operation'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+      - {$ref: '#/components/parameters/query_type_id'}
+      - {$ref: '#/components/parameters/query_operation_status'}
+      - {$ref: '#/components/parameters/query_page'}
+  /operations/{operation_id}:
+    get:
+      operationId: getOperation
+      x-implementation-status: pending
+      summary: Read Operation consultation
+      tags:
+      - Operations
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: false
+      responses:
+        '200':
+          description: Read Operation consultation
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Operation'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Same current Activity visibility as existing drawer/detail; no correction-only exception
+        here.
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+  /operations/{operation_id}/execution:
+    put:
+      operationId: updateExecution
+      x-implementation-status: pending
+      summary: Update execution status and observation
+      tags:
+      - Operations
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Update execution status and observation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExecutionInput'}
+  /operations/{operation_id}/cancellation-requests:
+    post:
+      operationId: requestOperationCancellation
+      x-implementation-status: pending
+      summary: Request Operation cancellation
+      tags:
+      - Operations
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Request Operation cancellation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReasonInput'}
+  /operations/{operation_id}/reopening-requests:
+    post:
+      operationId: requestOperationReopening
+      x-implementation-status: pending
+      summary: Request Operation reopening
+      tags:
+      - Operations
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Request Operation reopening
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReasonInput'}
+  /exception-requests:
+    get:
+      operationId: listExceptionRequests
+      x-implementation-status: pending
+      summary: List typed exception requests
+      tags:
+      - Exceptions
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: false
+      responses:
+        '200':
+          description: List typed exception requests
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/ExceptionRequest'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: request_id requires type to prevent cancellation/reopening ID collision. Selection
+        retains captured versions and current eligibility; stale is computed, not a stored status.
+      parameters:
+      - {$ref: '#/components/parameters/query_type'}
+      - {$ref: '#/components/parameters/query_status'}
+      - {$ref: '#/components/parameters/query_request_id'}
+      - {$ref: '#/components/parameters/query_page'}
+  /cancellation-requests/{request_id}/withdrawal:
+    post:
+      operationId: withdrawCancellation
+      x-implementation-status: pending
+      summary: Withdraw Cancellation request
+      tags:
+      - Exceptions
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Withdraw Cancellation request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Original requester AND current Activity assignment required.
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/VersionInput'}
+  /cancellation-requests/{request_id}/decisions:
+    post:
+      operationId: decideCancellation
+      x-implementation-status: pending
+      summary: Approve/reject Cancellation request
+      tags:
+      - Exceptions
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Approve/reject Cancellation request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExceptionDecision'}
+  /reopening-requests/{request_id}/withdrawal:
+    post:
+      operationId: withdrawReopening
+      x-implementation-status: pending
+      summary: Withdraw Reopening request
+      tags:
+      - Exceptions
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Withdraw Reopening request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Original requester AND current Activity assignment required.
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/VersionInput'}
+  /reopening-requests/{request_id}/decisions:
+    post:
+      operationId: decideReopening
+      x-implementation-status: pending
+      summary: Approve/reject Reopening request
+      tags:
+      - Exceptions
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Approve/reject Reopening request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExceptionDecision'}
+  /spending-operations:
+    get:
+      operationId: listSpendingOperations
+      x-implementation-status: pending
+      summary: List Operations accessible for spending
+      tags:
+      - Expenses
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-rollout-stage: 3
+      x-submission-token: false
+      responses:
+        '200':
+          description: List Operations accessible for spending
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/SpendingOperation'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Includes narrow immediately-pre-cancellation Agent scope; does not grant ordinary Operation/Activity
+        access.
+      parameters:
+      - {$ref: '#/components/parameters/query_page'}
+  /operations/{operation_id}/expenses:
+    get:
+      operationId: listExpenses
+      x-implementation-status: pending
+      summary: Read expense ledger and correction context
+      tags:
+      - Expenses
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-rollout-stage: 3
+      x-submission-token: false
+      responses:
+        '200':
+          description: Read expense ledger and correction context
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/ExpenseLedger'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Five entries per page, id descending. Minimal Operation context only for correction-only
+        access.
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/query_page'}
+    post:
+      operationId: createExpense
+      x-implementation-status: pending
+      summary: Create expense, explicit zero or correction draft
+      tags:
+      - Expenses
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '201':
+          description: Create expense, explicit zero or correction draft
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExpenseInput'}
+  /operations/{operation_id}/expenses/{expense_id}:
+    put:
+      operationId: replaceExpenseDraft
+      x-implementation-status: pending
+      summary: Edit expense/correction draft
+      tags:
+      - Expenses
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Edit expense/correction draft
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - name: expense_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExpenseInput'}
+  /operations/{operation_id}/expenses/{expense_id}/submission:
+    post:
+      operationId: submitExpense
+      x-implementation-status: pending
+      summary: Submit expense/correction
+      tags:
+      - Expenses
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Submit expense/correction
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - name: expense_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/VersionInput'}
+  /operations/{operation_id}/expenses/{expense_id}/withdrawal:
+    post:
+      operationId: withdrawExpense
+      x-implementation-status: pending
+      summary: Withdraw draft/submitted expense
+      tags:
+      - Expenses
+      x-roles:
+      - AGENT_SAISIE
+      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Withdraw draft/submitted expense
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - name: expense_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/VersionInput'}
+  /operations/{operation_id}/expenses/{expense_id}/decisions:
+    post:
+      operationId: decideExpense
+      x-implementation-status: pending
+      summary: Approve/reject expense/correction
+      tags:
+      - Expenses
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-rollout-stage: 3
+      x-submission-token: true
+      responses:
+        '200':
+          description: Approve/reject expense/correction
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Mutation'}
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - name: operation_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - name: expense_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Id'}
+      - {$ref: '#/components/parameters/csrf'}
+      - {$ref: '#/components/parameters/submission'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExpenseDecision'}
+  /dashboard:
+    get:
+      operationId: getDashboard
+      x-implementation-status: pending
+      summary: Financial dashboard and actionable queue
+      tags:
+      - Monitoring
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/monitoring/mjl_monitoring_read.lib.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Financial dashboard and actionable queue
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Dashboard'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Full scoped selection totals; page controls queue only. Admin home remains navigation
+        to access/audit, not business statistics.
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+      - {$ref: '#/components/parameters/query_page'}
+  /alerts:
+    get:
+      operationId: listAlerts
+      x-implementation-status: pending
+      summary: Computed scoped alerts
+      tags:
+      - Monitoring
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/monitoring/mjl_monitoring_read.lib.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Computed scoped alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Alert'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/Page'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: No dismiss/acknowledge state or mutation.
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+      - {$ref: '#/components/parameters/query_page'}
+  /audit-events:
+    get:
+      operationId: listAuditEvents
+      x-implementation-status: pending
+      summary: Browse global active-entity audit
+      tags:
+      - Audit
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/lib/reporting/mjl_reporting_read.lib.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Browse global active-entity audit
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/AuditEvent'}
+                    maxItems: 50
+                  pagination: {$ref: '#/components/schemas/CursorPage'}
+                required:
+                - data
+                - pagination
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_object_type'}
+      - {$ref: '#/components/parameters/query_object_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_operation_id'}
+      - {$ref: '#/components/parameters/query_revision_id'}
+      - {$ref: '#/components/parameters/query_actor_id'}
+      - {$ref: '#/components/parameters/query_event_id'}
+      - {$ref: '#/components/parameters/query_target_version'}
+      - {$ref: '#/components/parameters/query_audit_action'}
+      - {$ref: '#/components/parameters/query_result'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+      - {$ref: '#/components/parameters/query_direction'}
+      - {$ref: '#/components/parameters/query_cursor'}
+  /reports/activities:
+    get:
+      operationId: previewActivities
+      x-implementation-status: pending
+      summary: Preview activities
+      tags:
+      - Reports
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_report_data.lib.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Preview activities
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Report'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Bounded complete selection, not a page of financial totals. activity_detail requires
+        activity_id.
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+  /reports/activities/exports:
+    post:
+      operationId: exportActivities
+      x-implementation-status: pending
+      summary: Generate and download activities
+      tags:
+      - Reports
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/class/mjlexport.class.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Audited attachment; original French filename and content. No body on uncertain
+            commit.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: integer
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Synchronous binary response only after fresh authorization/evidence commit; no persistent
+        downloadable URL. activity_detail requires activity_id. No cursor/page in export filters.
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                format:
+                  type: string
+                  enum:
+                  - pdf
+                  - xlsx
+                  - csv
+                filters: {$ref: '#/components/schemas/MonitoringFilters'}
+              required:
+              - format
+              - filters
+  /reports/operations:
+    get:
+      operationId: previewOperations
+      x-implementation-status: pending
+      summary: Preview operations
+      tags:
+      - Reports
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_report_data.lib.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Preview operations
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Report'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Bounded complete selection, not a page of financial totals. activity_detail requires
+        activity_id.
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+      - {$ref: '#/components/parameters/query_type_id'}
+      - {$ref: '#/components/parameters/query_operation_status'}
+  /reports/operations/exports:
+    post:
+      operationId: exportOperations
+      x-implementation-status: pending
+      summary: Generate and download operations
+      tags:
+      - Reports
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/class/mjlexport.class.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Audited attachment; original French filename and content. No body on uncertain
+            commit.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: integer
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Synchronous binary response only after fresh authorization/evidence commit; no persistent
+        downloadable URL. activity_detail requires activity_id. No cursor/page in export filters.
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                format:
+                  type: string
+                  enum:
+                  - pdf
+                  - xlsx
+                  - csv
+                filters: {$ref: '#/components/schemas/OperationFilters'}
+              required:
+              - format
+              - filters
+  /reports/activity_detail:
+    get:
+      operationId: previewActivityDetail
+      x-implementation-status: pending
+      summary: Preview activity_detail
+      tags:
+      - Reports
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_report_data.lib.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Preview activity_detail
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Report'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Bounded complete selection, not a page of financial totals. activity_detail requires
+        activity_id.
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - name: activity_id
+        in: query
+        schema: {$ref: '#/components/schemas/Id'}
+        required: true
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+  /reports/activity_detail/exports:
+    post:
+      operationId: exportActivityDetail
+      x-implementation-status: pending
+      summary: Generate and download activity_detail
+      tags:
+      - Reports
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/class/mjlexport.class.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Audited attachment; original French filename and content. No body on uncertain
+            commit.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: integer
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Synchronous binary response only after fresh authorization/evidence commit; no persistent
+        downloadable URL. activity_detail requires activity_id. No cursor/page in export filters.
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                format:
+                  type: string
+                  enum:
+                  - pdf
+                  - xlsx
+                  - csv
+                filters: {$ref: '#/components/schemas/ActivityDetailFilters'}
+              required:
+              - format
+              - filters
+  /reports/portfolio:
+    get:
+      operationId: previewPortfolio
+      x-implementation-status: pending
+      summary: Preview portfolio
+      tags:
+      - Reports
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/mjl_report_data.lib.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Preview portfolio
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/Report'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Bounded complete selection, not a page of financial totals. activity_detail requires
+        activity_id.
+      parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
+      - {$ref: '#/components/parameters/query_grouping'}
+  /reports/portfolio/exports:
+    post:
+      operationId: exportPortfolio
+      x-implementation-status: pending
+      summary: Generate and download portfolio
+      tags:
+      - Reports
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/class/mjlexport.class.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Audited attachment; original French filename and content. No body on uncertain
+            commit.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: integer
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Synchronous binary response only after fresh authorization/evidence commit; no persistent
+        downloadable URL. activity_detail requires activity_id. No cursor/page in export filters.
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                format:
+                  type: string
+                  enum:
+                  - pdf
+                  - xlsx
+                  - csv
+                filters: {$ref: '#/components/schemas/PortfolioFilters'}
+              required:
+              - format
+              - filters
+  /reports/audit/exports:
+    post:
+      operationId: exportAudit
+      x-implementation-status: pending
+      summary: Generate and download audit
+      tags:
+      - Reports
+      x-roles:
+      - VALIDATEUR_DEFINITIF
+      - ADMIN_PLATEFORME
+      x-source: custom/mjlfinancement/class/mjlexport.class.php
+      x-rollout-stage: 4
+      x-submission-token: false
+      responses:
+        '200':
+          description: Audited attachment; original French filename and content. No body on uncertain
+            commit.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: integer
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '409': {$ref: '#/components/responses/Error409'}
+        '413': {$ref: '#/components/responses/Error413'}
+        '415': {$ref: '#/components/responses/Error415'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '429': {$ref: '#/components/responses/Error429'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Synchronous binary response only after fresh authorization/evidence commit; no persistent
+        downloadable URL. activity_detail requires activity_id. No cursor/page in export filters.
+      parameters:
+      - {$ref: '#/components/parameters/csrf'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                format:
+                  type: string
+                  enum:
+                  - pdf
+                  - xlsx
+                  - csv
+                filters: {$ref: '#/components/schemas/AuditFilters'}
+              required:
+              - format
+              - filters
+  /monitoring-options:
+    get:
+      operationId: getMonitoringOptions
+      x-implementation-status: pending
+      summary: Scoped filter choices for current monitoring/report screens
+      tags:
+      - Monitoring
+      x-roles:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      x-source: custom/mjlfinancement/lib/monitoring/mjl_monitoring_read.lib.php
+      x-rollout-stage: 2
+      x-submission-token: false
+      responses:
+        '200':
+          description: Scoped filter choices for current monitoring/report screens
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data: {$ref: '#/components/schemas/MonitoringOptions'}
+                required:
+                - data
+        '400': {$ref: '#/components/responses/Error400'}
+        '401': {$ref: '#/components/responses/Error401'}
+        '403': {$ref: '#/components/responses/Error403'}
+        '404': {$ref: '#/components/responses/Error404'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '503': {$ref: '#/components/responses/Error503'}
+        '405': {$ref: '#/components/responses/Error405'}
+      description: Reuse MjlMonitoring.referenceChoices(true), scoped by actor and entity, not by selected
+        filters. Explicit422 for selection limits, never truncated choices.
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: DOLSESSID_<deployment-suffix>
+      description: Documentation placeholder for actual Dolibarr/PHP session_name(); reuse existing private
+        adapter, do not create a second session/cookie. Browser manages cookie, never JS/localStorage.
+  parameters:
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200000
+        default: 1
+    cursor:
+      name: cursor
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    csrf:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+    submission:
+      name: X-MJL-Submission
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[a-f0-9]{32}$
+    query_page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200000
+        default: 1
+    query_partner_id:
+      name: partner_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_q:
+      name: q
+      in: query
+      schema:
+        type: string
+        maxLength: 100
+    query_project_id:
+      name: project_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_activity_id:
+      name: activity_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_validation_status:
+      name: validation_status
+      in: query
+      schema: {$ref: '#/components/schemas/ValidationStatus'}
+    query_execution_status:
+      name: execution_status
+      in: query
+      schema: {$ref: '#/components/schemas/ExecutionStatus'}
+    query_completeness:
+      name: completeness
+      in: query
+      schema: {$ref: '#/components/schemas/Completeness'}
+    query_date_from:
+      name: date_from
+      in: query
+      schema: {$ref: '#/components/schemas/Date'}
+    query_date_to:
+      name: date_to
+      in: query
+      schema: {$ref: '#/components/schemas/Date'}
+    query_cursor:
+      name: cursor
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_type_id:
+      name: type_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_operation_status:
+      name: operation_status
+      in: query
+      schema: {$ref: '#/components/schemas/OperationStatus'}
+    query_type:
+      name: type
+      in: query
+      schema:
+        type: string
+        enum:
+        - CANCELLATION
+        - REOPENING
+    query_status:
+      name: status
+      in: query
+      schema: {$ref: '#/components/schemas/RequestStatus'}
+    query_request_id:
+      name: request_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_object_type:
+      name: object_type
+      in: query
+      schema:
+        type: string
+        maxLength: 100
+    query_object_id:
+      name: object_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_operation_id:
+      name: operation_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_revision_id:
+      name: revision_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_actor_id:
+      name: actor_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_event_id:
+      name: event_id
+      in: query
+      schema: {$ref: '#/components/schemas/Id'}
+    query_target_version:
+      name: target_version
+      in: query
+      schema: {$ref: '#/components/schemas/Version'}
+    query_audit_action:
+      name: audit_action
+      in: query
+      schema:
+        type: string
+        maxLength: 100
+    query_result:
+      name: result
+      in: query
+      schema:
+        type: string
+        enum:
+        - SUCCESS
+        - DENIED
+        - FAILED
+    query_direction:
+      name: direction
+      in: query
+      schema:
+        type: string
+        enum:
+        - asc
+        - desc
+        default: desc
+    query_grouping:
+      name: grouping
+      in: query
+      schema:
+        type: string
+        enum:
+        - project
+        - partner
+        default: project
+  responses:
+    Error400:
+      description: Malformed/unknown input.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error401:
+      description: Authentication missing, expired or invalidated.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error403:
+      description: Forbidden, CSRF or submission token invalid.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error404:
+      description: Missing or inaccessible object, without existence disclosure.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error409:
+      description: Stale version/fingerprint, invalid transition or concurrency conflict.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error413:
+      description: Request body too large.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error415:
+      description: Unsupported request content type.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error422:
+      description: Valid JSON but invalid business input or selection limit.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error429:
+      description: Authentication throttled; Retry-After where disclosed safely.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+    Error503:
+      description: Unavailable; no internal error details. Outcome may be uncertain; do not automatically
+        retry mutations.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error405:
+      description: Unsupported method; Allow header lists supported methods.
+      headers:
+        Allow:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Id:
+      type: string
+      pattern: ^[1-9][0-9]{0,18}$
+      description: Canonical positive decimal, at most 9223372036854775807; never a JSON number.
+    Version:
+      type: string
+      pattern: ^[1-9][0-9]{0,18}$
+      description: Canonical positive decimal, at most 9223372036854775807; never a JSON number.
+    Money:
+      type: string
+      pattern: ^(0|[1-9][0-9]{0,18})$
+      description: Exact XOF integer, at most 9223372036854775807. No decimal point or separators.
+    PositiveMoney:
+      type: string
+      pattern: ^[1-9][0-9]{0,18}$
+      description: Positive exact XOF integer, at most 9223372036854775807.
+    SignedMoney:
+      type: string
+      pattern: ^-?(0|[1-9][0-9]*)$
+    Date:
+      type: string
+      format: date
+    Timestamp:
+      type: string
+      format: date-time
+    Reason:
+      type: string
+      minLength: 1
+      maxLength: 2000
+    Fingerprint:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+    BusinessRole:
+      type: string
+      enum:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+    Role:
+      type: string
+      enum:
+      - AGENT_SAISIE
+      - AGENT_VERIFICATEUR
+      - VALIDATEUR_DEFINITIF
+      - ADMIN_PLATEFORME
+    ValidationStatus:
+      type: string
+      enum:
+      - DRAFT
+      - SUBMITTED
+      - PREVALIDATED
+      - RETURNED_SUPERVISOR
+      - RETURNED_VALIDATOR
+      - FINAL_VALIDATED
+      - CANCELLED
+      - ABANDONED
+    ExecutionStatus:
+      type: string
+      enum:
+      - NOT_STARTED
+      - UPCOMING
+      - IN_PROGRESS
+      - OVERDUE
+      - COMPLETED
+      - CANCELLED
+    OperationStatus:
+      type: string
+      enum:
+      - TODO
+      - IN_PROGRESS
+      - COMPLETED
+      - CANCELLED
+    Completeness:
+      type: string
+      enum:
+      - NOT_STARTED
+      - PARTIAL
+      - COMPLETE
+    RequestStatus:
+      type: string
+      enum:
+      - PENDING
+      - APPROVED
+      - REJECTED
+      - WITHDRAWN
+    AllowedActions:
+      type: array
+      items:
+        type: string
+      description: Advisory operationIds; authorization is rechecked for every request. No submission
+        tokens embedded in lists.
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            fields:
+              type: object
+              additionalProperties:
+                type: string
+          required:
+          - code
+          - message
+      required:
+      - error
+    Mutation:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              enum:
+              - OK
+            id: {$ref: '#/components/schemas/Id'}
+            version: {$ref: '#/components/schemas/Version'}
+            activity_id: {$ref: '#/components/schemas/Id'}
+            activity_version: {$ref: '#/components/schemas/Version'}
+            operation_id: {$ref: '#/components/schemas/Id'}
+            operation_version: {$ref: '#/components/schemas/Version'}
+            expense_id: {$ref: '#/components/schemas/Id'}
+            expense_version: {$ref: '#/components/schemas/Version'}
+            revision_id: {$ref: '#/components/schemas/Id'}
+            request_id: {$ref: '#/components/schemas/Id'}
+            request_version: {$ref: '#/components/schemas/Version'}
+          required:
+          - code
+      required:
+      - data
+      description: Only identifiers/versions returned by the command, no implicitly reauthorized object.
+        Refetch affected reads. Creation returns its created id; reference changes refetch fingerprint.
+    Acknowledgement:
+      type: object
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+      required:
+      - message
+    Page:
+      type: object
+      additionalProperties: false
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        has_next:
+          type: boolean
+      required:
+      - page
+      - page_size
+      - has_next
+    CursorPage:
+      type: object
+      additionalProperties: false
+      properties:
+        next_cursor:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        has_next:
+          type: boolean
+      required:
+      - next_cursor
+      - has_next
+    UserSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        login:
+          type: string
+        firstname:
+          type: string
+        lastname:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          anyOf:
+          - {$ref: '#/components/schemas/Role'}
+          - type: 'null'
+        active:
+          type: boolean
+        native_admin:
+          type: boolean
+      required:
+      - id
+      - login
+      - firstname
+      - lastname
+      - email
+      - role
+      - active
+      - native_admin
+    Session:
+      type: object
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum:
+          - anonymous
+          - otp_pending
+          - authenticated
+        csrf_token:
+          type: string
+        user:
+          anyOf:
+          - {$ref: '#/components/schemas/UserSummary'}
+          - type: 'null'
+        authenticated_at:
+          anyOf:
+          - {$ref: '#/components/schemas/Timestamp'}
+          - type: 'null'
+        idle_expires_at:
+          anyOf:
+          - {$ref: '#/components/schemas/Timestamp'}
+          - type: 'null'
+        absolute_expires_at:
+          anyOf:
+          - {$ref: '#/components/schemas/Timestamp'}
+          - type: 'null'
+        otp:
+          anyOf:
+          - type: object
+            additionalProperties: false
+            properties:
+              masked_email:
+                type: string
+              expires_at: {$ref: '#/components/schemas/Timestamp'}
+              resend_available_at: {$ref: '#/components/schemas/Timestamp'}
+              resends_remaining:
+                type: integer
+                minimum: 0
+                maximum: 3
+            required:
+            - masked_email
+            - expires_at
+            - resend_available_at
+            - resends_remaining
+          - type: 'null'
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+      required:
+      - state
+      - csrf_token
+      - user
+      - authenticated_at
+      - idle_expires_at
+      - absolute_expires_at
+      - otp
+      - allowed_actions
+    Login:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          writeOnly: true
+      required:
+      - email
+      - password
+    OtpCode:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          pattern: ^[0-9]{6}$
+          writeOnly: true
+      required:
+      - code
+    LinkProof:
+      type: object
+      additionalProperties: false
+      properties:
+        selector:
+          type: string
+        verifier:
+          type: string
+          writeOnly: true
+      required:
+      - selector
+      - verifier
+      description: Values from invitation/reset link. Verifier is transported only in a JSON body, never
+        query/path/logging.
+    PasswordLink:
+      type: object
+      additionalProperties: false
+      properties:
+        selector:
+          type: string
+        verifier:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          minLength: 8
+          format: password
+          writeOnly: true
+        password_confirmation:
+          type: string
+          format: password
+          writeOnly: true
+      required:
+      - selector
+      - verifier
+      - password
+      - password_confirmation
+      description: 'Matching passwords: at least 8 characters, uppercase, lowercase, digit and symbol.
+        Reuse current validator.'
+    LinkInspection:
+      type: object
+      additionalProperties: false
+      properties:
+        valid:
+          type: boolean
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+      required:
+      - valid
+      - email
+      description: Email only after valid proof; invalid/expired/consumed links share a neutral response.
+    Invite:
+      type: object
+      additionalProperties: false
+      properties:
+        login:
+          type: string
+        firstname:
+          type: string
+        lastname:
+          type: string
+        email:
+          type: string
+          format: email
+        role_code: {$ref: '#/components/schemas/BusinessRole'}
+      required:
+      - login
+      - firstname
+      - lastname
+      - email
+      - role_code
+    Invitation:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        login:
+          type: string
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+        sent_at:
+          anyOf:
+          - {$ref: '#/components/schemas/Timestamp'}
+          - type: 'null'
+        expires_at: {$ref: '#/components/schemas/Timestamp'}
+      required:
+      - id
+      - login
+      - email
+      - status
+      - sent_at
+      - expires_at
+      description: No selector, verifier, hash, generated link or delivery secrets.
+    InvitationResult:
+      type: object
+      additionalProperties: false
+      properties:
+        delivery:
+          type: string
+          enum:
+          - sent
+        message:
+          type: string
+      required:
+      - delivery
+      - message
+      description: Successful delivery only. Failed delivery returns503 Error and may follow committed
+        inactive-account preparation.
+    Reference:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        label:
+          type: string
+          maxLength: 255
+        active:
+          type: boolean
+        fingerprint: {$ref: '#/components/schemas/Fingerprint'}
+        partner_id: {$ref: '#/components/schemas/Id'}
+        partner_label:
+          type: string
+        ref:
+          type: string
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+      required:
+      - id
+      - label
+      - active
+      - fingerprint
+      - allowed_actions
+    ReferenceCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - label
+    ProjectCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        partner_id: {$ref: '#/components/schemas/Id'}
+      required:
+      - label
+      - partner_id
+    ReferenceRename:
+      type: object
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        fingerprint: {$ref: '#/components/schemas/Fingerprint'}
+      required:
+      - label
+      - fingerprint
+    ReferenceState:
+      type: object
+      additionalProperties: false
+      properties:
+        active:
+          type: boolean
+        fingerprint: {$ref: '#/components/schemas/Fingerprint'}
+      required:
+      - active
+      - fingerprint
+    OperationInput:
+      type: object
+      additionalProperties: false
+      properties:
+        client_key:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,64}$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        type_id: {$ref: '#/components/schemas/Id'}
+        authorized_amount: {$ref: '#/components/schemas/PositiveMoney'}
+        id: {$ref: '#/components/schemas/Id'}
+        expected_version: {$ref: '#/components/schemas/Version'}
+      required:
+      - client_key
+      - name
+      - type_id
+      - authorized_amount
+      description: Retained rows require id AND expected_version; new rows omit both. client_key is unique
+        within request. JSON key order is irrelevant.
+      dependentRequired:
+        id:
+        - expected_version
+        expected_version:
+        - id
+    ActivityCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        partner_id: {$ref: '#/components/schemas/Id'}
+        project_id: {$ref: '#/components/schemas/Id'}
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        date_start: {$ref: '#/components/schemas/Date'}
+        date_end: {$ref: '#/components/schemas/Date'}
+        authorized_amount: {$ref: '#/components/schemas/PositiveMoney'}
+        operations:
+          type: array
+          items: {$ref: '#/components/schemas/OperationInput'}
+          maxItems: 50
+        submit:
+          type: boolean
+      required:
+      - partner_id
+      - project_id
+      - name
+      - description
+      - date_start
+      - date_end
+      - authorized_amount
+      - operations
+      - submit
+      description: submit=false creates draft; true creates AND submits atomically. Submission requires
+        at least one operation and exact budget balance.
+      allOf:
+      - if:
+          properties:
+            submit:
+              const: true
+        then:
+          properties:
+            operations:
+              minItems: 1
+    ActivityStructure:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        partner_id: {$ref: '#/components/schemas/Id'}
+        project_id: {$ref: '#/components/schemas/Id'}
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        date_start: {$ref: '#/components/schemas/Date'}
+        date_end: {$ref: '#/components/schemas/Date'}
+        authorized_amount: {$ref: '#/components/schemas/PositiveMoney'}
+        operations:
+          type: array
+          items: {$ref: '#/components/schemas/OperationInput'}
+          maxItems: 50
+      required:
+      - expected_version
+      - partner_id
+      - project_id
+      - name
+      - description
+      - date_start
+      - date_end
+      - authorized_amount
+      - operations
+      description: Complete structure replacement. Retained operation versions required; omitted rows
+        remove only before first submission. Dates/amount-change and reference guards remain in command.
+    VersionInput:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+      required:
+      - expected_version
+    ReasonInput:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        reason: {$ref: '#/components/schemas/Reason'}
+      required:
+      - expected_version
+      - reason
+    Restore:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        reason: {$ref: '#/components/schemas/Reason'}
+        primary_agent_id: {$ref: '#/components/schemas/Id'}
+      required:
+      - expected_version
+      - reason
+      - primary_agent_id
+    ReviewDecision:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        decision:
+          type: string
+          enum:
+          - PREVALIDATED
+          - RETURNED_SUPERVISOR
+          - FINAL_VALIDATED
+          - RETURNED_VALIDATOR
+        reason: {$ref: '#/components/schemas/Reason'}
+        requested_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/PositiveMoney'}
+          - type: 'null'
+      required:
+      - expected_version
+      - decision
+      description: expected_version is Activity version. Return requires reason and future Activity start.
+        requested_amount only for RETURNED_VALIDATOR. Contributor and prevalidator exclusions remain.
+      allOf:
+      - if:
+          properties:
+            decision:
+              enum:
+              - RETURNED_SUPERVISOR
+              - RETURNED_VALIDATOR
+        then:
+          required:
+          - reason
+      - if:
+          properties:
+            decision:
+              not:
+                const: RETURNED_VALIDATOR
+        then:
+          properties:
+            requested_amount:
+              type: 'null'
+    AssignmentChange:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        reason: {$ref: '#/components/schemas/Reason'}
+        operation:
+          type: string
+          enum:
+          - ADD_ADDITIONAL
+          - REMOVE_ADDITIONAL
+          - TRANSFER_PRIMARY
+        target_agent_id: {$ref: '#/components/schemas/Id'}
+      required:
+      - expected_version
+      - reason
+      - operation
+      - target_agent_id
+    AssignmentAgent:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        name:
+          type: string
+      required:
+      - id
+      - name
+    Assignment:
+      type: object
+      additionalProperties: false
+      properties:
+        user_id: {$ref: '#/components/schemas/Id'}
+        name:
+          type: string
+        primary:
+          type: boolean
+      required:
+      - user_id
+      - name
+      - primary
+    FinancialSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        initial_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        pending_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        validated_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        active_authorized_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        cancelled_authorized_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        active_spent_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        cancelled_spent_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        total_spent_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        activity_count:
+          type: integer
+          minimum: 0
+        operation_count:
+          type: integer
+          minimum: 0
+        missing_spent_count:
+          type: integer
+          minimum: 0
+        cancelled_incomplete_count:
+          type: integer
+          minimum: 0
+      required:
+      - initial_amount
+      - pending_amount
+      - validated_amount
+      - active_authorized_amount
+      - cancelled_authorized_amount
+      - active_spent_amount
+      - cancelled_spent_amount
+      - total_spent_amount
+      - activity_count
+      - operation_count
+      - missing_spent_count
+      - cancelled_incomplete_count
+    Operation:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        version: {$ref: '#/components/schemas/Version'}
+        activity_id: {$ref: '#/components/schemas/Id'}
+        name:
+          type: string
+        type_id: {$ref: '#/components/schemas/Id'}
+        type_label:
+          type: string
+        status: {$ref: '#/components/schemas/OperationStatus'}
+        authorized_amount: {$ref: '#/components/schemas/Money'}
+        authorization_kind:
+          type: string
+          enum:
+          - PROPOSED
+          - VALIDATED
+        spent_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/Money'}
+          - type: 'null'
+        observation:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+      required:
+      - id
+      - version
+      - activity_id
+      - name
+      - type_id
+      - type_label
+      - status
+      - authorized_amount
+      - authorization_kind
+      - spent_amount
+      - observation
+      - allowed_actions
+    Activity:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        version: {$ref: '#/components/schemas/Version'}
+        ref:
+          type: string
+        partner_id: {$ref: '#/components/schemas/Id'}
+        partner_label:
+          type: string
+        project_id: {$ref: '#/components/schemas/Id'}
+        project_label:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        date_start: {$ref: '#/components/schemas/Date'}
+        date_end: {$ref: '#/components/schemas/Date'}
+        draft_authorized_amount: {$ref: '#/components/schemas/Money'}
+        validation_status: {$ref: '#/components/schemas/ValidationStatus'}
+        execution_status: {$ref: '#/components/schemas/ExecutionStatus'}
+        completeness: {$ref: '#/components/schemas/Completeness'}
+        current_revision_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        financial: {$ref: '#/components/schemas/FinancialSummary'}
+        assignments:
+          type: array
+          items: {$ref: '#/components/schemas/Assignment'}
+        operations:
+          type: array
+          items: {$ref: '#/components/schemas/Operation'}
+          maxItems: 50
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+      required:
+      - id
+      - version
+      - ref
+      - partner_id
+      - partner_label
+      - project_id
+      - project_label
+      - name
+      - description
+      - date_start
+      - date_end
+      - draft_authorized_amount
+      - validation_status
+      - execution_status
+      - completeness
+      - current_revision_id
+      - financial
+      - assignments
+      - operations
+      - allowed_actions
+    RevisionDecision:
+      type: object
+      additionalProperties: false
+      properties:
+        decision:
+          type: string
+        actor_name:
+          type: string
+        decided_at: {$ref: '#/components/schemas/Timestamp'}
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+        requested_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/Money'}
+          - type: 'null'
+      required:
+      - decision
+      - actor_name
+      - decided_at
+      - reason
+      - requested_amount
+    RevisionSnapshot:
+      type: object
+      additionalProperties: false
+      properties:
+        partner_id: {$ref: '#/components/schemas/Id'}
+        project_id: {$ref: '#/components/schemas/Id'}
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        date_start: {$ref: '#/components/schemas/Date'}
+        date_end: {$ref: '#/components/schemas/Date'}
+        authorized_amount: {$ref: '#/components/schemas/PositiveMoney'}
+        operations:
+          type: array
+          items: {$ref: '#/components/schemas/RevisionOperation'}
+          maxItems: 50
+        partner_label:
+          type: string
+        project_label:
+          type: string
+        project_reference:
+          type: string
+      required:
+      - partner_id
+      - project_id
+      - name
+      - description
+      - date_start
+      - date_end
+      - authorized_amount
+      - operations
+      - partner_label
+      - project_label
+      - project_reference
+    Review:
+      type: object
+      additionalProperties: false
+      properties:
+        revision_id: {$ref: '#/components/schemas/Id'}
+        revision_number: {$ref: '#/components/schemas/Id'}
+        activity_version: {$ref: '#/components/schemas/Version'}
+        submitted_at: {$ref: '#/components/schemas/Timestamp'}
+        snapshot: {$ref: '#/components/schemas/RevisionSnapshot'}
+        decisions:
+          type: array
+          items: {$ref: '#/components/schemas/RevisionDecision'}
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+        allowed_decisions:
+          type: array
+          items:
+            type: string
+            enum:
+            - PREVALIDATED
+            - RETURNED_SUPERVISOR
+            - FINAL_VALIDATED
+            - RETURNED_VALIDATOR
+      required:
+      - revision_id
+      - revision_number
+      - activity_version
+      - submitted_at
+      - snapshot
+      - decisions
+      - allowed_actions
+      - allowed_decisions
+    TimelineEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        date: {$ref: '#/components/schemas/Timestamp'}
+        label:
+          type: string
+        actor_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+        summary:
+          type: string
+        detail_status:
+          type: string
+          enum:
+          - available
+          - oversized
+          - unavailable
+        details:
+          type: array
+          items:
+            type: string
+        actor_role:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - id
+      - date
+      - label
+      - actor_name
+      - summary
+      - detail_status
+      - details
+      - actor_role
+      description: Sanitized current Activity timeline projection; never raw audit metadata.
+    ExecutionInput:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        status:
+          type: string
+          enum:
+          - TODO
+          - IN_PROGRESS
+          - COMPLETED
+        observation:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+      required:
+      - expected_version
+      - status
+      - observation
+      description: Operation version. No spent_amount. Completion requires approved expenses or approved
+        explicit zero and no drafts/submissions; variance explanation if approved spend differs from budget.
+    ExceptionDecision:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        reason: {$ref: '#/components/schemas/Reason'}
+        decision:
+          type: string
+          enum:
+          - APPROVED
+          - REJECTED
+      required:
+      - expected_version
+      - reason
+      - decision
+      description: Request version, not target version. Command checks stored target revision/version/operation
+        set. Decision reason is required for approval and rejection.
+    ExceptionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        type:
+          type: string
+          enum:
+          - CANCELLATION
+          - REOPENING
+        version: {$ref: '#/components/schemas/Version'}
+        activity_id: {$ref: '#/components/schemas/Id'}
+        operation_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        status: {$ref: '#/components/schemas/RequestStatus'}
+        reason:
+          type: string
+        requested_at: {$ref: '#/components/schemas/Timestamp'}
+        requester_id: {$ref: '#/components/schemas/Id'}
+        target_version: {$ref: '#/components/schemas/Version'}
+        target_revision_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        stale:
+          type: boolean
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+        requester_name:
+          type: string
+        target_label:
+          type: string
+        current_target_version:
+          anyOf:
+          - {$ref: '#/components/schemas/Version'}
+          - type: 'null'
+        decision_reason:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        allowed_decisions:
+          type: array
+          items:
+            type: string
+            enum:
+            - APPROVED
+            - REJECTED
+      required:
+      - id
+      - type
+      - version
+      - activity_id
+      - operation_id
+      - status
+      - reason
+      - requested_at
+      - requester_id
+      - target_version
+      - target_revision_id
+      - stale
+      - allowed_actions
+      - requester_name
+      - target_label
+      - current_target_version
+      - decision_reason
+      - allowed_decisions
+    ExpenseInput:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        expense_date: {$ref: '#/components/schemas/Date'}
+        amount: {$ref: '#/components/schemas/Money'}
+        original_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        reason:
+          anyOf:
+          - {$ref: '#/components/schemas/Reason'}
+          - type: 'null'
+      required:
+      - expected_version
+      - label
+      - expense_date
+      - amount
+      - original_id
+      - reason
+      description: CREATE uses Operation version; UPDATE uses Expense version. original_id and reason
+        required for corrections; original_id immutable. null original_id for ordinary expense. Zero uses
+        the same approval workflow.
+      allOf:
+      - if:
+          properties:
+            original_id:
+              type: string
+        then:
+          properties:
+            reason: {$ref: '#/components/schemas/Reason'}
+    ExpenseDecision:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: {$ref: '#/components/schemas/Version'}
+        decision:
+          type: string
+          enum:
+          - APPROVED
+          - REJECTED
+        reason: {$ref: '#/components/schemas/Reason'}
+      required:
+      - expected_version
+      - decision
+      description: Expense version. REJECTED requires reason; independent Validator approves correction
+        reversal+replacement in one transaction.
+      allOf:
+      - if:
+          properties:
+            decision:
+              enum:
+              - REJECTED
+        then:
+          required:
+          - reason
+    Expense:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        version: {$ref: '#/components/schemas/Version'}
+        kind:
+          type: string
+          enum:
+          - EXPENSE
+          - REVERSAL
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - SUBMITTED
+          - APPROVED
+          - REJECTED
+          - WITHDRAWN
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        expense_date: {$ref: '#/components/schemas/Date'}
+        amount: {$ref: '#/components/schemas/SignedMoney'}
+        original_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        reason:
+          anyOf:
+          - {$ref: '#/components/schemas/Reason'}
+          - type: 'null'
+        reversed:
+          type: boolean
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+        decision_reason:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        allowed_decisions:
+          type: array
+          items:
+            type: string
+            enum:
+            - APPROVED
+            - REJECTED
+      required:
+      - id
+      - version
+      - kind
+      - status
+      - label
+      - expense_date
+      - amount
+      - original_id
+      - reason
+      - reversed
+      - allowed_actions
+      - decision_reason
+      - allowed_decisions
+    SpendingOperation:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        name:
+          type: string
+        activity_ref:
+          type: string
+        spent_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/Money'}
+          - type: 'null'
+        correction_only:
+          type: boolean
+      required:
+      - id
+      - name
+      - activity_ref
+      - spent_amount
+      - correction_only
+    ExpenseLedger:
+      type: object
+      additionalProperties: false
+      properties:
+        operation:
+          type: object
+          additionalProperties: false
+          properties:
+            id: {$ref: '#/components/schemas/Id'}
+            version: {$ref: '#/components/schemas/Version'}
+            name:
+              type: string
+            activity_ref:
+              type: string
+            status: {$ref: '#/components/schemas/OperationStatus'}
+            spent_amount:
+              anyOf:
+              - {$ref: '#/components/schemas/Money'}
+              - type: 'null'
+          required:
+          - id
+          - version
+          - name
+          - activity_ref
+          - status
+          - spent_amount
+        correction_only:
+          type: boolean
+        entries:
+          type: array
+          items: {$ref: '#/components/schemas/Expense'}
+          maxItems: 5
+        pagination: {$ref: '#/components/schemas/Page'}
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+      required:
+      - operation
+      - correction_only
+      - entries
+      - pagination
+      - allowed_actions
+    Alert:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          enum:
+          - VALIDATION_LATE
+          - VALIDATION_DUE
+          - COMPLETION_OVERDUE
+          - COMPLETION_DUE
+          - SPENDING_MISSING
+          - SPENDING_INFORMATION
+        activity_id: {$ref: '#/components/schemas/Id'}
+        operation_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        label:
+          type: string
+        actionable:
+          type: boolean
+        date: {$ref: '#/components/schemas/Date'}
+        reference:
+          type: string
+        priority:
+          type: integer
+      required:
+      - code
+      - activity_id
+      - operation_id
+      - label
+      - actionable
+      - date
+      - reference
+      - priority
+    WorkItem:
+      type: object
+      additionalProperties: false
+      properties:
+        activity_id: {$ref: '#/components/schemas/Id'}
+        operation_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        request_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        request_type:
+          anyOf:
+          - type: string
+            enum:
+            - CANCELLATION
+            - REOPENING
+          - type: 'null'
+        label:
+          type: string
+        allowed_actions: {$ref: '#/components/schemas/AllowedActions'}
+        date: {$ref: '#/components/schemas/Date'}
+        reference:
+          type: string
+        closure:
+          type: boolean
+      required:
+      - activity_id
+      - operation_id
+      - request_id
+      - request_type
+      - label
+      - allowed_actions
+      - date
+      - reference
+      - closure
+    Dashboard:
+      type: object
+      additionalProperties: false
+      properties:
+        calculated_on: {$ref: '#/components/schemas/Date'}
+        financial: {$ref: '#/components/schemas/DashboardFinancialSummary'}
+        validation_counts:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+        execution_counts:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+        work_items:
+          type: array
+          items: {$ref: '#/components/schemas/WorkItem'}
+          maxItems: 50
+        pagination: {$ref: '#/components/schemas/Page'}
+        alerts:
+          type: array
+          items: {$ref: '#/components/schemas/Alert'}
+          maxItems: 5
+      required:
+      - calculated_on
+      - financial
+      - validation_counts
+      - execution_counts
+      - work_items
+      - pagination
+      - alerts
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        object_type:
+          type: string
+        object_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        object_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+        action:
+          type: string
+        state_before:
+          anyOf:
+          - type: string
+          - type: 'null'
+        state_after:
+          anyOf:
+          - type: string
+          - type: 'null'
+        actor_name:
+          type: string
+        actor_role:
+          type: string
+        event_at: {$ref: '#/components/schemas/Timestamp'}
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+        result:
+          type: string
+          enum:
+          - SUCCESS
+          - DENIED
+          - FAILED
+        changes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              path:
+                type: string
+              field_label:
+                type: string
+              kind:
+                type: string
+              part:
+                type: integer
+                minimum: 1
+              parts:
+                type: integer
+                minimum: 1
+              before_type:
+                type: string
+              before:
+                anyOf:
+                - type: string
+                - type: 'null'
+              after_type:
+                type: string
+              after:
+                anyOf:
+                - type: string
+                - type: 'null'
+            required:
+            - path
+            - field_label
+            - kind
+            - part
+            - parts
+            - before_type
+            - before
+            - after_type
+            - after
+        activity_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        operation_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        revision_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        target_version:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        actor_id:
+          anyOf:
+          - {$ref: '#/components/schemas/Id'}
+          - type: 'null'
+        entity: {$ref: '#/components/schemas/Id'}
+        action_label:
+          type: string
+        detail_status:
+          type: string
+          enum:
+          - available
+          - unsupported
+          - oversized
+          - unavailable
+      required:
+      - id
+      - object_type
+      - object_id
+      - object_ref
+      - action
+      - state_before
+      - state_after
+      - actor_name
+      - actor_role
+      - event_at
+      - reason
+      - result
+      - changes
+      - activity_id
+      - operation_id
+      - revision_id
+      - target_version
+      - actor_id
+      - entity
+      - action_label
+      - detail_status
+      description: Existing allowlisted audit projection only. Never arbitrary metadata, credentials,
+        hashes, headers, filesystem paths or raw native rows.
+    ReportCell:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+          - text
+          - integer
+          - ratio
+        value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          - type: object
+            additionalProperties: false
+            properties:
+              ratio:
+                type: number
+              display:
+                type: string
+            required:
+            - ratio
+            - display
+        currency:
+          type: string
+          enum:
+          - XOF
+      required:
+      - type
+      - value
+      description: Integer cells serialized as exact decimal strings; text remains untrusted text, not
+        HTML. Ratio includes formatted display.
+    Report:
+      type: object
+      additionalProperties: false
+      properties:
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        sections:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              title:
+                type: string
+              headers:
+                type: array
+                items:
+                  type: string
+              rows:
+                type: array
+                items:
+                  type: array
+                  items: {$ref: '#/components/schemas/ReportCell'}
+            required:
+            - title
+            - headers
+            - rows
+      required:
+      - metadata
+      - sections
+      description: Bounded complete report preview, same French headers/sections as existing report renderer.
+        No pagination changes report scope.
+    SubmissionTokenRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        operation_id:
+          type: string
+        path_parameters:
+          type: object
+          additionalProperties: {$ref: '#/components/schemas/Id'}
+        expected_version: {$ref: '#/components/schemas/Version'}
+        revision_id: {$ref: '#/components/schemas/Id'}
+      required:
+      - operation_id
+      - path_parameters
+      description: Only operationIds marked x-submission-token=true, exact path IDs and version context.
+        Server maps allowlist to existing helper, derives actor/entity, checks current eligibility. Never
+        accepts a client-supplied route/form/user/entity.
+    SubmissionToken:
+      type: object
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          pattern: ^[a-f0-9]{32}$
+        expires_at: {$ref: '#/components/schemas/Timestamp'}
+      required:
+      - token
+      - expires_at
+    MonitoringFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        q:
+          type: string
+          maxLength: 100
+        partner_id: {$ref: '#/components/schemas/Id'}
+        project_id: {$ref: '#/components/schemas/Id'}
+        activity_id: {$ref: '#/components/schemas/Id'}
+        validation_status: {$ref: '#/components/schemas/ValidationStatus'}
+        execution_status: {$ref: '#/components/schemas/ExecutionStatus'}
+        completeness: {$ref: '#/components/schemas/Completeness'}
+        date_from: {$ref: '#/components/schemas/Date'}
+        date_to: {$ref: '#/components/schemas/Date'}
+      required: []
+    OperationFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        q:
+          type: string
+          maxLength: 100
+        partner_id: {$ref: '#/components/schemas/Id'}
+        project_id: {$ref: '#/components/schemas/Id'}
+        activity_id: {$ref: '#/components/schemas/Id'}
+        validation_status: {$ref: '#/components/schemas/ValidationStatus'}
+        execution_status: {$ref: '#/components/schemas/ExecutionStatus'}
+        completeness: {$ref: '#/components/schemas/Completeness'}
+        date_from: {$ref: '#/components/schemas/Date'}
+        date_to: {$ref: '#/components/schemas/Date'}
+        type_id: {$ref: '#/components/schemas/Id'}
+        operation_status: {$ref: '#/components/schemas/OperationStatus'}
+      required: []
+    AuditFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        q:
+          type: string
+          maxLength: 100
+        object_type:
+          type: string
+          maxLength: 100
+        object_id: {$ref: '#/components/schemas/Id'}
+        activity_id: {$ref: '#/components/schemas/Id'}
+        operation_id: {$ref: '#/components/schemas/Id'}
+        revision_id: {$ref: '#/components/schemas/Id'}
+        actor_id: {$ref: '#/components/schemas/Id'}
+        event_id: {$ref: '#/components/schemas/Id'}
+        target_version: {$ref: '#/components/schemas/Version'}
+        audit_action:
+          type: string
+          maxLength: 100
+        result:
+          type: string
+          enum:
+          - SUCCESS
+          - DENIED
+          - FAILED
+        date_from: {$ref: '#/components/schemas/Date'}
+        date_to: {$ref: '#/components/schemas/Date'}
+        direction:
+          type: string
+          enum:
+          - asc
+          - desc
+          default: desc
+      required: []
+    PortfolioFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        q:
+          type: string
+          maxLength: 100
+        partner_id: {$ref: '#/components/schemas/Id'}
+        project_id: {$ref: '#/components/schemas/Id'}
+        activity_id: {$ref: '#/components/schemas/Id'}
+        validation_status: {$ref: '#/components/schemas/ValidationStatus'}
+        execution_status: {$ref: '#/components/schemas/ExecutionStatus'}
+        completeness: {$ref: '#/components/schemas/Completeness'}
+        date_from: {$ref: '#/components/schemas/Date'}
+        date_to: {$ref: '#/components/schemas/Date'}
+        grouping:
+          type: string
+          enum:
+          - project
+          - partner
+          default: project
+      required: []
+    ActivityDetailFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        q:
+          type: string
+          maxLength: 100
+        partner_id: {$ref: '#/components/schemas/Id'}
+        project_id: {$ref: '#/components/schemas/Id'}
+        activity_id: {$ref: '#/components/schemas/Id'}
+        validation_status: {$ref: '#/components/schemas/ValidationStatus'}
+        execution_status: {$ref: '#/components/schemas/ExecutionStatus'}
+        completeness: {$ref: '#/components/schemas/Completeness'}
+        date_from: {$ref: '#/components/schemas/Date'}
+        date_to: {$ref: '#/components/schemas/Date'}
+      required:
+      - activity_id
+    RevisionOperation:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        type_id: {$ref: '#/components/schemas/Id'}
+        type_label:
+          type: string
+        name:
+          type: string
+        authorized_amount: {$ref: '#/components/schemas/Money'}
+      required:
+      - id
+      - type_id
+      - type_label
+      - name
+      - authorized_amount
+    AggregateMoney:
+      type: string
+      pattern: ^(0|[1-9][0-9]*)$
+      description: Exact nonnegative XOF sum across bounded selection; may exceed one stored BIGINT.
+    DashboardFinancialSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        initial_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        pending_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        validated_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        active_authorized_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        cancelled_authorized_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        active_spent_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        cancelled_spent_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        total_spent_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        activity_count:
+          type: integer
+          minimum: 0
+        operation_count:
+          type: integer
+          minimum: 0
+        missing_spent_count:
+          type: integer
+          minimum: 0
+        cancelled_incomplete_count:
+          type: integer
+          minimum: 0
+        pending_draft_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+        pending_submitted_amount:
+          anyOf:
+          - {$ref: '#/components/schemas/AggregateMoney'}
+          - type: 'null'
+      required:
+      - initial_amount
+      - pending_amount
+      - validated_amount
+      - active_authorized_amount
+      - cancelled_authorized_amount
+      - active_spent_amount
+      - cancelled_spent_amount
+      - total_spent_amount
+      - activity_count
+      - operation_count
+      - missing_spent_count
+      - cancelled_incomplete_count
+      - pending_draft_amount
+      - pending_submitted_amount
+    ReferenceChoice:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        label:
+          type: string
+      required:
+      - id
+      - label
+    MonitoringOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        partner_id:
+          type: array
+          items: {$ref: '#/components/schemas/ReferenceChoice'}
+          maxItems: 10000
+        project_id:
+          type: array
+          items: {$ref: '#/components/schemas/ReferenceChoice'}
+          maxItems: 10000
+        type_id:
+          type: array
+          items: {$ref: '#/components/schemas/ReferenceChoice'}
+          maxItems: 10000
+      required:
+      - partner_id
+      - project_id
+      - type_id
+      description: Only references used by currently visible Activities/Operations, including inactive
+        referenced records. Complete bounded choices, not permission to select them in new structures.

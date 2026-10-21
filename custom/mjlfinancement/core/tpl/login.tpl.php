@@ -6,7 +6,7 @@ $otpEnabled = !empty($mjlLoginView['otp_enabled']);
 $otpReady = !$otpEnabled || !empty($mjlLoginView['otp_ready']);
 $loginValue = $otpEnabled && !empty($mjlLoginView['email']) ? (string) $mjlLoginView['email'] : (string) $login;
 $php_self = $otpEnabled ? DOL_URL_ROOT.'/custom/mjlfinancement/auth.php' : (empty($php_self) ? dol_escape_htmltag($_SERVER['PHP_SELF']) : $php_self);
-top_htmlhead('', 'Connexion · MJL', 0, 0, array('/core/js/dst.js', '/custom/mjlfinancement/js/mjl_auth.js'), array('/custom/mjlfinancement/css/mjl_auth.css.php'), 1, 1);
+top_htmlhead('', 'Connexion · MJL', 0, 0, array('/core/js/dst.js', '/custom/mjlfinancement/js/mjl_api.js', '/custom/mjlfinancement/js/mjl_auth.js'), array('/custom/mjlfinancement/css/mjl_auth.css.php'), 1, 1);
 ?>
 <body class="mjl-auth-page">
 <div class="mjl-auth-shell">
@@ -20,9 +20,9 @@ top_htmlhead('', 'Connexion · MJL', 0, 0, array('/core/js/dst.js', '/custom/mjl
 				<?php if (!$otpReady) { ?>
 					<div class="mjl-auth-message mjl-auth-error" role="alert">La connexion est temporairement indisponible.</div>
 				<?php } else { ?>
-				<form id="login" name="login" method="post" action="<?php print $php_self; ?>" data-mjl-auth-form>
+				<form id="login" name="login" method="post" action="<?php print $php_self; ?>" data-mjl-auth-form <?php if ($otpEnabled) print 'data-mjl-auth-api="login"'; ?>>
 					<input type="hidden" name="token" value="<?php print newToken(); ?>">
-					<?php if ($otpEnabled) { ?>
+					<?php if ($otpEnabled) { ?><p role="alert" data-mjl-js-required>JavaScript est nécessaire pour utiliser cet écran.</p>
 						<input type="hidden" name="action" value="login">
 						<input type="hidden" name="backtopage" value="<?php print dol_escape_htmltag(isset($mjlLoginView['backtopage']) ? (string) $mjlLoginView['backtopage'] : ''); ?>">
 					<?php } else { ?>

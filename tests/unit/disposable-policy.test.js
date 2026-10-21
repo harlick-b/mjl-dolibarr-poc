@@ -43,6 +43,7 @@ function validConfig() {
             target: '/etc/apache2/conf-enabled/mjl-native-guard.conf',
             read_only: true,
           },
+          { type: 'bind', source: '/workspace/mjl/custom/mjlfinancement/deployment/php-session.ini', target: '/usr/local/etc/php/conf.d/zz-mjl-session.ini', read_only: true },
           { type: 'bind', source: '/workspace/mjl/tests', target: '/opt/mjl-tests', read_only: true },
           { type: 'bind', source: expected.evidenceRoot, target: '/opt/mjl-evidence', read_only: true },
         ],

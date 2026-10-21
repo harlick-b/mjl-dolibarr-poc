@@ -96,16 +96,19 @@ function mjl_navigation_shell_start(User $targetUser)
 		print '</div>';
 	}
 	print '</nav><div class="mjl-sidebar-profile"><span class="mjl-profile-mark" aria-hidden="true">M</span><div><strong>'.dol_escape_htmltag($name).'</strong><small>'.dol_escape_htmltag($role).'</small></div></div></aside>';
-	print '<div class="mjl-module-content"><header class="mjl-module-topbar"><button class="mjl-navigation-trigger" type="button" aria-controls="mjl-primary-navigation" aria-expanded="false">Ouvrir le menu principal</button><nav class="mjl-shell-breadcrumb" aria-label="Fil d’Ariane"><span>Ministère de la Justice</span>';
+	print '<div class="mjl-module-content"><header class="mjl-module-topbar"><button class="mjl-navigation-trigger" type="button" aria-controls="mjl-primary-navigation" aria-expanded="false" aria-label="Ouvrir le menu principal">Menu</button><nav class="mjl-shell-breadcrumb" aria-label="Fil d’Ariane"><span>Ministère de la Justice</span>';
 	if ($activeGroup !== null) {
 		print '<span aria-hidden="true">/</span>';
 		if ($activeSecondary !== null) print '<a href="'.DOL_URL_ROOT.$activeGroup['path'].'">'.dol_escape_htmltag($activeGroup['label']).'</a><span aria-hidden="true">/</span><strong aria-current="page">'.dol_escape_htmltag($activeSecondary['label']).'</strong>';
 		else print '<strong aria-current="page">'.dol_escape_htmltag($activeGroup['label']).'</strong>';
 	}
-	print '</nav></header><main class="mjl-module-main" id="mjl-main-content" tabindex="-1">'.mjl_feedback_render_and_clear();
+	print '</nav>';
+	if (function_exists('mjl_auth_otp_enabled') && mjl_auth_otp_enabled()) print '<button type="button" class="mjl-action mjl-action-secondary" data-mjl-api-logout>Se déconnecter</button>';
+	print '</header><main class="mjl-module-main" id="mjl-main-content" tabindex="-1">'.mjl_feedback_render_and_clear();
 }
 
 function mjl_navigation_shell_end()
 {
+	if (function_exists('mjl_auth_otp_enabled') && mjl_auth_otp_enabled()) print '<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_api.js"></script>';
 	print mjl_feedback_render_and_clear().'<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_components.js"></script></main></div></div>';
 }

@@ -423,7 +423,7 @@ function mjl_auth_verify_password($email, $password)
 		return null;
 	}
 	$target = new User($db);
-	if ($target->fetch(0, $login, '', 1, -1) <= 0 || (int) $target->statut !== 1 || strtolower((string) $target->email) !== $email) {
+	if ($target->fetch(0, $login, '', 1, -1) <= 0 || (int) $target->statut !== 1 || $target->isNotIntoValidityDateRange() || strtolower((string) $target->email) !== $email) {
 		mjl_auth_register_failed_password($email);
 		return null;
 	}
@@ -454,6 +454,7 @@ function mjl_auth_otp_pending_row($forUpdate = false)
 	if ($id <= 0 || $userId <= 0 || $binding === '') return null;
 	$sql = 'SELECT * FROM '.$db->prefix().'mjlfinancement_login_otp WHERE rowid='.$id.' AND entity='.mjl_auth_entity().' AND fk_user='.$userId.' AND session_hash='.mjl_auth_string_sql(mjl_auth_otp_hash('session', $binding)).' LIMIT 1'.($forUpdate ? ' FOR UPDATE' : '');
 	$resql = $db->query($sql);
+	if (!$resql && $forUpdate) throw new RuntimeException('OTP lookup unavailable.');
 	return $resql ? $db->fetch_object($resql) : null;
 }
 
@@ -492,4 +493,18 @@ function mjl_auth_session_is_otp_verified(User $target)
 	$resql = $db->query($sql); $row = $resql ? $db->fetch_object($resql) : null;
 	$matches = $row && hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target));
 	return mjl_auth_session_validity_decision(true, (int) $target->id, $state, (bool) $row, $matches);
+}
+
+/** Shared authenticated-session gate; API opts into fail-closed OTP availability. */
+function mjl_auth_check_session(User $target, $touch = false)
+{
+ if (!mjl_auth_otp_enabled()) return 'authentication_unavailable';
+ $clock=mjl_auth_session_clock_state();
+ $code=mjl_auth_session_expiry_decision($clock['authenticated_at'],$clock['last_activity_at'],time());
+ if ($code==='valid' && ((int)$target->statut!==1 || $target->isNotIntoValidityDateRange()
+     || (int)mjl_auth_session_value('dol_entity',0)!==mjl_auth_entity()
+     || !mjl_auth_session_is_otp_verified($target))) $code='session_invalidated';
+ if ($code!=='valid') { mjl_auth_session_invalidate('Votre session a expiré. Veuillez vous reconnecter.'); return $code; }
+ if ($touch) mjl_auth_session_touch(time());
+ return 'valid';
 }

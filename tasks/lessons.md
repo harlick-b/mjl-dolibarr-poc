@@ -283,3 +283,10 @@ debugging discoveries. Do not add one-off observations or generic advice.
   password login. Testing expiry and resend caps separately missed a permanent
   pending-challenge trap; live challenge counters and active lockouts must still
   survive re-login.
+
+- REST form submission completes asynchronously. Browser tests must await the
+  relevant response and any subsequent navigation before reading a captured
+  email or database result. A retained disposable tenant also retains rate-limit
+  history: a neutral reset response can leave the previous outbox message intact.
+  Use a fresh tenant to verify reset delivery, rather than treating that stale
+  outbox as the response to the latest request.

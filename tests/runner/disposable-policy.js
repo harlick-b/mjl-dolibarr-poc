@@ -111,6 +111,7 @@ function assertDisposableConfig(config, expected) {
     '/etc/apache2/conf-enabled/mjl-native-guard.conf',
     path.join(expected.repositoryRoot, 'custom/mjlfinancement/deployment/apache-native-guard.conf'),
   );
+  assertReadOnlyBind(dolibarr, '/usr/local/etc/php/conf.d/zz-mjl-session.ini', path.join(expected.repositoryRoot, 'custom/mjlfinancement/deployment/php-session.ini'));
   assertReadOnlyBind(dolibarr, '/opt/mjl-tests', path.join(expected.repositoryRoot, 'tests'));
   assertReadOnlyBind(dolibarr, '/opt/mjl-evidence', expected.evidenceRoot);
 
@@ -118,6 +119,7 @@ function assertDisposableConfig(config, expected) {
   const allowedBinds = new Set([
     path.resolve(path.join(expected.repositoryRoot, 'custom')),
     path.resolve(path.join(expected.repositoryRoot, 'custom/mjlfinancement/deployment/apache-native-guard.conf')),
+    path.resolve(path.join(expected.repositoryRoot, 'custom/mjlfinancement/deployment/php-session.ini')),
     path.resolve(path.join(expected.repositoryRoot, 'tests')),
     path.resolve(expected.evidenceRoot),
   ]);

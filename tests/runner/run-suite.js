@@ -255,6 +255,7 @@ function composeEnvironment(plan, sourceRoot = repositoryRoot, bootstrapProfile 
     MJL_LIFECYCLE_BOOTSTRAP_PROFILE: bootstrapProfile,
     MJL_DISPOSABLE_RUN_SENTINEL: plan.sentinel,
     MJL_TEST_USER_PASSWORD: plan.testUserPassword,
+    DOLI_ADMIN_PASSWORD: process.env.DOLI_ADMIN_PASSWORD || 'Admin1234',
     MJL_AUTH_PASSWORD_1: plan.lifecyclePasswords[0],
     MJL_AUTH_PASSWORD_2: plan.lifecyclePasswords[1],
     MJL_AUTH_STALE_PASSWORD: plan.lifecyclePasswords[2],
@@ -650,6 +651,8 @@ async function runPlaywright(plan, target, signal) {
 	args.push('tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
   } else if (target === 'spending') {
     args.push('tests/e2e/spending.spec.js', '--config=playwright.config.js');
+  } else if (target === 'api') {
+    args.push('tests/e2e/api-auth-partners.spec.js', '--config=playwright.config.js');
   } else if (target === 'auth') {
 	args.push('tests/e2e/authentication.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst014a') {
@@ -697,6 +700,7 @@ async function runPlaywright(plan, target, signal) {
   } else {
     args.push('--config=tests/manual/playwright.config.js', '--debug');
   }
+  if (process.env.MJL_TEST_GREP) args.push('--grep', process.env.MJL_TEST_GREP);
   await runCommand('npx', args, { env: composeEnvironment(plan), signal, timeoutMs: 15 * 60 * 1000 });
 }
 
@@ -910,7 +914,7 @@ async function main() {
     ? { port: process.env.MJL_SECRET_REGISTRY_PORT, capability: process.env.MJL_SECRET_REGISTRY_CAPABILITY }
     : null;
   try {
-    if (mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst012' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || vuiModes.has(mode) || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
+    if (mode === 'api' || mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst012' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || vuiModes.has(mode) || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') sharedBefore = await captureSharedEvidence(controller.signal);
     if (needsTenant) {
       plan = createRunPlan({ repositoryRoot, port: await allocatePort() });
       if (mode === 'phase3c') {
@@ -1194,7 +1198,7 @@ async function main() {
         failure = combineFailures(failure, registryError, 'Secret registry cleanup failed.');
       }
     }
-    if ((mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst012' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || vuiModes.has(mode) || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
+    if ((mode === 'api' || mode === 'all' || mode === 'e2e' || mode === 'verify' || mode === 'rst002b' || mode === 'rst006a' || mode === 'rst012' || mode === 'phase2' || mode === 'phase3b' || mode === 'phase3c' || vuiModes.has(mode) || mode === 'phase3a' || mode === 'rst013a' || mode === 'rst014a') && sharedBefore && plan) {
       try {
         const sharedAfter = await captureSharedEvidence();
         const unit = mode.toUpperCase();

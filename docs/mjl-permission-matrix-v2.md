@@ -68,8 +68,9 @@ Spending approval is a separate decision from Activity validation and Opération
 completion (DEC-076). It makes the accounting entry immutable. The role is
 confirmed. Under DEC-077, assigned Agents submit separate expenses and request
 corrections; the Validator approves each expense and each full reversal/replacement
-pair. Self-approval is forbidden for both initial entries and corrections. This
-permission is a target requirement, not a claim of implemented functionality.
+pair. Self-approval is forbidden for both initial entries and corrections.
+Current implementation and verification evidence is recorded in the roadmap;
+these rules remain authoritative for both HTML and REST access.
 
 Assigned Agents draft, submit and withdraw expense candidates. Validators
 approve or reject exact submissions; all draft contributors and the submitter

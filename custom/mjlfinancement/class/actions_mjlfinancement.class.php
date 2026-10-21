@@ -30,8 +30,11 @@ class ActionsMjlfinancement extends CommonHookActions
 	public function updateSession($parameters, &$object, &$action, $hookmanager)
 	{
 		global $user;
-		if (!mjl_auth_otp_enabled() || empty($user->id) || mjl_auth_session_is_otp_verified($user)) return 0;
-		mjl_auth_session_invalidate('Votre session doit être vérifiée de nouveau.');
+		if (!mjl_auth_otp_enabled() || empty($user->id)) return 0;
+		$path=parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
+		$foreground=!preg_match('~/(css|js|scripts|ajax)/~',(string)$path);
+		if (mjl_auth_check_session($user,$foreground)==='valid') return 0;
+		mjl_auth_session_set_login_message('Votre session doit être vérifiée de nouveau.');
 		header('Location: '.DOL_URL_ROOT.'/index.php');
 		exit;
 	}
@@ -64,13 +67,7 @@ class ActionsMjlfinancement extends CommonHookActions
 	public function getPasswordForgottenPageOptions($parameters, &$object, &$action, $hookmanager)
 	{
 		$selector = GETPOST('mjlselector', 'alphanohtml');
-		$status = mjl_auth_reset_status($selector);
-		$GLOBALS['mjl_auth_reset_view'] = array(
-			'selector' => $selector,
-			'status' => $status,
-			'email' => $status === 'valid' ? mjl_auth_reset_email($selector) : '',
-			'error' => mjl_auth_session_consume_reset_error(),
-		);
+		$GLOBALS['mjl_auth_reset_view'] = array('selector' => $selector);
 		return 0;
 	}
 
@@ -84,38 +81,7 @@ class ActionsMjlfinancement extends CommonHookActions
 			exit;
 		}
 
-		if ($action === 'mjl_build_password_reset') {
-			if ($_SERVER['REQUEST_METHOD'] !== 'POST') return 0;
-			if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
-				mjl_auth_record_event('password_reset_bad_csrf', null, null, 'ip_hash='.mjl_auth_client_ip_hash().mjl_auth_e2e_context_suffix());
-				header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?mjl_reset_requested=1');
-				exit;
-			}
-			$email = GETPOST('email', 'restricthtml');
-			mjl_auth_command()->createPasswordReset($email);
-			header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?mjl_reset_requested=1');
-			exit;
-		}
-
-		if ($action === 'mjl_validate_password_reset') {
-			if ($_SERVER['REQUEST_METHOD'] !== 'POST') return 0;
-			$selector = GETPOST('mjlselector', 'alphanohtml');
-			if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
-				mjl_auth_session_set_reset_error('Le jeton de securite est invalide. Veuillez recharger la page.');
-				header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlselector='.urlencode($selector));
-				exit;
-			}
-			$error = mjl_auth_command()->consumePasswordReset($selector, GETPOST('verifier', 'restricthtml'), GETPOST('newpass1', 'password'), GETPOST('newpass2', 'password'));
-			if ($error === '') {
-				mjl_auth_session_cancel();
-				mjl_auth_session_set_login_message('Votre mot de passe a ete mis a jour. Vous pouvez vous connecter.');
-				header('Location: '.DOL_URL_ROOT.'/index.php');
-				exit;
-			}
-			mjl_auth_session_set_reset_error($error);
-			header('Location: '.DOL_URL_ROOT.'/user/passwordforgotten.php?setnewpassword=1&mjlselector='.urlencode($selector));
-			exit;
-		}
+		if ($_SERVER['REQUEST_METHOD'] !== 'GET') { http_response_code(405); header('Allow: GET'); exit; }
 
 		return 0;
 	}

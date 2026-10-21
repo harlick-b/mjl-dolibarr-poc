@@ -5,6 +5,7 @@
     "test:verify": "node tests/runner/run-suite.js verify",
     "test:e2e": "node tests/runner/run-suite.js e2e",
     "test:spending": "node tests/runner/run-suite.js spending",
+    "test:api": "node tests/runner/run-suite.js api",
     "test:auth": "node tests/runner/run-suite.js auth",
     "test:rst003": "node tests/runner/run-suite.js rst003",
     "test:rst007a": "node tests/runner/run-suite.js rst007a",

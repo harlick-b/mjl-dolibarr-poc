@@ -7,16 +7,6 @@ header('Referrer-Policy: no-referrer');
 
 $mjlResetView = isset($GLOBALS['mjl_auth_reset_view']) && is_array($GLOBALS['mjl_auth_reset_view']) ? $GLOBALS['mjl_auth_reset_view'] : array();
 $selector = isset($mjlResetView['selector']) ? (string) $mjlResetView['selector'] : '';
-$status = isset($mjlResetView['status']) ? (string) $mjlResetView['status'] : 'invalid';
-$email = isset($mjlResetView['email']) ? (string) $mjlResetView['email'] : '';
-$error = isset($mjlResetView['error']) ? (string) $mjlResetView['error'] : '';
-
-$usable = $status === 'valid' && $email !== '';
-mjl_auth_ui_start('Nouveau mot de passe · MJL', $usable ? 'Réinitialiser mon mot de passe' : 'Lien indisponible', $usable ? 'Choisissez un nouveau mot de passe.' : '', 'mjl-reset-title');
-if (!$usable) {
-	mjl_auth_ui_unusable_link();
-} else {
-	if ($error !== '') print '<div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive">'.dol_escape_htmltag($error).'</div>';
-	mjl_auth_ui_password_form('mjl-password-reset', DOL_URL_ROOT.'/user/passwordforgotten.php', array('action' => 'mjl_validate_password_reset', 'mjlselector' => $selector), $email, 'Réinitialiser le mot de passe');
-}
+mjl_auth_ui_start('Nouveau mot de passe · MJL', 'Réinitialiser mon mot de passe', 'Choisissez un nouveau mot de passe.', 'mjl-reset-title');
+mjl_auth_ui_password_form('mjl-password-reset', DOL_URL_ROOT.'/user/passwordforgotten.php', array('action' => 'mjl_validate_password_reset', 'mjlselector' => $selector), '', 'Réinitialiser le mot de passe');
 mjl_auth_ui_end();

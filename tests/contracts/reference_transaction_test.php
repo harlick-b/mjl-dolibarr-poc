@@ -66,6 +66,7 @@ try {
 	check($command->setActive('operation_type', 5, true, $fingerprint) !== '', 'no-op lifecycle must fail when commit fails');
 	check($command->updateLabel('operation_type', 5, 'Changed', $fingerprint) !== '', 'mutating update must fail when commit fails');
 	check($command->setActive('operation_type', 5, false, $fingerprint) !== '', 'mutating lifecycle must fail when commit fails');
+	check($command->outcomeCode() === 'OUTCOME_UNKNOWN', 'uncertain commit must have a typed outcome');
 	check($db->rollbackCount === 5, 'each uncertain commit must request rollback');
 
 	$db = new ReferenceFakeDb();

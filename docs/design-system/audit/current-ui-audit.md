@@ -18,7 +18,7 @@ browser verification for this documentation update.
   data. Admin sees only supported access, audit, and technical destinations.
 - Partner and Project management uses shared responsive tables and progressive
   form/lifecycle dialogs while retaining current role reads, Validator-only
-  mutation, immutable Project ownership, and ordinary-form fallback.
+  mutation, immutable Project ownership. Partenaires uses REST and requires JavaScript; Projets retains ordinary forms until its REST migration.
 - Admin access uses shared responsive user and invitation tables with
   progressive invitation and account-action dialogs. It presents the current
   invitation delivery states and preserves Admin-only mutation, existing roles,

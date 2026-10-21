@@ -31,12 +31,15 @@ isolation, security boundaries, and data integrity.
 - `npm run test:unit` for fast source contracts;
 - `npm run test:verify` for the current isolated schema verifier;
 - `npm run test:spending` for isolated expense submission, approval, reversals, terminal corrections, approved totals and completion guards;
+- `npm run test:api` for the isolated REST authentication/recovery, expiry, Partner UI, authorization and transaction boundaries;
 - `npm run test:auth` for the disposable login OTP, session, recovery, and native-bypass boundaries;
 - `npm run test:rst012` for the focused RST-012 interruption, resume, rollback, and malformed-state matrix;
 - `npm run test:vui03` for the focused disposable Activities-list browser checks;
 - `npm run test:vui04` for the focused disposable Activity planning form browser checks;
 - `npm run test:e2e` only when broad current UI coverage is explicitly needed;
 - named `test:rst*` and `test:phase*` commands only for their affected surface.
+
+For a focused browser subset, use `MJL_TEST_GREP='test title expression' npm run test:auth` (or `test:api`). This retains the disposable runner's isolation and teardown.
 
 Disposable suites must keep their isolation, secret handling, shared-state
 preservation, and teardown guarantees. Never revive persistent sample data to

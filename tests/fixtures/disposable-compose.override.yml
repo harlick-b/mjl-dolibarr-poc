@@ -38,6 +38,10 @@ services:
         target: /etc/apache2/conf-enabled/mjl-native-guard.conf
         read_only: true
       - type: bind
+        source: ${MJL_REPOSITORY_ROOT}/custom/mjlfinancement/deployment/php-session.ini
+        target: /usr/local/etc/php/conf.d/zz-mjl-session.ini
+        read_only: true
+      - type: bind
         source: ${MJL_REPOSITORY_ROOT}/tests
         target: /opt/mjl-tests
         read_only: true

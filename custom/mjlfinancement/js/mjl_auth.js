@@ -1,6 +1,7 @@
 (function () {
 	'use strict';
 	function init() {
+	document.querySelectorAll('[data-mjl-js-required]').forEach(function (message) { message.remove(); });
 
 	document.querySelectorAll('[data-mjl-password-toggle]').forEach(function (button) {
 		button.addEventListener('click', function () {
@@ -52,7 +53,7 @@
 		validate();
 	}
 
-	document.querySelectorAll('[data-mjl-auth-form]').forEach(function (form) {
+	document.querySelectorAll('[data-mjl-auth-form]:not([data-mjl-auth-api])').forEach(function (form) {
 		form.addEventListener('submit', function () {
 			var button = form.querySelector('button[type=submit]');
 			if (!button || button.disabled) return;
@@ -60,6 +61,55 @@
 			button.setAttribute('aria-busy', 'true');
 		});
 	});
+ document.querySelectorAll('[data-mjl-auth-api]').forEach(function (form) {
+  const mode = form.dataset.mjlAuthApi;
+  const base = new URL('../', document.querySelector('script[src*="/js/mjl_api.js"]').src).pathname.replace(/\/$/, '');
+  const appRoot = base.replace(/\/custom\/mjlfinancement$/, '');
+  let busy = false, usable = !['invitation','reset-consume'].includes(mode);
+  function message(text, success) {
+   let box = form.parentElement.querySelector('[data-auth-api-message]');
+   if (!box) { box=document.createElement('div'); box.dataset.authApiMessage=''; box.tabIndex=-1; form.before(box); }
+   box.className='mjl-auth-message '+(success?'mjl-auth-success':'mjl-auth-error'); box.setAttribute('role',success?'status':'alert'); box.textContent=text; box.focus();
+  }
+  function proof() { return {selector: form.elements.selector?.value || form.elements.mjlselector?.value || '', verifier:form.elements.verifier.value}; }
+  if (!usable) {
+   // auth_fragment.js consumes the URL fragment before DOMContentLoaded.
+   form.hidden = true;
+   mjlApi.request('/auth/'+(mode==='invitation'?'invitations':'password-resets')+'/inspect','POST',proof()).then(result => {
+    usable = result.data.valid;
+    if (!usable) { message('Ce lien est invalide ou a expiré.'); return; }
+    form.querySelector('.mjl-auth-readonly span').textContent=result.data.email;
+    form.hidden=false;
+   }).catch(e => message(e.message));
+  }
+  form.addEventListener('submit',async function(event) {
+   event.preventDefault(); if (busy || !usable || !form.reportValidity()) return;
+   busy=true;
+   const button=form.querySelector('button[type=submit]'); button.disabled=true; button.setAttribute('aria-busy','true');
+   try {
+    let result;
+    if(mode==='login') {
+     result=await mjlApi.request('/auth/login','POST',{email:form.elements.email.value,password:form.elements.password.value});
+     location.assign(base+'/auth.php');
+    } else if(mode==='verify') {
+     result=await mjlApi.request('/auth/otp/verify','POST',{code:form.elements.code.value});
+     location.assign(base+'/index.php');
+    } else if(mode==='resend') {
+     await mjlApi.request('/auth/otp/resend','POST',{}); message('Un nouveau code a été envoyé.',true);
+    } else if(mode==='cancel') {
+     await mjlApi.request('/auth/session','DELETE'); location.assign(appRoot+'/index.php');
+    } else if(mode==='reset-request') {
+     result=await mjlApi.request('/auth/password-resets','POST',{email:form.elements.email.value});
+     location.assign(appRoot+'/user/passwordforgotten.php?mjl_reset_requested=1');
+    } else {
+     result=await mjlApi.request('/auth/'+(mode==='invitation'?'invitations/accept':'password-resets/consume'),'POST',{...proof(),password:form.elements.newpass1.value,password_confirmation:form.elements.newpass2.value});
+     form.reset(); usable=false; location.assign(appRoot+'/index.php');
+    }
+   } catch(e) { message(e.message); }
+   finally { busy=false; button.disabled=false; button.removeAttribute('aria-busy'); if (typeof validate === 'function') validate(); }
+  });
+ });
+
 	}
 
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

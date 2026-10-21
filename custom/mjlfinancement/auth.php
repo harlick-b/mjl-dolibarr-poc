@@ -12,40 +12,8 @@ if (!mjl_auth_otp_enabled()) {
 	exit;
 }
 
-$action = GETPOST('action', 'aZ09');
-$authCommand = mjl_auth_command();
-$error = '';
-$notice = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
-		$error = 'Le jeton de sécurité est invalide. Veuillez recharger la page.';
-	} elseif ($action === 'login') {
-		$emailInput = strtolower(trim(GETPOST('email', 'restricthtml')));
-		mjl_auth_session_remember_login_email($emailInput);
-		$result = $authCommand->startOtp($emailInput, GETPOST('password', 'password'), GETPOST('backtopage', 'restricthtml'));
-		if ($result[0]) {
-			header('Location: '.DOL_URL_ROOT.'/custom/mjlfinancement/auth.php');
-			exit;
-		}
-		$error = $result[1];
-	} elseif ($action === 'verify' && mjl_auth_otp_pending()) {
-		$result = $authCommand->verifyOtp(GETPOST('code', 'alphanohtml'));
-		if ($result[0]) {
-			header('Location: '.DOL_URL_ROOT.$result[1]);
-			exit;
-		}
-		$error = $result[1];
-	} elseif ($action === 'resend' && mjl_auth_otp_pending()) {
-		$result = $authCommand->resendOtp();
-		$result[0] ? $notice = $result[1] : $error = $result[1];
-	} elseif ($action === 'cancel') {
-		mjl_auth_session_cancel();
-		header('Location: '.DOL_URL_ROOT.'/index.php');
-		exit;
-	} else {
-		$error = 'Votre session de vérification a expiré.';
-	}
-}
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') { http_response_code(405); header('Allow: GET'); exit; }
+$error = ''; $notice = '';
 
 if (!mjl_auth_otp_pending()) {
 	mjl_auth_session_set_login_message($error !== '' ? $error : 'Votre session de vérification a expiré.');
@@ -57,9 +25,9 @@ $email = mjl_auth_session_pending_email();
 $at = strrpos($email, '@');
 $masked = $at === false ? '' : substr($email, 0, 1).str_repeat('•', max(4, $at - 1)).substr($email, $at);
 
-top_htmlhead('', 'Vérification · MJL', 0, 0, array('/custom/mjlfinancement/js/mjl_auth.js'), array('/custom/mjlfinancement/css/mjl_auth.css.php'), 1, 1);
+top_htmlhead('', 'Vérification · MJL', 0, 0, array('/custom/mjlfinancement/js/mjl_api.js', '/custom/mjlfinancement/js/mjl_auth.js'), array('/custom/mjlfinancement/css/mjl_auth.css.php'), 1, 1);
 ?>
-<body class="mjl-auth-page">
+<body class="mjl-auth-page"><p role="alert" data-mjl-js-required>JavaScript est nécessaire pour utiliser cet écran.</p>
 <div class="mjl-auth-shell">
 	<aside class="mjl-auth-sidebar" aria-hidden="true"><span></span><span></span><span></span><span></span></aside>
 	<div class="mjl-auth-content">
@@ -69,7 +37,7 @@ top_htmlhead('', 'Vérification · MJL', 0, 0, array('/custom/mjlfinancement/js/
 				<div class="mjl-auth-heading"><h1 id="mjl-otp-title">Vérification</h1><p>Saisissez le code envoyé à<br><strong><?php print dol_escape_htmltag($masked); ?></strong></p></div>
 				<?php if ($error !== '') { ?><div class="mjl-auth-message mjl-auth-error" role="alert" aria-live="assertive"><?php print dol_escape_htmltag($error); ?><?php if ($error === 'Code incorrect.') { ?><span>Vérifiez le code reçu puis réessayez.</span><?php } ?></div><?php } ?>
 				<?php if ($notice !== '') { ?><div class="mjl-auth-message mjl-auth-success" role="status" aria-live="polite"><?php print dol_escape_htmltag($notice); ?></div><?php } ?>
-				<form method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/auth.php" data-mjl-auth-form>
+				<form method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/auth.php" data-mjl-auth-form data-mjl-auth-api="verify">
 					<input type="hidden" name="token" value="<?php print newToken(); ?>">
 					<input type="hidden" name="action" value="verify">
 					<div class="mjl-auth-field">
@@ -81,12 +49,12 @@ top_htmlhead('', 'Vérification · MJL', 0, 0, array('/custom/mjlfinancement/js/
 					</div>
 					<button type="submit" class="mjl-auth-button">Vérifier</button>
 				</form>
-				<form method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/auth.php" class="mjl-auth-secondary">
+				<form method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/auth.php" class="mjl-auth-secondary" data-mjl-auth-api="resend">
 					<input type="hidden" name="token" value="<?php print newToken(); ?>">
 					<input type="hidden" name="action" value="resend">
 					<span>Code non reçu ?</span> <button type="submit" class="mjl-auth-link">Renvoyer le code</button>
 				</form>
-				<form method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/auth.php" class="mjl-auth-return">
+				<form method="post" action="<?php print DOL_URL_ROOT; ?>/custom/mjlfinancement/auth.php" class="mjl-auth-return" data-mjl-auth-api="cancel">
 					<input type="hidden" name="token" value="<?php print newToken(); ?>"><input type="hidden" name="action" value="cancel">
 					<button type="submit" class="mjl-auth-link">Retour à la connexion</button>
 				</form>

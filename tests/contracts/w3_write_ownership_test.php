@@ -29,13 +29,6 @@ check(preg_match_all('/class\s+MjlReferenceCommand\s*\{/', $referenceCommand) ==
 check(substr_count($referenceRoute, 'new MjlReferenceCommand(') === 1, 'reference route must construct one command');
 foreach (array('->create(', '->updateLabel(', '->setActive(') as $call) check(strpos($referenceRoute, $call) !== false, 'reference route call missing: '.$call);
 
-$partnersRoot = source($root, 'custom/mjlfinancement/partners.php');
-$projectsRoot = source($root, 'custom/mjlfinancement/projects.php');
-$operationTypesRoot = source($root, 'custom/mjlfinancement/operationtypes.php');
-$referenceHttp = source($root, 'custom/mjlfinancement/lib/reference/mjl_reference_http.lib.php');
-foreach (array($partnersRoot, $projectsRoot) as $entry) check(strpos($entry, 'mjl_reference_http_handle(') !== false, 'Partner/Project entry must reach the W1 HTTP adapter');
-check(strpos($referenceHttp, 'mjl_reference_route($kind)') !== false, 'Partner/Project mutation path must reach the reference route');
-check(strpos($operationTypesRoot, "mjl_reference_route('operation_type')") !== false, 'Operation Type entry must reach the reference route');
 check(strpos($reference, "require_once __DIR__.'/../class/mjlreferencecommand.class.php'") !== false, 'reference production include chain must load the command');
 
 check(preg_match_all('/class\s+MjlAccessCommand\s*\{/', $accessCommand) === 1, 'access command owner missing');

@@ -2,8 +2,8 @@
 
 function mjl_auth_ui_start($title, $heading, $description, $headingId)
 {
-	top_htmlhead('', $title, 0, 0, array('/custom/mjlfinancement/js/mjl_auth.js'), array('/custom/mjlfinancement/css/mjl_auth.css.php'), 1, 1);
-	print '<body class="mjl-auth-page"><div class="mjl-auth-shell">';
+	top_htmlhead('', $title, 0, 0, array('/custom/mjlfinancement/js/mjl_api.js', '/custom/mjlfinancement/js/mjl_auth.js'), array('/custom/mjlfinancement/css/mjl_auth.css.php'), 1, 1);
+	print '<body class="mjl-auth-page"><p role="alert" data-mjl-js-required>JavaScript est nécessaire pour utiliser cet écran.</p><div class="mjl-auth-shell">';
 	print '<aside class="mjl-auth-sidebar" aria-hidden="true"><span></span><span></span><span></span><span></span></aside>';
 	print '<div class="mjl-auth-content"><header class="mjl-auth-header"><a class="mjl-auth-logo" href="'.DOL_URL_ROOT.'/index.php" aria-label="MJL"><span>M</span><strong>MJL</strong></a></header>';
 	print '<main class="mjl-auth-main"><section class="mjl-auth-panel" aria-labelledby="'.dol_escape_htmltag($headingId).'">';
@@ -25,7 +25,7 @@ function mjl_auth_ui_unusable_link()
 
 function mjl_auth_ui_password_form($formId, $actionUrl, array $hidden, $email, $buttonLabel)
 {
-	print '<form id="'.dol_escape_htmltag($formId).'" method="post" action="'.dol_escape_htmltag($actionUrl).'" data-mjl-auth-form>';
+	print '<form id="'.dol_escape_htmltag($formId).'" method="post" action="'.dol_escape_htmltag($actionUrl).'" data-mjl-auth-form data-mjl-auth-api="'.($formId === 'mjl-invitation-accept' ? 'invitation' : 'reset-consume').'">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	foreach ($hidden as $name => $value) print '<input type="hidden" name="'.dol_escape_htmltag($name).'" value="'.dol_escape_htmltag($value).'">';
 	print '<input type="hidden" id="verifier" name="verifier" value="">';

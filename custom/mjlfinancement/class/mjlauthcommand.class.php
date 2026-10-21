@@ -197,18 +197,20 @@ class MjlAuthCommand
 	public function startOtp($email, $password, $backtopage = '')
 	{
 		$db = $this->db;
-		if (!mjl_auth_otp_enabled() || !mjl_auth_otp_table_ready()) return array(false, 'La vérification est temporairement indisponible.');
+		if (!mjl_auth_otp_enabled() || !mjl_auth_otp_table_ready()) return array(false, 'La vérification est temporairement indisponible.', 'unavailable');
 		$target = mjl_auth_verify_password($email, $password);
-		if (!$target) return array(false, 'Adresse email ou mot de passe incorrect.');
+		if (!$target) return array(false, 'Adresse email ou mot de passe incorrect.', 'invalid_credentials');
 		$lock = $this->namedLock('otp_user_'.((int) $target->id), 5);
-		if ($lock === '') return array(false, 'La vérification est temporairement indisponible.');
+		if ($lock === '') return array(false, 'La vérification est temporairement indisponible.', 'unavailable');
 		$binding = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
 		$code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 		$challengeId = 0;
 		try {
 			$resql = $db->query('SELECT date_lockout_until FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".$this->entity.' AND fk_user='.((int) $target->id)." AND status='locked' AND date_lockout_until>".mjl_auth_now_sql().' ORDER BY rowid DESC LIMIT 1');
-			if ($resql && $db->fetch_object($resql)) return array(false, 'Trop de codes incorrects. Réessayez dans quelques minutes.');
-			if (!$this->beginTransaction('mjl start login otp')) return array(false, 'La vérification est temporairement indisponible.');
+			$lockout = $resql ? $db->fetch_object($resql) : null;
+			if (!$resql) return array(false, 'La vérification est temporairement indisponible.', 'unavailable');
+			if ($lockout) return array(false, 'Trop de codes incorrects. Réessayez dans quelques minutes.', 'rate_limited', max(1, strtotime($lockout->date_lockout_until) - dol_now()));
+			if (!$this->beginTransaction('mjl start login otp')) return array(false, 'La vérification est temporairement indisponible.', 'unavailable');
 			$pendingResult = $db->query('SELECT rowid,credential_hash,date_expiry FROM '.$db->prefix()."mjlfinancement_login_otp WHERE entity=".$this->entity.' AND fk_user='.((int) $target->id)." AND status='pending' LIMIT 1 FOR UPDATE");
 			$pending = $pendingResult ? $db->fetch_object($pendingResult) : null;
 			if ($pending && strtotime($pending->date_expiry) >= dol_now() && hash_equals((string) $pending->credential_hash, mjl_auth_credential_hash($target))) {
@@ -227,13 +229,13 @@ class MjlAuthCommand
 			$mail = mjl_auth_send_otp_email($target, $code);
 			if ($mail[0] <= 0) {
 				$db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='delivery_failed',code_hash=NULL WHERE rowid=".$challengeId." AND status='pending'");
-				return array(false, 'Le code ne peut pas être envoyé pour le moment.');
+				return array(false, 'Le code ne peut pas être envoyé pour le moment.', 'unavailable');
 			}
 			mjl_auth_session_begin_pending($binding, $challengeId, $target, mjl_auth_safe_backtopage($backtopage));
 			return array(true, '');
 		} catch (Throwable $exception) {
 			$this->rollbackTransaction('mjl start login otp failed');
-			return array(false, 'La vérification est temporairement indisponible.');
+			return array(false, 'La vérification est temporairement indisponible.', 'unavailable');
 		} finally {
 			$this->releaseNamedLock($lock);
 		}
@@ -243,29 +245,29 @@ class MjlAuthCommand
 	{
 		$db = $this->db;
 		$code = trim((string) $code);
-		if (!preg_match('/^[0-9]{6}$/', $code)) return array(false, 'Code incorrect.');
+		if (!preg_match('/^[0-9]{6}$/', $code)) return array(false, 'Code incorrect.', 'invalid_otp');
 		$userId = mjl_auth_session_pending_user_id();
 		$lock = $userId > 0 ? $this->namedLock('otp_user_'.$userId, 5) : '';
-		if ($lock === '') return array(false, 'Votre session de vérification a expiré.');
+		if ($lock === '') return array(false, 'Votre session de vérification a expiré.', 'authentication_required');
 		try {
-			if (!$this->beginTransaction('mjl verify login otp')) return array(false, 'La vérification est temporairement indisponible.');
+			if (!$this->beginTransaction('mjl verify login otp')) return array(false, 'La vérification est temporairement indisponible.', 'unavailable');
 			$row = mjl_auth_otp_pending_row(true);
-			if (!$row || $row->status !== 'pending') throw new RuntimeException('Votre session de vérification a expiré.');
-			if (strtotime($row->date_expiry) < dol_now()) { $this->rollbackTransaction('mjl expired login otp'); return array(false, 'Ce code a expiré.'); }
+			if (!$row || $row->status !== 'pending') { $this->rollbackTransaction('mjl missing pending otp'); mjl_auth_session_clear_pending(); return array(false, 'Votre session de vérification a expiré.', 'authentication_required'); }
+			if (strtotime($row->date_expiry) < dol_now()) { $this->rollbackTransaction('mjl expired login otp'); return array(false, 'Ce code a expiré.', 'otp_expired'); }
 			if (!hash_equals((string) $row->code_hash, mjl_auth_otp_hash('otp:'.$userId, $code))) {
 				$attempts = (int) $row->attempt_count + 1;
 				$terminal = $attempts >= 5;
 				$sql = 'UPDATE '.$db->prefix().'mjlfinancement_login_otp SET attempt_count='.$attempts.($terminal ? ",status='locked',code_hash=NULL,date_lockout_until=".mjl_auth_datetime_sql(dol_now() + 600) : '').' WHERE rowid='.((int) $row->rowid)." AND status='pending'";
 				if (!$db->query($sql) || mjl_auth_record_event($terminal ? 'login_otp_locked' : 'login_otp_invalid', $userId, $userId, array('challenge_id' => (int) $row->rowid, 'attempt_count' => $attempts)) < 1 || !$db->commit('mjl reject login otp')) throw new RuntimeException('La vérification est temporairement indisponible.');
 				if ($terminal) mjl_auth_session_clear_pending();
-				return array(false, $terminal ? 'Trop de codes incorrects. Réessayez dans quelques minutes.' : 'Code incorrect.');
+				return array(false, $terminal ? 'Trop de codes incorrects. Réessayez dans quelques minutes.' : 'Code incorrect.', $terminal ? 'rate_limited' : 'invalid_otp', $terminal ? 600 : null);
 			}
 			$target = new User($db);
-			if ($target->fetch($userId) <= 0 || (int) $target->statut !== 1 || mjl_scope_effective_role_code($target, $this->entity) === '' || !hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target))) {
+			if ($target->fetch($userId) <= 0 || (int) $target->statut !== 1 || $target->isNotIntoValidityDateRange() || mjl_scope_effective_role_code($target, $this->entity) === '' || !hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target))) {
 				$invalidated = $db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='cancelled',code_hash=NULL WHERE rowid=".((int) $row->rowid)." AND status='pending'");
 				if (!$invalidated || mjl_auth_record_event('login_otp_invalidated', $userId, $userId, array('challenge_id' => (int) $row->rowid)) < 1 || !$db->commit('mjl invalidate login otp')) throw new RuntimeException('La vérification est temporairement indisponible.');
 				mjl_auth_session_clear_pending();
-				return array(false, 'Votre session de vérification a expiré.');
+				return array(false, 'Votre session de vérification a expiré.', 'authentication_required');
 			}
 			$verifiedUpdate = $db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='verified',code_hash=NULL,date_verified=".mjl_auth_now_sql().' WHERE rowid='.((int) $row->rowid)." AND status='pending'");
 			if (!$verifiedUpdate || $db->affected_rows($verifiedUpdate) !== 1) throw new RuntimeException('Votre session de vérification a expiré.');
@@ -278,7 +280,7 @@ class MjlAuthCommand
 			return array(true, $backtopage);
 		} catch (Throwable $exception) {
 			$this->rollbackTransaction('mjl verify login otp failed');
-			return array(false, $exception->getMessage());
+			return array(false, $exception->getMessage(), 'unavailable');
 		} finally {
 			$this->releaseNamedLock($lock);
 		}
@@ -289,18 +291,18 @@ class MjlAuthCommand
 		$db = $this->db;
 		$userId = mjl_auth_session_pending_user_id();
 		$lock = $userId > 0 ? $this->namedLock('otp_user_'.$userId, 5) : '';
-		if ($lock === '') return array(false, 'Votre session de vérification a expiré.');
+		if ($lock === '') return array(false, 'Votre session de vérification a expiré.', 'authentication_required');
 		try {
-			if (!$this->beginTransaction('mjl resend login otp')) return array(false, 'La vérification est temporairement indisponible.');
+			if (!$this->beginTransaction('mjl resend login otp')) return array(false, 'La vérification est temporairement indisponible.', 'unavailable');
 			$row = mjl_auth_otp_pending_row(true);
-			if (!$row || $row->status !== 'pending') throw new RuntimeException('Votre session de vérification a expiré.');
-			if ((int) $row->resend_count >= 3 || strtotime($row->date_last_send) > dol_now() - 60) { $this->rollbackTransaction('mjl resend login otp refused'); return array(false, 'Le renvoi est temporairement indisponible.'); }
+			if (!$row || $row->status !== 'pending') { $this->rollbackTransaction('mjl missing pending otp'); mjl_auth_session_clear_pending(); return array(false, 'Votre session de vérification a expiré.', 'authentication_required'); }
+			if ((int) $row->resend_count >= 3 || strtotime($row->date_last_send) > dol_now() - 60) { $this->rollbackTransaction('mjl resend login otp refused'); return array(false, 'Le renvoi est temporairement indisponible.', 'rate_limited', (int) $row->resend_count >= 3 ? null : max(1, strtotime($row->date_last_send) + 60 - dol_now())); }
 			$target = new User($db);
-			if ($target->fetch($userId) <= 0 || (int) $target->statut !== 1 || mjl_scope_effective_role_code($target, $this->entity) === '' || !hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target))) {
+			if ($target->fetch($userId) <= 0 || (int) $target->statut !== 1 || $target->isNotIntoValidityDateRange() || mjl_scope_effective_role_code($target, $this->entity) === '' || !hash_equals((string) $row->credential_hash, mjl_auth_credential_hash($target))) {
 				$invalidated = $db->query('UPDATE '.$db->prefix()."mjlfinancement_login_otp SET status='cancelled',code_hash=NULL WHERE rowid=".((int) $row->rowid)." AND status='pending'");
 				if (!$invalidated || !$db->commit('mjl invalidate login otp resend')) throw new RuntimeException('La vérification est temporairement indisponible.');
 				mjl_auth_session_clear_pending();
-				return array(false, 'Votre session de vérification a expiré.');
+				return array(false, 'Votre session de vérification a expiré.', 'authentication_required');
 			}
 			do {
 				$code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
@@ -309,10 +311,10 @@ class MjlAuthCommand
 			$sql = 'UPDATE '.$db->prefix().'mjlfinancement_login_otp SET code_hash='.mjl_auth_string_sql($codeHash).',resend_count=resend_count+1,date_code_issued='.mjl_auth_now_sql().',date_expiry='.mjl_auth_datetime_sql(dol_now() + 600).',date_last_send='.mjl_auth_now_sql().' WHERE rowid='.((int) $row->rowid)." AND status='pending'";
 			if (!$db->query($sql) || !$db->commit('mjl resend login otp')) throw new RuntimeException('La vérification est temporairement indisponible.');
 			$mail = mjl_auth_send_otp_email($target, $code);
-			return $mail[0] > 0 ? array(true, 'Un nouveau code a été envoyé.') : array(false, 'Le code ne peut pas être envoyé pour le moment.');
+			return $mail[0] > 0 ? array(true, 'Un nouveau code a été envoyé.') : array(false, 'Le code ne peut pas être envoyé pour le moment.', 'unavailable');
 		} catch (Throwable $exception) {
 			$this->rollbackTransaction('mjl resend login otp failed');
-			return array(false, $exception->getMessage());
+			return array(false, $exception->getMessage(), 'unavailable');
 		} finally { $this->releaseNamedLock($lock); }
 	}
 

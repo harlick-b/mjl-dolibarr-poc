@@ -177,12 +177,51 @@ budget-variance observation is required at completion; each expense/correction
 retains its description/reason. Broader historical suites and manual accessibility
 sign-off were not run; these checks establish neither acceptance nor production readiness.
 
-### REST API: next workstream
+### REST API: progressive implementation
 
 DEC-077 records REST API implementation after authentication fixes and spending
-approval/reversal. There is no implemented MJL REST API today; native API remains
-disabled. Consumers, endpoint scope and authentication must be defined before
-implementation. Phase 4 remains separately deferred.
+approval/reversal. DEC-078 sets the API as the backend foundation for web/PWA
+clients, covering all available MJL actions with login plus OTP. The existing
+interface migrates progressively with each feature. MJL administration is
+included; native Dolibarr technical administration is excluded.
+There are no external integrations for now. Authentication and Partenaires REST adapters are implemented (DEC-080); native API remains disabled. Phase 4 remains separately deferred.
+
+Approved session policy (user confirmation on 2026-10-21, DEC-081): expire after 24
+hours of inactivity or 24 hours total, whichever comes first, and require login
+plus email OTP again. No remembered-device option is included. These limits
+are implemented and verified through the shared API/HTML session gate.
+Offline mode remains outside current scope. Mail remains a prerequisite for
+operational OTP delivery.
+
+The 2026-10-21 source inventory and target wire contract are defined in
+[`mjl-rest-api-contract.md`](mjl-rest-api-contract.md) and
+[`mjl-rest-api.openapi.yaml`](mjl-rest-api.openapi.yaml): 75 operations covering
+current MJL actions and necessary session/submission-token adapters. The contract
+preserves command ownership, scoped reads, fingerprints/versions, one-use
+submissions, correction-only access and audited binary exports. The first runtime slice implements authentication, recovery, Partenaires and shared API/HTML session expiry. OpenAPI schema
+validation and operation/source/security-header consistency checks passed;
+independent spec/security/read-projection reviews were reconciled. Runtime checks for the first slice cover authentication, recovery, expiry, Partner transactions, role/entity denial and mobile use.
+
+Proposed API delivery stages (separate from product Phase 4):
+
+1. Authentication/session/recovery and reference data; start with Partenaires as
+   the first fully migrated screen. Verify native cookie/routing integration.
+2. Activities, assignments, planning, review and chronology.
+3. Operations, expenses, accounting corrections and exception workflows.
+4. Dashboards, alerts, audit, previews and exports.
+5. MJL access administration and final action/interface coverage.
+
+Each slice must preserve existing commands and migrate the corresponding screen's
+reads/writes to REST. Focused checks and remaining technical dependencies are
+specified in the contract. Contract completion does not imply runtime completion,
+user acceptance or production readiness. Mail remains pending before OTP enablement.
+
+DEC-080 first slice: 16 operations are implemented (submission tokens currently
+allow only the three Partner mutations). Login/OTP/invitation/reset and Partenaires
+use REST; migrated screens require JavaScript. Partner transactions retain audit,
+fingerprint and cascade rules. Mail remains unconfigured and OTP disabled locally.
+Verification on 2026-10-21: `npm run test:api` passed 10/10 in a fresh disposable tenant, including shared-state/artifact checks and teardown. Six focused authentication regressions, three PHP contracts, changed-file PHP/JavaScript syntax and OpenAPI validation also passed. Broad suites were not run. These checks establish tested behavior only.
+Next API slice: Projets and Types d’Opération, then the remaining stages above.
 
 ### Phase 4: Documents
 

@@ -82,6 +82,7 @@ function getSuitePlan(mode) {
     verify: ['verify'],
     e2e: ['e2e'],
     auth: ['auth'],
+    api: ['api'],
     spending: ['spending'],
     rst003: ['rst003'],
     rst007a: ['rst007a'],

@@ -23,6 +23,7 @@ stop and surface the contradiction.
 
 | Subject | Canonical document |
 | --- | --- |
+| REST action inventory and wire contract | `docs/mjl-rest-api-contract.md`, `docs/mjl-rest-api.openapi.yaml` (target coverage; authentication/Partenaires slice implemented) |
 | Complete business rules | `docs/mjl-functional-specification-v2.md` |
 | Decision history and provenance | `docs/mjl-decision-register-v2.md` |
 | Core, excluded, and gated scope | `docs/mjl-scope-boundary-v2.md` |
@@ -90,8 +91,13 @@ implementation is not authorized and document routes remain deny-all.
   separate expenses within each Opération; Agent submission; Validator approval
   of linked full reversal/replacement together. Only approved expenses count in spending totals and exports. Completion
   requires all expenses approved, or an approved explicit zero-spending declaration. Authentication fixes come first; mail must be supplied and delivery
-  verified before enabling OTP. REST API is the next workstream, with its
-  consumers, endpoints and authentication scope still to define. Overall variance
+  verified before enabling OTP. DEC-078 defines REST API as the backend foundation
+  for web/PWA clients, covering all available MJL actions and using login plus
+  OTP. Migrate the existing interface progressively as API features are delivered. Migrated screens require JavaScript (DEC-080).
+  Scope includes MJL business features and MJL administration; native Dolibarr
+  technical administration and external integrations are excluded. Approved session
+  limits are 24 hours of inactivity or 24 hours total, whichever comes first;
+  either expiry requires login plus email OTP again, with no remembered devices. Overall variance
   explanation is required at completion. Agents assigned immediately before
   entire Activity cancellation retain correction-only access.
 - Operational outputs require French-labeled PDF and XLSX; audited CSV is

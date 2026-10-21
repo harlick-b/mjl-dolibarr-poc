@@ -122,3 +122,22 @@ function mjl_reference_label_from_request()
 {
 	return trim((string) GETPOST('label', 'restricthtml'));
 }
+
+/** Bounded reference projection; callers own HTTP and permission decisions. */
+function mjl_reference_read_page($db, $entity, $includeInactive, $id = null, $page = 1)
+{
+	$where = 'entity='.(int) $entity.($includeInactive ? '' : ' AND status=1');
+	if ($id !== null) $where .= ' AND rowid='.(int) $id;
+	$result = $db->query('SELECT rowid,entity,nom,status,tms FROM '.$db->prefix().'societe WHERE '.$where.' ORDER BY nom,rowid LIMIT '.($id === null ? '51 OFFSET '.(((int) $page-1)*50) : '1'));
+	if (!$result) throw new RuntimeException('Reference read unavailable.');
+	$rows = array();
+	while ($row = $db->fetch_object($result)) {
+		$rows[] = array(
+			'id' => (string) $row->rowid,
+			'label' => (string) $row->nom,
+			'active' => (int) $row->status === 1,
+			'fingerprint' => mjl_reference_fingerprint('partner', (array) $row),
+		);
+	}
+	return array('data' => array_slice($rows, 0, 50), 'pagination' => array('page' => (int) $page, 'page_size' => 50, 'has_next' => count($rows) > 50));
+}

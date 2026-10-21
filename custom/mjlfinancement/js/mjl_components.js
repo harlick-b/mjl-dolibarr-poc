@@ -379,10 +379,11 @@
 				promptToLeave(event.detail.href || '', event.detail.restoreTarget || null, event.detail.leave);
 			});
 
+			form.addEventListener('mjl:api-saved', function () { submitting = true; controller.acceptLeave(); });
 			form.addEventListener('input', syncDirtyState);
 			form.addEventListener('change', syncDirtyState);
 			form.addEventListener('submit', function (event) {
-				if (event.defaultPrevented) return;
+				if (event.defaultPrevented || form.hasAttribute('data-mjl-api-form')) return;
 				if (submitting) {
 					event.preventDefault();
 					event.stopImmediatePropagation();
@@ -896,6 +897,12 @@
 		});
 	}
 
+	window.mjlInitPartnerComponents = function (root) {
+		initTableActionMenus(root.querySelectorAll('[data-mjl-action-menu]'));
+		initSubstantiveForms(root.querySelectorAll('form[data-mjl-substantive]'));
+		Array.prototype.forEach.call(root.querySelectorAll('[data-mjl-reference-page-dialog]'), initReferencePageDialog);
+		Array.prototype.forEach.call(root.querySelectorAll('[data-mjl-reference-lifecycle-dialog]'), initReferenceLifecycleDialog);
+	};
 	document.addEventListener('DOMContentLoaded', function () {
 		Array.prototype.forEach.call(document.querySelectorAll('.mjl-module-shell'), initNavigationDrawer);
 		Array.prototype.forEach.call(document.querySelectorAll('form[data-mjl-validate]'), initValidatedForm);

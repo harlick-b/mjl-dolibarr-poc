@@ -4,6 +4,24 @@ const crypto = require('node:crypto');
 const { createUserReferenceFixtureSet } = require('../helpers/user-reference-fixture');
 const { composeExec, registerSecret, scalar, sql } = require('../helpers/mjl-test-runtime');
 
+
+const apiRoot = '/custom/mjlfinancement/api/index.php/v1';
+async function restPost(page, path, data, csrf) {
+  if (!csrf) csrf = (await (await page.request.get(apiRoot+'/auth/session')).json()).data.csrf_token;
+  return page.request.post(apiRoot+path, {data, headers:{'X-CSRF-Token':csrf}});
+}
+async function submitAuth(page, name) {
+  const response = page.waitForResponse(r => r.url().includes('/api/index.php/v1/auth/') && r.request().method() === 'POST');
+  await page.getByRole('button', {name, exact:true}).click();
+  const completed = await response;
+  if (completed.ok()) {
+    if (name === 'Envoyer le lien') await page.waitForURL(/mjl_reset_requested=1/);
+    else if (name === 'Se connecter') await page.waitForURL(/mjlfinancement\/auth.php$/);
+    else if (name === 'Vérifier') await page.waitForURL(/mjlfinancement\/index.php$/);
+    else if (['Enregistrer le mot de passe','Réinitialiser le mot de passe'].includes(name)) await page.waitForURL(/\/index.php$/);
+  }
+}
+
 let fixture;
 const emails = Object.create(null);
 const registeredCodes = new Set();
@@ -35,7 +53,7 @@ async function registerLink(link) {
 
 async function openFragmentLink(page, link) {
   await page.goto(link);
-  if (new URL(page.url()).hash) await page.reload();
+  await expect.poll(() => new URL(page.url()).hash).toBe('');
 }
 
 function sqlLiteral(value) {
@@ -86,7 +104,7 @@ async function startLogin(page, key, password = process.env.MJL_TEST_USER_PASSWO
   await page.goto('/index.php');
   await page.getByLabel('Adresse email').fill(emails[key]);
   await page.getByLabel('Mot de passe', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await submitAuth(page, 'Se connecter');
   await expect(page.getByRole('heading', { name: 'Vérification' })).toBeVisible();
 }
 
@@ -96,7 +114,7 @@ function staleLastSend(key) {
 
 test.beforeAll(({}, workerInfo) => {
   fixture = createUserReferenceFixtureSet({
-    namespace: `auth.login${workerInfo.workerIndex}`,
+    namespace: `auth.${Date.now().toString(36)}.${workerInfo.workerIndex}`,
     entity: 1,
     users: ['success', 'race', 'lock', 'resend', 'expired', 'changed', 'existing', 'policy'].map((key) => ({ key, role: 'AGENT_SAISIE' })),
     references: { partners: [], projects: [], operationTypes: [] },
@@ -117,7 +135,7 @@ test('password verification stays unauthenticated until a single-use email code 
   await page.goto('/index.php');
   await page.getByLabel('Adresse email').fill(emails.success);
   await page.getByLabel('Mot de passe', { exact: true }).fill('Incorrect1!');
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await submitAuth(page, 'Se connecter');
   await expect(page.getByLabel('Adresse email')).toHaveValue(emails.success);
 	await page.reload();
 	await expect(page.getByLabel('Adresse email')).toHaveValue('');
@@ -134,7 +152,7 @@ test('password verification stays unauthenticated until a single-use email code 
   await registerOtp(code);
   expect(code).toMatch(/^\d{6}$/);
   await page.getByLabel('Code de vérification').fill(code);
-  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+  await submitAuth(page, 'Vérifier');
   await expect(page).toHaveURL(/\/custom\/mjlfinancement\/index\.php$/);
   expect(scalar(`SELECT CONCAT(status,':',IFNULL(code_hash,'NULL')) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.success.id} ORDER BY rowid DESC LIMIT 1`)).toBe('verified:NULL');
   expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='login_otp_verified' AND object_id=${fixture.users.success.id}`)).toBe('1');
@@ -142,7 +160,7 @@ test('password verification stays unauthenticated until a single-use email code 
   await page.goto('/user/logout.php');
   await page.goto('/index.php');
   const token = await page.locator('input[name="token"]').inputValue();
-  await page.context().request.post('/custom/mjlfinancement/auth.php', { form: { token, action: 'verify', code } });
+  await restPost(page, '/auth/otp/verify', {code});
   expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.success.id} AND status='verified'`)).toBe('1');
 });
 
@@ -150,10 +168,10 @@ test('concurrent verification can consume a challenge only once', async ({ page 
   await startLogin(page, 'race');
   const code = outbox('login_otp').code;
   await registerOtp(code);
-  const token = await page.locator('form:has(input[name="action"][value="verify"]) input[name="token"]').inputValue();
+  const token = (await (await page.request.get(apiRoot+'/auth/session')).json()).data.csrf_token;
   await Promise.all([
-    page.context().request.post('/custom/mjlfinancement/auth.php', { form: { token, action: 'verify', code }, maxRedirects: 0 }),
-    page.context().request.post('/custom/mjlfinancement/auth.php', { form: { token, action: 'verify', code }, maxRedirects: 0 }),
+    restPost(page, '/auth/otp/verify', {code}, token),
+    restPost(page, '/auth/otp/verify', {code}, token),
   ]);
   expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.race.id} AND status='verified'`)).toBe('1');
   expect(scalar(`SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='login_otp_verified' AND object_id=${fixture.users.race.id}`)).toBe('1');
@@ -167,7 +185,7 @@ test('wrong attempts and resend counters survive a password re-login and apply a
   const wrong = realCode === '999999' ? '000000' : String(Number(realCode) + 1).padStart(6, '0');
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await first.getByLabel('Code de vérification').fill(wrong);
-    await first.getByRole('button', { name: 'Vérifier', exact: true }).click();
+    await submitAuth(first, 'Vérifier');
     await expect(first.getByText('Code incorrect.')).toBeVisible();
   }
 
@@ -178,17 +196,17 @@ test('wrong attempts and resend counters survive a password re-login and apply a
   await expect(first.getByRole('heading', { name: 'Connexion' })).toBeVisible();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await second.getByLabel('Code de vérification').fill(wrong);
-    await second.getByRole('button', { name: 'Vérifier', exact: true }).click();
+    await submitAuth(second, 'Vérifier');
   }
-  await expect(second.getByRole('heading', { name: 'Connexion' })).toBeVisible();
+  await expect(second.getByRole('alert')).toContainText('patienter');
   expect(scalar(`SELECT CONCAT(status,':',attempt_count) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.lock.id} ORDER BY rowid DESC LIMIT 1`)).toBe('locked:5');
 
   const third = await browser.newPage();
   await third.goto('/index.php');
   await third.getByLabel('Adresse email').fill(emails.lock);
   await third.getByLabel('Mot de passe', { exact: true }).fill(process.env.MJL_TEST_USER_PASSWORD);
-  await third.getByRole('button', { name: 'Se connecter' }).click();
-  await expect(third.getByText(/Trop de codes incorrects/)).toBeVisible();
+  await submitAuth(third, 'Se connecter');
+  await expect(third.getByText('Veuillez patienter avant de réessayer.')).toBeVisible();
   await first.context().close(); await second.context().close(); await third.context().close();
 });
 
@@ -197,21 +215,21 @@ test('resend invalidates the prior code, keeps attempts, and stops after three s
   const firstCode = outbox('login_otp').code;
   await registerOtp(firstCode);
   staleLastSend('resend');
-  await page.getByRole('button', { name: 'Renvoyer le code' }).click();
+  await submitAuth(page, 'Renvoyer le code');
   const secondCode = outbox('login_otp').code;
   await registerOtp(secondCode);
   await page.getByLabel('Code de vérification').fill(firstCode);
-  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+  await submitAuth(page, 'Vérifier');
   await expect(page.getByText('Code incorrect.')).toBeVisible();
 
   for (let resend = 2; resend <= 3; resend += 1) {
     staleLastSend('resend');
-    await page.getByRole('button', { name: 'Renvoyer le code' }).click();
+    await submitAuth(page, 'Renvoyer le code');
     await registerOtp(outbox('login_otp').code);
   }
   staleLastSend('resend');
-  await page.getByRole('button', { name: 'Renvoyer le code' }).click();
-  await expect(page.getByText('Le renvoi est temporairement indisponible.')).toBeVisible();
+  await submitAuth(page, 'Renvoyer le code');
+  await expect(page.getByText('Veuillez patienter avant de réessayer.')).toBeVisible();
   expect(scalar(`SELECT CONCAT(attempt_count,':',resend_count) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.resend.id} AND status='pending'`)).toBe('1:3');
 
   const exhaustedId = scalar(`SELECT rowid FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.resend.id} AND status='pending'`);
@@ -224,7 +242,7 @@ test('resend invalidates the prior code, keeps attempts, and stops after three s
   expect(scalar(`SELECT CONCAT(status,':',code_hash IS NULL) FROM llx_mjlfinancement_login_otp WHERE rowid=${exhaustedId}`)).toBe('cancelled:1');
   expect(scalar(`SELECT CONCAT(COUNT(*),':',MAX(attempt_count),':',MAX(resend_count)) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.resend.id} AND status='pending'`)).toBe('1:0:0');
   await page.getByLabel('Code de vérification').fill(replacementCode);
-  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+  await submitAuth(page, 'Vérifier');
   await expect(page).toHaveURL(/\/custom\/mjlfinancement\/index\.php$/);
 });
 
@@ -234,18 +252,18 @@ test('an expired code keeps the OTP screen available and resend issues a usable 
   await registerOtp(expiredCode);
   sql(`UPDATE llx_mjlfinancement_login_otp SET date_expiry=DATE_SUB(NOW(), INTERVAL 1 SECOND) WHERE entity=1 AND fk_user=${fixture.users.expired.id} AND status='pending'`);
   await page.getByLabel('Code de vérification').fill(expiredCode);
-  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
-  await expect(page.getByText('Ce code a expiré.')).toBeVisible();
+  await submitAuth(page, 'Vérifier');
+  await expect(page.getByText(/Ce code a expiré/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Vérification' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Renvoyer le code' })).toBeVisible();
 
   staleLastSend('expired');
-  await page.getByRole('button', { name: 'Renvoyer le code' }).click();
+  await submitAuth(page, 'Renvoyer le code');
   const replacementCode = outbox('login_otp').code;
   await registerOtp(replacementCode);
   expect(replacementCode).not.toBe(expiredCode);
   await page.getByLabel('Code de vérification').fill(replacementCode);
-  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+  await submitAuth(page, 'Vérifier');
   await expect(page).toHaveURL(/\/custom\/mjlfinancement\/index\.php$/);
 });
 
@@ -256,8 +274,8 @@ test('an account change during verification cancels the pending challenge', asyn
   sql(`UPDATE llx_user SET statut=0 WHERE rowid=${fixture.users.changed.id}`);
   try {
     await page.getByLabel('Code de vérification').fill(code);
-    await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
+    await submitAuth(page, 'Vérifier');
+    await expect(page.getByRole('alert')).toBeVisible();
     expect(scalar(`SELECT status FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.changed.id} ORDER BY rowid DESC LIMIT 1`)).toBe('cancelled');
   } finally {
     sql(`UPDATE llx_user SET statut=1 WHERE rowid=${fixture.users.changed.id}`);
@@ -269,7 +287,7 @@ test('existing sessions, native login and native reset actions cannot bypass MJL
   await page.goto('/index.php');
   await page.getByLabel('Identifiant').fill(fixture.users.existing.login);
   await page.getByLabel('Mot de passe', { exact: true }).fill(process.env.MJL_TEST_USER_PASSWORD);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await page.getByRole('button', {name:'Se connecter',exact:true}).click();
   await expect(page.getByLabel('Identifiant')).toHaveCount(0);
   sql("UPDATE llx_const SET value='1' WHERE name='MJL_AUTH_OTP_ENABLED' AND entity=1");
   await page.goto('/custom/mjlfinancement/index.php');
@@ -308,7 +326,7 @@ test('invitation and reset mutations reject direct GET requests without changing
 
   await page.goto('/user/passwordforgotten.php');
   await page.getByLabel('Adresse email').fill(emails.existing);
-  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
+  await submitAuth(page, 'Envoyer le lien');
   const resetLink = outbox('password_reset').link;
   await registerLink(resetLink);
   const resetUrl = new URL(resetLink, process.env.MJL_BASE_URL);
@@ -325,13 +343,15 @@ test('invitation and reset mutations reject direct GET requests without changing
   expect(scalar(`SELECT pass_crypted FROM llx_user WHERE rowid=${fixture.users.existing.id}`)).toBe(passBefore);
 });
 
-test('a reset selector alone exposes the current full email until privacy behavior is separately authorized', async ({ page }) => {
+test('a reset selector alone does not disclose the account email', async ({ page }) => {
   await page.goto('/user/passwordforgotten.php');
   await page.getByLabel('Adresse email').fill(emails.changed);
-  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
+  await submitAuth(page, 'Envoyer le lien');
+  await registerLink(outbox('password_reset').link);
   const resetUrl = new URL(outbox('password_reset').link, process.env.MJL_BASE_URL);
   await page.goto(`/user/passwordforgotten.php?setnewpassword=1&mjlselector=${encodeURIComponent(resetUrl.searchParams.get('mjlselector'))}`);
-  await expect(page.getByText(emails.changed, { exact: true })).toBeVisible();
+  await expect(page.getByText(emails.changed, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('alert')).toContainText('invalide');
 });
 
 test('delivery capture failure and post-send result persistence failure retain their distinct states', async () => {
@@ -376,8 +396,8 @@ test('OTP persistence commits before a failed session completion and authenticat
   sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_E2E_FAIL_SESSION_COMPLETION',1,'1','chaine',0,'W4 ordering proof') ON DUPLICATE KEY UPDATE value='1'");
   try {
     await page.getByLabel('Code de vérification').fill(code);
-    await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
+    await submitAuth(page, 'Vérifier');
+    await expect(page.getByRole('alert')).toBeVisible();
     expect(scalar(`SELECT CONCAT(status,':',IFNULL(code_hash,'NULL')) FROM llx_mjlfinancement_login_otp WHERE fk_user=${fixture.users.changed.id} ORDER BY rowid DESC LIMIT 1`)).toBe('verified:NULL');
     await page.goto('/custom/mjlfinancement/index.php');
     await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
@@ -391,7 +411,7 @@ test('credential changes invalidate a verified session through the native hook',
   const code = outbox('login_otp').code;
   await registerOtp(code);
   await page.getByLabel('Code de vérification').fill(code);
-  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+  await submitAuth(page, 'Vérifier');
   await expect(page).toHaveURL(/\/custom\/mjlfinancement\/index\.php$/);
 	expect((await ownedSessionKeys(page)).sort()).toEqual([
 	  'dol_authmode', 'dol_entity', 'dol_login', 'dol_logindate', 'mjl_otp_binding',
@@ -430,7 +450,7 @@ test('the retained technical Admin can complete an active-entity password reset'
   const password = process.env.MJL_AUTH_PASSWORD_1;
   await page.goto('/user/passwordforgotten.php');
   await page.getByLabel('Adresse email').fill(adminEmail);
-  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
+  await submitAuth(page, 'Envoyer le lien');
   const link = outbox('password_reset').link;
   await registerLink(link);
   expect(scalar(`SELECT CONCAT(entity,':',fk_user,':',status) FROM llx_mjlfinancement_password_reset WHERE fk_user=${adminId} ORDER BY rowid DESC LIMIT 1`)).toBe(`1:${adminId}:sent`);
@@ -438,13 +458,13 @@ test('the retained technical Admin can complete an active-entity password reset'
   await openFragmentLink(page, link);
   await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(password);
   await page.getByLabel('Confirmer le mot de passe', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
+  await submitAuth(page, 'Réinitialiser le mot de passe');
   expect(scalar(`SELECT CONCAT(status,':',IFNULL(token_hash,'NULL')) FROM llx_mjlfinancement_password_reset WHERE entity=1 AND fk_user=${adminId} ORDER BY rowid DESC LIMIT 1`)).toBe('consumed:NULL');
   expect(scalar(`SELECT pass IS NULL FROM llx_user WHERE rowid=${adminId}`)).toBe('1');
 
   await page.getByLabel('Adresse email').fill(adminEmail);
   await page.getByLabel('Mot de passe', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await submitAuth(page, 'Se connecter');
   await expect(page.getByRole('heading', { name: 'Vérification' })).toBeVisible();
   await registerOtp(outbox('login_otp').code);
 });
@@ -452,7 +472,7 @@ test('the retained technical Admin can complete an active-entity password reset'
 test('invitation and reset password rules match on client and server', async ({ page }) => {
   await page.goto('/user/passwordforgotten.php');
   await page.getByLabel('Adresse email').fill(emails.policy);
-  await page.getByRole('button', { name: 'Envoyer le lien' }).click();
+  await submitAuth(page, 'Envoyer le lien');
   const link = outbox('password_reset').link;
   await registerLink(link);
   const invalidPasswords = ['Aa1!aaa', 'abcdef1!', 'ABCDEF1!', 'Abcdefg!', 'Abcdef12'];
@@ -462,8 +482,8 @@ test('invitation and reset password rules match on client and server', async ({ 
     await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(password);
     await page.getByLabel('Confirmer le mot de passe', { exact: true }).fill(password);
     await expect(page.getByRole('button', { name: 'Réinitialiser le mot de passe' })).toBeDisabled();
-    await page.evaluate(() => document.querySelector('#mjl-password-reset').submit());
-    await expect(page.getByText('Le mot de passe ne respecte pas les critères requis.')).toBeVisible();
+    const proof = await page.locator('#mjl-password-reset').evaluate(form => ({selector:form.elements.mjlselector.value,verifier:form.elements.verifier.value}));
+    expect((await restPost(page, '/auth/password-resets/consume', {...proof,password,password_confirmation:password})).status()).toBe(422);
   }
   await openFragmentLink(page, link);
   await page.getByLabel('Nouveau mot de passe', { exact: true }).fill('Abcdef1!');
@@ -473,11 +493,11 @@ test('invitation and reset password rules match on client and server', async ({ 
   await openFragmentLink(page, link);
   await page.getByLabel('Nouveau mot de passe', { exact: true }).fill('Abcdef1<');
   await page.getByLabel('Confirmer le mot de passe', { exact: true }).fill('Abcdef1<');
-  await page.getByRole('button', { name: 'Réinitialiser le mot de passe' }).click();
+  await submitAuth(page, 'Réinitialiser le mot de passe');
   await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
   await page.getByLabel('Adresse email').fill(emails.policy);
   await page.getByLabel('Mot de passe', { exact: true }).fill('Abcdef1<');
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await submitAuth(page, 'Se connecter');
   await expect(page.getByRole('heading', { name: 'Vérification' })).toBeVisible();
   await registerOtp(outbox('login_otp').code);
 });
@@ -503,7 +523,7 @@ test('accepting an invitation clears an existing authenticated session', async (
   const code = outbox('login_otp').code;
   await registerOtp(code);
   await page.getByLabel('Code de vérification').fill(code);
-  await page.getByRole('button', { name: 'Vérifier', exact: true }).click();
+  await submitAuth(page, 'Vérifier');
   await expect(page).toHaveURL(/\/custom\/mjlfinancement\/index\.php$/);
 
   const invitationEmail = 'auth.invitation.session@example.test';
@@ -512,7 +532,7 @@ test('accepting an invitation clears an existing authenticated session', async (
   await expect(page.getByText(invitationEmail, { exact: true })).toBeVisible();
   await page.getByLabel('Nouveau mot de passe', { exact: true }).fill('Abcdef1!');
   await page.getByLabel('Confirmer le mot de passe', { exact: true }).fill('Abcdef1!');
-  await page.getByRole('button', { name: 'Enregistrer le mot de passe' }).click();
+  await submitAuth(page, 'Enregistrer le mot de passe');
   await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
   expect(scalar("SELECT pass IS NULL FROM llx_user WHERE login='auth.invitation.session' AND entity=1")).toBe('1');
   await page.goto('/custom/mjlfinancement/index.php');

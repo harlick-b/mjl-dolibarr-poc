@@ -72,6 +72,8 @@ function mjl_reference_route_post($kind, $config, $id, $action)
 		}
 	} catch (MjlReferenceCommandForbidden $exception) {
 		mjl_reference_forbidden();
+	} catch (RuntimeException $exception) {
+		$error = 'Impossible d’enregistrer la référence.';
 	}
 	if ($error !== '') {
 		$values = array('label' => $label);

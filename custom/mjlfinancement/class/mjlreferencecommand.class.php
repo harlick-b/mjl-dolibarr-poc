@@ -10,6 +10,8 @@ class MjlReferenceCommand
 	private $db;
 	private $actor;
 	private $entity;
+	private $outcomeCode = 'FAILED';
+	public function outcomeCode() { return $this->outcomeCode; }
 
 	public function __construct($db, User $actor, $entity)
 	{
@@ -20,12 +22,13 @@ class MjlReferenceCommand
 
 	public function create($kind, $label, $partnerId = 0)
 	{
+		$this->outcomeCode = 'FAILED';
 		$this->requireManage();
-		if ($label === '') return array(-1, 'Le libellé est obligatoire.');
+		if ($label === '') { $this->outcomeCode='INVALID_INPUT'; return array(-1, 'Le libellé est obligatoire.'); }
 		if (!$this->db->begin('RST-003 create')) return array(-1, 'Impossible d’enregistrer la référence.');
 		if (!$this->lockCurrentManager()) {
-			$this->rollback('RST-003 create refused');
-			return array(-1, 'Votre rôle ne permet plus cette action.');
+			$this->outcomeCode='FORBIDDEN';
+			$this->rollback('RST-003 create refused'); return array(-1, 'Votre rôle ne permet plus cette action.');
 		}
 		$id = -1;
 		if ($kind === 'partner') {
@@ -63,20 +66,23 @@ class MjlReferenceCommand
 			return array(-1, 'Impossible d’enregistrer la référence.');
 		}
 		if (!$this->db->commit('RST-003 create')) {
+			$this->outcomeCode='OUTCOME_UNKNOWN';
 			$this->rollback('RST-003 create commit failed');
 			return array(-1, 'Impossible d’enregistrer la référence.');
 		}
+		$this->outcomeCode='OK';
 		return array($id, '');
 	}
 
 	public function updateLabel($kind, $id, $label, $fingerprint)
 	{
+		$this->outcomeCode = 'FAILED';
 		$this->requireManage();
-		if ($label === '') return 'Le libellé est obligatoire.';
+		if ($label === '') { $this->outcomeCode='INVALID_INPUT'; return 'Le libellé est obligatoire.'; }
 		if (!$this->db->begin('RST-003 update')) return 'Impossible d’enregistrer la référence.';
 		if (!$this->lockCurrentManager()) {
-			$this->rollback('RST-003 update refused');
-			return 'Votre rôle ne permet plus cette action.';
+			$this->outcomeCode='FORBIDDEN';
+			$this->rollback('RST-003 update refused'); return 'Votre rôle ne permet plus cette action.';
 		}
 		if ($kind === 'project') {
 			list($parent, $row) = $this->lockProjectParentThenProject($id);
@@ -84,20 +90,21 @@ class MjlReferenceCommand
 			$row = $this->fetchReference($kind, $id, true);
 		}
 		if (empty($row)) {
-			$this->rollback('RST-003 update missing');
-			throw new MjlReferenceCommandForbidden();
+			$this->outcomeCode='NOT_FOUND';
+			$this->rollback('RST-003 update missing'); throw new MjlReferenceCommandForbidden();
 		}
 		if (!$this->checkFingerprint($kind, $row, $fingerprint)) {
-			$this->rollback('RST-003 update stale');
-			return 'Cette référence a été modifiée. Rechargez la page.';
+			$this->outcomeCode='STALE_FINGERPRINT';
+			$this->rollback('RST-003 update stale'); return 'Cette référence a été modifiée. Rechargez la page.';
 		}
 		$before = $row[$this->labelField($kind)];
 		if ((string) $before === (string) $label) {
 			if (!$this->db->commit('RST-003 update')) {
+			$this->outcomeCode='OUTCOME_UNKNOWN';
 				$this->rollback('RST-003 update commit failed');
 				return 'Impossible d’enregistrer la référence.';
 			}
-			return '';
+			$this->outcomeCode='OK'; return '';
 		}
 		if ($kind === 'partner') {
 			$object = new Societe($this->db);
@@ -117,19 +124,21 @@ class MjlReferenceCommand
 			return 'Impossible d’enregistrer la référence.';
 		}
 		if (!$this->db->commit('RST-003 update')) {
+			$this->outcomeCode='OUTCOME_UNKNOWN';
 			$this->rollback('RST-003 update commit failed');
 			return 'Impossible d’enregistrer la référence.';
 		}
-		return '';
+		$this->outcomeCode='OK'; return '';
 	}
 
 	public function setActive($kind, $id, $active, $fingerprint)
 	{
+		$this->outcomeCode = 'FAILED';
 		$this->requireManage();
 		if (!$this->db->begin('RST-003 lifecycle')) return 'Impossible de modifier le statut.';
 		if (!$this->lockCurrentManager()) {
-			$this->rollback('RST-003 lifecycle refused');
-			return 'Votre rôle ne permet plus cette action.';
+			$this->outcomeCode='FORBIDDEN';
+			$this->rollback('RST-003 lifecycle refused'); return 'Votre rôle ne permet plus cette action.';
 		}
 		if ($kind === 'project') {
 			list($parent, $row) = $this->lockProjectParentThenProject($id);
@@ -137,19 +146,20 @@ class MjlReferenceCommand
 			$row = $this->fetchReference($kind, $id, true);
 		}
 		if (empty($row)) {
-			$this->rollback('RST-003 lifecycle missing');
-			throw new MjlReferenceCommandForbidden();
+			$this->outcomeCode='NOT_FOUND';
+			$this->rollback('RST-003 lifecycle missing'); throw new MjlReferenceCommandForbidden();
 		}
 		if (!$this->checkFingerprint($kind, $row, $fingerprint)) {
-			$this->rollback('RST-003 lifecycle stale');
-			return 'Cette référence a été modifiée. Rechargez la page.';
+			$this->outcomeCode='STALE_FINGERPRINT';
+			$this->rollback('RST-003 lifecycle stale'); return 'Cette référence a été modifiée. Rechargez la page.';
 		}
 		if ($this->isActive($kind, $row) === (bool) $active) {
 			if (!$this->db->commit('RST-003 lifecycle')) {
+			$this->outcomeCode='OUTCOME_UNKNOWN';
 				$this->rollback('RST-003 lifecycle commit failed');
 				return 'Impossible de modifier le statut.';
 			}
-			return '';
+			$this->outcomeCode='OK'; return '';
 		}
 		$result = -1;
 		if ($kind === 'partner') {
@@ -193,10 +203,11 @@ class MjlReferenceCommand
 			return 'Impossible de modifier le statut.';
 		}
 		if (!$this->db->commit('RST-003 lifecycle')) {
+			$this->outcomeCode='OUTCOME_UNKNOWN';
 			$this->rollback('RST-003 lifecycle commit failed');
 			return 'Impossible de modifier le statut.';
 		}
-		return '';
+		$this->outcomeCode='OK'; return '';
 	}
 
 	private function lockCurrentManager()
@@ -210,7 +221,7 @@ class MjlReferenceCommand
 
 	private function requireManage()
 	{
-		if (!mjl_reference_can_manage($this->actor)) throw new MjlReferenceCommandForbidden();
+		if (!mjl_reference_can_manage($this->actor)) { $this->outcomeCode='FORBIDDEN'; throw new MjlReferenceCommandForbidden(); }
 	}
 
 	private function labelField($kind)
@@ -236,7 +247,8 @@ class MjlReferenceCommand
 		}
 		if ($forUpdate) $sql .= ' FOR UPDATE';
 		$result = $this->db->query($sql);
-		if (!$result || !($row = $this->db->fetch_object($result))) return array();
+		if (!$result) { $this->rollback('reference read failed'); throw new RuntimeException('Reference unavailable.'); }
+		if (!($row = $this->db->fetch_object($result))) return array();
 		return (array) $row;
 	}
 
@@ -272,6 +284,7 @@ class MjlReferenceCommand
 	private function rollback($label)
 	{
 		if ($this->db->rollback($label)) return true;
+		$this->outcomeCode='OUTCOME_UNKNOWN';
 		if (method_exists($this->db, 'close')) $this->db->close();
 		return false;
 	}

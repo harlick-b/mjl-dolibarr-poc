@@ -24,6 +24,20 @@ Core implementation exists against an empty persistent tenant after the
 clean reset; user acceptance remains outstanding. Persistent demonstration
 data is not part of Phases 1 through 6. Test-only records may exist solely inside disposable test tenants.
 
+## REST API Direction (DEC-078)
+
+The API becomes the backend foundation for web/PWA clients, with all available
+MJL actions exposed and login plus OTP. The existing interface migrates
+progressively as each feature is delivered. Scope includes MJL business
+features, invitations/access administration, dashboards, audit and exports.
+Native Dolibarr technical administration, installed native mobile clients and
+external integrations are outside this delivery scope. Approved session limits
+are 24 hours of inactivity or 24 hours total, whichever comes first. Expiry
+requires login plus email OTP again; no remembered-device option is included.
+The current-action inventory and target wire contract are defined in
+`mjl-rest-api-contract.md` and `mjl-rest-api.openapi.yaml`; DEC-080 implements authentication and Partenaires with JavaScript-required screens. Other adapters remain pending. This does not expand deferred feature scope or authorize
+Dolibarr core modifications.
+
 ## Outside Core Scope
 
 - PTA proposal, negotiation, or Partner approval.
