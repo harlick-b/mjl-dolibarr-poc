@@ -108,10 +108,9 @@ VUI-07 Operation consultation is implemented with a shared read-only contextual
 drawer, exact financial and execution facts, role-aware execution navigation,
 and ordinary-link fallback. VUI-08 exception dialogs are implemented with one
 shared progressive dialog host that moves each existing guarded form without
-cloning it or issuing another token, while preserving visible no-JavaScript
-forms on unmigrated screens, role eligibility, exact versions, financial facts,
-and terminal rules. Activity cancellation now uses the JavaScript-required REST
-client (DEC-083).
+cloning it or issuing another token. DEC-083/084 supersede the ordinary-form
+fallback with JavaScript-required REST clients and the shared modal controls,
+preserving role eligibility, exact versions, financial facts and terminal rules.
 VUI-09 role dashboards are implemented with role-specific headings and
 indicators derived from the existing scoped Activity projection, current
 permission-aware work queues, execution progress, financial disclosure, and
@@ -206,7 +205,7 @@ Proposed API delivery stages (separate from product Phase 4):
 1. Authentication/session/recovery and all reference data: implemented. OTP stays
    disabled until mail is configured and delivery verified.
 2. Activities, assignments, planning, review and chronology: implemented (DEC-083), including Activity cancellation requests and scoped filter options.
-3. Operations, expenses, accounting corrections and exception workflows.
+3. Operations, expenses, accounting corrections and exception workflows: implemented (DEC-084); focused checks passed.
 4. Dashboards, alerts, audit, previews and exports.
 5. MJL access administration and final action/interface coverage.
 
@@ -228,7 +227,19 @@ contracts, the planning-control browser check, changed-file PHP/JavaScript synta
 and OpenAPI validation also passed. Broad suites and manual accessibility review
 were not run for this slice. No acceptance or production readiness is implied.
 OTP remains disabled pending mail delivery.
-Next API slice: Operations, expenses, accounting corrections and exceptions.
+Next API slice: dashboards, alerts, audit, report previews and exports.
+
+Current execution slice (DEC-084): the three Operation, expense and exception
+screens use REST reads and one-use mutation tokens issued on submission. Existing
+commands retain approved-only totals, immutable entries, atomic correction pairs,
+completion guards and exact exception targets. Historical cancellation assignments
+retain correction-only ledger access. Legacy form/read-render adapters are removed.
+All four focused execution REST browser checks passed across targeted runs, covering
+approval/correction, zero spending, exception target versions, stale/replayed writes,
+audit rollback, correction-only access and role/entity/self-approval denial. Request
+contracts, changed-file PHP/JavaScript syntax and OpenAPI validation passed. Broad
+suites and manual accessibility review were not run; user acceptance remains
+outstanding. OTP remains disabled.
 
 ### Phase 4: Documents
 

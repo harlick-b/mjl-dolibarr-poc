@@ -34,7 +34,6 @@ $reportRead = $read('custom/mjlfinancement/lib/reporting/mjl_reporting_read.lib.
 $delivery = $read('custom/mjlfinancement/lib/reporting/mjl_export_delivery.lib.php');
 $monitorHandler = $read('custom/mjlfinancement/lib/monitoring/mjl_monitoring_http.lib.php');
 $monitorRead = $read('custom/mjlfinancement/lib/monitoring/mjl_monitoring_read.lib.php');
-$legacyMonitor = $read('custom/mjlfinancement/lib/mjl_monitoring_route.lib.php');
 $monitorPresentation = $read('custom/mjlfinancement/lib/monitoring/mjl_monitoring_presentation.lib.php');
 $monitoringOwner = $read('custom/mjlfinancement/class/mjlmonitoring.class.php');
 $reportPresentation = $read('custom/mjlfinancement/lib/reporting/mjl_reporting_presentation.lib.php');
@@ -50,9 +49,6 @@ w5_ownership_assert(strpos($reportRead, '/monitoring/') === false && strpos($rep
 w5_ownership_assert(strpos($monitoringOwner, 'function referenceChoices(') !== false && strpos($monitoringOwner, 'SELECT DISTINCT') !== false, 'MjlMonitoring must own scoped reference-choice queries.');
 w5_ownership_assert(strpos($monitorHandler, 'mjl_monitoring_read_page(') !== false && strpos($monitorHandler, 'mjl_report_route.lib.php') === false, 'Dashboard and alerts must use the W2 read owner without importing the former report route.');
 w5_ownership_assert(strpos($monitorRead, "array('home', 'alerts')") !== false && strpos($monitorRead, "'operations'") === false, 'The W5 W2 read interface must own only dashboard and alerts.');
-w5_ownership_assert(strpos($legacyMonitor, "array('operations','requests')") !== false && strpos($legacyMonitor, "\$kind==='home'") === false && strpos($legacyMonitor, "\$kind==='alerts'") === false, 'The legacy monitoring route must retain only excluded Operations/request authority.');
-w5_ownership_assert(strpos($legacyMonitor, '/reporting/') === false && strpos($legacyMonitor, 'mjl_reporting_') === false, 'The excluded legacy monitoring route must not depend on the W5 reporting feature.');
-w5_ownership_assert(strpos($legacyMonitor, 'mjl_report_data.lib.php') === false && strpos($monitorHandler, 'mjl_report_') === false && strpos($monitorPresentation, 'mjl_report_') === false, 'Monitoring owners must not depend on report feature validation or vocabulary.');
 w5_ownership_assert(!preg_match('/global\s+\$(db|user|conf)\b|\$_(GET|POST|FILES|SERVER)/', $reportHandler), 'The reporting handler must receive request and Dolibarr context explicitly.');
 w5_ownership_assert(!preg_match('/global\s+\$(db|user|conf)\b|\$_(GET|POST|FILES|SERVER)/', $monitorHandler), 'The monitoring handler must receive request and Dolibarr context explicitly.');
 w5_ownership_assert(strpos($indexRoot, 'mjl_dashboard_admin_cards') === false && strpos($indexRoot, 'mjl_monitoring_readiness') === false, 'The dashboard root must contain only bootstrap and one handler handoff.');

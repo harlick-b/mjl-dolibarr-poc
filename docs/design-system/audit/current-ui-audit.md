@@ -16,9 +16,10 @@ browser verification for this documentation update.
   states. Mobile reference cells expand for wrapped labels instead of inheriting
   a fixed native row height. Human accessibility acceptance remains outstanding.
 
-- The expense approval screen is implemented using existing workspace/cards,
-  labeled ordinary forms and bounded pagination. Focused workflow/export browser
-  checks passed; visual and manual accessibility acceptance remain outstanding.
+- Operation execution, expense approval/correction and exception screens use REST
+  with existing cards, labeled controls, modal/dirty-form protection and bounded
+  pagination. JavaScript is required. Four focused REST workflow checks passed;
+  visual and manual accessibility acceptance remain outstanding.
 
 - The custom-module workspace is the primary MJL interface. Business screens
   use French-first labels, scoped data, guarded actions, and shared presentation

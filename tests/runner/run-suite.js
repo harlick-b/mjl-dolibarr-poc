@@ -652,7 +652,7 @@ async function runPlaywright(plan, target, signal) {
   } else if (target === 'spending') {
     args.push('tests/e2e/spending.spec.js', '--config=playwright.config.js');
   } else if (target === 'api') {
-    args.push('tests/e2e/api-auth-partners.spec.js', 'tests/e2e/api-activities.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/api-auth-partners.spec.js', 'tests/e2e/api-activities.spec.js', 'tests/e2e/api-execution.spec.js', '--config=playwright.config.js');
   } else if (target === 'auth') {
 	args.push('tests/e2e/authentication.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst014a') {

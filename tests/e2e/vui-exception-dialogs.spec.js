@@ -259,25 +259,7 @@ test('Validator decisions preserve financial facts, completed Operations, and de
   expect(scalar(`SELECT status FROM llx_mjlfinancement_cancellation_request WHERE rowid=${staleRequestId}`)).toBe('REJECTED');
 });
 
-test('narrow no-JavaScript mode keeps the guarded Activity cancellation form available', async ({ browser }, testInfo) => {
-  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 }, reducedMotion: 'reduce', forcedColors: 'active' });
-  try {
-    const page = await context.newPage();
-    await signIn(page, 'agent');
-    const fallback = fixture.activities.fallback;
-    await page.goto('/custom/mjlfinancement/activities.php?id=' + fallback.activity_id + '#mjl-activity-decisions');
-    const form = page.locator('form').filter({ has: page.locator('input[name="action"][value="request_cancellation"]') });
-    await expect(form).toBeVisible();
-    await expect(form.getByLabel('Motif de la demande d’annulation')).toBeVisible();
-    const hiddenTrigger = page.getByRole('link', { name: 'Demander l’annulation', exact: true, includeHidden: true });
-    await expect(hiddenTrigger).toHaveCount(1);
-    await expect(hiddenTrigger).toBeHidden();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath('exception-no-js-mobile.png'), fullPage: true });
-  } finally {
-    await context.close();
-  }
-});
+
 
 
 test('narrow forced-colors mode opens and closes the live exception dialog without overflow', async ({ browser }, testInfo) => {

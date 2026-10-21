@@ -1847,22 +1847,6 @@ a.tmenu[href^="/api/"] {
 
 
 /* Controlled exception requests and decisions. */
-.mjl-exception-action { display: inline-flex; margin: var(--mjl-space-2) var(--mjl-space-2) var(--mjl-space-2) 0; }
-.mjl-exception-trigger { display: none; }
-.mjl-exception-trigger-enhanced { display: inline-flex; }
-.mjl-exception-source {
-	background: var(--mjl-color-status-warning-surface);
-	border: 1px solid var(--mjl-color-status-warning);
-	border-radius: var(--mjl-radius-card);
-	display: grid;
-	gap: var(--mjl-space-4);
-	margin: var(--mjl-space-3) 0;
-	padding: var(--mjl-space-4);
-}
-.mjl-exception-source-enhanced { display: none; }
-.mjl-exception-inline-copy :where(h3,p) { margin: 0; overflow-wrap: anywhere; }
-.mjl-exception-inline-copy p { margin-top: var(--mjl-space-2); }
-.mjl-exception-guidance { color: var(--mjl-color-text-muted); }
 .mjl-exception-dialog .mjl-dialog-panel {
 	display: grid;
 	gap: var(--mjl-space-4);
@@ -1872,7 +1856,6 @@ a.tmenu[href^="/api/"] {
 .mjl-exception-dialog .mjl-section-heading { border-bottom: 1px solid var(--mjl-color-border-subtle); padding-bottom: var(--mjl-space-4); }
 .mjl-exception-dialog .mjl-section-heading > div { min-width: 0; }
 .mjl-exception-dialog .mjl-section-heading :where(h2,p) { overflow-wrap: anywhere; }
-.mjl-exception-dialog-guidance { margin: 0; }
 .mjl-exception-form { display: grid; gap: var(--mjl-space-4); }
 .mjl-exception-form label { display: grid; font-size: 13px; font-weight: 700; gap: var(--mjl-space-2); }
 .mjl-exception-form textarea { min-height: 8rem; resize: vertical; }
@@ -1887,17 +1870,14 @@ a.tmenu[href^="/api/"] {
 }
 .mjl-exception-reason p { margin: var(--mjl-space-2) 0 0; overflow-wrap: anywhere; }
 .mjl-exception-card-actions { display: flex; flex-wrap: wrap; gap: var(--mjl-space-2); }
-.mjl-exception-card-actions .mjl-exception-action { margin: 0; }
 
 @media (max-width: 540px) {
-	.mjl-exception-action, .mjl-exception-trigger-enhanced { width: 100%; }
-	.mjl-exception-trigger-enhanced { justify-content: center; }
 	.mjl-exception-dialog .mjl-dialog-panel { max-height: calc(100dvh - 32px); padding: var(--mjl-space-4); }
 	.mjl-exception-form .mjl-dialog-actions { align-items: stretch; flex-direction: column; }
 	.mjl-exception-form .mjl-dialog-actions .button { width: 100%; }
 }
 @media (forced-colors: active) {
-	.mjl-exception-source, .mjl-exception-reason { border-color: CanvasText; }
+	.mjl-exception-reason { border-color: CanvasText; }
 }
 
 

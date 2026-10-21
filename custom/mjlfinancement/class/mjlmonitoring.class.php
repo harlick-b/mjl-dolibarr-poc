@@ -146,10 +146,10 @@ class MjlMonitoring
 		$result=array(); $bytes=0;
 		foreach (array('CANCELLATION'=>'cancellation_request','REOPENING'=>'reopening_request') as $type=>$suffix) {
 			$from=' FROM '.$this->table($suffix).' r JOIN '.$this->table('activity').' a ON a.entity=r.entity AND a.rowid=r.fk_activity WHERE '.$where;
-			$stats=$this->rows('SELECT COUNT(*) AS n,COALESCE(SUM(OCTET_LENGTH(r.reason)+OCTET_LENGTH(r.requester_name_snapshot)+512),0) AS bytes'.$from)[0];
+			$stats=$this->rows('SELECT COUNT(*) AS n,COALESCE(SUM(OCTET_LENGTH(r.reason)+COALESCE(OCTET_LENGTH(r.decision_reason),0)+OCTET_LENGTH(r.requester_name_snapshot)+512),0) AS bytes'.$from)[0];
 			$bytes+=(int)$stats['bytes'];
 			if (count($result)+(int)$stats['n']>10000 || $bytes>self::SOURCE_LIMIT) throw new RuntimeException('SOURCE_LIMIT');
-			$columns='r.rowid,r.entity,r.fk_activity,r.fk_target_revision,r.target_version,r.fk_requester,r.requester_name_snapshot,r.reason,r.status,r.version,r.date_request,'.($type==='CANCELLATION'?'r.target_type,r.target_id,r.target_operation_set_hash':'r.fk_operation');
+			$columns='r.rowid,r.entity,r.fk_activity,r.fk_target_revision,r.target_version,r.fk_requester,r.requester_name_snapshot,r.reason,r.decision_reason,r.status,r.version,r.date_request,'.($type==='CANCELLATION'?'r.target_type,r.target_id,r.target_operation_set_hash':'r.fk_operation');
 			foreach ($this->rows('SELECT '.$columns.$from.' ORDER BY r.date_request DESC,r.rowid DESC') as $request) {
 				$request['request_type']=$type;
 				$activity=$byId[$request['fk_activity']];

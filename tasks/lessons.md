@@ -300,3 +300,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   hidden native inputs. Resolve fixture option labels by their IDs because the
   disposable fixture adds unique suffixes; use role-based names for controls
   whose labels include required markers or nested option text.
+
+- No-input fixture calls through `docker compose exec` must explicitly use
+  `--interactive=false`. An empty process input can otherwise leave PHP waiting
+  for stdin EOF. Keep stdin enabled for fixture commands that consume input.

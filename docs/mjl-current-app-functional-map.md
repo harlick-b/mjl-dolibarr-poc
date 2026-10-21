@@ -76,3 +76,8 @@ Navigation includes Alertes, Demandes d’exception and business Rapports when
 the schema check passes; audit report variants select Audit. The obsolete
 supervision route remains denied. These implementation facts do not record user
 acceptance or production readiness.
+
+DEC-084: `operations.php`, `expenses.php` and `operationrequests.php` are GET
+shells. Execution, expense ledger/approval/correction and exception filtering/
+decisions use `lib/api/mjl_api_execution.lib.php` and `js/mjl_execution.js`.
+Existing command/read owners preserve authorization and accounting invariants.

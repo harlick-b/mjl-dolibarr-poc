@@ -120,7 +120,7 @@ function captureAdminEvidence() {
   let decoded;
   try {
     const output = childProcess.execFileSync('docker', [
-      'compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/database-evidence.php',
+      'compose', 'exec', '-T', '--interactive=false', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/database-evidence.php',
     ], { encoding: 'utf8', env: process.env, input: '', stdio: ['pipe', 'pipe', 'pipe'] });
     decoded = JSON.parse(output);
   } catch (_) {

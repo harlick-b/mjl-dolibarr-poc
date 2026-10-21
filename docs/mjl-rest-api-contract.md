@@ -1,6 +1,6 @@
 # MJL REST API contract and action inventory
 
-Status: **authentication, reference screens and Activity workflows implemented; remaining operations are targets, not accepted**. Inventory date:
+Status: **authentication, reference, Activity, execution, spending and exception workflows implemented; remaining operations are targets, not accepted**. Inventory date:
 2026-10-21. User decisions: DEC-078 (web/PWA, progressive migration, all current
 MJL business and administration actions, login + email OTP, 24-hour idle and
 24-hour absolute session limits). Native Dolibarr technical administration,
@@ -11,7 +11,7 @@ is unchanged. This contract does not authorize those deferred features.
 wire fields and response shapes. This document owns the current-action mapping,
 shared behavioral constraints and migration requirements. Canonical business
 rules and permissions remain authoritative; code is current-state evidence.
-PHP pages render shells for migrated screens. Forty operations are implemented: 10 authentication operations, 15 reference operations, 13 Activity operations, monitoring filter options and submission-token issuance. Other endpoints below remain pending.
+PHP pages render shells for migrated screens. Fifty-seven operations are implemented: 10 authentication operations, 15 reference operations, 13 Activity operations, 17 execution/spending/exception operations, monitoring filter options and submission-token issuance. Other endpoints below remain pending.
 
 ## Scope and architecture
 
@@ -103,23 +103,23 @@ form actions map to these operations; transport changes do not add business righ
 | `getActivityReview` | `GET /activities/{activity_id}/review` | Read current immutable revision and decisions | R | `lib/api/mjl_api_activities.lib.php` |
 | `reviewActivity` | `POST /activities/{activity_id}/revisions/{revision_id}/decisions` | Prevalidate, validate or return exact revision | R | `lib/api/mjl_api_activities.lib.php` |
 | `getActivityTimeline` | `GET /activities/{activity_id}/timeline` | Read sanitized Activity chronology | B | `lib/audit/mjl_audit_timeline_read.lib.php` |
-| `listOperations` | `GET /operations` | List visible Operations | B | `lib/mjl_operation_route.lib.php` |
-| `getOperation` | `GET /operations/{operation_id}` | Read Operation consultation | B | `lib/mjl_operation_route.lib.php` |
-| `updateExecution` | `PUT /operations/{operation_id}/execution` | Update execution status and observation | A | `lib/mjl_operation_route.lib.php` |
-| `requestOperationCancellation` | `POST /operations/{operation_id}/cancellation-requests` | Request Operation cancellation | A | `lib/mjl_operation_route.lib.php` |
-| `requestOperationReopening` | `POST /operations/{operation_id}/reopening-requests` | Request Operation reopening | A | `lib/mjl_operation_route.lib.php` |
-| `listExceptionRequests` | `GET /exception-requests` | List typed exception requests | B | `lib/mjl_operation_request_route.lib.php` |
-| `withdrawCancellation` | `POST /cancellation-requests/{request_id}/withdrawal` | Withdraw Cancellation request | A | `lib/mjl_operation_request_route.lib.php` |
-| `decideCancellation` | `POST /cancellation-requests/{request_id}/decisions` | Approve/reject Cancellation request | V | `lib/mjl_operation_request_route.lib.php` |
-| `withdrawReopening` | `POST /reopening-requests/{request_id}/withdrawal` | Withdraw Reopening request | A | `lib/mjl_operation_request_route.lib.php` |
-| `decideReopening` | `POST /reopening-requests/{request_id}/decisions` | Approve/reject Reopening request | V | `lib/mjl_operation_request_route.lib.php` |
-| `listSpendingOperations` | `GET /spending-operations` | List Operations accessible for spending | B | `lib/spending/mjl_spending_http.lib.php` |
-| `listExpenses` | `GET /operations/{operation_id}/expenses` | Read expense ledger and correction context | B | `lib/spending/mjl_spending_http.lib.php` |
-| `createExpense` | `POST /operations/{operation_id}/expenses` | Create expense, explicit zero or correction draft | A | `lib/spending/mjl_spending_http.lib.php` |
-| `replaceExpenseDraft` | `PUT /operations/{operation_id}/expenses/{expense_id}` | Edit expense/correction draft | A | `lib/spending/mjl_spending_http.lib.php` |
-| `submitExpense` | `POST /operations/{operation_id}/expenses/{expense_id}/submission` | Submit expense/correction | A | `lib/spending/mjl_spending_http.lib.php` |
-| `withdrawExpense` | `POST /operations/{operation_id}/expenses/{expense_id}/withdrawal` | Withdraw draft/submitted expense | A | `lib/spending/mjl_spending_http.lib.php` |
-| `decideExpense` | `POST /operations/{operation_id}/expenses/{expense_id}/decisions` | Approve/reject expense/correction | V | `lib/spending/mjl_spending_http.lib.php` |
+| `listOperations` | `GET /operations` | List visible Operations | B | `lib/api/mjl_api_execution.lib.php` |
+| `getOperation` | `GET /operations/{operation_id}` | Read Operation consultation | B | `lib/api/mjl_api_execution.lib.php` |
+| `updateExecution` | `PUT /operations/{operation_id}/execution` | Update execution status and observation | A | `lib/api/mjl_api_execution.lib.php` |
+| `requestOperationCancellation` | `POST /operations/{operation_id}/cancellation-requests` | Request Operation cancellation | A | `lib/api/mjl_api_execution.lib.php` |
+| `requestOperationReopening` | `POST /operations/{operation_id}/reopening-requests` | Request Operation reopening | A | `lib/api/mjl_api_execution.lib.php` |
+| `listExceptionRequests` | `GET /exception-requests` | List typed exception requests | B | `lib/api/mjl_api_execution.lib.php` |
+| `withdrawCancellation` | `POST /cancellation-requests/{request_id}/withdrawal` | Withdraw Cancellation request | A | `lib/api/mjl_api_execution.lib.php` |
+| `decideCancellation` | `POST /cancellation-requests/{request_id}/decisions` | Approve/reject Cancellation request | V | `lib/api/mjl_api_execution.lib.php` |
+| `withdrawReopening` | `POST /reopening-requests/{request_id}/withdrawal` | Withdraw Reopening request | A | `lib/api/mjl_api_execution.lib.php` |
+| `decideReopening` | `POST /reopening-requests/{request_id}/decisions` | Approve/reject Reopening request | V | `lib/api/mjl_api_execution.lib.php` |
+| `listSpendingOperations` | `GET /spending-operations` | List Operations accessible for spending | B | `lib/api/mjl_api_execution.lib.php` |
+| `listExpenses` | `GET /operations/{operation_id}/expenses` | Read expense ledger and correction context | B | `lib/api/mjl_api_execution.lib.php` |
+| `createExpense` | `POST /operations/{operation_id}/expenses` | Create expense, explicit zero or correction draft | A | `lib/api/mjl_api_execution.lib.php` |
+| `replaceExpenseDraft` | `PUT /operations/{operation_id}/expenses/{expense_id}` | Edit expense/correction draft | A | `lib/api/mjl_api_execution.lib.php` |
+| `submitExpense` | `POST /operations/{operation_id}/expenses/{expense_id}/submission` | Submit expense/correction | A | `lib/api/mjl_api_execution.lib.php` |
+| `withdrawExpense` | `POST /operations/{operation_id}/expenses/{expense_id}/withdrawal` | Withdraw draft/submitted expense | A | `lib/api/mjl_api_execution.lib.php` |
+| `decideExpense` | `POST /operations/{operation_id}/expenses/{expense_id}/decisions` | Approve/reject expense/correction | V | `lib/api/mjl_api_execution.lib.php` |
 | `getDashboard` | `GET /dashboard` | Financial dashboard and actionable queue | B | `lib/monitoring/mjl_monitoring_read.lib.php` |
 | `listAlerts` | `GET /alerts` | Computed scoped alerts | B | `lib/monitoring/mjl_monitoring_read.lib.php` |
 | `listAuditEvents` | `GET /audit-events` | Browse global active-entity audit | VT | `lib/reporting/mjl_reporting_read.lib.php` |
@@ -438,13 +438,14 @@ Partenaires, Projets and Types d’Opération now use REST for lists, details, c
 renaming and activation. Projects support the `partner_id` list filter; their
 parent and technical reference remain immutable. Invalid/inactive parents return
 422 `inactive_parent`; the command checks the parent under its existing locks.
-Submission tokens cover nine reference and eight Activity mutations. Activities,
+Submission tokens cover nine reference, eight Activity and twelve execution/spending/exception mutations. Activities,
 assignments, planning, immutable review and sanitized chronology now use REST,
 including the existing Activity cancellation request. The list uses full-selection
 totals and scoped filter options. Exact Activity/Operation/revision versions,
 one-use tokens, contributor exclusions and command-owned audit transactions remain.
 Superseded HTML mutation/render/recovery handlers are removed. Operation execution,
-spending, exception decisions, reporting and MJL administration remain pending.
+expenses, accounting corrections and exception decisions use REST (DEC-084).
+Reporting, dashboards, audit and MJL administration remain pending.
 Phase 4 is unchanged. Remaining adapters need their own typed mappings and checks.
 The gap analysis owns unresolved work; tests establish behavior, not acceptance.
 

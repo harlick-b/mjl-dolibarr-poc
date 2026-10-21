@@ -2,7 +2,7 @@ openapi: 3.1.1
 info:
   title: MJL REST API
   version: 0.1.0-draft
-  description: Full target contract with authentication, reference screens and Activity workflows implemented (DEC-080/082/083).
+  description: Full target contract with authentication, reference, Activity, execution, spending and exception workflows implemented (DEC-080/082/083/084).
     Other operations remain pending. See mjl-rest-api-contract.md for migration state and behavior.
     SessionCookie denotes the native DOLSESSID_ cookie with a deployment-specific suffix;
     browser clients use the server-issued HttpOnly cookie without hard-coding its name.
@@ -410,7 +410,7 @@ paths:
   /submission-tokens:
     post:
       operationId: issueSubmissionToken
-      x-implementation-status: implemented-references-and-activities
+      x-implementation-status: implemented-business-workflows
       summary: Prepare one existing one-use submission context
       tags:
       - Transport
@@ -446,7 +446,7 @@ paths:
         '503': {$ref: '#/components/responses/Error503'}
         '405': {$ref: '#/components/responses/Error405'}
       description: Just in time; current helper20 pending/7200s TTL, additionally bounded by authenticated
-        session. Currently accepts nine reference mutations (Validator only) and eight Activity mutations (existing Agent/reviewer/Validator guards). Not a business mutation or an idempotency replay store.
+        session. Currently accepts nine reference, eight Activity and twelve execution/spending/exception mutations under their existing role and scope guards. Not a business mutation or an idempotency replay store.
       parameters:
       - {$ref: '#/components/parameters/csrf'}
       requestBody:
@@ -1830,7 +1830,7 @@ paths:
   /operations:
     get:
       operationId: listOperations
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: List visible Operations
       tags:
       - Operations
@@ -1838,7 +1838,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: false
       responses:
@@ -1881,7 +1881,7 @@ paths:
   /operations/{operation_id}:
     get:
       operationId: getOperation
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Read Operation consultation
       tags:
       - Operations
@@ -1889,7 +1889,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: false
       responses:
@@ -1921,13 +1921,13 @@ paths:
   /operations/{operation_id}/execution:
     put:
       operationId: updateExecution
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Update execution status and observation
       tags:
       - Operations
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -1962,13 +1962,13 @@ paths:
   /operations/{operation_id}/cancellation-requests:
     post:
       operationId: requestOperationCancellation
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Request Operation cancellation
       tags:
       - Operations
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2003,13 +2003,13 @@ paths:
   /operations/{operation_id}/reopening-requests:
     post:
       operationId: requestOperationReopening
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Request Operation reopening
       tags:
       - Operations
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/mjl_operation_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2044,7 +2044,7 @@ paths:
   /exception-requests:
     get:
       operationId: listExceptionRequests
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: List typed exception requests
       tags:
       - Exceptions
@@ -2052,7 +2052,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: false
       responses:
@@ -2082,6 +2082,15 @@ paths:
       description: request_id requires type to prevent cancellation/reopening ID collision. Selection
         retains captured versions and current eligibility; stale is computed, not a stored status.
       parameters:
+      - {$ref: '#/components/parameters/query_q'}
+      - {$ref: '#/components/parameters/query_partner_id'}
+      - {$ref: '#/components/parameters/query_project_id'}
+      - {$ref: '#/components/parameters/query_activity_id'}
+      - {$ref: '#/components/parameters/query_validation_status'}
+      - {$ref: '#/components/parameters/query_execution_status'}
+      - {$ref: '#/components/parameters/query_completeness'}
+      - {$ref: '#/components/parameters/query_date_from'}
+      - {$ref: '#/components/parameters/query_date_to'}
       - {$ref: '#/components/parameters/query_type'}
       - {$ref: '#/components/parameters/query_status'}
       - {$ref: '#/components/parameters/query_request_id'}
@@ -2089,13 +2098,13 @@ paths:
   /cancellation-requests/{request_id}/withdrawal:
     post:
       operationId: withdrawCancellation
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Withdraw Cancellation request
       tags:
       - Exceptions
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2131,13 +2140,13 @@ paths:
   /cancellation-requests/{request_id}/decisions:
     post:
       operationId: decideCancellation
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Approve/reject Cancellation request
       tags:
       - Exceptions
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2172,13 +2181,13 @@ paths:
   /reopening-requests/{request_id}/withdrawal:
     post:
       operationId: withdrawReopening
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Withdraw Reopening request
       tags:
       - Exceptions
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2214,13 +2223,13 @@ paths:
   /reopening-requests/{request_id}/decisions:
     post:
       operationId: decideReopening
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Approve/reject Reopening request
       tags:
       - Exceptions
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/mjl_operation_request_route.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2255,7 +2264,7 @@ paths:
   /spending-operations:
     get:
       operationId: listSpendingOperations
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: List Operations accessible for spending
       tags:
       - Expenses
@@ -2263,7 +2272,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: false
       responses:
@@ -2297,7 +2306,7 @@ paths:
   /operations/{operation_id}/expenses:
     get:
       operationId: listExpenses
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Read expense ledger and correction context
       tags:
       - Expenses
@@ -2305,7 +2314,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: false
       responses:
@@ -2337,13 +2346,13 @@ paths:
       - {$ref: '#/components/parameters/query_page'}
     post:
       operationId: createExpense
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Create expense, explicit zero or correction draft
       tags:
       - Expenses
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2378,13 +2387,13 @@ paths:
   /operations/{operation_id}/expenses/{expense_id}:
     put:
       operationId: replaceExpenseDraft
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Edit expense/correction draft
       tags:
       - Expenses
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2423,13 +2432,13 @@ paths:
   /operations/{operation_id}/expenses/{expense_id}/submission:
     post:
       operationId: submitExpense
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Submit expense/correction
       tags:
       - Expenses
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2468,13 +2477,13 @@ paths:
   /operations/{operation_id}/expenses/{expense_id}/withdrawal:
     post:
       operationId: withdrawExpense
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Withdraw draft/submitted expense
       tags:
       - Expenses
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -2513,13 +2522,13 @@ paths:
   /operations/{operation_id}/expenses/{expense_id}/decisions:
     post:
       operationId: decideExpense
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Approve/reject expense/correction
       tags:
       - Expenses
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/spending/mjl_spending_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_execution.lib.php
       x-rollout-stage: 3
       x-submission-token: true
       responses:
@@ -3649,6 +3658,7 @@ components:
             operation_version: {$ref: '#/components/schemas/Version'}
             expense_id: {$ref: '#/components/schemas/Id'}
             expense_version: {$ref: '#/components/schemas/Version'}
+            reversal_id: {$ref: '#/components/schemas/Id'}
             revision_id: {$ref: '#/components/schemas/Id'}
             request_id: {$ref: '#/components/schemas/Id'}
             request_version: {$ref: '#/components/schemas/Version'}
@@ -4270,6 +4280,10 @@ components:
         id: {$ref: '#/components/schemas/Id'}
         version: {$ref: '#/components/schemas/Version'}
         activity_id: {$ref: '#/components/schemas/Id'}
+        activity_ref: {type: string}
+        activity_name: {type: string}
+        partner_label: {type: string}
+        project_label: {type: string}
         name:
           type: string
         type_id: {$ref: '#/components/schemas/Id'}

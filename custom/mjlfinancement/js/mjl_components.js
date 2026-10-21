@@ -598,47 +598,6 @@
 		initNativeDialog(dialog, { triggers: triggers, closeControl: '[data-mjl-dialog-close]' });
 	}
 
-	function initExceptionDialog(dialog) {
-		if (typeof dialog.showModal !== 'function') return;
-		var triggers = document.querySelectorAll('[data-mjl-exception-open]');
-		var usableTriggers = [];
-		var title = dialog.querySelector('[data-exception-dialog-title]');
-		var context = dialog.querySelector('[data-exception-dialog-context]');
-		var guidance = dialog.querySelector('[data-exception-dialog-guidance]');
-		var host = dialog.querySelector('[data-exception-dialog-form]');
-		var activeSource = null;
-		var activeForm = null;
-
-		Array.prototype.forEach.call(triggers, function (trigger) {
-			var source = document.getElementById(trigger.dataset.exceptionSource || '');
-			if (!source || !source.matches('[data-mjl-exception-source]') || !source.querySelector('form')) return;
-			trigger.classList.add('mjl-exception-trigger-enhanced');
-			source.classList.add('mjl-exception-source-enhanced');
-			usableTriggers.push(trigger);
-		});
-		if (!usableTriggers.length) return;
-		dialog.classList.add('mjl-dialog-enhanced');
-
-		initNativeDialog(dialog, {
-			triggers: usableTriggers,
-			closeControl: '[data-mjl-exception-close]',
-			focusTarget: '[data-exception-dialog-form] textarea, [data-exception-dialog-form] button[type="submit"]',
-			beforeOpen: function (trigger) {
-				activeSource = document.getElementById(trigger.dataset.exceptionSource || '');
-				activeForm = activeSource ? activeSource.querySelector('form') : null;
-				title.textContent = trigger.dataset.exceptionTitle || 'Action exceptionnelle';
-				context.textContent = trigger.dataset.exceptionContext || '';
-				guidance.textContent = trigger.dataset.exceptionGuidance || '';
-				if (activeForm) host.appendChild(activeForm);
-			},
-			afterClose: function () {
-				if (activeSource && activeForm) activeSource.appendChild(activeForm);
-				activeSource = null;
-				activeForm = null;
-			}
-		});
-	}
-
 	function initOperationDrawer(dialog) {
 		var triggers = document.querySelectorAll('[data-mjl-operation-consult]');
 		if (!triggers.length) return;
@@ -918,7 +877,6 @@
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-tabs]'), initTabs);
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-dialog]'), function (dialog) { initAssignmentDialog(dialog); initDialog(dialog); });
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-operation-drawer]'), initOperationDrawer);
-		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-exception-dialog]'), initExceptionDialog);
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-reference-page-dialog]'), initReferencePageDialog);
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-reference-lifecycle-dialog]'), initReferenceLifecycleDialog);
 		Array.prototype.forEach.call(document.querySelectorAll('[data-mjl-access-invite-dialog]'), initAccessInviteDialog);

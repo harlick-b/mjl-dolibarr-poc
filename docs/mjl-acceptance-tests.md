@@ -30,8 +30,8 @@ isolation, security boundaries, and data integrity.
 
 - `npm run test:unit` for fast source contracts;
 - `npm run test:verify` for the current isolated schema verifier;
-- `npm run test:spending` for isolated expense submission, approval, reversals, terminal corrections, approved totals and completion guards;
-- `npm run test:api` for the isolated REST authentication/recovery, expiry, reference and Activity planning/review/assignment UI, chronology, authorization and transaction boundaries;
+- `MJL_TEST_GREP='Execution REST' npm run test:api` for current expense submission, approval, reversals, terminal corrections, completion and exception guards;
+- `npm run test:api` for the isolated REST authentication/recovery, expiry, reference and Activity planning/review/assignment UI, chronology, Operation execution, expense approval/corrections, exceptions, authorization and transaction boundaries;
 - `npm run test:auth` for the disposable login OTP, session, recovery, and native-bypass boundaries;
 - `npm run test:rst012` for the focused RST-012 interruption, resume, rollback, and malformed-state matrix;
 - `npm run test:e2e` only when broad current UI coverage is explicitly needed;
@@ -54,3 +54,8 @@ run. For documentation-only changes, reference search, `git diff --check`, and
 status inspection are sufficient.
 
 Always report which checks ran, which relevant checks were skipped, and why.
+
+The maintained execution, expense and exception transport checks are in
+`tests/e2e/api-execution.spec.js`. Older HTML-form screen matrices retain historical
+evidence but do not impose obsolete POST/no-JavaScript behavior on migrated screens.
+Use a focused `MJL_TEST_GREP` subset of `test:api` for these migrated workflows.
