@@ -7,6 +7,7 @@ module.exports = defineConfig({
     'auth-concurrency.spec.js',
     'authentication.spec.js',
     'api-auth-partners.spec.js',
+    'api-activities.spec.js',
     'document-containment.spec.js',
     'fixture-isolation.spec.js',
     'reset-boundaries.spec.js',

@@ -85,20 +85,3 @@ test('Validator performs one existing assignment action through the modal with a
   await expect(page).toHaveURL(/result=OK/);
   await expect(page.locator('.mjl-assignment-list').getByText('Replacement Fixture', { exact: true })).toBeVisible();
 });
-
-test('narrow no-JavaScript workspace keeps all sections and the assignment form usable', async ({ browser }, testInfo) => {
-  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 }, reducedMotion: 'reduce', forcedColors: 'active' });
-  try {
-    const page = await context.newPage();
-    await openWorkspace(page);
-    await expect(page.getByRole('heading', { name: 'Opérations', exact: true })).toBeVisible();
-    await expect(page.getByRole('tab')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /Opérations \(2\)/ })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Gérer les affectations', exact: true })).toBeVisible();
-    await expect(page.getByLabel('Motif')).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath('activity-workspace-mobile-forced-colors.png'), fullPage: true });
-  } finally {
-    await context.close();
-  }
-});

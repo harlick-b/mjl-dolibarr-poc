@@ -1,6 +1,6 @@
 # MJL REST API contract and action inventory
 
-Status: **authentication and Partenaires implemented; remaining operations are targets, not accepted**. Inventory date:
+Status: **authentication, reference screens and Activity workflows implemented; remaining operations are targets, not accepted**. Inventory date:
 2026-10-21. User decisions: DEC-078 (web/PWA, progressive migration, all current
 MJL business and administration actions, login + email OTP, 24-hour idle and
 24-hour absolute session limits). Native Dolibarr technical administration,
@@ -11,7 +11,7 @@ is unchanged. This contract does not authorize those deferred features.
 wire fields and response shapes. This document owns the current-action mapping,
 shared behavioral constraints and migration requirements. Canonical business
 rules and permissions remain authoritative; code is current-state evidence.
-Existing PHP pages render the interface. The 10 authentication operations, 5 Partner operations and Partner-only submission tokens are implemented; other endpoints below remain pending.
+PHP pages render shells for migrated screens. Forty operations are implemented: 10 authentication operations, 15 reference operations, 13 Activity operations, monitoring filter options and submission-token issuance. Other endpoints below remain pending.
 
 ## Scope and architecture
 
@@ -90,18 +90,18 @@ form actions map to these operations; transport changes do not add business righ
 | `createOperationType` | `POST /operation-types` | Create OperationType | V | `lib/api/mjl_api_references.lib.php` |
 | `renameOperationType` | `PATCH /operation-types/{id}` | Rename OperationType | V | `lib/api/mjl_api_references.lib.php` |
 | `setOperationTypeActive` | `PUT /operation-types/{id}/activation` | Activate/deactivate OperationType | V | `lib/api/mjl_api_references.lib.php` |
-| `listActivities` | `GET /activities` | List current visible Activities | B | `lib/activity/mjl_activity_http.lib.php` |
-| `getActivity` | `GET /activities/{activity_id}` | Read Activity and current structure | B | `lib/activity/mjl_activity_http.lib.php` |
-| `createActivity` | `POST /activities` | Create draft or create-and-submit atomically | A | `lib/activity/mjl_activity_http.lib.php` |
-| `replaceActivityStructure` | `PUT /activities/{activity_id}/structure` | Save complete editable Activity structure | A | `lib/activity/mjl_activity_http.lib.php` |
-| `submitActivity` | `POST /activities/{activity_id}/submissions` | Submit/resubmit Activity | A | `lib/activity/mjl_activity_http.lib.php` |
-| `abandonActivity` | `POST /activities/{activity_id}/abandonment` | Abandon draft | A | `lib/activity/mjl_activity_http.lib.php` |
-| `restoreActivity` | `POST /activities/{activity_id}/restoration` | Restore draft with primary Agent | V | `lib/activity/mjl_activity_http.lib.php` |
-| `changeAssignment` | `POST /activities/{activity_id}/assignment-changes` | Add/remove/transfer assignment | V | `lib/activity/mjl_activity_http.lib.php` |
-| `requestActivityCancellation` | `POST /activities/{activity_id}/cancellation-requests` | Request Activity cancellation | A | `lib/activity/mjl_activity_http.lib.php` |
-| `listAssignmentAgents` | `GET /assignment-agents` | Eligible Agents for assignment/restoration | V | `lib/activity/mjl_activity_http.lib.php` |
-| `getActivityReview` | `GET /activities/{activity_id}/review` | Read current immutable revision and decisions | R | `lib/activity/mjl_activity_http.lib.php` |
-| `reviewActivity` | `POST /activities/{activity_id}/revisions/{revision_id}/decisions` | Prevalidate, validate or return exact revision | R | `lib/activity/mjl_activity_http.lib.php` |
+| `listActivities` | `GET /activities` | List current visible Activities | B | `lib/api/mjl_api_activities.lib.php` |
+| `getActivity` | `GET /activities/{activity_id}` | Read Activity and current structure | B | `lib/api/mjl_api_activities.lib.php` |
+| `createActivity` | `POST /activities` | Create draft or create-and-submit atomically | A | `lib/api/mjl_api_activities.lib.php` |
+| `replaceActivityStructure` | `PUT /activities/{activity_id}/structure` | Save complete editable Activity structure | A | `lib/api/mjl_api_activities.lib.php` |
+| `submitActivity` | `POST /activities/{activity_id}/submissions` | Submit/resubmit Activity | A | `lib/api/mjl_api_activities.lib.php` |
+| `abandonActivity` | `POST /activities/{activity_id}/abandonment` | Abandon draft | A | `lib/api/mjl_api_activities.lib.php` |
+| `restoreActivity` | `POST /activities/{activity_id}/restoration` | Restore draft with primary Agent | V | `lib/api/mjl_api_activities.lib.php` |
+| `changeAssignment` | `POST /activities/{activity_id}/assignment-changes` | Add/remove/transfer assignment | V | `lib/api/mjl_api_activities.lib.php` |
+| `requestActivityCancellation` | `POST /activities/{activity_id}/cancellation-requests` | Request Activity cancellation | A | `lib/api/mjl_api_activities.lib.php` |
+| `listAssignmentAgents` | `GET /assignment-agents` | Eligible Agents for assignment/restoration | V | `lib/api/mjl_api_activities.lib.php` |
+| `getActivityReview` | `GET /activities/{activity_id}/review` | Read current immutable revision and decisions | R | `lib/api/mjl_api_activities.lib.php` |
+| `reviewActivity` | `POST /activities/{activity_id}/revisions/{revision_id}/decisions` | Prevalidate, validate or return exact revision | R | `lib/api/mjl_api_activities.lib.php` |
 | `getActivityTimeline` | `GET /activities/{activity_id}/timeline` | Read sanitized Activity chronology | B | `lib/audit/mjl_audit_timeline_read.lib.php` |
 | `listOperations` | `GET /operations` | List visible Operations | B | `lib/mjl_operation_route.lib.php` |
 | `getOperation` | `GET /operations/{operation_id}` | Read Operation consultation | B | `lib/mjl_operation_route.lib.php` |
@@ -429,7 +429,7 @@ browser storage. Protected API routes fail closed while OTP is disabled; the
 native technical administrator login remains available for local configuration.
 
 `GET /auth/session` and submission-token issuance do not extend idle time.
-Successful reference reads/writes and foreground protected HTML requests do.
+Successful business reads/writes and foreground protected HTML requests do.
 Invitation/reset inspection requires the full link proof before disclosing an
 email. Authenticated and pending logout use `DELETE /auth/session`.
 
@@ -438,10 +438,14 @@ Partenaires, Projets and Types d’Opération now use REST for lists, details, c
 renaming and activation. Projects support the `partner_id` list filter; their
 parent and technical reference remain immutable. Invalid/inactive parents return
 422 `inactive_parent`; the command checks the parent under its existing locks.
-Submission tokens cover these nine reference mutations. The superseded reference
-POST/render handlers are removed. MJL administration, Activities, spending and
-reporting REST adapters remain pending. Phase 4 is unchanged. Other command adapters still
-need their own typed mappings and focused authorization/data-integrity checks.
+Submission tokens cover nine reference and eight Activity mutations. Activities,
+assignments, planning, immutable review and sanitized chronology now use REST,
+including the existing Activity cancellation request. The list uses full-selection
+totals and scoped filter options. Exact Activity/Operation/revision versions,
+one-use tokens, contributor exclusions and command-owned audit transactions remain.
+Superseded HTML mutation/render/recovery handlers are removed. Operation execution,
+spending, exception decisions, reporting and MJL administration remain pending.
+Phase 4 is unchanged. Remaining adapters need their own typed mappings and checks.
 The gap analysis owns unresolved work; tests establish behavior, not acceptance.
 
 Technical references used to define the wire/security contract:

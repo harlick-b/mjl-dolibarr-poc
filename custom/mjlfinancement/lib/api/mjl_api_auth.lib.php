@@ -21,7 +21,9 @@ function mjl_api_session($actor=null)
  if($actor){
   $role=mjl_scope_effective_role_code($actor,mjl_auth_entity());
   $user=array('id'=>(string)$actor->id,'login'=>(string)$actor->login,'firstname'=>(string)$actor->firstname,'lastname'=>(string)$actor->lastname,'email'=>(string)$actor->email,'role'=>$role,'active'=>true,'native_admin'=>!empty($actor->admin));
-  if(in_array($role,mjl_auth_business_role_codes(),true))$actions=array('listPartners','getPartner','listProjects','getProject','listOperationTypes','getOperationType');
+  if(in_array($role,mjl_auth_business_role_codes(),true))$actions=array('listPartners','getPartner','listProjects','getProject','listOperationTypes','getOperationType','listActivities','getActivity','getActivityTimeline','getMonitoringOptions');
+  if($role==='AGENT_SAISIE')$actions[]='createActivity';
+  if($role==='VALIDATEUR_DEFINITIF')$actions[]='listAssignmentAgents';
   if($role==='VALIDATEUR_DEFINITIF')$actions=array_merge($actions,array('createPartner','renamePartner','setPartnerActive','createProject','renameProject','setProjectActive','createOperationType','renameOperationType','setOperationTypeActive'));
  }elseif(mjl_auth_otp_enabled()&&mjl_auth_otp_pending()){
   $row=mjl_auth_otp_pending_row();

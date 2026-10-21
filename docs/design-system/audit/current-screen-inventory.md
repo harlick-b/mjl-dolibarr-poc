@@ -35,4 +35,4 @@ states. The retained technical Admin has a configured email; mail transport and
 delivery verification remain required before OTP can be enabled. Production email/base URL and client approval of
 non-protected copy and official outputs also remain outstanding.
 
-REST migration (DEC-080/082): authentication/recovery, Partenaires, Projets and Types d’Opération use JavaScript-required REST clients. Current screen URLs, French labels, responsive tables, dialogs and dirty-form protection remain. Protected REST is unavailable until OTP is enabled after mail delivery verification.
+REST migration (DEC-080/082/083): authentication/recovery, reference screens and Activity list/planning/detail/review/chronology use JavaScript-required REST clients. Current screen URLs, French labels, responsive tables, dialogs and dirty-form protection remain. Protected REST is unavailable until OTP is enabled after mail delivery verification.

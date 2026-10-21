@@ -4,8 +4,9 @@ require_once dirname(__DIR__).'/mjl_timeline_presentation.lib.php';
 require_once dirname(__DIR__).'/mjl_timeline_result.lib.php';
 
 /** One bounded page; caller renders 50 items and uses the 51st as a sentinel. */
-function mjl_audit_timeline_read($db, $user, $entity, $activityId, $cursor = '')
+function mjl_audit_timeline_read($db, $user, $entity, $activityId, $cursor = '', &$failure = null)
 {
+	$failure = 'unavailable';
 	if (!mjl_activity_access_can_read_activity($user, $activityId)) return false;
 	$table = $db->prefix().'mjlfinancement_audit_event';
 	$where = ' entity='.(int) $entity.' AND activity_id='.(int) $activityId." AND result='SUCCESS'";
@@ -17,7 +18,7 @@ function mjl_audit_timeline_read($db, $user, $entity, $activityId, $cursor = '')
 		if (!is_string($cursor) || preg_match('/^[1-9][0-9]{0,18}$/D', $cursor) !== 1 || (strlen($cursor) === 19 && strcmp($cursor, '9223372036854775807') > 0)) return false;
 		$res = $db->query('SET STATEMENT max_statement_time=5 FOR SELECT event_date,rowid FROM '.$table.' WHERE '.$where.' AND rowid='.$cursor.' LIMIT 1');
 		$anchor = $res ? $db->fetch_object($res) : null;
-		if (!$anchor) return false;
+		if (!$anchor) { if ($res) $failure = 'invalid_cursor'; return false; }
 		$date = "'".$db->escape($anchor->event_date)."'";
 		$where .= ' AND (event_date>'.$date.' OR (event_date='.$date.' AND rowid>'.$cursor.'))';
 	}
@@ -30,6 +31,7 @@ function mjl_audit_timeline_read($db, $user, $entity, $activityId, $cursor = '')
 	$events = array();
 	while ($row = $db->fetch_object($res)) {
 		$event = mjl_timeline_present_event((array) $row);
+		$event['detail_status'] = !empty($row->details_unavailable) ? 'oversized' : ($event['detail'] === 'Détails indisponibles.' ? 'unavailable' : 'available');
 		$event['rowid'] = (int) $row->rowid;
 		$event['sort_date'] = (string) $row->event_date;
 		$events[] = $event;

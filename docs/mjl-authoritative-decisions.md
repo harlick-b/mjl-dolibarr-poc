@@ -23,7 +23,7 @@ stop and surface the contradiction.
 
 | Subject | Canonical document |
 | --- | --- |
-| REST action inventory and wire contract | `docs/mjl-rest-api-contract.md`, `docs/mjl-rest-api.openapi.yaml` (target coverage; authentication/all reference screens implemented) |
+| REST action inventory and wire contract | `docs/mjl-rest-api-contract.md`, `docs/mjl-rest-api.openapi.yaml` (target coverage; authentication/reference/Activity screens implemented) |
 | Complete business rules | `docs/mjl-functional-specification-v2.md` |
 | Decision history and provenance | `docs/mjl-decision-register-v2.md` |
 | Core, excluded, and gated scope | `docs/mjl-scope-boundary-v2.md` |
@@ -44,8 +44,11 @@ no architectural boundary or runtime behavior. Current document fingerprints:
 
 | Authority | Status | SHA-256 |
 | --- | --- | --- |
-| `docs/architecture-audit/17-target-architecture-proposal.md` | `ARCHITECTURE_FROZEN` | `0adda9f7816d02ce5fc5c5290786d52efe7f74dff0931be4c94034859304f8c7` |
-| `docs/mjl-engineering-standard-v1.md` | `STANDARD_FROZEN`; DEC-066 transaction amendment retained | `99f794b60a7f4b7a9981cb520bf3cf362a98df432d1f83f6f4086c540b58d794` |
+| `docs/architecture-audit/17-target-architecture-proposal.md` | `ARCHITECTURE_FROZEN` | `4ff2a657d9e3f889d6ecc7f44b6b81610485f4bba8ad9a84e1b7baeab45c597d` |
+| `docs/mjl-engineering-standard-v1.md` | `STANDARD_FROZEN`; DEC-066 transaction amendment retained | `03ea3aabcd703242986330cbd238d90b9a1f6bb6a80e377060a9ebabc2553841` |
+
+DEC-083 amends Activity HTTP/presentation destinations for REST while preserving
+command and bounded-read ownership.
 
 W0 and W1–W7 are complete. DEC-072 records `MIGRATION_COMPLETE: YES`.
 The roadmap owns concise implementation state, the decision register owns
@@ -93,7 +96,7 @@ implementation is not authorized and document routes remain deny-all.
   requires all expenses approved, or an approved explicit zero-spending declaration. Authentication fixes come first; mail must be supplied and delivery
   verified before enabling OTP. DEC-078 defines REST API as the backend foundation
   for web/PWA clients, covering all available MJL actions and using login plus
-  OTP. Migrate the existing interface progressively as API features are delivered. Migrated screens require JavaScript (DEC-080). DEC-082 authorizes Projets and Types d’Opération migration; OTP remains disabled.
+  OTP. Migrate the existing interface progressively as API features are delivered. Migrated screens require JavaScript (DEC-080). DEC-082 authorizes Projets and Types d’Opération migration; DEC-083 authorizes Activity planning, assignments, review and chronology migration. OTP remains disabled.
   Scope includes MJL business features and MJL administration; native Dolibarr
   technical administration and external integrations are excluded. Approved session
   limits are 24 hours of inactivity or 24 hours total, whichever comes first;

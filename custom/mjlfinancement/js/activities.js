@@ -1,8 +1,10 @@
-(function () {
+window.mjlInitActivityPlanning = function (root) {
   'use strict';
-  var list = document.querySelector('[data-operation-list]');
+  var list = root.querySelector('[data-operation-list]');
   if (!list) return;
   var form = list.closest('form');
+  if (list.dataset.initialized) return;
+  list.dataset.initialized = '1';
   var template = list.querySelector('[data-operation-row]').cloneNode(true);
   var amount = form.querySelector('[name="authorized_amount"]');
   var start = form.querySelector('[name="date_start"]');
@@ -81,7 +83,9 @@
     row.querySelector('[name="operation_key[]"]').value = 'op-new-' + (++nextOperationKey);
     row.querySelector('[name="operation_id[]"]').value = '';
     row.querySelector('[name="operation_version[]"]').value = '';
+    row.querySelectorAll('[data-retained-inactive]').forEach(function (option) { option.remove(); });
     row.querySelector('select').selectedIndex = 0;
+    row.querySelector('[data-remove-operation]').disabled = false;
     list.appendChild(row);
     if (window.MjlUi) window.MjlUi.init(row);
     row.querySelector('[name="operation_name[]"]').focus();
@@ -112,4 +116,4 @@
     }
   });
   refresh();
-})();
+};

@@ -185,19 +185,3 @@ test('late unchanged revision completes review but cannot be returned for struct
   await page.getByRole('button', { name: 'Valider définitivement', exact: true }).click();
   await expect(page).toHaveURL(/result=OK/);
 });
-
-test('narrow no-JavaScript review keeps immutable evidence and the correction form usable', async ({ browser }, testInfo) => {
-  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 }, reducedMotion: 'reduce', forcedColors: 'active' });
-  try {
-    const page = await context.newPage();
-    await openReview(page, 'cycle', 'supervisor');
-    await expect(page.getByRole('heading', { name: 'Révision 2 à examiner', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Retourner en correction', exact: true })).toBeVisible();
-    await expect(page.getByLabel('Motif de correction')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Fermer' })).toHaveCount(0);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath('review-mobile-forced-colors.png'), fullPage: true });
-  } finally {
-    await context.close();
-  }
-});

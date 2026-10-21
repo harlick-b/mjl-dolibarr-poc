@@ -18,11 +18,9 @@ unresolved weaknesses and unapproved recommendations.
   supersede the former reference form/presentation paths: all three reference
   roots render a shared REST shell, scoped reads remain reference-owned, and
   the existing reference command owns writes. Legacy reference POST/render
-  handlers are removed. W2 is complete for the full
-  `activities.php` GET/POST surface and its Activity-specific monitoring list,
-  read, and render branch: the root has one HTTP-handler handoff, reads and
-  audit chronology have explicit owners, prepared views render through Activity
-  templates, and the superseded Activity route/render owners are removed. W3 is
+  handlers are removed. DEC-083 supersedes the W2 Activity HTML POST and
+  template paths with a GET shell and JavaScript REST client. Existing Activity
+  commands, scoped reads and audit chronology retain their ownership. W3 is
   complete: one deep reference command owns reference writes, one deep access
   command owns standalone access writes, and invitation preparation uses the
   access command as a non-transaction-owning participant. Superseded procedural
@@ -111,7 +109,9 @@ drawer, exact financial and execution facts, role-aware execution navigation,
 and ordinary-link fallback. VUI-08 exception dialogs are implemented with one
 shared progressive dialog host that moves each existing guarded form without
 cloning it or issuing another token, while preserving visible no-JavaScript
-forms, role eligibility, exact versions, financial facts, and terminal rules.
+forms on unmigrated screens, role eligibility, exact versions, financial facts,
+and terminal rules. Activity cancellation now uses the JavaScript-required REST
+client (DEC-083).
 VUI-09 role dashboards are implemented with role-specific headings and
 indicators derived from the existing scoped Activity projection, current
 permission-aware work queues, execution progress, financial disclosure, and
@@ -183,7 +183,7 @@ approval/reversal. DEC-078 sets the API as the backend foundation for web/PWA
 clients, covering all available MJL actions with login plus OTP. The existing
 interface migrates progressively with each feature. MJL administration is
 included; native Dolibarr technical administration is excluded.
-There are no external integrations for now. Authentication, Partenaires, Projets and Types d’Opération REST adapters are implemented (DEC-080/082); native API remains disabled. Phase 4 remains separately deferred.
+There are no external integrations for now. Authentication, reference screens and Activity workflows are implemented through REST (DEC-080/082/083); native API remains disabled. Phase 4 remains separately deferred.
 
 Approved session policy (user confirmation on 2026-10-21, DEC-081): expire after 24
 hours of inactivity or 24 hours total, whichever comes first, and require login
@@ -197,7 +197,7 @@ The 2026-10-21 source inventory and target wire contract are defined in
 [`mjl-rest-api.openapi.yaml`](mjl-rest-api.openapi.yaml): 75 operations covering
 current MJL actions and necessary session/submission-token adapters. The contract
 preserves command ownership, scoped reads, fingerprints/versions, one-use
-submissions, correction-only access and audited binary exports. The implemented slices cover authentication, recovery, all three reference screens and shared API/HTML session expiry. OpenAPI schema
+submissions, correction-only access and audited binary exports. The implemented slices cover authentication, recovery, all three reference screens, Activity planning/assignments/reviews/chronology and shared API/HTML session expiry. OpenAPI schema
 validation and operation/source/security-header consistency checks passed;
 independent spec/security/read-projection reviews were reconciled. Runtime checks for the first slice cover authentication, recovery, expiry, Partner transactions, role/entity denial and mobile use. Six focused migration/regression checks now cover all reference screens, immutable Project ownership, inactive-parent refusal, stale/replayed writes, audit rollback, mobile and JavaScript-disabled states. A focused browser layout check also verifies wrapped mobile reference labels remain inside their cells.
 
@@ -205,7 +205,7 @@ Proposed API delivery stages (separate from product Phase 4):
 
 1. Authentication/session/recovery and all reference data: implemented. OTP stays
    disabled until mail is configured and delivery verified.
-2. Activities, assignments, planning, review and chronology.
+2. Activities, assignments, planning, review and chronology: implemented (DEC-083), including Activity cancellation requests and scoped filter options.
 3. Operations, expenses, accounting corrections and exception workflows.
 4. Dashboards, alerts, audit, previews and exports.
 5. MJL access administration and final action/interface coverage.
@@ -215,12 +215,20 @@ reads/writes to REST. Focused checks and remaining technical dependencies are
 specified in the contract. Contract completion does not imply runtime completion,
 user acceptance or production readiness. Mail remains pending before OTP enablement.
 
-DEC-080 first slice: 16 operations are implemented (submission tokens currently
-allow only the three Partner mutations). Login/OTP/invitation/reset and Partenaires
-use REST; migrated screens require JavaScript. Partner transactions retain audit,
-fingerprint and cascade rules. Mail remains unconfigured and OTP disabled locally.
-Verification on 2026-10-21: `npm run test:api` passed 10/10 in a fresh disposable tenant, including shared-state/artifact checks and teardown. Six focused authentication regressions, three PHP contracts, changed-file PHP/JavaScript syntax and OpenAPI validation also passed. Broad suites were not run. These checks establish tested behavior only.
-Next API slice: Projets and Types d’Opération, then the remaining stages above.
+Current Activity slice (DEC-083): JavaScript-required list, planning, detail and
+review clients use the existing REST transport. Existing aggregate/assignment
+commands retain mutations, locks, no-self-validation and audit transactions.
+Scoped bounded reads explicitly project wire fields; chronology remains sanitized.
+The former HTML POST/presentation/recovery path and obsolete form-ceremony tests
+are removed. All five focused Activity API browser checks passed across targeted
+runs: planning and exact amounts; the complete review cycle and chronology;
+assignment transfer/removal and restoration; stale/replay/revision guards and
+audit rollback; foreign-entity isolation and contributor exclusion. Request/read
+contracts, the planning-control browser check, changed-file PHP/JavaScript syntax
+and OpenAPI validation also passed. Broad suites and manual accessibility review
+were not run for this slice. No acceptance or production readiness is implied.
+OTP remains disabled pending mail delivery.
+Next API slice: Operations, expenses, accounting corrections and exceptions.
 
 ### Phase 4: Documents
 

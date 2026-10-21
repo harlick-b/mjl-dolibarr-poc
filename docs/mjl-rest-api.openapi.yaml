@@ -2,7 +2,7 @@ openapi: 3.1.1
 info:
   title: MJL REST API
   version: 0.1.0-draft
-  description: Full target contract with authentication and all three reference screens implemented (DEC-080/082).
+  description: Full target contract with authentication, reference screens and Activity workflows implemented (DEC-080/082/083).
     Other operations remain pending. See mjl-rest-api-contract.md for migration state and behavior.
     SessionCookie denotes the native DOLSESSID_ cookie with a deployment-specific suffix;
     browser clients use the server-issued HttpOnly cookie without hard-coding its name.
@@ -410,7 +410,7 @@ paths:
   /submission-tokens:
     post:
       operationId: issueSubmissionToken
-      x-implementation-status: implemented-references-only
+      x-implementation-status: implemented-references-and-activities
       summary: Prepare one existing one-use submission context
       tags:
       - Transport
@@ -446,7 +446,7 @@ paths:
         '503': {$ref: '#/components/responses/Error503'}
         '405': {$ref: '#/components/responses/Error405'}
       description: Just in time; current helper20 pending/7200s TTL, additionally bounded by authenticated
-        session. Currently accepts only the nine Partner, Project and Operation Type mutation operation IDs; Validator only. Not a business mutation or an idempotency replay store.
+        session. Currently accepts nine reference mutations (Validator only) and eight Activity mutations (existing Agent/reviewer/Validator guards). Not a business mutation or an idempotency replay store.
       parameters:
       - {$ref: '#/components/parameters/csrf'}
       requestBody:
@@ -1290,7 +1290,7 @@ paths:
   /activities:
     get:
       operationId: listActivities
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: List current visible Activities
       tags:
       - Activities
@@ -1298,7 +1298,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: false
       responses:
@@ -1340,13 +1340,13 @@ paths:
       - {$ref: '#/components/parameters/query_page'}
     post:
       operationId: createActivity
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Create draft or create-and-submit atomically
       tags:
       - Activities
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: true
       responses:
@@ -1377,7 +1377,7 @@ paths:
   /activities/{activity_id}:
     get:
       operationId: getActivity
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Read Activity and current structure
       tags:
       - Activities
@@ -1385,7 +1385,7 @@ paths:
       - AGENT_SAISIE
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: false
       responses:
@@ -1415,13 +1415,13 @@ paths:
   /activities/{activity_id}/structure:
     put:
       operationId: replaceActivityStructure
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Save complete editable Activity structure
       tags:
       - Activities
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: true
       responses:
@@ -1456,13 +1456,13 @@ paths:
   /activities/{activity_id}/submissions:
     post:
       operationId: submitActivity
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Submit/resubmit Activity
       tags:
       - Activities
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: true
       responses:
@@ -1497,13 +1497,13 @@ paths:
   /activities/{activity_id}/abandonment:
     post:
       operationId: abandonActivity
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Abandon draft
       tags:
       - Activities
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: true
       responses:
@@ -1538,13 +1538,13 @@ paths:
   /activities/{activity_id}/restoration:
     post:
       operationId: restoreActivity
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Restore draft with primary Agent
       tags:
       - Activities
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: true
       responses:
@@ -1579,13 +1579,13 @@ paths:
   /activities/{activity_id}/assignment-changes:
     post:
       operationId: changeAssignment
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Add/remove/transfer assignment
       tags:
       - Activities
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: true
       responses:
@@ -1620,13 +1620,13 @@ paths:
   /activities/{activity_id}/cancellation-requests:
     post:
       operationId: requestActivityCancellation
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Request Activity cancellation
       tags:
       - Activities
       x-roles:
       - AGENT_SAISIE
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: true
       responses:
@@ -1661,13 +1661,13 @@ paths:
   /assignment-agents:
     get:
       operationId: listAssignmentAgents
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Eligible Agents for assignment/restoration
       tags:
       - Activities
       x-roles:
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: false
       responses:
@@ -1699,14 +1699,14 @@ paths:
   /activities/{activity_id}/review:
     get:
       operationId: getActivityReview
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Read current immutable revision and decisions
       tags:
       - Activities
       x-roles:
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: false
       responses:
@@ -1738,14 +1738,14 @@ paths:
   /activities/{activity_id}/revisions/{revision_id}/decisions:
     post:
       operationId: reviewActivity
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Prevalidate, validate or return exact revision
       tags:
       - Activities
       x-roles:
       - AGENT_VERIFICATEUR
       - VALIDATEUR_DEFINITIF
-      x-source: custom/mjlfinancement/lib/activity/mjl_activity_http.lib.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_activities.lib.php
       x-rollout-stage: 2
       x-submission-token: true
       responses:
@@ -1780,11 +1780,11 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ReviewDecision'}
+            schema: {$ref: '#/components/schemas/ReviewDecisionInput'}
   /activities/{activity_id}/timeline:
     get:
       operationId: getActivityTimeline
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Read sanitized Activity chronology
       tags:
       - Audit
@@ -3247,7 +3247,7 @@ paths:
   /monitoring-options:
     get:
       operationId: getMonitoringOptions
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Scoped filter choices for current monitoring/report screens
       tags:
       - Monitoring
@@ -4120,7 +4120,7 @@ components:
       - expected_version
       - reason
       - primary_agent_id
-    ReviewDecision:
+    ReviewDecisionInput:
       type: object
       additionalProperties: false
       properties:

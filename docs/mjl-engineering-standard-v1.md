@@ -17,8 +17,9 @@ not amend that architecture. Standard freeze does not authorize W0 or any
 migration wave, production work, dependency change, or tooling rollout.
 
 The frozen architecture remains
-`docs/architecture-audit/17-target-architecture-proposal.md`, SHA-256
-`0adda9f7816d02ce5fc5c5290786d52efe7f74dff0931be4c94034859304f8c7`.
+`docs/architecture-audit/17-target-architecture-proposal.md`; its current
+fingerprint and approved REST destination amendments are recorded in
+`docs/mjl-authoritative-decisions.md`.
 Completed review evidence is retained in Git history. DEC-075 updates obsolete
 status and provenance text only; all technical rules remain unchanged.
 

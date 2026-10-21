@@ -295,3 +295,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   response status, then wait for the detail URL and read its ID. Reading the old
   browser response body after navigation can fail with `Network.getResponseBody`
   even when the save succeeded; the Partner test already demonstrates the stable pattern.
+
+- Planning E2E tests must operate the visible Select2/date controls rather than
+  hidden native inputs. Resolve fixture option labels by their IDs because the
+  disposable fixture adds unique suffixes; use role-based names for controls
+  whose labels include required markers or nested option text.

@@ -94,19 +94,3 @@ test('visible selectors filter Projects and draft saves preserve imbalance until
   await expect(page.locator('main')).toContainText('Planification VUI04 soumise');
   await expect(page.locator('main')).toContainText('Soumise');
 });
-
-test('narrow no-JavaScript form remains a usable native planning form', async ({ browser }, testInfo) => {
-  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 }, reducedMotion: 'reduce', forcedColors: 'active' });
-  try {
-    const page = await context.newPage();
-    await openForm(page);
-    await expect(page.locator('[name="date_start"]')).toBeVisible();
-    await expect(page.locator(`[name="project_id"] option[value="${fixture.projects.project}"]`)).toHaveCount(1);
-    await expect(page.locator(`[name="project_id"] option[value="${fixture.projects.project2}"]`)).toHaveCount(1);
-    await expect(page.locator('[data-operation-row]')).toHaveCount(1);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath('activity-planning-mobile-forced-colors.png'), fullPage: true });
-  } finally {
-    await context.close();
-  }
-});

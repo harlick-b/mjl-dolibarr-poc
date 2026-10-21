@@ -6,6 +6,11 @@ browser verification for this documentation update.
 
 ## Current findings
 
+- Activity list/planning/detail/review/chronology now load through REST. Existing
+  tabs, dialogs, planning controls, Operation drawer and dirty-form guards are
+  initialized after data loads. JavaScript is required. Human accessibility
+  acceptance remains outstanding.
+
 - All three reference screens now use the shared REST client. Focused browser
   checks cover their forms, lifecycle actions, mobile layout and JavaScript-required
   states. Mobile reference cells expand for wrapped labels instead of inheriting
@@ -44,7 +49,9 @@ browser verification for this documentation update.
   completed surfaces; dormant predecessor report and timeline selectors are
   removed. Focused browser evidence covers structural headings, duplicate IDs,
   representative reflow, coarse targets, reduced motion, forced colors,
-  no-JavaScript fallback, and existing four-role route boundaries.
+  no-JavaScript fallback on unmigrated screens, and existing four-role route
+  boundaries. Migrated REST screens require JavaScript and display that requirement
+  when it is disabled.
 - Signed human keyboard, screen-reader, zoom, reflow, forced-colors, and
   reduced-motion review remains outstanding. Client review of non-protected
   wording and official outputs is also outstanding. This audit does not claim

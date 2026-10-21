@@ -897,6 +897,13 @@
 		});
 	}
 
+	window.mjlInitActivityComponents = function (root) {
+		initSubstantiveForms(root.querySelectorAll('form[data-mjl-substantive]'));
+		Array.prototype.forEach.call(root.querySelectorAll('[data-mjl-tabs]'), initTabs);
+		Array.prototype.forEach.call(root.querySelectorAll('[data-mjl-dialog]'), function (dialog) { initAssignmentDialog(dialog); initDialog(dialog); });
+		Array.prototype.forEach.call(root.querySelectorAll('[data-mjl-operation-drawer]'), initOperationDrawer);
+	};
+
 	window.mjlInitReferenceComponents = function (root) {
 		initTableActionMenus(root.querySelectorAll('[data-mjl-action-menu]'));
 		initSubstantiveForms(root.querySelectorAll('form[data-mjl-substantive]'));
