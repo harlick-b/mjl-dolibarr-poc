@@ -18,7 +18,7 @@ repository-visible evidence, not user acceptance.
 | Rapports | `/custom/mjlfinancement/reports.php` | Shared responsive filters, visible active selections, scoped previews, and complete-selection export actions for Activities, Opérations, Fiche Activité, portfolio, and Validator/Admin audit. |
 | Report downloads | `/custom/mjlfinancement/api/index.php/v1/reports/{type}/exports` | CSRF-protected, audited PDF/XLSX/CSV REST delivery with report-specific access checks; the former form route rejects requests. |
 | Workflow audit | `/custom/mjlfinancement/workflowactions.php` | Filtered chronological event history, recorded metadata/details, and audited downloads for Validator/Admin in the active entity. |
-| Admin access | `/custom/mjlfinancement/admin/access.php` | Admin-only responsive user/invitation lists with progressive invitation, role-change, deactivation, and revocation dialogs; real delivery states and ordinary-form fallback. |
+| Admin access | `/custom/mjlfinancement/admin/access.php` | Admin-only JavaScript-required REST user/invitation lists with progressive invitation, role-change, deactivation, and revocation dialogs, real delivery states, and a no-JavaScript message. |
 | Invitation acceptance | `/custom/mjlfinancement/invitation.php` | Shared password-creation form with readonly invited email, five live rules, fragment verifier, and CSRF protection; no public registration. |
 | Documents | `/custom/mjlfinancement/documents.php` | HTTP 403 for every actor and method; no document UI. |
 | Document download | `/custom/mjlfinancement/documentdownload.php` | HTTP 403 for every actor and method; native `/ecm/*`, `/document.php`, and `/viewimage.php` delivery is also denied. |
@@ -35,7 +35,7 @@ states. The retained technical Admin has a configured email; mail transport and
 delivery verification remain required before OTP can be enabled. Production email/base URL and client approval of
 non-protected copy and official outputs also remain outstanding.
 
-REST migration (DEC-080/082/083/084/085): authentication/recovery, business
+REST migration (DEC-080/082/083/084/085/086): authentication/recovery, business
 workflows, dashboards, alerts, audit and operational reports use JavaScript-required
 REST clients. Current screen URLs, French labels, responsive presentation and
 guarded actions remain. Protected REST is unavailable until OTP is enabled after

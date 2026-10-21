@@ -16,6 +16,7 @@ class AuthTransactionFakeDb
 	public $rollbackCount = 0;
 	public $closeCount = 0;
 	public $mutationCount = 0;
+	public $invitationStatus = 'sent';
 
 	public function prefix() { return 'llx_'; }
 	public function begin($label = '') { $this->beginCount++; return $this->beginResult ? 1 : 0; }
@@ -23,6 +24,7 @@ class AuthTransactionFakeDb
 	public function rollback($label = '') { $this->rollbackCount++; return $this->rollbackResult ? 1 : 0; }
 	public function close() { $this->closeCount++; }
 	public function query($sql) { if (preg_match('/^(?:INSERT|UPDATE|DELETE)\b/i', ltrim($sql))) $this->mutationCount++; return (object) array(); }
+	public function fetch_object($result) { return (object) array('status' => $this->invitationStatus); }
 	public function affected_rows($result) { return 1; }
 }
 
@@ -42,6 +44,11 @@ $db = new AuthTransactionFakeDb();
 $db->beginResult = false;
 $result = (new MjlAuthCommand($db, $conf, 1, true, false))->revokeInvitation(12, $actor);
 authTransactionCheck($result[0] < 0 && $db->mutationCount === 0 && $db->commitCount === 0 && $db->rollbackCount === 0, 'failed auth begin must stop before mutation');
+
+$db = new AuthTransactionFakeDb();
+$db->invitationStatus = 'accepted';
+$result = (new MjlAuthCommand($db, $conf, 1, true, false))->revokeInvitation(12, $actor);
+authTransactionCheck($result[0] > 0 && $db->mutationCount === 0 && $db->commitCount === 1, 'terminal invitation revoke must be an atomic no-op');
 
 $db = new AuthTransactionFakeDb();
 $db->commitResult = false;

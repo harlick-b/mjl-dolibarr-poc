@@ -1,160 +1,18 @@
 <?php
-
-require '../../../main.inc.php';
+if(strtoupper($_SERVER['REQUEST_METHOD']??'GET')!=='GET'){http_response_code(405);header('Allow: GET');exit;}
+define('NOREDIRECTBYMAINTOLOGIN',1);require '../../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_navigation.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_scope.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_page_header.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_access_ui.lib.php';
-
-if (!mjl_scope_is_platform_admin($user)) {
-	http_response_code(403);
-	accessforbidden();
-}
-
-$action = GETPOST('action', 'aZ09');
-$message = '';
-$error = '';
-$generatedLink = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-	if (!function_exists('currentToken') || GETPOST('token', 'alphanohtml') !== currentToken()) {
-		$error = 'Jeton de sécurité invalide.';
-	} elseif ($action === 'invite') {
-		$result = mjl_auth_command()->issueInvitation(array(
-			'login' => GETPOST('login', 'alphanohtml'),
-			'firstname' => GETPOST('firstname', 'restricthtml'),
-			'lastname' => GETPOST('lastname', 'restricthtml'),
-			'email' => GETPOST('email', 'restricthtml'),
-			'role_code' => GETPOST('role_code', 'aZ09'),
-		), $user);
-		$error = $result[1];
-		if ($error === '') {
-			$message = 'Invitation envoyée.';
-			$generatedLink = $result[0];
-		}
-	} elseif ($action === 'update_profile') {
-		$targetUserId = GETPOSTINT('user_id');
-		$accessCommand = new MjlAccessCommand($db, mjl_auth_entity());
-		$profile = $accessCommand->assignProfile($targetUserId, GETPOST('role_code', 'aZ09'), $user, 'admin_access', 'Modification administrateur');
-		if ($profile[0] < 0) {
-			$error = $profile[1];
-		} else {
-			$message = $profile[1];
-		}
-	} elseif ($action === 'deactivate') {
-		$accessCommand = new MjlAccessCommand($db, mjl_auth_entity());
-		$result = $accessCommand->deactivate(GETPOSTINT('user_id'), $user);
-		if ($result[0] < 0) {
-			$error = $result[1];
-		} else {
-			$message = $result[1];
-		}
-	} elseif ($action === 'revoke') {
-		$revokeResult = mjl_auth_command()->revokeInvitation(GETPOSTINT('id'), $user);
-		if ($revokeResult[0] >= 0) {
-			$message = $revokeResult[1];
-		} else {
-			$error = $revokeResult[1];
-		}
-	}
-	$operation = 'admin_access:'.($action !== '' ? $action : 'unknown').':'.GETPOSTINT('user_id').':'.GETPOSTINT('id');
-	if ($error !== '') {
-		mjl_ui_log_error('admin_access', array('route' => 'admin/access', 'action' => $action, 'entity' => mjl_auth_entity(), 'user_id' => (int) $user->id), $error);
-		$errorKey = $error === 'Jeton de sécurité invalide.' ? 'generic.validation' : 'generic.error';
-		if ($action === 'deactivate' && GETPOSTINT('user_id') === (int) $user->id) $errorKey = 'access.self_deactivation_denied';
-		if ($action === 'invite' && $error === 'Cet identifiant correspond déjà à un utilisateur existant.') $errorKey = 'access.login_exists';
-		if ($action === 'invite' && $error === 'Cette adresse e-mail est déjà utilisée.') $errorKey = 'access.email_in_use';
-		mjl_feedback_add($operation.':error', $errorKey);
-	} elseif ($message !== '') {
-		$keys = array('invite' => 'access.invitation_sent', 'update_profile' => 'access.profile_updated', 'deactivate' => 'access.deactivated', 'revoke' => 'access.invitation_revoked');
-		if ($action === 'revoke') {
-			$revokeKeys = array(
-				'Cette invitation est déjà acceptée.' => 'access.invitation_already_accepted',
-				'Cette invitation est déjà révoquée.' => 'access.invitation_already_revoked',
-				'Cette invitation est en cours d’acceptation.' => 'access.invitation_accepting',
-				'Cette invitation ne peut pas être révoquée dans son état actuel.' => 'access.invitation_cannot_revoke',
-			);
-			if (isset($revokeKeys[$message])) $keys['revoke'] = $revokeKeys[$message];
-		}
-		mjl_feedback_add($operation, isset($keys[$action]) ? $keys[$action] : 'generic.saved');
-	}
-}
-
-$roles = array_intersect_key(mjl_scope_role_labels(), array_flip(mjl_auth_business_role_codes()));
-$users = mjl_access_users();
-
-$invitations = array();
-$sql = 'SELECT i.rowid, i.status, i.date_sent, i.date_expiry, u.login, u.email FROM '.$db->prefix().'mjlfinancement_invitation i';
-$sql .= ' INNER JOIN '.$db->prefix().'user u ON u.rowid = i.fk_user';
-$sql .= ' WHERE i.entity = '.mjl_auth_entity().' ORDER BY i.rowid DESC LIMIT 50';
-$resql = $db->query($sql);
-if ($resql) {
-	while ($obj = $db->fetch_object($resql)) $invitations[] = (array) $obj;
-}
-
-$inviteValues = array();
-$inviteError = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'invite' && $error !== '') {
-	$inviteValues = array(
-		'login' => GETPOST('login', 'alphanohtml'),
-		'firstname' => GETPOST('firstname', 'restricthtml'),
-		'lastname' => GETPOST('lastname', 'restricthtml'),
-		'email' => GETPOST('email', 'restricthtml'),
-		'role_code' => GETPOST('role_code', 'aZ09'),
-	);
-	$inviteError = $error;
-}
-
-llxHeader('', 'Gestion des accès MJL');
-mjl_navigation_shell_start($user);
-print '<div class="mjl-workspace mjl-access-workspace">';
-print mjl_page_header_render(
-	'Gestion des accès MJL',
-	array(
-		'breadcrumb' => array(array('label' => 'Administration')),
-		'description' => 'Invitez les utilisateurs et gérez leur rôle de production.',
-		'context' => array('label' => 'Accès', 'value' => 'Administration'),
-		'primary_action' => array(
-			'label' => 'Inviter un utilisateur',
-			'href' => DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php#mjl-access-invite-dialog',
-		),
-	)
-);
-
-if ($generatedLink !== '') {
-	print '<div class="info">Lien E2E: <code>'.dol_escape_htmltag($generatedLink).'</code></div>';
-}
-
-$pageToken = newToken();
-print mjl_access_ui_users($users, $roles, $pageToken);
-print mjl_access_ui_invitations($invitations, $pageToken);
-print mjl_access_ui_invite_dialog($roles, $pageToken, $inviteValues, $inviteError);
-print mjl_access_ui_action_dialog();
-
-print '</div>';
-mjl_navigation_shell_end();
-llxFooter();
-$db->close();
-
-function mjl_access_users()
-{
-	global $db;
-
-	$rows = array();
-	$sql = "SELECT u.rowid, u.login, u.email, u.statut, u.admin AS native_admin, CASE WHEN u.admin = 1 THEN 'ADMIN_PLATEFORME' ELSE r.role_code END AS role_code";
-	$sql .= ', 0 AS recovery_required';
-	$sql .= ' FROM '.$db->prefix().'user u';
-	$sql .= ' LEFT JOIN '.$db->prefix().'mjlfinancement_user_role r ON r.entity = u.entity AND r.fk_user = u.rowid AND r.is_active = 1';
-	$sql .= ' WHERE u.entity = '.mjl_auth_entity().' AND (r.rowid IS NOT NULL OR u.admin = 1)';
-	$sql .= ' ORDER BY u.login';
-	$resql = $db->query($sql);
-	if ($resql) {
-		while ($obj = $db->fetch_object($resql)) {
-			$row = (array) $obj;
-			$row['role_label'] = !empty($row['recovery_required']) ? 'Récupération administrative requise' : ($row['role_code'] !== null && $row['role_code'] !== '' ? mjl_scope_role_label($row['role_code']) : 'Profil historique non résolu');
-			$rows[] = $row;
-		}
-	}
-	return $rows;
-}
+if(!mjl_scope_is_platform_admin($user)){http_response_code(403);accessforbidden();}
+llxHeader('','Gestion des accès MJL');mjl_navigation_shell_start($user);
+print '<div class="mjl-workspace mjl-access-workspace" id="mjl-access-app">';
+print mjl_page_header_render('Gestion des accès MJL',array('breadcrumb'=>array(array('label'=>'Administration')),'description'=>'Invitez les utilisateurs et gérez leur rôle de production.','context'=>array('label'=>'Accès','value'=>'Administration'),'primary_action'=>array('label'=>'Inviter un utilisateur','href'=>DOL_URL_ROOT.'/custom/mjlfinancement/admin/access.php#mjl-access-invite-dialog')));
+print '<p role="alert" data-mjl-js-required>JavaScript est nécessaire pour utiliser cet écran.</p><p role="status" data-access-notice hidden></p><p role="alert" data-access-error hidden></p>';
+print '<section class="mjl-workspace-section mjl-access-panel" data-mjl-access-users><div class="mjl-section-heading"><div><h2>Utilisateurs MJL</h2><p>Profils de production et état actuel des accès.</p></div></div><div data-access-users><p>Chargement…</p></div><nav aria-label="Pagination des utilisateurs" data-users-pagination></nav></section>';
+print '<section class="mjl-workspace-section mjl-access-panel" data-mjl-access-invitations><div class="mjl-section-heading"><div><h2>Invitations récentes</h2><p>Résultats du service d’envoi et échéances des invitations.</p></div></div><div data-access-invitations><p>Chargement…</p></div><nav aria-label="Pagination des invitations" data-invitations-pagination></nav></section>';
+print '<dialog class="mjl-modal-dialog mjl-access-dialog mjl-workflow-dialog" id="mjl-access-invite-dialog" aria-labelledby="mjl-access-invite-title" data-mjl-access-invite-dialog><div class="mjl-dialog-panel"><header class="mjl-section-heading"><div><p class="mjl-eyebrow">Nouvel accès</p><h2 id="mjl-access-invite-title">Inviter un utilisateur</h2></div><button class="mjl-action mjl-action-secondary" type="button" data-mjl-access-invite-close>Fermer</button></header><form class="mjl-activity-form" data-invite-form data-mjl-substantive><p role="alert" data-form-error hidden></p><div class="mjl-access-form-grid"><label>Identifiant<input name="login" required autocomplete="username"></label><label>Prénom<input name="firstname" required autocomplete="given-name"></label><label>Nom<input name="lastname" required autocomplete="family-name"></label><label>Email<input type="email" name="email" required autocomplete="email"></label><label>Profil de production<select name="role_code" required><option value="AGENT_SAISIE">Agent de saisie</option><option value="AGENT_VERIFICATEUR">Agent superviseur et prévalidateur</option><option value="VALIDATEUR_DEFINITIF">Validateur définitif</option></select></label></div><div class="mjl-activity-form-actions"><button class="mjl-action mjl-action-primary" type="submit">Envoyer l’invitation</button></div></form></div></dialog>';
+print '<dialog class="mjl-modal-dialog mjl-access-dialog mjl-workflow-dialog" id="mjl-access-action-dialog" aria-labelledby="mjl-access-action-title"><div class="mjl-dialog-panel"><header class="mjl-section-heading"><div><p class="mjl-eyebrow">Gestion de l’accès</p><h2 id="mjl-access-action-title" data-action-title></h2><p data-action-context></p></div><button class="mjl-action mjl-action-secondary" type="button" data-dialog-close>Fermer</button></header><form data-action-form><p role="alert" data-form-error hidden></p><div data-action-fields></div><div class="mjl-activity-form-actions"><button class="mjl-action mjl-action-danger" type="submit" data-action-submit>Confirmer</button></div></form></div></dialog>';
+print '</div>';mjl_navigation_shell_end();
+if(!mjl_auth_otp_enabled())print '<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_api.js"></script>';
+print '<script src="'.DOL_URL_ROOT.'/custom/mjlfinancement/js/mjl_access.js"></script>';llxFooter();$db->close();

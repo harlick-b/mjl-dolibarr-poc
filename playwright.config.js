@@ -29,7 +29,7 @@ module.exports = defineConfig({
     'vui-exception-dialogs.spec.js',
     'vui-role-dashboards.spec.js',
     'vui-reference-management.spec.js',
-    'vui-access-management.spec.js',
+    'api-access.spec.js',
     'vui-cross-screen-consistency.spec.js',
   ],
   globalSetup: './tests/helpers/playwright-global-setup.js',

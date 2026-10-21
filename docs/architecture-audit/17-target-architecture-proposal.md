@@ -244,7 +244,7 @@ directories supported by audited responsibilities are proposed.
 ```text
 custom/mjlfinancement/
 ├── *.php                         # stable root web adapters
-├── admin/access.php              # stable Admin web adapter
+├── admin/access.php              # stable Admin GET shell; REST owns access reads/writes
 ├── class/                        # deep stateful modules and Dolibarr-discovered classes
 │   ├── actions_mjlfinancement.class.php
 │   ├── mjlactivitycommand.class.php
@@ -352,7 +352,7 @@ Directory rules:
 | `operations.php`, `operationrequests.php` and route libraries | unchanged adapters -> Activity execution/exception handlers -> `MjlActivityCommand` |
 | `index.php`, `alerts.php` | monitoring handlers/projections/templates |
 | `reports.php`, `workflowactions.php` | reporting/audit handlers; predecessor inline branch remains explicit lifecycle compatibility until retirement is approved |
-| `admin/access.php`, `auth.php`, `invitation.php` | thin HTTP adapters -> access/auth handlers -> command modules/templates |
+| `admin/access.php`, `auth.php`, `invitation.php` | DEC-086: access page is a GET shell over `lib/api/mjl_api_access.lib.php` and `js/mjl_access.js`; public auth/invitation adapters retain their existing seams; command modules own mutations |
 | `documents.php`, `documentdownload.php`, `nativeforbidden.php`, `dpafdashboard.php` | remain minimal denial adapters; do not route through general application modules |
 | `lib/mjl_form*`, `mjl_feedback`, `mjl_navigation*`, `mjl_page_header`, live `mjl_table` functions | retain procedural helpers; handlers own token issue/consume, recovery consume, feedback drain and shell-eligibility preparation, while only proven pure presentation primitives may move to `lib/ui/` after callers are characterized |
 | recovery libraries, older access wrappers/export helpers, dormant CSS | no automatic target; retain pending reachability and compatibility proof |

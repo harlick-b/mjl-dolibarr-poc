@@ -33,7 +33,7 @@ browser verification for this documentation update.
 - Admin access uses shared responsive user and invitation tables with
   progressive invitation and account-action dialogs. It presents the current
   invitation delivery states and preserves Admin-only mutation, existing roles,
-  exact guarded forms, and ordinary-form fallback.
+  guarded REST actions, dirty-state protection, and a no-JavaScript message.
 - Login, OTP, invitation, forgotten-password, and reset states use one
   responsive auth shell with the Inter font, French copy, visible keyboard
   focus, generic recovery errors, and one logical six-digit OTP input.

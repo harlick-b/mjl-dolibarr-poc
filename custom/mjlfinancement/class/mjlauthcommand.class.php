@@ -126,6 +126,25 @@ class MjlAuthCommand
 		$db = $this->db;
 		if (!mjl_scope_is_platform_admin($actor, $this->entity)) return array(-1, 'Action interdite.');
 		if (!$this->beginTransaction('mjl revoke invitation')) return array(-1, 'Cette invitation ne peut pas être révoquée.');
+		$sql = 'SELECT status FROM '.$db->prefix().'mjlfinancement_invitation WHERE entity='.$this->entity.' AND rowid='.((int) $invitationId).' FOR UPDATE';
+		$resql = $db->query($sql);
+		$row = $resql ? $db->fetch_object($resql) : null;
+		if (!$resql || !$row) {
+			$this->rollbackTransaction('mjl revoke invitation missing');
+			return array(-1, 'Invitation introuvable.');
+		}
+		$terminal = array('accepted' => 'Cette invitation est déjà acceptée.', 'revoked' => 'Cette invitation est déjà révoquée.', 'send_failed' => 'Cette invitation ne peut pas être révoquée dans son état actuel.');
+		if (isset($terminal[$row->status])) {
+			if (!$db->commit('mjl revoke invitation terminal')) {
+				$this->rollbackTransaction('mjl revoke invitation terminal failed');
+				return array(-1, 'Cette invitation ne peut pas être révoquée.');
+			}
+			return array(1, $terminal[$row->status]);
+		}
+		if (!in_array($row->status, array('pending_send', 'sent'), true)) {
+			$this->rollbackTransaction('mjl revoke invitation invalid state');
+			return array(-1, 'Cette invitation est en cours d’acceptation.');
+		}
 		$sql = 'UPDATE '.$db->prefix()."mjlfinancement_invitation SET status='revoked', token_hash=NULL, date_revoked=".mjl_auth_now_sql().', fk_user_revoked='.((int) $actor->id).', fk_user_modif='.((int) $actor->id).' WHERE entity='.$this->entity.' AND rowid='.((int) $invitationId)." AND status IN ('pending_send','sent')";
 		$resql = $db->query($sql);
 		if (!$resql || $db->affected_rows($resql) !== 1 || mjl_auth_record_event('invitation_revoked', null, (int) $actor->id, array('invitation_id' => (int) $invitationId)) < 1 || !$db->commit('mjl revoke invitation')) {

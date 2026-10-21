@@ -3,7 +3,7 @@ info:
   title: MJL REST API
   version: 0.1.0-draft
   description: Full target contract with authentication, business workflows, monitoring, audit and reporting implemented through DEC-085.
-    MJL access administration remains pending. See mjl-rest-api-contract.md for migration state and behavior.
+    All 75 inventoried operations are implemented. Endpoint coverage does not imply user acceptance. See mjl-rest-api-contract.md for behavior.
     SessionCookie denotes the native DOLSESSID_ cookie with a deployment-specific suffix;
     browser clients use the server-issued HttpOnly cookie without hard-coding its name.
 servers:
@@ -457,13 +457,13 @@ paths:
   /admin/users:
     get:
       operationId: listUsers
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: List scoped MJL users
       tags:
       - Access
       x-roles:
       - ADMIN_PLATEFORME
-      x-source: custom/mjlfinancement/admin/access.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_access.lib.php
       x-rollout-stage: 5
       x-submission-token: false
       responses:
@@ -495,13 +495,13 @@ paths:
   /admin/invitations:
     get:
       operationId: listInvitations
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: List scoped invitations
       tags:
       - Access
       x-roles:
       - ADMIN_PLATEFORME
-      x-source: custom/mjlfinancement/admin/access.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_access.lib.php
       x-rollout-stage: 5
       x-submission-token: false
       responses:
@@ -532,13 +532,13 @@ paths:
       - {$ref: '#/components/parameters/query_page'}
     post:
       operationId: inviteUser
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Invite or reinvite inactive user
       tags:
       - Access
       x-roles:
       - ADMIN_PLATEFORME
-      x-source: custom/mjlfinancement/admin/access.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_access.lib.php
       x-rollout-stage: 5
       x-submission-token: false
       responses:
@@ -571,13 +571,13 @@ paths:
   /admin/users/{user_id}/role:
     patch:
       operationId: changeUserRole
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Change effective business role
       tags:
       - Access
       x-roles:
       - ADMIN_PLATEFORME
-      x-source: custom/mjlfinancement/admin/access.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_access.lib.php
       x-rollout-stage: 5
       x-submission-token: false
       responses:
@@ -619,13 +619,13 @@ paths:
   /admin/users/{user_id}/deactivation:
     post:
       operationId: deactivateUser
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Deactivate user access
       tags:
       - Access
       x-roles:
       - ADMIN_PLATEFORME
-      x-source: custom/mjlfinancement/admin/access.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_access.lib.php
       x-rollout-stage: 5
       x-submission-token: false
       responses:
@@ -656,13 +656,13 @@ paths:
   /admin/invitations/{invitation_id}/revocation:
     post:
       operationId: revokeInvitation
-      x-implementation-status: pending
+      x-implementation-status: implemented
       summary: Revoke invitation
       tags:
       - Access
       x-roles:
       - ADMIN_PLATEFORME
-      x-source: custom/mjlfinancement/admin/access.php
+      x-source: custom/mjlfinancement/lib/api/mjl_api_access.lib.php
       x-rollout-stage: 5
       x-submission-token: false
       responses:

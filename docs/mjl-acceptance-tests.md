@@ -32,6 +32,7 @@ isolation, security boundaries, and data integrity.
 - `npm run test:verify` for the current isolated schema verifier;
 - `MJL_TEST_GREP='Execution REST' npm run test:api` for current expense submission, approval, reversals, terminal corrections, completion and exception guards;
 - `MJL_TEST_GREP='Reporting REST' npm run test:api` for current dashboard, report preview, audited export, audit visibility and denial paths;
+- `MJL_TEST_GREP='Access administration REST' npm run test:api` for Admin access lists, guarded mutations, delivery failure and the JavaScript-required screen;
 - `npm run test:api` for the isolated REST authentication/recovery, expiry, reference and Activity planning/review/assignment UI, chronology, Operation execution, expense approval/corrections, exceptions, authorization and transaction boundaries;
 - `npm run test:auth` for the disposable login OTP, session, recovery, and native-bypass boundaries;
 - `npm run test:rst012` for the focused RST-012 interruption, resume, rollback, and malformed-state matrix;

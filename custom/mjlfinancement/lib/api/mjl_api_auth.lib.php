@@ -23,6 +23,7 @@ function mjl_api_session($actor=null)
   $user=array('id'=>(string)$actor->id,'login'=>(string)$actor->login,'firstname'=>(string)$actor->firstname,'lastname'=>(string)$actor->lastname,'email'=>(string)$actor->email,'role'=>$role,'active'=>true,'native_admin'=>!empty($actor->admin));
   if(in_array($role,mjl_auth_business_role_codes(),true))$actions=array('listPartners','getPartner','listProjects','getProject','listOperationTypes','getOperationType','listActivities','getActivity','getActivityTimeline','getMonitoringOptions','listOperations','getOperation','listExceptionRequests','listSpendingOperations','listExpenses','getDashboard','listAlerts','previewActivities','previewOperations','previewActivityDetail','previewPortfolio','exportActivities','exportOperations','exportActivityDetail','exportPortfolio');
   if(in_array($role,array('VALIDATEUR_DEFINITIF','ADMIN_PLATEFORME'),true))$actions=array_merge($actions,array('listAuditEvents','exportAudit'));
+  if($role==='ADMIN_PLATEFORME')$actions=array_merge($actions,array('listUsers','listInvitations','inviteUser','changeUserRole','deactivateUser','revokeInvitation'));
   if($role==='AGENT_SAISIE')$actions[]='createActivity';
   if($role==='VALIDATEUR_DEFINITIF')$actions[]='listAssignmentAgents';
   if($role==='VALIDATEUR_DEFINITIF')$actions=array_merge($actions,array('createPartner','renamePartner','setPartnerActive','createProject','renameProject','setProjectActive','createOperationType','renameOperationType','setOperationTypeActive'));

@@ -24,7 +24,7 @@ isolated disposable tenants and remove those tenants after each run.
 | Demandes d’exception | Active bounded cancellation/reopening list with Agent withdrawal and Validator decision controls in MJL navigation. |
 | Activity chronology | REST cursor read on the migrated Activity client. Detail/review pages show sanitized execution, request, assignment, automatic-transition and single-Activity export summaries, with stable 50-event cursors. Active entity/current assignment remain enforced; Admin denied. Oversized or unavailable details remain explicit. |
 | Audit | Entity-filtered read of the immutable audit event table for Validator and native Admin. |
-| Utilisateurs et accès | Native-Admin-only invitation, role change, deactivation, and revocation. One deep access command owns standalone role/deactivation writes; invitation preparation uses its non-transaction-owning participant inside the authentication caller transaction. |
+| Utilisateurs et accès | JavaScript-required REST screen for Native-Admin-only user/invitation lists, invitation, role change, deactivation, and revocation. One deep access command owns standalone role/deactivation writes; invitation preparation uses its non-transaction-owning participant inside the authentication caller transaction. Invitation secrets are never returned. |
 | Administration technique | Native-Admin link to Dolibarr module administration. |
 | Authentication | Login/OTP/recovery and logout use REST. A shared session gate enforces 24-hour idle and 24-hour absolute expiry; API session polling does not refresh idle time. One cohesive auth command owns configuration-gated email/password, six-digit OTP, invitation, and reset orchestration. One private adapter owns session mutation and a pure policy decides validity. The password step creates no authenticated session; pending challenges remain entity/account scoped, browser bound, hash only, single use, and rate limited. Native bypasses and weakened OTP schemas fail closed. |
 | Invitation/reset | Shared five-rule password form; token-derived readonly email; public selector in the query string; secret verifier in the fragment; hash-only storage; POST-only mutation with CSRF; single use; expiry; throttling; caller-owned transaction/audit coupling; neutral reset-request response; and email-owned delivery capture. |
@@ -86,3 +86,7 @@ DEC-085: dashboard, alerts, audit and report pages are GET shells using the
 reporting REST adapter and client. Existing bounded monitoring/report readers,
 sanitized audit projection, `MjlExport` evidence and checked binary delivery
 remain authoritative. The former form export route rejects requests.
+
+DEC-086: `admin/access.php` is a GET shell using the access REST adapter and
+client. The obsolete HTML mutation/render helper is removed. All 75 inventoried
+REST operations now have runtime adapters; this is endpoint coverage only.

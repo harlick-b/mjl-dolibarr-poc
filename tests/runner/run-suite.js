@@ -652,7 +652,7 @@ async function runPlaywright(plan, target, signal) {
   } else if (target === 'spending') {
     args.push('tests/e2e/spending.spec.js', '--config=playwright.config.js');
   } else if (target === 'api') {
-    args.push('tests/e2e/api-auth-partners.spec.js', 'tests/e2e/api-activities.spec.js', 'tests/e2e/api-execution.spec.js', 'tests/e2e/api-reporting.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/api-auth-partners.spec.js', 'tests/e2e/api-activities.spec.js', 'tests/e2e/api-execution.spec.js', 'tests/e2e/api-reporting.spec.js', 'tests/e2e/api-access.spec.js', '--config=playwright.config.js');
   } else if (target === 'auth') {
 	args.push('tests/e2e/authentication.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst014a') {
@@ -682,7 +682,7 @@ async function runPlaywright(plan, target, signal) {
   } else if (target === 'vui10') {
     args.push('tests/e2e/vui-reference-management.spec.js', '--config=playwright.config.js');
   } else if (target === 'vui11') {
-    args.push('tests/e2e/vui-access-management.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/api-access.spec.js', '--config=playwright.config.js');
   } else if (target === 'vui12') {
 	args.push('tests/e2e/api-reporting.spec.js', '--config=playwright.config.js');
   } else if (target === 'vui13') {

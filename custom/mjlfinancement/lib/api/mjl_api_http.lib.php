@@ -22,6 +22,7 @@ function mjl_api_reply($status,$value=null)
 function mjl_api_error($status,$code)
 {
  $messages=array('invalid_request'=>'Requête non valide.','inactive_parent'=>'Le Partenaire du Projet doit être actif.','invalid_input'=>'Vérifiez les champs saisis.','csrf_invalid'=>'Rechargez la page avant de réessayer.','submission_invalid'=>'Cette action a déjà été envoyée ou a expiré. Rechargez la fiche.','authentication_required'=>'Connectez-vous pour continuer.','invalid_credentials'=>'Adresse email ou mot de passe incorrect.','invalid_otp'=>'Code incorrect.','otp_expired'=>'Ce code a expiré. Renvoyez un code ou recommencez la connexion.','session_expired'=>'Votre session a expiré. Veuillez vous reconnecter.','session_invalidated'=>'Votre session doit être vérifiée de nouveau.','authentication_unavailable'=>'La connexion avec vérification est temporairement indisponible.','forbidden'=>'Action non autorisée.','stale_version'=>'Cette fiche a été modifiée. Rechargez la fiche.','conflict'=>'L’état courant ne permet pas cette action. Rechargez la fiche.','retryable_conflict'=>'Une autre action est en cours. Rechargez avant de réessayer.','not_found'=>'Cet élément est introuvable.','stale_fingerprint'=>'Cette référence a été modifiée. Rechargez la page.','rate_limited'=>'Veuillez patienter avant de réessayer.','outcome_unknown'=>'Le résultat est incertain. Consultez la fiche avant toute nouvelle tentative.','export_busy'=>'Un rapport est déjà en cours de génération.','unsupported_record'=>'Une donnée ne peut pas être représentée dans ce rapport.','selection_too_large'=>'La sélection dépasse les limites du rapport.','unavailable'=>'Le service est temporairement indisponible.','method_not_allowed'=>'Méthode non autorisée.','payload_too_large'=>'Requête trop volumineuse.','unsupported_media_type'=>'Format de requête non pris en charge.');
+ $messages['invitation_delivery_failed']='L’invitation n’a pas pu être envoyée. Un compte inactif peut déjà exister ; vérifiez la liste avant de renvoyer.';
  mjl_api_reply($status,array('error'=>array('code'=>$code,'message'=>$messages[$code]??'Requête refusée.')));
 }
 function mjl_api_fields($object,array $required,array $optional=array())
@@ -49,6 +50,7 @@ function mjl_api_query_fields($path)
  if($path==='/reports/operations')return array_merge($business,array('type_id','operation_status'));
  if($path==='/reports/activity_detail')return $business;
  if($path==='/reports/portfolio')return array_merge($business,array('grouping'));
+ if(in_array($path,array('/admin/users','/admin/invitations'),true))return array('page');
  return null;
 }
 function mjl_api_decode($raw)
@@ -73,7 +75,7 @@ function mjl_api_request()
 {
  $method=strtoupper($_SERVER['REQUEST_METHOD']??'GET');
  $path=$_SERVER['PATH_INFO']??'';
- if(!preg_match('~^/v1/(auth/session|auth/login|auth/otp/(verify|resend)|auth/invitations/(inspect|accept)|auth/password-resets(?:/(inspect|consume))?|dashboard|alerts|audit-events|reports/(?:activities|operations|activity_detail|portfolio|audit)(?:/exports)?|operations(?:/[1-9][0-9]{0,18}(?:/(?:execution|cancellation-requests|reopening-requests|expenses(?:/[1-9][0-9]{0,18}(?:/(?:submission|withdrawal|decisions))?)?))?)?|spending-operations|exception-requests|(?:cancellation-requests|reopening-requests)/[1-9][0-9]{0,18}/(?:withdrawal|decisions)|submission-tokens|assignment-agents|monitoring-options|activities(?:/[1-9][0-9]{0,18}(?:/(?:structure|submissions|abandonment|restoration|assignment-changes|cancellation-requests|review|timeline|revisions/[1-9][0-9]{0,18}/decisions))?)?|(?:partners|projects|operation-types)(?:/[1-9][0-9]{0,18}(?:/activation)?)?)$~D',$path))mjl_api_fail(404,'not_found');
+ if(!preg_match('~^/v1/(auth/session|auth/login|auth/otp/(verify|resend)|auth/invitations/(inspect|accept)|auth/password-resets(?:/(inspect|consume))?|admin/(?:users(?:/[1-9][0-9]{0,18}/(?:role|deactivation))?|invitations(?:/[1-9][0-9]{0,18}/revocation)?)|dashboard|alerts|audit-events|reports/(?:activities|operations|activity_detail|portfolio|audit)(?:/exports)?|operations(?:/[1-9][0-9]{0,18}(?:/(?:execution|cancellation-requests|reopening-requests|expenses(?:/[1-9][0-9]{0,18}(?:/(?:submission|withdrawal|decisions))?)?))?)?|spending-operations|exception-requests|(?:cancellation-requests|reopening-requests)/[1-9][0-9]{0,18}/(?:withdrawal|decisions)|submission-tokens|assignment-agents|monitoring-options|activities(?:/[1-9][0-9]{0,18}(?:/(?:structure|submissions|abandonment|restoration|assignment-changes|cancellation-requests|review|timeline|revisions/[1-9][0-9]{0,18}/decisions))?)?|(?:partners|projects|operation-types)(?:/[1-9][0-9]{0,18}(?:/activation)?)?)$~D',$path))mjl_api_fail(404,'not_found');
  $path=substr($path,3);
  $query=array();
  foreach(explode('&',$_SERVER['QUERY_STRING']??'') as $pair){
@@ -112,6 +114,9 @@ function mjl_api_request()
  elseif(preg_match('~^/operations/[1-9][0-9]*/(?:execution|expenses/[1-9][0-9]*)$~D',$path))$allowed=array('PUT');
  if(in_array($path,array('/dashboard','/alerts','/audit-events'),true)||preg_match('~^/reports/(?:activities|operations|activity_detail|portfolio|audit)$~D',$path))$allowed=array('GET');
  elseif(preg_match('~^/reports/(?:activities|operations|activity_detail|portfolio|audit)/exports$~D',$path))$allowed=array('POST');
+ if(in_array($path,array('/admin/users','/admin/invitations'),true))$allowed=$path==='/admin/invitations'?array('GET','POST'):array('GET');
+ elseif(preg_match('~^/admin/users/[1-9][0-9]*/role$~D',$path))$allowed=array('PATCH');
+ elseif(preg_match('~^/admin/(?:users/[1-9][0-9]*/deactivation|invitations/[1-9][0-9]*/revocation)$~D',$path))$allowed=array('POST');
  if(!in_array($method,$allowed,true)){header('Allow: '.implode(', ',$allowed));mjl_api_fail(405,'method_not_allowed');}
  $body=new stdClass();
  $limit = strpos($path,'/activities') === 0 ? 65536 : 16384;

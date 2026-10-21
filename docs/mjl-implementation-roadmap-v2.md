@@ -122,11 +122,12 @@ role-aware row actions, progressive create/edit and lifecycle dialogs, shared
 dirty-state protection, and JavaScript-required REST clients (DEC-080/082). Project ownership stays
 immutable after creation and the existing lifecycle, permission, token, and
 entity boundaries remain under their current backend owners. VUI-11 Users and
-invitations is implemented with shared responsive access tables, progressive
-invitation and account-action dialogs, French invitation statuses, exact
-existing guarded forms, real delivery outcomes, dirty-state protection, and
-ordinary-form fallback. Invitation, role, deactivation, revocation, Admin-only,
-token, and entity boundaries remain under their current backend owners.
+invitations is implemented as a JavaScript-required REST screen with shared
+responsive access tables, progressive invitation and account-action dialogs,
+French invitation statuses, real delivery outcomes, dirty-state protection,
+and a no-JavaScript message. Invitation, role, deactivation, revocation,
+Admin-only, token, and entity boundaries remain under their current backend
+owners.
 VUI-12 history and exports is implemented with shared report navigation,
 responsive filter/date controls, visible active selections, complete-selection
 export actions, and a chronological global-audit presentation. Existing
@@ -207,7 +208,7 @@ Proposed API delivery stages (separate from product Phase 4):
 2. Activities, assignments, planning, review and chronology: implemented (DEC-083), including Activity cancellation requests and scoped filter options.
 3. Operations, expenses, accounting corrections and exception workflows: implemented (DEC-084); focused checks passed.
 4. Dashboards, alerts, audit, previews and exports: implemented (DEC-085); focused checks passed.
-5. MJL access administration and final action/interface coverage.
+5. MJL access administration and final action/interface coverage: implemented (DEC-086); 75/75 inventoried endpoints are covered.
 
 Each slice must preserve existing commands and migrate the corresponding screen's
 reads/writes to REST. Focused checks and remaining technical dependencies are
@@ -227,7 +228,11 @@ contracts, the planning-control browser check, changed-file PHP/JavaScript synta
 and OpenAPI validation also passed. Broad suites and manual accessibility review
 were not run for this slice. No acceptance or production readiness is implied.
 OTP remains disabled pending mail delivery.
-Next API slice: MJL access administration and final action/interface coverage.
+Current access slice (DEC-086): the Admin-only users/invitations screen is a
+JavaScript-required REST client. Six entity-scoped endpoints reuse the existing
+authentication and access commands for invitation, role, deactivation and
+revocation rules. Invitation secrets are never projected, and delivery failure
+is an explicit 503. Endpoint coverage is 75/75; user acceptance remains outstanding.
 
 Current execution slice (DEC-084): the three Operation, expense and exception
 screens use REST reads and one-use mutation tokens issued on submission. Existing

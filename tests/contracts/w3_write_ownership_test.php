@@ -8,7 +8,7 @@ $reference = source($root, 'custom/mjlfinancement/lib/mjl_reference.lib.php');
 $referenceRoute = source($root, 'custom/mjlfinancement/lib/api/mjl_api_references.lib.php');
 $referenceCommand = source($root, 'custom/mjlfinancement/class/mjlreferencecommand.class.php');
 $scope = source($root, 'custom/mjlfinancement/lib/mjl_scope.lib.php');
-$accessRoute = source($root, 'custom/mjlfinancement/admin/access.php');
+$accessRoute = source($root, 'custom/mjlfinancement/lib/api/mjl_api_access.lib.php');
 $accessCommand = source($root, 'custom/mjlfinancement/class/mjlaccesscommand.class.php');
 $auth = source($root, 'custom/mjlfinancement/lib/mjl_auth.lib.php');
 $authCommand = source($root, 'custom/mjlfinancement/class/mjlauthcommand.class.php');
@@ -39,7 +39,7 @@ check(substr_count($authCommand, '->assignProfileInTransaction(') === 1, 'invita
 check(strpos($accessCommand, 'mjl_auth_record_event') === false, 'access command must not depend on the auth writer');
 check(strpos($auth, "require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlaccesscommand.class.php'") !== false, 'auth production include chain must load the access command');
 check(strpos($auth, "require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/class/mjlauthcommand.class.php'") !== false, 'auth production include chain must load the W4 command');
-check(strpos($accessRoute, "require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php'") !== false, 'Admin production include chain must load auth and the access command');
+check(strpos($accessRoute, "require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_auth.lib.php'") !== false, 'Access REST include chain must load auth and the access command');
 
 foreach (array($referenceRoute, $referenceCommand, $accessRoute, $accessCommand, $auth, $authCommand) as $reachableSource) {
 	check(strpos($reachableSource, 'call_user_func') === false, 'W3 production path contains dynamic function dispatch');

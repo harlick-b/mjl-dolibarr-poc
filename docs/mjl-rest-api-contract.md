@@ -1,6 +1,6 @@
 # MJL REST API contract and action inventory
 
-Status: **authentication, reference, Activity, execution, spending, exception, monitoring, audit and reporting workflows implemented; remaining administration operations are targets, not accepted**. Inventory date:
+Status: **all 75 inventoried operations implemented; endpoint coverage is not user acceptance**. Inventory date:
 2026-10-21. User decisions: DEC-078 (web/PWA, progressive migration, all current
 MJL business and administration actions, login + email OTP, 24-hour idle and
 24-hour absolute session limits). Native Dolibarr technical administration,
@@ -11,7 +11,7 @@ is unchanged. This contract does not authorize those deferred features.
 wire fields and response shapes. This document owns the current-action mapping,
 shared behavioral constraints and migration requirements. Canonical business
 rules and permissions remain authoritative; code is current-state evidence.
-PHP pages render shells for migrated screens. Sixty-nine operations are implemented, including all twelve monitoring, audit, preview and export operations. The six MJL access-administration operations remain pending.
+PHP pages render shells for migrated screens. All 75 operations are implemented, including the six Admin access-administration operations.
 
 ## Scope and architecture
 
@@ -69,12 +69,12 @@ form actions map to these operations; transport changes do not add business righ
 | `consumePasswordReset` | `POST /auth/password-resets/consume` | Consume password-resets link | public | `class/mjlauthcommand.class.php` |
 | `requestPasswordReset` | `POST /auth/password-resets` | Request password reset | public | `class/mjlauthcommand.class.php` |
 | `issueSubmissionToken` | `POST /submission-tokens` | Prepare one existing one-use submission context | ALL | `lib/mjl_form_submission.lib.php` |
-| `listUsers` | `GET /admin/users` | List scoped MJL users | T | `admin/access.php` |
-| `listInvitations` | `GET /admin/invitations` | List scoped invitations | T | `admin/access.php` |
-| `inviteUser` | `POST /admin/invitations` | Invite or reinvite inactive user | T | `admin/access.php` |
-| `changeUserRole` | `PATCH /admin/users/{user_id}/role` | Change effective business role | T | `admin/access.php` |
-| `deactivateUser` | `POST /admin/users/{user_id}/deactivation` | Deactivate user access | T | `admin/access.php` |
-| `revokeInvitation` | `POST /admin/invitations/{invitation_id}/revocation` | Revoke invitation | T | `admin/access.php` |
+| `listUsers` | `GET /admin/users` | List scoped MJL users | T | `lib/api/mjl_api_access.lib.php` |
+| `listInvitations` | `GET /admin/invitations` | List scoped invitations | T | `lib/api/mjl_api_access.lib.php` |
+| `inviteUser` | `POST /admin/invitations` | Invite or reinvite inactive user | T | `lib/api/mjl_api_access.lib.php` |
+| `changeUserRole` | `PATCH /admin/users/{user_id}/role` | Change effective business role | T | `lib/api/mjl_api_access.lib.php` |
+| `deactivateUser` | `POST /admin/users/{user_id}/deactivation` | Deactivate user access | T | `lib/api/mjl_api_access.lib.php` |
+| `revokeInvitation` | `POST /admin/invitations/{invitation_id}/revocation` | Revoke invitation | T | `lib/api/mjl_api_access.lib.php` |
 | `listPartners` | `GET /partners` | List partners | B | `lib/api/mjl_api_references.lib.php` |
 | `getPartner` | `GET /partners/{id}` | Read Partner | B | `lib/api/mjl_api_references.lib.php` |
 | `createPartner` | `POST /partners` | Create Partner | V | `lib/api/mjl_api_references.lib.php` |
@@ -445,9 +445,9 @@ totals and scoped filter options. Exact Activity/Operation/revision versions,
 one-use tokens, contributor exclusions and command-owned audit transactions remain.
 Superseded HTML mutation/render/recovery handlers are removed. Operation execution,
 expenses, accounting corrections and exception decisions use REST (DEC-084).
-MJL access administration remains pending. Reporting screens require JavaScript;
+MJL access administration now uses REST (DEC-086), completing all 75 inventoried actions. Reporting and access screens require JavaScript;
 audited downloads use the fixed REST export routes and the legacy form route rejects requests.
-Phase 4 is unchanged. Remaining adapters need their own typed mappings and checks.
+Phase 4 is unchanged. Endpoint coverage does not imply user acceptance.
 The gap analysis owns unresolved work; tests establish behavior, not acceptance.
 
 Technical references used to define the wire/security contract:
