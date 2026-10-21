@@ -304,3 +304,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
 - No-input fixture calls through `docker compose exec` must explicitly use
   `--interactive=false`. An empty process input can otherwise leave PHP waiting
   for stdin EOF. Keep stdin enabled for fixture commands that consume input.
+
+- Report document builders return an internal `{activity_ids, document}` wrapper
+  for export authorization. REST preview adapters must expose only `document`;
+  test every report type through the public response because single-type coverage
+  misses wrapper-shape differences.

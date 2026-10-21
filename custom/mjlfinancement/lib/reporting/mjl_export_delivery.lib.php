@@ -34,3 +34,29 @@ class MjlExportDelivery
 		}
 	}
 }
+
+/**
+ * Cross the binary response seam without allowing a JSON error body to corrupt
+ * an attachment after delivery has started.
+ *
+ * @return bool False only when output started and the caller must terminate.
+ */
+function mjl_export_deliver_checked(array $artifact, $format, $delivery = null)
+{
+	while (ob_get_level() > 0) {
+		if (!ob_end_clean()) throw new RuntimeException('OUTPUT_BUFFER_FAILED');
+	}
+	if (ob_get_level() !== 0 || headers_sent()) throw new RuntimeException('OUTPUT_ALREADY_SENT');
+	if (function_exists('ini_set')) @ini_set('zlib.output_compression', '0');
+	try {
+		($delivery ?: new MjlExportDelivery())->deliver($artifact, $format);
+		return true;
+	} catch (Throwable $exception) {
+		if (isset($artifact['stream']) && is_resource($artifact['stream'])) fclose($artifact['stream']);
+		if (headers_sent()) return false;
+		header_remove('Content-Disposition');
+		header_remove('Content-Length');
+		header_remove('Content-Type');
+		throw $exception;
+	}
+}

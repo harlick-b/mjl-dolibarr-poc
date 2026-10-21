@@ -50,7 +50,7 @@ function mjl_monitoring_totals(array $activities)
 
 function mjl_monitoring_labels()
 {
-	return array('initial_amount'=>'Propositions initiales soumises','pending_amount'=>'Propositions courantes non validées','validated_amount'=>'Montants validés, annulations incluses','active_authorized_amount'=>'Autorisations validées des Opérations non annulées','cancelled_authorized_amount'=>'Autorisations validées des Opérations annulées','active_spent_amount'=>'Dépenses renseignées des Opérations non annulées','cancelled_spent_amount'=>'Dépenses renseignées des Opérations annulées','total_spent_amount'=>'Dépenses renseignées','missing_spent_count'=>'Montants dépensés non renseignés','cancelled_incomplete_count'=>'Opérations annulées non renseignées','activity_count'=>'Activités','operation_count'=>'Opérations');
+	return array('initial_amount'=>'Propositions initiales soumises','pending_amount'=>'Propositions courantes non validées','validated_amount'=>'Montants validés, annulations incluses','active_authorized_amount'=>'Autorisations validées des Opérations non annulées','cancelled_authorized_amount'=>'Autorisations validées des Opérations annulées','active_spent_amount'=>'Dépenses approuvées des Opérations non annulées','cancelled_spent_amount'=>'Dépenses approuvées des Opérations annulées','total_spent_amount'=>'Dépenses approuvées','missing_spent_count'=>'Montants dépensés non renseignés','cancelled_incomplete_count'=>'Opérations annulées non renseignées','activity_count'=>'Activités','operation_count'=>'Opérations');
 }
 
 function mjl_monitoring_status_labels()

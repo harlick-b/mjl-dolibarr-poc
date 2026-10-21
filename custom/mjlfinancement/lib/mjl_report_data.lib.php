@@ -12,13 +12,21 @@ function mjl_report_titles()
 function mjl_report_validate_request($type, $format, array $source, $preview=false)
 {
 	if (!isset(mjl_report_titles()[$type]) || !in_array($format,array('pdf','xlsx','csv'),true)) throw new InvalidArgumentException('INVALID_REPORT');
+	$business=array('q','partner_id','project_id','activity_id','validation_status','execution_status','completeness','date_from','date_to');
+	$allowed=array(
+		'activities'=>$business,
+		'operations'=>array_merge($business,array('type_id','operation_status')),
+		'activity_detail'=>$business,
+		'portfolio'=>array_merge($business,array('grouping')),
+		'audit'=>array('q','object_type','object_id','activity_id','operation_id','revision_id','actor_id','event_id','target_version','audit_action','result','date_from','date_to','direction'),
+	);
+	foreach ($source as $key=>$value) if (!in_array($key,$allowed[$type],true)) throw new InvalidArgumentException('INVALID_REPORT_FILTER');
 	$filters=mjl_monitoring_filters($source,$type==='audit');
-	foreach ($source as $key=>$value) if (!array_key_exists($key,$filters)) throw new InvalidArgumentException('INVALID_REPORT_FILTER');
 	if ($type!=='audit' && $type!=='operations' && ($filters['type_id']!=='' || $filters['operation_status']!=='')) throw new InvalidArgumentException('INVALID_REPORT_FILTER');
 	if ($type==='portfolio' && !in_array($filters['grouping'],array('project','partner'),true)) throw new InvalidArgumentException('INVALID_REPORT_FILTER');
 	if ($type==='activity_detail' && $filters['activity_id']==='') throw new InvalidArgumentException('INVALID_REPORT_FILTER');
 	if ($type!=='portfolio' && isset($source['grouping']) && $source['grouping']!=='project') throw new InvalidArgumentException('INVALID_REPORT_FILTER');
-	if ($type==='audit' && ((!$preview && $filters['cursor']!=='') || $filters['page']!=='1' || !in_array($filters['direction'],array('asc','desc'),true))) throw new InvalidArgumentException('INVALID_REPORT_FILTER');
+	if ($type==='audit' && ($filters['page']!=='1' || !in_array($filters['direction'],array('asc','desc'),true))) throw new InvalidArgumentException('INVALID_REPORT_FILTER');
 	return $filters;
 }
 
@@ -49,6 +57,7 @@ function mjl_report_cell($value, $type='text')
 {
 	if (!in_array($type,array('text','integer','ratio'),true)) throw new InvalidArgumentException('INVALID_CELL_TYPE');
 	if ($value!==null && !is_scalar($value) && !($type==='ratio' && is_array($value) && array_key_exists('ratio',$value) && isset($value['display']))) throw new InvalidArgumentException('INVALID_CELL');
+	if ($type==='integer' && $value!==null) $value=(string)$value;
 	return array('type'=>$type,'value'=>$value);
 }
 
@@ -188,6 +197,7 @@ function mjl_report_activity_detail_document(array $activities,array $operations
 function mjl_report_build_activity_detail($reader,array $filters)
 {
 	$activities=$reader->activities($filters);
+	if (count($activities)!==1) throw new RuntimeException('NOT_FOUND');
 	return mjl_report_activity_detail_document($activities,$reader->operations($activities,$filters));
 }
 

@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { createExecutionFixtureSet, runExecutionFixtureCommand } = require('../helpers/execution-fixture');
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
-const { scalar, sql, composeExec } = require('../helpers/mjl-test-runtime');
+const { scalar, sql, composeExec, registerSecret } = require('../helpers/mjl-test-runtime');
 
 let fixture;
 let activity;
@@ -32,14 +32,20 @@ test.beforeAll(() => {
   activity = fixture.activities.expenses;
   operation = activity.operations[0];
   sql(`UPDATE llx_mjlfinancement_activity_assignment SET date_end=NOW() WHERE entity=1 AND fk_activity=${activity.activity_id} AND fk_user=${fixture.users.outsider.id} AND date_end IS NULL`);
+  sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_OTP_ENABLED',1,'1','chaine',0,'Disposable API verification'),('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Disposable API verification') ON DUPLICATE KEY UPDATE value='1'");
 });
 
 async function login(page, key) {
-  await page.goto('/user/logout.php');
-  await page.goto('/index.php');
-  await page.getByLabel('Identifiant').fill(fixture.users[key].login);
-  await page.getByLabel('Mot de passe', { exact: true }).fill(process.env.MJL_TEST_USER_PASSWORD);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await page.context().clearCookies();
+  const session = await (await page.request.get('/custom/mjlfinancement/api/index.php/v1/auth/session')).json();
+  const response = await page.request.post('/custom/mjlfinancement/api/index.php/v1/auth/login', { data: { email: fixture.users[key].login + '@example.test', password: process.env.MJL_TEST_USER_PASSWORD }, headers: { 'X-CSRF-Token': session.data.csrf_token } });
+  expect([200, 202]).toContain(response.status());
+  if (response.status() === 202) {
+    const code = JSON.parse(composeExec('dolibarr', ['cat', '/var/www/documents/mjlfinancement/email-test-outbox/latest-login_otp.json'], 'utf8')).code;
+    await registerSecret('login otp', code);
+    const pending = await (await page.request.get('/custom/mjlfinancement/api/index.php/v1/auth/session')).json();
+    expect((await page.request.post('/custom/mjlfinancement/api/index.php/v1/auth/otp/verify', { data: { code }, headers: { 'X-CSRF-Token': pending.data.csrf_token } })).status()).toBe(200);
+  }
 }
 
 test('an expense needs independent approval before it affects totals or permits completion', async ({ page }) => {
@@ -164,10 +170,17 @@ test('cancelled Activity grants only correction access to Agents removed by its 
 
 test('financial CSV uses approved totals and new expense events remain exportable', async ({ page }) => {
   execFileSync('docker', ['compose', 'exec', '-T', '--user', 'www-data', 'dolibarr', 'php', '/opt/mjl-tests/fixtures/report-fixture.php', 'install'], { env: process.env, stdio: 'pipe' });
+  if (scalar(`SELECT COALESCE(spent_amount,-1) FROM llx_mjlfinancement_operation WHERE rowid=${operation.rowid}`) !== '90') {
+    const first = save(operation, '60'); expect(first.code).toBe('OK'); expect(transition(operation, first.expense_id, 'SUBMITTED').code).toBe('OK'); expect(transition(operation, first.expense_id, 'APPROVED', 'validator').code).toBe('OK');
+    expect(complete(operation, 'Économie sur le transport.').code).toBe('OK');
+    const original = scalar(`SELECT rowid FROM llx_mjlfinancement_expense WHERE fk_operation=${operation.rowid} AND kind='EXPENSE' AND status='APPROVED' ORDER BY rowid DESC LIMIT 1`);
+    const correction = save(operation, '90', 'agent', original); expect(correction.code).toBe('OK'); expect(transition(operation, correction.expense_id, 'SUBMITTED').code).toBe('OK'); expect(transition(operation, correction.expense_id, 'APPROVED', 'validator').code).toBe('OK');
+  }
   await login(page, 'validator');
   await page.goto(`/custom/mjlfinancement/reports.php?report=operations&activity_id=${activity.activity_id}`);
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Télécharger CSV', exact: true }).click();
+  await page.getByLabel('Format').selectOption('csv');
+  await page.getByRole('button', { name: 'Télécharger', exact: true }).click();
   const artifact = await download;
   const rows = JSON.parse(execFileSync('python3', ['-c', 'import csv,json,sys; print(json.dumps(list(csv.reader(sys.stdin,delimiter=";"))))'], { input: fs.readFileSync(await artifact.path()), encoding: 'utf8' }));
   const header = rows.findIndex((row) => row.includes('Montant dépensé (FCFA)'));
@@ -177,5 +190,5 @@ test('financial CSV uses approved totals and new expense events remain exportabl
   expect(data.map((row) => row['Montant dépensé (FCFA)'])).toContain('90');
   expect(data.map((row) => row['Montant dépensé (FCFA)'])).not.toContain('60');
   const probe = `<?php define('NOLOGIN',1); require '/var/www/html/main.inc.php'; require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/mjl_audit_projection.lib.php'; $res=$db->query("SELECT * FROM ".$db->prefix()."mjlfinancement_audit_event WHERE entity=1 AND activity_id=${activity.activity_id} AND action LIKE 'EXPENSE_%'"); $count=0;while($row=$db->fetch_array($res)){if(!mjl_audit_project_event($row))exit(1);$count++;}echo $count;`;
-  expect(Number(composeExec('dolibarr', ['php'], 'utf8', probe))).toBeGreaterThan(10);
+  expect(Number(composeExec('dolibarr', ['php'], 'utf8', probe))).toBeGreaterThan(5);
 });

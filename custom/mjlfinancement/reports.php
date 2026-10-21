@@ -1,4 +1,5 @@
 <?php
-require '../../main.inc.php';
-require_once __DIR__.'/lib/reporting/mjl_reporting_http.lib.php';
-mjl_reporting_preview_http($db, $user, (int) $conf->entity, $_GET, $_SERVER['REQUEST_METHOD'] ?? 'GET');
+if(strtoupper($_SERVER['REQUEST_METHOD']??'GET')!=='GET'){http_response_code(405);header('Allow: GET');exit;}
+define('NOREDIRECTBYMAINTOLOGIN',1);require '../../main.inc.php';
+require_once __DIR__.'/lib/mjl_reporting_shell.lib.php';
+mjl_reporting_shell($user,'reports',$_GET);$db->close();

@@ -31,11 +31,17 @@ isolation, security boundaries, and data integrity.
 - `npm run test:unit` for fast source contracts;
 - `npm run test:verify` for the current isolated schema verifier;
 - `MJL_TEST_GREP='Execution REST' npm run test:api` for current expense submission, approval, reversals, terminal corrections, completion and exception guards;
+- `MJL_TEST_GREP='Reporting REST' npm run test:api` for current dashboard, report preview, audited export, audit visibility and denial paths;
 - `npm run test:api` for the isolated REST authentication/recovery, expiry, reference and Activity planning/review/assignment UI, chronology, Operation execution, expense approval/corrections, exceptions, authorization and transaction boundaries;
 - `npm run test:auth` for the disposable login OTP, session, recovery, and native-bypass boundaries;
 - `npm run test:rst012` for the focused RST-012 interruption, resume, rollback, and malformed-state matrix;
 - `npm run test:e2e` only when broad current UI coverage is explicitly needed;
 - named `test:rst*` and `test:phase*` commands only for their affected surface.
+
+Validate `docs/mjl-rest-api.openapi.yaml` with
+`python -m openapi_spec_validator docs/mjl-rest-api.openapi.yaml` from an isolated
+development environment containing `openapi-spec-validator`. The validator is a
+verification tool, not an application dependency.
 
 The maintained Activity transport checks are in `tests/e2e/api-activities.spec.js`.
 Older Activity browser matrices still target legacy form/auth transport and are not

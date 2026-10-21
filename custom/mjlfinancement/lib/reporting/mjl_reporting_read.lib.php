@@ -58,20 +58,22 @@ function mjl_reporting_read_preview($db, $user, $entity, $type, array $filters)
 	return mjl_reporting_read_snapshot($db, function () use ($db, $user, $entity, $type, $filters, $deadline) {
 		$reader = new MjlMonitoring($db, $user, (int) $entity);
 		$activities = $reader->activities($filters);
-		$result = array('rows' => array(), 'choices' => array(), 'detail' => null);
+		$result = array('rows' => array(), 'detail' => null, 'document' => null);
 		if ($type === 'activity_detail') {
 			$result['detail'] = mjl_reporting_read_activity_detail($reader, $activities, $filters);
+			$result['document'] = $result['detail']['document'];
 		} elseif ($type === 'operations') {
 			$selected = $reader->operations($activities, $filters);
 			if (count($selected) > 10000) throw new RuntimeException('SOURCE_LIMIT');
 			$result['rows'] = mjl_report_operation_records($selected);
+			$result['document'] = mjl_report_operations_document($selected)['document'];
 		} elseif ($type === 'portfolio') {
 			$result['rows'] = mjl_report_portfolio($activities, $filters['grouping']);
+			$result['document'] = mjl_report_portfolio_document($activities, $filters['grouping'])['document'];
 		} else {
 			$result['rows'] = mjl_report_activity_records($activities);
+			$result['document'] = mjl_report_activities_document($activities)['document'];
 		}
-		if ($type !== 'activity_detail') $result['choices'] = $reader->referenceChoices($type === 'operations');
-		foreach ($result['choices'] as $list) if (count($list) > 10000) throw new RuntimeException('SOURCE_LIMIT');
 		mjl_report_checkpoint($deadline);
 		return $result;
 	}, 'mjl report preview', function () use ($db, $deadline) {

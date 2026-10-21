@@ -1,6 +1,6 @@
 # MJL REST API contract and action inventory
 
-Status: **authentication, reference, Activity, execution, spending and exception workflows implemented; remaining operations are targets, not accepted**. Inventory date:
+Status: **authentication, reference, Activity, execution, spending, exception, monitoring, audit and reporting workflows implemented; remaining administration operations are targets, not accepted**. Inventory date:
 2026-10-21. User decisions: DEC-078 (web/PWA, progressive migration, all current
 MJL business and administration actions, login + email OTP, 24-hour idle and
 24-hour absolute session limits). Native Dolibarr technical administration,
@@ -11,7 +11,7 @@ is unchanged. This contract does not authorize those deferred features.
 wire fields and response shapes. This document owns the current-action mapping,
 shared behavioral constraints and migration requirements. Canonical business
 rules and permissions remain authoritative; code is current-state evidence.
-PHP pages render shells for migrated screens. Fifty-seven operations are implemented: 10 authentication operations, 15 reference operations, 13 Activity operations, 17 execution/spending/exception operations, monitoring filter options and submission-token issuance. Other endpoints below remain pending.
+PHP pages render shells for migrated screens. Sixty-nine operations are implemented, including all twelve monitoring, audit, preview and export operations. The six MJL access-administration operations remain pending.
 
 ## Scope and architecture
 
@@ -399,7 +399,7 @@ API stages below are **not** the product Phase4 document plan.
 2. Activities, structure, assignment, review and chronology, with same exact
    revision/contributor rules and active reference selection.
 3. Operation execution, exceptions and separate spending/correction workflow.
-4. Dashboard, alerts, audit, previews and synchronous audited exports.
+4. Dashboard, alerts, audit, previews and synchronous audited exports: implemented.
 5. MJL invitation/user administration and final current-action coverage check.
 
 A migrated screen must perform its reads and writes through the defined API,
@@ -445,7 +445,8 @@ totals and scoped filter options. Exact Activity/Operation/revision versions,
 one-use tokens, contributor exclusions and command-owned audit transactions remain.
 Superseded HTML mutation/render/recovery handlers are removed. Operation execution,
 expenses, accounting corrections and exception decisions use REST (DEC-084).
-Reporting, dashboards, audit and MJL administration remain pending.
+MJL access administration remains pending. Reporting screens require JavaScript;
+audited downloads use the fixed REST export routes and the legacy form route rejects requests.
 Phase 4 is unchanged. Remaining adapters need their own typed mappings and checks.
 The gap analysis owns unresolved work; tests establish behavior, not acceptance.
 

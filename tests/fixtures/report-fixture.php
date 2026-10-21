@@ -15,11 +15,18 @@ $request=json_decode(fgets(STDIN,4096),true);
 if (!is_array($request) || count($request)>4 || empty($request['actorId']) || empty($request['activityId'])) exit(3);
 $conf->entity=1;
 $user=new User($db); if ($user->fetch((int)$request['actorId'])<=0) exit(4);
-if (in_array($action,array('audit-fixtures','audit-invalid'),true)) {
+if (in_array($action,array('audit-fixtures','audit-invalid','audit-budget'),true)) {
  $ids=array(); if (!$db->begin('disposable audit fixture')) exit(7);
- $count=$action==='audit-fixtures'?57:2;
+ $count=$action==='audit-fixtures'?57:($action==='audit-budget'?3:2);
  for ($i=0;$i<$count;$i++) {
   $event=array('entity'=>1,'object_type'=>'activity','object_ref'=>($action==='audit-fixtures'?'AUDIT-PROBE-':'AUDIT-INVALID-').$i,'activity_id'=>(int)$request['activityId'],'actor'=>$user,'actor_name_snapshot'=>'Acteur historique d’audit','action'=>'ACTIVITY_CREATED','result'=>'SUCCESS','context'=>array('reference'=>'Référence historique '.$i));
+  if ($action==='audit-budget') {
+   $before=$after=array();
+   for ($assignment=0;$assignment<4000;$assignment++) { $before[]=array('agent_id'=>$assignment+1,'is_primary'=>false); $after[]=array('agent_id'=>$assignment+5001,'is_primary'=>false); }
+   $event['object_ref']='AUDIT-BUDGET-'.$i; $event['action']='ASSIGNMENT_ADDED';
+   $event['previous_values']=array('assignments'=>$before,'version'=>$i+1); $event['new_values']=array('assignments'=>$after,'version'=>$i+2);
+   $event['context']=array('operation'=>'ADD_ADDITIONAL','target_agent_id'=>5001+$i,'target_agent_name'=>'Agent budget');
+  }
   if ($action==='audit-fixtures' && $i===0) { $event['reason']=str_repeat('é',3990).' {"password":"PRIVATE AUDIT VALUE"} '.str_repeat('suite',1000); $event['actor_name_snapshot']='Historique {"token":"PRIVATE ACTOR VALUE"}'; }
   if ($action==='audit-invalid') { if ($i===0) $event['action']='UNKNOWN_AUDIT_ACTION'; else $event['context']=array('reference'=>array('unsupported'=>'payload')); }
   $id=mjl_audit_append_in_transaction($db,$event); if ($id<1) {$db->rollback();exit(8);} $ids[]=$id;
@@ -43,10 +50,9 @@ if ($action==='chronology-fixtures') {
 if ($action==='recovery' || $action==='abandon') { require __DIR__.'/export-recovery-fixture.php'; exit; }
 if ($action==='spool-state') {print json_encode(array_values(array_diff(scandir('/tmp/mjlfinancement-exports'),array('.','..','generation.lock'))));exit;}
 if ($action==='delivery') {
- require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/reporting/mjl_reporting_http.lib.php';
- $_SESSION['token']=newToken();
- $_SERVER['REQUEST_METHOD']='POST';$_FILES=array();$_POST=array('token'=>currentToken(),'format'=>'csv','activity_id'=>(string)$request['activityId']);
- ob_start();print 'INCIDENTAL_DIAGNOSTIC';mjl_reporting_export_http($db,$user,1,$_POST,$_FILES,$_SERVER['REQUEST_METHOD']);exit;
+ require_once DOL_DOCUMENT_ROOT.'/custom/mjlfinancement/lib/reporting/mjl_export_delivery.lib.php';
+ $artifact=(new MjlExport($db,$user,1,'/tmp/mjlfinancement-exports'))->generate('activities','csv',array('activity_id'=>(string)$request['activityId']),'mjl_report_build_activities');
+ ob_start();print 'INCIDENTAL_DIAGNOSTIC';while(ob_get_level()>0)ob_end_clean();(new MjlExportDelivery())->deliver($artifact,'csv');exit;
 }
 if ($action==='remove') {
  $res=$db->query('SELECT version FROM '.$db->prefix().'mjlfinancement_activity WHERE entity=1 AND rowid='.(int)$request['activityId']);

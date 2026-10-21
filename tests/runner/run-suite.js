@@ -635,11 +635,11 @@ async function runPlaywright(plan, target, signal) {
       ['tests/e2e/auth-concurrency.spec.js','tests/e2e/partner-project.spec.js'],
       ['tests/e2e/fixture-isolation.spec.js'],
       ['tests/e2e/activity-assignment.spec.js','tests/e2e/activity-planning.spec.js','tests/e2e/planning-navigation.spec.js'],
-      ['tests/e2e/activities-report.spec.js','tests/e2e/export-recovery.spec.js','tests/e2e/operations-report.spec.js','tests/e2e/activity-detail.spec.js','tests/e2e/portfolio-report.spec.js','tests/e2e/audit-report.spec.js','tests/e2e/timeline.spec.js','tests/e2e/monitoring.spec.js'],
+      ['tests/e2e/api-reporting.spec.js','tests/e2e/export-recovery.spec.js','tests/e2e/timeline.spec.js'],
     ];
     for (const batch of batches) {
       // Activate monitoring only after predecessor-surface regressions finish.
-      if (batch[0] === 'tests/e2e/activities-report.spec.js') {
+      if (batch[0] === 'tests/e2e/api-reporting.spec.js') {
         await compose(plan, ['exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/export-integrity-probe.php'], { signal });
       }
       await runCommand('npx', ['playwright','test',...batch,'--config=playwright.config.js'], { env: composeEnvironment(plan), signal, timeoutMs: 15 * 60 * 1000 });
@@ -652,7 +652,7 @@ async function runPlaywright(plan, target, signal) {
   } else if (target === 'spending') {
     args.push('tests/e2e/spending.spec.js', '--config=playwright.config.js');
   } else if (target === 'api') {
-    args.push('tests/e2e/api-auth-partners.spec.js', 'tests/e2e/api-activities.spec.js', 'tests/e2e/api-execution.spec.js', '--config=playwright.config.js');
+    args.push('tests/e2e/api-auth-partners.spec.js', 'tests/e2e/api-activities.spec.js', 'tests/e2e/api-execution.spec.js', 'tests/e2e/api-reporting.spec.js', '--config=playwright.config.js');
   } else if (target === 'auth') {
 	args.push('tests/e2e/authentication.spec.js', '--config=playwright.config.js');
   } else if (target === 'rst014a') {
@@ -684,11 +684,11 @@ async function runPlaywright(plan, target, signal) {
   } else if (target === 'vui11') {
     args.push('tests/e2e/vui-access-management.spec.js', '--config=playwright.config.js');
   } else if (target === 'vui12') {
-    args.push('tests/e2e/vui-history-exports.spec.js', '--config=playwright.config.js');
+	args.push('tests/e2e/api-reporting.spec.js', '--config=playwright.config.js');
   } else if (target === 'vui13') {
     args.push('tests/e2e/vui-cross-screen-consistency.spec.js', '--config=playwright.config.js');
   } else if (target === 'phase3b') {
-    args.push('tests/e2e/activities-report.spec.js','tests/e2e/export-recovery.spec.js','tests/e2e/operations-report.spec.js','tests/e2e/activity-detail.spec.js','tests/e2e/portfolio-report.spec.js','tests/e2e/audit-report.spec.js','tests/e2e/timeline.spec.js','tests/e2e/monitoring.spec.js','--config=playwright.config.js');
+	args.push('tests/e2e/api-reporting.spec.js','tests/e2e/export-recovery.spec.js','tests/e2e/timeline.spec.js','--config=playwright.config.js');
   } else if (target === 'phase3a') {
     args.push('tests/e2e/activity-execution.spec.js', 'tests/e2e/document-containment.spec.js', '--config=playwright.config.js');
 	} else if (target === 'phase3c') {

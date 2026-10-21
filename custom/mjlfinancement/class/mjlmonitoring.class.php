@@ -186,7 +186,11 @@ class MjlMonitoring
 	{
 		$where=$this->auditWhere($filters);
 		$direction=$filters['direction']==='asc'?'ASC':'DESC';
-		if(!$export && $filters['cursor']!=='') $where.=' AND rowid'.($direction==='ASC'?'>':'<').(int)$filters['cursor'];
+		if(!$export && $filters['cursor']!=='') {
+			$cursor=$this->rows('SELECT rowid FROM '.$this->table('audit_event').' WHERE '.$where.' AND rowid='.(int)$filters['cursor'].' LIMIT 1');
+			if (!$cursor) throw new InvalidArgumentException('INVALID_FILTER');
+			$where.=' AND rowid'.($direction==='ASC'?'>':'<').(int)$filters['cursor'];
+		}
 		$from=' FROM '.$this->table('audit_event').' WHERE '.$where;
 		$selection='SELECT *'.$from.' ORDER BY rowid '.$direction.($export?'':' LIMIT 51');
 		$stats=$this->rows('SELECT COUNT(*) AS n,COALESCE(SUM(COALESCE(OCTET_LENGTH(previous_values_json),0)+COALESCE(OCTET_LENGTH(new_values_json),0)+COALESCE(OCTET_LENGTH(context_json),0)+COALESCE(OCTET_LENGTH(reason),0)+OCTET_LENGTH(object_type)+COALESCE(OCTET_LENGTH(object_ref),0)+OCTET_LENGTH(actor_name_snapshot)+OCTET_LENGTH(actor_role_snapshot)+OCTET_LENGTH(action)+COALESCE(OCTET_LENGTH(state_before),0)+COALESCE(OCTET_LENGTH(state_after),0)+OCTET_LENGTH(result)+256),0) AS bytes FROM ('.$selection.') selected')[0];

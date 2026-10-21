@@ -84,16 +84,17 @@ function mjl_monitoring_queue(array $activities, array $requests, $role, $actorI
 		if ($actions['edit']) $actions['abandon']=false;
 		foreach (array('edit'=>'Préparer ou corriger','review'=>$role==='AGENT_VERIFICATEUR'?'Prévalider':'Valider définitivement','restore'=>'Restaurer le brouillon','abandon'=>'Abandonner le brouillon') as $key=>$label) if ($actions[$key]) {
 			$query=array('id'=>$activity['rowid']); if ($key==='edit') $query['action']='edit'; elseif ($key==='review') $query['action']='review';
-			$items[]=array('key'=>'activity-'.$activity['rowid'],'label'=>$label,'reference'=>$activity['ref'].' · '.$activity['name'],'date'=>$activity['date_start'],'href'=>mjl_monitoring_url('activities',$query),'closure'=>false);
+			$items[]=array('key'=>'activity-'.$activity['rowid'],'activity_id'=>$activity['rowid'],'operation_id'=>null,'request_id'=>null,'request_type'=>null,'allowed_actions'=>array($key),'label'=>$label,'reference'=>$activity['ref'].' · '.$activity['name'],'date'=>$activity['date_start'],'href'=>mjl_monitoring_url('activities',$query),'closure'=>false);
 		}
 		if ($actions['execution']) foreach ($activity['operations'] as $operation) if (in_array($operation['status'],array('TODO','IN_PROGRESS'),true)) {
-			$items[]=array('key'=>'operation-'.$operation['rowid'],'label'=>'Saisir l’exécution','reference'=>$activity['ref'].' · '.$operation['name'],'date'=>$activity['date_end'],'href'=>mjl_monitoring_url('operations',array('activity_id'=>$activity['rowid'])).'#operation-'.(int)$operation['rowid'],'closure'=>false);
+			$items[]=array('key'=>'operation-'.$operation['rowid'],'activity_id'=>$activity['rowid'],'operation_id'=>$operation['rowid'],'request_id'=>null,'request_type'=>null,'allowed_actions'=>array('updateExecution'),'label'=>'Saisir l’exécution','reference'=>$activity['ref'].' · '.$operation['name'],'date'=>$activity['date_end'],'href'=>mjl_monitoring_url('operations',array('activity_id'=>$activity['rowid'])).'#operation-'.(int)$operation['rowid'],'closure'=>false);
 		}
 	}
 	foreach ($requests as $request) {
 		$eligibility=$request['eligibility'];
 		if (!$eligibility['approve'] && !$eligibility['reject'] && !$eligibility['withdraw']) continue;
-		$items[]=array('key'=>$request['request_type'].'-'.$request['rowid'],'label'=>$eligibility['stale']?'À clôturer':($eligibility['approve']?'Décider la demande':'Suivre ou retirer la demande'),'reference'=>$request['target_label'],'date'=>substr($request['date_request'],0,10),'href'=>mjl_monitoring_url('requests',array('type'=>$request['request_type'],'request_id'=>$request['rowid'])),'closure'=>$eligibility['stale']);
+		$allowed=array(); foreach(array('approve','reject','withdraw') as $action) if($eligibility[$action])$allowed[]=$action;
+		$items[]=array('key'=>$request['request_type'].'-'.$request['rowid'],'activity_id'=>$request['fk_activity'],'operation_id'=>$request['request_type']==='REOPENING'?$request['fk_operation']:($request['target_type']==='OPERATION'?$request['target_id']:null),'request_id'=>$request['rowid'],'request_type'=>$request['request_type'],'allowed_actions'=>$allowed,'label'=>$eligibility['stale']?'À clôturer':($eligibility['approve']?'Décider la demande':'Suivre ou retirer la demande'),'reference'=>$request['target_label'],'date'=>substr($request['date_request'],0,10),'href'=>mjl_monitoring_url('requests',array('type'=>$request['request_type'],'request_id'=>$request['rowid'])),'closure'=>$eligibility['stale']);
 	}
 	usort($items,function($a,$b){return strcmp($a['date'],$b['date']) ?: strcmp($a['key'],$b['key']);});
 	return $items;

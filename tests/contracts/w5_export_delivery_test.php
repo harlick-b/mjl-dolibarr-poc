@@ -35,6 +35,28 @@ w5_export_delivery_assert($body === '', 'A first-read failure must expose no art
 w5_export_delivery_assert(!is_resource($stream), 'The delivery owner must close its stream after failure.');
 
 $stream = fopen('php://temp', 'w+b');
+fwrite($stream, 'private artifact');
+rewind($stream);
+$error = '';
+try {
+	mjl_export_deliver_checked(array('stream' => $stream, 'filename' => 'rapport.csv', 'bytes' => 16), 'csv', new W5FailingExportDelivery());
+} catch (Throwable $exception) {
+	$error = $exception->getMessage();
+}
+w5_export_delivery_assert($error === 'EXPORT_DELIVERY_READ_FAILED', 'A checked first-read failure must remain an error response candidate.');
+w5_export_delivery_assert(!is_resource($stream), 'Checked delivery must close a stream that fails before output.');
+
+$probe = proc_open(array(PHP_BINARY, __DIR__.'/../fixtures/export-delivery-partial-probe.php'), array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
+w5_export_delivery_assert(is_resource($probe), 'The partial-delivery probe must start.');
+$partialBody = stream_get_contents($pipes[1]);
+$partialError = stream_get_contents($pipes[2]);
+fclose($pipes[1]);
+fclose($pipes[2]);
+$partialStatus = proc_close($probe);
+w5_export_delivery_assert($partialStatus === 0, 'A post-output read failure must terminate without a second response. '.$partialError);
+w5_export_delivery_assert($partialBody === 'abc', 'A post-output read failure must emit only the artifact bytes already sent, never JSON.');
+
+$stream = fopen('php://temp', 'w+b');
 fwrite($stream, 'ok');
 rewind($stream);
 ob_start();

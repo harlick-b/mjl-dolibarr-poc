@@ -81,3 +81,8 @@ DEC-084: `operations.php`, `expenses.php` and `operationrequests.php` are GET
 shells. Execution, expense ledger/approval/correction and exception filtering/
 decisions use `lib/api/mjl_api_execution.lib.php` and `js/mjl_execution.js`.
 Existing command/read owners preserve authorization and accounting invariants.
+
+DEC-085: dashboard, alerts, audit and report pages are GET shells using the
+reporting REST adapter and client. Existing bounded monitoring/report readers,
+sanitized audit projection, `MjlExport` evidence and checked binary delivery
+remain authoritative. The former form export route rejects requests.

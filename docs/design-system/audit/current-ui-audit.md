@@ -69,7 +69,7 @@ browser verification for this documentation update.
 | Opérations | Responsive execution cards, explicit amounts and lock states, and Agent exception forms. | `custom/mjlfinancement/operations.php` |
 | Demandes d’exception | Filtered cancellation/reopening requests with Agent withdrawal and Validator decisions. | `custom/mjlfinancement/operationrequests.php` |
 | Alertes | Computed, scoped alerts. | `custom/mjlfinancement/alerts.php` |
-| Rapports | Shared filters and active-selection summaries, scoped previews, and guarded audited PDF/XLSX/CSV downloads for Activities, Opérations, Fiche Activité, portfolio, and audit. | `custom/mjlfinancement/reports.php`, `reportexport.php` |
+| Rapports | JavaScript-required REST filters and previews with guarded audited PDF/XLSX/CSV downloads for Activities, Opérations, Fiche Activité, portfolio, and audit. | `custom/mjlfinancement/reports.php`, `lib/api/mjl_api_reporting.lib.php` |
 | Audit | Responsive chronological event history with recorded metadata/details and complete-selection downloads, restricted to Validator/Admin. | `custom/mjlfinancement/workflowactions.php` |
 | Utilisateurs et accès | Responsive users/invitations, French delivery states, and progressive invitation, role-change, deactivation, and revocation dialogs for Admin only. | `custom/mjlfinancement/admin/access.php` |
 | Invitation | Token redemption outside the app shell. | `custom/mjlfinancement/invitation.php` |

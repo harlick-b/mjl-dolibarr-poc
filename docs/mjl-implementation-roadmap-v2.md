@@ -206,7 +206,7 @@ Proposed API delivery stages (separate from product Phase 4):
    disabled until mail is configured and delivery verified.
 2. Activities, assignments, planning, review and chronology: implemented (DEC-083), including Activity cancellation requests and scoped filter options.
 3. Operations, expenses, accounting corrections and exception workflows: implemented (DEC-084); focused checks passed.
-4. Dashboards, alerts, audit, previews and exports.
+4. Dashboards, alerts, audit, previews and exports: implemented (DEC-085); focused checks passed.
 5. MJL access administration and final action/interface coverage.
 
 Each slice must preserve existing commands and migrate the corresponding screen's
@@ -227,7 +227,7 @@ contracts, the planning-control browser check, changed-file PHP/JavaScript synta
 and OpenAPI validation also passed. Broad suites and manual accessibility review
 were not run for this slice. No acceptance or production readiness is implied.
 OTP remains disabled pending mail delivery.
-Next API slice: dashboards, alerts, audit, report previews and exports.
+Next API slice: MJL access administration and final action/interface coverage.
 
 Current execution slice (DEC-084): the three Operation, expense and exception
 screens use REST reads and one-use mutation tokens issued on submission. Existing
@@ -240,6 +240,15 @@ audit rollback, correction-only access and role/entity/self-approval denial. Req
 contracts, changed-file PHP/JavaScript syntax and OpenAPI validation passed. Broad
 suites and manual accessibility review were not run; user acceptance remains
 outstanding. OTP remains disabled.
+
+Current reporting slice (DEC-085): dashboard, alerts, audit browsing, four report
+previews and five synchronous audited exports use REST. Existing bounded readers,
+exact financial projections, immutable export evidence and checked delivery remain
+the owners. The dashboard exposes unavailable action data explicitly while keeping
+verified totals. Nine focused disposable-tenant browser/API checks and the request,
+snapshot, delivery, recovery, chronology, syntax and schema checks passed. Obsolete
+HTML transport suites were removed; manual accessibility review and user acceptance
+remain outstanding.
 
 ### Phase 4: Documents
 

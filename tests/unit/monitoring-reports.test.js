@@ -80,7 +80,7 @@ test('Activity detail contains general information, financial summary and every 
  const d=JSON.parse(out);assert.deepEqual(d.activity_ids,[7]);assert.equal(d.document.sections.length,3);assert.equal(d.document.sections[2].rows.length,2);
  const general=d.document.sections[0],money=d.document.sections[1],ops=d.document.sections[2];
  assert.equal(general.rows[0][general.headers.indexOf('Description')].value,'Description complète');assert.equal(general.rows[0][general.headers.indexOf('Identifiant de la révision courante')].value,'11');
- assert.equal(money.rows[0][money.headers.indexOf('Dépenses renseignées (FCFA)')].value,'0');assert.equal(ops.rows[0][9].value,'0');assert.equal(ops.rows[1][9].value,null);
+ assert.equal(money.rows[0][money.headers.indexOf('Dépenses approuvées (FCFA)')].value,'0');assert.equal(ops.rows[0][9].value,'0');assert.equal(ops.rows[1][9].value,null);
 });
 test('Activity detail refuses missing or ambiguous scope instead of producing an empty fiche',()=>{
  const out=execFileSync('php',['-r',`require '${lib.replace('mjl_monitoring.lib.php','mjl_report_data.lib.php')}'; foreach([[],[['rowid'=>1],['rowid'=>2]]] as $a) {try {mjl_report_activity_detail_document($a,[]);echo 'accepted';}catch(RuntimeException $e){echo $e->getMessage()."\\n";}}`],{encoding:'utf8'});
@@ -88,7 +88,7 @@ test('Activity detail refuses missing or ambiguous scope instead of producing an
 });
 test('portfolio document has one grouping level, exact totals and every contributing Activity in scope',()=>{
  const out=execFileSync('php',['-r',`require '${lib.replace('mjl_monitoring.lib.php','mjl_report_data.lib.php')}';$a=[['rowid'=>4,'fk_project'=>2,'fk_partner'=>9,'project_name'=>'Projet','partner_name'=>'Partenaire','validated_amount'=>'9223372036854775807','total_spent_amount'=>null,'operation_count'=>2],['rowid'=>5,'fk_project'=>2,'fk_partner'=>9,'project_name'=>'Projet','partner_name'=>'Partenaire','validated_amount'=>'9223372036854775807','total_spent_amount'=>'0','operation_count'=>1]];echo json_encode(mjl_report_portfolio_document($a,'project'));`],{encoding:'utf8'});
- const d=JSON.parse(out);assert.deepEqual(d.activity_ids,[4,5]);assert.equal(d.document.sections.length,1);const t=d.document.sections[0];assert.equal(t.rows.length,1);const v=h=>t.rows[0][t.headers.indexOf(h)].value;assert.equal(v('Projet'),'Projet');assert.equal(v('Activités'),2);assert.equal(v('Opérations'),3);assert.equal(v('Montants validés, annulations incluses (FCFA)'),'18446744073709551614');assert.equal(v('Dépenses renseignées (FCFA)'),'0');
+ const d=JSON.parse(out);assert.deepEqual(d.activity_ids,[4,5]);assert.equal(d.document.sections.length,1);const t=d.document.sections[0];assert.equal(t.rows.length,1);const v=h=>t.rows[0][t.headers.indexOf(h)].value;assert.equal(v('Projet'),'Projet');assert.equal(v('Activités'),'2');assert.equal(v('Opérations'),'3');assert.equal(v('Montants validés, annulations incluses (FCFA)'),'18446744073709551614');assert.equal(v('Dépenses approuvées (FCFA)'),'0');
 });
 test('portfolio rejects empty or unsupported grouping before generation',()=>{
  const out=execFileSync('php',['-r',`require '${lib.replace('mjl_monitoring.lib.php','mjl_report_data.lib.php')}';foreach(['','both'] as $g){try{mjl_report_validate_request('portfolio','csv',['grouping'=>$g]);echo 'accepted';}catch(InvalidArgumentException $e){echo 'rejected';}}`],{encoding:'utf8'});assert.equal(out,'rejectedrejected');

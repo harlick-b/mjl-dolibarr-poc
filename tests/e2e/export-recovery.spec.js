@@ -2,12 +2,17 @@ const {test,expect}=require('@playwright/test');
 const cp=require('node:child_process');
 const {createExecutionFixtureSet,runExecutionFixtureCommand}=require('../helpers/execution-fixture');
 const {createActivityFixtureSet}=require('../helpers/activity-fixture');
-const {privilegedScalar}=require('../helpers/mjl-test-runtime');
+const {composeExec,privilegedScalar,registerSecret}=require('../helpers/mjl-test-runtime');
 let fixture,drafts;
 test.describe.configure({mode:'serial'});
 const php=['compose','exec','-T','--user','www-data','dolibarr','php','/opt/mjl-tests/fixtures/report-fixture.php'];
 const database=['compose','exec','-T','mariadb','mariadb','--defaults-extra-file=/run/mjl-test/client.cnf','-N','-B','dolidb'];
 function sql(statement){return cp.execFileSync('docker',database,{env:process.env,input:statement+'\n',encoding:'utf8'}).trim();}
+async function apiSend(request,path,body){const session=await(await request.get('/custom/mjlfinancement/api/index.php/v1/auth/session')).json();return request.post('/custom/mjlfinancement/api/index.php/v1'+path,{data:body,headers:{'X-CSRF-Token':session.data.csrf_token}});}
+async function apiLogin(request,key='agent'){
+ const response=await apiSend(request,'/auth/login',{email:fixture.users[key].login+'@example.test',password:process.env.MJL_TEST_USER_PASSWORD});expect([200,202]).toContain(response.status());
+ if(response.status()===202){const code=JSON.parse(composeExec('dolibarr',['cat','/var/www/documents/mjlfinancement/email-test-outbox/latest-login_otp.json'],'utf8')).code;await registerSecret('login otp',code);expect((await apiSend(request,'/auth/otp/verify',{code})).status()).toBe(200);}
+}
 function evidence(){return sql("SELECT (SELECT COUNT(*) FROM llx_mjlfinancement_export_record),(SELECT COUNT(*) FROM llx_mjlfinancement_audit_event WHERE action='EXPORT_GENERATED')").split('\t').map(Number);}
 function request(mode='normal',set=fixture,key='owned'){return {actorId:set.users.agent.id,activityId:set.activities[key].activity_id,mode};}
 function command(action,input){return JSON.parse(cp.execFileSync('docker',[...php,action],{env:process.env,input:JSON.stringify(input)+'\n',encoding:'utf8',timeout:45000}));}
@@ -29,6 +34,7 @@ test.beforeAll(()=>{
  cp.execFileSync('docker',[...php,'install'],{env:process.env,stdio:'pipe'});
  fixture=createExecutionFixtureSet(definition('phase3b.recovery',[activity('owned'),activity('assignment-before'),activity('assignment-after'),activity('cancel-before'),activity('cancel-after')]));
  drafts=createActivityFixtureSet(definition('phase3b.abandon',[activity('abandon-before',{submit:false}),activity('abandon-after',{submit:false})]));
+ sql("INSERT INTO llx_const(name,entity,value,type,visible,note) VALUES('MJL_AUTH_OTP_ENABLED',1,'1','chaine',0,'Disposable API verification'),('MJL_AUTH_E2E_EXPOSE_TOKENS',1,'1','chaine',0,'Disposable API verification') ON DUPLICATE KEY UPDATE value='1'");
 });
 
 for(const [mode,code] of Object.entries({open:'SPOOL_UNAVAILABLE',hash:'ARTIFACT_READ_FAILED',artifact:'ARTIFACT_LIMIT',unlink:'SPOOL_CLEANUP_FAILED',renderer:'INVALID_AMOUNT',rows:'REPORT_LIMIT','pdf-rows':'REPORT_LIMIT',bytes:'REPORT_LIMIT',cell:'UNSUPPORTED_RECORD',memory:'EXPORT_MEMORY_LIMIT',deadline:'EXPORT_DEADLINE'})) test(`${mode} failure rolls back, cleans the spool and permits a fresh export`,()=>{
@@ -104,10 +110,11 @@ test('a server-side delivery read failure preserves committed evidence and close
 });
 
 test('a throttled client abort preserves GENERATED evidence and no named artifact',async({page})=>{
- await page.goto('/index.php');await page.getByLabel('Identifiant').fill(fixture.users.agent.login);await page.getByRole('textbox',{name:'Mot de passe',exact:true}).fill(process.env.MJL_TEST_USER_PASSWORD);await page.getByRole('button',{name:'Se connecter'}).click();
- await page.goto('/custom/mjlfinancement/reports.php');const token=await page.locator('form[action$="reportexport.php"] input[name="token"]').inputValue();
+ await apiLogin(page.request);
+ const session=await(await page.request.get('/custom/mjlfinancement/api/index.php/v1/auth/session')).json();const token=session.data.csrf_token;
  const cookie=(await page.context().cookies()).map(c=>`${c.name}=${c.value}`).join('; ');const before=evidence();
- const config=`url = "${process.env.MJL_BASE_URL}/custom/mjlfinancement/reportexport.php"\ncookie = "${cookie}"\ndata = "${new URLSearchParams({token,format:'pdf',activity_id:String(fixture.activities.owned.activity_id)})}"\n`;
+ const payload=JSON.stringify({format:'pdf',filters:{activity_id:String(fixture.activities.owned.activity_id)}}).replaceAll('"','\\"');
+ const config=`url = "${process.env.MJL_BASE_URL}/custom/mjlfinancement/api/index.php/v1/reports/activities/exports"\ncookie = "${cookie}"\nheader = "Content-Type: application/json"\nheader = "X-CSRF-Token: ${token}"\ndata = "${payload}"\n`;
  // A PDF outlasts the five-second download allowance; the small POST uploads immediately.
  // Credentials remain on stdin; do not put session cookies in process arguments or artifacts.
  const result=cp.spawnSync('curl',['--config','-','--silent','--limit-rate','1024','--max-time','5','--output','/dev/null','--write-out','%{http_code} %{size_download} %{size_header}'],{input:config,encoding:'utf8',timeout:10000});

@@ -328,7 +328,7 @@ Directory rules:
 | `lib/mjl_report_route.lib.php`, `mjl_report_data.lib.php` | report policy/filtering, preview snapshot orchestration/data projection and HTTP dispatch | `lib/reporting/mjl_reporting_read.lib.php` owns preview isolation/begin/commit/failure/budget restoration; reporting HTTP and pure presentation remain separate; deduplicate only proven identical queries |
 | `class/mjlexport.class.php::generate` | snapshot, renderer callback, fresh authorization, evidence/audit | retain as export workflow interface; return delivery handle/result, no HTML |
 | `class/mjlexportspool.class.php` | private spool lifecycle and file handle | retain as concrete internal adapter; do not add an interface without a second adapter |
-| `reportexport.php` streaming loop | POST/CSRF, generate, HTTP headers and stream | root adapter + reporting HTTP handler; streaming remains HTTP responsibility after durable generation |
+| REST report export adapter | JSON POST/CSRF, generate, HTTP headers and stream | REST adapter + `MjlExportDelivery`; streaming remains HTTP responsibility after durable generation |
 | `lib/mjl_report_render.lib.php`, CSV/XLSX helpers | PDF/XLSX/CSV presentation | `lib/reporting/`; reconcile older direct helpers before consolidation |
 | `lib/mjl_audit.lib.php` append functions | transaction-bound immutable evidence | `lib/audit/mjl_audit_writer.lib.php`; no independent commit |
 | audit projection/report/timeline libraries | authorized queries, sanitization, French chronology | `lib/audit/` projections/presentation and relevant templates |
@@ -957,7 +957,7 @@ determined by that future diff.
   plus all frontend contracts in section 10.
 - **Tests/commands:** `node --test tests/unit/report-format.test.js
   tests/unit/export-spool.test.js tests/unit/monitoring-reports.test.js`;
-  `npm run test:vui12` (`vui-history-exports.spec.js`) for presentation.
+  `npm run test:vui12` (`api-reporting.spec.js`) for the REST-backed presentation.
   The monitoring substep requires `npm run test:vui09` for dashboard/monitoring
   browser coverage and focused alerts assertions added to that disposable gate.
   Moving snapshot/authorization/evidence logic additionally needs
@@ -1060,7 +1060,7 @@ determined by that future diff.
 | TA-07 data hooks define browser behavior | frontend contract audit | `mjl_components.js`, Activity/form JS, CSS | client/server and form contracts | browser/unit JS tests | browser feature module | W2/W5 |
 | TA-08 descriptor delegates existing lifecycle functions in place | D-08/D-12, BC-010/019/021/022 | `modMjlFinancement::init`, RST detectors/installers, callers/includes/resources | RT-011, DB-003/004, LIFE-001–004 | runtime refusal and Phase 3A/RST/loading matrices | descriptor + retained schema libraries | W6 |
 | TA-09 keep DB triggers/invariants | database/authorization maps | SQL triggers and `ensure*` | SEC-AUTHZ-004, DB-003 | auth/Phase 3A DB assertions | DB boundary | all relevant |
-| TA-10 export generation distinct from delivery | BC-003/012/013; current architecture | `MjlExport::generate`, spool, `reportexport.php` | RT-012, DB-002 | export spool/source E2E plus new read failure | export workflow + HTTP | W5 |
+| TA-10 export generation distinct from delivery | BC-003/012/013; current architecture | `MjlExport::generate`, spool, REST export adapter | RT-012, DB-002 | export spool/source E2E plus new read failure | export workflow + HTTP | W5 |
 | TA-11 no speculative abstraction | duplication/dead-code audits | flat libs and candidates | all as touched | candidate-specific | deepest existing seam | all |
 | TA-12 auth state behind cohesive owner and one private session adapter | auth-state map, BC-017/018/022 | `mjl_auth.lib.php`, hooks/routes/session keys | SEC-AUTH-001–006, DB-001/003 | `npm run test:auth` plus commit/session ordering | auth command + private procedural session adapter | W4 |
 | TA-13 preserve composed access writes and auth delivery phases | authentication/request/database maps; current invitation/reset call chains | `mjl_auth_issue_invitation`, `mjl_scope_assign_access_profile`, `mjl_auth_record_event`, email adapter | SEC-AUTH-001–004, SEC-AUTHZ-002, DB-002 | auth suite plus explicitly missing composition/delivery fault cases | transaction-participating access operation, audit writer, auth owner and email adapter | W3/W4 |
