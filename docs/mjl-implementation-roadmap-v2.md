@@ -145,6 +145,17 @@ PC1/PC2 remain pending. Real accounts, A2.2, A3, A4, PTA, production and applica
 acceptance remain **NOT_AUTHORIZED / NOT_CLAIMED**. LA2/LA3 and all six external
 security dependency groups retain their gates. Stop after A2.1.
 
+## A2.2 lifecycle readiness (DEC-097)
+
+**A2_2_NOT_READY** — documentation-only review against A2.1 `30b976a`.
+[Readiness 06](rebuild/06-a2-account-lifecycle-readiness.md) specifies R6–R8,
+minimal API changes with no identified schema additions, and sixteen focused
+future checks. Domain owner/RSSI must settle LA3 or approve the restricted
+synthetic R6/R7 boundary; R8 additionally needs a role/eligibility decision.
+Assigned-account behavior may remain deferred to PTA; PC1/PC2 remain pending.
+Independent Engineering and Security/Specification source reviews agree on these
+gates. No lifecycle implementation or real-account enablement is authorized.
+
 ## A1 first Admin authentication (DEC-094)
 
 **A1_COMPLETE** — 7/7 API responsibilities, 6/6 persistence concerns and 18/18

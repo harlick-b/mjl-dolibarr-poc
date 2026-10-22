@@ -19,6 +19,15 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## A2.2 lifecycle readiness (DEC-097)
+
+The latest request is documentation-only review after A2.1 `30b976a`.
+[Readiness 06](rebuild/06-a2-account-lifecycle-readiness.md) owns the proposed
+ordinary lifecycle scope and unresolved LA3/reinvitation decisions.
+**A2_2_NOT_READY**: a restricted synthetic R6/R7 option is recommended, not approved.
+No A2.2 implementation, real accounts, A3/A4/PTA or production work is authorized.
+PC1/PC2 remain pending.
+
 ## A2.1 implementation authorization (DEC-096)
 
 The user authorizes A2.1 from readiness 05 at `2c1929e`: five access APIs,
