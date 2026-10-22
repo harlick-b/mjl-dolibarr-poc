@@ -80,6 +80,17 @@ six baseline external security groups retain their owners/gates. Routine Admin
 provisioning/account management, recovery and business authorization follow as
 separate bounded slices. DEC-094 subsequently authorized A1 only. Production and application acceptance remain unclaimed.
 
+## A2 account-management readiness (DEC-095)
+
+**A2_READY_FOR_AUTHORIZATION** for A2.1 only; both independent reviews passed.
+Documentation-only review after verified A1 commit `0a2cf22`.
+[Readiness 05](rebuild/05-a2-account-management-readiness.md) owns the proposed
+A2.1 Admin invitations/account listing and later A2.2 ordinary account lifecycle.
+Eight confirmed responsibilities; first slice has five API responsibilities,
+two table extensions, sixteen acceptance checks and no new IAM tables.
+PC1/PC2, Admin lifecycle LA2 and ordinary lifecycle handoff LA3 retain their gates.
+A2 implementation and real accounts remain **NOT_AUTHORIZED**.
+
 ## A1 first Admin authentication (DEC-094)
 
 **A1_COMPLETE** — 7/7 API responsibilities, 6/6 persistence concerns and 18/18

@@ -19,9 +19,18 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## A2 account-management readiness (DEC-095)
+
+The latest request authorizes documentation-only A2 readiness after A1 commit
+`0a2cf22`. [Readiness 05](rebuild/05-a2-account-management-readiness.md) owns the
+proposed ordinary-account invitation/listing slice and deferred lifecycle gates.
+No A2 implementation, tests, schema/data, dependencies, Docker/CI or skills changes
+are authorized. PC1/PC2 remain pending; real accounts, A3/A4/PTA and production
+remain unauthorized. Supplied users inspiration governs composition, not privileges.
+
 ## A1 implementation authorization (DEC-094)
 
-The latest user request authorizes the exact seven A1 API and six persistence
+The A1 user request authorized the exact seven A1 API and six persistence
 responsibilities and T01–T18 in readiness 04, following commits 48c2bea/6007159.
 Only synthetic identities, isolated PostgreSQL and test mail are authorized.
 PC1/PC2 remain pending sponsor/RSSI approval. Real-account enablement must fail
@@ -30,7 +39,7 @@ Updated local inspiration supplies visual composition, not extra feature scope.
 
 ## Authentication & Access readiness (DEC-093)
 
-The latest request authorizes documentation-only readiness review after foundation
+The earlier auth request authorized documentation-only readiness review after foundation
 `48c2bea`. [Readiness contract](rebuild/04-authentication-access-readiness.md) owns
 the bounded proposed first-Admin invitation-to-session slice, policy stage gates
 and future test oracles. Auth inspiration is supplied in `docs/inspiration/auth/`.
@@ -55,7 +64,7 @@ This authorizes no next slice and records no application acceptance.
 
 ## Dedicated application rebuild — 2026-10-22 (DEC-091)
 
-The latest user instruction selects React/Vite JavaScript/JSX, TanStack
+The rebuild instruction selects React/Vite JavaScript/JSX, TanStack
 Router/Query, Tailwind/shadcn/ui/Lucide, FastAPI REST/OpenAPI, PostgreSQL,
 SQLAlchemy 2/Alembic and Docker Compose. PWA business operations are online-only.
 Frontend/backend deploy separately; commercial cloud provider/region are unapproved.
