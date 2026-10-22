@@ -1,5 +1,9 @@
 # A2.2 — Restricted ordinary account lifecycle readiness
 
+Current authorization: DEC-099 authorizes implementation of this contract at
+`6659a05`; the roadmap owns execution evidence. The sections below preserve the
+review contract, not a new implementation status.
+
 Documentation-only recheck, 2026-10-22, against A1/A2.1 code at `30b976a`.
 DEC-098 approves the scope below, **not runtime implementation**. It supersedes
 this document's earlier unapproved-scope verdict at `144e164`.

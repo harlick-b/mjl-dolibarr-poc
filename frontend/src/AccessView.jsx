@@ -165,9 +165,10 @@ function Accounts({ session, onDenied, checking }) {
   const mutation = useMutation({
     retry: false,
     networkMode: 'always',
-    mutationFn: ({ path, body, signal }) =>
+    mutationFn: ({ path, body, signal, method }) =>
       apiRequest(`/api/v1/access/${path}`, {
         body,
+        method,
         signal,
         csrf: session.csrf,
       }),
@@ -224,27 +225,40 @@ function Accounts({ session, onDenied, checking }) {
     event.preventDefault()
     if (mutation.isPending) return
     const data = new FormData(event.currentTarget)
-    const path =
-      dialog.kind === 'invite'
+    const lifecycle = ['role', 'deactivate'].includes(dialog.kind)
+    const path = lifecycle
+      ? `users/${dialog.item.id}`
+      : dialog.kind === 'invite'
         ? 'invitations'
         : `invitations/${dialog.item.id}/${dialog.kind}`
     const body =
       dialog.kind === 'invite'
         ? { email: data.get('email'), role: data.get('role') }
-        : { expected_version: dialog.item.version }
+        : {
+            expected_version: dialog.item.version,
+            ...(dialog.kind === 'role' ? { role: data.get('role') } : {}),
+            ...(dialog.kind === 'deactivate' ? { deactivate: true } : {}),
+          }
     setNotice('')
     controller.current = new AbortController()
     try {
-      await mutation.mutateAsync({
+      const result = await mutation.mutateAsync({
         path,
+        method: lifecycle ? 'PATCH' : 'POST',
         body,
         signal: controller.current.signal,
       })
       if (!alive.current) return
       setNotice(
-        dialog.kind === 'revoke'
-          ? 'Invitation révoquée.'
-          : 'Invitation envoyée.',
+        dialog.kind === 'role'
+          ? result.version === dialog.item.version
+            ? 'Rôle inchangé.'
+            : 'Rôle modifié. Une nouvelle connexion est nécessaire.'
+          : dialog.kind === 'deactivate'
+            ? 'Compte désactivé.'
+            : dialog.kind === 'revoke'
+              ? 'Invitation révoquée.'
+              : 'Invitation envoyée.',
       )
       setDialog(null)
     } catch (error) {
@@ -255,13 +269,15 @@ function Accounts({ session, onDenied, checking }) {
       }
       setDialog(null)
       setNotice(
-        error.code === 'invitation_delivery_failed'
-          ? 'Invitation créée, mais envoi échoué. Actualisez puis renvoyez l’invitation.'
-          : error.status === 409
-            ? 'L’état a changé ou ce compte existe déjà. Consultez la liste actualisée avant une nouvelle action.'
-            : error.status === 422
-              ? 'Demande refusée. Vérifiez l’adresse e-mail et le rôle.'
-              : 'Résultat non confirmé. Actualisez les listes avant de réessayer.',
+        error.code === 'eligibility_unverified'
+          ? 'Modification indisponible : l’éligibilité de ce compte ne peut pas être vérifiée.'
+          : error.code === 'invitation_delivery_failed'
+            ? 'Invitation créée, mais envoi échoué. Actualisez puis renvoyez l’invitation.'
+            : error.status === 409
+              ? 'L’état a changé ou ce compte existe déjà. Consultez la liste actualisée avant une nouvelle action.'
+              : error.status === 422
+                ? 'Demande refusée. Vérifiez l’adresse e-mail et le rôle.'
+                : 'Résultat non confirmé. Actualisez les listes avant de réessayer.',
       )
     } finally {
       if (alive.current) {
@@ -370,6 +386,7 @@ function Accounts({ session, onDenied, checking }) {
                     <th>Adresse e-mail</th>
                     <th>Rôle</th>
                     <th>État</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -379,6 +396,34 @@ function Accounts({ session, onDenied, checking }) {
                       <td>{roleLabels[u.role]}</td>
                       <td>
                         <span className="access-status">{states[u.state]}</span>
+                      </td>
+                      <td>
+                        {u.state === 'active' &&
+                        u.role !== 'ADMIN_PLATEFORME' &&
+                        u.id !== session.user.id ? (
+                          <div className="access-actions">
+                            <button
+                              type="button"
+                              disabled={mutation.isPending || users.isFetching}
+                              onClick={() =>
+                                setDialog({ kind: 'role', item: u })
+                              }
+                            >
+                              Modifier le rôle
+                            </button>
+                            <button
+                              type="button"
+                              disabled={mutation.isPending || users.isFetching}
+                              onClick={() =>
+                                setDialog({ kind: 'deactivate', item: u })
+                              }
+                            >
+                              Désactiver
+                            </button>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -489,7 +534,7 @@ function Accounts({ session, onDenied, checking }) {
             label="Invitations"
           />
           {dialog && (
-            <InvitationDialog
+            <AccessDialog
               dialog={dialog}
               pending={mutation.isPending}
               checking={checking}
@@ -541,7 +586,7 @@ function Pagination({ query, page, change, label }) {
     </nav>
   )
 }
-function InvitationDialog({ dialog, pending, checking, close, submit }) {
+function AccessDialog({ dialog, pending, checking, close, submit }) {
   const ref = useRef(null)
   useEffect(() => {
     const node = ref.current
@@ -555,9 +600,13 @@ function InvitationDialog({ dialog, pending, checking, close, submit }) {
   const invite = dialog.kind === 'invite'
   const title = invite
     ? 'Inviter un utilisateur'
-    : dialog.kind === 'revoke'
-      ? 'Révoquer cette invitation ?'
-      : 'Renvoyer cette invitation ?'
+    : dialog.kind === 'role'
+      ? 'Modifier le rôle'
+      : dialog.kind === 'deactivate'
+        ? 'Désactiver ce compte ?'
+        : dialog.kind === 'revoke'
+          ? 'Révoquer cette invitation ?'
+          : 'Renvoyer cette invitation ?'
   return (
     <dialog
       ref={ref}
@@ -627,13 +676,35 @@ function InvitationDialog({ dialog, pending, checking, close, submit }) {
               </select>
             </label>
           </div>
+        ) : dialog.kind === 'role' ? (
+          <div className="access-dialog-fields">
+            <p>{dialog.item.email}</p>
+            <label>
+              Nouveau rôle
+              <select name="role" defaultValue={dialog.item.role}>
+                {Object.entries(roleLabels)
+                  .filter(([role]) => role !== 'ADMIN_PLATEFORME')
+                  .map(([role, label]) => (
+                    <option key={role} value={role}>
+                      {label}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <p>
+              Les sessions actuelles seront invalidées. Une nouvelle connexion
+              sera nécessaire.
+            </p>
+          </div>
         ) : (
           <p>
             {dialog.item.email}
             <br />
-            {dialog.kind === 'revoke'
-              ? 'Ce lien ne permettra plus d’activer le compte.'
-              : 'Le lien précédent ne sera plus utilisable.'}
+            {dialog.kind === 'deactivate'
+              ? 'Ce compte ne pourra plus se connecter. Ses sessions actuelles seront invalidées.'
+              : dialog.kind === 'revoke'
+                ? 'Ce lien ne permettra plus d’activer le compte.'
+                : 'Le lien précédent ne sera plus utilisable.'}
           </p>
         )}
         {pending && <p role="status">Traitement en cours…</p>}
@@ -644,9 +715,13 @@ function InvitationDialog({ dialog, pending, checking, close, submit }) {
           <Button disabled={pending}>
             {invite
               ? 'Envoyer l’invitation'
-              : dialog.kind === 'revoke'
-                ? 'Confirmer la révocation'
-                : 'Confirmer le renvoi'}
+              : dialog.kind === 'role'
+                ? 'Confirmer le rôle'
+                : dialog.kind === 'deactivate'
+                  ? 'Confirmer la désactivation'
+                  : dialog.kind === 'revoke'
+                    ? 'Confirmer la révocation'
+                    : 'Confirmer le renvoi'}
           </Button>
         </footer>
       </form>

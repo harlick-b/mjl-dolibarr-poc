@@ -19,6 +19,16 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## A2.2 implementation authorization (DEC-099)
+
+The user authorizes restricted A2.2 only under readiness 06 at `6659a05`: ordinary
+synthetic role changes/deactivation, one PATCH and minimal existing Admin UI,
+no new tables/migrations. Provenance, per-mutation fail-closed schema eligibility,
+login advisory ordering and deterministic race/invalidation checks are mandatory
+before mutation enablement. Complete all sixteen gates, update status, commit,
+and stop. No assigned/responsible accounts, handoff, R8/Admin lifecycle, A3/A4/PTA
+or real accounts. PC1/PC2 remain pending. The roadmap owns completion evidence.
+
 ## Restricted A2.2 scope and readiness (DEC-098)
 
 The user approves synthetic ordinary-account role changes and deactivation only
@@ -26,7 +36,7 @@ when no Activity assignments or outstanding workflow responsibilities exist.
 [Readiness 06](rebuild/06-a2-account-lifecycle-readiness.md) records the fail-closed
 auth-only eligibility boundary, mandatory login lock correction and pre-mutation
 verification gates. **A2_2_READY_FOR_AUTHORIZATION** applies only to this scope.
-This request is documentation-only; implementation remains unauthorized.
+That scope recheck was documentation-only; DEC-099 now authorizes its implementation.
 Assigned/responsible accounts, handoff, inactive reinvitation, Admin lifecycle,
 A3/A4/PTA and real accounts remain deferred/prohibited. PC1/PC2 remain pending.
 DEC-097's earlier unapproved-scope verdict is superseded by this restricted approval.

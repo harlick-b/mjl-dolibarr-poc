@@ -4,13 +4,15 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 inventory records current routes and their access boundaries. It is
 repository-visible evidence, not user acceptance.
 
-## React A2.1 (DEC-096)
+## React A2.1–A2.2 (DEC-096/099)
 
 `/access/users` is the verified-Admin account/invitation view with bounded filters,
 ordinary-role invite/resend/revoke dialogs and safe status projections. Supplied
 `docs/inspiration/users` governs composition; v3 governs tokens. No profile/name,
-Partner, additional Admin or account-lifecycle editor is implemented. Ordinary
-invitees use A1 routes and see their actual exclusive role on `/identity`.
+Partner or additional Admin editor is implemented. Restricted synthetic ordinary
+active accounts have role/deactivation confirmations; backend eligibility remains
+mandatory. Inactive reinvitation and assigned/responsible accounts are excluded.
+Ordinary invitees use A1 routes and see their actual exclusive role on `/identity`.
 
 ## React A1 (DEC-094)
 

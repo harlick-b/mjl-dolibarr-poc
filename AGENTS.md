@@ -26,10 +26,15 @@ PWA, FastAPI liveness/readiness, PostgreSQL connectivity, Alembic bookkeeping,
 quality tooling, isolated Compose and focused verification. DEC-094 now authorizes
 A1 first-Admin invitation/password/email-OTP/session/logout only, with synthetic
 identities, isolated test databases and test mail. PC1/PC2 remain pending; real
-accounts, A2.2/A3/A4, business modules and production deployment are not authorized.
+accounts, A3/A4, business modules and production deployment are not authorized.
 DEC-096 authorizes A2.1 ordinary-role invitations and account listing under
 readiness 05 at commit 2c1929e: five APIs, two table extensions, no new tables,
 all sixteen acceptance checks and focused A1 regressions.
+DEC-099 authorizes restricted A2.2 implementation under readiness 06 at `6659a05`:
+ordinary synthetic role changes/deactivation, one PATCH, no migrations, verified
+database provenance, fixed fail-closed eligibility and mandatory lock/race gates.
+Stop after A2.2; assigned/responsible accounts, reinvitation and Admin lifecycle
+remain deferred.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
 

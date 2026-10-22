@@ -39,6 +39,50 @@ class AuthService:
         self.mail = TestMailbox(policy.mailbox)
         self.clock: Callable[[], datetime] | None = None
 
+    def lifecycle_eligible(self, db: Session) -> None:
+        """Temporary auth-only proof. Replace before ANY PTA/workflow integration.
+
+        The database binding attests operator-verified empty-source provenance;
+        it never bypasses the per-mutation schema checks. No live DDL is allowed.
+        """
+        if (
+            not self.policy.lifecycle_database
+            or self.policy.lifecycle_database != self.engine.url.database
+            or not self.policy.lifecycle_database.startswith("mjl_test_")
+        ):
+            raise AuthError(409, "eligibility_unverified")
+        relations = set(
+            db.execute(
+                text("""
+            SELECT n.nspname, c.relname, c.relkind
+            FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname <> 'information_schema'
+              AND n.nspname !~ '^pg_'
+              AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+        """)
+            ).all()
+        )
+        expected = {
+            ("public", name, "r")
+            for name in (
+                "alembic_version",
+                "auth_user",
+                "auth_invitation",
+                "auth_audit",
+                "auth_context",
+                "auth_otp",
+                "auth_abuse",
+            )
+        }
+        if relations != expected:
+            raise AuthError(409, "eligibility_unverified")
+        revisions = list(
+            db.scalars(text("SELECT version_num FROM public.alembic_version"))
+        )
+        if revisions != ["0003_a21"]:
+            raise AuthError(409, "eligibility_unverified")
+
     def now(self, db: Session) -> datetime:
         if self.clock:
             return self.clock()
@@ -61,6 +105,7 @@ class AuthService:
                 "invitation_id",
                 "generation",
                 "role",
+                "before_role",
                 "user_state",
                 "user_version",
                 "before_state",
@@ -465,7 +510,8 @@ class AuthService:
         delivery = None
         normalized = email.strip().lower()
         with Session(self.engine) as db, db.begin():
-            # Same lock ordering for all login requests: network, then identity.
+            db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+            # Shared with invitation/lifecycle writes, before any row locks.
             network_ok = self.limit(
                 db, "ip:" + ip, self.policy.ip_window_seconds, self.policy.ip_limit
             )

@@ -315,8 +315,8 @@ A2.1 extends A1 in the same isolated synthetic environment. After verified Admin
 login, **Gérer les utilisateurs** opens `/access/users`: list/filter accounts and
 invitations, invite one ordinary business role, deliberately resend or revoke a
 pending invitation. Recipients use the existing password/email-OTP flow. Admin
-creation, role changes, deactivation, inactive-account restoration and recovery
-are unavailable. PC1/PC2 remain pending; real identities and SMTP stay disabled.
+creation, inactive-account restoration and recovery are unavailable. Restricted
+role changes/deactivation are described below. PC1/PC2 remain pending; real identities and SMTP stay disabled.
 
 Run `alembic upgrade head` explicitly in the disposable backend. Revision
 `0003_a21` adds only invitation version and bounded audit facts; no new tables.
@@ -347,3 +347,47 @@ network loss and cache/replay restrictions. The browser test adjusts only a
 consumed synthetic OTP timestamp to exercise account switching without sleeping;
 it changes no policy. Use the setup recipe's label-checked teardown, substituting
 only this task's project/volume/private fixture paths. Never reset the shared POC.
+
+
+### A2.2 restricted ordinary lifecycle
+
+Admin can change an active ordinary user's role or deactivate it through
+`PATCH /api/v1/access/users/{id}` (`expected_version` plus exactly one `role` or
+`deactivate: true`). Both invalidate all old verified/pending OTP contexts. The
+existing account view provides confirmations; unchanged role is a no-op. No
+inactive reinvitation, Admin lifecycle, assignment handoff or business permissions.
+
+**Disabled by default, even in synthetic mode.** Before enabling on a disposable
+database, verify it was created empty by this task, migrated to `0003_a21`, has no
+imports/legacy associations or external business store, and runs only the inspected
+auth-only writers. Only then add `"lifecycle_database": "mjl_test_a22"` to its
+private synthetic policy, using that exact verified database name, and restart
+that isolated backend. This is operator provenance attestation, not automated
+proof about external systems; never copy it to an unverified database. Omit the
+field to keep lifecycle disabled. Do not run live DDL while mutations are enabled.
+
+Every mutation checks the fixed seven auth/Alembic tables across non-system
+schemas and exact revision. Unknown evidence fails closed (409, or 503 on database
+failure). **Before any PTA/assignment/workflow integration, disable and replace
+this temporary check with authoritative assignment and outstanding-responsibility
+checks; never simply advance the allowed revision.** PC1/PC2 remain pending; real
+accounts remain prohibited. No migration was added by A2.2.
+
+For verification, use the existing isolated setup recipe with project
+`mjl-a22-test`, database `mjl_test_a22`, `/tmp/mjl-a22-*` private files and mailbox
+`/tmp/mjl-a1-mail-a22-browser`. Verify fresh provenance before setting the binding.
+Pytest's fixture independently creates/migrates/drops a fresh random database per
+case; its lifecycle tests bind only that verified child. Run:
+
+```bash
+docker exec -e MJL_AUTH_MODE=off mjl-a22-test-backend-1 sh -c 'TEST_DATABASE_URL="$DATABASE_URL" pytest -q -p no:cacheprovider tests/test_lifecycle.py tests/test_access.py tests/test_auth.py tests/test_auth_security.py tests/test_auth_policy.py'
+npm --prefix frontend run test:unit
+npm --prefix frontend run build
+API_PROXY_TARGET=http://127.0.0.1:8013 MJL_A21_MAILBOX=/tmp/mjl-a1-mail-a22-browser MJL_A21_CONTAINER=mjl-a22-test-backend-1 MJL_A22_MAILBOX=/tmp/mjl-a1-mail-a22-browser MJL_A22_CONTAINER=mjl-a22-test-backend-1 PLAYWRIGHT_BROWSERS_PATH=/tmp/mjl-playwright npm --prefix frontend run test:e2e -- e2e/access.spec.js e2e/lifecycle.spec.js
+```
+
+The two browser tests run in order: existing A2.1 establishes the synthetic Admin;
+A2.2 adds its disposable ordinary identity and exercises real PATCH, schema denial,
+conflict, session invalidation, Query refresh and offline/unknown outcomes. Test
+fixture SQL affects only the explicitly named disposable database. Perform the
+same label-checked teardown as A1, using only this project's volume/private files.

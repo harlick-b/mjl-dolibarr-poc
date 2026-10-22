@@ -27,6 +27,8 @@ class Policy(BaseModel):
     origin: str
     key: str
     mailbox: Path
+    # Operator attestation, only after verifying a fresh isolated database.
+    lifecycle_database: str | None = None
 
     @property
     def secure(self) -> bool:

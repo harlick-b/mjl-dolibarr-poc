@@ -4,6 +4,14 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 file records current repository-visible UI evidence, not user acceptance or
 browser verification for this documentation update.
 
+## React A2.2 evidence (DEC-099)
+
+Existing Admin table/dialog patterns now cover restricted role/deactivation with
+accurate no-op feedback. Browser checks verify focus containment/return, 375px
+reflow, fresh authentication after role change, deactivation, conflicts, eligibility
+denial, Query refresh and offline/unknown-result non-replay. No new visual system
+or route; no human acceptance claim. Roadmap owns the sixteen-gate evidence.
+
 ## React A2.1 evidence (DEC-096)
 
 The Admin account/invitation view follows the supplied users table/dialog

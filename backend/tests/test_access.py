@@ -617,11 +617,11 @@ def test_openapi_and_access_endpoint_abuse(admin):
     schema = admin.get("/openapi.json").json()
     validate_spec(schema)
     paths = {p: v for p, v in schema["paths"].items() if p.startswith("/api/v1/access")}
-    assert len(paths) == 4
-    assert sum(len(v) for v in paths.values()) == 5
+    assert len(paths) == 5
+    assert sum(len(v) for v in paths.values()) == 6
     for operations in paths.values():
         for method, operation in operations.items():
-            if method == "post":
+            if method in {"post", "patch"}:
                 assert {
                     p["name"]
                     for p in operation["parameters"]

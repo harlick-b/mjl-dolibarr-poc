@@ -145,18 +145,64 @@ PC1/PC2 remain pending. Real accounts, A2.2, A3, A4, PTA, production and applica
 acceptance remain **NOT_AUTHORIZED / NOT_CLAIMED**. LA2/LA3 and all six external
 security dependency groups retain their gates. Stop after A2.1.
 
-## Restricted A2.2 lifecycle readiness (DEC-098)
+## A2.2 restricted ordinary lifecycle (DEC-098–099)
 
-**A2_2_READY_FOR_AUTHORIZATION** — user-approved scope: synthetic ordinary-account
-role changes and deactivation, excluding assignments and outstanding workflow
-responsibilities. [Readiness 06](rebuild/06-a2-account-lifecycle-readiness.md) owns
-the exact fail-closed auth-only guard, login lock-order correction and sixteen
-checks. Eligibility and deterministic PostgreSQL concurrency checks must pass
-before mutation exposure. One PATCH, no new schema; R8/handoff/Admin lifecycle
-remain deferred. Future PTA integration must replace the guard, not advance its
-revision allowance. PC1/PC2 remain pending; real accounts prohibited.
-This supersedes DEC-097's scope blocker; documentation-only recheck does not
-authorize implementation. No runtime checks were executed for this review.
+**A2_2_COMPLETE** — implemented only readiness 06 at `6659a05`; **16/16 gates
+passed**. No application acceptance, real-account enablement or production claim.
+
+One `PATCH /api/v1/access/users/{identifier}` supports exactly one ordinary active
+role change or deactivation with expected version. Admin/self targets and broader
+lifecycle are denied. Existing User/Invitation versions and append-only audit
+provide atomic changes and obsolete verified/pending-OTP proof invalidation.
+Login now takes the existing advisory lock before any row lock. Two dialogs reuse
+the Admin view, Router/Query, approved users composition and v3 tokens. Zero new
+tables, migrations, dependencies, services or business mechanisms.
+
+Provenance: task-created `mjl-a22-test` volume/database started empty; explicit
+migration reached `0003_a21` and a zero-user check preceded policy attestation.
+Pytest created/migrated/dropped random empty child databases. Inspected writers
+remain auth-only, without imports or external business stores. Lifecycle defaults
+off until private `lifecycle_database` matches the verified disposable database;
+that attestation cannot bypass per-mutation exact revision/seven-table checks.
+Unknown relations, versions or read failures deny. **Replace the temporary guard
+before any PTA/assignment/workflow integration; never advance its revision alone.**
+
+| Gate | Exercised evidence / PASS |
+| --- | --- |
+| L01 | Verified Admin only; anonymous/pending/expired/inactive/three ordinary roles and CSRF/Origin/Host negatives |
+| L02 | All six distinct ordinary-role transitions, exclusive input, Admin/self/invalid targets, stale state and unchanged-role no-op |
+| L03 | Deactivation preserves identity/history; prepared/delivered invitation revoked with version; consumed/revoked unchanged |
+| L04 | Old verified cookies and pending OTP contexts denied; role changes require fresh password/OTP; role restoration never revives old cookie |
+| L05 | Exact auth-only baseline passes; unknown/multiple/missing revision, missing/extra/foreign/view/partitioned relations and catalog fault fail closed |
+| L06 | Absent/wrong database attestation and unknown schema deny; existing synthetic-policy negatives remain effective |
+| L07 | Deterministic overlapping role/role and role/deactivate writes in both orders: one success/version/audit, one conflict |
+| L08 | Both orders of login, cross-identity login, OTP verify/resend and session versus PATCH, with barriers and bounded PostgreSQL waits; late OTP success/failure cannot restore authority |
+| L09 | No reinvitation/activation/Admin extension; inactive invite conflicts; A2.1 replay and late invitation delivery regressions pass |
+| L10 | Mutation/audit/commit failures restore User and outstanding Invitation state/version; no success audit or lifecycle email |
+| L11 | Stable actor/target and actual old/new facts; append-only audit and sanitized DTOs/logs; no sensitive browser persistence |
+| L12 | Existing identity/invitation uniqueness and state/password constraints retained; rejection leaves identity/history intact |
+| L13 | Real-browser role/no-op/deactivate dialogs, keyboard containment/focus return, 375px layout, conflict/eligibility/unknown-result feedback and both Query lists refreshed |
+| L14 | Browser offline non-replay and A2.1 account-switch/logout checks; unit delayed mutation completion cannot restore cleared queries |
+| L15 | Valid generated six-operation access OpenAPI, exclusive PATCH payload, security/header/error contract; invitation POST unchanged |
+| L16 | Focused A1/A2.1 tests, quality/build and isolated-resource teardown |
+
+Verification: **76 lifecycle backend cases**, **82 focused A1/A2.1 regression
+cases**, **20 frontend unit cases**, **one A2.1 browser journey and one A2.2
+browser journey** passed. Tests ran in focused batches; review-driven cases and
+failed test oracles were corrected and rerun, not counted as passing from their
+initial failure. The pre-existing API inventory assertion was updated for the one
+authorized new operation and explicitly passed. README owns reproducible commands.
+Ruff lint/format (app/tests), strict mypy, ESLint, Prettier, Stylelint, frontend
+build, OpenAPI validation and Git diff checks passed. Independent Engineering/UI
+and Security/Specification reviews passed after their findings were verified.
+Synthetic mobile screenshot inspected; human accessibility acceptance unclaimed.
+Existing test-library deprecation warnings remain; no dependency changes.
+
+Label-verified task containers, network, volume, local image and private
+policy/mail captures were removed. No shared POC resources changed. Unrelated
+historical suites, production audits and redundant full reruns were skipped.
+PC1/PC2 remain pending. Assigned/responsible accounts, handoff, R8/Admin lifecycle,
+A3/A4/PTA and real-account enablement remain deferred/prohibited. Stop after A2.2.
 
 ## A1 first Admin authentication (DEC-094)
 

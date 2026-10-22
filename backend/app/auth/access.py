@@ -321,3 +321,92 @@ def revoke(
     identifier: str, body: Version, request: Request, auth: Auth
 ) -> InvitationItem:
     return change_invitation(identifier, body, request, auth, revoke=True)
+
+
+class RoleChange(Version):
+    role: BusinessRole
+
+
+class Deactivation(Version):
+    deactivate: bool = Field(strict=True)
+
+    @field_validator("deactivate")
+    @classmethod
+    def only_deactivate(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("Only deactivation is supported")
+        return value
+
+
+@router.patch(
+    "/users/{identifier}",
+    response_model=UserItem,
+    openapi_extra=MUTATION_HEADERS,
+    description=(
+        "Restricted synthetic ordinary active accounts only. Exactly one role change "
+        "or deactivation. 409 for stale/ineligible state or eligibility_unverified. "
+        "Requires operator-verified auth-only database; never enables PTA lifecycle."
+    ),
+)
+def lifecycle(
+    identifier: str, body: RoleChange | Deactivation, request: Request, auth: Auth
+) -> UserItem:
+    with Session(auth.engine) as db, db.begin():
+        db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+        actor = admin(db, auth, request)
+        user = db.get(User, identifier, with_for_update=True)
+        if not user:
+            raise AuthError(404, "account_not_found")
+        if user.id == actor.id or user.role == "ADMIN_PLATEFORME":
+            raise AuthError(403, "admin_target_forbidden")
+        auth.lifecycle_eligible(db)
+        if user.state != "active":
+            raise AuthError(409, "account_ineligible")
+        if user.version != body.expected_version:
+            raise AuthError(409, "account_stale")
+        invitation = db.scalar(
+            select(Invitation).where(Invitation.user_id == user.id).with_for_update()
+        )
+        changed = not isinstance(body, RoleChange) or body.role != user.role
+        if changed:
+            facts: dict[str, str | int] = {
+                "before_role": user.role,
+                "before_user_state": user.state,
+                "before_user_version": user.version,
+            }
+            if isinstance(body, RoleChange):
+                user.role = body.role
+                action = "account_role_change"
+            else:
+                user.state = "inactive"
+                action = "account_deactivate"
+                if invitation and invitation.state in {"prepared", "delivered"}:
+                    facts.update(
+                        {
+                            "invitation_id": invitation.id,
+                            "generation": invitation.generation,
+                            "before_state": invitation.state,
+                            "before_version": invitation.version,
+                        }
+                    )
+                    invitation.state = "revoked"
+                    invitation.version += 1
+                    facts.update(
+                        {"after_state": invitation.state, "version": invitation.version}
+                    )
+            user.version += 1
+            facts.update(
+                {
+                    "role": user.role,
+                    "user_state": user.state,
+                    "user_version": user.version,
+                }
+            )
+            auth.audit(db, action, actor.id, user.id, details=facts)
+        return UserItem(
+            id=user.id,
+            email=user.email,
+            role=cast(Role, user.role),
+            state=cast(Literal["pending", "active", "inactive"], user.state),
+            version=user.version,
+        )

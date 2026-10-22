@@ -1,10 +1,10 @@
 export const sessionKey = ['auth', 'session']
 
-export async function apiRequest(path, { signal, csrf, body } = {}) {
+export async function apiRequest(path, { signal, csrf, body, method } = {}) {
   if (!navigator.onLine)
     throw new Error('Connexion indisponible. Aucune action envoyée.')
   const response = await fetch(path, {
-    method: body === undefined ? 'GET' : 'POST',
+    method: method ?? (body === undefined ? 'GET' : 'POST'),
     credentials: 'same-origin',
     cache: 'no-store',
     signal,

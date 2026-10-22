@@ -47,7 +47,9 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
 }) => {
   test.skip(!mailbox || !container, 'Requires isolated A2.1 environment')
   test.setTimeout(120000)
-  expect(container).toBe('mjl-a21-test-backend-1')
+  expect(['mjl-a21-test-backend-1', 'mjl-a22-test-backend-1']).toContain(
+    container,
+  )
   expect(mailbox).toMatch(/^\/tmp\/mjl-a1-mail-/)
   execFileSync('docker', [
     'exec',
@@ -272,7 +274,7 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
     `import os
 from sqlalchemy import create_engine,text
 e=create_engine(os.environ['DATABASE_URL'])
-assert e.url.database=='mjl_test_a21'
+assert e.url.database in ('mjl_test_a21','mjl_test_a22')
 with e.begin() as db:
  db.execute(text("UPDATE auth_otp SET sent_at=clock_timestamp()-interval '61 seconds' WHERE user_id=(SELECT id FROM auth_user WHERE email='agent-browser@example.test')"))
 e.dispose()`,

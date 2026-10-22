@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { App, makeRouter } from './router'
@@ -191,4 +191,127 @@ test('a direct API denial removes Admin controls and sensitive query data', asyn
   expect(
     router.options.context.queryClient.getQueriesData({ queryKey: ['access'] }),
   ).toEqual([])
+})
+
+// Real dialog focus and network behavior are covered by the browser journey.
+test('ordinary active rows expose lifecycle actions but Admin and inactive rows do not', async () => {
+  const items = [
+    {
+      id: 'actor',
+      email: 'actor@example.test',
+      role: 'ADMIN_PLATEFORME',
+      state: 'active',
+      version: 2,
+    },
+    {
+      id: 'ordinary',
+      email: 'ordinary@example.test',
+      role: 'AGENT_SAISIE',
+      state: 'active',
+      version: 2,
+    },
+    {
+      id: 'inactive',
+      email: 'inactive@example.test',
+      role: 'AGENT_SAISIE',
+      state: 'inactive',
+      version: 3,
+    },
+  ]
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.includes('/auth/')
+              ? session()
+              : {
+                  items: url.includes('/users?') ? items : [],
+                  total: url.includes('/users?') ? 3 : 0,
+                },
+          ),
+        ),
+      ),
+    ),
+  )
+  mount()
+  expect(
+    await screen.findByRole('button', { name: 'Modifier le rôle' }),
+  ).toBeVisible()
+  expect(screen.getAllByRole('button', { name: 'Désactiver' })).toHaveLength(1)
+  expect(
+    screen.queryByRole('button', { name: /réactiver|réinviter/i }),
+  ).not.toBeInTheDocument()
+})
+
+test('late lifecycle completion after offline invalidation cannot restore protected queries', async () => {
+  let finish
+  const items = [
+    {
+      id: 'ordinary',
+      email: 'ordinary@example.test',
+      role: 'AGENT_SAISIE',
+      state: 'active',
+      version: 2,
+    },
+  ]
+  const fetch = vi.fn((url, options) => {
+    if (options?.method === 'PATCH')
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    return Promise.resolve(
+      new Response(
+        JSON.stringify(
+          url.includes('/auth/')
+            ? session()
+            : { items: url.includes('/users?') ? items : [], total: 1 },
+        ),
+      ),
+    )
+  })
+  vi.stubGlobal('fetch', fetch)
+  // jsdom lacks native dialog methods; browser tests verify the real behavior.
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  try {
+    const router = mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Désactiver' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirmer la désactivation' }),
+    )
+    await waitFor(() => expect(finish).toBeTypeOf('function'))
+    expect(
+      fetch.mock.calls.find(([, o]) => o?.method === 'PATCH')[1],
+    ).toMatchObject({
+      method: 'PATCH',
+      body: JSON.stringify({ expected_version: 2, deactivate: true }),
+    })
+    await act(async () => window.dispatchEvent(new Event('offline')))
+    await screen.findByRole('heading', { name: 'Accès à vérifier' })
+    await act(async () =>
+      finish(
+        new Response(
+          JSON.stringify({ ...items[0], state: 'inactive', version: 3 }),
+        ),
+      ),
+    )
+    expect(screen.queryByText('Compte désactivé.')).not.toBeInTheDocument()
+    expect(
+      router.options.context.queryClient.getQueriesData({
+        queryKey: ['access'],
+      }),
+    ).toEqual([])
+    expect(
+      fetch.mock.calls.filter(([, o]) => o?.method === 'PATCH'),
+    ).toHaveLength(1)
+  } finally {
+    delete HTMLDialogElement.prototype.showModal
+    delete HTMLDialogElement.prototype.close
+  }
 })
