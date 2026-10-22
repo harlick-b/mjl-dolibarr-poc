@@ -64,6 +64,24 @@ Task-owned runtime resources were attested and removed. No historical PHP suite,
 load test or production-readiness audit was run: none belongs to this slice.
 No user acceptance or authorization of another slice follows from these checks.
 
+## Authentication & Access readiness (DEC-093)
+
+**AUTH_ACCESS_READY_FOR_AUTHORIZATION** for the proposed A1 first-Admin
+invitation → password setup → password/email OTP → verified identity/logout
+journey. [Readiness 04](rebuild/04-authentication-access-readiness.md) owns scope,
+16 historical contract dispositions, 15 applicable security controls, 16 proposed
+API responsibilities (7 A1), 7 persistence concerns (6 A1) and 18 future checks.
+Engineering and security/specification reviews passed after documentation fixes.
+No implementation or runtime checks occurred in this review.
+
+Zero local implementation blockers; two pre-cutover policy decisions must be
+resolved before real-account enablement. Three later access decisions and the
+six baseline external security groups retain their owners/gates. Routine Admin
+provisioning/account management, recovery and business authorization follow as
+separate bounded slices. No new-stack authentication, users or business schema
+exists yet. A separate implementation request is required; production and
+application acceptance remain unclaimed.
+
 ## Approved PTA business sequence after foundation/auth (DEC-087–091)
 
 The following feature sequence retains approved business dependencies. Native

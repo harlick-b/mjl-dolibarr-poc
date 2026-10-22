@@ -19,6 +19,16 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## Authentication & Access readiness (DEC-093)
+
+The latest request authorizes documentation-only readiness review after foundation
+`48c2bea`. [Readiness contract](rebuild/04-authentication-access-readiness.md) owns
+the bounded proposed first-Admin invitation-to-session slice, policy stage gates
+and future test oracles. Auth inspiration is supplied in `docs/inspiration/auth/`.
+Readiness is not implementation authorization: no auth/user/schema/test/dependency,
+Docker, skill or deployment changes. Confirmed rules remain authoritative;
+historical numeric settings are clearly distinguished from approved policy.
+
 ## First foundation implementation authorization (DEC-092)
 
 The user explicitly authorized the first technical React/FastAPI/PostgreSQL
