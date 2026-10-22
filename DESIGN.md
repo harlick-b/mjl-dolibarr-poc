@@ -1,5 +1,12 @@
 # MJL Design Memory
 
+## Dedicated application (DEC-091)
+
+Use React/JSX, Tailwind, shadcn/ui and Lucide when implementation is authorized.
+Retain approved v3 tokens and applicable inspiration; PHP widgets, native header
+font loading and Dolibarr routes are historical integration details. The neutral
+foundation shell does not authorize new product-screen designs.
+
 Business behavior, roles, permissions, states, data, and scope come from the
 canonical v2 package. The approved v3 package remains the presentation
 authority only.

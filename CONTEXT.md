@@ -1,5 +1,15 @@
 # MJL Domain Language
 
+## Rebuild scope (DEC-091)
+
+This glossary retains business meaning under the PTA brief. React/FastAPI and
+PostgreSQL replace Dolibarr as the future technical foundation; native object,
+Admin-reset, ECM and tenant implementation terms below describe the retained POC.
+The new database imports no sample data or native accounts. A guarded first Admin
+will be separately provisioned. Document series/version-engine terminology below
+is historical Phase 4 planning only: the rebuild needs optional private contextual
+evidence, not a generic document lifecycle. No implementation is authorized.
+
 This glossary defines the ubiquitous language for the post-cadrage MJL
 application. The approved PTA brief and DEC-087/088 supersede conflicting
 pre-PTA definitions. Remaining exception/document details follow the authority

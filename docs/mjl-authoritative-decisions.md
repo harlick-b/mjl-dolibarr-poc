@@ -19,6 +19,34 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## Dedicated application rebuild — 2026-10-22 (DEC-091)
+
+The latest user instruction selects React/Vite JavaScript/JSX, TanStack
+Router/Query, Tailwind/shadcn/ui/Lucide, FastAPI REST/OpenAPI, PostgreSQL,
+SQLAlchemy 2/Alembic and Docker Compose. PWA business operations are online-only.
+Frontend/backend deploy separately; commercial cloud provider/region are unapproved.
+This authorizes documentation and repository-owned skill maintenance only.
+
+The new technical proposal is `docs/rebuild/02-target-architecture-and-engineering-standard.md`;
+security requirements are consolidated in `docs/rebuild/03-security-compliance-baseline.md`.
+Both remain proposals for review, not evidence of conformity or permission to build.
+`docs/rebuild/01-authority-and-business-baseline.md` classifies business contracts,
+all 35 migration preservation rules and all 75 existing API operations.
+The roadmap owns the first foundation slice/readiness; the gap analysis owns
+remaining decisions. No implementation, production work, Phase 4 activation,
+POC removal or migration of old accounts/data is authorized.
+
+The frozen Dolibarr architecture and Engineering Standard v1 remain historical
+engineering evidence, byte-identical. Their custom-module, PHP/bootstrap,
+native-session, MariaDB/lifecycle, ERP-object and delivery requirements are
+superseded for the new rebuild, not retroactively unapproved. Existing POC
+commands, source paths and test matrices describe legacy maintenance only.
+Approved business, contractual/security and v3 visual requirements survive
+according to the disposition register. The old 35 rules are not copied wholesale.
+Phase 4's complex document series/ECM/preview design and accepted risks are not
+automatically transferred: target optional private PDF/image evidence only,
+with separately approved file-security and retention decisions.
+
 ## Approved PTA change — 2026-10-21 (DEC-087)
 
 The user explicitly approved the business rules in
@@ -46,7 +74,7 @@ permission.
 
 | Subject | Canonical document |
 | --- | --- |
-| REST action inventory and wire contract | `docs/mjl-rest-api-contract.md`, `docs/mjl-rest-api.openapi.yaml` (75/75 inventoried operations implemented; not accepted) |
+| Legacy REST action inventory and wire contract (behavioral evidence) | `docs/mjl-rest-api-contract.md`, `docs/mjl-rest-api.openapi.yaml` (75/75 inventoried operations implemented; not accepted) |
 | Complete business rules | `docs/mjl-functional-specification-v2.md` |
 | Decision history and provenance | `docs/mjl-decision-register-v2.md` |
 | Core, excluded, and gated scope | `docs/mjl-scope-boundary-v2.md` |
@@ -55,14 +83,17 @@ permission.
 | Target entities, fields, and invariants | `docs/mjl-data-dictionary-v2.md` |
 | Phase 4 cross-cutting planning and handoff index | `docs/mjl-phase4-contextual-document-management.md` |
 | Implementation state and unfinished phases | `docs/mjl-implementation-roadmap-v2.md` |
-| Architecture preservation requirements | `docs/architecture-audit/14-preservation-ledger.md` |
-| Frozen target architecture boundaries and migration-wave contracts | `docs/architecture-audit/17-target-architecture-proposal.md` |
-| Implementation and review rules within the frozen architecture | `docs/mjl-engineering-standard-v1.md` |
+| Historical architecture preservation requirements | `docs/architecture-audit/14-preservation-ledger.md` |
+| Historical frozen Dolibarr architecture and migration-wave contracts | `docs/architecture-audit/17-target-architecture-proposal.md` |
+| Historical implementation rules within the frozen Dolibarr architecture | `docs/mjl-engineering-standard-v1.md` |
+| New-stack architecture and Engineering Standard proposal | `docs/rebuild/02-target-architecture-and-engineering-standard.md` |
+| Consolidated security requirements | `docs/rebuild/03-security-compliance-baseline.md` |
+| Rebuild authority/business/API disposition | `docs/rebuild/01-authority-and-business-baseline.md` |
 
-## Engineering authorities and implementation state
+## Historical Dolibarr engineering authority and implementation state
 
-The architecture and Engineering Standard remain frozen authorities for their
-technical contracts. DEC-075 authorizes documentation cleanup only; it changes
+The legacy architecture and Engineering Standard retain their frozen historical
+technical contracts; they do not govern the rebuild. DEC-075 authorizes documentation cleanup only; it changes
 no architectural boundary or runtime behavior. Current document fingerprints:
 
 | Authority | Status | SHA-256 |
@@ -80,7 +111,8 @@ W0 and W1–W7 are complete. DEC-072 records `MIGRATION_COMPLETE: YES`.
 The roadmap owns concise implementation state, the decision register owns
 history, and the gap analysis owns unresolved issues. Completed audit snapshots,
 readiness reviews, and execution/validation reports are retained in Git history
-rather than as active documents. The preservation ledger retains all 35 rules.
+rather than as active documents. The historical preservation ledger retains all 35 rules, classified for rebuild
+applicability in document 01.
 
 DEC-073 records post-migration technical revalidation. Role-based UAT and manual
 accessibility sign-off remain outstanding; application acceptance and production
@@ -94,8 +126,9 @@ implementation is not authorized and document routes remain deny-all.
 - Production preparation and production-readiness assessment are deferred until
   the user explicitly requests them.
 - The application is not live. Existing local sample data is not migrated.
-- Preserve exactly one native Dolibarr technical administrator in the empty
-  development tenant.
+- Preserve the existing POC tenant and its native technical administrator. The
+  rebuild starts clean with a separately guarded first-admin bootstrap, not
+  migration of native accounts or sample data.
 - Create no persistent sample/demo dataset until the user approves one. Tests
   may create minimal records only in isolated disposable tenants and must tear
   them down.
@@ -145,9 +178,9 @@ implementation is not authorized and document routes remain deny-all.
   one Partner. Internal roles remain exclusive; no role switching or public
   registration. Full audit-history exports remain Validator/Admin only.
 - `Programme` is not a generic entity name; it may remain in a proper name.
-- Existing internal role codes and French labels remain. Native Admin implies
-  `ADMIN_PLATEFORME`, cannot combine with a business identity and grants no
-  business mutation. Preserve entity isolation and guarded document delivery.
+- Existing internal role codes and French labels remain. In the POC, native Admin implies
+  `ADMIN_PLATEFORME`; the rebuild provisions that technical role independently.
+  Admin cannot combine with a business identity and grants no business mutation. Preserve entity isolation and guarded document delivery.
 - Authentication target remains email/password plus email OTP, with 24-hour
   idle and absolute session limits and no remembered devices. Code supports
   configuration-gated OTP; the last recorded local state has it disabled and
@@ -160,8 +193,8 @@ implementation is not authorized and document routes remain deny-all.
 
 ## Implementation boundary
 
-MJL-specific code stays outside Dolibarr core. Native Dolibarr capabilities may
-be reused through guarded MJL interfaces. The roadmap records which phases are
+The POC remains outside Dolibarr core. Native capabilities are legacy reference
+only; the rebuild uses the proposed dedicated frontend/backend boundaries. The roadmap records which phases are
 implemented; that status does not establish acceptance.
 
 Over-engineering is banned. Remove obsolete mechanisms and their stale

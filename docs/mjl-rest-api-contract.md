@@ -1,5 +1,13 @@
 # MJL REST API contract and action inventory
 
+## Rebuild disposition (DEC-091)
+
+This contract and its unchanged OpenAPI are pre-PTA POC evidence. They do not
+require copying the native transport/session/token architecture. All 75 operation
+IDs are classified in [rebuild baseline 01](rebuild/01-authority-and-business-baseline.md).
+New REST/OpenAPI conventions are proposed in baseline 02. No replacement OpenAPI
+or runtime API is created by this audit.
+
 Status: **all 75 inventoried operations implemented; endpoint coverage is not user acceptance**. Inventory date:
 2026-10-21. User decisions: DEC-078 (web/PWA, progressive migration, all current
 MJL business and administration actions, login + email OTP, 24-hour idle and
@@ -142,7 +150,6 @@ form actions map to these operations; transport changes do not add business righ
 | `exportPortfolio` | `POST /reports/portfolio/exports` | Generate and download portfolio | B | `class/mjlexport.class.php` |
 | `exportAudit` | `POST /reports/audit/exports` | Generate and download audit | VT | `class/mjlexport.class.php` |
 | `getMonitoringOptions` | `GET /monitoring-options` | Scoped filter choices for current monitoring/report screens | B | `lib/monitoring/mjl_monitoring_read.lib.php` |
-
 
 ### Coverage notes
 

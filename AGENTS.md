@@ -1,265 +1,103 @@
 # Agent Instructions
 
-This is the canonical in-repo instruction layer for AI agents. If another
-AI-facing file conflicts with this file, follow this file.
+Canonical repository instructions. The user's latest explicit request takes
+precedence over recorded decisions, plans, tests and skill procedures.
 
-## Project Overview
+## Authority and scope
 
-MJL Dolibarr is a Dockerized Dolibarr 23.0.2 workspace with MariaDB 11 for
-monitoring externally funded Ministry of Justice and Legislation projects.
-MJL-specific work must stay in the custom module or documented safe supporting
-areas; Dolibarr core files must never be modified.
+Read `docs/mjl-authoritative-decisions.md` first, then only the canonical sources
+relevant to the task. The approved PTA brief and DEC-087–090 govern business
+rules. Code and passing tests are implementation evidence, never acceptance.
 
-## MJL Documentation Authority
+MJL is being rebuilt as a dedicated React/Vite JavaScript/JSX application with
+TanStack Router/Query, Tailwind/shadcn/ui/Lucide, FastAPI REST, PostgreSQL,
+SQLAlchemy 2 and Alembic. The PWA is installable with online-only business
+operations. Docker Compose is the development direction; frontend and backend
+will deploy separately. Provider and region are unapproved.
 
-For MJL work, read `docs/mjl-authoritative-decisions.md` first.
+The proposed technical standard is
+`docs/rebuild/02-target-architecture-and-engineering-standard.md`;
+`docs/rebuild/03-security-compliance-baseline.md` owns security requirements.
+The authority/business/API disposition register is
+`docs/rebuild/01-authority-and-business-baseline.md`.
+Readiness and the first proposed slice are in the existing roadmap.
+These documents do not authorize implementation. The current task permits only
+Markdown documentation and repository-owned skill/instruction maintenance.
 
-The user's latest explicit instruction supersedes every recorded project
-decision, approval, plan, report, test convention, and skill procedure. Update
-the affected repository guidance rather than preserving a conflicting earlier
-decision. An implementation or passing test is evidence only; it does not mean
-the user accepted the feature or application.
+## Legacy workspace
 
-Do not follow older POC docs, executed plans, historical prompts, or stale
-N1/N2/DPAF instructions.
+The existing Dolibarr 23.0.2/MariaDB 11 POC remains a behavioral reference and
+has never been deployed to production. Preserve it, its data and frozen
+architecture/Engineering Standard as historical evidence. Do not edit Dolibarr
+core. Its custom-module location, bootstrap, native sessions, database adapter,
+lifecycle and PHP presentation rules govern legacy maintenance only.
 
-Use `docs/mjl-current-app-functional-map.md` only as current-state evidence.
+Existing `docker compose up -d`, `http://127.0.0.1:8080/`, `package.json` scripts
+and `docs/mjl-acceptance-tests.md` belong to that POC. They are not new-stack
+commands. New frontend/backend directories and configuration require separate
+implementation authorization. Do not migrate sample data or native accounts;
+a future first-admin bootstrap must be guarded and non-seeding.
 
-If code conflicts with authoritative decisions, treat the code as
-implementation debt and record it in `docs/mjl-current-vs-target-gap-analysis.md`.
+## Engineering and security
 
-If a doc conflicts with authoritative decisions, update, merge, or delete the
-stale doc.
+- Implement only the authorized slice. Before edits map each mechanism to a
+  current requirement or concrete security/data-integrity risk. Prefer the
+  smallest existing seam; remove speculative abstractions. Reassess immediately
+  if scope grows and after an hour of active implementation.
+- No generic workflow engine, event bus, repository framework, microservices,
+  offline database, mutation queue or speculative infrastructure.
+- Router owns navigation/search; Query owns server state; React state owns
+  temporary UI/forms. Use JavaScript/JSX; TypeScript is not a prerequisite.
+- FastAPI routes validate and authorize; use cases own transactions, current
+  state checks and atomic audit. Persistence helpers never silently commit.
+- Preserve exact XOF, French-first content, immutable approved revisions,
+  no-self-validation and server-side role/resource isolation. Assignments are
+  coordination metadata, not Agent access restrictions. No multi-tenant SaaS
+  assumption or in-app banking/reallocation of unused funds.
+- Access is Admin-invited, email/password plus email OTP, with 24-hour idle and
+  absolute limits, no remembered devices or public registration. Admin has no
+  business mutation; Partner identities are read-only and single-Partner scoped.
+- Keep API/documents/exports authorized on the server. Phase 4 remains separately
+  gated; legacy document routes remain deny-all. Documents are optional evidence.
+- No persistent demo data, hard-coded credentials or committed secrets. Tests
+  use minimal disposable data and teardown; never mutate a shared tenant for tests.
 
-## Important Directories
+## Design and verification
 
-- `custom/mjlfinancement`: MJL custom module, pages, classes, scripts, SQL,
-  CSS, JS, and language files.
-- `docs/`: authority, current-state, deployment, readiness, testing, and
-  decision docs.
-- `docs/design-system/`: active design guidance, current screen inventory, and
-  UI audit docs.
-- `CONTEXT.md`: durable product/domain memory.
-- `DESIGN.md`: durable design memory.
-- `tasks/lessons.md`: reusable lessons from repeated mistakes or durable
-  debugging discoveries.
-- `tests/e2e`: Playwright E2E tests.
-- `data/documents`: local Dolibarr document storage.
+For touched visual surfaces read `DESIGN.md`, the design-system index and
+relevant approved v3 tokens/inspiration. Their product assertions cannot override
+business authority. Missing inspiration blocks that product screen, not unrelated
+backend work. The foundation shell is a technical smoke surface, not a new design.
 
-## Setup Commands
+Choose the smallest check that verifies the change. Documentation-only work uses
+`git status`, `git diff --stat`, `git diff`, `git diff --check`, plus direct review
+of new files. Report skipped checks and why. Do not run broad historical suites,
+benchmarks or production audits without an explicit request. Future React UI/API
+journeys use focused Playwright; domain rules use Vitest/pytest as appropriate;
+transactions and constraints use disposable PostgreSQL. Never claim acceptance,
+compliance or production readiness from passing development checks.
 
-Confirmed from `README.md` and `docker-compose.yml`:
+## Skills and collaboration
 
-```bash
-docker compose up -d
-```
+Use repository skills from `skills/<name>/SKILL.md`; global skills are read-only.
+Route architecture to `codebase-design`, unclear product decisions to
+`grill-with-docs`, domain changes to `domain-modeling`, bugs to `diagnosing-bugs`,
+behavioral implementation to `tdd`, throwaway exploration to `prototype`, skill
+maintenance to `writing-great-skills`, and substantial reviews to `code-review`.
+Use local `design-system-guardian`, `security-baseline-review` and
+`confidence-review-loop` for their named concerns. Skill procedures cannot expand
+scope, require runtime work for a documentation audit or imply implementation
+approval. Do not create per-library skills.
 
-Open `http://127.0.0.1:8080/`.
+Use subagents only when explicitly requested or for independent audits. Return
+findings, evidence, risk and focused fixes; consolidate before edits. At the end
+of meaningful work evaluate `tasks/lessons.md`; add only repeated corrections or
+durable discoveries. Legacy-specific lessons remain legacy-specific.
 
-The retained `bootstrap_poc.php` is a non-seeding module activation path. It
-must preserve the empty tenant and the one native technical administrator.
+## Git and stopping
 
-## Development Commands
-
-Needs confirmation. No dedicated dev-server, watch, formatter, or generic
-developer command is confirmed beyond Docker Compose start.
-
-## Test/Lint/Build Commands
-
-Confirmed public verification commands from `package.json`:
-
-```bash
-npm test
-npm run test:unit
-npm run test:verify
-npm run test:e2e
-npm run test:manual-accessibility
-```
-
-Active verification guidance is in `docs/mjl-acceptance-tests.md`.
-
-Choose the smallest focused check that covers the changed behavior. Do not run
-`npm test`, long container suites, performance benchmarks, production-readiness
-audits, complete historical matrices, or repeat an already relevant passing
-check unless the user explicitly requests that run in the current task.
-Historical plans and reports cannot impose a test obligation. Remove tests that
-only preserve obsolete documents, implementation ceremony, or duplicated
-coverage; retain focused checks for current behavior, authorization, security,
-and data integrity.
-
-Container-backed suites use isolated disposable tenants and minimal fixtures.
-Do not restore the removed persistent seed to make tests pass.
-
-Lint command: Needs confirmation. Build command: Needs confirmation.
-
-## Environment/Secrets Rules
-
-- Do not commit real secrets, production credentials, private keys, API tokens,
-  or client-specific confidential values.
-- Credentials in `docker-compose.yml` are local development/test values only.
-- Production email transport, public/base URL, final permissions, and secrets
-  configuration remain Needs confirmation.
-- Never recreate `seed_sample_data.php`, the legacy sample-data library/CSVs,
-  or persistent fixture packages in a shared or production tenant.
-
-## Coding Conventions
-
-- Keep MJL-specific code inside `custom/mjlfinancement`, `docs/`, documented
-  setup scripts, disposable test-fixture locations, tests, SQL/update files, or
-  a documented safe custom theme boundary.
-- If a requirement appears to need Dolibarr core edits, stop and escalate the
-  architecture decision.
-- Prefer native Dolibarr concepts where they fit: third parties, projects,
-  users/groups, permissions, ECM/documents, and export helpers.
-- Preserve French-first UI/content and XOF/FCFA assumptions.
-- Preserve invitation-only access. Only Admin can send invitations for now.
-- Preserve exactly one native technical administrator through the clean local
-  reset; migrate no other existing sample user or business record.
-- Keep persistent sample/demo data absent until all implementation phases are
-  complete. Tests may create minimal records only inside isolated disposable
-  tenants and must remove all test data with tenant teardown.
-- Do not create or expose a public register page.
-- Filter custom queries by the active Dolibarr entity for custom objects,
-  dashboards, alerts, exports, audit lists, document lookups, and workflow
-  lookups.
-- UI hiding is not access control; direct URL and POST guards must remain.
-- Supporting documents must use guarded MJL routes, not raw public ECM links.
-- Preserve workflow rules, audit history, exports, and no-self-validation.
-- Official exports should stay French-labeled, Excel-readable, server-filtered,
-  audited, and stable in filename/format.
-
-## Git/Destructive Action Rules
-
-- Never modify Dolibarr core files.
-- Never revert user changes unless explicitly requested.
-- Do not run destructive git or filesystem operations unless explicitly
-  requested and approved.
-- Keep unrelated dirty worktree changes intact.
-
-## Verification Before Done
-
-- Match verification to the changed surface.
-- Use E2E tests as the primary validation for app UI, auth, dashboards,
-  exports, official outputs, and workflow changes.
-- For schema, workflow, document, or export changes, run the relevant current-purpose
-  verification command listed in `docs/mjl-acceptance-tests.md`.
-- For PHP edits, run appropriate syntax checks if available and report the
-  exact command used.
-- For documentation-only instruction changes, a diff/status check is enough.
-- Always report skipped checks and why.
-- Passing checks establish only the tested behavior. They do not record user
-  acceptance, authorize another phase, or establish production readiness.
-
-## Lean-Execution Checkpoint
-
-- Over-engineering is banned. Delete obsolete implementation, commands,
-  tests, and documents together; a reference from another obsolete file is not
-  a reason to keep either one. Implement only mechanisms required by the
-  current acceptance criteria or a concrete security/data-integrity risk.
-  Prefer an existing project seam or the smallest direct implementation that
-  satisfies the requirement.
-- Apply this checkpoint before the first implementation edit. Map each planned
-  mechanism to a current requirement, remove anything justified only by
-  hypothetical reuse, future flexibility, additional confidence, or an
-  unrequested failure model, and keep that minimal map as the scope boundary.
-- Stop immediately when the implementation introduces machinery outside that
-  map, duplicates an existing mechanism, or grows into its own framework.
-  Delete the speculative work before continuing; prior effort is not a reason
-  to retain it.
-- After each hour of active implementation, stop and reassess whether the work
-  is becoming over-engineered. Time spent waiting for required tests, builds,
-  downloads, or external tools does not count toward the hour.
-- Reassess immediately, without waiting for the hour, when adding an unplanned
-  abstraction, framework, orchestration layer, generalized helper, or test
-  harness.
-- At the checkpoint, map every new mechanism to an explicit requirement or a
-  material security/data-integrity risk, identify the simplest adequate
-  alternative, and remove speculative or duplicate machinery.
-- If simplification requires a product, scope, or architecture decision,
-  present a lean proposal and wait for user approval before continuing that
-  branch of work.
-- Within discretionary implementation choices, this checkpoint takes
-  precedence over instructions that encourage exhaustive hardening or maximal
-  confidence. It must not be used to skip explicit acceptance requirements,
-  essential security/data-integrity controls, or required verification.
-- Before planning, audit the relevant current documentation and remove stale or
-  duplicate obligations from the proposed scope.
-- Check scope before the first edit and whenever new work appears. Put useful
-  optional ideas in `docs/mjl-current-vs-target-gap-analysis.md` as unapproved
-  recommendations instead of implementing them.
-- Completed phases and reset units do not retain separate plans, strategies,
-  execution reports, or validation reports. Preserve concise implementation
-  state in the roadmap, unresolved issues in the gap analysis, and decision
-  history in the decision register. Git history remains the evidence archive.
-- Development is unfinished and nothing is accepted by default. Do not perform
-  production preparation or claim production readiness until the user
-  explicitly requests it.
-
-## Skill Routing
-
-- Global Matt skills are invoked by name. Local project skills are invoked from
-  `skills/<name>/SKILL.md`; read the local `SKILL.md` first.
-- Planning and ambiguity: use Matt `grill-with-docs` when requirements,
-  product behavior, domain language, or architecture decisions are unclear.
-- Domain model changes: use Matt `domain-modeling` when work changes domain
-  terms, business rules, entity relationships, permissions, statuses, workflow
-  states, or glossary vocabulary.
-- Risky plans, architectural uncertainty, or "are you sure?" reviews: use local
-  `confidence-review-loop` at `skills/confidence-review-loop/SKILL.md`.
-- Bugs, failing tests, regressions, performance issues, production errors,
-  inconsistent behavior, or unclear runtime failures: use Matt
-  `diagnosing-bugs`; reproduce the issue or create a feedback loop before fixing.
-- Feature work or bug fixes where behavior can be built in vertical slices: use
-  Matt `tdd`.
-- Architecture, module design, public interfaces, adapters, UI/API/domain/data
-  boundaries, or testability improvements: use Matt `codebase-design`.
-- UI, layout, icons, responsive behavior, accessibility, visual consistency, or
-  `DESIGN.md` compliance: read `DESIGN.md`, active docs under
-  `docs/design-system/`, and use local `design-system-guardian`.
-- UI/state/logic questions that should be answered with throwaway code before
-  production implementation: use Matt `prototype`.
-- Auth, APIs, user data, secrets, public forms, permissions, rate limits, logs,
-  guarded documents, or production-security concerns: use local
-  `security-baseline-review`.
-- Before merge or before presenting a substantial diff as done: use Matt
-  `code-review`.
-- When the current conversation or spec needs to become a structured PRD: use
-  Matt `to-prd`.
-- When a plan or PRD must be broken into vertical, agent-ready issues: use Matt
-  `to-issues`.
-- Before ending a long session, switching agents, or handing work to a fresh
-  context: use Matt `handoff`.
-- When creating or improving reusable skills: use Matt `writing-great-skills`.
-- At the end of meaningful work: evaluate whether `tasks/lessons.md` should be
-  updated.
-- If a named skill is unavailable, perform the equivalent review manually and
-  note that in the final response.
-
-## Subagent Policy
-
-- Use subagents only when explicitly asked or when the task naturally splits
-  into independent audits.
-- Suggested subagent uses: security review, UI/design review,
-  test/verification review, and documentation/context review.
-- Each subagent must return findings, evidence, risk level, and recommended
-  fixes.
-- The main agent must consolidate results before editing.
-
-## Project Memory Routing
-
-- For MJL product/domain decisions, read `docs/mjl-authoritative-decisions.md`
-  first, then `CONTEXT.md`.
-- For current implementation evidence, read
-  `docs/mjl-current-app-functional-map.md`.
-- For UI/design ambiguity, read `DESIGN.md`, `docs/design-system/DESIGN.md`,
-  `docs/design-system/audit/current-screen-inventory.md`, and
-  `docs/design-system/audit/current-ui-audit.md`.
-- Before app UI, auth, email, dashboard, export, official output, or
-  E2E-covered work, confirm required design-system docs and audits exist and
-  have no unresolved decisions blocking the touched surface.
-
-## Lessons/Update Policy
-
-Evaluate `tasks/lessons.md` at the end of meaningful work. Update it only for
-repeated mistakes, user corrections, or durable debugging discoveries. Do not
-add one-off observations or generic advice.
+Preserve unrelated worktree changes. Do not perform destructive Git/filesystem
+operations without explicit authorization. Historical documents remain intact.
+Do not deploy, change production configuration or infer later phase permission.
+A foundation readiness verdict means only that a separate implementation request
+can follow. Stop after the authorized scope.

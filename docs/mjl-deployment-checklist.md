@@ -1,5 +1,13 @@
 # Deferred Deployment Checklist
 
+## Rebuild deployment boundary (DEC-091)
+
+Existing Dolibarr deployment details below are legacy technical references.
+The rebuild proposes separate frontend/backend services and private PostgreSQL;
+commercial cloud provider and region remain unapproved. Consolidated security
+requirements and external gates are in [baseline 03](rebuild/03-security-compliance-baseline.md).
+No deployment/configuration work is authorized by this documentation audit.
+
 Deployment work is outside the current development scope. This file records
 future questions only; it authorizes no action. Do not execute this checklist
 until the user explicitly requests deployment preparation.

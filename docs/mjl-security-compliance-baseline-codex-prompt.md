@@ -1,4 +1,12 @@
 # MJL SECURITY AND COMPLIANCE BASELINE
+
+## Retained source input
+
+This prompt is preserved for contractual provenance. The consolidated draft is
+[rebuild security baseline 03](rebuild/03-security-compliance-baseline.md).
+Its old execution/output-path instructions do not create a second baseline or
+override the 2026-10-22 rebuild request and latest PTA business rules.
+
 # CODEX EXECUTION PROMPT
 
 ## OBJECTIVE

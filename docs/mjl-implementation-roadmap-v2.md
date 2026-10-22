@@ -12,7 +12,77 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## Approved PTA direction — proposed implementation sequence (DEC-087)
+## Rebuild foundation readiness (DEC-091, 2026-10-22)
+
+**FOUNDATION_READY_FOR_AUTHORIZATION**. This verdict permits a separate
+implementation request, not scaffolding now. Stack direction is confirmed;
+[architecture/Engineering Standard](rebuild/02-target-architecture-and-engineering-standard.md)
+is proposed, [security baseline](rebuild/03-security-compliance-baseline.md) is a
+draft requirements baseline. The POC has never been deployed to production and
+remains available; W0–W7 migration completion stays valid historical evidence.
+
+Read-only audits classified 21 business contracts, 35/35 preservation rules and
+75/75 API operations in [baseline 01](rebuild/01-authority-and-business-baseline.md).
+No foundation blockers remain. Eight later product decision groups and six
+external security dependency groups are owned by the gap analysis. They gate
+their features, sensitive environments or acceptance, not an empty local stack.
+Engineering and security/specification independent reviews passed; this is a
+documentation assessment, not runtime, legal, compliance or production approval.
+
+### First proposed slice: REACT/FASTAPI FOUNDATION
+
+Only after separate authorization: minimal `frontend/`, `backend/`, generated
+OpenAPI artifact in `contracts/`, isolated rebuild Compose, reviewed dependency
+versions/lockfiles and quality scripts. Include two neutral shell routes, one
+public health/readiness query through Router/Query, approved tokens and one
+accessible shadcn control, manifest/icons/static-only service worker, FastAPI
+health and DB readiness, SQLAlchemy connection and Alembic mechanism. A new
+Compose file/project keeps existing POC services and volumes independent.
+
+Add lightweight hooks/staged checks and independent CI checks only as explicitly
+included in that future authorization. No auth, PTA, finance, document routes,
+Partner portal, notification platform, business schema or persistent demo data.
+The database contains only migration bookkeeping if needed. Full authentication
+and business/API slices follow separately, with product decisions resolved at
+their dependent branch. This foundation is a technical smoke surface, not a
+product-screen design or an implicit start of Phase 4.
+
+### Concrete future acceptance checks
+
+The commands below are **proposed script contracts**, not commands currently
+available or run in this audit. The foundation implementer must add matching
+scripts, lock compatible versions and report actual results. Use a unique
+explicit disposable Compose project and isolated data directory. Host variables
+must identify that project before any start or cleanup; no default POC project.
+
+| Check | Proposed command or focused verification | Required observable result |
+| --- | --- | --- |
+| Frontend start/build | `npm --prefix frontend run dev`; `npm --prefix frontend run build` | Vite serves and produces a build; source is JavaScript/JSX, no TypeScript prerequisite. |
+| Navigation/state | `npm --prefix frontend run test:e2e -- foundation.spec.js` | Two neutral routes navigate; Router loader/Query share one public health query; pending, error, empty where meaningful, and successful response render truthfully. |
+| Styling/accessibility | Same focused browser test | Approved token computed values, Tailwind and one shadcn control work; Lucide has accessible labeling; keyboard focus and narrow viewport remain usable. |
+| PWA | Same focused browser test against built shell in localhost secure context | Manifest/icons/start URL/scope are valid, worker registers, static cache works and supported-browser installability is checked. No universal install prompt claim. |
+| Cache/offline | Same focused browser test with synthetic private API response | `/api`, auth and private file/export responses absent from Cache Storage; authenticated-response policy is no-store. Offline mutation attempt fails, no queued/paused/background replay on reconnect and no false success. Synthetic interception is test-only, not an auth implementation. |
+| Frontend correctness | `npm --prefix frontend run lint`; `npm --prefix frontend run format:check`; `npm --prefix frontend run lint:css`; `npm --prefix frontend run test:unit -- --run` | ESLint/Hooks, Prettier, Stylelint and focused Vitest/Testing Library checks pass without overlapping formatting rules. |
+| Hooks/CI | Inspect hook/staged config; trigger a deliberate disposable formatting violation | Changed-file hook rejects the violation, independent CI check also rejects it; no browser suite per commit. Restore the fixture afterward. |
+| Backend start/API | `uvicorn app.main:app` from backend; `curl -fsS "http://127.0.0.1:$MJL_BACKEND_PORT/health"` | FastAPI starts, health returns documented nonsensitive JSON, OpenAPI generates. MJL_BACKEND_PORT must be set to the documented disposable port. |
+| Database/Alembic | In isolated backend: `alembic upgrade head`; `alembic current`; focused PostgreSQL integration pytest | Connection succeeds; reviewed empty revision/bookkeeping applies and rerun is stable on disposable DB. No business tables. Failed DB readiness is sanitized; app does not perform DDL. |
+| Backend checks | From backend: `ruff check .`; `ruff format --check .`; `mypy app`; `pytest -q` | Practical typed configuration, focused domain/connection tests and OpenAPI schema/response/error contract checks pass against real PostgreSQL where needed. |
+| Integration/security boundary | Browser test through Vite `/api` proxy and focused API negative cases | Frontend reaches backend, errors match envelope, arbitrary credentialed origins are rejected/not allowed. Cookie/CSRF design is documented; synthetic header/config checks only until real auth slice tests exist. |
+| Compose isolation | `docker compose -f compose.rebuild.yaml -p "$MJL_FOUNDATION_PROJECT" config`; same explicit file/project `up -d --build` and `ps` | All required health checks converge; PostgreSQL has no host-published port; only intended services share its network; no collision with POC. Filename is proposed. |
+| Cleanup/data | Same explicit file/project `down` | Services stop without deleting POC/shared volumes. Test-only volume cleanup requires verified project ownership; no wildcard removal. Verify disposable records/volumes removed when their test lifecycle requires teardown. |
+| Scope/secrets | Review diff, tracked files and environment examples | No real secrets/default Admin credential/persistent demo data; runtime changes confined to the authorized foundation. |
+
+Do not run load tests, old PHP matrices or a production-readiness campaign for
+this slice. Full session/OTP/authorization and financial concurrency tests belong
+to the subsequent feature that implements them. A health query cannot prove them.
+No application tests were run for this documentation audit; status/diff checks
+and independent document reviews are its evidence. Stop at this verdict.
+
+## Approved PTA business sequence after foundation/auth (DEC-087–091)
+
+The following feature sequence retains approved business dependencies. Native
+objects/installers, existing PHP class paths and old test runners are historical
+references only; each new-stack slice receives separate implementation approval.
 
 The business rules in `mjl_codex_authoritative_pta_change_brief.md` are approved.
 The 2026-10-21 impact audit is recorded in the gap analysis. Runtime implementation
@@ -22,10 +92,10 @@ phase execution/validation reports: keep concise state here and evidence in Git.
 
 | Slice | Requirement and smallest implementation scope | Dependencies / exit evidence |
 | --- | --- | --- |
-| 1. PTA planning foundation | Native Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Supervisor/Validator assignments. Reconcile schema, commands, route/token guards, reads and exports together. | Project closure guard is settled by DEC-090; retain reopening/deactivation questions for their dependent branches. PTA creation ownership is settled by DEC-089. Disposable API/DB tests for Project/first-PTA creation races, cross-entity denial, unassigned Agent and forbidden create bypass. Existing screen changes need inspiration check before implementation. |
+| 1. PTA planning foundation | Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Supervisor/Validator assignments. Reconcile schema, commands, route/token guards, reads and exports together. | Project closure guard is settled by DEC-090; retain reopening/deactivation questions for their dependent branches. PTA creation ownership is settled by DEC-089. Disposable API/DB tests for Project/first-PTA creation races, cross-entity denial, unassigned Agent and forbidden create bypass. Existing screen changes need inspiration check before implementation. |
 | 2. Approved amendments and annual transfer | Extend immutable Activity revisions with separate approved/candidate content, fresh two-stage review with affected execution paused while approval is pending, late corrections, withdrawal and atomic cross-year transfer. Reuse contributor/audit protections. | Slice 1; decide withdrawal/annual history semantics. Affected-only execution pause is settled by DEC-090. Prove pending amounts cannot alter approved execution/reporting and stale decisions cannot activate content. |
 | 3. Realization and administrative settlement | Final Operation spending replacing itemized expense approvals/reversals, distinct décaissement/virement approvals, separate Agent → Supervisor → Validator insufficiency authorization, external confirmation, automatic reversement requirement/declarations and direct Agent closure. Retire conflicting old finance/completion paths. | Slices 1–2 and exception/zero-amount decisions from gap analysis. Focused missing/zero/XOF, stale-basis, no-self-approval, discrepancy/full-return and closure tests. No bank execution. |
-| 4. Annual metrics and Fiche | Whole-PTA approved denominators; closed-only realization/spending; extend existing Fiche PDF and guarded PDF/XLSX exports with history/reconciliation. | Slices 2–3 and historical attribution decision. Prove UI filters cannot alter official denominator, pending amendments stay excluded and history is not truncated. File references activate only with slice 6. |
+| 4. Annual metrics and Fiche | Whole-PTA approved denominators; closed-only realization/spending; provide Fiche PDF and guarded PDF/XLSX exports with history/reconciliation. | Slices 2–3 and historical attribution decision. Prove UI filters cannot alter official denominator, pending amendments stay excluded and history is not truncated. File references activate only with slice 6. |
 | 5. Administrative relance | Focused 21-day scheduler, recipient/channel outcomes, in-app notifications and email; browser push if required by clarified PWA contract. | Stable dates/assignments/closure from slices 1–3; verify mail, agree retry/rescheduling and browser permission behavior. Focused due/reschedule/closure/deduplication tests. No generic notification platform. |
 | 6. Guarded optional documents | Reconcile Phase 4 to optional PTA/Activity/revision/decision/request/confirmation/return contexts and Partner visibility. Implement only the separately authorized security slice. | Existing document gate and relevant storage/preview/security decisions. Keep deny-all until guarded route and entity/Partner isolation checks pass; no mandatory attachments or requirement-blocking machinery. |
 | 7. Partner portal | Exclusive one-Partner invitation/auth binding; own current/past Projects and approved PTA/progress; authorized decisions, Fiches, files and scoped exports. | Can prepare identity/API work after slices 1–2; complete experience depends on slices 3–4 and allowed files on slice 6. Verify real mail/OTP before enablement, cross-Partner denial and no internal-role escalation. |
@@ -37,23 +107,13 @@ any screen, stop and request applicable inspiration if absent.** Reuse the
 existing design system and add accessible skeleton/empty/error states when
 screen work is authorized.
 
-Use existing guarded lifecycle installers with exact target recognition and
-unknown-state refusal. The application is not live: do not invent historical
-business-data conversion or compatibility layers. Inspect the actual tenant
-before any cutover; unexpected records stop that cutover rather than being
-silently deleted. Preserve the technical Admin and no persistent demo data.
-A local reset/cutover is a separate concrete authorized action, not a side effect
-of this audit. DDL interruption recovery remains necessary where DDL is used;
-do not recreate broad historical migration matrices without a current purpose.
+Use reviewed Alembic migrations on a clean PostgreSQL database for separately
+authorized slices. Do not import old accounts or business/demo records. Preserve
+the POC and require explicit authorization before any reset or cutover. Retain
+no generic workflow engine, banking integration or offline synchronization.
+Passing focused checks neither accepts the application nor authorizes later work.
 
-Retain the existing custom-module architecture. New PTA/settlement/Partner/file
-responsibilities need only the narrow ownership amendments actually required;
-no full architecture restart, generic workflow engine, new PDF engine, banking
-integration, offline synchronization or production preparation. Verify each slice
-with the smallest relevant disposable tests and record limitations. Passing
-checks do not accept the application or authorize the next slice.
-
-## Current implementation state
+## Historical POC implementation state
 
 - The W0 prerequisite and W1 reference migration are complete. DEC-080/082 now
   supersede the former reference form/presentation paths: all three reference
@@ -128,7 +188,7 @@ checks do not accept the application or authorize the next slice.
 These statements describe repository state only. They do not record user
 acceptance or readiness for production.
 
-## Post-cadrage UI pass
+## Historical POC post-cadrage UI pass
 
 VUI-00 records the agreed implementation map. VUI-01 shared foundations are
 implemented with Activity create/edit as the first consumer. VUI-02 shared
@@ -196,10 +256,11 @@ management; VUI-11 Users/invitations; VUI-12 history/exports; VUI-13
 cross-screen consistency. Each wave is scoped, verified, reported, and stopped
 before the next wave. Create a shared presentation mechanism with its first
 actual consumer, reuse it on later screens, and remove replaced UI code and CSS.
-The route map, component plan, and visual precedence are in the active
-design-system README; deferred backend dependencies are in the gap analysis.
+The current screen inventory retains the POC route evidence; the design-system
+README now routes rebuild visual authority. Deferred dependencies remain in the
+gap analysis.
 
-## Unfinished product work
+## Historical POC feature state and remaining product gates
 
 ### Current spending: accounting approval and immutability
 

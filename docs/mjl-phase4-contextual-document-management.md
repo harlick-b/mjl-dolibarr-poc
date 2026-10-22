@@ -1,5 +1,17 @@
 # MJL Phase 4 Contextual Document Management Planning Brief
 
+## Rebuild scope (DEC-091)
+
+For the dedicated application, the target is optional private PDF/image evidence
+attached to an authorized Activity or separately approved context. Retain parent
+and Partner authorization, traceability and approved file-security controls.
+Complex series/revision engines, mandatory category snapshots, generic ECM,
+arbitrary folders and automatic preview infrastructure below are historical
+planning, not rebuild requirements. Prior accepted preview/key risks do not
+transfer automatically. Retention, scanning operations, storage provider and key
+custody require explicit later decisions. Keep old deny-all routes untouched.
+See [security baseline 03](rebuild/03-security-compliance-baseline.md).
+
 > **DEC-087 — approved PTA change (2026-10-21):**
 > [The approved brief](mjl_codex_authoritative_pta_change_brief.md) supersedes
 > conflicting rules below. Mandatory document modes/snapshots, assignment-based access, old parent contexts and blanket post-approval attachment locks are pre-PTA baseline descriptions,

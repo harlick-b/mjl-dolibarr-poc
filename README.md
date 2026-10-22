@@ -1,5 +1,15 @@
 ## MJL Dolibarr Workspace
 
+## Dedicated application rebuild
+
+Future MJL development targets React/Vite JavaScript/JSX and FastAPI/PostgreSQL.
+See [the authority router](docs/mjl-authoritative-decisions.md),
+[proposed architecture](docs/rebuild/02-target-architecture-and-engineering-standard.md)
+and [foundation readiness](docs/mjl-implementation-roadmap-v2.md).
+Implementation is not authorized by this documentation audit. The POC remains
+available as behavioral reference and has never been deployed to production.
+All runtime/setup/verification commands below apply to the retained POC only.
+
 This repository contains a Dockerized Dolibarr 23.0.2 installation with the
 custom MJL workspace module under `custom/mjlfinancement`.
 

@@ -4,6 +4,44 @@ This is implementation-debt evidence beneath the authority router and approved
 PTA brief (DEC-087). The pre-PTA rows below describe prior implementation,
 not satisfaction of the new target.
 
+## Rebuild decisions and boundaries (DEC-091, 2026-10-22)
+
+**FOUNDATION_BLOCKER: 0.** Proposed stack, sessions, transactions and PWA boundaries
+are explicit in rebuild baseline 02. Old custom-module/lifecycle/native-object/
+PDF-engine recommendations below are HISTORICAL_ONLY technical evidence, not
+instructions for the new stack. No PHP remediation or old test campaign follows
+from this audit. The architecture verdict in the older PTA audit is superseded
+for future development, while its business gaps remain useful.
+
+Eight LATER_PRODUCT_DECISION groups remain. They block only the named feature,
+not the health-only local foundation. Current approved behavior must not be
+reopened as a question; banking custody and reallocation remain excluded.
+
+| ID | Decision and smallest required clarification | Owner / blocked scope |
+| --- | --- | --- |
+| L1 | Who resolves late settlement discrepancies, what evidence releases closure, and where definitive financial facts become immutable with linked correction? No expense-ledger revival. | Client business sponsor/finance; exceptional settlement and correction branch |
+| L2 | Project reopening, Partner deactivation and Operation cancellation/reopening after PTA approval; no bypass of Project closure guard. | Client business sponsor; affected lifecycle branches |
+| L3 | Annual denominator/history treatment after approved withdrawal or cross-year transfer. | Client reporting owner; historical KPI/export cases |
+| L4 | Zero-spending request/confirmation waivers, partial reversement and correction of declarations. | Client finance owner; those settlement cases |
+| L5 | Partner-visible decision/evidence fields and allowed document contexts; file policy, retention, scanner and key/storage responsibility. | Client data owner/RSSI; Partner disclosure and Phase 4 |
+| L6 | Whether PWA relance includes background push; re-notification/reschedule and delivery policy. | Client product owner/email operator; notification slice |
+| L7 | Calendar month-end clamp and whether any incomplete draft is allowed; default retains one-or-more balanced positive Operation allocations. | Client product owner; affected planning validation |
+| L8 | Phase 5 accounting structure/examples and Phase 6 official Partner templates/mappings, plus client meaning of SPD. | Client accounting/reporting/delivery owners; relevant later outputs |
+
+Six EXTERNAL_SECURITY_DEPENDENCY groups SEC-E1–E6 are detailed in
+[baseline 03](rebuild/03-security-compliance-baseline.md): legal/source currency,
+hosting approval, cryptography/mail, operational evidence, no-reprise migration
+interpretation, and contractual delivery acceptance. Their named Ministry,
+RSSI/DSI, legal, provider and client owners must resolve them before sensitive
+use/deployment or relevant acceptance, not before an empty local scaffold.
+
+POST_FOUNDATION_WORK includes actual auth/OTP, PTA/finance, private optional
+documents, Partner portal, relance and operational evidence. Missing product
+screen inspiration blocks those screens only; v3 tokens already outrank the
+green HTML inspiration palette. No new visual design is generated here.
+
+## Retained POC implementation evidence
+
 | Target | Current state | Remaining gap / owner |
 | --- | --- | --- |
 | One transactional audit | Append-only entity-scoped audit table, transaction-bound writer, and sanitized Activity chronology exist. | Later object adapters remain owned by their phases. |
@@ -56,10 +94,10 @@ permissions, authentication, or business rules.
 | Reference and account fields/actions | Partner/Project screens expose only current name, parent, status, and guarded lifecycle facts through shared responsive lists and progressive forms; Project edit preserves its original Partner. Admin access presents invitation, role update, deactivation, and revocation through shared responsive tables and progressive exact-form dialogs, including real invitation delivery states. | Defer Partner description, reference counts/timestamps, unsupported account profile/reactivation actions, and bulk assignment replacement. |
 | Extra list and dashboard data | Current monitoring filters support search, Partner, Project, validation, execution, completeness, and period overlap. The reference also depicts Agent/deadline filters and Admin metrics not supplied by the current read contracts. | Use supported filters and real projections only; seek a separate decision for missing read contracts. |
 
-
 ## Approved PTA impact audit — 2026-10-21
 
-**Verdict:** retain the existing custom-module/REST/command/audit architecture.
+**Historical 2026-10-21 verdict, superseded technically by DEC-091:** retain the
+existing custom-module/REST/command/audit architecture.
 The approved direction is feasible without a core edit or a framework rewrite.
 Confidence is high in the major impact areas, conditional in settlement details
 and historical metrics. This is static source analysis at `18d55d1`, with three

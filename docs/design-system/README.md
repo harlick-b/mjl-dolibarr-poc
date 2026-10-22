@@ -19,49 +19,24 @@ components, focus states, density, responsive behavior, and accessibility
 guidance remain authoritative. Its old role, Partner-scope, finance,
 document-policy, CSV/XLSX-only, and PDF-prohibition statements are superseded.
 
-## Post-cadrage UI implementation map
+## Rebuild presentation scope (DEC-091)
 
-`docs/inspiration/` contains optional local composition and interaction
-references. It is ignored by Git and is not required in a fresh checkout. The approved v3 tokens govern palette, typography, spacing,
-dimensions, and accessibility where the examples differ. The prototype HTML is
-a visual reference, not application code or a source of permissions, records,
-or workflow state. Demo controls and sample records do not enter the runtime.
+Use React/JSX, Tailwind, shadcn/ui and Lucide under the proposed rebuild standard.
+`docs/inspiration/` supplies local composition/interaction references and is
+ignored by Git. It may be absent in a fresh checkout; DEC-087 requires applicable
+supplied inspiration before a product screen is implemented. Missing references
+block that screen, not a neutral foundation shell or independent backend work.
 
-The current application uses PHP-rendered pages and JavaScript. Extend the
-existing MJL page headers, forms, tables, status presentation, feedback, and
-empty/error states. Use the installed jQuery UI calendar and Select2 only where
-an existing MJL control does not supply the needed interaction, styled with v3
-tokens and initialized within the MJL shell. Shared presentation helpers take
-already-authorized data; routes retain data access, tokens, versions, and
-actions. Mutualize repeated dialog, filter, date, financial, status, Operation,
-and chronology presentation when their first consumers are implemented. Keep
-validation, execution, and financial-completeness statuses distinct. Shared
-browser financial previews must use exact integer arithmetic; server rules
-remain authoritative. Preserve Inter's existing loading path.
+Approved v3 tokens govern palette, typography, spacing, dimensions and accessibility
+where inspiration differs. Both supplied HTML prototypes use green palettes;
+v3 and the login PNG use navy/action blue. Keep v3 identity unless explicitly
+changed. Prototype behavior/sample records are not business authority or seed data.
 
-| Target surface | Existing guarded route or entry point |
-| --- | --- |
-| Role dashboard, alerts, reports | `index.php`, `alerts.php`, `reports.php` |
-| Activities list, full-page planning, detail, review | `activities.php` |
-| Operation execution and exception decisions | `operations.php`, `operationrequests.php` |
-| Partners, Projects, Operation Types | `partners.php`, `projects.php`, `operationtypes.php` |
-| Users and invitations | `admin/access.php`, `invitation.php` |
-| History and audited downloads | `workflowactions.php`, `reportexport.php` |
-
-All paths in the table are under `custom/mjlfinancement/`. The six primary
-navigation entries are Tableau de bord, Activités, Partenaires, Projets,
-Utilisateurs, and Historique, filtered by existing access rules. Provide
-authorized contextual links to Alerts, Reports, Operations, Exception Requests,
-Operation Types, and technical administration before removing their current
-sidebar entries. The Operation drawer is read-only in this pass; existing
-guarded execution remains accessible. Existing form submissions and redirects
-remain the action path. Use supported filter parameters only and preserve
-ordinary navigation and forms without JavaScript.
-
-Before each wave, map proposed UI mechanisms to its approved screen behavior
-or a concrete integrity risk. Use focused disposable-tenant E2E coverage for
-touched screens, syntax checks for changed source, and representative visual
-comparison. Report what was implemented and stop before the next wave.
+Retain distinct planning/execution/completeness states, French labels, exact
+money, responsive controls, focus and non-color cues. Customize accessible shadcn
+primitives minimally; do not copy PHP widgets, jQuery/Select2 or no-JavaScript
+form fallbacks as rebuild requirements. Add components only for real consumers.
+The screen inventory/UI audit remain POC evidence, not the new route map.
 
 ## Approved generation governance
 
@@ -91,10 +66,11 @@ current UI audit own implementation state and outstanding review needs.
 - [Semantic tokens](approved/v3/design-tokens/semantic-tokens.json)
 - [Token documentation](approved/v3/design-tokens/README.md)
 
-## Runtime boundary
+## Historical POC font integration
 
-Inter is the primary browser font with Arial, Helvetica, and sans-serif
-fallbacks. The approved Google Fonts CSS2 source is emitted exactly once on
+Inter remains the primary browser font with Arial, Helvetica, and sans-serif
+fallbacks. The integration details below describe the retained POC only. The
+rebuild must confirm its font hosting/CSP/privacy policy before sensitive use. The approved Google Fonts CSS2 source is emitted exactly once on
 login, password-reset, and MJL browser documents through the custom header
 hook. It is absent from authenticated native Dolibarr pages, downloads,
 exports, email, and other non-browser output.

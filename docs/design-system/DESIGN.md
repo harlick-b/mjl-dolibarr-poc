@@ -7,11 +7,12 @@
 MJL product decisions come from `docs/mjl-authoritative-decisions.md`; this
 file records design direction only.
 
-Design system for a Dolibarr-based public-finance project monitoring workspace.
+Design system for the MJL public-finance monitoring application; React rebuild
+implementation follows the proposed new-stack standard (DEC-091).
 
 ## Purpose
 
-The MJL Clarity System presents the Dolibarr-backed MJL workspace as a calm administrative control room for externally funded projects. It should make projects, activities, validations, alerts, exports, documents, and audit history understandable without exposing unnecessary ERP complexity.
+The MJL Clarity System presents the MJL workspace as a calm administrative control room for externally funded projects. It should make projects, activities, validations, alerts, exports, documents, and audit history understandable without exposing unnecessary ERP complexity.
 
 ## Product Direction
 
@@ -20,7 +21,8 @@ The interface must feel institutional, sober, clear, trustworthy, French-first, 
 ## Baseline Constraints
 
 - Dolibarr core files must not be modified.
-- MJL-specific implementation must remain inside safe custom module/theme boundaries.
+- Custom-module/theme constraints apply only to retained POC maintenance; the
+  rebuild uses React/JSX and the approved visual tokens.
 - The production access model assigns one global MJL role per user: three business roles (AGENT_SAISIE, AGENT_VERIFICATEUR, VALIDATEUR_DEFINITIF) and one administration role (ADMIN_PLATEFORME).
 - Access is invitation-only.
 - Only Admin can send invitations for now.
@@ -41,4 +43,6 @@ The interface must feel institutional, sober, clear, trustworthy, French-first, 
 
 ## Implementation Boundary
 
-Documentation work belongs under `docs/design-system/`. Future MJL implementation work belongs in safe extension boundaries, primarily `custom/mjlfinancement`, and must preserve Dolibarr core, business rules, exports, audit history, and no-self-validation behavior.
+Documentation belongs under `docs/design-system/`. Authorized rebuild UI uses
+React/JSX, Tailwind, shadcn/ui and Lucide. Preserve business rules, exports, audit
+and no-self-validation independently of the legacy PHP presentation.

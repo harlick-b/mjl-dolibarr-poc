@@ -1,5 +1,12 @@
 # MJL Acceptance Tests
 
+## Rebuild verification scope (DEC-091)
+
+Commands and matrices below belong to the retained Dolibarr POC. They supply
+behavioral cases, not mandatory scaffold runs. Proposed new-stack checks are in
+[the roadmap](mjl-implementation-roadmap-v2.md). This documentation audit uses
+status/diff review only; no application tests or tenant operations.
+
 Authority comes from `docs/mjl-authoritative-decisions.md` and the user's latest
 explicit instruction.
 
