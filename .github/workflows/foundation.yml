@@ -1,0 +1,59 @@
+name: Rebuild foundation
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HUSKY: '0'
+      COMPOSE_FILE: compose.rebuild.yaml
+      COMPOSE_PROJECT_NAME: mjl-foundation-ci
+      COMPOSE_ENV_FILES: .env.ci
+      API_PROXY_TARGET: http://127.0.0.1:8013
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Create disposable configuration
+        run: |
+          umask 077
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+            echo 'POSTGRES_DB=mjl_test_foundation'
+            echo 'POSTGRES_USER=mjl'
+            echo 'MJL_FRONTEND_PORT=5183'
+            echo 'MJL_BACKEND_PORT=8013'
+          } > .env.ci
+      - name: Start isolated services
+        run: |
+          docker compose config --quiet
+          docker compose up -d --build --wait
+      - name: Frontend quality
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run lint
+          npm --prefix frontend run format:check
+          npm --prefix frontend run lint:css
+          npm --prefix frontend run test:unit
+          npm --prefix frontend run build
+      - name: Backend quality and PostgreSQL integration
+        run: |
+          docker compose exec -T backend ruff check .
+          docker compose exec -T backend ruff format --check .
+          docker compose exec -T backend mypy app
+          docker compose exec -T backend sh -c 'TEST_DATABASE_URL="$DATABASE_URL" pytest -q'
+      - name: Browser integration and PWA
+        working-directory: frontend
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Remove only the disposable CI project
+        if: always()
+        run: docker compose down --volumes --remove-orphans

@@ -1,0 +1,70 @@
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+@import 'tailwindcss';
+
+/* Approved v3 subset, docs/design-system/approved/v3/design-tokens/tokens.json. */
+@theme {
+  --font-sans: 'Inter', arial, helvetica, sans-serif;
+  --color-navy: #16324f;
+  --color-primary: #164f7a;
+  --color-primary-foreground: #fff;
+  --color-background: #f5f7f8;
+  --color-foreground: #202529;
+  --color-muted-foreground: #5c6870;
+  --color-border: #c8d0d5;
+  --radius-control: 10px;
+  --radius-card: 6px;
+  --radius-panel: 8px;
+  --spacing: 4px;
+}
+
+@layer base {
+  body {
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+  a {
+    color: var(--color-primary);
+  }
+  button,
+  a {
+    touch-action: manipulation;
+  }
+  button {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 4px;
+  }
+  @media (pointer: coarse) {
+    button,
+    nav a {
+      min-height: 44px;
+    }
+    nav a {
+      display: inline-flex;
+      align-items: center;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0ms !important;
+      transition-duration: 0ms !important;
+    }
+  }
+  @media (forced-colors: active) {
+    button {
+      border: 1px solid ButtonText;
+    }
+    :focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}

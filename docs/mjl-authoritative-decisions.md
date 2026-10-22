@@ -19,6 +19,21 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## First foundation implementation authorization (DEC-092)
+
+The user explicitly authorized the first technical React/FastAPI/PostgreSQL
+slice following audit commit `3e7443d`. Scope: two frontend routes (`/`, `/health`),
+PWA static assets only, health endpoints `/api/health/live` and `/api/health/ready`,
+PostgreSQL connectivity, SQLAlchemy session lifecycle, empty Alembic bookkeeping,
+quality tools/tests, separate Docker services and minimal CI/development docs.
+This supersedes DEC-091's documentation-only stop for this slice only. Proposed
+future authentication/financial mechanisms are not thereby approved or implemented.
+No users, business tables/data, auth, PTA, documents or production deployment.
+Keep POC files, tests, databases and Docker resources unchanged. Use an explicitly
+named rebuild Compose file so default POC startup remains unchanged. The first
+technical slice is implemented and its mandatory gates passed (see roadmap).
+This authorizes no next slice and records no application acceptance.
+
 ## Dedicated application rebuild — 2026-10-22 (DEC-091)
 
 The latest user instruction selects React/Vite JavaScript/JSX, TanStack

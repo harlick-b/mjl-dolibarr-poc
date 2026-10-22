@@ -1,11 +1,12 @@
 # MJL Acceptance Tests
 
-## Rebuild verification scope (DEC-091)
+## Rebuild verification scope (DEC-091–092)
 
 Commands and matrices below belong to the retained Dolibarr POC. They supply
-behavioral cases, not mandatory scaffold runs. Proposed new-stack checks are in
-[the roadmap](mjl-implementation-roadmap-v2.md). This documentation audit uses
-status/diff review only; no application tests or tenant operations.
+behavioral cases, not mandatory scaffold runs. Current focused foundation
+commands are in [README](../README.md#focused-foundation-verification), with actual
+evidence in [the roadmap](mjl-implementation-roadmap-v2.md). Use only the isolated
+rebuild test project for PostgreSQL integration and PWA browser verification.
 
 Authority comes from `docs/mjl-authoritative-decisions.md` and the user's latest
 explicit instruction.

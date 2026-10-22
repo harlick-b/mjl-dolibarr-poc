@@ -1,8 +1,9 @@
 # MJL rebuild architecture and Engineering Standard
 
-Status: **PROPOSED_FOR_AUTHORIZATION**, 2026-10-22. The user selected the stack;
-this document proposes its technical boundaries. It is not an implementation
-approval, a frozen standard, compliance evidence or production readiness.
+Status: **FOUNDATION_SLICE_AUTHORIZED (DEC-092)**, 2026-10-22. The user selected the stack;
+the first technical slice is authorized separately by DEC-092. Remaining business
+and authentication mechanisms are proposals, not implementation approval, a
+frozen standard, compliance evidence or production readiness.
 Business authority remains the PTA brief and DEC-087–090. The frozen Dolibarr
 architecture and Standard v1 remain unchanged historical implementation references.
 Security requirements belong to [the security baseline](03-security-compliance-baseline.md).
@@ -20,8 +21,10 @@ Security requirements belong to [the security baseline](03-security-compliance-b
 | Static-only service-worker cache | Installable shell without offline business operations |
 | Separate frontend/backend deployment, local Compose | Selected topology without choosing an unapproved cloud |
 
-Proposed repository locations are `frontend/`, `backend/`, `contracts/`, shared
-`docs/` and, after authorization, a separate rebuild Compose file. Keep the POC
+The foundation uses `frontend/`, `backend/`, shared `docs/` and
+`compose.rebuild.yaml`. FastAPI generates `/openapi.json` for the two actual
+`/api/health/live` and `/api/health/ready` endpoints; no duplicated contract
+artifact or future business contract directory is created. Keep the POC
 and its existing Compose untouched. Do not precreate feature folders, empty
 layers or interfaces. Organize actual consumers by feature as they appear.
 HTTP routes depend on application use cases and domain rules; use cases access

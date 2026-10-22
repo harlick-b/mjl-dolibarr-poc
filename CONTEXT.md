@@ -8,7 +8,8 @@ Admin-reset, ECM and tenant implementation terms below describe the retained POC
 The new database imports no sample data or native accounts. A guarded first Admin
 will be separately provisioned. Document series/version-engine terminology below
 is historical Phase 4 planning only: the rebuild needs optional private contextual
-evidence, not a generic document lifecycle. No implementation is authorized.
+evidence, not a generic document lifecycle. DEC-092 authorizes only the technical
+React/FastAPI/PostgreSQL foundation; business implementation remains deferred.
 
 This glossary defines the ubiquitous language for the post-cadrage MJL
 application. The approved PTA brief and DEC-087/088 supersede conflicting

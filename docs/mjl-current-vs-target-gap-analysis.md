@@ -4,6 +4,19 @@ This is implementation-debt evidence beneath the authority router and approved
 PTA brief (DEC-087). The pre-PTA rows below describe prior implementation,
 not satisfaction of the new target.
 
+## Foundation dependency follow-up (DEC-092)
+
+`npm audit` on the locked frontend graph reports seven high-severity entries
+propagating one `braces <=3.0.3` stack-exhaustion advisory
+([GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)) through
+developer Stylelint/glob tooling. The selected current release has no compatible
+patched braces version; npm's suggested force fix downgrades Stylelint to 7.7.0.
+Do not apply that obsolete downgrade. The foundation passes fixed local glob
+patterns to this developer tool; no user-supplied glob input or runtime API uses
+this dependency. It is not bundled into the browser application. Recheck and
+update the lockfile when a supported upstream fix becomes available. This is a
+tracked tooling limitation, not a production security or compliance clearance.
+
 ## Rebuild decisions and boundaries (DEC-091, 2026-10-22)
 
 **FOUNDATION_BLOCKER: 0.** Proposed stack, sessions, transactions and PWA boundaries

@@ -12,71 +12,57 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## Rebuild foundation readiness (DEC-091, 2026-10-22)
+## Rebuild foundation (DEC-091–092, 2026-10-22)
 
-**FOUNDATION_READY_FOR_AUTHORIZATION**. This verdict permits a separate
-implementation request, not scaffolding now. Stack direction is confirmed;
-[architecture/Engineering Standard](rebuild/02-target-architecture-and-engineering-standard.md)
-is proposed, [security baseline](rebuild/03-security-compliance-baseline.md) is a
-draft requirements baseline. The POC has never been deployed to production and
-remains available; W0–W7 migration completion stays valid historical evidence.
+**FOUNDATION_COMPLETE** — all mandatory first-slice technical gates passed.
+This is not application acceptance or production readiness.
 
-Read-only audits classified 21 business contracts, 35/35 preservation rules and
-75/75 API operations in [baseline 01](rebuild/01-authority-and-business-baseline.md).
-No foundation blockers remain. Eight later product decision groups and six
-external security dependency groups are owned by the gap analysis. They gate
-their features, sensitive environments or acceptance, not an empty local stack.
-Engineering and security/specification independent reviews passed; this is a
-documentation assessment, not runtime, legal, compliance or production approval.
+Audit baseline `3e7443d` is an ancestor of this implementation. DEC-092 explicitly
+authorized only the first technical slice. Its implementation now includes
+`frontend/` (React/Vite JSX, Router/Query, Tailwind/shadcn/Lucide, online-only PWA),
+`backend/` (FastAPI, SQLAlchemy/PostgreSQL, empty Alembic revision), isolated
+`compose.rebuild.yaml`, locked dependencies, staged checks and a minimal CI job.
+[README](../README.md#rebuild-development) owns exact setup/check/cleanup commands.
+No auth, users, PTA, business tables, documents, sample data or deployment.
 
-### First proposed slice: REACT/FASTAPI FOUNDATION
+Scope map: the two neutral routes exercise routing and one shared readiness
+query; the single shadcn control exercises approved tokens; static PWA assets
+satisfy installability without business offline behavior; two health endpoints
+exercise API/connection lifecycle; empty Alembic bookkeeping proves migration
+execution; focused tools/tests/CI and Compose satisfy the authorized verification
+and isolated local runtime. No future feature directories or generic frameworks.
+FastAPI generates the actual contract at `/openapi.json`; no parallel hand-written
+contract or `contracts/` scaffold is required for these two endpoints.
 
-Only after separate authorization: minimal `frontend/`, `backend/`, generated
-OpenAPI artifact in `contracts/`, isolated rebuild Compose, reviewed dependency
-versions/lockfiles and quality scripts. Include two neutral shell routes, one
-public health/readiness query through Router/Query, approved tokens and one
-accessible shadcn control, manifest/icons/static-only service worker, FastAPI
-health and DB readiness, SQLAlchemy connection and Alembic mechanism. A new
-Compose file/project keeps existing POC services and volumes independent.
+### Focused technical evidence
 
-Add lightweight hooks/staged checks and independent CI checks only as explicitly
-included in that future authorization. No auth, PTA, finance, document routes,
-Partner portal, notification platform, business schema or persistent demo data.
-The database contains only migration bookkeeping if needed. Full authentication
-and business/API slices follow separately, with product decisions resolved at
-their dependent branch. This foundation is a technical smoke surface, not a
-product-screen design or an implicit start of Phase 4.
-
-### Concrete future acceptance checks
-
-The commands below are **proposed script contracts**, not commands currently
-available or run in this audit. The foundation implementer must add matching
-scripts, lock compatible versions and report actual results. Use a unique
-explicit disposable Compose project and isolated data directory. Host variables
-must identify that project before any start or cleanup; no default POC project.
-
-| Check | Proposed command or focused verification | Required observable result |
+| Check | Executed command / evidence | Result |
 | --- | --- | --- |
-| Frontend start/build | `npm --prefix frontend run dev`; `npm --prefix frontend run build` | Vite serves and produces a build; source is JavaScript/JSX, no TypeScript prerequisite. |
-| Navigation/state | `npm --prefix frontend run test:e2e -- foundation.spec.js` | Two neutral routes navigate; Router loader/Query share one public health query; pending, error, empty where meaningful, and successful response render truthfully. |
-| Styling/accessibility | Same focused browser test | Approved token computed values, Tailwind and one shadcn control work; Lucide has accessible labeling; keyboard focus and narrow viewport remain usable. |
-| PWA | Same focused browser test against built shell in localhost secure context | Manifest/icons/start URL/scope are valid, worker registers, static cache works and supported-browser installability is checked. No universal install prompt claim. |
-| Cache/offline | Same focused browser test with synthetic private API response | `/api`, auth and private file/export responses absent from Cache Storage; authenticated-response policy is no-store. Offline mutation attempt fails, no queued/paused/background replay on reconnect and no false success. Synthetic interception is test-only, not an auth implementation. |
-| Frontend correctness | `npm --prefix frontend run lint`; `npm --prefix frontend run format:check`; `npm --prefix frontend run lint:css`; `npm --prefix frontend run test:unit -- --run` | ESLint/Hooks, Prettier, Stylelint and focused Vitest/Testing Library checks pass without overlapping formatting rules. |
-| Hooks/CI | Inspect hook/staged config; trigger a deliberate disposable formatting violation | Changed-file hook rejects the violation, independent CI check also rejects it; no browser suite per commit. Restore the fixture afterward. |
-| Backend start/API | `uvicorn app.main:app` from backend; `curl -fsS "http://127.0.0.1:$MJL_BACKEND_PORT/health"` | FastAPI starts, health returns documented nonsensitive JSON, OpenAPI generates. MJL_BACKEND_PORT must be set to the documented disposable port. |
-| Database/Alembic | In isolated backend: `alembic upgrade head`; `alembic current`; focused PostgreSQL integration pytest | Connection succeeds; reviewed empty revision/bookkeeping applies and rerun is stable on disposable DB. No business tables. Failed DB readiness is sanitized; app does not perform DDL. |
-| Backend checks | From backend: `ruff check .`; `ruff format --check .`; `mypy app`; `pytest -q` | Practical typed configuration, focused domain/connection tests and OpenAPI schema/response/error contract checks pass against real PostgreSQL where needed. |
-| Integration/security boundary | Browser test through Vite `/api` proxy and focused API negative cases | Frontend reaches backend, errors match envelope, arbitrary credentialed origins are rejected/not allowed. Cookie/CSRF design is documented; synthetic header/config checks only until real auth slice tests exist. |
-| Compose isolation | `docker compose -f compose.rebuild.yaml -p "$MJL_FOUNDATION_PROJECT" config`; same explicit file/project `up -d --build` and `ps` | All required health checks converge; PostgreSQL has no host-published port; only intended services share its network; no collision with POC. Filename is proposed. |
-| Cleanup/data | Same explicit file/project `down` | Services stop without deleting POC/shared volumes. Test-only volume cleanup requires verified project ownership; no wildcard removal. Verify disposable records/volumes removed when their test lifecycle requires teardown. |
-| Scope/secrets | Review diff, tracked files and environment examples | No real secrets/default Admin credential/persistent demo data; runtime changes confined to the authorized foundation. |
+| Frontend | `npm --prefix frontend run build`, `lint`, `format:check`, `lint:css` | PASS; JSX, Vite/Tailwind build and generated static worker |
+| Unit/UI state | `npm --prefix frontend run test:unit` | 7/7 PASS; shell, loading, success, HTTP/payload/network failures, manual recovery, not-found |
+| Browser | `API_PROXY_TARGET=http://127.0.0.1:8013 PLAYWRIGHT_BROWSERS_PATH=/tmp/mjl-playwright npm --prefix frontend run test:e2e` | 3/3 PASS; real proxy, routing, tokens/focus/narrow viewport, Chromium installability, cache/offline/no-replay and confirmed worker update |
+| Backend tools | In disposable backend: `ruff check .`, `ruff format --check .`, `mypy app` | PASS; 9 Python files formatted, 5 typed app sources |
+| API/PostgreSQL | In disposable backend: `TEST_DATABASE_URL="$DATABASE_URL" pytest -q` | 6/6 PASS; live/ready, sanitized failure, valid generated OpenAPI, configuration, transaction cleanup, repeatable Alembic; only `alembic_version` exists |
+| Hooks | Installed Husky; disposable Git repo with the same configuration | Invalid staged formatting rejected; standalone CI formatter also rejects it; corrected fixture passes |
+| Compose | Explicit project `mjl-foundation-test-20261022`, `/tmp/mjl-foundation-test.env`, `compose.rebuild.yaml`; `config --quiet`, `up -d --build`, `ps` | All 3 services healthy; frontend/backend ports bound to 127.0.0.1; no PostgreSQL host port |
+| Real DB outage | Stop only task PostgreSQL, call live/ready, restart and await health | Live remains 200; ready becomes generic 503 then recovers to 200; frontend proxy also verified |
+| Cleanup | Verify exact project labels, then project-scoped `down --volumes --remove-orphans` | PASS; 3 containers, network and test volume removed; 22 unrelated containers retain IDs/start times |
 
-Do not run load tests, old PHP matrices or a production-readiness campaign for
-this slice. Full session/OTP/authorization and financial concurrency tests belong
-to the subsequent feature that implements them. A health query cannot prove them.
-No application tests were run for this documentation audit; status/diff checks
-and independent document reviews are its evidence. Stop at this verdict.
+The CI workflow uses these same independent checks; no remote GitHub run is
+claimed. Browser Background Sync is disabled in the isolated Chromium context;
+the test accepts that explicit disabled result, inspects no registered queue or
+business IndexedDB and verifies no POST replay on reconnect. Generated worker
+inspection confirms no Background Sync code. Installability evidence applies to
+Chromium/local secure context, not every browser or production hosting.
+One upstream TestClient/httpx deprecation warning remains without a failed test.
+Developer-tool dependency advisories are recorded in the gap analysis.
+
+Independent standards and security/spec reviews found no blocking code issue;
+stale glossary authorization wording and a host-development port conflict in
+README were corrected. Final docs/CI review found no blocker; CI YAML parsed.
+Task-owned runtime resources were attested and removed. No historical PHP suite, broad application matrix,
+load test or production-readiness audit was run: none belongs to this slice.
+No user acceptance or authorization of another slice follows from these checks.
 
 ## Approved PTA business sequence after foundation/auth (DEC-087–091)
 

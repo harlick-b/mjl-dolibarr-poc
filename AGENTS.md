@@ -21,8 +21,10 @@ The proposed technical standard is
 The authority/business/API disposition register is
 `docs/rebuild/01-authority-and-business-baseline.md`.
 Readiness and the first proposed slice are in the existing roadmap.
-These documents do not authorize implementation. The current task permits only
-Markdown documentation and repository-owned skill/instruction maintenance.
+DEC-092 authorizes only the first technical foundation: frontend shell/health,
+PWA, FastAPI liveness/readiness, PostgreSQL connectivity, Alembic bookkeeping,
+quality tooling, isolated Compose and focused verification. No authentication,
+business modules, production deployment or migration of POC data is authorized.
 
 ## Legacy workspace
 
