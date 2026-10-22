@@ -12,6 +12,47 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## Approved PTA direction — proposed implementation sequence (DEC-087)
+
+The business rules in `mjl_codex_authoritative_pta_change_brief.md` are approved.
+The 2026-10-21 impact audit is recorded in the gap analysis. Runtime implementation
+has not started. The sequence below is proposed for review; implement only the
+next authorized slice and stop after it. Do not generate separate permanent
+phase execution/validation reports: keep concise state here and evidence in Git.
+
+| Slice | Requirement and smallest implementation scope | Dependencies / exit evidence |
+| --- | --- | --- |
+| 1. PTA planning foundation | Native Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Supervisor/Validator assignments. Reconcile schema, commands, route/token guards, reads and exports together. | Project closure guard is settled by DEC-090; retain reopening/deactivation questions for their dependent branches. PTA creation ownership is settled by DEC-089. Disposable API/DB tests for Project/first-PTA creation races, cross-entity denial, unassigned Agent and forbidden create bypass. Existing screen changes need inspiration check before implementation. |
+| 2. Approved amendments and annual transfer | Extend immutable Activity revisions with separate approved/candidate content, fresh two-stage review with affected execution paused while approval is pending, late corrections, withdrawal and atomic cross-year transfer. Reuse contributor/audit protections. | Slice 1; decide withdrawal/annual history semantics. Affected-only execution pause is settled by DEC-090. Prove pending amounts cannot alter approved execution/reporting and stale decisions cannot activate content. |
+| 3. Realization and administrative settlement | Final Operation spending replacing itemized expense approvals/reversals, distinct décaissement/virement approvals, separate Agent → Supervisor → Validator insufficiency authorization, external confirmation, automatic reversement requirement/declarations and direct Agent closure. Retire conflicting old finance/completion paths. | Slices 1–2 and exception/zero-amount decisions from gap analysis. Focused missing/zero/XOF, stale-basis, no-self-approval, discrepancy/full-return and closure tests. No bank execution. |
+| 4. Annual metrics and Fiche | Whole-PTA approved denominators; closed-only realization/spending; extend existing Fiche PDF and guarded PDF/XLSX exports with history/reconciliation. | Slices 2–3 and historical attribution decision. Prove UI filters cannot alter official denominator, pending amendments stay excluded and history is not truncated. File references activate only with slice 6. |
+| 5. Administrative relance | Focused 21-day scheduler, recipient/channel outcomes, in-app notifications and email; browser push if required by clarified PWA contract. | Stable dates/assignments/closure from slices 1–3; verify mail, agree retry/rescheduling and browser permission behavior. Focused due/reschedule/closure/deduplication tests. No generic notification platform. |
+| 6. Guarded optional documents | Reconcile Phase 4 to optional PTA/Activity/revision/decision/request/confirmation/return contexts and Partner visibility. Implement only the separately authorized security slice. | Existing document gate and relevant storage/preview/security decisions. Keep deny-all until guarded route and entity/Partner isolation checks pass; no mandatory attachments or requirement-blocking machinery. |
+| 7. Partner portal | Exclusive one-Partner invitation/auth binding; own current/past Projects and approved PTA/progress; authorized decisions, Fiches, files and scoped exports. | Can prepare identity/API work after slices 1–2; complete experience depends on slices 3–4 and allowed files on slice 6. Verify real mail/OTP before enablement, cross-Partner denial and no internal-role escalation. |
+
+Each slice covers its schema/command/API/consumer/test changes as one coherent
+behavioral change. Backend work can proceed without screen layouts, but no
+incomplete front end may fake the unavailable workflow. **Before implementing
+any screen, stop and request applicable inspiration if absent.** Reuse the
+existing design system and add accessible skeleton/empty/error states when
+screen work is authorized.
+
+Use existing guarded lifecycle installers with exact target recognition and
+unknown-state refusal. The application is not live: do not invent historical
+business-data conversion or compatibility layers. Inspect the actual tenant
+before any cutover; unexpected records stop that cutover rather than being
+silently deleted. Preserve the technical Admin and no persistent demo data.
+A local reset/cutover is a separate concrete authorized action, not a side effect
+of this audit. DDL interruption recovery remains necessary where DDL is used;
+do not recreate broad historical migration matrices without a current purpose.
+
+Retain the existing custom-module architecture. New PTA/settlement/Partner/file
+responsibilities need only the narrow ownership amendments actually required;
+no full architecture restart, generic workflow engine, new PDF engine, banking
+integration, offline synchronization or production preparation. Verify each slice
+with the smallest relevant disposable tests and record limitations. Passing
+checks do not accept the application or authorize the next slice.
+
 ## Current implementation state
 
 - The W0 prerequisite and W1 reference migration are complete. DEC-080/082 now

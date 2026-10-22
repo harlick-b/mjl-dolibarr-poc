@@ -13,9 +13,18 @@ shared behavioral constraints and migration requirements. Canonical business
 rules and permissions remain authoritative; code is current-state evidence.
 PHP pages render shells for migrated screens. All 75 operations are implemented, including the six Admin access-administration operations.
 
+## Approved PTA scope change (DEC-087)
+
+The 75 operations below describe the implemented baseline only. The approved
+PTA brief adds annual planning, amendments, settlement/closure and Partner
+access; these are not implemented or represented by the current OpenAPI.
+Assignment-bound access and incompatible workflow contracts below are superseded
+as business requirements. Change routes, tokens, payloads, consumers and tests
+in the same approved slice; do not claim new-scope API coverage yet.
+
 ## Scope and architecture
 
-The inventory and OpenAPI describe the complete target. DEC-080 authorizes the first runtime slice: authentication/session/recovery and Partenaires. Migrated screens require JavaScript, show a default-visible JavaScript requirement message, and use REST for reads and mutations. Legacy form POSTs cannot mutate those resources. No schema, dependency or Dolibarr core edits are needed.
+The inventory and OpenAPI describe the pre-PTA target. DEC-080 authorizes the first runtime slice: authentication/session/recovery and Partenaires. Migrated screens require JavaScript, show a default-visible JavaScript requirement message, and use REST for reads and mutations. Legacy form POSTs cannot mutate those resources. No schema, dependency or Dolibarr core edits are needed.
 The mechanism-to-requirement map is:
 
 | Requirement | Smallest implementation direction |

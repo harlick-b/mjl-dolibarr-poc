@@ -1,5 +1,16 @@
 # MJL Data Dictionary v2
 
+> **DEC-087 — approved PTA change (2026-10-21):**
+> [The approved brief](mjl_codex_authoritative_pta_change_brief.md) supersedes
+> conflicting rules below. Direct Project-to-Activity ownership, one-current-revision assumptions, settlement/closure and internal-only identity are pre-PTA baseline descriptions,
+> not requirements to preserve. See the authority router and gap analysis for
+> the approved target and open details. This audit does not authorize runtime
+> implementation; the document containment gate remains. Reconcile affected
+> sections as each implementation slice is approved.
+> **DEC-088:** final Operation spending replaces the itemized expense approval
+> and reversal/replacement workflow described below; those ledger rules are
+> superseded, not additional requirements. External fund custody is out of scope.
+
 This dictionary describes target data only. Existing POC records are deleted,
 not mapped into these entities. Current implementation evidence and unresolved
 gaps belong to the current-state map and gap analysis.

@@ -1,5 +1,13 @@
 # MJL Phase 4 Contextual Document Management Planning Brief
 
+> **DEC-087 — approved PTA change (2026-10-21):**
+> [The approved brief](mjl_codex_authoritative_pta_change_brief.md) supersedes
+> conflicting rules below. Mandatory document modes/snapshots, assignment-based access, old parent contexts and blanket post-approval attachment locks are pre-PTA baseline descriptions,
+> not requirements to preserve. See the authority router and gap analysis for
+> the approved target and open details. This audit does not authorize runtime
+> implementation; the document containment gate remains. Reconcile affected
+> sections as each implementation slice is approved.
+
 ## Status and authority
 
 ```text

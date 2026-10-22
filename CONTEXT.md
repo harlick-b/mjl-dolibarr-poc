@@ -1,25 +1,35 @@
 # MJL Domain Language
 
 This glossary defines the ubiquitous language for the post-cadrage MJL
-application. Target rules live in the canonical v2 documents.
+application. The approved PTA brief and DEC-087/088 supersede conflicting
+pre-PTA definitions. Remaining exception/document details follow the authority
+router and are reconciled before their implementation slice.
 
 ## Portfolio
 
 **Partenaire**:
-Organization that agrees and supports Activities through one or more Projects.
-It is created active, may be deactivated but never hard-deleted through MJL,
-and deactivation closes all of its active Projects atomically. Reactivation
-does not reopen those Projects.
+Organization supporting Activities through current and past Projects, with at
+most one active Project. Deactivation effects on unfinished work remain to be
+settled for the PTA lifecycle.
 _Avoid_: Partenaire / Programme, Tiers in normal user-facing language, PTF as a generic application entity
 
 **Projet**:
-Stable MJL project belonging to one Partenaire and containing Activities.
+Stable MJL project belonging to one Partenaire and containing annual PTAs.
+A Partner has at most one active Project; past Projects remain consultable.
+A Project cannot close while Activities or required financial steps are unfinished.
 Its internal identity, generated technical reference, and original Partenaire
-are immutable; only its display name and active/inactive lifecycle may change.
+are immutable; only its display name and controlled lifecycle may change.
 _Avoid_: Programme as a generic entity, native Dolibarr project screen as the normal MJL experience
 
+**PTA (Plan de travail annuel)**:
+Annual planning collection for one Project and one calendar year, with
+independent per-Activity review and approval, created automatically when an
+Agent first plans an Activity for that Project/year.
+_Avoid_: Whole-PTA approval blocking all Activities
+
 **Activité**:
-Planned and validated body of work under one Project, composed of Opérations.
+Planned body of work belonging to the PTA of its planned start year, composed
+of Opérations and revised through controlled approval.
 _Avoid_: Task, Dépense as a substitute for execution
 
 **Opération**:
@@ -60,18 +70,18 @@ Validator decision approving the same exact revision that was prevalidated.
 _Avoid_: Admin approval, disbursement, payment
 
 **Retour en correction**:
-Reasoned review decision requiring an assigned Agent to change and resubmit
+Reasoned review decision requiring an Agent to change and resubmit
 the Activity.
 _Avoid_: Silent return to draft, reviewer editing
 
 **Abandon d’Activité**:
-Disposition reasoned by an assigned Agent for an unsubmitted draft. It ends
-all current assignments immediately and is distinct from cancellation.
+Reasoned disposition of an unsubmitted draft by an Agent, distinct from formal
+withdrawal of an Activity with administrative history.
 _Avoid_: Annulation, deletion, post-submission cancellation
 
 **Restauration de brouillon**:
-Validator action before the Activity start that returns an abandoned Activity
-to draft with one selected active primary Agent.
+Return of an abandoned draft to editable planning; the pre-PTA restoration
+procedure requires reconciliation with the approved PTA lifecycle.
 _Avoid_: Reopening a submitted or definitively validated Activity
 
 ## Assignment and access
@@ -82,8 +92,8 @@ editing permission.
 _Avoid_: Owner with exclusive business rights
 
 **Agent additionnel**:
-Currently assigned Agent with the same authorized Activity editing and
-submission capabilities as the primary Agent.
+Agent designated for coordination and notifications; every Agent has the same
+PTA/Activity visibility and editing rights subject to workflow state.
 _Avoid_: Partner-scoped user assignment
 
 **Agent superviseur et prévalidateur**:
@@ -92,8 +102,8 @@ and prevalidate.
 _Avoid_: Agent vérificateur as a user-facing label, N1, N2
 
 **Validateur définitif**:
-Business superuser who manages reference data and assignments, performs final
-validation, and decides cancellation and reopening requests.
+Business reviewer who creates/closes Projects, manages reference data and
+assignments, and performs final planning and administrative request approval.
 _Avoid_: Admin, DPAF as an application role
 
 **Admin**:
@@ -104,23 +114,39 @@ _Avoid_: Business superuser, reviewer, reference-data manager
 ## Execution
 
 **Montant dépensé**:
-Sum of approved expense entries for an Opération after definitive validation.
-Draft/submitted amounts are separate. Missing information remains null; zero
-requires an explicit approved zero-spending declaration.
-_Avoid_: Inferring zero from missing information
+Explicit final spending declared per Opération; the Activity amount is the sum
+of its complete final Operation values. Missing information differs from zero.
+_Avoid_: Approved expense-ledger sum, inferring zero from missing information
 
-**Écriture de dépense**:
-Individual expense within one Opération, explicitly submitted by an Agent
-and treated as an accounting entry. Validateur définitif approval makes it
-immutable. Corrections preserve the original and use a linked full reversal
-and replacement approved together; the original amount remains effective
-until that approval.
-_Avoid_: Editable validated spending, audit history as a substitute for an immutable entry
+**Autorisation financière pour insuffisance budgétaire**:
+Separate Agent request approved by the Superviseur then the Validateur,
+required alongside an approved PTA budget revision before décaissement starts.
+_Avoid_: Décaissement approval, virement approval
 
-**Approbation de dépense**:
-Explicit decision by the Validateur définitif validating a spending entry, distinct from Activity
-budget validation and Opération completion.
-_Avoid_: Treating a saved amount or a completed Opération as accounting approval
+**Demande d'autorisation de décaissement**:
+Agent administrative request for finalized actual spending, approved first by
+the Superviseur and then the Validateur définitif.
+_Avoid_: Full-allocation request, execution of a bank payment
+
+**Demande de virement**:
+Separate administrative request for the actual amount, with the same two-stage
+approval; distinct from confirmation of the external transfer.
+_Avoid_: Bank instruction, irreversible one-request-ever rule
+
+**Confirmation de virement**:
+Agent declaration of the actual external transfer amount and date, with optional
+supporting evidence.
+_Avoid_: Independent bank verification by MJL
+
+**Reversement**:
+External return to the Partner of unused authorized budget. The required amount
+is distinct from the amount actually declared returned.
+_Avoid_: Reallocation to another Activity, in-app payment, inferred completion
+
+**Clôture de l'Activité**:
+Direct Agent action after physical completion, final spending and all required
+administrative settlement checks; only closed Activities count as realized.
+_Avoid_: Extra closure approval, automatic closure from Operation completion
 
 **Écart**:
 Difference between an Opération's spent amount and authorized amount.
@@ -130,28 +156,39 @@ _Avoid_: Missing value presented as zero
 Derived indication of whether relevant Opérations have explicit spent amounts.
 _Avoid_: Activity execution status, cancellation as proof of completeness
 
-**Statut d'exécution de l'Activité**:
-Derived operational state calculated from validation, dates, cancellation,
-and Opération terminal states.
-_Avoid_: Validation status, manually edited Activity execution status
+**Réalisation d'activités**:
+Execution of approved scheduled PTA Activities, including final spending and
+administrative settlement leading to explicit closure.
+_Avoid_: Independent executable Activity creation, planning approval status
 
-**Contrepassation de dépense**:
-Immutable entry offsetting the full amount of one approved expense. It is
-approved atomically with a linked replacement; it never deletes or edits the
-original. Accounting corrections do not reopen operational execution.
-_Avoid_: Editing an approved amount, deleting financial history
+**Révision du PTA**:
+Formal change to affected Activity content, allocation, dates or inclusion,
+requiring fresh two-stage approval while retaining earlier approved history.
+Execution of the affected Activity pauses while the change awaits approval;
+unaffected approved Activities continue.
+_Avoid_: Silent overwrite of approved values, approval of all Activities together
+
+**Transfert entre PTAs**:
+Audited change of annual attribution when an approved postponement changes the
+Activity's planned start year.
+_Avoid_: Moving history silently, attribution by end year
+
+**Identité Partenaire**:
+Admin-invited read-only identity linked to exactly one Partner, for consultation
+of that Partner's authorized records.
+_Avoid_: Internal business role, multi-role switch, public registration
 
 ## Exception workflows
 
-**Demande d'annulation**:
-Version-bound request by an assigned Agent for a Validator decision that may
-make an Activity or Opération terminal.
-_Avoid_: Direct deletion, silent budget rewrite
+**Retrait d'Activité du PTA**:
+Formal revision withdrawing an Activity through Supervisor and Validator review
+while preserving approved history and recorded administrative actions.
+_Avoid_: Validator-only cancellation, deletion
 
-**Demande de réouverture**:
-Version-bound request to return a completed Opération to in-progress execution
-after Validator approval.
-_Avoid_: Direct edit of a completed Opération, reopening a cancelled Opération
+**Annulation / réouverture d'Opération**:
+Existing exception concepts whose future treatment requires reconciliation with
+PTA revisions and settlement; no right to change settled amounts is implied.
+_Avoid_: Preserving the pre-PTA approval procedure by default
 
 ## Evidence and reporting
 
@@ -177,13 +214,13 @@ _Avoid_: Generic operational export labeled official
 ## Contextual document evidence
 
 **Document justificatif contextuel**:
-Supporting evidence attached to exactly one Projet, Activité, or Opération and
-delivered only through guarded MJL routes.
+Optional evidence tied to its PTA, Activity, revision, decision, request or
+external declaration context and delivered only through guarded MJL routes.
 _Avoid_: Partenaire attachment, public link, raw ECM document
 
 **Catégorie documentaire**:
-Stable entity-scoped classification whose changes create immutable rule
-revisions; its initial values are client input.
+Entity-scoped classification of optional supporting evidence; its initial
+values are client input and do not create submission or closure blockers.
 _Avoid_: Type d'Opération, mutable requirement setting
 
 **Série documentaire**:

@@ -1,6 +1,8 @@
 # MJL Current vs Target Gap Analysis
 
-This is implementation-debt evidence beneath the canonical v2 documents.
+This is implementation-debt evidence beneath the authority router and approved
+PTA brief (DEC-087). The pre-PTA rows below describe prior implementation,
+not satisfaction of the new target.
 
 | Target | Current state | Remaining gap / owner |
 | --- | --- | --- |
@@ -53,3 +55,209 @@ permissions, authentication, or business rules.
 | Editable Operation drawer | Execution now uses REST and issues tokens on submission, eliminating the former page-load token exhaustion. The consultation drawer remains read-only. | An editable drawer is an optional UI change, not authorized by the transport migration. |
 | Reference and account fields/actions | Partner/Project screens expose only current name, parent, status, and guarded lifecycle facts through shared responsive lists and progressive forms; Project edit preserves its original Partner. Admin access presents invitation, role update, deactivation, and revocation through shared responsive tables and progressive exact-form dialogs, including real invitation delivery states. | Defer Partner description, reference counts/timestamps, unsupported account profile/reactivation actions, and bulk assignment replacement. |
 | Extra list and dashboard data | Current monitoring filters support search, Partner, Project, validation, execution, completeness, and period overlap. The reference also depicts Agent/deadline filters and Admin metrics not supplied by the current read contracts. | Use supported filters and real projections only; seek a separate decision for missing read contracts. |
+
+
+## Approved PTA impact audit — 2026-10-21
+
+**Verdict:** retain the existing custom-module/REST/command/audit architecture.
+The approved direction is feasible without a core edit or a framework rewrite.
+Confidence is high in the major impact areas, conditional in settlement details
+and historical metrics. This is static source analysis at `18d55d1`, with three
+independent domain, access/side-effect and UI/test audits consolidated. It is
+not runtime verification, legal certification or implementation approval.
+The user-supplied brief was already untracked at audit start and is unmodified.
+
+### Scope and conflict register
+
+Paths below are relative to `custom/mjlfinancement` unless prefixed `docs/` or
+`tests/`. Line references identify the audited baseline, not stable future anchors.
+Risk indicates impact of an incomplete migration, not a claimed active exploit.
+
+| Risk / approved requirement | Current source evidence | Required replacement or preservation |
+| --- | --- | --- |
+| High — annual PTA; creation only within PTA | `class/mjlactivitycommand.class.php:447,704`; `lib/api/mjl_api_activities.lib.php:79`; `sql/llx_mjlfinancement_activity.sql:6` | Add Project/year PTA identity, automatically created with the first Agent-planned Activity; resolve/require PTA in creation/token/input/read paths and validate planned-start-year. Remove standalone create semantics. Preserve native Partner/Project objects. |
+| High — one active Project per Partner | `class/mjlreferencecommand.class.php:43,188` | Validator ownership already exists. Serialize create/reactivation on Partner and reject a second active Project; retain past Projects. Closure must reject unfinished Activities or financial steps (DEC-090); reopening details remain open. |
+| High — equal Agent access | `lib/mjl_activity_access.lib.php:37`; `class/mjlmonitoring.class.php:42`; `class/mjlactivitycommand.class.php:47,193`; `class/mjlexport.class.php:68` | Replace assignment-based read/write/final-export guards together, including timeline, filters, exception/correction paths and allowed-action tokens. Preserve entity, role, state, optimistic version and contributor guards. |
+| High — Supervisor and Validator assign Agents | `class/mjlactivityassignment.class.php:122`; `lib/api/mjl_api_activities.lib.php:19,113` | Allow both roles through route, token, locked command and DB checks. Remove hard-coded Validator audit attribution; record actual role. Assignment loss no longer revokes Agent business access. |
+| High — approved PTA amendments | `class/mjlactivitycommand.class.php:47,77,596,638`; `scripts/rst006a_schema.lib.php:125,349` | Separate candidate revision from effective approved revision. Current mutable Activity/Operation rows cannot be overwritten by a pending amendment. Change DB checks/triggers, revision pointers, decision targets and projections together. Keep immutable snapshots/contributors and exact two-stage decisions. Pause affected execution while approval is pending; unrelated approved Activities continue (DEC-090). |
+| High — edits after start/end | `class/mjlactivitycommand.class.php:48,78,153` | Remove blanket future-date prohibitions and conflicting action flags/UI/tests. Retain date ordering, formal amendment approval and financial-basis freeze once settlement begins. |
+| High — cross-year transfer | Current revision snapshot at `class/mjlactivitycommand.class.php:649` lacks PTA membership | Record old/new PTA and effective approved revision in one audited transfer. Lock both years in deterministic order. Retain historical attribution; do not move rows silently or count both years as current ownership. |
+| Medium — all-Partner +3-calendar-month suggestion | `js/activities.js:37`; no existing suggestion found | Add editable suggestion without overwriting manual dates. Recommend clamping to the destination month's last day; agree/test calendar convention before implementation. No UNICEF exception. |
+| High — final spending and administrative settlement | `class/mjlactivitycommand.class.php:200,267,300`; `scripts/spending_schema.lib.php:37`; `scripts/schema/spending.sql` | New request/declaration/return facts are absent. User confirmed final Operation spending replaces the ledger. Remove obsolete expense approval/reversal routes, schema and test callers together; never maintain competing totals or an extra approval chain. |
+| High — explicit Agent closure | `lib/mjl_execution.lib.php:12,26`; `class/mjlexecutionreconciler.class.php` | Replace automatic Activity completion as realization criterion. Physical completion is distinct from closure; closure checks finalized spending, required approvals, confirmed transfer, settled reversement and no unresolved discrepancy in one transaction. No closure approval stage. |
+| High — formal PTA withdrawal | `class/mjlactivitycommand.class.php:318,349,366` | Replace conflicting Agent-to-Validator Activity cancellation with two-stage PTA withdrawal. Do not automatically preserve Operation cancellation/reopening behavior where it would alter settled amounts; clarify that branch first. Never delete history. |
+| High — whole-year official KPIs | `lib/mjl_monitoring.lib.php:40,81`; `lib/mjl_report_data.lib.php:206,215`; `lib/api/mjl_api_reporting.lib.php:50` | Use entire selected PTA's effective approved revisions; UI search/page/status filters must not silently change denominators. Closed-only numerators, null/zero distinction, report-date context and uncapped anomalies. Withdrawal and historical-transfer denominator policy needs precision. |
+| High — 21-day delivered relance | `lib/mjl_monitoring.lib.php:117`; `core/modules/modMjlFinancement.class.php:55` | Existing read-time seven-day warning is not delivery. Reuse cron integration, but add a focused reminder job, inbox and durable recipient/channel outcomes. Recompute on dates/assignments, handle already-due records, stop closed records. Push infrastructure was not found. |
+| High — exclusive Partner portal identity | `lib/access/mjl_access_policy.lib.php:3`; `class/mjlauthcommand.class.php:108,167`; `class/mjlmonitoring.class.php:22` | Extend invitation, login, reset, session, access administration and reads for exactly one entity-scoped Partner binding. Do not treat Partner as an internal business role or reuse arbitrary legacy multi-Partner scope rows. |
+| High — Partner isolation, global audit exclusion | `class/mjlexport.class.php:45,54,68`; `lib/api/mjl_api_reporting.lib.php:13` | Dedicated allowed-field read/export projection with Partner ownership joins and fresh authorization before delivery. Global audit remains Validator/Admin only. Test guessed IDs, filenames, filters and changed identity scope. Allowed supporting-document visibility still needs definition. |
+| High — optional contextual documents | `documents.php:2`; `documentdownload.php:2`; `docs/mjl-phase4-contextual-document-management.md` | Keep current deny-all until the explicitly gated slice. Remove mandatory-attachment/requirement-snapshot obligations; extend contexts to PTA/revision/decision/request/confirmation/reversement. Preserve guarded storage, entity scope and historical evidence. |
+| Medium — complete regenerable Fiche PDF | `lib/mjl_report_data.lib.php:175`; `lib/mjl_report_render.lib.php:22,109,140`; `class/mjlexport.class.php:122` | Extend existing Fiche and TCPDF/export workflow with approved context, full administrative chronology and reconciliation. Existing row/section caps must fail explicitly or be deliberately adapted, never silently omit history. No new PDF engine, signatures or permanent PDF-snapshot subsystem. |
+| High — real OTP delivery | `lib/mjl_auth.lib.php:248,499`; `lib/mjl_email.lib.php:156` | Auth and email adapters exist; OTP is configurable and protected REST fails closed when disabled. Last documented local mail absence/OTP-disabled state was not rechecked. Verify actual delivery before enabling internal or Partner OTP. Do not confuse disposable outbox capture or transport acceptance with inbox receipt. |
+
+### Authority and removal boundaries
+
+The brief supersedes related sections of functional specification v2 (3, 6–10,
+13–23, 26, 30), permission matrix (visibility, assignments, new Partner identity),
+status model, data dictionary and scope exclusions. DEC-076/077 itemized expense approval and reversal/replacement details are
+superseded: the user explicitly chose final Operation spending instead.
+DEC-083–086 preservation of assignment/finance behavior is baseline evidence,
+not a veto on the new rules. Current REST/OpenAPI describes 75 old-scope actions,
+not coverage of new PTA functionality.
+
+The Phase 4 security gate stays, but its mandatory-category modes, requirement
+snapshots as submission blockers, assignment authorization, limited parent types
+and blanket Activity attachment lock conflict with optional later-context evidence.
+Reconcile those rules in the document slice. A supplied Fiche is not the old
+Phase 6 bespoke Partner-template/signature product; do not import those gates.
+Current completed-phase reports, historical matrices and accessibility sign-off
+must not become new audit execution obligations.
+
+Keep the frozen engineering responsibilities: guarded REST transport, finite
+commands, locked authorization, command-owned writes and audit, bounded reads,
+private rendering and fresh export authorization. Record only the narrow new
+PTA/settlement/Partner/document ownership amendments needed before their slices;
+do not restart W0–W7 or silently rewrite frozen fingerprints. Preserve the
+project security baseline (including its PSSIE requirement); this audit makes
+no legal interpretation or compliance claim and does not reopen a production audit.
+
+### Minimal domain and state proposal (not implemented)
+
+| Object / state dimension | Minimal facts and transitions | Existing owner / change |
+| --- | --- | --- |
+| Annual PTA | Entity, Project, calendar year; unique `(entity, project, year)`; no collective all-Activities approval barrier | Small annual-planning command/read responsibility; use current lifecycle seam for DDL. Automatically create on first Agent-planned Activity for that Project/year; concurrent first creations must resolve to one PTA. |
+| Activity identity and planning | Stable identity, approved revision pointer, candidate pointer, current PTA; approved and candidate values coexist | Extend Activity command and immutable revisions; do not build a generic workflow engine. |
+| Candidate revision | Draft → submitted → prevalidated → approved; either reviewer may return to Agent; resubmission repeats both stages | Existing exact-revision/contributor decisions reused; reason, change type, old/new PTA and Operation identity/content included. Withdrawal and transfer are changes, not deletion. |
+| Operation realization | Stable Operation identity plus approved allocation; physical progress and explicit nullable final XOF spending | Final Operation declaration replaces itemized expenses; preserve positive allocation and exact Activity sum. Do not infer missing final values from partial totals. |
+| Administrative requests | Separate décaissement and virement records; each Agent submission → Supervisor → Validator, or returned correction; target finalized amount and approved basis | Activity-owned settlement commands are the smallest default. A separate class is justified only by real responsibility separation, not file length. Keep request IDs/versions; no unique-one-virement-ever constraint. |
+| Insufficiency authorization | Approved budget revision plus distinct financial authorization before décaissement | Separate Agent → Supervisor → Validator request, distinct from both décaissement and virement (DEC-089). |
+| External facts | Confirmed virement amount/date; required reversement; declared returned amount/date and optional evidence | Administrative declarations, never bank execution. Preserve discrepancies and immutable prior facts; correction/resolution permissions require decisions. |
+| Closure | Open → closed directly by Agent once all current prerequisites pass | Lock approved basis, final spending, decisions and declarations together; reject concurrent stale changes. Persist actor/time/audit. No extra reviewer action. |
+| Partner identity | Exclusive read-only identity bound to one Partner within entity | Extend existing access/auth owners; no second login stack, role switching or public registration. |
+
+Schema work includes PTA, approved/candidate pointers and immutable revision
+content/Operation relationships, independent request decisions, external declarations,
+reversement obligation and closure facts, Partner binding and reminder delivery
+records. Reuse existing audit and export evidence tables. Every parent/child
+reference needs entity-consistent checks; amounts remain integer XOF/decimal
+strings through JSON and JavaScript. No float arithmetic for money.
+
+Approved revision activation must atomically update all effective values and
+annual attribution. Candidate changes cannot alter live execution budgets or
+official totals. Pin both the approved budget revision and finalized spending
+snapshot when décaissement begins. Block silent rebasing; report a late exception
+for a defined resolution. No asynchronous mail or PDF rendering inside a mutation
+transaction. Record success evidence in that transaction; perform external effects
+after commit, with truthful outcome records.
+
+### Permission target
+
+| Action | Agent | Supervisor | Validator | Admin | Partner identity |
+| --- | --- | --- | --- | --- | --- |
+| Read PTA/Activity | All within active entity | All within active entity | All within active entity | Existing technical/audit scope | Own Partner's authorized records only |
+| Plan/submit/revise | Yes, workflow guards | No direct editing | No direct editing | No | No |
+| Manage Activity assignments | No ordinary reassignment | Yes | Yes | No | No |
+| Prevalidate / final approve | No | Prevalidate | Final approve | No | No |
+| Create/close Project | No | No | Yes | No | No |
+| Declare physical work/final spending/external transfers/returns; close | Yes, prerequisite guards | No | No | No | No |
+| Approve décaissement/virement | No | First stage | Final stage | No | No |
+| Invite accounts | No | No | No | Yes | No |
+| Full audit-history export | No | No | Yes | Yes | No |
+| Own authorized portal records/Fiche export | N/A | N/A | N/A | N/A | Read-only, Partner-scoped |
+
+No-self-validation tracks actual contributors and reviewers even after role
+changes. Broader Agent access does not remove role, state, entity, stale-version
+or immutable-history safeguards. Optional attachments do not weaken file access
+controls. The exact Partner-visible subset of documents/decisions must be explicit.
+
+### API, UI and external effects
+
+Update existing `/activities` creation/structure/submission/revision decisions,
+assignment options/tokens, `/projects` create/activation, `/operations` execution,
+expense/exception paths as applicable, `/dashboard`, `/alerts`, `/reports`, and
+Admin invitation/session payloads. Add explicit PTA, amendment/transfer,
+settlement/declaration/closure and Partner read/export operations; exact route
+names are slice design, not a new committed wire contract. Change strict route
+allowlists, OpenAPI, CSRF/submission-token contexts, allowed-action projections,
+JS clients and tests together. No front-end-only transition or old bypass route.
+
+`js/mjl_activities.js`, `mjl_execution.js`, `mjl_reporting.js`,
+`mjl_references.js`, `mjl_access.js`, navigation and their shells are affected.
+Reuse v3 tables, forms, dialogs, review steps, chronology, auth shell and exact
+money formatting. Current loading text is not skeleton loading. Add appropriate
+loading/empty/error states and accessibility checks with eventual screen work.
+No applicable screen inspirations were found for PTA overview/amendment/transfer,
+settlement, Partner portal or contextual documents. **Stop and ask before
+implementing an uninspired screen**, while independent backend work may proceed.
+
+Reminder delivery requires a focused persisted schedule/recipient/channel key,
+attempt status and current-date/assignment/closure recheck. It must handle new
+assignees after a due date, changed dates, retry without duplicate successful
+notifications and inactive recipients. Exact re-notification policy and push
+requirements should be settled in that slice. In-app evidence, SMTP acceptance
+and browser push acceptance are different outcomes; none alone proves reading.
+Reuse cron registration/email adapters, not a general messaging platform.
+
+### Open details and dependent stops
+
+Resolved during audit: the user chose final Operation spending instead of the
+itemized expense approval/reversal ledger. External fund custody is out of scope:
+no custody/source-of-funds model or clarification is needed. Keep the approved
+reversement formula and record only the specified administrative declarations.
+
+Also resolved (DEC-089): automatically create the annual PTA when an Agent first
+plans an Activity for that Project/year. Insufficiency authorization is a separate
+Agent → Supervisor → Validator request, distinct from décaissement and virement.
+
+Also resolved (DEC-090): Project closure is blocked while any Activity or required
+financial step remains unfinished. Execution of an Activity pauses while its
+proposed amendment awaits approval; unrelated approved Activities continue.
+
+1. Who resolves late exceptions/amount discrepancies, and which evidence releases
+   closure? Blocks the exception branch of settlement design.
+2. What are Project reopening rules and the effect of Partner deactivation?
+   Deactivation must not bypass the approved Project closure guard. How do
+   approved withdrawal/transfer affect historical annual denominators? These
+   details block only their lifecycle and reporting branches.
+3. For explicit zero final spending, are zero-amount request/confirmation stages
+   required or waived? How are partial reversements recorded and discrepancies
+   corrected? No automatic exception or fabricated settlement will be added.
+4. Which justificatifs/decision fields are Partner-visible, and who determines
+   that? Is PWA notification intended to include background browser push? These
+   block only the relevant portal/document/notification slices.
+
+Do not require all answers before independent planning can progress. Prefer the
+smallest direct choices (one current candidate per Activity; no aggregate PTA
+approval; exact year identity; calendar-month clamp) but label unconfirmed product
+choices as proposals. The brief requires one-or-more Operations with balanced
+allocation; do not preserve incomplete-draft exceptions without a decision.
+
+### Focused future verification and audit limitations
+
+Port the distinct domain cases into current REST E2E specs:
+`tests/e2e/api-activities.spec.js` (PTA, amendments, equal Agent rights),
+`api-execution.spec.js` (spending, independent decisions, settlement, closure),
+`api-reporting.spec.js` (annual denominators, Fiche, export scope), and
+`api-access.spec.js` / `api-auth-partners.spec.js` (exclusive Partner invitation,
+OTP and forbidden internal access). These names describe future extensions,
+not tests that already prove the new behavior.
+
+Replace obsolete assignment-denial, independent creation, post-start prohibition,
+automatic-completion and incompatible ledger expectations. Preserve transaction
+rollback, exact revision, no-self-approval, replay/stale-write, entity isolation,
+secret protection and export delivery tests. Legacy form/VUI matrices are case
+sources, not mandatory runs. Keep deny-all document checks until guarded cutover.
+
+Include concurrent Project create/reactivate and first-Activity PTA creation;
+candidate-versus-approved reads and affected-only execution pause;
+Project closure denial for unfinished Activities or financial obligations;
+late edits and fresh two-stage review; cross-year transfer; missing/zero/large
+XOF; no closing before confirmed transfer/full reversement; stale settlements;
+whole-PTA metrics despite UI filters; deduplicated reminders; guessed other-Partner
+API/file/PDF/export IDs. Use pure calendar/money/KPI checks and disposable DB
+constraint/transaction tests where they add distinct coverage.
+
+Run only the affected `MJL_TEST_GREP='…' npm run test:api` cases through the
+existing disposable runner, relevant changed-schema checks and changed PHP/JS
+syntax checks. No test, browser, tenant query, SMTP probe or runtime configuration
+change was performed for this documentation audit. No current tenant emptiness,
+actual delivery, new workflow correctness or production readiness is asserted.

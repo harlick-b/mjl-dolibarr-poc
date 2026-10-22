@@ -1,5 +1,16 @@
 # MJL Status and Transition Model v2
 
+> **DEC-087 — approved PTA change (2026-10-21):**
+> [The approved brief](mjl_codex_authoritative_pta_change_brief.md) supersedes
+> conflicting rules below. Post-start bans, structurally terminal approval, automatic Activity completion and old finance/document transitions are pre-PTA baseline descriptions,
+> not requirements to preserve. See the authority router and gap analysis for
+> the approved target and open details. This audit does not authorize runtime
+> implementation; the document containment gate remains. Reconcile affected
+> sections as each implementation slice is approved.
+> **DEC-088:** final Operation spending replaces the itemized expense approval
+> and reversal/replacement workflow described below; those ledger rules are
+> superseded, not additional requirements. External fund custody is out of scope.
+
 ## Activity Validation State
 
 | State | Allowed next state | Actor | Guard |

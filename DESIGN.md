@@ -4,6 +4,15 @@ Business behavior, roles, permissions, states, data, and scope come from the
 canonical v2 package. The approved v3 package remains the presentation
 authority only.
 
+## Approved PTA screen gate (DEC-087)
+
+The approved PTA brief supersedes conflicting v2 product behavior. Existing v3
+components remain reusable visual guidance. Before implementing a changed or
+new screen, verify that an applicable supplied inspiration exists; if absent,
+stop that screen work and ask the user. Do not invent new PTA, settlement or
+Partner portal layouts from the old screen inventory. Backend planning can
+continue independently.
+
 ## Durable Direction
 
 - Institutional, sober, calm, clear, trustworthy, and French-first.

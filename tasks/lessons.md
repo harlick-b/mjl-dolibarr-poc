@@ -309,3 +309,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   for export authorization. REST preview adapters must expose only `document`;
   test every report type through the public response because single-type coverage
   misses wrapper-shape differences.
+
+- For the approved PTA administrative workflows, do not make external fund
+  custody/source-of-funds questions block application design. MJL records the
+  specified allocations, spending, requests and external declarations; the
+  user explicitly excluded investigation or modeling of the banking process.
