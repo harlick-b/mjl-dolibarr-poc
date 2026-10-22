@@ -12,9 +12,17 @@ export function PwaUpdate() {
       role="status"
       className="fixed bottom-4 right-4 left-4 mx-auto max-w-xl rounded-panel border border-border bg-white p-4 shadow-lg"
     >
-      <p className="mb-3">Une nouvelle version est disponible.</p>
+      <p className="mb-3">
+        Une nouvelle version est disponible. Terminez votre saisie avant
+        d’actualiser.
+      </p>
       <div className="flex flex-wrap gap-3">
-        <Button onClick={() => updateServiceWorker(true)}>
+        <Button
+          onClick={() => {
+            if (document.documentElement.dataset.authBusy !== 'true')
+              void updateServiceWorker(true)
+          }}
+        >
           Actualiser l’application
         </Button>
         <button

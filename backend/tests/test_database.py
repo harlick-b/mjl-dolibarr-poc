@@ -63,8 +63,16 @@ def test_alembic_repeatable_upgrade_without_business_tables(isolated_url, monkey
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0001_foundation"
+                == "0002_a1"
             )
-            assert inspect(connection).get_table_names() == ["alembic_version"]
+            assert set(inspect(connection).get_table_names()) == {
+                "alembic_version",
+                "auth_user",
+                "auth_invitation",
+                "auth_otp",
+                "auth_context",
+                "auth_audit",
+                "auth_abuse",
+            }
     finally:
         engine.dispose()

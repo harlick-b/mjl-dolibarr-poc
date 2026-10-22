@@ -23,8 +23,10 @@ The authority/business/API disposition register is
 Readiness and the first proposed slice are in the existing roadmap.
 DEC-092 authorizes only the first technical foundation: frontend shell/health,
 PWA, FastAPI liveness/readiness, PostgreSQL connectivity, Alembic bookkeeping,
-quality tooling, isolated Compose and focused verification. No authentication,
-business modules, production deployment or migration of POC data is authorized.
+quality tooling, isolated Compose and focused verification. DEC-094 now authorizes
+A1 first-Admin invitation/password/email-OTP/session/logout only, with synthetic
+identities, isolated test databases and test mail. PC1/PC2 remain pending; real
+accounts, A2/A3/A4, business modules and production deployment are not authorized.
 
 ## Legacy workspace
 

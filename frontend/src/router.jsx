@@ -1,3 +1,6 @@
+import { AuthView } from './AuthView'
+import { authRequest, sessionQuery } from './auth'
+import { useRouterState } from '@tanstack/react-router'
 import { HealthView } from './HealthView'
 import { healthQuery } from './health'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -11,6 +14,9 @@ import {
 } from '@tanstack/react-router'
 
 function Shell() {
+  const path = useRouterState({ select: (state) => state.location.pathname })
+  if (['/login', '/invitation', '/verification', '/identity'].includes(path))
+    return <Outlet />
   return (
     <div className="min-h-screen">
       <header className="border-b border-border bg-white">
@@ -61,6 +67,9 @@ function Home() {
       <p className="mt-4 text-muted-foreground">
         L’espace de travail est en préparation.
       </p>
+      <Link to="/login" className="mt-6 mr-6 inline-block underline">
+        Se connecter
+      </Link>
       <Link to="/health" className="mt-6 inline-block underline">
         Vérifier la disponibilité du service
       </Link>
@@ -103,8 +112,50 @@ export function makeRouter(history) {
       void context.queryClient.prefetchQuery(healthQuery)
     },
   })
+  const authRoutes = [
+    '/login',
+    '/invitation',
+    '/verification',
+    '/identity',
+  ].map((path) =>
+    createRoute({
+      getParentRoute: () => root,
+      path,
+      component: AuthView,
+      gcTime: 0,
+      loader: async ({ context }) => {
+        if (path !== '/invitation') return null
+        let proof
+        if (path === '/invitation' && window.location.hash) {
+          const fragment = new URLSearchParams(window.location.hash.slice(1))
+          proof = {
+            selector: fragment.get('selector') || '',
+            verifier: fragment.get('verifier') || '',
+          }
+          window.history.replaceState(
+            window.history.state,
+            '',
+            window.location.pathname,
+          )
+        }
+        try {
+          const session = await context.queryClient.fetchQuery(sessionQuery)
+          if (proof) {
+            const invited = await authRequest('invitations/inspect', {
+              csrf: session.csrf,
+              body: proof,
+            })
+            return { proof, email: invited.email }
+          }
+        } catch {
+          /* The view offers a deliberate retry or an invalid-link message. */
+        }
+        return null
+      },
+    }),
+  )
   return createRouter({
-    routeTree: root.addChildren([home, health]),
+    routeTree: root.addChildren([home, health, ...authRoutes]),
     context: { queryClient },
     history,
   })

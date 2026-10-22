@@ -149,7 +149,7 @@ test('service-worker update waits for user confirmation', async ({ page }) => {
       (await navigator.serviceWorker.ready).update(),
     )
     await expect(
-      page.getByText('Une nouvelle version est disponible.'),
+      page.getByText('Une nouvelle version est disponible.', { exact: false }),
     ).toBeVisible()
     expect(
       await page.evaluate(async () =>

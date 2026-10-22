@@ -4,6 +4,17 @@ This is implementation-debt evidence beneath the authority router and approved
 PTA brief (DEC-087). The pre-PTA rows below describe prior implementation,
 not satisfaction of the new target.
 
+## A1 enablement boundary (DEC-094)
+
+Synthetic A1 is implemented; PC1 (exact password/Unicode/normalization,
+invitation/OTP/abuse/pre-auth policies) and PC2 (concurrent sessions/foreground
+activity classification) remain pending sponsor/RSSI approval. They block real
+accounts, not isolated verification. A2 account management, A3 recovery, A4
+business authorization and PTA remain unapproved. E1–E6 and production mail/TLS/
+operations evidence are unchanged. See readiness §10/§12; do not infer approval
+from the synthetic fixture values. The existing frontend developer-tool advisory
+below remains separate from A1's Argon2id dependency.
+
 ## Foundation dependency follow-up (DEC-092)
 
 `npm audit` on the locked frontend graph reports seven high-severity entries

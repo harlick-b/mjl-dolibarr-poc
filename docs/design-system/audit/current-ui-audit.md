@@ -4,7 +4,16 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 file records current repository-visible UI evidence, not user acceptance or
 browser verification for this documentation update.
 
-## Current findings
+## React A1 evidence (DEC-094)
+
+French auth screens follow the updated supplied composition and v3 tokens.
+Focused Playwright checks exercise 375px layout, keyboard OTP entry, password
+reveal, readonly email, inline errors, cross-tab/offline masking and dirty-form
+worker deferral. No recovery, registration or admin-management screen was added.
+These checks establish the exercised behavior; human visual/accessibility
+acceptance remains unclaimed. Readiness §12 owns exact final verification results.
+
+## Historical POC findings
 
 - Activity list/planning/detail/review/chronology now load through REST. Existing
   tabs, dialogs, planning controls, Operation drawer and dirty-form guards are

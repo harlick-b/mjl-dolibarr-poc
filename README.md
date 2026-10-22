@@ -2,9 +2,10 @@
 
 ## Dedicated application rebuild
 
-The first technical foundation is implemented under DEC-092. It contains a
-French neutral shell and public service-health checks only. Authentication and
-business features require separate authorization. See [authority](docs/mjl-authoritative-decisions.md)
+The rebuild foundation (DEC-092) and A1 (DEC-094) contain a
+French shell, service-health checks and the A1 first-Admin authentication slice.
+A1 is disabled by default and restricted to explicit isolated synthetic policy
+and private fake-email capture. Real accounts and later business slices remain unauthorized. See [authority](docs/mjl-authoritative-decisions.md)
 and [verification state](docs/mjl-implementation-roadmap-v2.md).
 
 ### Rebuild development
@@ -27,9 +28,9 @@ Images run the application processes as non-root users. These are development
 images, without production hosting or deployment configuration.
 
 `frontend/` owns JSX routes, Query state, tokens, components and PWA assets.
-`backend/app/` owns settings, health routes and request-scoped sessions;
-`backend/migrations/` owns the empty Alembic revision. `backend/tests/` and
-`frontend/src/*.test.jsx`/`frontend/e2e/` cover only this foundation.
+`backend/app/` owns health and authentication routes, policy and PostgreSQL use cases;
+`backend/migrations/` owns the foundation and A1 revisions. Backend and frontend
+tests cover the foundation plus the explicitly isolated A1 journey.
 `.github/workflows/foundation.yml` runs independent quality checks, with no deployment.
 The existing root npm package and `docker-compose.yml` still belong to the POC.
 
@@ -61,14 +62,14 @@ The normal Compose setup supplies that URL internally; it does not expose its
 database to enable host development. Rebuild the backend image after source edits
 when using Compose. Neither startup path runs migrations automatically.
 
-Apply the bookkeeping revision explicitly:
+Apply migrations explicitly:
 
 ```bash
 docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -T backend alembic upgrade head
 docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -T backend alembic current
 ```
 
-Only `alembic_version` is created; there are no business tables or seed data.
+Alembic creates its version table and six A1 auth tables; there are no business tables or seed data.
 The URL comes from the environment, and malformed configuration errors omit
 credentials. Each request releases its session without implicit commit. Liveness
 returns `{"status":"ok"}` without connecting to PostgreSQL. Readiness executes
@@ -211,3 +212,98 @@ npm run test:unit
 Container-backed tests use isolated disposable tenants, create only the records
 needed by each check, and tear down their tenants afterward. They do not use a
 persistent sample-data seed.
+
+### Isolated A1 browser verification and operator bootstrap
+
+A1 is off in the ordinary development environment. Its test-only policy is
+specified in [readiness §12](docs/rebuild/04-authentication-access-readiness.md).
+Do not substitute real identities or SMTP. PC1/PC2 remain pending sponsor/RSSI
+approval. `/login`, `/invitation`, `/verification` and `/identity` are the four
+French UI routes. Invitation URLs use a fragment removed before inspection;
+password setup does not log the user in. The login requires the six-digit email
+code. Logout is confirmed only after the server revokes the context; after a
+network interruption the user must deliberately retry.
+
+The following creates only `mjl-a1-test` and private `/tmp/mjl-a1-*` fixtures.
+First ensure that project name/ports 5183, 8013 and 4173 are unused. The private
+mailbox is the test transport; there is no HTTP mail reader. Shell/container
+execution access is required for bootstrap. The normal app cannot create an Admin.
+
+```bash
+python3 - <<'PY'
+import json, os, secrets
+from pathlib import Path
+mail = Path('/tmp/mjl-a1-mail-browser')
+mail.mkdir(mode=0o700)
+env = Path('/tmp/mjl-a1.env')
+env.write_text('POSTGRES_USER=mjl\nPOSTGRES_DB=mjl_test_a1\n'
+               'MJL_FRONTEND_PORT=5183\nMJL_BACKEND_PORT=8013\n'
+               'POSTGRES_PASSWORD=' + secrets.token_hex(24) + '\n')
+env.chmod(0o600)
+policy = dict(fixture='a1-synthetic-v1', password_min=8,
+    invitation_seconds=604800, otp_seconds=600, otp_attempts=5,
+    otp_lock_seconds=600, resend_seconds=60, resend_max=3,
+    context_seconds=900, login_window_seconds=900, login_limit=10,
+    ip_window_seconds=60, ip_limit=120,
+    concurrent_sessions='independent-test-only',
+    origin='http://127.0.0.1:4173', key=secrets.token_hex(32), mailbox=str(mail))
+file = Path('/tmp/mjl-a1-policy.json')
+file.write_text(json.dumps(policy)); file.chmod(0o600)
+Path('/tmp/mjl-a1-compose.yaml').write_text(f'''services:
+  backend:
+    user: "{os.getuid()}:{os.getgid()}"
+    environment:
+      MJL_AUTH_MODE: synthetic
+      MJL_ENVIRONMENT: isolated-test
+      MJL_AUTH_POLICY_FILE: /tmp/mjl-a1-policy.json
+    volumes:
+      - /tmp/mjl-a1-policy.json:/tmp/mjl-a1-policy.json:ro
+      - /tmp/mjl-a1-mail-browser:/tmp/mjl-a1-mail-browser
+''')
+PY
+export COMPOSE_FILE=compose.rebuild.yaml:/tmp/mjl-a1-compose.yaml
+export COMPOSE_PROJECT_NAME=mjl-a1-test COMPOSE_ENV_FILES=/tmp/mjl-a1.env
+docker compose config --quiet
+docker compose up -d --build --wait
+docker compose exec -T backend alembic upgrade head
+docker compose exec -T -e MJL_AUTH_MODE=off backend sh -c 'TEST_DATABASE_URL="$DATABASE_URL" pytest -q'
+npm --prefix frontend run build
+API_PROXY_TARGET=http://127.0.0.1:8013 MJL_A1_MAILBOX=/tmp/mjl-a1-mail-browser MJL_A1_CONTAINER=mjl-a1-test-backend-1 npm --prefix frontend run test:e2e
+```
+
+The two A1 browser tests run in order against an initially empty test database;
+they execute restricted bootstrap themselves and later change that synthetic
+identity directly as an isolated invalidation fixture. They do not implement
+account administration. The normal foundation-only browser run explicitly skips
+these two tests when the A1 environment variables are absent. Pytest creates and
+drops its own randomly named child test databases, even when migration fails.
+
+For a **separate fresh disposable environment**, an operator may instead run:
+
+```bash
+docker compose exec -T backend python -m app.auth.bootstrap --email operator@example.test
+# Only when delivery/replacement is needed for that same still-pending identity:
+docker compose exec -T backend python -m app.auth.bootstrap --email operator@example.test --reissue
+```
+
+Inspect the private synthetic capture locally to obtain the invitation/code;
+never publish it or copy secrets into tickets/logs. A consumed invitation cannot
+be reissued, and an accepted account cannot be bootstrapped again.
+
+After confirming the volume label is exactly `mjl-a1-test`, remove only these
+owned disposable resources and captures:
+
+```bash
+docker volume inspect mjl-a1-test_postgres_data --format '{{ index .Labels "com.docker.compose.project" }}'
+docker compose down --volumes --remove-orphans
+python3 - <<'PY'
+from pathlib import Path
+mail = Path('/tmp/mjl-a1-mail-browser')
+for file in mail.glob('*.json'):
+    file.unlink()
+mail.rmdir()
+for name in ('mjl-a1.env', 'mjl-a1-policy.json', 'mjl-a1-compose.yaml'):
+    Path('/tmp', name).unlink()
+PY
+unset COMPOSE_FILE COMPOSE_PROJECT_NAME COMPOSE_ENV_FILES
+```

@@ -30,7 +30,18 @@ def test_openapi_documents_actual_health_contract():
     ) as client:
         schema = client.get("/openapi.json").json()
     validate(schema)
-    assert set(schema["paths"]) == {"/api/health/live", "/api/health/ready"}
+    assert set(schema["paths"]) == {"/api/health/live", "/api/health/ready"} | {
+        "/api/v1/auth/" + path
+        for path in (
+            "session",
+            "invitations/inspect",
+            "invitations/accept",
+            "login",
+            "otp/verify",
+            "otp/resend",
+            "logout",
+        )
+    }
     ready = schema["paths"]["/api/health/ready"]["get"]["responses"]
     assert set(ready) == {"200", "503"}
     assert (

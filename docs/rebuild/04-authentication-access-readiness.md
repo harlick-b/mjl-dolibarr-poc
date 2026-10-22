@@ -1,11 +1,11 @@
 # Authentication & Access readiness
 
-2026-10-22 — documentation only. Foundation `48c2bea` verified at HEAD;
+2026-10-22 — original readiness review (DEC-093). Foundation `48c2bea` verified at HEAD;
 worktree initially clean. No runtime tests, database access or implementation.
 **AUTH_ACCESS_READY_FOR_AUTHORIZATION** applies only to A1 below, with the
 explicit pre-cutover gates in §10. It does not authorize implementation,
 real-account use, application acceptance or compliance. Engineering/security
-review results are recorded in §11.
+review results are recorded in §11. DEC-094 subsequently authorized A1; its implementation and verification evidence is maintained in §12.
 
 ## 1. Authority and inspected evidence
 
@@ -410,3 +410,143 @@ on external evidence before real/sensitive use, not on future tests already pass
 policy stage gates, actual supplied visuals and concrete negative-test oracles.
 A separate user authorization is required. Stop; do not create users, schemas,
 dependencies, tests, runtime code, Docker changes or deployment.
+
+## 12. A1 implementation evidence (DEC-094)
+
+**A1_COMPLETE** for isolated synthetic operation; real-account enablement remains
+NOT_AUTHORIZED pending PC1/PC2. Foundation
+`48c2bea` and readiness `6007159` were verified ancestors and the worktree was
+clean before this slice. The baseline passed 7 Vitest, 6 pytest and 3 Playwright
+checks before implementation.
+
+**Ownership:** `app/auth/routes.py` owns seven typed HTTP responsibilities;
+`service.py` owns transaction boundaries, identity/credential checks, invitation
+consumption, OTP generation/consumption, session projection/revocation and audit.
+`models.py` / Alembic `0002_a1` own P1–P6: `auth_user`, `auth_invitation`,
+`auth_otp`, `auth_context`, `auth_audit`, `auth_abuse`. No business tables or seeds.
+Audit rejects UPDATE/DELETE; privileged DB administration remains an external
+operations control. `principal()` is the verified-only backend boundary; no
+protected business endpoint has been invented for A1.
+
+The restricted operator command is `python -m app.auth.bootstrap --email
+<synthetic@example.test>` in the isolated backend environment. OS/container
+execution access is the operator boundary; the audit identifies its OS UID.
+There is no HTTP bootstrap or registration endpoint and no default password.
+Bootstrap serializes on a PostgreSQL advisory lock and refuses existing users or
+bootstrap evidence. `--reissue` only replaces the same still-pending target's
+proof. Delivery is prepare/commit → private fake capture → delivered/commit;
+failed sends or post-delivery persistence failure leave an unusable prepared
+proof. Acceptance and reissue share lock ordering. Login/OTP use context, user
+and challenge row locks; credential counters are acquired before these locks.
+
+Argon2id uses the maintained `argon2-cffi` implementation/default parameters;
+SHA-256 stores only high-entropy opaque-token digests and keyed HMAC binds each
+OTP to user/context/generation. The same HMAC key fingerprints abuse identities.
+Every HTTP request gets one correlation ID, propagated through prepare, delivery
+and sanitized error envelopes. Database failures fail closed. Proxy headers are
+not trusted by the development server; exact configured Host/Origin and bound
+CSRF protect unsafe methods. Cookies are HttpOnly/host-only/Path=/SameSite=Lax;
+HTTPS uses Secure `__Host-mjl`, isolated HTTP localhost uses `mjl_local`.
+
+**Policy is deliberately synthetic:** default mode is off. Enabling A1 requires
+`MJL_AUTH_MODE=synthetic`, `MJL_ENVIRONMENT=isolated-test`, a `mjl_test_` database,
+a loopback origin, a private `/tmp/mjl-a1-mail-*` capture and complete policy JSON.
+The only accepted/stored identities are `@example.test`. There is no SMTP or
+real-account enablement switch. Fixture password criteria use Unicode Lu/Ll/Nd,
+non-letter/non-number/non-space symbol, matching confirmation, 8–128 characters;
+invitation 604800s, OTP 600s, 5 attempts/600s lock, resend 60s/max3, pre-auth900s,
+credential account10/900s and IP120/60s, endpoint IP120/60s. These are explicit
+test values, **not sponsor/RSSI policy**. Malformed bounded OTP input consumes an
+attempt; all auth requests, including DTO errors, consume the endpoint budget.
+Relogin retains live challenge counters; a fully expired 900s challenge window
+with no remaining lock can renew them. Independent verified sessions are a
+fixture choice. Both 86400s expiry ceilings are fixed; inspection never renews
+activity, and A1 has no foreground business operation that extends it.
+
+PC1 and PC2 remain **PENDING**, owned by sponsor/RSSI exactly as §10 defines.
+Neither blocks synthetic verification; both block real-account enablement.
+Evidence required is explicit approved password/Unicode/normalization,
+invitation/OTP/abuse/context policy (PC1), and concurrency/foreground activity
+classification (PC2), followed by implementation and focused verification.
+LA1–LA3 and E1–E6 remain unchanged, outside A1 approval. Test results do not
+establish legal compliance, external mail assurance, TLS operations, backup,
+monitoring, formal security assessment or Ministry acceptance.
+
+### Acceptance evidence
+
+All rows use the original §9 identifiers and oracles. `test_auth_security.py`
+references below are actual `test_tNN_*` functions, not a replacement checklist.
+PG means disposable PostgreSQL 17 with real Alembic/transactions; browser means
+Chromium against the built React app and real isolated FastAPI/PG. Time tests
+inject the service clock; production clock reads PostgreSQL. Results: **18/18
+PASS**, zero failed mandatory checks.
+
+| ID | Behavior / positive and negative oracle | Executed test | Environment | Result |
+| --- | --- | --- | --- | --- |
+| T01 | Concurrent CLI gives one pending Admin; repeat/public creation denied; failed delivery reissues only same pending target | `test_t01_*`, bootstrap test, policy gate | PG + CLI | PASS |
+| T02 | Target email/role immutable from request; extra grants rejected422; no signup | `test_t02_no_client_grants`, T01 absent routes | PG/API | PASS |
+| T03 | Inspection non-consuming; bad/expired/revoked proof discloses no email | `test_t03_invalid_proof_no_email`, invitation test | PG/API | PASS |
+| T04 | Valid password hashes; weak rejected; concurrent accepts yield200/409; replay denied, no session | `test_t04_concurrent_acceptance`, invitation test | PG | PASS |
+| T05 | Correct credentials pending only; unknown/wrong generic401, durable limits after service restart | `test_t05_credentials_and_durable_account_limit`, full HTTP journey | PG/API | PASS |
+| T06 | Delivered challenge required; failed transport cannot grant; direct principal rejects partial MFA | `test_t06_*` | PG/API | PASS |
+| T07 | OTP rotates cookie/CSRF; wrong browser denied; old context cannot access grant | `test_t07_wrong_browser_and_rotation`, full HTTP journey | PG/API | PASS |
+| T08 | Verify/verify and verify/resend serialize with ≤1 grant; counters survive relogin | `test_t08_concurrent_otp`, T09 relogin checks | PG concurrent workers | PASS |
+| T09 | Before/at/after expiry; lock/cooldown/max resends; malformed requests throttled; restart durable; expired window renewal | `test_t09_*` | PG/injected clock | PASS |
+| T10 | Idle/absolute86400 independent boundaries; polling does not renew; old logout cookie401 | `test_t10_expiry_and_polling`, full HTTP/browser journeys | PG/clock + browser | PASS |
+| T11 | HTTPS/local cookie flags; every unsafe route missing/foreign Origin and forged/missing CSRF rejected; Host/proxy spoof denied/ignored | `test_t11_*` | HTTPS TestClient + PG | PASS |
+| T12 | Status/role/password/version change rejects existing server context; client role never grants | `test_t12_live_identity_invalidation`, T02 | PG/API | PASS |
+| T13 | Real login/logout401, synthetic identity change, delayed old response, cross-tab invalidation; no persistent auth cache | both `e2e/auth.spec.js` cases; payload cleanup Vitest | browser + Vitest | PASS |
+| T14 | Offline masks identity, no replay; interrupted logout unconfirmed and deliberate retry; dirty form blocks worker update | both A1 browser cases + foundation worker cases | browser/PWA | PASS |
+| T15 | Audit grants agree; bootstrap/accept/grant/logout audit failure rolls back; post-send invitation failure unusable | `test_t15_*`, T04/T08 | PG triggers/failure injection | PASS |
+| T16 | Sanitized denial evidence and durable counters; expired session and unavailable DB cannot grant | `test_t16_*`, T05/T09/T15 | PG/API | PASS |
+| T17 | No cleartext verifier/password/token in DB/projections/logs/storage; fragment removed; private capture only | `test_t17_*`, A1 browser/storage checks, application log scan | PG/browser/container logs | PASS |
+| T18 | Full real browser journey; OpenAPI, repeatable migration, quality checks, mobile/reveal/keyboard/OTP paste, isolated cleanup | full HTTP, policy/health/database tests; auth Vitest; five Playwright cases; quality commands | Docker/host/browser | PASS |
+
+A stale/revoked context is rejected401 before inspecting a challenge; a valid
+context encountering an already-consumed challenge yields409. Invalid invitation
+inspection remains generic400; acceptance replay with the valid consumed proof
+returns409. These precedence rules preserve the explicit context-denial contract.
+
+### Security controls and review
+
+The 15 controls in §8 were exercised at A1 scope: SEC-01 policy refusal and
+DEC-094 scope; SEC-02 typed OpenAPI; SEC-03 password/proof/abuse; SEC-04 OTP;
+SEC-05 sessions/CSRF/cache; SEC-06 live exclusive Admin principal; SEC-07
+validation/locks; SEC-09 atomic audit/denials; SEC-10 Argon2id/HMAC/cookies;
+SEC-11 minimal projections/private capture; SEC-13 online-only PWA; SEC-14
+PostgreSQL/browser tests and independent reviews; SEC-16 CLI/private DB/Host;
+SEC-17 maintained locked auth dependency review; SEC-20 updated API/schema,
+operator/user/test documentation. **15/15 code/document controls exercised,
+PASS for A1 only**. External dependencies remain the six E1–E6 groups with the
+owners and gates in baseline03; the dependency-tool advisory in gap analysis is
+not closed by A1. No formal security-compliance or production-readiness claim.
+
+Independent standards/frontend and specification/security reviews identified
+and verified fixes for resend exhaustion, lock order, endpoint abuse, error DTOs,
+audit correlation/targets, stale Query observers, logout uncertainty, retained
+mutation payloads and OTP composition. Final focused re-reviews had no remaining
+findings; reviewers did not claim their static review replaced runtime tests.
+
+### Final verification and cleanup
+
+64/64 backend cases passed in the rebuilt Docker backend, including generated
+OpenAPI and repeatable Alembic upgrade. 11/11 frontend cases passed (seven
+foundation plus four auth); 5/5 Playwright cases passed against actual FastAPI/PG.
+React build, both Docker image builds, Compose configuration, Ruff lint/format,
+mypy, ESLint, Prettier, Stylelint and `git diff --check` passed. The explicit
+commands are maintained in README. Test warnings were Starlette's httpx test-client
+deprecation and the non-root test UID's inability to write pytest's optional
+image-local cache; neither affected execution. No dependency migration or
+permission relaxation was introduced for these warnings.
+
+The task used `mjl-a1-test` only: three containers, one network and one database
+volume. Pytest child databases were removed (only the browser database remained
+before teardown); final teardown removed the owned runtime resources, image
+tags, private mailbox and generated policy/credential files. Zero disposable
+runtime/test-fixture resources remain. Unrelated Docker/POC resources were not
+modified; shared Docker build cache was not pruned. Application logs were scanned
+against the known fixture secrets without printing them: no matches.
+
+Skipped intentionally: historical Dolibarr suites, real SMTP, production
+deployment/security certification and human acceptance. None is authorized by
+A1, and no passing test closes those separate gates.

@@ -1,12 +1,18 @@
 # MJL Acceptance Tests
 
-## Rebuild verification scope (DEC-091–092)
+## Rebuild verification scope (DEC-091–094)
 
 Commands and matrices below belong to the retained Dolibarr POC. They supply
 behavioral cases, not mandatory scaffold runs. Current focused foundation
 commands are in [README](../README.md#focused-foundation-verification), with actual
 evidence in [the roadmap](mjl-implementation-roadmap-v2.md). Use only the isolated
 rebuild test project for PostgreSQL integration and PWA browser verification.
+
+A1's authoritative T01–T18 matrix and current evidence live in
+[readiness §12](rebuild/04-authentication-access-readiness.md). The
+[isolated A1 commands](../README.md#isolated-a1-browser-verification-and-operator-bootstrap)
+run 64 backend cases, 11 frontend cases and five browser cases (two A1, three
+foundation). No historical Dolibarr suite is part of that command set.
 
 Authority comes from `docs/mjl-authoritative-decisions.md` and the user's latest
 explicit instruction.

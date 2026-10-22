@@ -5,11 +5,11 @@
 This glossary retains business meaning under the PTA brief. React/FastAPI and
 PostgreSQL replace Dolibarr as the future technical foundation; native object,
 Admin-reset, ECM and tenant implementation terms below describe the retained POC.
-The new database imports no sample data or native accounts. A guarded first Admin
-will be separately provisioned. Document series/version-engine terminology below
+The new database imports no sample data or native accounts. DEC-094 implements guarded first-Admin invitation provisioning only in an
+explicit isolated synthetic environment; real accounts remain unauthorized. Document series/version-engine terminology below
 is historical Phase 4 planning only: the rebuild needs optional private contextual
-evidence, not a generic document lifecycle. DEC-092 authorizes only the technical
-React/FastAPI/PostgreSQL foundation; business implementation remains deferred.
+evidence, not a generic document lifecycle. DEC-092 authorized the technical foundation, and DEC-094 authorizes A1
+authentication only; business implementation remains deferred.
 
 This glossary defines the ubiquitous language for the post-cadrage MJL
 application. The approved PTA brief and DEC-087/088 supersede conflicting

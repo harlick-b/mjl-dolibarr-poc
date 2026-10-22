@@ -23,7 +23,7 @@ authorized only the first technical slice. Its implementation now includes
 `backend/` (FastAPI, SQLAlchemy/PostgreSQL, empty Alembic revision), isolated
 `compose.rebuild.yaml`, locked dependencies, staged checks and a minimal CI job.
 [README](../README.md#rebuild-development) owns exact setup/check/cleanup commands.
-No auth, users, PTA, business tables, documents, sample data or deployment.
+That foundation commit contained no auth or business features; A1 is recorded below.
 
 Scope map: the two neutral routes exercise routing and one shared readiness
 query; the single shadcn control exercises approved tokens; static PWA assets
@@ -78,9 +78,28 @@ Zero local implementation blockers; two pre-cutover policy decisions must be
 resolved before real-account enablement. Three later access decisions and the
 six baseline external security groups retain their owners/gates. Routine Admin
 provisioning/account management, recovery and business authorization follow as
-separate bounded slices. No new-stack authentication, users or business schema
-exists yet. A separate implementation request is required; production and
-application acceptance remain unclaimed.
+separate bounded slices. DEC-094 subsequently authorized A1 only. Production and application acceptance remain unclaimed.
+
+## A1 first Admin authentication (DEC-094)
+
+**A1_COMPLETE** — 7/7 API responsibilities, 6/6 persistence concerns and 18/18
+acceptance checks passed. Verification: 64 backend, 11 frontend and five browser
+cases; OpenAPI/Alembic, build, Ruff/mypy/ESLint/Prettier/Stylelint and isolated
+Docker checks passed. Task-owned containers/network/volume/private captures were
+removed; no historical PHP was changed. Independent security/specification and
+standards/frontend findings were resolved. PC1/PC2 and six external dependencies
+remain pending; real accounts, acceptance and production readiness are unclaimed.
+
+The seven A1 routes and six
+PostgreSQL concerns are implemented under `backend/app/auth`; React auth views
+use the supplied references and Query-owned session projections. No later slice
+is authorized. The retained readiness matrix owns the current evidence, policy
+gates and remaining external dependencies; no separate execution report.
+
+Scope boundary: one CLI bootstrap/reissue, one auth service with explicit
+transactions, six A1 tables, one private fake-mail boundary, one synthetic policy
+gate, four React routes, focused PostgreSQL/browser tests. Argon2id is the only
+new runtime dependency. No queue, generic IAM layer, SMTP or business resources.
 
 ## Approved PTA business sequence after foundation/auth (DEC-087–091)
 

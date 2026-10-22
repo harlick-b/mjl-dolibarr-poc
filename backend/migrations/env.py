@@ -1,11 +1,10 @@
 from alembic import context
-from sqlalchemy import MetaData
 
+from app.auth.models import Base
 from app.config import database_url
 from app.database import make_engine
 
-# No business models in the foundation.
-metadata = MetaData()
+metadata = Base.metadata
 
 if context.is_offline_mode():
     context.configure(url=database_url(), target_metadata=metadata, literal_binds=True)

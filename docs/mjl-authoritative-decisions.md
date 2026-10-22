@@ -19,6 +19,15 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## A1 implementation authorization (DEC-094)
+
+The latest user request authorizes the exact seven A1 API and six persistence
+responsibilities and T01–T18 in readiness 04, following commits 48c2bea/6007159.
+Only synthetic identities, isolated PostgreSQL and test mail are authorized.
+PC1/PC2 remain pending sponsor/RSSI approval. Real-account enablement must fail
+closed; no A2/A3/A4, recovery, PTA, production mail/deployment or POC changes.
+Updated local inspiration supplies visual composition, not extra feature scope.
+
 ## Authentication & Access readiness (DEC-093)
 
 The latest request authorizes documentation-only readiness review after foundation

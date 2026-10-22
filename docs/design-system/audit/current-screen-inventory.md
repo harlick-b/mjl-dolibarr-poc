@@ -4,6 +4,20 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 inventory records current routes and their access boundaries. It is
 repository-visible evidence, not user acceptance.
 
+## React A1 (DEC-094)
+
+| Screen | Route | Current boundary |
+| --- | --- | --- |
+| Connexion | `/login` | Explicit synthetic-only backend; email/password then OTP, no registration or recovery link |
+| Invitation | `/invitation` | Fragment proof removed before API inspection; readonly invited email, live password criteria/reveal |
+| Vérification | `/verification` | One accessible OTP input with six visual slots, grouped 3+3; pending context only |
+| Identité | `/identity` | Fresh verified server identity; blocked on invalidation/offline/expiry; confirmed logout |
+
+Composition follows updated `docs/inspiration/auth` login, set-password and
+login-otp references, with approved v3 palette, Inter and control/card radii.
+The identity view is the minimal A1 projection, not an account administration
+screen. The following inventory describes the retained historical POC.
+
 | Screen | Route/path | Current purpose and access |
 | --- | --- | --- |
 | Tableau de bord | `/custom/mjlfinancement/index.php` | Role-specific scoped indicators, permitted actions, execution progress, financial disclosure, and alert preview; Admin receives supported access, audit, and technical navigation only. |

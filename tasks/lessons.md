@@ -314,3 +314,9 @@ debugging discoveries. Do not add one-off observations or generic advice.
   custody/source-of-funds questions block application design. MJL records the
   specified allocations, spending, requests and external declarations; the
   user explicitly excluded investigation or modeling of the banking process.
+
+- TanStack Query `clear()` removes cache entries without necessarily clearing an
+  existing observer's displayed data. Authentication invalidation must also mask
+  the UI reactively and deliberately revalidate; `invalidateQueries()` on the
+  removed key is insufficient. `mutation.reset()` likewise leaves MutationCache
+  variables behind: remove settled credential mutations and clear them on unmount.

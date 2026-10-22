@@ -8,4 +8,4 @@ RUN useradd --create-home --uid 10001 mjl && chown mjl:mjl /app
 COPY --chown=mjl:mjl . .
 USER mjl
 EXPOSE 8000
-CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers"]
