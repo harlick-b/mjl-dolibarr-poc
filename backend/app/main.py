@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import RequestResponseEndpoint
 
+from app.auth.access import router as access_router
 from app.auth.models import Context
 from app.auth.policy import load_policy
 from app.auth.routes import router as auth_router
@@ -35,6 +36,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app = FastAPI(title="MJL Foundation", version="0.1.0", lifespan=lifespan)
     app.include_router(router)
     app.include_router(auth_router)
+    app.include_router(access_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:
         response = JSONResponse(
@@ -77,7 +79,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     ) -> Response:
         token = request_id.set(str(uuid4()))
         try:
-            sensitive = request.url.path.startswith("/api/v1/auth")
+            sensitive = request.url.path.startswith(("/api/v1/auth", "/api/v1/access"))
             if sensitive:
                 try:
                     allowed = await run_in_threadpool(endpoint_limit, request)
@@ -106,6 +108,12 @@ def create_app(database_url: str | None = None) -> FastAPI:
             "origin_invalid",
             "host_invalid",
             "otp_required",
+            "admin_required",
+            "admin_target_forbidden",
+            "account_exists",
+            "invitation_stale",
+            "invitation_terminal",
+            "delivery_superseded",
         }:
             try:
                 with Session(auth.engine) as db, db.begin():

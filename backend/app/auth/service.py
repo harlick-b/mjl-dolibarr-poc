@@ -54,9 +54,30 @@ class AuthService:
         actor: str,
         target: str | None,
         outcome: str = "ok",
+        details: dict[str, str | int] | None = None,
     ) -> None:
+        if details is not None:
+            allowed = {
+                "invitation_id",
+                "generation",
+                "role",
+                "user_state",
+                "user_version",
+                "before_state",
+                "after_state",
+                "version",
+                "before_version",
+                "before_user_state",
+                "before_user_version",
+            }
+            if set(details) - allowed or any(
+                type(v) not in (str, int) or (isinstance(v, str) and len(v) > 64)
+                for v in details.values()
+            ):
+                raise ValueError("Invalid audit facts")
         db.add(
             Audit(
+                details=details,
                 occurred_at=self.now(db),
                 action=action,
                 actor=actor,
@@ -67,28 +88,140 @@ class AuthService:
         )
         db.flush()
 
+    def prepare_invitation(
+        self, db: Session, user: User, invitation: Invitation, actor: str, action: str
+    ) -> tuple[str, str, str, str, str]:
+        secret = secrets.token_urlsafe(32)
+        previous = invitation.state or "prepared"
+        invitation.verifier = digest(secret)
+        invitation.generation = str(uuid4())
+        invitation.expires_at = self.now(db) + timedelta(
+            seconds=self.policy.invitation_seconds
+        )
+        invitation.state = "prepared"
+        invitation.version = (invitation.version or 0) + 1
+        db.flush()
+        self.audit(
+            db,
+            action,
+            actor,
+            user.id,
+            details=self.invitation_facts(user, invitation, previous),
+        )
+        return user.email, invitation.id, invitation.generation, secret, actor
+
+    def invitation_facts(
+        self,
+        user: User,
+        invitation: Invitation,
+        previous: str,
+        *,
+        accepted: bool = False,
+        changed: bool = True,
+    ) -> dict[str, str | int]:
+        return {
+            "invitation_id": invitation.id,
+            "generation": invitation.generation,
+            "role": user.role,
+            "user_state": user.state,
+            "user_version": user.version,
+            "before_state": previous,
+            "after_state": invitation.state,
+            "version": invitation.version,
+            "before_version": max(0, invitation.version - int(changed)),
+            "before_user_state": "pending" if accepted else user.state,
+            "before_user_version": user.version - 1 if accepted else user.version,
+        }
+
+    def invitation_bound(self, db: Session, user: User, invitation: Invitation) -> bool:
+        facts = db.scalar(
+            select(Audit.details)
+            .where(
+                Audit.target == user.id,
+                Audit.action.in_(
+                    ["bootstrap", "invitation_create", "invitation_reissue"]
+                ),
+                Audit.details["generation"].astext == invitation.generation,
+            )
+            .order_by(Audit.id.desc())
+            .limit(1)
+        )
+        return bool(
+            facts
+            and facts.get("role") == user.role
+            and facts.get("user_version") == user.version
+            and facts.get("user_state") == user.state
+        )
+
+    def deliver_invitation(
+        self, email: str, selector: str, generation: str, secret: str, actor: str
+    ) -> None:
+        link = f"{self.policy.origin}/invitation#selector={selector}&verifier={secret}"
+        delivered = True
+        try:
+            self.mail.send(email, "invitation", link)
+        except OSError:
+            delivered = False
+        with Session(self.engine) as db, db.begin():
+            db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+            target = db.scalar(
+                select(Invitation.user_id).where(Invitation.id == selector)
+            )
+            user = db.get(User, target, with_for_update=True) if target else None
+            invitation = db.get(Invitation, selector, with_for_update=True)
+            if (
+                not invitation
+                or not user
+                or invitation.generation != generation
+                or invitation.state != "prepared"
+                or user.state != "pending"
+                or not self.invitation_bound(db, user, invitation)
+            ):
+                raise AuthError(409, "delivery_superseded")
+            if delivered:
+                invitation.state = "delivered"
+            invitation.version += 1
+            self.audit(
+                db,
+                "invitation_delivery",
+                actor,
+                user.id,
+                "sent" if delivered else "failed",
+                details=self.invitation_facts(user, invitation, "prepared"),
+            )
+        if not delivered:
+            raise AuthError(503, "invitation_delivery_failed")
+
     def bootstrap(self, email: str, operator: str, reissue: bool = False) -> None:
         email = synthetic_email(email)
         if not operator or len(operator) > 80:
             raise AuthError(403, "operator_required")
         request_id.set(str(uuid4()))
-        secret = secrets.token_urlsafe(32)
-        generation = str(uuid4())
         with Session(self.engine) as db, db.begin():
             db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
-            user = db.scalar(select(User).with_for_update())
-            exists = db.scalar(select(Audit.id).where(Audit.action == "bootstrap"))
+            original = db.scalar(select(Audit).where(Audit.action == "bootstrap"))
             if not reissue:
-                if user or exists:
+                if original or db.scalar(select(User.id).limit(1)):
                     raise AuthError(409, "bootstrap_closed")
-                user = User(email=email)
+                user: User | None = User(email=email, role="ADMIN_PLATEFORME")
                 db.add(user)
                 db.flush()
+                assert user
                 invitation: Invitation | None = Invitation(user_id=user.id)
                 db.add(invitation)
                 action = "bootstrap"
             else:
-                if not user or user.email != email or user.state != "pending":
+                user = (
+                    db.get(User, original.target, with_for_update=True)
+                    if original and original.target
+                    else None
+                )
+                if (
+                    not user
+                    or user.email != email
+                    or user.state != "pending"
+                    or user.role != "ADMIN_PLATEFORME"
+                ):
                     raise AuthError(409, "bootstrap_closed")
                 invitation = db.scalar(
                     select(Invitation)
@@ -98,35 +231,9 @@ class AuthService:
                 if not invitation or invitation.state in {"consumed", "revoked"}:
                     raise AuthError(409, "bootstrap_closed")
                 action = "invitation_reissue"
-            assert invitation
-            invitation.verifier = digest(secret)
-            invitation.generation = generation
-            invitation.expires_at = self.now(db) + timedelta(
-                seconds=self.policy.invitation_seconds
-            )
-            invitation.state = "prepared"
-            self.audit(db, action, operator, user.id)
-            selector = invitation.id
-        link = f"{self.policy.origin}/invitation#selector={selector}&verifier={secret}"
-        delivered = True
-        try:
-            self.mail.send(email, "invitation", link)
-        except OSError:
-            delivered = False
-        with Session(self.engine) as db, db.begin():
-            invitation = db.get(Invitation, selector, with_for_update=True)
-            if not invitation or invitation.generation != generation:
-                raise AuthError(409, "delivery_superseded")
-            invitation.state = "delivered" if delivered else "prepared"
-            self.audit(
-                db,
-                "invitation_delivery",
-                operator,
-                invitation.user_id,
-                "sent" if delivered else "failed",
-            )
-        if not delivered:
-            raise AuthError(503, "invitation_delivery_failed")
+            assert invitation and user
+            delivery = self.prepare_invitation(db, user, invitation, operator, action)
+        self.deliver_invitation(*delivery)
 
     def invitation(
         self,
@@ -143,12 +250,17 @@ class AuthService:
         email = ""
         with Session(self.engine) as db, db.begin():
             db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+            target = db.scalar(
+                select(Invitation.user_id).where(Invitation.id == selector)
+            )
+            user = db.get(User, target, with_for_update=True) if target else None
             invitation = db.get(Invitation, selector, with_for_update=True)
-            user = db.get(User, invitation.user_id) if invitation else None
+            previous = invitation.state if invitation else "prepared"
             if (
                 not invitation
                 or not user
                 or user.state != "pending"
+                or not self.invitation_bound(db, user, invitation)
                 or invitation.state != "delivered"
                 or invitation.expires_at <= self.now(db)
                 or not secrets.compare_digest(invitation.verifier, digest(verifier))
@@ -171,6 +283,7 @@ class AuthService:
                 user.state = "active"
                 user.version += 1
                 invitation.state = "consumed"
+                invitation.version += 1
             if user and not error:
                 email = user.email
             self.audit(
@@ -179,6 +292,15 @@ class AuthService:
                 "anonymous",
                 user.id if user else None,
                 error.code if error else "ok",
+                details=self.invitation_facts(
+                    user,
+                    invitation,
+                    previous,
+                    accepted=password is not None and error is None,
+                    changed=password is not None and error is None,
+                )
+                if user and invitation
+                else None,
             )
         if error:
             raise error
@@ -232,7 +354,6 @@ class AuthService:
             if (
                 not user
                 or user.state != "active"
-                or user.role != "ADMIN_PLATEFORME"
                 or not secrets.compare_digest(
                     context.proof or "", self.user_proof(user)
                 )
@@ -376,12 +497,7 @@ class AuthService:
                 pass
             if not network_ok or not account_ok:
                 error = AuthError(429, "authentication_limited")
-            elif (
-                not valid
-                or not user
-                or user.state != "active"
-                or user.role != "ADMIN_PLATEFORME"
-            ):
+            elif not valid or not user or user.state != "active":
                 error = AuthError(401, "credentials_invalid")
             else:
                 otp = db.get(OTP, user.id, with_for_update=True)

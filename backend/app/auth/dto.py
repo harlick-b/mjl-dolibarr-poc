@@ -10,10 +10,16 @@ class ErrorResponse(BaseModel):
     request_id: str
 
 
+BusinessRole = Literal["AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"]
+Role = Literal[
+    "ADMIN_PLATEFORME", "AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"
+]
+
+
 class Identity(BaseModel):
     id: str
     email: str
-    role: Literal["ADMIN_PLATEFORME"]
+    role: Role
 
 
 class Anonymous(BaseModel):

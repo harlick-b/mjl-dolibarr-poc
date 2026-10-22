@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react'
-import { authRequest, sessionKey, sessionQuery } from './auth'
+import { authRequest, sessionKey, sessionQuery, roleLabels } from './auth'
 
 function subscribeOnline(callback) {
   window.addEventListener('online', callback)
@@ -270,8 +270,13 @@ export function AuthView() {
           <dt>Adresse e-mail</dt>
           <dd>{session.data.user.email}</dd>
           <dt>Rôle</dt>
-          <dd>Admin technique</dd>
+          <dd>{roleLabels[session.data.user.role]}</dd>
         </dl>
+        {session.data.user.role === 'ADMIN_PLATEFORME' && (
+          <Link to="/access/users" className="auth-secondary">
+            Gérer les utilisateurs
+          </Link>
+        )}
         <form onSubmit={(e) => submit(e, 'logout', {}, '/login')}>
           <button className="auth-primary" disabled={disabled}>
             Se déconnecter

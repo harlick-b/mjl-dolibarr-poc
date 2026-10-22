@@ -19,9 +19,17 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## A2.1 implementation authorization (DEC-096)
+
+The user authorizes A2.1 from readiness 05 at `2c1929e`: five access APIs,
+two existing-table extensions, ordinary-role A1 authentication, one Admin view
+and all sixteen acceptance gates. Synthetic identities and isolated test mail
+only. PC1/PC2 remain pending; no A2.2/A3/A4/PTA or real accounts. Implement,
+verify, update status, commit and stop after A2.1.
+
 ## A2 account-management readiness (DEC-095)
 
-The latest request authorizes documentation-only A2 readiness after A1 commit
+The earlier request authorized documentation-only A2 readiness after A1 commit
 `0a2cf22`. [Readiness 05](rebuild/05-a2-account-management-readiness.md) owns the
 proposed ordinary-account invitation/listing slice and deferred lifecycle gates.
 No A2 implementation, tests, schema/data, dependencies, Docker/CI or skills changes

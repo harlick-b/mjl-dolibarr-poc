@@ -4,6 +4,15 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 file records current repository-visible UI evidence, not user acceptance or
 browser verification for this documentation update.
 
+## React A2.1 evidence (DEC-096)
+
+The Admin account/invitation view follows the supplied users table/dialog
+composition and v3 tokens. Focused browser checks cover the real invitation and
+recipient OTP journey, 375px reflow, dialog Tab/Shift+Tab containment and focus
+return, focus refresh during a slow send, offline masking and account switching.
+Query results are not persisted; no offline replay exists. Human visual and
+accessibility acceptance remains unclaimed; roadmap owns final gate evidence.
+
 ## React A1 evidence (DEC-094)
 
 French auth screens follow the updated supplied composition and v3 tokens.

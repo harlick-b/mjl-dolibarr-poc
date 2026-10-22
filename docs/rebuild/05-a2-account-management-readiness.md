@@ -1,5 +1,10 @@
 # A2 account-management readiness
 
+Current authorization: DEC-096 authorizes A2.1 from this contract at `2c1929e`.
+The [roadmap](../mjl-implementation-roadmap-v2.md) owns implementation evidence.
+The readiness review below records the earlier documentation-only decision; its
+A2.2 and policy gates remain in force.
+
 ## 1. Purpose and verified baseline
 
 Documentation-only review, 2026-10-22. **A2 implementation is NOT_AUTHORIZED.**

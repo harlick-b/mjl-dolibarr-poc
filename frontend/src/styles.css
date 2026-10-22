@@ -296,3 +296,234 @@
   outline-offset: 4px;
   border-radius: var(--radius-control);
 }
+
+.access-layout {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.access-sidebar {
+  background: white;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  gap: 48px;
+}
+.access-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-navy);
+}
+.access-mark {
+  background: var(--color-navy);
+  color: white;
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+.access-sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  color: var(--color-primary);
+  background: #eaf3f7;
+  border-radius: 6px;
+}
+.access-account {
+  margin-top: auto;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
+}
+.access-layout small {
+  display: block;
+  color: var(--color-muted-foreground);
+  margin-top: 4px;
+}
+.access-workspace > header {
+  background: white;
+  border-bottom: 1px solid var(--color-border);
+  padding: 24px;
+  font-size: 13px;
+}
+.access-main {
+  padding: 32px;
+  max-width: 1500px;
+  margin: auto;
+}
+.access-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.access-heading h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+.access-heading h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+.access-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.access-main label,
+.access-dialog label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.access-main input,
+.access-main select,
+.access-dialog input,
+.access-dialog select {
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 8px 12px;
+  background: white;
+  max-width: 100%;
+}
+.access-table-wrap {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  overflow: auto;
+  background: white;
+}
+.access-main table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.access-main th {
+  background: var(--color-background);
+  font-weight: 500;
+  text-align: left;
+}
+.access-main td,
+.access-main th {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+.access-main tr:last-child td {
+  border-bottom: 0;
+}
+.access-status {
+  display: inline-block;
+  background: #eaf3f7;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.access-actions button,
+.access-pagination button {
+  min-height: 44px;
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+.access-dialog button {
+  min-height: 44px;
+}
+.access-main button:disabled,
+.access-dialog button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.access-pagination {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin: 12px 0 40px;
+  font-size: 13px;
+}
+.access-empty,
+.access-notice {
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: white;
+  margin-bottom: 16px;
+}
+.access-message {
+  max-width: 640px;
+  margin: 64px auto;
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+.access-message h1 {
+  font-size: 24px;
+}
+.access-dialog {
+  margin: auto;
+  padding: 24px;
+  width: min(560px, calc(100% - 32px));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  color: var(--color-foreground);
+}
+.access-dialog::backdrop {
+  background: rgb(15 25 35 / 65%);
+}
+.access-dialog-fields {
+  display: grid;
+  gap: 24px;
+  padding: 24px 0;
+}
+.access-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-top: 24px;
+}
+@media (width <= 760px) {
+  .access-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .access-sidebar {
+    gap: 16px;
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .access-account {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .access-workspace > header {
+    display: none;
+  }
+  .access-main {
+    padding: 24px 16px;
+  }
+  .access-filters > label {
+    width: 100%;
+  }
+  .access-main table {
+    min-width: 540px;
+  }
+}

@@ -307,3 +307,43 @@ for name in ('mjl-a1.env', 'mjl-a1-policy.json', 'mjl-a1-compose.yaml'):
 PY
 unset COMPOSE_FILE COMPOSE_PROJECT_NAME COMPOSE_ENV_FILES
 ```
+
+
+### A2.1 Admin invitations and account listing
+
+A2.1 extends A1 in the same isolated synthetic environment. After verified Admin
+login, **Gérer les utilisateurs** opens `/access/users`: list/filter accounts and
+invitations, invite one ordinary business role, deliberately resend or revoke a
+pending invitation. Recipients use the existing password/email-OTP flow. Admin
+creation, role changes, deactivation, inactive-account restoration and recovery
+are unavailable. PC1/PC2 remain pending; real identities and SMTP stay disabled.
+
+Run `alembic upgrade head` explicitly in the disposable backend. Revision
+`0003_a21` adds only invitation version and bounded audit facts; no new tables.
+Existing active A1 accounts/sessions remain intact. Existing pending A1 proofs
+without generation-binding facts fail closed: the operator must deliberately
+reissue the original pending Admin invitation with the existing CLI. Audit rows
+are never rewritten. A downgrade drops these new facts and version values; it
+is not a history-preserving rollback and is not part of normal application use.
+
+For the dedicated browser check, use the isolated setup recipe above with project
+`mjl-a21-test`, `/tmp/mjl-a21.env`, `/tmp/mjl-a21-policy.json` and
+`/tmp/mjl-a21-compose.yaml`; retain the required mailbox prefix, for example
+`/tmp/mjl-a1-mail-a21-browser`. Keep ports 5183/8013/4173 free. The override must
+mount that private policy/mailbox at their matching paths. Start with an empty
+`mjl_test_a21` database; the test bootstraps its own synthetic Admin.
+
+```bash
+# After starting that explicitly named isolated project and migrating it:
+docker exec -e MJL_AUTH_MODE=off mjl-a21-test-backend-1 sh -c 'TEST_DATABASE_URL="$DATABASE_URL" pytest -q -p no:cacheprovider tests/test_access.py tests/test_auth.py tests/test_auth_security.py tests/test_auth_policy.py'
+npm --prefix frontend run build
+API_PROXY_TARGET=http://127.0.0.1:8013 MJL_A21_MAILBOX=/tmp/mjl-a1-mail-a21-browser MJL_A21_CONTAINER=mjl-a21-test-backend-1 PLAYWRIGHT_BROWSERS_PATH=/tmp/mjl-playwright npm --prefix frontend run test:e2e -- e2e/access.spec.js
+```
+
+`test_access.py` covers the API, real PostgreSQL races/faults, audit and upgrade;
+`access.test.jsx` covers UI state/denials/late responses; `access.spec.js` covers
+real Admin/recipient journeys, keyboard dialogs, focus refresh, account switching,
+network loss and cache/replay restrictions. The browser test adjusts only a
+consumed synthetic OTP timestamp to exercise account switching without sleeping;
+it changes no policy. Use the setup recipe's label-checked teardown, substituting
+only this task's project/volume/private fixture paths. Never reset the shared POC.

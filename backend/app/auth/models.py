@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -35,6 +36,7 @@ class Invitation(Base):
     __tablename__ = "auth_invitation"
     __table_args__ = (
         CheckConstraint("state IN ('prepared','delivered','consumed','revoked')"),
+        CheckConstraint("version > 0", name="invitation_version_positive"),
     )
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid4())
@@ -45,9 +47,21 @@ class Invitation(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     state: Mapped[str] = mapped_column(String(16), default="prepared")
 
+    version: Mapped[int] = mapped_column(default=1)
+
 
 class Audit(Base):
     __tablename__ = "auth_audit"
+    __table_args__ = (
+        CheckConstraint(
+            "details IS NULL OR (jsonb_typeof(details) = 'object' "
+            "AND octet_length(details::text) <= 2048)",
+            name="audit_details_bounded",
+        ),
+    )
+    details: Mapped[dict[str, str | int] | None] = mapped_column(
+        JSONB(none_as_null=True)
+    )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     action: Mapped[str] = mapped_column(String(48))

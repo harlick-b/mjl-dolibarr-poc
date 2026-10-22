@@ -1,3 +1,4 @@
+import { AccessView } from './AccessView'
 import { AuthView } from './AuthView'
 import { authRequest, sessionQuery } from './auth'
 import { useRouterState } from '@tanstack/react-router'
@@ -15,7 +16,15 @@ import {
 
 function Shell() {
   const path = useRouterState({ select: (state) => state.location.pathname })
-  if (['/login', '/invitation', '/verification', '/identity'].includes(path))
+  if (
+    [
+      '/login',
+      '/invitation',
+      '/verification',
+      '/identity',
+      '/access/users',
+    ].includes(path)
+  )
     return <Outlet />
   return (
     <div className="min-h-screen">
@@ -154,8 +163,55 @@ export function makeRouter(history) {
       },
     }),
   )
+  const access = createRoute({
+    getParentRoute: () => root,
+    path: '/access/users',
+    component: AccessView,
+    gcTime: 0,
+    validateSearch: (search) => ({
+      email: String(search.email || '').slice(0, 254),
+      role: [
+        'ADMIN_PLATEFORME',
+        'AGENT_SAISIE',
+        'AGENT_VERIFICATEUR',
+        'VALIDATEUR_DEFINITIF',
+      ].includes(search.role)
+        ? search.role
+        : '',
+      state: ['pending', 'active', 'inactive'].includes(search.state)
+        ? search.state
+        : '',
+      invitationState: [
+        'prepared',
+        'delivered',
+        'consumed',
+        'revoked',
+      ].includes(search.invitationState)
+        ? search.invitationState
+        : '',
+      page:
+        Number.isInteger(Number(search.page)) &&
+        Number(search.page) > 0 &&
+        Number(search.page) <= 1000000
+          ? Number(search.page)
+          : 1,
+      invitationPage:
+        Number.isInteger(Number(search.invitationPage)) &&
+        Number(search.invitationPage) > 0 &&
+        Number(search.invitationPage) <= 1000000
+          ? Number(search.invitationPage)
+          : 1,
+    }),
+    loader: async ({ context }) => {
+      try {
+        await context.queryClient.fetchQuery(sessionQuery)
+      } catch {
+        /* View distinguishes denied and unavailable. */
+      }
+    },
+  })
   return createRouter({
-    routeTree: root.addChildren([home, health, ...authRoutes]),
+    routeTree: root.addChildren([home, health, ...authRoutes, access]),
     context: { queryClient },
     history,
   })

@@ -89,7 +89,61 @@ A2.1 Admin invitations/account listing and later A2.2 ordinary account lifecycle
 Eight confirmed responsibilities; first slice has five API responsibilities,
 two table extensions, sixteen acceptance checks and no new IAM tables.
 PC1/PC2, Admin lifecycle LA2 and ordinary lifecycle handoff LA3 retain their gates.
-A2 implementation and real accounts remain **NOT_AUTHORIZED**.
+At readiness, A2 implementation was unauthorized. DEC-096 subsequently authorized
+A2.1 only; real accounts and later slices remain **NOT_AUTHORIZED**.
+
+## A2.1 Admin invitations and account listing (DEC-096)
+
+**A2_1_COMPLETE** — the user authorized readiness 05 at `2c1929e`; all 16
+acceptance gates passed. Five API operations, two existing-table extensions,
+zero new tables. One `/access/users` view; A1 authentication now admits the three
+ordinary roles, with separate backend Admin authorization. Bootstrap remains
+bound to the original technical Admin. Versioned invitations and current-generation
+binding checks prevent replay and late-delivery resurrection; state/audit commits
+are atomic. Existing unbound pending A1 proofs require deliberate operator reissue.
+
+Scope map: five APIs serve list/invite/resend/revoke; Invitation.version prevents
+stale actions; Audit.details preserves bounded before/after/generation facts;
+shared A1 prepare/deliver/accept code avoids duplicate credential mechanisms;
+one Router view and Query-owned lists implement the supplied users composition.
+No dependencies, Docker/CI infrastructure, production configuration or POC changes.
+
+| Gate | Verified evidence |
+| --- | --- |
+| C01 | All five endpoints reject anonymous/pending/expired/inactive principals and all three non-Admin roles; valid Admin journey passes |
+| C02 | CSRF/Origin/Host, synthetic-only inputs, endpoint abuse and no-store negative cases |
+| C03 | Bounded/allowlisted list filters, escaped substring, exact projections, guessed IDs and forbidden targets |
+| C04 | Each ordinary role completes invitation/password/OTP with exact identity; recipient/Admin-role forgery denied |
+| C05 | Duplicate pending/active/inactive creation and concurrent create preserve one identity/proof/send |
+| C06 | A1 invalid/expired/replayed proof regressions plus revoked and concurrent acceptance cases |
+| C07 | Resend rotates proof and version, preserves role, rejects stale/terminal/Admin targets |
+| C08 | Revoke invalidates proof; repeated revoke is a no-op with one success audit; pending User remains inaccessible |
+| C09 | Two-connection accept/revoke, accept/resend, resend/resend, duplicate create and late-delivery revoke/reissue races; bootstrap regressions |
+| C10 | Database start/preparation/audit/commit/completion and mail fault injection; truthful failed/unconfirmed outcomes and no precommit mail |
+| C11 | Bounded previous/current identity and invitation facts, durable sanitized denials, no secrets and append-only audit |
+| C12 | Real-browser Admin/recipient flow, list/filter/empty/loading/error/conflict/delivery-failure feedback and confirmations |
+| C13 | Unit late-response cancellation/API denial; browser focus refresh, cross-tab logout and same-browser switch to ordinary role |
+| C14 | Native-dialog focus return plus explicit Tab containment, 375px reflow, interrupted/offline requests, no sensitive storage or replay |
+| C15 | Valid generated OpenAPI with cookie/CSRF/Origin contracts; existing-A1 Alembic upgrade, constraints, append-only history and PostgreSQL races |
+| C16 | Focused tools, tests, real proxy/PostgreSQL/test mail and disposable-resource teardown |
+
+Verification: **82 backend** cases (24 A2 + 58 A1 auth/security/policy), **18 frontend
+unit** cases, **one comprehensive A2 browser** case and **three foundation/PWA
+browser regressions** passed. The OpenAPI case was rerun after adding explicit
+header documentation. Ruff check/format, strict mypy, ESLint, Prettier, Stylelint
+and frontend build passed. README owns commands and isolated-runtime instructions.
+Independent engineering/UI and security/specification source reviews passed after
+fixes verified in the browser/API tests. Upstream test-library deprecation warnings
+remain; no dependency change was introduced to suppress them.
+
+The task-owned `mjl-a21-test` containers/network/volume and private policy/mail
+captures were removed after label verification. No shared POC resources were
+changed. Historical PHP matrices, unrelated business tests, performance benchmarks,
+production checks and redundant full suites were skipped as out of scope.
+
+PC1/PC2 remain pending. Real accounts, A2.2, A3, A4, PTA, production and application
+acceptance remain **NOT_AUTHORIZED / NOT_CLAIMED**. LA2/LA3 and all six external
+security dependency groups retain their gates. Stop after A2.1.
 
 ## A1 first Admin authentication (DEC-094)
 

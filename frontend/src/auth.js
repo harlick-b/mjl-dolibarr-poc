@@ -1,9 +1,9 @@
 export const sessionKey = ['auth', 'session']
 
-export async function authRequest(path, { signal, csrf, body } = {}) {
+export async function apiRequest(path, { signal, csrf, body } = {}) {
   if (!navigator.onLine)
     throw new Error('Connexion indisponible. Aucune action envoyée.')
-  const response = await fetch(`/api/v1/auth/${path}`, {
+  const response = await fetch(path, {
     method: body === undefined ? 'GET' : 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
@@ -22,6 +22,8 @@ export async function authRequest(path, { signal, csrf, body } = {}) {
           ? 'Service indisponible. Réessayez plus tard.'
           : 'Vérification refusée. Vérifiez les informations saisies.',
     )
+    const payload = await response.json().catch(() => ({}))
+    error.code = payload.code
     error.status = response.status
     throw error
   }
@@ -35,4 +37,15 @@ export const sessionQuery = {
   staleTime: 0,
   gcTime: 0,
   networkMode: 'always',
+}
+
+export function authRequest(path, options) {
+  return apiRequest(`/api/v1/auth/${path}`, options)
+}
+
+export const roleLabels = {
+  ADMIN_PLATEFORME: 'Admin technique',
+  AGENT_SAISIE: 'Agent de saisie',
+  AGENT_VERIFICATEUR: 'Agent superviseur et prévalidateur',
+  VALIDATEUR_DEFINITIF: 'Validateur définitif',
 }
