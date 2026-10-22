@@ -1,177 +1,224 @@
-# A2.2 — Ordinary account lifecycle readiness
+# A2.2 — Restricted ordinary account lifecycle readiness
 
-Documentation-only review, 2026-10-22, against A2.1 completion `30b976a`.
-No implementation or real-account enablement is authorized by this review.
+Documentation-only recheck, 2026-10-22, against A1/A2.1 code at `30b976a`.
+DEC-098 approves the scope below, **not runtime implementation**. It supersedes
+this document's earlier unapproved-scope verdict at `144e164`.
 
-## 1. Confirmed scope
+## 1. Approved scope
 
-[Readiness 05](05-a2-account-management-readiness.md) defines three deferred
-responsibilities: R6 change an ordinary active user's exclusive business role;
-R7 deactivate an ordinary active account; R8 reinvite an inactive ordinary
-account through password setup and fresh password + email OTP authentication.
-Admin alone performs these actions. No standalone activation toggle, additional
-Admin provisioning, Admin self-management, identity editing/deletion, pending-role
-editor, password recovery, A3/A4 or PTA implementation belongs here.
+R6: Admin changes an active ordinary account's exclusive business role.
+R7: Admin deactivates an active ordinary account. Both require authoritative
+absence of Activity assignments **and outstanding workflow responsibilities**.
+Only synthetic development identities in the existing isolated environment qualify.
 
-Authority: [functional specification §§4–5](../mjl-functional-specification-v2.md),
-[approved PTA brief §2](../mjl_codex_authoritative_pta_change_brief.md), DEC-087–090,
-[REST behavior inventory](../mjl-rest-api-contract.md), and readiness 05's LA3 gate.
-The [roadmap](../mjl-implementation-roadmap-v2.md) owns completed A1/A2.1 evidence;
-those audits and runtime checks were not repeated.
+Defer assigned/responsible accounts, handoff, inactive-account reinvitation (R8),
+Admin self-management/additional Admin lifecycle, A3/A4 and PTA. No activation,
+pending-role edit, identity edit/delete or recovery endpoint. PC1/PC2 remain
+pending; real-account enablement remains prohibited.
 
-## 2. Approved rules and missing decisions
+Authority: user's restricted approval (DEC-098),
+[readiness 05](05-a2-account-management-readiness.md),
+[functional specification §§4–5](../mjl-functional-specification-v2.md),
+[PTA brief §2](../mjl_codex_authoritative_pta_change_brief.md), and
+[security baseline](03-security-compliance-baseline.md).
+The [roadmap](../mjl-implementation-roadmap-v2.md) owns completed A1/A2.1 evidence.
 
-| Concern | Approved / retained | Still unresolved |
-| --- | --- | --- |
-| Actor and role | Backend-verified Admin only; exactly one of `AGENT_SAISIE`, `AGENT_VERIFICATEUR`, `VALIDATEUR_DEFINITIF`; no Admin target or promotion | No new permission model needed |
-| Role change | Agent's current assignments must first be removed/transferred; historical attribution and contributor restrictions survive role changes | LA3 must reconcile the handoff with PTA coordination assignments; Admin is not their manager |
-| Deactivation | Ordinary active account becomes inactive; subsequent authorization fails; outstanding invitation is revoked; historical identity/audit remains | Whether assigned accounts must await handoff, or may be disabled before coordination is resolved |
-| Reinvitation | Authorized lifecycle concept, existing identity, invitation acceptance/password setup then fresh login/OTP; no direct activation | Whether previous role is retained or Admin may choose another; eligibility and treatment of retained coordination assignments |
-| Accountability | Stable user identity; no deletion/recreation, rewritten audit or erasure of historical contributors | Future PTA enforcement must use historical contributors, not just current role |
+## 2. Approved rules and remaining decisions
 
-Legacy `MjlAccessCommand::applyProfile/applyDeactivation` rejects current
-assignments. That is implementation evidence; it does not resolve the new PTA
-handoff policy. Readiness 05 explicitly says that absent business tables do not
-settle LA3. This review neither waives that gate nor adopts a new handoff rule.
+Admin alone can perform backend-authorized R6/R7; no self/Admin target or Admin
+promotion. Exactly one of `AGENT_SAISIE`, `AGENT_VERIFICATEUR`,
+`VALIDATEUR_DEFINITIF` remains stored. Inactivity removes all effective authority.
+Stable identity, role history in audit and historical contributor restrictions
+survive lifecycle changes. A role change must never erase prior participation to
+permit self-validation later.
 
-## 3. Role, deactivation and session behavior
+The restricted scope decision is resolved. LA3 handoff for assigned/responsible
+accounts and R8's retained-versus-selected role decision remain deferred; neither
+blocks this restricted slice. Supervisor/Validator manage PTA assignments, not
+Admin. Assignments are coordination/notification metadata, not Agent visibility
+restrictions. There is no approval to silently transfer/delete them.
 
-For any subsequently authorized operation, lock and validate current actor, target,
-state and expected user version. R6 changes one role; R7 changes active → inactive.
-Increment `User.version` once per effective transition and append old/new role,
-state and version facts in the same transaction. Reject stale requests without
-partial mutation. Pending accounts use the existing invitation revoke action;
-do not deactivate a passwordless pending account. Repeated/stale lifecycle writes
-should return 409 without a second success event; a requested unchanged role
-should return the unchanged projection without revocation or success event.
-These HTTP/no-op choices are proposed technical contract, not additional business powers.
+## 3. Account/session transaction contract
 
-`AuthService.user_proof/context` already binds identity, version, state, role and
-password hash. Reuse it: every old verified context and pending OTP context fails
-on its next backend check after the transition commits. Fresh password + OTP is
-required after role change. Inactive/pending users cannot log in. No target Context
-or OTP row sweep is needed; never reset abuse counters or reuse old proofs.
-A later return to the same role/active state must not resurrect an earlier context.
-PC2's number of permitted concurrent sessions is **pending**; invalidation of
-**all obsolete contexts** is mandatory regardless of that future number.
+Validate the current actor, target, eligibility (§4), active state and positive
+expected User version before writing. R6 updates one role; R7 sets inactive and
+revokes any prepared/delivered invitation, incrementing its version. Preserve
+consumed/revoked invitation history. Increment User.version once per effective
+transition and append actual old/new role/state/version facts atomically. Stale
+version or ineligible state returns 409 without success audit. With matching
+version and eligibility, unchanged role returns the unchanged projection without
+revocation/success event. Pending accounts use existing invitation revocation;
+never make a passwordless pending account inactive. Repeated deactivation conflicts.
 
-If R8 is authorized, inactive → pending increments security version, preserves
-User id/email and all history, and rotates the existing invitation generation,
-verifier and version. Preserve the old password hash until acceptance replaces it;
-pending state denies its use. The role transition must follow the missing decision
-in §2. Acceptance activates once and creates no verified session. Superseded
-email success/failure must not update a newer generation or reactivate a user.
+Reuse `AuthService.user_proof/context`: proof includes id/version/state/role/password
+hash. All previous verified and pending OTP contexts fail the next backend check
+after commit. Role change requires fresh password + OTP; inactive accounts cannot
+log in. Returning to an earlier role cannot restore an old cookie. Do not sweep
+Context/OTP rows or reset credential/abuse counters. PC2 session cardinality remains
+pending independently of mandatory invalidation of **all obsolete contexts**.
 
-Reuse the invitation advisory lock before actor authorization, then actor Context
-→ actor User → ordinary target User → Invitation. Never add User → target Context
-locking to A1's Context → User flow. **One concrete lock gap needs correction:**
-`login()` can lock a previous pending-context User before the submitted-email User.
-A pending ordinary identity logging in as Admin can invert lifecycle's Admin →
-ordinary order. Use the existing advisory lock before login's database locks as
-the smallest candidate fix; verify the complete login/OTP/accept/delivery sequence
-with real concurrent connections. Do not introduce a new locking framework.
-Requests serialized before revocation may complete; requests authorized after its
-commit must fail with obsolete privileges. UI cache clearing is not this boundary.
+**Mandatory correction before enabling PATCH:** in `AuthService.login`, acquire
+existing `pg_advisory_xact_lock(1843201)` as the first database statement inside
+its transaction, before network/account Abuse locks. Current login can lock a
+pending context's ordinary User then submitted-email Admin User, opposite to an
+Admin lifecycle mutation. The shared lock serializes these multi-User operations.
 
-## 4. Activity-assignment dependency
-
-PTA assignments coordinate work and notifications; they no longer restrict Agent
-visibility. Supervisor and Validator manage them. An Admin role-change dialog must
-not silently transfer/delete assignments or grant Admin business mutation rights.
-Inactive/re-roled recipients and reinvited recipients also affect future reminders;
-removing assignment-based access does not answer those questions.
-
-Defer assigned-account handoff and its coordination/notification behavior to the
-PTA decision and implementation. Before PTA creates assignments or contributor
-history, integrate the approved eligibility guards and test role-change-to-Validator
-against prior contribution. Stable identity/audit now preserves that possibility;
-it does not implement or prove future no-self-validation. No placeholder assignment
-table, fabricated eligibility flag or always-allow business guard is justified.
-
-## 5. Minimal API, persistence and UI changes proposed
-
-| Surface | Smallest change, after authorization |
+| Path | Required order / transaction boundary |
 | --- | --- |
-| R6/R7 | One `PATCH /api/v1/access/users/{id}`: positive `expected_version` and exactly one business `role` or `deactivate=true`; existing safe User projection. Reject Admin/self targets 403, missing target 404, stale/ineligible state 409, invalid/extra input 422. Reuse Admin/CSRF/Origin/Host guards and error envelopes |
-| R8, only if settled | Extend existing `POST /api/v1/access/invitations`; inactive branch requires the selected User's expected version. New-email behavior stays unchanged; active/pending duplicates still conflict. No separate reactivation endpoint. A role policy decision must precede finalizing its DTO/UI |
-| PostgreSQL | **Zero new tables, columns or migrations identified.** Reuse User.version/state/role, one Invitation per User, invitation version/generation and append-only Audit.details. Extend the bounded facts allowlist only for necessary before-role facts. Preserve historical generation events even though the single invitation row represents current state |
-| Shared authentication | Reuse `admin`, `prepare_invitation`, `deliver_invitation`, `invitation_bound`, `user_proof`, `context`, and `audit`. Preparation facts must describe actual pre/post User state/version, not infer them from an already-mutated User. Keep reinvitation preparation in the binding lookup's recognized actions. Send only after commit |
-| React | Extend existing `AccessView` account rows with French role/deactivation confirmations; add inactive reinvite only if settled. Reuse approved users tokens/dialogs, focus return, responsive layout and Router filters. Add explicit PATCH support to existing `apiRequest`; no new client, route or dependency |
-| Query/PWA | Invalidate account and invitation queries on success or uncertain outcome; show conflict and refetch before another attempt. Preserve cancellation/late-response guards, 401 cache clearing, 403 privilege removal and authoritative session refresh. Reject offline mutations; no optimistic privilege changes, automatic mutation retries, persisted sensitive cache or offline queue |
+| Login | Advisory → network Abuse → account Abuse → Context → previously bound User if any → submitted-email User → OTP; commit before email |
+| R6/R7 PATCH | Advisory → actor Context → Admin User → ordinary target User → Invitation if present; eligibility/version/state checks, mutation and audit in the same transaction |
+| OTP verify/resend | Existing Context → same User → OTP; no advisory or second User acquisition; commit before delivery. No new order needed |
+| Session/logout | Existing Context → same User; no advisory or second User acquisition |
+| Invitation prepare/accept/delivery completion | Existing advisory → User → Invitation; mail outside transactions |
+| OTP delivery completion | Existing OTP only; late delivery may update an obsolete challenge but cannot restore its invalid User proof |
 
-Lifecycle/preparation mutation and required success facts commit together; an audit
-failure in that transaction rolls back its state/version changes and sends no mail. Reuse sanitized denial logging and
-bounded DTOs: no password, OTP, verifier, session identifiers or raw delivery errors.
-This applies security baseline controls MJL-SEC-01–07, 09–11, 13–14 through existing
-mechanisms; this document is not a compliance attestation.
+`main.endpoint_limit` completes its separate Abuse transaction before entering
+these paths. Invitation inspect/accept route guards also commit before the
+advisory-locked invitation service transaction. Error-handler denial audit runs
+after the failed service transaction exits. Neither may hold locks into another transaction. Do not acquire advisory
+after row locks or add target User → Context updates. No new lock framework.
 
-## 6. Smallest recommended implementation slice
+The User row serializes authentication with lifecycle changes: if authentication
+commits first, its resulting context becomes unusable when lifecycle commits;
+if lifecycle commits first, authentication must reject the stale/inactive context
+or establish a fresh challenge using the new role/version. Already completed work
+is not undone. Any authorization after revocation commit must reject old privileges.
 
-Prefer one slice for R6–R8 **only after** LA3's affected boundaries and the
-reinvitation role rule are settled. Do not split shared authentication infrastructure.
+## 4. Authoritative eligibility without PTA tables
 
-If full handoff remains unresolved, recommend **R6/R7 for synthetic ordinary
-accounts with no current assignments or historical business contributions**, leaving
-R8 and assigned-account lifecycle deferred. This is independently useful for
-exclusive-role changes and immediate access withdrawal, and introduces no PTA
-schema. It needs the domain owner's explicit agreement that this restricted scope
-may proceed before LA3 is complete. The future PTA integration gate in §4 must
-remain explicit. Empty tables alone are not that agreement. No arbitrary exemption
-for particular business roles is proposed.
+The current new-stack application has only six auth models, migrations through
+`0003_a21`, auth/access/health routes, no imports and no business store. Therefore
+absence can be established **only within this verified authentication-only world**;
+email suffix, role, a client checkbox, missing table lookup or an empty query alone
+is not evidence of eligibility.
 
-## 7. Focused acceptance checks for future authorization
+Before enabling mutations, Engineering must verify the executable application's
+writers and the disposable database provenance: created empty through existing
+migrations, synthetic fixtures only, no legacy/external business associations,
+imports or alternate business store. Unknown provenance keeps mutations disabled.
+Do not run schema migrations or change deployed application capabilities while
+lifecycle traffic is enabled; stop mutation traffic for those maintenance changes.
 
-These are behavioral oracles, not tests run by this documentation task. Checks
-marked R8 apply only if R8 is included; PTA assertions remain deferred.
+Inside every PATCH transaction, before mutation, require the existing isolated
+synthetic policy AND a fixed database check:
+
+- Exactly one Alembic version row, equal to `0003_a21`.
+- Exactly these seven schema-qualified data relations in non-system schemas:
+  `public.alembic_version`, `public.auth_user`, `public.auth_invitation`,
+  `public.auth_audit`, `public.auth_context`, `public.auth_otp`, `public.auth_abuse`.
+  They must be ordinary tables; reject extra tables, partitioned tables, views,
+  materialized views or foreign tables in any non-system schema. Ignore system
+  catalogs and indexes/sequences; do not build a general schema-drift scanner.
+- The target is a current active ordinary synthetic User. Unknown/missing schema,
+  multiple/unknown revision, unreadable evidence or policy mismatch denies the
+  mutation. A readable mismatch returns 409 `eligibility_unverified`; database
+  failure uses existing 503 handling. Neither changes target state/version or
+  emits a success event. Existing unavailable-policy rejection remains unchanged.
+
+This small fixed check is an environment-wide absence proof, not a per-account
+assignment model. It supports all three ordinary roles equally. Do not add tables,
+flags, configurable revision bypasses or a fabricated assignment service.
+
+**Future PTA cannot inherit this permission:** any schema revision or business
+relation makes the guard deny. Do not merely advance its allowed revision. Before
+adding any assignment/workflow writer (including use of existing tables or another
+store), disable this bounded guard and integrate authoritative checks for both
+current assignments and outstanding responsibilities. Their check and mutation
+must serialize with assignment/workflow creation. Missing/unavailable evidence
+must deny. Assigned/responsible accounts remain deferred unless separately
+approved; historical-contributor/no-self-validation checks must survive by stable
+identity. Future integration tests must prove these conditions before re-enabling
+lifecycle. A schema fingerprint alone cannot certify arbitrary future code or data.
+
+## 5. Minimal API, persistence and UI
+
+One `PATCH /api/v1/access/users/{id}` suffices: positive `expected_version` and
+exactly one business `role` or `deactivate=true`; return existing safe User DTO.
+Reject self/Admin target/promotion 403 (invalid role payload may fail DTO validation
+422), missing target 404, stale/ineligible state or unverified eligibility 409,
+invalid/extra/mixed input 422. Reuse Admin, CSRF, Origin/Host and error handling.
+No separate action endpoints or invitation POST extension; inactive reinvite still
+returns A2.1's conflict.
+
+**Zero new tables, columns or migrations.** Reuse User version/state/role,
+Invitation version/state, append-only Audit.details and A1 proof validation.
+Extend the bounded audit facts allowlist only for necessary previous-role facts;
+record real before/after snapshots. Audit/commit failure rolls back the entire
+lifecycle transaction. These mutations send no email. Preserve sanitized denials
+and secret-free lifecycle DTOs/audit/logs.
+
+Extend existing `AccessView` rows with French role/deactivation confirmations;
+reuse users design tokens/dialogs, Router filters and focus/responsive behavior.
+Add explicit PATCH support to existing `apiRequest`. Query invalidates account and
+invitation lists after success or uncertain outcome; refetch before retrying a
+conflict. Retain 401 cache clearing, 403 privilege removal, session refresh and
+late-response cancellation. No optimistic privileges, automatic mutation retry,
+sensitive persistence or offline queue. Inactive reinvite controls stay absent.
+
+## 6. Mandatory pre-mutation implementation gates
+
+After a **separate implementation authorization**, complete these in order before
+enabling lifecycle mutations in any development runtime:
+
+1. Verify isolated auth-only provenance/writer scope and implement §4's fail-closed
+   check. L05/L06 must pass, including unknown evidence and future-schema denial.
+2. Correct login ordering in §3; L08 must pass against actual PostgreSQL connections
+   before lifecycle route exposure, then verify through actual PATCH before enabling it. A disabled/test-only mutation path may exercise
+   the transaction for these tests; no production feature-flag service is needed.
+3. Verify atomic mutation/audit, version conflict and obsolete-context rejection
+   with L01–L12. Do not enable a partial path lacking any guard.
+4. Complete UI/contract/regression L13–L16 before claiming the slice complete.
+   All sixteen are required; passing them authorizes no real accounts or next slice.
+
+## 7. Focused acceptance checks
+
+These are future oracles, not runtime checks executed during this review. Existing
+16 IDs are retained; former R8 checks now cover eligibility and excluded behavior.
 
 | ID | Concrete oracle |
 | --- | --- |
-| L01 | Direct lifecycle calls by anonymous, pending-OTP, expired/inactive or any ordinary-role principal fail; a verified Admin succeeds. Invalid CSRF/Origin/Host fails without mutation |
-| L02 | Each permitted active business-role transition leaves exactly one role and increments version once; Admin/self/promotion/extra-field/mixed-action requests fail; pending/inactive targets conflict; unchanged role is a no-op |
-| L03 | Deactivation preserves id/email/role/history, makes state inactive, increments version and revokes outstanding prepared/delivered invitation. Repeated stale call conflicts without a second success audit; pending target is not made inactive |
-| L04 | Multiple pre-existing verified cookies and pending OTP proofs fail after either R6/R7 commits, including OTP resend/consumption and late delivery of an obsolete OTP. Old password login fails while inactive; role change requires fresh password/OTP with the new role; returning to the old role never revives an old cookie |
-| L05 | R8: same User id/email, no second identity; approved role rule applied; inactive → pending → active only through current delivered invitation/password setup. Old password cannot log in while pending; acceptance creates no verified session |
-| L06 | R8: old consumed/revoked/superseded invitation proofs and old OTP/cookies fail before and after activation; replay cannot activate twice. Pending revoked invitations remain terminal under A2.1; inactive reinvite must not become a pending-account workaround |
-| L07 | Two Admin writes using the same expected User version yield one transition/success event and one 409; role-change/deactivation orders are serialized, with no mixed state |
-| L08 | Real-connection login/OTP versus lifecycle races enforce the commit boundary in §3; pending ordinary-context login with Admin email versus Admin mutation of that ordinary User completes without deadlock or stale authorization |
-| L09 | R8: concurrent reinvite/accept/resend/revoke and late old-generation email success AND failure cannot restore old eligibility or overwrite current delivery status; only the current generation can activate |
-| L10 | Inject lifecycle/preparation transaction mutation/audit/commit failures: no partial User/Invitation/version changes or success record, and no precommit mail. R8 mail or delivery-completion audit failure preserves the prior durable pending state and a truthful failed/unconfirmed outcome; already-sent mail cannot be rolled back. Only deliberate eligible retry is allowed |
-| L11 | Audit records actor, stable target, old/new role/state/version and invitation generation where applicable; previous events remain unchanged. Audit update/delete constraints hold; lifecycle DTOs/audit/logs expose no passwords, OTPs, verifiers or session secrets; sensitive Query state is not persisted (the existing in-memory session CSRF token remains valid) |
-| L12 | PostgreSQL retains one normalized identity and one invitation row per User, valid role/state/password constraints and monotonically advanced versions; lifecycle never deletes/recreates User history |
-| L13 | Browser Admin journey changes role and deactivates, plus R8 if included; French dialogs return/trap focus, work at 375px, refresh account/invitation lists, and explain stale/failed/uncertain responses without automatic retry |
-| L14 | Browser offline/expired/forbidden/cross-tab logout/account-switch paths disable mutations and clear protected state; delayed list/mutation responses cannot repopulate another identity's cache; focus refresh obtains authoritative state |
-| L15 | Generated OpenAPI describes PATCH's exclusive payload, cookie/CSRF/Origin security, safe response and error statuses; R8 expected-version contract only if included. No activation, Admin-management or unrelated endpoint appears |
-| L16 | Focused A1/A2.1 regression journeys retain bootstrap binding, password/OTP/session limits, invitation replay/version/late-mail protection and synthetic-only fail-closed policy. Existing focused pytest, access unit and Playwright files are extended; disposable PostgreSQL/test mail is torn down |
+| L01 | Direct PATCH rejects anonymous, pending-OTP, expired/inactive and all ordinary-role actors; verified Admin succeeds. Invalid CSRF/Origin/Host fails without mutation |
+| L02 | Each distinct ordinary role transition on eligible active User leaves exactly one role and increments version once; self/Admin/promotion/extra/mixed input rejected; pending/inactive target conflicts; matching-version unchanged role is a no-op |
+| L03 | Deactivation preserves id/email/role/history, sets inactive, increments User version and revokes outstanding prepared/delivered invitation with version increment. Consumed/revoked history unchanged; repeated/stale call conflicts without second success event |
+| L04 | Multiple old verified cookies and pending OTP contexts fail after R6/R7 commit, including verify/resend and late OTP delivery. Inactive login fails; role change requires fresh password/OTP; returning to old role never revives old cookie |
+| L05 | Migrated isolated auth-only database passes eligibility for each ordinary role. Changed/multiple/missing Alembic revision, extra relation (including another schema/view/foreign relation), missing expected table or evidence-read failure rejects before mutation; state/version and success-audit count unchanged |
+| L06 | Unknown provenance or external/imported business source cannot enable lifecycle. Existing policy negatives still fail closed. Unverified/assignment-capable schema is denied even for apparently unassigned users; no client flag or synthetic email bypass. Test this boundary with a disposable minimal extra relation, not a PTA model |
+| L07 | Two Admin writes sharing expected version produce one committed transition/success event and one 409; test role/role and role/deactivate in both orders, with no mixed state |
+| L08 | With deterministic two-connection barriers (not sleeps) and bounded timeouts, test login/lifecycle in both orders, including pending ordinary Context submitting Admin credentials. Assert login waits at advisory before acquiring Abuse/Context/User locks; no deadlock/timeouts/500. Also race OTP verify/resend and session checks with R6/R7: auth-first contexts fail after mutation; mutation-first stale contexts fail before granting authority. Late OTP delivery cannot restore authority |
+| L09 | No R8 or activation/Admin-management endpoint/control appears; existing invite of inactive email remains 409. Old consumed/revoked/superseded invitation proofs fail; late invitation delivery success/failure cannot restore eligibility; A2.1 accept/resend/revoke behavior remains |
+| L10 | Inject lifecycle mutation/audit/commit failures: rollback User/Invitation/version changes, no success record or lifecycle email. Required security facts and state commit together |
+| L11 | Audit records stable actor/target and actual old/new role/state/version plus invitation facts when changed; historical events unchanged and update/delete constraints hold. Lifecycle DTOs/logs/audit expose no password/OTP/verifier/session secrets; sensitive Query state is not persisted (existing in-memory CSRF token is allowed) |
+| L12 | PostgreSQL identity uniqueness, one invitation per User, valid role/state/password constraints and monotonic version hold; no identity recreation or history deletion. All eligibility rejections leave these records unchanged |
+| L13 | Browser Admin changes eligible role/deactivates; French dialogs trap/return focus, work at 375px, refresh both lists and explain conflict/unverified/failed/uncertain responses without automatic retry |
+| L14 | Offline/expired/forbidden/cross-tab logout/account-switch paths prevent mutation/replay and clear protected state. Delayed responses cannot repopulate another identity's Query cache; focus refresh obtains authoritative state |
+| L15 | OpenAPI documents the single PATCH exclusive payload, cookie/CSRF/Origin security, safe response and error statuses, including eligibility rejection. Existing invitation POST contract unchanged |
+| L16 | Focused A1/A2.1 regressions retain bootstrap binding, password/OTP/session limits, invitation replay/version/late-mail protection and synthetic-only policy. Extend existing pytest/access unit/Playwright tests; disposable PostgreSQL/test mail torn down |
 
-For a restricted R6/R7 authorization, L02–L04/L11–L12 prove identity/access behavior
-only. PTA assignment and historical-contributor authorization tests are required
-before business integration, not simulated using new tables during A2.2.
+L05/L06 prove that environments capable of storing assignments/responsibilities are
+denied, not that a nonexistent PTA model has been queried. Before PTA integration,
+add real assignment/responsibility-bearing and historical-contributor negative
+cases against its authoritative model; do not simulate those domain rules now.
 
-## 8. Decisions, owners and timing
+## 8. Owners and decision timing
 
-| Item | Timing | Owner / required outcome |
+| Item | Timing | Status / owner |
 | --- | --- | --- |
-| LA3 scope boundary | BEFORE_AUTHORIZATION | Domain owner with RSSI: settle full affected lifecycle behavior, or explicitly approve §6's restricted R6/R7 scope and defer assigned-account behavior. Existing LA3 is now reached, not silently waived |
-| R8 role/eligibility | BEFORE_AUTHORIZATION | Domain owner: if R8 is included, decide retain previous role versus Admin-selected business role and assignment eligibility. Otherwise defer R8 without blocking an approved R6/R7 subset |
-| Locking and audit correctness | BEFORE_AFFECTED_IMPLEMENTATION | Engineering: resolve cross-identity login lock inversion and preserve actual before/after audit facts; L07–L11 are completion gates, not new business decisions |
-| PTA handoff and contributor enforcement | DEFERRED_TO_PTA | Domain owner decides coordination/notification handoff; Engineering implements guards before assignments/contributions are introduced, preserving no-self-validation |
-| LA2 Admin lifecycle | BEFORE_AFFECTED_IMPLEMENTATION | Sponsor/RSSI; outside A2.2, including self/last Admin and recovery, before real operator dependence |
-| PC1 / PC2 | BEFORE_REAL_ACCOUNT_ENABLEMENT | Sponsor/RSSI; both pending. Password/normalization/invitation/OTP/abuse/pre-auth policy and concurrent-session/foreground-activity policy remain unapproved; existing synthetic fixtures are not acceptance |
-| E1/E3 real-data and identity assurance | BEFORE_REAL_ACCOUNT_ENABLEMENT | Ministry legal/RSSI/DSI/email operator: privacy/source applicability and real mail/key/OTP assurance; synthetic fixtures do not settle these |
-| E2/E4 affected environments; E5/E6 deliverables | BEFORE_AFFECTED_IMPLEMENTATION | DSI/RSSI/host approve safeguards before sensitive hosted environments; sponsor/data owner and delivery lead retain migration/deliverable acceptance gates at their original timing in baseline 03 |
-| PG1/PG2 release verification | PRODUCTION_ONLY | DSI/RSSI/host/client delivery owners: actual deployment and release evidence from readiness 04. No production assurance work or provider decision in A2.2 |
+| Restricted scope | BEFORE_AUTHORIZATION | RESOLVED by user's DEC-098; implementation authorization still separate |
+| Eligibility/order/mutation gates | BEFORE_AFFECTED_IMPLEMENTATION | Engineering must satisfy §6 before mutation exposure; these are mandatory engineering conditions, not pending business choices |
+| Assigned/responsible accounts and handoff | DEFERRED_TO_PTA | Domain owner/RSSI; Engineering replaces guard before business integration and tests creation races/historical contributor restrictions |
+| R8 and LA2 Admin lifecycle | BEFORE_AFFECTED_IMPLEMENTATION | Domain owner/Sponsor/RSSI decide before those separately authorized operations; excluded here |
+| PC1/PC2, E1/E3 | BEFORE_REAL_ACCOUNT_ENABLEMENT | Sponsor/RSSI/legal/DSI/email operator; pending policy, privacy and identity assurance. Real accounts prohibited |
+| E2/E4 environments; E5/E6 deliverables | BEFORE_AFFECTED_IMPLEMENTATION | Existing baseline owners retain sensitive-environment and contractual gates |
+| PG1/PG2 release evidence | PRODUCTION_ONLY | Existing DSI/RSSI/host/client delivery owners; no deployment work authorized |
 
-## 9. Readiness verdict and independent review
+## 9. Verdict and review
 
-**A2_2_NOT_READY**. The technical change is bounded, but no approved scope yet
-removes the pre-authorization business decisions above. Recommend the restricted
-R6/R7 option if full LA3/R8 decisions are deferred. A readiness review cannot approve
-that option for the domain owner. Implementation remains unauthorized.
+**A2_2_READY_FOR_AUTHORIZATION**, for restricted R6/R7 only. Readiness depends on
+implementing and verifying the exact pre-mutation conditions in §6; none is claimed
+implemented by this documentation task. Unknown eligibility always denies.
+PC1/PC2 remain pending. Stop before implementation.
 
-Independent **Engineering: PASS** and **Security/Specification: PASS** for this
-document after correcting delivery-failure audit semantics, the in-memory CSRF
-exception and external gate timing. Both agree on the unresolved LA3 boundary.
-Engineering identified the cross-identity login lock inversion required in §3/L08.
-Document-review PASS does not change the readiness verdict. Only documentation
-verification applies; runtime suites, production checks and repeated A1/A2.1
-audits were skipped. No new durable lesson warranted a lessons-file update.
+Independent **Engineering: PASS** and **Security/Specification: PASS** on the final
+document, including the bounded guard, lock correction and acceptance oracles.
+Documentation diff checks passed; runtime suites and completed A1/A2.1 audits were
+not rerun. No runtime behavior or production readiness is certified by this review.

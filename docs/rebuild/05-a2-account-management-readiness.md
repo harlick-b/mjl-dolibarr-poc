@@ -2,8 +2,11 @@
 
 Current authorization: DEC-096 authorizes A2.1 from this contract at `2c1929e`.
 The [roadmap](../mjl-implementation-roadmap-v2.md) owns implementation evidence.
-The readiness review below records the earlier documentation-only decision; its
-A2.2 and policy gates remain in force.
+The readiness review below records the earlier documentation-only decision.
+DEC-098 now approves restricted A2.2 scope only; [readiness 06](06-a2-account-lifecycle-readiness.md)
+owns its eligibility and pre-mutation gates. Later LA3/R8 and policy gates remain
+in force. This supersedes blanket LA3 blocking of restricted R6/R7 below, not the
+historical A2.1 implementation contract.
 
 ## 1. Purpose and verified baseline
 

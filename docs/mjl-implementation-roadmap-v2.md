@@ -145,16 +145,18 @@ PC1/PC2 remain pending. Real accounts, A2.2, A3, A4, PTA, production and applica
 acceptance remain **NOT_AUTHORIZED / NOT_CLAIMED**. LA2/LA3 and all six external
 security dependency groups retain their gates. Stop after A2.1.
 
-## A2.2 lifecycle readiness (DEC-097)
+## Restricted A2.2 lifecycle readiness (DEC-098)
 
-**A2_2_NOT_READY** — documentation-only review against A2.1 `30b976a`.
-[Readiness 06](rebuild/06-a2-account-lifecycle-readiness.md) specifies R6–R8,
-minimal API changes with no identified schema additions, and sixteen focused
-future checks. Domain owner/RSSI must settle LA3 or approve the restricted
-synthetic R6/R7 boundary; R8 additionally needs a role/eligibility decision.
-Assigned-account behavior may remain deferred to PTA; PC1/PC2 remain pending.
-Independent Engineering and Security/Specification source reviews agree on these
-gates. No lifecycle implementation or real-account enablement is authorized.
+**A2_2_READY_FOR_AUTHORIZATION** — user-approved scope: synthetic ordinary-account
+role changes and deactivation, excluding assignments and outstanding workflow
+responsibilities. [Readiness 06](rebuild/06-a2-account-lifecycle-readiness.md) owns
+the exact fail-closed auth-only guard, login lock-order correction and sixteen
+checks. Eligibility and deterministic PostgreSQL concurrency checks must pass
+before mutation exposure. One PATCH, no new schema; R8/handoff/Admin lifecycle
+remain deferred. Future PTA integration must replace the guard, not advance its
+revision allowance. PC1/PC2 remain pending; real accounts prohibited.
+This supersedes DEC-097's scope blocker; documentation-only recheck does not
+authorize implementation. No runtime checks were executed for this review.
 
 ## A1 first Admin authentication (DEC-094)
 
