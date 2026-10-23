@@ -177,6 +177,12 @@ boundary; do not reinterpret OTP resend limits as invitation policy. Existing
 endpoint abuse budgets also constrain Admin sending; any additional numeric
 invitation policy needs explicit approval rather than a new development bypass.
 
+DEC-102 supersedes the list pagination below as a target: cursor pagination,
+default limit 60 and the `count/data/next/previous/object` envelope now apply.
+[Engineering Standard 02](02-target-architecture-and-engineering-standard.md#uiapi-standard--dec-102)
+owns the new rules and open details. The table retains the implemented A2.1
+contract as historical evidence; migration is not implemented or authorized here.
+
 All six proposed API responsibilities use prefix `/api/v1`; five belong to A2.1.
 All require the §3 Admin guard; failures use A1 `{code,message,request_id}`.
 

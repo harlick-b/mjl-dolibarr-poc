@@ -19,6 +19,38 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## UI/API standards (DEC-102)
+
+The 2026-10-23 user request requires cursor pagination for collection APIs,
+default limit 60, the `count/data/next/previous/object: "list"` envelope, a shared
+RestClient with Context/Provider/useAPI, Sonner, react-localization and
+react-helmet-async HelmetProvider. Engineering Standard 02 owns these rules,
+security-preserving example corrections and shared helper contracts. The user
+subsequently approved applying these rules, including the additional API details,
+during page implementation. They are mandatory for each separately authorized
+page and related API slice; verify applicable rules with focused checks.
+Earlier pagination targets, including readiness 05 page/size, are superseded;
+existing implementation remains migration evidence only. This is standard setting,
+not runtime/dependency changes or authorization for later slices.
+
+## A3 implementation authorization (DEC-103)
+
+The user authorizes only the ordinary synthetic-account password-recovery slice
+defined by DEC-101 and [readiness 07](rebuild/07-a3-password-recovery-readiness.md).
+The authorized development fixtures are a 600-second proof, three requests per
+email per 600 seconds and twenty requests per IP per 60 seconds, guarded by a
+literal `TEST_ONLY` policy marker and exact disposable-database attestation.
+Implement the three POST responsibilities, one recovery table/migration, fixed
+A2.2 schema compatibility and the minimum React journey using DEC-102's shared
+client rules. All sixteen readiness checks and mandatory independent review must
+pass before recording completion. Those gates passed in isolated development:
+200 combined PostgreSQL cases, three recovery browser journeys, focused A1/A2
+regressions, all quality checks and the independent correction/re-review cycle.
+The slice is **A3_COMPLETE** without application acceptance. Admin recovery,
+real accounts, A4, PTA,
+production mail and deployment remain prohibited; PC1/PC2 remain pending. Stop
+after A3 and do not infer authorization for another slice.
+
 ## A3 security decisions approved (DEC-101)
 
 The user explicitly approves preserving unexpired recovery proofs without resend

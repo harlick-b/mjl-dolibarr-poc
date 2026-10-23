@@ -26,15 +26,18 @@ PWA, FastAPI liveness/readiness, PostgreSQL connectivity, Alembic bookkeeping,
 quality tooling, isolated Compose and focused verification. DEC-094 now authorizes
 A1 first-Admin invitation/password/email-OTP/session/logout only, with synthetic
 identities, isolated test databases and test mail. PC1/PC2 remain pending; real
-accounts, A3/A4, business modules and production deployment are not authorized.
+accounts, A4, business modules and production deployment are not authorized.
 DEC-096 authorizes A2.1 ordinary-role invitations and account listing under
 readiness 05 at commit 2c1929e: five APIs, two table extensions, no new tables,
 all sixteen acceptance checks and focused A1 regressions.
 DEC-099 authorizes restricted A2.2 implementation under readiness 06 at `6659a05`:
 ordinary synthetic role changes/deactivation, one PATCH, no migrations, verified
 database provenance, fixed fail-closed eligibility and mandatory lock/race gates.
-Stop after A2.2; assigned/responsible accounts, reinvitation and Admin lifecycle
-remain deferred.
+DEC-103 authorizes and completes A3 ordinary synthetic-account password recovery
+under readiness 07: three POST responsibilities, one recovery table/migration,
+exact A2.2 guard compatibility, all sixteen checks and independent review. Stop
+after A3; technical Admin recovery, assigned/responsible accounts, reinvitation,
+A4 and PTA remain deferred.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
 
@@ -78,6 +81,17 @@ a future first-admin bootstrap must be guarded and non-seeding.
 
 ## Design and verification
 
+For every authorized rebuild page and related API implementation, apply the
+approved UI/API standard (DEC-102) in
+`docs/rebuild/02-target-architecture-and-engineering-standard.md`, including its
+shared display/pagination helper contracts. This covers cursor lists (default 60,
+max 100, invalid limits 422), the list envelope, RestClient/Provider/useAPI,
+Query integration, Sonner, localization, Helmet and cookie/CSRF safeguards.
+Verify the applicable rules in the slice's focused checks. Reuse shared helpers;
+do not copy the illustrative snippets without their documented corrections.
+This standing requirement does not authorize new pages or a standalone runtime
+migration; implement only the separately authorized slice.
+
 For touched visual surfaces read `DESIGN.md`, the design-system index and
 relevant approved v3 tokens/inspiration. Their product assertions cannot override
 business authority. Missing inspiration blocks that product screen, not unrelated
@@ -107,6 +121,22 @@ Use subagents only when explicitly requested or for independent audits. Return
 findings, evidence, risk and focused fixes; consolidate before edits. At the end
 of meaningful work evaluate `tasks/lessons.md`; add only repeated corrections or
 durable discoveries. Legacy-specific lessons remain legacy-specific.
+
+Every implementation plan must end with a mandatory handoff to a separate agent
+that did not implement the changes. That agent leads a review-only phase and must
+not modify implementation files or fix its own findings. It independently inspects
+the governing requirements, actual diff, relevant surrounding code and verification
+evidence, treating implementer explanations and passing-test claims as unverified.
+It reports gaps, bugs, regressions and security weaknesses with severity, file/line
+evidence, impact and the smallest correction, including missing verification.
+
+The implementation agent fixes accepted findings, then returns the candidate to
+the same independent reviewer for focused re-review. Do not declare completion
+until blocking findings and mandatory verification gaps are resolved. If no
+separate reviewer is available, report the review gate as blocked rather than
+substituting self-review. Include this handoff/correction/re-review cycle in every
+future implementation plan. Independent review is not acceptance, production
+readiness or authorization for another slice.
 
 ## Git and stopping
 
