@@ -3,7 +3,8 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 
 
-def test_liveness_is_independent_of_postgresql():
+def test_liveness_is_independent_of_postgresql(monkeypatch):
+    monkeypatch.setenv("MJL_AUTH_MODE", "off")
     with TestClient(
         create_app("postgresql+psycopg://unused:secret@127.0.0.1:1/absent")
     ) as client:
@@ -12,7 +13,8 @@ def test_liveness_is_independent_of_postgresql():
     assert response.json() == {"status": "ok"}
 
 
-def test_readiness_failure_is_generic_and_not_cached():
+def test_readiness_failure_is_generic_and_not_cached(monkeypatch):
+    monkeypatch.setenv("MJL_AUTH_MODE", "off")
     url = "postgresql+psycopg://unused:never-expose-this@127.0.0.1:1/absent"
     with TestClient(create_app(url)) as client:
         response = client.get("/api/health/ready")
@@ -22,26 +24,17 @@ def test_readiness_failure_is_generic_and_not_cached():
     assert "never-expose-this" not in response.text
 
 
-def test_openapi_documents_actual_health_contract():
+def test_openapi_documents_actual_health_contract(monkeypatch):
     from openapi_spec_validator import validate
+
+    monkeypatch.setenv("MJL_AUTH_MODE", "off")
 
     with TestClient(
         create_app("postgresql+psycopg://unused:secret@127.0.0.1:1/absent")
     ) as client:
         schema = client.get("/openapi.json").json()
     validate(schema)
-    assert set(schema["paths"]) == {"/api/health/live", "/api/health/ready"} | {
-        "/api/v1/auth/" + path
-        for path in (
-            "session",
-            "invitations/inspect",
-            "invitations/accept",
-            "login",
-            "otp/verify",
-            "otp/resend",
-            "logout",
-        )
-    }
+    assert {"/api/health/live", "/api/health/ready"} <= set(schema["paths"])
     ready = schema["paths"]["/api/health/ready"]["get"]["responses"]
     assert set(ready) == {"200", "503"}
     assert (

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, String
@@ -76,6 +77,7 @@ class Audit(Base):
     details: Mapped[dict[str, str | int] | None] = mapped_column(
         JSONB(none_as_null=True)
     )
+    business: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     action: Mapped[str] = mapped_column(String(48))

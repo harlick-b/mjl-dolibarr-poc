@@ -18,6 +18,7 @@ from app.auth.service import AuthError, AuthService, digest, request_id
 from app.config import database_url as read_database_url
 from app.database import make_engine
 from app.health import router
+from app.planning.routes import router as planning_router
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
@@ -37,6 +38,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(router)
     app.include_router(auth_router)
     app.include_router(access_router)
+    app.include_router(planning_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:
         response = JSONResponse(
@@ -79,7 +81,18 @@ def create_app(database_url: str | None = None) -> FastAPI:
     ) -> Response:
         token = request_id.set(str(uuid4()))
         try:
-            sensitive = request.url.path.startswith(("/api/v1/auth", "/api/v1/access"))
+            sensitive = request.url.path.startswith(
+                (
+                    "/api/v1/auth",
+                    "/api/v1/access",
+                    "/api/v1/partners",
+                    "/api/v1/operation-types",
+                    "/api/v1/projects",
+                    "/api/v1/ptas",
+                    "/api/v1/activities",
+                    "/api/v1/assignment-agents",
+                )
+            )
             if sensitive:
                 try:
                     allowed = await run_in_threadpool(endpoint_limit, request)
@@ -120,6 +133,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             "account_stale",
             "account_ineligible",
             "eligibility_unverified",
+            "business_forbidden",
             "invitation_stale",
             "invitation_terminal",
             "delivery_superseded",

@@ -3,6 +3,7 @@ import { AuthView } from './AuthView'
 import { sessionQuery } from './auth'
 import { useRouterState } from '@tanstack/react-router'
 import { HealthView } from './HealthView'
+import { PlanningView } from './PlanningView'
 import { healthQuery } from './health'
 import {
   MutationCache,
@@ -69,6 +70,7 @@ function Shell() {
             >
               État du service
             </Link>
+            <Link to="/projects">Planification</Link>
           </nav>
         </div>
       </header>
@@ -248,8 +250,42 @@ export function makeRouter(history) {
       }
     },
   })
+  const planningRoutes = [
+    ['/partners', 'partners'],
+    ['/projects', 'projects'],
+    ['/projects/$projectId/ptas/$year', 'pta'],
+    ['/projects/$projectId/ptas/$year/activities/new', 'activityNew'],
+    ['/activities/$activityId', 'activity'],
+  ].map(([path, screen]) =>
+    createRoute({
+      getParentRoute: () => root,
+      path,
+      component: () => <PlanningView screen={screen} />,
+      gcTime: 0,
+      validateSearch: (search) => ({
+        partnerCursor: String(search.partnerCursor || '').slice(0, 512),
+        typeCursor: String(search.typeCursor || '').slice(0, 512),
+        projectCursor: String(search.projectCursor || '').slice(0, 512),
+        activityCursor: String(search.activityCursor || '').slice(0, 512),
+        agentCursor: String(search.agentCursor || '').slice(0, 512),
+      }),
+      loader: async ({ context }) => {
+        try {
+          await context.queryClient.fetchQuery(sessionQuery)
+        } catch {
+          /* The protected view handles denial without exposing cached data. */
+        }
+      },
+    }),
+  )
   return createRouter({
-    routeTree: root.addChildren([home, health, ...authRoutes, access]),
+    routeTree: root.addChildren([
+      home,
+      health,
+      ...authRoutes,
+      access,
+      ...planningRoutes,
+    ]),
     context: { queryClient, api },
     history,
   })

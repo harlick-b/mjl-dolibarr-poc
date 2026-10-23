@@ -2,11 +2,13 @@
 
 ## Dedicated application rebuild
 
-The rebuild foundation and authorized A1–A3 access slices contain a French shell,
-service-health checks, first-Admin authentication, ordinary account administration
-and synthetic ordinary-account password recovery.
+The rebuild foundation, authorized A1–A3 access slices and PTA-1 contain a French
+shell, service-health checks, first-Admin authentication, ordinary account
+administration, synthetic password recovery, and draft Project/PTA/Activity
+planning with Agent coordination assignments.
 A1 is disabled by default and restricted to explicit isolated synthetic policy
-and private fake-email capture. Real accounts and later business slices remain unauthorized. See [authority](docs/mjl-authoritative-decisions.md)
+and private fake-email capture. Real accounts and later business slices remain
+unauthorized. See [authority](docs/mjl-authoritative-decisions.md)
 and [verification state](docs/mjl-implementation-roadmap-v2.md).
 
 ### Rebuild development
@@ -70,7 +72,8 @@ docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -
 docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -T backend alembic current
 ```
 
-Alembic creates its version table and seven auth tables; there are no business tables or seed data.
+At head, Alembic creates its version table, seven auth tables, and eight PTA-1
+relations. It creates no users, reference rows, Projects or other seed data.
 The URL comes from the environment, and malformed configuration errors omit
 credentials. Each request releases its session without implicit commit. Liveness
 returns `{"status":"ok"}` without connecting to PostgreSQL. Readiness executes
@@ -359,20 +362,17 @@ existing account view provides confirmations; unchanged role is a no-op. No
 inactive reinvitation, Admin lifecycle, assignment handoff or business permissions.
 
 **Disabled by default, even in synthetic mode.** Before enabling on a disposable
-database, verify it was created empty by this task, migrated to `0003_a21`, has no
-imports/legacy associations or external business store, and runs only the inspected
-auth-only writers. Only then add `"lifecycle_database": "mjl_test_a22"` to its
-private synthetic policy, using that exact verified database name, and restart
-that isolated backend. This is operator provenance attestation, not automated
-proof about external systems; never copy it to an unverified database. Omit the
+database, verify it was created empty by this task, has no imports/legacy
+associations or external business store, and runs only the inspected writers.
+Bind `lifecycle_database` to that exact verified `mjl_test_*` database. Omit the
 field to keep lifecycle disabled. Do not run live DDL while mutations are enabled.
 
-Every mutation checks the fixed seven auth/Alembic tables across non-system
-schemas and exact revision. Unknown evidence fails closed (409, or 503 on database
-failure). **Before any PTA/assignment/workflow integration, disable and replace
-this temporary check with authoritative assignment and outstanding-responsibility
-checks; never simply advance the allowed revision.** PC1/PC2 remain pending; real
-accounts remain prohibited. No migration was added by A2.2.
+PTA-1 replaced the temporary auth-only predicate. Every mutation now verifies the
+exact `0005_pta1` schema and singleton context, then rejects an account with a
+current Activity coordination assignment. Unknown or weakened evidence fails
+closed (409, or 503 on database failure). Future responsibility types must extend
+this predicate atomically before their mutations are enabled. PC1/PC2 remain
+pending; real accounts remain prohibited. A2.2 itself added no migration.
 
 For verification, use the existing isolated setup recipe with project
 `mjl-a22-test`, database `mjl_test_a22`, `/tmp/mjl-a22-*` private files and mailbox
@@ -419,10 +419,11 @@ the same neutral response and no eligibility claim.
 The three operations are `POST /api/v1/auth/password-reset/requests`, `/inspect`
 and `/complete`. A link verifier exists only in the private mailbox fragment and
 is scrubbed before inspection. Reset creates no authenticated session: the user
-must sign in with the new password and complete fresh email OTP. The fixed A2.2
-guard now permits exactly migration `0004_a3` and the recovery table in addition
-to its prior auth-only schema. Replace that temporary guard with assignment-aware
-eligibility before PTA/workflow integration.
+must sign in with the new password and complete fresh email OTP. The PTA-aware
+guard now requires exactly migration `0005_pta1`, its complete schema manifest and
+the singleton MJL context. Recovery remains allowed for an assigned ordinary
+account while lifecycle changes remain blocked by a current coordination
+assignment.
 
 Use a fresh project such as `mjl-a3-test`, an empty `mjl_test_a3` database, private
 `/tmp/mjl-a3-*` configuration and a mailbox beginning
@@ -443,5 +444,43 @@ API_PROXY_TARGET=http://127.0.0.1:8016 MJL_A3_MAILBOX=/tmp/mjl-a1-mail-a3-browse
 
 Verify project and volume labels before project-scoped teardown. Remove only the
 task-owned project, volume, policy, mailbox and test images. PC1/PC2 remain
-pending; real accounts, Admin recovery, A4, PTA, production mail and deployment
-remain prohibited.
+pending; real accounts, Admin recovery, approval workflow, later PTA/A4 work,
+production mail and deployment remain prohibited.
+
+### PTA-1 synthetic planning
+
+PTA-1 requires a fresh isolated `mjl_test_*` database migrated to `0005_pta1`,
+the existing complete synthetic recovery policy, and `lifecycle_database` bound
+to that exact database. Before starting a business-capable runtime, a restricted
+operator provisions the singleton context once:
+
+```bash
+python -m app.planning.provision --reason "PTA-1 isolated setup"
+```
+
+The command is idempotent and writes one attributable audit with the first
+successful provision. The operator needs read access to the exact schema, insert
+and update on `mjl_ownership_context`, and insert plus sequence use on
+`auth_audit`; it does not need schema creation. The runtime also must not have DDL
+privileges. Missing context, a database-policy mismatch, or any missing, extra or
+weakened relation/constraint/index/column fails planning and lifecycle operations
+closed.
+
+The authorized UI routes are `/partners`, `/projects`,
+`/projects/:projectId/ptas/:year`, its Activity-creation child, and
+`/activities/:activityId`. Only ordinary synthetic roles can access planning.
+Validators manage references and Projects; Agents create/read/edit drafts;
+Supervisors and Validators manage Agent coordination assignments. No review,
+approval, document, reporting or later workflow action is present.
+
+Use the isolated PTA-1 project and run the focused evidence with its database URL:
+
+```bash
+docker exec -e MJL_AUTH_MODE=off mjl-pta1-test-backend-1 sh -c 'TEST_DATABASE_URL="$DATABASE_URL" pytest -q tests/test_planning.py'
+npm --prefix frontend run test:unit
+API_PROXY_TARGET=http://127.0.0.1:8023 MJL_PTA1_CONTAINER=mjl-pta1-test-backend-1 PLAYWRIGHT_BROWSERS_PATH=/tmp/mjl-playwright npm --prefix frontend run test:e2e -- e2e/planning.spec.js
+```
+
+Use only synthetic identities and disposable resources. PC1/PC2 remain pending;
+real accounts, reviewer assignments/actions, approval workflow, later PTA/A4
+slices and production deployment remain prohibited.

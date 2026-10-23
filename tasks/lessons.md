@@ -8,6 +8,10 @@
 Update this file only after repeated mistakes, user corrections, or durable
 debugging discoveries. Do not add one-off observations or generic advice.
 
+- Synthetic mailbox filenames are UUIDs and do not encode delivery order. Tests
+  that need the latest message must compare the mailbox file set before and after
+  the delivery, or select by an explicit delivery identifier.
+
 - Dolibarr core files must not be edited for MJL work; use the custom module,
   documented setup scripts, documentation, disposable test-fixture locations, or a
   documented safe theme boundary.

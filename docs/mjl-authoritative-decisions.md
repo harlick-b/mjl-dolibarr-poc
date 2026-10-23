@@ -19,14 +19,20 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
-## PTA/A4 planning readiness (documentation only)
+## PTA-1 implementation authorization and completion (DEC-107)
 
-[Readiness 08](rebuild/08-pta-a4-foundation-readiness.md) proposes PTA-1 and
-resource-specific A4. DEC-104–106 close its ownership-context, reviewer-assignment
-and calendar-date decisions. **PTA_A4_FOUNDATION_READY_FOR_AUTHORIZATION** for the
-bounded synthetic PTA-1 slice; readiness is not implementation authorization.
-Activity-specific reviewer assignments/actions remain deferred, and no business
-implementation or auth-guard change is authorized by this review.
+The user authorized the bounded synthetic PTA-1 slice defined by
+[readiness 08](rebuild/08-pta-a4-foundation-readiness.md) and DEC-104–106. It
+implements the single MJL ownership context, references, Projects, automatic
+annual PTAs, draft Activities and Operations, and Agent coordination assignments.
+The exact-schema guard replaces the temporary auth-only guard, and all 24 checks,
+I1, C1 and the mandatory independent engineering and security/specification
+review cycle passed. The slice is **PTA_1_COMPLETE** without application
+acceptance. PC1/PC2 remain pending; real identities and production use remain
+prohibited. Activity review assignments/actions, approval workflow, A4 beyond
+the resource-specific authorization enforced here, and every later PTA slice
+remain deferred. Stop after PTA-1 and do not infer authorization for another
+slice.
 
 ## UI/API standards (DEC-102)
 

@@ -12,16 +12,33 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA/A4 readiness after A3
+## PTA-1 planning foundation (DEC-104–107)
 
-[Readiness 08](rebuild/08-pta-a4-foundation-readiness.md) proposes PTA-1: minimal
-references, Projects, automatic annual PTA, draft Activities/Operations and Agent
-coordination assignments with resource-specific A4. DEC-104–106 close the three
-prior decision blockers, so **PTA_A4_FOUNDATION_READY_FOR_AUTHORIZATION** for this
-bounded synthetic slice. Its 24 future checks include singleton-context ownership,
-calendar clamping and the atomic A2.2/A3 guard transition; none ran in this
-documentation review. Reviewer assignments/actions and implementation remain
-unauthorized pending their own later slice and a separate PTA-1 authorization.
+**PTA_1_COMPLETE** — implemented only the bounded synthetic slice in
+[readiness 08](rebuild/08-pta-a4-foundation-readiness.md). Migration `0005_pta1`
+adds the single MJL ownership context and seven planning tables. The API exposes
+the sixteen authorized responsibilities for references, Projects, annual PTAs,
+draft Activities/Operations and Agent coordination assignments. Five React routes
+provide the minimum French planning journey with Router-owned navigation and
+Query-owned server state.
+
+I1 froze the exact data, integer-XOF, cursor/replay, audit and visual contracts.
+All **24/24 P01–P24 gates passed**, including deterministic PostgreSQL races,
+atomic audit/rollback, A2.2 lifecycle and A3 recovery guard integration, exact
+OpenAPI, cache/offline behavior and focused A1–A3 regressions. Final evidence was
+255 combined backend PostgreSQL cases, 55 PTA-1 cases after the complete P02
+matrix, 38 frontend unit cases and the focused PTA-1 browser journey. Backend and
+frontend lint, formatting, typing and build checks passed.
+
+Separate engineering and security/specification reviewers inspected the actual
+tree, reported concrete gaps, and passed the corrected implementation on re-review.
+C1 then rehearsed the exact candidate image offline: `0004_a3` had eight relations,
+`0005_pta1` had sixteen, restricted operator provisioning was idempotent with one
+audit, the runtime credential had no schema-create privilege, the exact guard
+passed and the loopback readiness probe succeeded. This is development evidence,
+not application acceptance or production readiness. PC1/PC2 and real accounts
+remain pending. Review assignments/actions, approval workflow and all later PTA
+work remain unauthorized. Stop after PTA-1.
 
 ## Rebuild foundation (DEC-091–092, 2026-10-22)
 

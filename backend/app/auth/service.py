@@ -1,9 +1,10 @@
 import hashlib
+import json
 import logging
 import secrets
 from collections.abc import Callable
 from contextvars import ContextVar
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import Engine, func, select, text
@@ -41,14 +42,13 @@ class AuthService:
         self.mail = TestMailbox(policy.mailbox)
         self.clock: Callable[[], datetime] | None = None
 
-    def lifecycle_eligible(self, db: Session) -> None:
-        """Temporary auth-only proof. Replace before ANY PTA/workflow integration.
-
-        The database binding attests operator-verified empty-source provenance;
-        it never bypasses the per-mutation schema checks. No live DDL is allowed.
-        """
+    def environment_verified(
+        self, db: Session, *, require_context: bool = True
+    ) -> None:
+        """Verify the exact isolated PTA-1 database without inferring eligibility."""
         if (
-            not self.policy.lifecycle_database
+            not self.policy.recovery_enabled
+            or not self.policy.lifecycle_database
             or self.policy.lifecycle_database != self.engine.url.database
             or not self.policy.lifecycle_database.startswith("mjl_test_")
         ):
@@ -76,6 +76,14 @@ class AuthService:
                 "auth_otp",
                 "auth_abuse",
                 "auth_recovery",
+                "mjl_ownership_context",
+                "pta_partner",
+                "pta_operation_type",
+                "pta_project",
+                "pta_annual",
+                "pta_activity",
+                "pta_operation",
+                "pta_activity_agent_assignment",
             )
         }
         if relations != expected:
@@ -83,8 +91,124 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0004_a3"]:
+        if revisions != ["0005_pta1"]:
             raise AuthError(409, "eligibility_unverified")
+        required_constraints = {
+            "ownership_context_singleton",
+            "project_one_active_per_partner",
+            "pta_project_year",
+            "activity_request_key",
+            "assignment_one_current",
+            "audit_business_bounded",
+        }
+        found = set(
+            db.scalars(
+                text("""
+                SELECT conname FROM pg_catalog.pg_constraint
+                WHERE conname = ANY(:names)
+                UNION
+                SELECT indexname FROM pg_catalog.pg_indexes
+                WHERE indexname = ANY(:names)
+                """),
+                {"names": list(required_constraints)},
+            )
+        )
+        if found != required_constraints:
+            raise AuthError(409, "eligibility_unverified")
+        table_names = [name for schema, name, kind in expected]
+        manifest = [
+            list(row)
+            for row in db.execute(
+                text("""
+                SELECT * FROM (
+                  SELECT 'column' kind, c.relname object, a.attnum::text name,
+                    a.attname || '|' ||
+                    pg_catalog.format_type(a.atttypid,a.atttypmod) || '|' ||
+                    a.attnotnull::text || '|' ||
+                    coalesce(pg_get_expr(d.adbin,d.adrelid),'') definition
+                  FROM pg_catalog.pg_class c
+                  JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+                  JOIN pg_catalog.pg_attribute a
+                    ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped
+                  LEFT JOIN pg_catalog.pg_attrdef d
+                    ON d.adrelid=c.oid AND d.adnum=a.attnum
+                  WHERE n.nspname='public' AND c.relname=ANY(:tables)
+                  UNION ALL
+                  SELECT 'constraint', c.relname, x.conname,
+                    pg_get_constraintdef(x.oid)
+                  FROM pg_catalog.pg_constraint x
+                  JOIN pg_catalog.pg_class c ON c.oid=x.conrelid
+                  JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+                  WHERE n.nspname='public' AND c.relname=ANY(:tables)
+                  UNION ALL
+                  SELECT 'index', tablename, indexname, indexdef
+                  FROM pg_catalog.pg_indexes
+                  WHERE schemaname='public' AND tablename=ANY(:tables)
+                ) manifest ORDER BY kind,object,name
+                """),
+                {"tables": table_names},
+            )
+        ]
+        encoded_manifest = json.dumps(manifest, separators=(",", ":"))
+        if hashlib.sha256(encoded_manifest.encode()).hexdigest() != (
+            "65c3559d5276d42175e40bf664a884706afe4c6b9591e91f88c85a3b6df9b614"
+        ):
+            raise AuthError(409, "eligibility_unverified")
+        if require_context:
+            from app.planning.models import OwnershipContext
+
+            contexts = list(db.scalars(select(OwnershipContext.id)))
+            if contexts != ["MJL"]:
+                raise AuthError(409, "eligibility_unverified")
+
+    def lifecycle_eligible(self, db: Session, user_id: str | None = None) -> None:
+        """PTA-aware proof that an ordinary account has no current responsibility."""
+        self.environment_verified(db)
+        if user_id:
+            from app.planning.models import ActivityAssignment
+
+            if db.scalar(
+                select(ActivityAssignment.id)
+                .where(
+                    ActivityAssignment.agent_id == user_id,
+                    ActivityAssignment.ended_at.is_(None),
+                )
+                .limit(1)
+            ):
+                raise AuthError(409, "account_ineligible")
+
+    def provision_context(self, operator: str, reason: str) -> None:
+        reason = reason.strip()
+        if not operator or len(operator) > 80 or not reason or len(reason) > 200:
+            raise AuthError(403, "operator_required")
+        from app.planning.models import OwnershipContext
+
+        try:
+            with Session(self.engine) as db, db.begin():
+                db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+                self.environment_verified(db, require_context=False)
+                context = db.get(OwnershipContext, "MJL", with_for_update=True)
+                if context:
+                    return
+                context = OwnershipContext(id="MJL", created_at=self.now(db))
+                db.add(context)
+                db.flush()
+                self.audit(
+                    db,
+                    "ownership_context.provisioned",
+                    operator,
+                    "MJL",
+                    details={"reason": reason},
+                )
+        except Exception:
+            logger.warning(
+                "MJL ownership provisioning failed "
+                "operator=%s occurred_at=%s reason=%s",
+                operator,
+                datetime.now(UTC).isoformat(),
+                reason,
+            )
+            raise
 
     def now(self, db: Session) -> datetime:
         if self.clock:
@@ -120,10 +244,15 @@ class AuthService:
                 "recovery_id",
                 "before_credential_version",
                 "credential_version",
+                "reason",
             }
             if set(details) - allowed or any(
-                type(v) not in (str, int) or (isinstance(v, str) and len(v) > 64)
-                for v in details.values()
+                type(v) not in (str, int) for v in details.values()
+            ):
+                raise ValueError("Invalid audit facts")
+            if any(
+                isinstance(value, str) and len(value) > (200 if key == "reason" else 64)
+                for key, value in details.items()
             ):
                 raise ValueError("Invalid audit facts")
         db.add(
@@ -134,6 +263,189 @@ class AuthService:
                 actor=actor,
                 target=target,
                 outcome=outcome,
+                request_id=request_id.get() or str(uuid4()),
+            )
+        )
+        db.flush()
+
+    def business_audit(
+        self,
+        db: Session,
+        action: str,
+        actor: str,
+        target: str,
+        business: dict[str, object],
+    ) -> None:
+        shapes = {
+            "partner.create": "partner",
+            "operation_type.create": "type",
+            "project.create": "project",
+            "project.close": "project",
+            "activity.create": "activity",
+            "activity.replace": "activity",
+            "activity.assign_agents": "activity",
+        }
+        create_actions = {
+            "partner.create",
+            "operation_type.create",
+            "project.create",
+            "activity.create",
+        }
+        change_actions = set(shapes) - create_actions
+        required = (
+            {"context_id", "after"}
+            if action in create_actions
+            else {"context_id", "before", "after", "removed_operations"}
+            if action == "activity.replace"
+            else {"context_id", "before", "after"}
+            if action in change_actions
+            else None
+        )
+        after = business.get("after")
+        before = business.get("before")
+
+        def valid_removals(value: object) -> bool:
+            fields = {"id", "position", "removed_at", "removed_by_id"}
+            return (
+                isinstance(value, list)
+                and len(value) <= 100
+                and all(
+                    isinstance(row, dict)
+                    and set(row) == fields
+                    and all(
+                        isinstance(row.get(key), str)
+                        for key in ("id", "removed_at", "removed_by_id")
+                    )
+                    and isinstance(row.get("position"), int)
+                    and row["position"] > 0
+                    for row in value
+                )
+            )
+
+        def valid_item(value: object, shape: str) -> bool:
+            if not isinstance(value, dict):
+                return False
+            fields = {
+                "partner": {"id", "name", "active", "allowed_actions"},
+                "type": {"id", "label", "active", "allowed_actions"},
+                "project": {
+                    "id",
+                    "partner_id",
+                    "reference",
+                    "name",
+                    "state",
+                    "version",
+                    "allowed_actions",
+                },
+                "activity": {
+                    "id",
+                    "pta_id",
+                    "reference",
+                    "name",
+                    "description",
+                    "planned_start",
+                    "planned_end",
+                    "allocation",
+                    "state",
+                    "version",
+                    "operations",
+                    "agent_ids",
+                    "allowed_actions",
+                },
+            }[shape]
+            if set(value) != fields or not isinstance(value.get("id"), str):
+                return False
+            if not isinstance(value.get("allowed_actions"), list) or not all(
+                isinstance(action, str) for action in value["allowed_actions"]
+            ):
+                return False
+            if shape in {"partner", "type"}:
+                label = value.get("name" if shape == "partner" else "label")
+                return (
+                    isinstance(label, str)
+                    and bool(label)
+                    and isinstance(value.get("active"), bool)
+                )
+            if shape == "project":
+                return (
+                    all(
+                        isinstance(value.get(key), str)
+                        for key in ("partner_id", "reference", "name", "state")
+                    )
+                    and value.get("state") in {"active", "closed"}
+                    and isinstance(value.get("version"), int)
+                    and value["version"] > 0
+                )
+            operations = value.get("operations")
+            operation_fields = {"id", "type_id", "name", "allocation", "position"}
+            return (
+                all(
+                    isinstance(value.get(key), str)
+                    for key in (
+                        "pta_id",
+                        "reference",
+                        "name",
+                        "description",
+                        "planned_start",
+                        "planned_end",
+                        "allocation",
+                        "state",
+                    )
+                )
+                and value.get("state") == "draft"
+                and isinstance(value.get("version"), int)
+                and value["version"] > 0
+                and isinstance(operations, list)
+                and 1 <= len(operations) <= 100
+                and all(
+                    isinstance(row, dict)
+                    and set(row) == operation_fields
+                    and all(
+                        isinstance(row.get(key), str)
+                        for key in ("id", "type_id", "name", "allocation")
+                    )
+                    and isinstance(row.get("position"), int)
+                    and row["position"] > 0
+                    for row in operations
+                )
+                and isinstance(value.get("agent_ids"), list)
+                and all(
+                    isinstance(identifier, str) for identifier in value["agent_ids"]
+                )
+            )
+
+        if (
+            required is None
+            or set(business) != required
+            or business.get("context_id") != "MJL"
+            or (
+                action == "activity.replace"
+                and not valid_removals(business.get("removed_operations"))
+            )
+            or not valid_item(after, shapes[action])
+            or not isinstance(after, dict)
+            or after.get("id") != target
+            or (
+                action in change_actions
+                and (
+                    not valid_item(before, shapes[action])
+                    or not isinstance(before, dict)
+                    or before.get("id") != target
+                )
+            )
+        ):
+            raise ValueError("Invalid business audit facts")
+        encoded = json.dumps(business, separators=(",", ":"), sort_keys=True)
+        if len(encoded.encode()) > 1_048_576:
+            raise ValueError("Business audit exceeds its bounded contract")
+        db.add(
+            Audit(
+                business=business,
+                occurred_at=self.now(db),
+                action=action,
+                actor=actor,
+                target=target,
+                outcome="ok",
                 request_id=request_id.get() or str(uuid4()),
             )
         )
@@ -277,7 +589,7 @@ class AuthService:
         assert self.policy.recovery_seconds
         with Session(self.engine) as db, db.begin():
             db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
-            self.lifecycle_eligible(db)
+            self.environment_verified(db)
             user = db.scalar(select(User).where(User.email == email).with_for_update())
             if not user or user.state != "active" or user.role == "ADMIN_PLATEFORME":
                 return None
@@ -325,7 +637,7 @@ class AuthService:
         self.require_recovery()
         with Session(self.engine) as db, db.begin():
             db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
-            self.lifecycle_eligible(db)
+            self.environment_verified(db)
             target = db.scalar(select(Recovery.user_id).where(Recovery.id == selector))
             user = db.get(User, target, with_for_update=True) if target else None
             recovery = db.get(Recovery, selector, with_for_update=True)
@@ -354,7 +666,7 @@ class AuthService:
             delivered = False
         with Session(self.engine) as db, db.begin():
             db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
-            self.lifecycle_eligible(db)
+            self.environment_verified(db)
             target = db.scalar(select(Recovery.user_id).where(Recovery.id == selector))
             user = db.get(User, target, with_for_update=True) if target else None
             recovery = db.get(Recovery, selector, with_for_update=True)
@@ -401,7 +713,7 @@ class AuthService:
         self.require_recovery()
         with Session(self.engine) as db, db.begin():
             db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
-            self.lifecycle_eligible(db)
+            self.environment_verified(db)
             target = db.scalar(select(Recovery.user_id).where(Recovery.id == selector))
             user = db.get(User, target, with_for_update=True) if target else None
             recovery = db.get(Recovery, selector, with_for_update=True)
@@ -430,7 +742,7 @@ class AuthService:
         result: tuple[str, str] | None = None
         with Session(self.engine) as db, db.begin():
             db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
-            self.lifecycle_eligible(db)
+            self.environment_verified(db)
             target = db.scalar(select(Recovery.user_id).where(Recovery.id == selector))
             user = db.get(User, target, with_for_update=True) if target else None
             recovery = db.get(Recovery, selector, with_for_update=True)

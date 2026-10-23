@@ -20,6 +20,122 @@
   --spacing: 4px;
 }
 
+.planning-stack {
+  display: grid;
+  gap: 24px;
+}
+.planning-heading,
+.planning-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.planning-heading h1,
+.planning-card h2 {
+  color: var(--color-navy);
+  font-weight: 600;
+}
+.planning-heading h1 {
+  font-size: 28px;
+}
+.planning-heading nav {
+  display: flex;
+  gap: 20px;
+}
+.eyebrow {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.planning-card {
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+.planning-title form,
+.planning-grid,
+.operation-row {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.planning-card label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.planning-card input,
+.planning-card select,
+.planning-card textarea {
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 9px 11px;
+  background: white;
+}
+.planning-card textarea {
+  min-height: 110px;
+}
+.planning-form > label {
+  width: 100%;
+}
+.planning-list {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  list-style: none;
+}
+.planning-list li {
+  min-height: 52px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.planning-button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: var(--color-primary);
+  color: white;
+  text-decoration: none;
+}
+.planning-error {
+  border-left: 4px solid #a33;
+  padding: 12px;
+  background: white;
+}
+.planning-facts {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.planning-facts dt {
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+}
+@media (width <= 640px) {
+  .operation-row > * {
+    width: 100%;
+  }
+  .planning-heading {
+    align-items: flex-start;
+  }
+}
+
 @layer base {
   body {
     margin: 0;

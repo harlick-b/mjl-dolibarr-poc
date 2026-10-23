@@ -41,6 +41,7 @@ def test_eligibility_requires_verified_database(admin, auth_env):
     auth.policy = auth.policy.model_copy(
         update={"lifecycle_database": auth.engine.url.database}
     )
+    auth.provision_context("test-operator", "PTA-1 lifecycle verification")
     with Session(auth.engine) as db, db.begin():
         auth.lifecycle_eligible(db)
         db.execute(text("CREATE SCHEMA unexpected"))
@@ -135,6 +136,7 @@ def test_guard_rejects_unknown_schema(admin, ddl):
     auth.policy = auth.policy.model_copy(
         update={"lifecycle_database": auth.engine.url.database}
     )
+    auth.provision_context("test-operator", "PTA-1 schema negative")
     with Session(auth.engine) as db, db.begin():
         db.execute(text(ddl))
         with pytest.raises(AuthError, match="eligibility_unverified"):
@@ -163,6 +165,7 @@ def enable(admin):
     auth.policy = auth.policy.model_copy(
         update={"lifecycle_database": auth.engine.url.database}
     )
+    auth.provision_context("test-operator", "PTA-1 lifecycle tests")
 
 
 def test_role_change_and_deactivation_revoke_contexts(admin, ordinary):

@@ -3,6 +3,7 @@ from alembic import context
 from app.auth.models import Base
 from app.config import database_url
 from app.database import make_engine
+from app.planning import models as planning_models  # noqa: F401
 
 metadata = Base.metadata
 

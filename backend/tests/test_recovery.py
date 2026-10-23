@@ -83,6 +83,7 @@ def enable_recovery(client):
     auth.policy = auth.policy.model_copy(
         update={"lifecycle_database": auth.engine.url.database}
     )
+    auth.provision_context("test-operator", "PTA-1 recovery compatibility")
 
 
 def request(client, email):
@@ -207,7 +208,8 @@ def test_a3_migration_preserves_existing_auth_evidence(auth_env):
         command.upgrade(config, "head")
         with engine.connect() as db:
             assert (
-                db.scalar(text("SELECT version_num FROM alembic_version")) == "0004_a3"
+                db.scalar(text("SELECT version_num FROM alembic_version"))
+                == "0005_pta1"
             )
             for table in (
                 "auth_user",
@@ -788,6 +790,7 @@ def test_reset_invalidates_verified_and_pending_contexts(ordinary, auth_env):
             assert otp
             otp.sent_at = auth.now(db) - timedelta(seconds=61)
         second_headers = headers(second_verified)
+        before_delivery = set(auth_env.mailbox.glob("*.json"))
         assert (
             second_verified.post(
                 "/api/v1/auth/login",
@@ -796,11 +799,11 @@ def test_reset_invalidates_verified_and_pending_contexts(ordinary, auth_env):
             ).status_code
             == 202
         )
-        second_code = [
-            item["value"]
-            for item in messages(auth_env.mailbox)
-            if item["recipient"] == email and item["kind"] == "otp"
-        ][-1]
+        delivered = set(auth_env.mailbox.glob("*.json")) - before_delivery
+        assert len(delivered) == 1
+        second_message = json.loads(delivered.pop().read_text())
+        assert (second_message["recipient"], second_message["kind"]) == (email, "otp")
+        second_code = second_message["value"]
         assert (
             second_verified.post(
                 "/api/v1/auth/otp/verify",
@@ -814,6 +817,7 @@ def test_reset_invalidates_verified_and_pending_contexts(ordinary, auth_env):
             assert otp
             otp.sent_at = auth.now(db) - timedelta(seconds=61)
         pending_headers = headers(pending)
+        before_delivery = set(auth_env.mailbox.glob("*.json"))
         assert (
             pending.post(
                 "/api/v1/auth/login",
@@ -822,11 +826,11 @@ def test_reset_invalidates_verified_and_pending_contexts(ordinary, auth_env):
             ).status_code
             == 202
         )
-        pending_code = [
-            item["value"]
-            for item in messages(auth_env.mailbox)
-            if item["recipient"] == email and item["kind"] == "otp"
-        ][-1]
+        delivered = set(auth_env.mailbox.glob("*.json")) - before_delivery
+        assert len(delivered) == 1
+        pending_message = json.loads(delivered.pop().read_text())
+        assert (pending_message["recipient"], pending_message["kind"]) == (email, "otp")
+        pending_code = pending_message["value"]
         with Session(auth.engine) as db:
             otp = db.get(OTP, identifier)
             assert otp

@@ -345,7 +345,8 @@ class Deactivation(Version):
     description=(
         "Restricted synthetic ordinary active accounts only. Exactly one role change "
         "or deactivation. 409 for stale/ineligible state or eligibility_unverified. "
-        "Requires operator-verified auth-only database; never enables PTA lifecycle."
+        "Requires the exact operator-verified PTA schema and rejects current "
+        "assignments."
     ),
 )
 def lifecycle(
@@ -359,7 +360,7 @@ def lifecycle(
             raise AuthError(404, "account_not_found")
         if user.id == actor.id or user.role == "ADMIN_PLATEFORME":
             raise AuthError(403, "admin_target_forbidden")
-        auth.lifecycle_eligible(db)
+        auth.lifecycle_eligible(db, user.id)
         if user.state != "active":
             raise AuthError(409, "account_ineligible")
         if user.version != body.expected_version:
