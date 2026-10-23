@@ -1,6 +1,6 @@
 # A3 — Password recovery readiness
 
-Documentation-only; decision recheck 2026-10-23; implementation baseline `14f75d0` (A2.2 complete).
+Documentation-only; decision approval 2026-10-23 (DEC-101); implementation baseline `14f75d0` (A2.2 complete).
 No runtime, schema, policy configuration or real-account change is authorized.
 
 ## 1. Confirmed requirements and proposed boundary
@@ -16,22 +16,20 @@ and [security baseline](03-security-compliance-baseline.md) retain:
 - **No authenticated session from reset.** Subsequent password + email OTP login
   remains mandatory. Reset must never activate an inactive/pending account.
 
-Propose one coherent first journey for **active ordinary synthetic accounts**.
+Approved scope: one coherent first journey for **active ordinary synthetic accounts**.
 Unknown, pending, inactive and excluded Admin identities receive the same neutral
 request response and no recovery mail. Ordinary identity/email/role/state and
 historical attribution survive completion unchanged. Inactive reinvitation,
 assignment handoff, additional Admin lifecycle, A4/PTA and Phase 4 stay excluded.
 
-This scope is proposed, not approved by the readiness request. Technical Admin
-mailbox-possession reset must be decided explicitly; the legacy native entity-0
-exception is not target authority. Lost mailbox/sole-Admin recovery remains LA2,
-not a reason to reopen bootstrap or introduce an operator reset bypass.
+The user explicitly approved ordinary synthetic-only scope, deferring all technical
+Admin recovery without bootstrap changes or an alternative bypass (DEC-101).
+Lost-mailbox/sole-Admin recovery remains LA2 and is outside A3.
 
-No current cited requirement mandates a second challenge before changing the
-password. Link-possession-only completion is the proposed minimum, **pending
-Sponsor/RSSI confirmation**. Same-mailbox reset OTP is not an independent factor;
-the mandatory subsequent login OTP does not establish independent recovery
-assurance. Do not add an extra verification mechanism or call one approved.
+Link possession alone authorizes password definition in this scope, as explicitly
+approved by the user. Same-mailbox OTP is not an independent recovery factor;
+mailbox compromise remains a takeover risk. No extra recovery challenge is added.
+Fresh password-plus-email-OTP login remains mandatory after reset.
 
 ## 2. Existing capabilities to reuse
 
@@ -69,7 +67,7 @@ required configuration, not unlimited defaults or values invented in this review
 **One new dedicated recovery-proof table and one Alembic migration are justified.**
 Proposed fields: random selector PK, unique User FK, verifier digest, generation,
 expiry, prepared/delivered/consumed state and bound User security proof (reuse
-`user_proof`). One current row per User; Decision A recommends preserving an unexpired current
+`user_proof`). One current row per User; Decision A requires preserving an unexpired current
 proof rather than keeping multiple candidates. Append-only audit preserves prior
 preparations/consumptions. No new session store, token framework or outbox table.
 Invitation is activation-specific with one row per User; reusing it would overwrite
@@ -129,7 +127,7 @@ work opens its own Sessions and receives normalized email/request ID only, never
 a Request, live Session or browser credential. Catch failures with sanitized,
 correlated evidence; no secrets/raw exception payloads in logs.
 
-Under recommended Decision A below, preparation creates a generation only when
+Under approved Decision A below, preparation creates a generation only when
 no unexpired, security-current prepared/delivered proof exists. Repeated requests
 are neutral no-ops: no mail, replacement, expiry extension or credential change.
 Preparation commits an unusable random generation and required audit first.
@@ -151,7 +149,7 @@ UI wording: “Si ce compte peut être récupéré, vous recevrez un lien.” It
 say delivery succeeded. Delivery failures remain observable to authorized technical
 operators through existing protected evidence, not exposed per email to callers.
 
-**Decision A recommendation (not approved):** preserve the current unexpired,
+**Decision A (approved):** preserve the current unexpired,
 security-current prepared/delivered proof. Permit a fresh generation only after
 expiry, consumption or security staleness, and only for a still-eligible account
 within request limits. No resend: hash-only storage cannot reconstruct a verifier.
@@ -159,13 +157,13 @@ Concurrent preparations serialize; only one creates/sends a generation. Late
 results for an older generation cannot modify its replacement. This supersedes
 the earlier *recommendation* to replace on preparation, not an approved decision.
 
-After a successful reset commit, recommend one best-effort security notification
+After a successful reset commit, send one best-effort security notification
 through the existing mail boundary. Send no password, token or authentication link.
 Only the winning reset schedules it; never notify before commit. Failure or task
 loss cannot roll back the password change, restore sessions or unconsume the proof;
 reset success means credential change, not notification delivery. Audit the attempt
 and known outcome truthfully; missing outcome is unknown, never inferred sent.
-No durable queue, retry platform or delivery guarantee. Sponsor/RSSI must approve
+No durable queue, retry platform or delivery guarantee. The user approved
 both this notification limitation and the finite wait after failed initial mail.
 
 ## 6. React and online-only PWA
@@ -204,12 +202,12 @@ Use synthetic identities, disposable PostgreSQL and private mail captures only.
 | R03 | Real ASGI HTTP connection receives complete neutral 202 while mail is blocked on a barrier; release mail afterward. In-process TestClient/ASGITransport timing is insufficient because it may await background completion. No account-dependent transport delay before response |
 | R04 | Wrong selector/verifier, expired/undelivered/security-stale proof returns generic invalid-link denial; inspect neither consumes nor extends expiry. Inactive/pending/forbidden target cannot reset or activate |
 | R05 | Concurrent complete attempts using one delivered proof produce exactly one hash/version change, one consumed proof/success audit; other 409; later replay cannot change password again |
-| R06 | If Decision A is approved: repeated unexpired prepared/delivered requests preserve generation/digest/expiry, send no mail and return neutral 202; concurrent preparation sends once. Expired/consumed/security-stale proofs permit a fresh generation only for eligible, unthrottled accounts. Late prior-generation success/failure cannot change its replacement or restore authority |
+| R06 | Under approved Decision A: repeated unexpired prepared/delivered requests preserve generation/digest/expiry, send no mail and return neutral 202; concurrent preparation sends once. Expired/consumed/security-stale proofs permit a fresh generation only for eligible, unthrottled accounts. Late prior-generation success/failure cannot change its replacement or restore authority |
 | R07 | All A1 password-policy and confirmation failures reject without consumption/hash/version change; new verifier passes Argon2 verification, old password fails; no plaintext/hash in API/audit/logs |
 | R08 | Multiple verified cookies and pending OTP verify/resend contexts fail after reset; returning to an old password cannot revive prior proofs; existing limits/lockout counters and 24-hour ceilings remain intact |
 | R09 | Deterministic independent PostgreSQL connections, barriers and bounded waits cover both orders of reset/login, reset/OTP verification/resend, reset/deactivation and reset/role change. No deadlock/timeouts/500 or stale authority; inactive state cannot be undone |
 | R10 | Preparation/mutation/audit/commit fault injection rolls back the corresponding proof/password/version changes; no precommit mail, success audit or session. Identity/history and append-only constraints remain intact |
-| R11 | If Decision A is approved: task loss before preparation commit permits an immediate limited retry; after preparation committed, failed/lost initial mail leaves an unusable proof until original expiry; repeats never extend that wait, then a limited request can retry. Delivery-result persistence failure cannot enable proof. Exactly the winning committed reset schedules a best-effort notification; injected send/audit failure or task loss never reverses reset or claims receipt. 202 never asserts mail receipt |
+| R11 | Under approved Decision A: task loss before preparation commit permits an immediate limited retry; after preparation committed, failed/lost initial mail leaves an unusable proof until original expiry; repeats never extend that wait, then a limited request can retry. Delivery-result persistence failure cannot enable proof. Exactly the winning committed reset schedules a best-effort notification; injected send/audit failure or task loss never reverses reset or claims receipt. 202 never asserts mail receipt |
 | R12 | Token removed from address/history before inspection; no secret in redirects, referrer, logs, Query keys, browser persistence or cached responses. Proof comes only from its link, never caller-supplied identity/role |
 | R13 | Browser request→neutral confirmation→email link→password criteria/errors→success→fresh login/OTP; invalid/expired states, accessible focus and 375px reflow use existing auth design |
 | R14 | Offline submission sends nothing; reconnect never replays. Logout/account switch/navigation invalidate sensitive state; late inspection/completion responses cannot restore another identity's Query state; APIs/recovery responses are not service-worker cached |
@@ -218,116 +216,44 @@ Use synthetic identities, disposable PostgreSQL and private mail captures only.
 
 ## 8. Focused security decisions and remaining gates
 
-Repository recheck: DEC-100, readiness 04 LA1/LA2 and the current roadmap contain
-no newer Sponsor/RSSI approval. The latest request asks to evaluate options, not
-to approve them. Only this readiness document changes; authoritative decision
-records stay unchanged until an authorized owner actually approves a decision.
+The user's explicit three affirmative answers on 2026-10-23 approve A/B/C
+(DEC-101), superseding the prior pending recommendations. This is security-policy
+and scope approval only, not implementation authorization or real-account approval.
 
-**APPROVED** invariants remain: single-use expiring proof, identity/role preservation,
-no reset-created authenticated session, obsolete-session/pending-OTP revocation,
-and fresh password-plus-email-OTP login. The following recommendations are all
-**RECOMMENDED_PENDING_APPROVAL** and **BLOCKING** before synthetic authorization.
-
-| Decision | Recommendation | Required owner | Approval status | Blocks A3? |
+| Decision | Approved behavior | Approval source | Approval status | Blocks A3? |
 | --- | --- | --- | --- | --- |
-| A — replacement and notification | Preserve live proof; neutral no-op repeats; one best-effort post-commit notification | Sponsor/RSSI | RECOMMENDED_PENDING_APPROVAL | BLOCKING, including synthetic |
-| B — assurance | Link possession authorizes ordinary-account password definition, followed by normal login + OTP | Sponsor/RSSI | RECOMMENDED_PENDING_APPROVAL | BLOCKING, including synthetic |
-| C — Admin boundary | Ordinary synthetic accounts only; no technical Admin recovery or bypass | Sponsor/RSSI | RECOMMENDED_PENDING_APPROVAL; privileged recovery proposed DEFERRED | BLOCKING until exclusion approved; privileged policy then does not block ordinary A3 |
+| A — replacement and notification | Preserve unexpired proofs without resending/extending expiry, including the failed-delivery wait; one best-effort post-reset notification | User explicit yes, DEC-101 | APPROVED | No; finite values remain a pre-implementation gate |
+| B — assurance | Link possession authorizes password definition; require fresh password-plus-email-OTP login afterward | User explicit yes, DEC-101 | APPROVED | No |
+| C — Admin boundary | Ordinary synthetic accounts only; defer all technical Admin recovery, without bootstrap changes or bypass | User explicit yes, DEC-101 | APPROVED; Admin recovery DEFERRED | No; privileged policy does not block ordinary A3 |
 
-### A — what happens to an existing link and how is the user notified?
+Decision A uses one current proof row and prevents replacement mail failure from
+invalidating a working link. No resend is possible from hash-only storage. A
+committed prepared proof whose mail fails remains unusable until its original
+finite expiry (or security staleness); repeat requests cannot extend the wait.
+No committed proof means another rate-limited request can prepare immediately.
+The user approved this availability tradeoff and best-effort notification: failed
+or lost notification never rolls back reset or implies delivery. No queue is added.
 
-Constraints: hash-only single-use proof, finite expiry, neutral enumeration-safe
-responses, direct IP/email request limits, transactional audit and non-atomic DB/mail.
-Three reasonable replacement options:
+Decision B preserves the existing identity/role and invalidates obsolete sessions
+and pending OTP; reset creates no authenticated session. Link possession does not
+protect against mailbox compromise, and fresh email OTP is not independent of
+that mailbox. No new verification method is authorized.
 
-1. **Preserve until expiry (recommended):** no replacement/resend/extension while
-   a current prepared/delivered proof is unexpired. Smallest one-row design; failed
-   new delivery cannot destroy an existing valid link because no new mail is sent.
-   Lost mail or a failed initial send requires waiting until original expiry.
-   An attacker can trigger this wait if initial delivery fails; finite IP/email
-   limits bound abuse, and ordinary login is never locked by recovery requests.
-2. **Replace on preparation:** simpler latest-request semantics, but a failed new
-   send invalidates an older usable link. Explicit owner approval of that loss is
-   essential; this review does not select it.
-3. **Replace after confirmed delivery-result commit:** preserve the old valid
-   proof until a candidate is sent and its result committed. Better retry experience,
-   but requires old/candidate persistence and races between old consumption and new
-   delivery; exceeds the proposed single-current-proof design. SMTP receipt alone
-   cannot atomically switch database authority.
+Decision C excludes Admin at request, inspection and completion boundaries. Loss
+of Admin credentials remains unresolved under LA2; it is not permission to change
+bootstrap or create an operator bypass. Account reactivation, role/email/identity
+changes, public registration and business features remain outside A3.
 
-For notification, recommend one post-commit best-effort security notice rather
-than no separate notice. It offers incident awareness without infrastructure;
-mailbox compromise can conceal it, and it is not another authentication factor.
-No-notice is leaner but removes that warning. Guaranteed eventual notification
-would need a separately approved durable mechanism and is not selected.
-
-**Exact owner question:** Approve preservation/no-resend until original expiry
-(including known mail failure and uncertain task/delivery-result failure), finite
-direct-request limits, and one
-best-effort post-reset notification whose failure never reverses reset? If not,
-select the replacement/notification alternative and approve its failure semantics.
-Provide finite lifetime/limit values, or explicitly permit labeled synthetic test
-values before affected implementation. No numeric policy is invented here.
-**Resulting acceptance:** R02/R03/R06/R10/R11 prove neutral responses, no premature
-replacement, bounded wait, conditional late delivery and truthful notification.
-
-### B — is the recovery link sufficient authority to define a password?
-
-The invitation model already uses an email proof for password definition; login
-then requires password plus email OTP. That analogy supports a proposal, not a
-recovery approval. Recovery replaces an existing credential, so mailbox control
-is a material account-takeover risk despite random expiring, single-use tokens,
-abuse controls and immediate revocation of old sessions/OTP contexts.
-
-1. **Link-only definition (recommended for this ordinary synthetic slice):** reuse
-   existing security primitives and require normal login afterward. Bounded scope;
-   possession of a compromised mailbox can still enable takeover.
-2. **Additional same-mailbox OTP:** adds a step/short-lived challenge but no
-   independent assurance against mailbox compromise; introduces extra state and
-   does not justify claiming stronger MFA.
-3. **Independent assurance or operator-assisted verification:** potentially stronger
-   but needs an approved method, ownership and exception policy. None exists here;
-   do not invent a factor or bypass. Defer implementation if this is required.
-
-**Exact owner question:** Is possession of the valid recovery link sufficient for
-ordinary synthetic password definition under the stated revocation/fresh-login
-invariants, or must an additional approved verification method be specified?
-**Resulting acceptance:** R01/R04/R05/R07–R10/R12 prove expiry/replay, safe password
-storage, complete revocation and no identity/role/MFA bypass. Any extra method
-requires a bounded contract and corresponding oracle before authorization.
-
-### C — can ordinary recovery proceed while Admin recovery is deferred?
-
-Technical Admin is separate from business roles; LA2 and the restricted bootstrap
-supply no recovery bypass. Options:
-
-1. **Ordinary synthetic only (recommended):** excluded Admin request returns the
-   same neutral response with no proof/mail; inspect/complete reject Admin targets.
-   Approving this boundary is sufficient to defer the privileged recovery policy
-   without blocking ordinary recovery. Loss of Admin credentials remains unresolved.
-2. **Include active Admin under ordinary rules:** increases privileged takeover
-   exposure; requires explicit Sponsor/RSSI assurance approval, not legacy behavior.
-3. **Hold all A3 until privileged policy exists:** avoids different recovery scopes
-   but unnecessarily couples ordinary recovery to later high-assurance decisions.
-
-**Exact owner question:** Approve ordinary synthetic-only A3 and explicitly defer
-all technical Admin recovery, with no bootstrap changes or alternative bypass?
-**Resulting acceptance:** R02/R04/R16 reject Admin recovery at every boundary and
-preserve bootstrap. Once exclusion is approved, the Admin policy is **DEFERRED**;
-ordinary A3 remains blocked only by its own unresolved decisions and prerequisites.
-
-All sixteen checks remain. R06/R11 are adjusted to the preservation/notification
-recommendation because the prior preparation-replacement oracle would invalidate
-working links on failed mail. These are conditional future oracles, not approval
-or executed evidence. API count, one-table justification, fixed A2.2 schema guard,
-advisory-first ordering, UI and session-proof invalidation remain unchanged.
+All sixteen acceptance checks remain planned and unexecuted. R06/R11 now express
+the approved preservation/notification behavior. The three POST responsibilities,
+one-table justification, fixed A2.2 schema compatibility requirement, advisory-first
+ordering, UI and session-proof invalidation remain unchanged. Earlier alternative
+comparisons and independent review evidence remain in Git history (`c10bfb9`).
 
 ### Remaining timing gates
 
 | Item | Timing | Owner and required resolution |
 | --- | --- | --- |
-| LA1 proof replacement and notification | BEFORE_AUTHORIZATION | Sponsor/RSSI approve the bounded repeated-request rule and whether/when reset notifications are required, including notification failure semantics |
-| Recovery assurance and Admin boundary | BEFORE_AUTHORIZATION | Sponsor/RSSI approve link-possession-only ordinary recovery or specify required added verification; confirm ordinary-only first scope versus expressly authorized active Admin mailbox recovery. Lost-mailbox/sole-Admin escalation stays separate LA2 |
 | LA1 lifetime/direct throttle values | BEFORE_AFFECTED_IMPLEMENTATION | Sponsor/RSSI provide approved values or explicitly permit labeled synthetic-only fixtures for A3. Required finite configuration; historical one-hour/reset-count guesses are not approval. Production values remain a real-account gate |
 | A3 storage/A2.2 compatibility and timing-safe delivery | BEFORE_AFFECTED_IMPLEMENTATION | Engineering; include exact recovery migration/guard compatibility in the implementation contract, verify R03/R09–R11/R15 before exposure. No broad schema bypass |
 | PC1/PC2 | BEFORE_REAL_ACCOUNT_ENABLEMENT | Sponsor/RSSI; still pending password/normalization/abuse/session cardinality/activity policy. Existing A1 synthetic fixtures can be reused, but do not resolve LA1. They do not by themselves block synthetic development or weaken reset revocation |
@@ -345,10 +271,13 @@ no compliance or production-readiness claim follows from this document.
 
 ## 9. Verdict and independent reviews
 
-**A3_NOT_READY**. LA1 behavioral policy and recovery-assurance/Admin scope remain
-unapproved. The ordinary-only journey above is technically bounded but is not a
-substitute for those decisions. PC1/PC2 and external mail/cloud evidence are not
-misclassified as local architecture blockers. Stop before implementation.
+**A3_READY_FOR_AUTHORIZATION** for ordinary synthetic-account recovery only.
+DEC-101 closes all three pre-authorization decisions. Before affected implementation,
+obtain finite recovery lifetime/direct-request limits or explicit permission for
+labeled synthetic fixtures. Before exposure, verify the exact A2.2 guard update,
+transaction/delivery ordering and all sixteen checks. PC1/PC2 remain pending and
+real-account enablement remains prohibited. Separate implementation authorization
+is required; stop before implementation.
 
 Independent Engineering and Security/Specification source audits identified the
 A2.2 schema compatibility gate, neutral throttle adaptation and policy boundaries.

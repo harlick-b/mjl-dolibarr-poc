@@ -64,16 +64,17 @@ Task-owned runtime resources were attested and removed. No historical PHP suite,
 load test or production-readiness audit was run: none belongs to this slice.
 No user acceptance or authorization of another slice follows from these checks.
 
-## A3 password recovery readiness (DEC-100)
+## A3 password recovery readiness (DEC-100–101)
 
-**A3_NOT_READY** — documentation-only review after A2.2 `14f75d0`.
-[Readiness 07](rebuild/07-a3-password-recovery-readiness.md) proposes ordinary
-synthetic recovery, three POST responsibilities, one proof table/migration and
-an explicit fixed A2.2 schema-guard compatibility update. Sixteen concrete future
-checks cover recovery, failure/concurrency, UI and focused regressions; none were
-executed in this review. Sponsor/RSSI must resolve LA1 replacement/notification
-and recovery-assurance/Admin scope before authorization. PC1/PC2 remain pending
-real-account gates. No implementation, acceptance or production claim.
+**A3_READY_FOR_AUTHORIZATION** — the user's three explicit approvals close
+replacement/notification, recovery-assurance and ordinary synthetic-only scope
+in [readiness 07](rebuild/07-a3-password-recovery-readiness.md). Technical Admin
+recovery is deferred with no bootstrap change or bypass. Three POST responsibilities,
+one recovery-proof table/migration and exact A2.2 guard compatibility remain proposed
+implementation scope. All sixteen checks remain planned, not executed.
+Finite expiry/direct-request limits or explicit synthetic-fixture permission remain
+a pre-implementation prerequisite. Implementation is not authorized; PC1/PC2 remain
+pending and real accounts prohibited. No acceptance or production claim.
 
 ## Authentication & Access readiness (DEC-093)
 

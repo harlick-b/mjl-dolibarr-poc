@@ -19,15 +19,18 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
-## A3 password recovery readiness (DEC-100)
+## A3 security decisions approved (DEC-101)
 
-The user requests documentation-only A3 readiness after A2.2 `14f75d0`.
-[Readiness 07](rebuild/07-a3-password-recovery-readiness.md) owns the proposed
-recovery journey, API/storage boundaries, security behavior and sixteen future
-checks. **A3_NOT_READY**: Sponsor/RSSI recovery replacement/notification policy
-and recovery-assurance/Admin scope decisions remain pre-authorization blockers.
-No A3 implementation or schema change is authorized. PC1/PC2 remain pending;
-real accounts, A4/PTA and Phase 4 documents remain outside this request.
+The user explicitly approves preserving unexpired recovery proofs without resend
+or expiry extension, including waiting after failed initial delivery, and one
+best-effort post-reset notification. Link possession authorizes password definition;
+fresh password-plus-email-OTP login remains mandatory. Scope is ordinary synthetic
+accounts only; all technical Admin recovery is deferred without bootstrap changes
+or a bypass. [Readiness 07](rebuild/07-a3-password-recovery-readiness.md) is now
+**A3_READY_FOR_AUTHORIZATION**, superseding DEC-100's pending-decision verdict.
+Finite recovery lifetime/direct-request limits or explicit synthetic-fixture
+permission remain required before affected implementation. This approval does not
+authorize implementation. PC1/PC2 remain pending; real accounts remain prohibited.
 
 ## A2.2 implementation authorization (DEC-099)
 
