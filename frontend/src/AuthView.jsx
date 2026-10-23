@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import {
+  Link,
+  useNavigate,
+  useRouter,
+  useRouterState,
+} from '@tanstack/react-router'
 import { Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react'
-import { authRequest, sessionKey, sessionQuery, roleLabels } from './auth'
+import { sessionKey, sessionQuery, roleLabels } from './auth'
+import { useAPI } from './RestClientProvider'
+import { Helmet } from 'react-helmet-async'
+import { strings } from './i18n'
 
 function subscribeOnline(callback) {
   window.addEventListener('online', callback)
@@ -50,7 +58,9 @@ export function AuthView() {
     select: (state) => state.matches.at(-1)?.loaderData,
   })
   const navigate = useNavigate()
+  const router = useRouter()
   const client = useQueryClient()
+  const { api } = useAPI()
   const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine)
   const session = useQuery(sessionQuery)
   const [email, setEmail] = useState('')
@@ -61,6 +71,8 @@ export function AuthView() {
   const [blocked, setBlocked] = useState(false)
   const logoutPending = useRef(false)
   const [logoutUnconfirmed, setLogoutUnconfirmed] = useState(false)
+  const [requestSent, setRequestSent] = useState(false)
+  const [recoveryDone, setRecoveryDone] = useState(false)
   const generation = useRef(0)
   const channel = useRef(null)
   const controller = useRef(null)
@@ -69,7 +81,8 @@ export function AuthView() {
     retry: false,
     networkMode: 'always',
     mutationFn: ({ endpoint, body, csrf, signal }) =>
-      authRequest(endpoint, { body, csrf, signal }),
+      api.auth(endpoint, { body, csrf, signal }),
+    meta: { localError: true },
   })
   const resetMutation = mutation.reset
   const expiry = session.data?.expires_at
@@ -90,6 +103,7 @@ export function AuthView() {
       controller.current?.abort()
       void client.cancelQueries()
       client.clear()
+      void router.invalidate()
     }
     const broadcast = new BroadcastChannel('mjl-auth')
     channel.current = broadcast
@@ -103,7 +117,7 @@ export function AuthView() {
       broadcast.close()
       window.removeEventListener('offline', invalidate)
     }
-  }, [client, resetMutation])
+  }, [client, resetMutation, router])
 
   useEffect(() => {
     if (!expiry) return
@@ -162,6 +176,19 @@ export function AuthView() {
         signal: controller.current.signal,
       })
       if (current !== generation.current) return
+      if (endpoint === 'password-reset/requests') {
+        setRequestSent(true)
+        setEmail('')
+        return
+      }
+      if (endpoint === 'password-reset/complete') {
+        await client.cancelQueries()
+        client.clear()
+        channel.current?.postMessage('changed')
+        setRecoveryDone(true)
+        await router.invalidate()
+        return
+      }
       await client.cancelQueries()
       client.clear()
       setPassword('')
@@ -258,6 +285,114 @@ export function AuthView() {
         <button className="auth-primary" onClick={() => session.refetch()}>
           Réessayer
         </button>
+      </>
+    )
+  else if (path === '/forgot-password')
+    content = requestSent ? (
+      <>
+        <h1>{strings.forgotHeading}</h1>
+        <p role="status">{strings.forgotConfirmation}</p>
+        <Link to="/login" className="auth-secondary">
+          {strings.backToLogin}
+        </Link>
+      </>
+    ) : (
+      <>
+        <h1>{strings.forgotHeading}</h1>
+        <p>{strings.forgotPrompt}</p>
+        <form
+          onSubmit={(event) =>
+            submit(event, 'password-reset/requests', { email })
+          }
+        >
+          <label>
+            {strings.emailLabel}
+            <input
+              name="recoveryEmail"
+              type="email"
+              autoComplete="email"
+              required
+              maxLength={254}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+          <button className="auth-primary" disabled={disabled}>
+            {strings.forgotSubmit}
+          </button>
+        </form>
+        <Link to="/login" className="auth-secondary">
+          {strings.backToLogin}
+        </Link>
+      </>
+    )
+  else if (path === '/reset-password')
+    content = recoveryDone ? (
+      <>
+        <h1>{strings.resetHeading}</h1>
+        <p role="status">{strings.resetSuccess}</p>
+        <Link to="/login" className="auth-primary">
+          {strings.backToLogin}
+        </Link>
+      </>
+    ) : !loader?.proof || !loader?.email ? (
+      <>
+        <h1>{strings.resetHeading}</h1>
+        <p role="alert">{strings.invalidRecovery}</p>
+        <Link to="/forgot-password" className="auth-secondary">
+          {strings.newRecovery}
+        </Link>
+      </>
+    ) : (
+      <>
+        <h1>{strings.resetHeading}</h1>
+        <p>{strings.resetPrompt}</p>
+        <form
+          onSubmit={(event) =>
+            submit(event, 'password-reset/complete', {
+              ...loader.proof,
+              password,
+              confirmation,
+            })
+          }
+        >
+          <label>
+            {strings.emailLabel}
+            <input type="email" value={loader.email} readOnly />
+          </label>
+          <Password
+            label={strings.newPasswordLabel}
+            name="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <ul className="auth-criteria" aria-live="polite">
+            {criteria.map(([ok, label]) => (
+              <li key={label} data-valid={ok}>
+                {ok ? '✓' : '○'} {label}
+              </li>
+            ))}
+          </ul>
+          <Password
+            label={strings.confirmationLabel}
+            name="confirmation"
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value)}
+          />
+          {confirmation && password !== confirmation && (
+            <p role="status">{strings.passwordMismatch}</p>
+          )}
+          <button
+            className="auth-primary"
+            disabled={
+              disabled ||
+              !criteria.every(([ok]) => ok) ||
+              password !== confirmation
+            }
+          >
+            {strings.resetSubmit}
+          </button>
+        </form>
       </>
     )
   else if (verified)
@@ -440,6 +575,9 @@ export function AuthView() {
             Se connecter
           </button>
         </form>
+        <Link to="/forgot-password" className="auth-secondary">
+          {strings.forgotLink}
+        </Link>
         <p className="auth-note">
           <LockKeyhole size={16} /> Un code de vérification vous sera envoyé par
           e-mail.
@@ -449,6 +587,15 @@ export function AuthView() {
 
   return (
     <div className="auth-layout">
+      <Helmet>
+        <title>
+          {path === '/forgot-password'
+            ? strings.forgotTitle
+            : path === '/reset-password'
+              ? strings.resetTitle
+              : 'Espace MJL'}
+        </title>
+      </Helmet>
       <aside className="auth-brand">
         <img src="/icon-192.png" alt="" width="56" height="56" />
         <p>

@@ -1,7 +1,7 @@
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
@@ -10,11 +10,13 @@ from app.auth.dto import (
     ChallengeSent,
     ErrorResponse,
     Invited,
+    PasswordReset,
     PasswordSet,
     Pending,
+    RecoveryRequested,
     Verified,
 )
-from app.auth.service import AuthError, AuthService
+from app.auth.service import AuthError, AuthService, request_id
 
 router = APIRouter(
     prefix="/api/v1/auth",
@@ -47,6 +49,20 @@ class Login(Input):
 
 class Code(Input):
     code: str = Field(max_length=128)
+
+
+class RecoveryRequest(Input):
+    email: str = Field(max_length=254)
+
+
+class RecoveryProof(Input):
+    selector: str = Field(max_length=36)
+    verifier: str = Field(max_length=128)
+
+
+class RecoveryCompletion(RecoveryProof):
+    password: str = Field(max_length=128)
+    confirmation: str = Field(max_length=128)
 
 
 def service(request: Request) -> AuthService:
@@ -102,6 +118,52 @@ def accept(body: Acceptance, request: Request, auth: Auth) -> dict[str, str]:
         auth.guard(db, *evidence(request, auth))
     auth.invitation(body.selector, body.verifier, body.password, body.confirmation)
     return {"state": "password_set"}
+
+
+@router.post(
+    "/password-reset/requests", status_code=202, response_model=RecoveryRequested
+)
+def request_password_reset(
+    body: RecoveryRequest,
+    request: Request,
+    background: BackgroundTasks,
+    auth: Auth,
+) -> dict[str, str]:
+    with Session(auth.engine) as db, db.begin():
+        auth.guard(db, *evidence(request, auth))
+    normalized, allowed = auth.recovery_request_allowed(
+        body.email, request.client.host if request.client else "unknown"
+    )
+    if allowed and not getattr(request.state, "endpoint_limited", False):
+        background.add_task(
+            auth.request_recovery, normalized, request_id.get() or "unavailable"
+        )
+    return {"state": "request_received"}
+
+
+@router.post("/password-reset/inspect", response_model=Invited)
+def inspect_password_reset(
+    body: RecoveryProof, request: Request, auth: Auth
+) -> dict[str, str]:
+    with Session(auth.engine) as db, db.begin():
+        auth.guard(db, *evidence(request, auth))
+    return {"email": auth.recovery(body.selector, body.verifier)}
+
+
+@router.post("/password-reset/complete", response_model=PasswordReset)
+def complete_password_reset(
+    body: RecoveryCompletion,
+    request: Request,
+    background: BackgroundTasks,
+    auth: Auth,
+) -> dict[str, str]:
+    with Session(auth.engine) as db, db.begin():
+        auth.guard(db, *evidence(request, auth))
+    user_id, email = auth.complete_recovery(
+        body.selector, body.verifier, body.password, body.confirmation
+    )
+    background.add_task(auth.notify_recovery, user_id, email)
+    return {"state": "password_reset"}
 
 
 @router.post("/login", status_code=202, response_model=ChallengeSent)

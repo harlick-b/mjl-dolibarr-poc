@@ -286,3 +286,20 @@ and Security/Specification reviews passed after clarifying task loss before vers
 after preparation commit in the failure table and R11. Documentation
 verification only; no runtime tests, completed-slice audit reruns or production
 checks are appropriate here.
+
+## 10. Authorized implementation outcome (DEC-103)
+
+**A3_COMPLETE** for ordinary synthetic accounts only. The three authorized POST
+responsibilities, `auth_recovery`/`0004_a3`, exact eight-relation A2.2 guard and
+minimum React recovery journey are implemented. R01–R16 passed using isolated
+PostgreSQL, private test mail and synthetic identities: 200 combined backend cases,
+25 frontend unit cases and three recovery browser journeys, with focused fresh A1
+and A2.2 browser regressions. Ruff, formatting, mypy, ESLint, Prettier, Stylelint,
+build, OpenAPI and migration-preservation checks passed.
+
+Independent review found and drove correction of stale-cookie proof loss, missing
+delivery/inspection guard checks and focused evidence gaps. The same reviewer
+cleared the corrected Query-owned loader, transaction/guard paths and final tests
+with no blocking engineering or security/specification finding. No acceptance,
+production readiness or later-slice authorization follows. PC1/PC2 remain pending;
+technical Admin recovery and real-account enablement remain prohibited.

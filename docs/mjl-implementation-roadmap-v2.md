@@ -64,17 +64,38 @@ Task-owned runtime resources were attested and removed. No historical PHP suite,
 load test or production-readiness audit was run: none belongs to this slice.
 No user acceptance or authorization of another slice follows from these checks.
 
-## A3 password recovery readiness (DEC-100–101)
+## A3 ordinary synthetic password recovery (DEC-100–103)
 
-**A3_READY_FOR_AUTHORIZATION** — the user's three explicit approvals close
-replacement/notification, recovery-assurance and ordinary synthetic-only scope
-in [readiness 07](rebuild/07-a3-password-recovery-readiness.md). Technical Admin
-recovery is deferred with no bootstrap change or bypass. Three POST responsibilities,
-one recovery-proof table/migration and exact A2.2 guard compatibility remain proposed
-implementation scope. All sixteen checks remain planned, not executed.
-Finite expiry/direct-request limits or explicit synthetic-fixture permission remain
-a pre-implementation prerequisite. Implementation is not authorized; PC1/PC2 remain
-pending and real accounts prohibited. No acceptance or production claim.
+**A3_COMPLETE** — implemented only
+[readiness 07](rebuild/07-a3-password-recovery-readiness.md) with the approved
+synthetic fixtures. Three POST responsibilities provide neutral requests, proof
+inspection and password completion. One `auth_recovery` table and `0004_a3`
+migration preserve one current proof per ordinary User. The exact A2.2
+provenance/schema guard recognizes only the reviewed eight-table revision.
+
+Prepared or delivered proofs are preserved until expiry without resend or
+extension. Only one concurrent completion changes the Argon2 hash/version,
+consumes the proof and schedules the best-effort notification. Reset invalidates
+old sessions and OTP contexts through the existing User proof and still requires
+fresh password plus OTP. The React journey scrubs fragments before inspection,
+keeps proof/form state ephemeral, remains online-only and uses Router/Query plus
+the shared RestClient.
+
+All **16/16 R01–R16 gates passed**. Final evidence: **200 backend PostgreSQL
+cases**, **25 frontend unit cases**, **3/3 A3 browser journeys**, **2/2 fresh A1
+browser regressions** and **1/1 A2.2 lifecycle browser regression**. Ruff
+lint/format, mypy, ESLint, Prettier, Stylelint, Vite/PWA build, generated OpenAPI
+and the data-preserving migration checks passed. An A2.1 browser rerun correctly
+refused a second bootstrap on its already-used disposable stack; its earlier fresh
+run passed and the combined backend suite retained A1/A2.1 coverage.
+
+The mandatory independent reviewer found a stale-cookie proof-loss bug and missing
+per-operation guard/evidence coverage. The implementation agent corrected them;
+the same reviewer rechecked the final Query-owned loader, guard paths and added
+oracles and returned no blocking engineering or security/specification finding.
+This is development evidence, not application acceptance or production readiness.
+PC1/PC2 remain pending. Technical Admin recovery, real accounts, A4, PTA,
+production mail/deployment and later slices remain prohibited. Stop after A3.
 
 ## Authentication & Access readiness (DEC-093)
 

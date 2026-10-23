@@ -83,9 +83,15 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if sensitive:
                 try:
                     allowed = await run_in_threadpool(endpoint_limit, request)
+                    recovery_request = (
+                        request.url.path == "/api/v1/auth/password-reset/requests"
+                        and request.method == "POST"
+                    )
+                    if recovery_request and not allowed:
+                        request.state.endpoint_limited = True
                     response = (
                         await call_next(request)
-                        if allowed
+                        if allowed or recovery_request
                         else failure(request, 429, "endpoint_limited")
                     )
                 except SQLAlchemyError:

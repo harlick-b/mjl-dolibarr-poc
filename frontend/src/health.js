@@ -1,25 +1,22 @@
 import { queryOptions } from '@tanstack/react-query'
+import { api } from './rest-client'
 
 export const healthQuery = queryOptions({
   queryKey: ['health', 'ready'],
   async queryFn({ signal }) {
-    let response
+    let body
     try {
-      response = await fetch('/api/health/ready', {
+      body = await api.request('/api/health/ready', {
         signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]),
-        cache: 'no-store',
       })
     } catch (error) {
       if (signal.aborted) throw error
-      throw new Error('unavailable', { cause: error })
-    }
-    if (response.status === 503) throw new Error('unavailable')
-    if (!response.ok) throw new Error('request')
-    let body
-    try {
-      body = await response.json()
-    } catch {
-      throw new Error('request')
+      throw new Error(
+        error.status === 503 || ['network', 'offline'].includes(error.kind)
+          ? 'unavailable'
+          : 'request',
+        { cause: error },
+      )
     }
     if (body.status !== 'ok') throw new Error('request')
     return body

@@ -717,7 +717,7 @@ def test_upgrade_existing_a1_pending_proof_requires_deliberate_reissue(auth_env)
                     "WHERE table_schema='public' AND table_name LIKE 'auth_%'"
                 )
             )
-            == 6
+            == 7
         )
     engine.dispose()
 

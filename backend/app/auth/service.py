@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 from collections.abc import Callable
 from contextvars import ContextVar
@@ -9,10 +10,11 @@ from sqlalchemy import Engine, func, select, text
 from sqlalchemy.orm import Session
 
 from app.auth.mail import TestMailbox
-from app.auth.models import OTP, Abuse, Audit, Context, Invitation, User
+from app.auth.models import OTP, Abuse, Audit, Context, Invitation, Recovery, User
 from app.auth.policy import Policy, synthetic_email
 
 request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
+logger = logging.getLogger(__name__)
 
 
 class AuthError(Exception):
@@ -73,6 +75,7 @@ class AuthService:
                 "auth_context",
                 "auth_otp",
                 "auth_abuse",
+                "auth_recovery",
             )
         }
         if relations != expected:
@@ -80,7 +83,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0003_a21"]:
+        if revisions != ["0004_a3"]:
             raise AuthError(409, "eligibility_unverified")
 
     def now(self, db: Session) -> datetime:
@@ -114,6 +117,9 @@ class AuthService:
                 "before_version",
                 "before_user_state",
                 "before_user_version",
+                "recovery_id",
+                "before_credential_version",
+                "credential_version",
             }
             if set(details) - allowed or any(
                 type(v) not in (str, int) or (isinstance(v, str) and len(v) > 64)
@@ -236,6 +242,261 @@ class AuthService:
             )
         if not delivered:
             raise AuthError(503, "invitation_delivery_failed")
+
+    def require_recovery(self) -> None:
+        if not self.policy.recovery_enabled:
+            raise AuthError(503, "recovery_unavailable")
+
+    def recovery_request_allowed(self, email: str, ip: str) -> tuple[str, bool]:
+        self.require_recovery()
+        try:
+            normalized = synthetic_email(email)
+        except ValueError:
+            raise AuthError(422, "input_invalid") from None
+        assert self.policy.recovery_ip_window_seconds
+        assert self.policy.recovery_ip_limit
+        assert self.policy.recovery_email_window_seconds
+        assert self.policy.recovery_email_limit
+        with Session(self.engine) as db, db.begin():
+            network_ok = self.limit(
+                db,
+                "recovery-ip:" + ip,
+                self.policy.recovery_ip_window_seconds,
+                self.policy.recovery_ip_limit,
+            )
+            account_ok = self.limit(
+                db,
+                "recovery-email:" + normalized,
+                self.policy.recovery_email_window_seconds,
+                self.policy.recovery_email_limit,
+            )
+        return normalized, network_ok and account_ok
+
+    def prepare_recovery(self, email: str) -> tuple[str, str, str, str] | None:
+        self.require_recovery()
+        assert self.policy.recovery_seconds
+        with Session(self.engine) as db, db.begin():
+            db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+            self.lifecycle_eligible(db)
+            user = db.scalar(select(User).where(User.email == email).with_for_update())
+            if not user or user.state != "active" or user.role == "ADMIN_PLATEFORME":
+                return None
+            recovery = db.scalar(
+                select(Recovery).where(Recovery.user_id == user.id).with_for_update()
+            )
+            now = self.now(db)
+            current_proof = self.user_proof(user)
+            if (
+                recovery
+                and recovery.state in {"prepared", "delivered"}
+                and recovery.expires_at > now
+                and secrets.compare_digest(recovery.user_proof, current_proof)
+            ):
+                return None
+            secret = secrets.token_urlsafe(32)
+            selector = str(uuid4())
+            generation = str(uuid4())
+            if recovery is None:
+                recovery = Recovery(user_id=user.id)
+                db.add(recovery)
+            recovery.id = selector
+            recovery.verifier = digest(secret)
+            recovery.generation = generation
+            recovery.expires_at = now + timedelta(seconds=self.policy.recovery_seconds)
+            recovery.state = "prepared"
+            recovery.user_proof = current_proof
+            db.flush()
+            self.audit(
+                db,
+                "recovery_prepare",
+                "anonymous",
+                user.id,
+                details={
+                    "recovery_id": selector,
+                    "generation": generation,
+                    "user_version": user.version,
+                },
+            )
+            return user.email, selector, generation, secret
+
+    def deliver_recovery(
+        self, email: str, selector: str, generation: str, secret: str
+    ) -> None:
+        self.require_recovery()
+        with Session(self.engine) as db, db.begin():
+            db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+            self.lifecycle_eligible(db)
+            target = db.scalar(select(Recovery.user_id).where(Recovery.id == selector))
+            user = db.get(User, target, with_for_update=True) if target else None
+            recovery = db.get(Recovery, selector, with_for_update=True)
+            if (
+                not user
+                or not recovery
+                or recovery.generation != generation
+                or recovery.state != "prepared"
+                or user.state != "active"
+                or user.role == "ADMIN_PLATEFORME"
+                or recovery.expires_at <= self.now(db)
+                or not secrets.compare_digest(
+                    recovery.user_proof, self.user_proof(user)
+                )
+            ):
+                return
+        delivered = True
+        try:
+            self.mail.send(
+                email,
+                "password_recovery",
+                f"{self.policy.origin}/reset-password#selector={selector}"
+                f"&verifier={secret}",
+            )
+        except OSError:
+            delivered = False
+        with Session(self.engine) as db, db.begin():
+            db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+            self.lifecycle_eligible(db)
+            target = db.scalar(select(Recovery.user_id).where(Recovery.id == selector))
+            user = db.get(User, target, with_for_update=True) if target else None
+            recovery = db.get(Recovery, selector, with_for_update=True)
+            if (
+                not user
+                or not recovery
+                or recovery.generation != generation
+                or recovery.state != "prepared"
+                or user.state != "active"
+                or user.role == "ADMIN_PLATEFORME"
+                or recovery.expires_at <= self.now(db)
+                or not secrets.compare_digest(
+                    recovery.user_proof, self.user_proof(user)
+                )
+            ):
+                return
+            if delivered:
+                recovery.state = "delivered"
+            self.audit(
+                db,
+                "recovery_delivery",
+                "anonymous",
+                user.id,
+                "sent" if delivered else "failed",
+                details={
+                    "recovery_id": recovery.id,
+                    "generation": recovery.generation,
+                    "user_version": user.version,
+                },
+            )
+
+    def request_recovery(self, email: str, correlation_id: str) -> None:
+        try:
+            delivery = self.prepare_recovery(email)
+            if delivery:
+                self.deliver_recovery(*delivery)
+        except Exception:
+            logger.warning(
+                "Recovery background task failed request_id=%s", correlation_id
+            )
+            return
+
+    def recovery(self, selector: str, verifier: str) -> str:
+        self.require_recovery()
+        with Session(self.engine) as db, db.begin():
+            db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+            self.lifecycle_eligible(db)
+            target = db.scalar(select(Recovery.user_id).where(Recovery.id == selector))
+            user = db.get(User, target, with_for_update=True) if target else None
+            recovery = db.get(Recovery, selector, with_for_update=True)
+            if (
+                not user
+                or not recovery
+                or recovery.state != "delivered"
+                or recovery.expires_at <= self.now(db)
+                or user.state != "active"
+                or user.role == "ADMIN_PLATEFORME"
+                or not secrets.compare_digest(recovery.verifier, digest(verifier))
+                or not secrets.compare_digest(
+                    recovery.user_proof, self.user_proof(user)
+                )
+            ):
+                raise AuthError(400, "recovery_invalid")
+            return user.email
+
+    def complete_recovery(
+        self, selector: str, verifier: str, password: str, confirmation: str
+    ) -> tuple[str, str]:
+        from app.auth.policy import password_valid
+
+        self.require_recovery()
+        error: AuthError | None = None
+        result: tuple[str, str] | None = None
+        with Session(self.engine) as db, db.begin():
+            db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
+            self.lifecycle_eligible(db)
+            target = db.scalar(select(Recovery.user_id).where(Recovery.id == selector))
+            user = db.get(User, target, with_for_update=True) if target else None
+            recovery = db.get(Recovery, selector, with_for_update=True)
+            authentic = bool(
+                recovery and secrets.compare_digest(recovery.verifier, digest(verifier))
+            )
+            if authentic and recovery and recovery.state == "consumed":
+                error = AuthError(409, "recovery_consumed")
+            elif (
+                not authentic
+                or not recovery
+                or not user
+                or recovery.state != "delivered"
+                or recovery.expires_at <= self.now(db)
+                or user.state != "active"
+                or user.role == "ADMIN_PLATEFORME"
+                or not secrets.compare_digest(
+                    recovery.user_proof, self.user_proof(user)
+                )
+            ):
+                error = AuthError(400, "recovery_invalid")
+            elif not password_valid(password, confirmation, self.policy.password_min):
+                error = AuthError(422, "password_policy")
+            else:
+                before = user.version
+                user.password_hash = self.hasher.hash(password)
+                user.version += 1
+                recovery.state = "consumed"
+                self.audit(
+                    db,
+                    "recovery_complete",
+                    "anonymous",
+                    user.id,
+                    details={
+                        "recovery_id": recovery.id,
+                        "before_credential_version": before,
+                        "credential_version": user.version,
+                    },
+                )
+                result = user.id, user.email
+        if error:
+            raise error
+        assert result
+        return result
+
+    def notify_recovery(self, user_id: str, email: str) -> None:
+        delivered = True
+        try:
+            self.mail.send(
+                email,
+                "password_reset_notice",
+                "Votre mot de passe MJL a été réinitialisé.",
+            )
+        except OSError:
+            delivered = False
+        try:
+            with Session(self.engine) as db, db.begin():
+                self.audit(
+                    db,
+                    "recovery_notification",
+                    "anonymous",
+                    user_id,
+                    "sent" if delivered else "failed",
+                )
+        except Exception:
+            return
 
     def bootstrap(self, email: str, operator: str, reissue: bool = False) -> None:
         email = synthetic_email(email)

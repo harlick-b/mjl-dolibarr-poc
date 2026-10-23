@@ -2,8 +2,9 @@
 
 ## Dedicated application rebuild
 
-The rebuild foundation (DEC-092) and A1 (DEC-094) contain a
-French shell, service-health checks and the A1 first-Admin authentication slice.
+The rebuild foundation and authorized A1–A3 access slices contain a French shell,
+service-health checks, first-Admin authentication, ordinary account administration
+and synthetic ordinary-account password recovery.
 A1 is disabled by default and restricted to explicit isolated synthetic policy
 and private fake-email capture. Real accounts and later business slices remain unauthorized. See [authority](docs/mjl-authoritative-decisions.md)
 and [verification state](docs/mjl-implementation-roadmap-v2.md).
@@ -69,7 +70,7 @@ docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -
 docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -T backend alembic current
 ```
 
-Alembic creates its version table and six A1 auth tables; there are no business tables or seed data.
+Alembic creates its version table and seven auth tables; there are no business tables or seed data.
 The URL comes from the environment, and malformed configuration errors omit
 credentials. Each request releases its session without implicit commit. Liveness
 returns `{"status":"ok"}` without connecting to PostgreSQL. Readiness executes
@@ -391,3 +392,56 @@ A2.2 adds its disposable ordinary identity and exercises real PATCH, schema deni
 conflict, session invalidation, Query refresh and offline/unknown outcomes. Test
 fixture SQL affects only the explicitly named disposable database. Perform the
 same label-checked teardown as A1, using only this project's volume/private files.
+
+### A3 synthetic password recovery
+
+A3 is disabled unless the private synthetic policy contains all six fields below
+with these exact test values:
+
+```json
+{
+  "recovery_fixture": "TEST_ONLY",
+  "recovery_seconds": 600,
+  "recovery_email_window_seconds": 600,
+  "recovery_email_limit": 3,
+  "recovery_ip_window_seconds": 60,
+  "recovery_ip_limit": 20
+}
+```
+
+Recovery also requires the existing `lifecycle_database` attestation to match the
+verified disposable database. Missing, partial or altered recovery configuration
+fails closed without disabling existing authentication. These are development
+fixtures, not approved production policy. Only active ordinary `@example.test`
+accounts qualify; Admin, pending, inactive, unknown and throttled requests receive
+the same neutral response and no eligibility claim.
+
+The three operations are `POST /api/v1/auth/password-reset/requests`, `/inspect`
+and `/complete`. A link verifier exists only in the private mailbox fragment and
+is scrubbed before inspection. Reset creates no authenticated session: the user
+must sign in with the new password and complete fresh email OTP. The fixed A2.2
+guard now permits exactly migration `0004_a3` and the recovery table in addition
+to its prior auth-only schema. Replace that temporary guard with assignment-aware
+eligibility before PTA/workflow integration.
+
+Use a fresh project such as `mjl-a3-test`, an empty `mjl_test_a3` database, private
+`/tmp/mjl-a3-*` configuration and a mailbox beginning
+`/tmp/mjl-a1-mail-a3-`. Run the focused evidence against that project:
+
+```bash
+docker exec -e MJL_AUTH_MODE=off mjl-a3-test-backend-1 sh -c 'TEST_DATABASE_URL="$DATABASE_URL" pytest -p no:cacheprovider tests/test_recovery.py tests/test_lifecycle.py tests/test_access.py tests/test_auth.py tests/test_auth_security.py tests/test_auth_policy.py'
+docker exec -e MJL_AUTH_MODE=off mjl-a3-test-backend-1 ruff check --no-cache .
+docker exec -e MJL_AUTH_MODE=off mjl-a3-test-backend-1 ruff format --check --no-cache .
+docker exec -e MJL_AUTH_MODE=off mjl-a3-test-backend-1 mypy --cache-dir /tmp/mjl-a3-mypy app
+npm --prefix frontend run test:unit
+npm --prefix frontend run lint
+npm --prefix frontend run format:check
+npm --prefix frontend run lint:css
+npm --prefix frontend run build
+API_PROXY_TARGET=http://127.0.0.1:8016 MJL_A3_MAILBOX=/tmp/mjl-a1-mail-a3-browser MJL_A3_CONTAINER=mjl-a3-test-backend-1 PLAYWRIGHT_BROWSERS_PATH=/tmp/mjl-playwright npm --prefix frontend run test:e2e -- recovery.spec.js
+```
+
+Verify project and volume labels before project-scoped teardown. Remove only the
+task-owned project, volume, policy, mailbox and test images. PC1/PC2 remain
+pending; real accounts, Admin recovery, A4, PTA, production mail and deployment
+remain prohibited.

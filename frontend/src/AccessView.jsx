@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus, Users, X } from 'lucide-react'
-import { apiRequest, roleLabels, sessionKey, sessionQuery } from './auth'
+import { roleLabels, sessionKey, sessionQuery } from './auth'
+import { useAPI } from './RestClientProvider'
 import { Button } from './components/ui/button'
 
 function subscribe(callback) {
@@ -120,7 +121,7 @@ export function AccessView() {
   )
 }
 
-function listQuery(principal, kind, filters, onDenied) {
+function listQuery(api, principal, kind, filters, onDenied) {
   return {
     queryKey: ['access', principal, kind, filters],
     retry: false,
@@ -129,7 +130,7 @@ function listQuery(principal, kind, filters, onDenied) {
     networkMode: 'always',
     queryFn: async ({ signal }) => {
       try {
-        const result = await apiRequest(
+        const result = await api.request(
           `/api/v1/access/${kind}?${new URLSearchParams(filters)}`,
           { signal },
         )
@@ -155,6 +156,7 @@ function listQuery(principal, kind, filters, onDenied) {
 }
 
 function Accounts({ session, onDenied, checking }) {
+  const { api } = useAPI()
   const client = useQueryClient()
   const navigate = useNavigate()
   const search = useSearch({ from: '/access/users' })
@@ -165,8 +167,9 @@ function Accounts({ session, onDenied, checking }) {
   const mutation = useMutation({
     retry: false,
     networkMode: 'always',
+    meta: { localError: true },
     mutationFn: ({ path, body, signal, method }) =>
-      apiRequest(`/api/v1/access/${path}`, {
+      api.request(`/api/v1/access/${path}`, {
         body,
         method,
         signal,
@@ -214,10 +217,10 @@ function Accounts({ session, onDenied, checking }) {
     ...(search.invitationState ? { state: search.invitationState } : {}),
   }
   const users = useQuery(
-    listQuery(session.user.id, 'users', userFilters, denied),
+    listQuery(api, session.user.id, 'users', userFilters, denied),
   )
   const invitations = useQuery(
-    listQuery(session.user.id, 'invitations', invitationFilters, denied),
+    listQuery(api, session.user.id, 'invitations', invitationFilters, denied),
   )
   const changeSearch = (values) =>
     navigate({ to: '/access/users', search: { ...search, ...values } })

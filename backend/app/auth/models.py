@@ -50,6 +50,20 @@ class Invitation(Base):
     version: Mapped[int] = mapped_column(default=1)
 
 
+class Recovery(Base):
+    __tablename__ = "auth_recovery"
+    __table_args__ = (CheckConstraint("state IN ('prepared','delivered','consumed')"),)
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"), unique=True)
+    verifier: Mapped[str] = mapped_column(String(64))
+    generation: Mapped[str] = mapped_column(String(36))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    state: Mapped[str] = mapped_column(String(16), default="prepared")
+    user_proof: Mapped[str] = mapped_column(String(64))
+
+
 class Audit(Base):
     __tablename__ = "auth_audit"
     __table_args__ = (

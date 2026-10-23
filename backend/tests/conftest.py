@@ -49,6 +49,12 @@ def auth_env(monkeypatch, tmp_path):
         "origin": "http://localhost",
         "key": secrets.token_hex(32),
         "mailbox": str(mailbox),
+        "recovery_fixture": "TEST_ONLY",
+        "recovery_seconds": 600,
+        "recovery_email_window_seconds": 600,
+        "recovery_email_limit": 3,
+        "recovery_ip_window_seconds": 60,
+        "recovery_ip_limit": 20,
     }
     policy_file = tmp_path / "policy.json"
     policy_file.write_text(json.dumps(config))

@@ -1,34 +1,8 @@
+import { api } from './rest-client'
+
 export const sessionKey = ['auth', 'session']
 
-export async function apiRequest(path, { signal, csrf, body, method } = {}) {
-  if (!navigator.onLine)
-    throw new Error('Connexion indisponible. Aucune action envoyée.')
-  const response = await fetch(path, {
-    method: method ?? (body === undefined ? 'GET' : 'POST'),
-    credentials: 'same-origin',
-    cache: 'no-store',
-    signal,
-    headers:
-      body === undefined
-        ? {}
-        : { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  if (!response.ok) {
-    const error = new Error(
-      response.status === 429
-        ? 'Trop de tentatives. Veuillez patienter.'
-        : response.status === 503
-          ? 'Service indisponible. Réessayez plus tard.'
-          : 'Vérification refusée. Vérifiez les informations saisies.',
-    )
-    const payload = await response.json().catch(() => ({}))
-    error.code = payload.code
-    error.status = response.status
-    throw error
-  }
-  return response.status === 204 ? null : response.json()
-}
+export const apiRequest = (path, options) => api.request(path, options)
 
 export const sessionQuery = {
   queryKey: sessionKey,
@@ -40,7 +14,7 @@ export const sessionQuery = {
 }
 
 export function authRequest(path, options) {
-  return apiRequest(`/api/v1/auth/${path}`, options)
+  return api.auth(path, options)
 }
 
 export const roleLabels = {

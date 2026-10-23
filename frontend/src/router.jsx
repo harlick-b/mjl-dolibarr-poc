@@ -1,10 +1,18 @@
 import { AccessView } from './AccessView'
 import { AuthView } from './AuthView'
-import { authRequest, sessionQuery } from './auth'
+import { sessionQuery } from './auth'
 import { useRouterState } from '@tanstack/react-router'
 import { HealthView } from './HealthView'
 import { healthQuery } from './health'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  MutationCache,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query'
+import { HelmetProvider } from 'react-helmet-async'
+import { Toaster, toast } from 'sonner'
+import { RestClientProvider } from './RestClientProvider'
+import { api } from './rest-client'
 import {
   createRootRoute,
   createRoute,
@@ -22,6 +30,8 @@ function Shell() {
       '/invitation',
       '/verification',
       '/identity',
+      '/forgot-password',
+      '/reset-password',
       '/access/users',
     ].includes(path)
   )
@@ -99,6 +109,12 @@ function NotFound() {
 
 export function makeRouter(history) {
   const queryClient = new QueryClient({
+    mutationCache: new MutationCache({
+      onError: (error, _variables, _context, mutation) => {
+        if (!mutation.options.meta?.localError && error?.name !== 'AbortError')
+          toast.error(error?.message || 'Une action a échoué.')
+      },
+    }),
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false, networkMode: 'always' },
@@ -126,16 +142,18 @@ export function makeRouter(history) {
     '/invitation',
     '/verification',
     '/identity',
+    '/forgot-password',
+    '/reset-password',
   ].map((path) =>
     createRoute({
       getParentRoute: () => root,
       path,
       component: AuthView,
       gcTime: 0,
-      loader: async ({ context }) => {
-        if (path !== '/invitation') return null
+      loader: async ({ context, abortController }) => {
+        if (!['/invitation', '/reset-password'].includes(path)) return null
         let proof
-        if (path === '/invitation' && window.location.hash) {
+        if (window.location.hash) {
           const fragment = new URLSearchParams(window.location.hash.slice(1))
           proof = {
             selector: fragment.get('selector') || '',
@@ -148,11 +166,31 @@ export function makeRouter(history) {
           )
         }
         try {
-          const session = await context.queryClient.fetchQuery(sessionQuery)
+          const routeSessionQuery = {
+            ...sessionQuery,
+            queryFn: () =>
+              context.api.auth('session', { signal: abortController.signal }),
+          }
+          let session
+          try {
+            session = await context.queryClient.fetchQuery(routeSessionQuery)
+          } catch (error) {
+            if (error.status !== 401) throw error
+            context.queryClient.removeQueries({
+              queryKey: sessionQuery.queryKey,
+              exact: true,
+            })
+            session = await context.queryClient.fetchQuery(routeSessionQuery)
+          }
           if (proof) {
-            const invited = await authRequest('invitations/inspect', {
+            const endpoint =
+              path === '/invitation'
+                ? 'invitations/inspect'
+                : 'password-reset/inspect'
+            const invited = await context.api.auth(endpoint, {
               csrf: session.csrf,
               body: proof,
+              signal: abortController.signal,
             })
             return { proof, email: invited.email }
           }
@@ -212,15 +250,20 @@ export function makeRouter(history) {
   })
   return createRouter({
     routeTree: root.addChildren([home, health, ...authRoutes, access]),
-    context: { queryClient },
+    context: { queryClient, api },
     history,
   })
 }
 
 export function App({ router }) {
   return (
-    <QueryClientProvider client={router.options.context.queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <HelmetProvider>
+      <RestClientProvider client={router.options.context.api}>
+        <QueryClientProvider client={router.options.context.queryClient}>
+          <RouterProvider router={router} />
+          <Toaster position="top-right" richColors />
+        </QueryClientProvider>
+      </RestClientProvider>
+    </HelmetProvider>
   )
 }

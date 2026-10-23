@@ -29,6 +29,16 @@ class Policy(BaseModel):
     mailbox: Path
     # Operator attestation, only after verifying a fresh isolated database.
     lifecycle_database: str | None = None
+    recovery_fixture: str | None = None
+    recovery_seconds: PositiveInt | None = None
+    recovery_email_window_seconds: PositiveInt | None = None
+    recovery_email_limit: PositiveInt | None = None
+    recovery_ip_window_seconds: PositiveInt | None = None
+    recovery_ip_limit: PositiveInt | None = None
+
+    @property
+    def recovery_enabled(self) -> bool:
+        return self.recovery_fixture == "TEST_ONLY"
 
     @property
     def secure(self) -> bool:
@@ -66,6 +76,24 @@ def load_policy(url: str | URL) -> Policy | None:
             or not re.fullmatch(r"[a-f0-9]+", policy.key)
             or not str(policy.mailbox).startswith("/tmp/mjl-a1-mail")
             or ".." in policy.mailbox.parts
+        ):
+            raise ValueError
+        recovery = (
+            policy.recovery_seconds,
+            policy.recovery_email_window_seconds,
+            policy.recovery_email_limit,
+            policy.recovery_ip_window_seconds,
+            policy.recovery_ip_limit,
+        )
+        if policy.recovery_fixture is None:
+            if any(value is not None for value in recovery):
+                raise ValueError
+        elif policy.recovery_fixture != "TEST_ONLY" or recovery != (
+            600,
+            600,
+            3,
+            60,
+            20,
         ):
             raise ValueError
         return policy

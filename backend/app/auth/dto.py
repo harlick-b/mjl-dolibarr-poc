@@ -51,3 +51,11 @@ class PasswordSet(BaseModel):
 class ChallengeSent(BaseModel):
     state: Literal["pending"]
     email: str | None = None
+
+
+class RecoveryRequested(BaseModel):
+    state: Literal["request_received"]
+
+
+class PasswordReset(BaseModel):
+    state: Literal["password_reset"]
