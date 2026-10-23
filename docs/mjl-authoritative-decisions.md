@@ -19,6 +19,13 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA/A4 planning readiness (documentation only)
+
+[Readiness 08](rebuild/08-pta-a4-foundation-readiness.md) proposes PTA-1 and
+resource-specific A4. **PTA_A4_FOUNDATION_NOT_READY**: trusted entity binding,
+reviewer-assignment scope and month-end date defaults need user decisions.
+No business implementation or auth-guard change is authorized by this review.
+
 ## UI/API standards (DEC-102)
 
 The 2026-10-23 user request requires cursor pagination for collection APIs,

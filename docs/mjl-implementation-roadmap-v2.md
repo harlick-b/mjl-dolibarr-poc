@@ -12,6 +12,15 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA/A4 readiness after A3
+
+[Readiness 08](rebuild/08-pta-a4-foundation-readiness.md) proposes PTA-1: minimal
+references, Projects, automatic annual PTA, draft Activities/Operations and Agent
+coordination assignments with resource-specific A4. **PTA_A4_FOUNDATION_NOT_READY**
+pending entity binding, reviewer-assignment scope and month-end defaults. Its
+24 future checks include atomic A2.2/A3 guard transition; none ran in this
+documentation review. No implementation authorized.
+
 ## Rebuild foundation (DEC-091–092, 2026-10-22)
 
 **FOUNDATION_COMPLETE** — all mandatory first-slice technical gates passed.
