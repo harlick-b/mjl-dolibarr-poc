@@ -16,10 +16,12 @@ unresolved weaknesses and unapproved recommendations.
 
 [Readiness 08](rebuild/08-pta-a4-foundation-readiness.md) proposes PTA-1: minimal
 references, Projects, automatic annual PTA, draft Activities/Operations and Agent
-coordination assignments with resource-specific A4. **PTA_A4_FOUNDATION_NOT_READY**
-pending entity binding, reviewer-assignment scope and month-end defaults. Its
-24 future checks include atomic A2.2/A3 guard transition; none ran in this
-documentation review. No implementation authorized.
+coordination assignments with resource-specific A4. DEC-104–106 close the three
+prior decision blockers, so **PTA_A4_FOUNDATION_READY_FOR_AUTHORIZATION** for this
+bounded synthetic slice. Its 24 future checks include singleton-context ownership,
+calendar clamping and the atomic A2.2/A3 guard transition; none ran in this
+documentation review. Reviewer assignments/actions and implementation remain
+unauthorized pending their own later slice and a separate PTA-1 authorization.
 
 ## Rebuild foundation (DEC-091–092, 2026-10-22)
 
@@ -281,7 +283,7 @@ phase execution/validation reports: keep concise state here and evidence in Git.
 
 | Slice | Requirement and smallest implementation scope | Dependencies / exit evidence |
 | --- | --- | --- |
-| 1. PTA planning foundation | Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Supervisor/Validator assignments. Reconcile schema, commands, route/token guards, reads and exports together. | Project closure guard is settled by DEC-090; retain reopening/deactivation questions for their dependent branches. PTA creation ownership is settled by DEC-089. Disposable API/DB tests for Project/first-PTA creation races, cross-entity denial, unassigned Agent and forbidden create bypass. Existing screen changes need inspiration check before implementation. |
+| 1. PTA planning foundation | Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Agent coordination assignments managed by Supervisor/Validator. Reconcile schema, commands, route/token guards and reads together. | Project closure and PTA creation are settled by DEC-089/090. DEC-104–106 settle the trusted singleton context, defer reviewer assignments/actions and define date clamping. Disposable API/DB tests cover context/parent forgery, Project/first-PTA creation races, unassigned Agent access and forbidden bypass. Existing screen changes need inspiration check before implementation. |
 | 2. Approved amendments and annual transfer | Extend immutable Activity revisions with separate approved/candidate content, fresh two-stage review with affected execution paused while approval is pending, late corrections, withdrawal and atomic cross-year transfer. Reuse contributor/audit protections. | Slice 1; decide withdrawal/annual history semantics. Affected-only execution pause is settled by DEC-090. Prove pending amounts cannot alter approved execution/reporting and stale decisions cannot activate content. |
 | 3. Realization and administrative settlement | Final Operation spending replacing itemized expense approvals/reversals, distinct décaissement/virement approvals, separate Agent → Supervisor → Validator insufficiency authorization, external confirmation, automatic reversement requirement/declarations and direct Agent closure. Retire conflicting old finance/completion paths. | Slices 1–2 and exception/zero-amount decisions from gap analysis. Focused missing/zero/XOF, stale-basis, no-self-approval, discrepancy/full-return and closure tests. No bank execution. |
 | 4. Annual metrics and Fiche | Whole-PTA approved denominators; closed-only realization/spending; provide Fiche PDF and guarded PDF/XLSX exports with history/reconciliation. | Slices 2–3 and historical attribution decision. Prove UI filters cannot alter official denominator, pending amendments stay excluded and history is not truncated. File references activate only with slice 6. |

@@ -22,9 +22,11 @@ stop and surface the contradiction.
 ## PTA/A4 planning readiness (documentation only)
 
 [Readiness 08](rebuild/08-pta-a4-foundation-readiness.md) proposes PTA-1 and
-resource-specific A4. **PTA_A4_FOUNDATION_NOT_READY**: trusted entity binding,
-reviewer-assignment scope and month-end date defaults need user decisions.
-No business implementation or auth-guard change is authorized by this review.
+resource-specific A4. DEC-104–106 close its ownership-context, reviewer-assignment
+and calendar-date decisions. **PTA_A4_FOUNDATION_READY_FOR_AUTHORIZATION** for the
+bounded synthetic PTA-1 slice; readiness is not implementation authorization.
+Activity-specific reviewer assignments/actions remain deferred, and no business
+implementation or auth-guard change is authorized by this review.
 
 ## UI/API standards (DEC-102)
 
@@ -273,8 +275,10 @@ implementation is not authorized and document routes remain deny-all.
   exact-revision decisions and no-self-validation. Pause execution of the
   affected Activity while its proposed change awaits approval; other approved
   Activities continue normally (DEC-090).
-- Default end date is start plus three calendar months for every Partner,
-  suggested without overwriting a manually selected end date.
+- Default end date is start plus three calendar months for every Partner: preserve
+  the day when valid, otherwise clamp to the target month's last day. It is a
+  date-only suggestion, not 90 days or automatic end-of-month preservation, and
+  never overwrites a manually selected end date (DEC-106).
 - Planning and realization are distinct modules. Only approved scheduled
   Activities execute. Final Operation spending is explicit exact XOF; missing
   is not zero. The user confirmed that final Operation spending replaces the itemized

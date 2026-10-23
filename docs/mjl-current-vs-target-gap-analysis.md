@@ -49,7 +49,7 @@ reopened as a question; banking custody and reallocation remain excluded.
 | L4 | Zero-spending request/confirmation waivers, partial reversement and correction of declarations. | Client finance owner; those settlement cases |
 | L5 | Partner-visible decision/evidence fields and allowed document contexts; file policy, retention, scanner and key/storage responsibility. | Client data owner/RSSI; Partner disclosure and Phase 4 |
 | L6 | Whether PWA relance includes background push; re-notification/reschedule and delivery policy. | Client product owner/email operator; notification slice |
-| L7 | Calendar month-end clamp and whether any incomplete draft is allowed; default retains one-or-more balanced positive Operation allocations. | Client product owner; affected planning validation |
+| L7 | Whether a future slice permits incomplete drafts. PTA-1 requires one-or-more balanced positive Operation allocations; DEC-106 resolves its calendar-date default. | Client product owner; any future incomplete-draft behavior |
 | L8 | Phase 5 accounting structure/examples and Phase 6 official Partner templates/mappings, plus client meaning of SPD. | Client accounting/reporting/delivery owners; relevant later outputs |
 
 Six EXTERNAL_SECURITY_DEPENDENCY groups SEC-E1–E6 are detailed in
@@ -144,7 +144,7 @@ Risk indicates impact of an incomplete migration, not a claimed active exploit.
 | High — approved PTA amendments | `class/mjlactivitycommand.class.php:47,77,596,638`; `scripts/rst006a_schema.lib.php:125,349` | Separate candidate revision from effective approved revision. Current mutable Activity/Operation rows cannot be overwritten by a pending amendment. Change DB checks/triggers, revision pointers, decision targets and projections together. Keep immutable snapshots/contributors and exact two-stage decisions. Pause affected execution while approval is pending; unrelated approved Activities continue (DEC-090). |
 | High — edits after start/end | `class/mjlactivitycommand.class.php:48,78,153` | Remove blanket future-date prohibitions and conflicting action flags/UI/tests. Retain date ordering, formal amendment approval and financial-basis freeze once settlement begins. |
 | High — cross-year transfer | Current revision snapshot at `class/mjlactivitycommand.class.php:649` lacks PTA membership | Record old/new PTA and effective approved revision in one audited transfer. Lock both years in deterministic order. Retain historical attribution; do not move rows silently or count both years as current ownership. |
-| Medium — all-Partner +3-calendar-month suggestion | `js/activities.js:37`; no existing suggestion found | Add editable suggestion without overwriting manual dates. Recommend clamping to the destination month's last day; agree/test calendar convention before implementation. No UNICEF exception. |
+| Medium — all-Partner +3-calendar-month suggestion | `js/activities.js:37`; no existing suggestion found | DEC-106: add three calendar months to a date-only value, preserve the day when valid and otherwise clamp to the destination month's last day. Do not use 90 days, timezone shifts or automatic end-of-month preservation; never overwrite a manual date. No UNICEF exception. |
 | High — final spending and administrative settlement | `class/mjlactivitycommand.class.php:200,267,300`; `scripts/spending_schema.lib.php:37`; `scripts/schema/spending.sql` | New request/declaration/return facts are absent. User confirmed final Operation spending replaces the ledger. Remove obsolete expense approval/reversal routes, schema and test callers together; never maintain competing totals or an extra approval chain. |
 | High — explicit Agent closure | `lib/mjl_execution.lib.php:12,26`; `class/mjlexecutionreconciler.class.php` | Replace automatic Activity completion as realization criterion. Physical completion is distinct from closure; closure checks finalized spending, required approvals, confirmed transfer, settled reversement and no unresolved discrepancy in one transaction. No closure approval stage. |
 | High — formal PTA withdrawal | `class/mjlactivitycommand.class.php:318,349,366` | Replace conflicting Agent-to-Validator Activity cancellation with two-stage PTA withdrawal. Do not automatically preserve Operation cancellation/reopening behavior where it would alter settled amounts; clarify that branch first. Never delete history. |
@@ -289,9 +289,9 @@ proposed amendment awaits approval; unrelated approved Activities continue.
 
 Do not require all answers before independent planning can progress. Prefer the
 smallest direct choices (one current candidate per Activity; no aggregate PTA
-approval; exact year identity; calendar-month clamp) but label unconfirmed product
-choices as proposals. The brief requires one-or-more Operations with balanced
-allocation; do not preserve incomplete-draft exceptions without a decision.
+approval; exact year identity). DEC-106 approves the calendar-month clamp. The
+brief requires one-or-more Operations with balanced allocation; do not preserve
+incomplete-draft exceptions without a later decision.
 
 ### Focused future verification and audit limitations
 
