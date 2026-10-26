@@ -12,6 +12,16 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-2B.2 business choices approved (DEC-112)
+
+The user approved the five presented withdrawal, pending-request cancellation,
+annual-total, later-year same-Project transfer and synthetic no-execution
+eligibility choices. See [decision closure and readiness evidence](rebuild/11-pta2b2-withdrawal-transfer-readiness.md).
+These choices no longer need business approval. Next is a focused contract/
+readiness recheck and reviewed implementation plan, preferably withdrawal first
+and transfer separately bounded. No implementation is authorized by these
+answers; PC1/PC2, real accounts and financial execution remain excluded.
+
 ## PTA-2B.1 amendment completion (2026-10-26)
 
 **PTA_2B1_COMPLETE** under DEC-111. Migration `0007_pta2b1` adds two Activity

@@ -19,6 +19,37 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-2B.2 business decision closure (DEC-112)
+
+The user explicitly approved all five plain-language recommendations following
+the [withdrawal/transfer readiness review](rebuild/11-pta2b2-withdrawal-transfer-readiness.md):
+
+1. An Agent requests withdrawal with a reason; one Supervisor checks it and one
+   distinct Validator approves. Pause starts at request submission. Resolve any
+   pending amendment first.
+2. An Agent may cancel a pending withdrawal request with a reason, resuming the
+   Activity. Effective withdrawal preserves history and ends Agent assignments;
+   restoration and unapproved-draft withdrawal are excluded from this first version.
+3. Effective withdrawal removes the Activity from current annual planned counts
+   and budget totals only after approval. Earlier historical figures remain
+   unchanged. No allocation becomes reusable or is recorded as returned.
+4. An approved Activity may move only to a later year within the same Project,
+   preserving identity, Operations, budget and assigned Agents. It pauses while
+   fresh Supervisor and Validator approval is sought; the Agent may cancel the
+   pending request. After approval it counts in the destination year, preserving
+   earlier history.
+5. The first version is limited to verified synthetic test Activities that have
+   never started execution. Work performed, spending, unresolved obligations or
+   unknown financial status block both actions pending later financial rules.
+
+These approvals close the five presented business choices, not every technical
+detail in the earlier proposal. The readiness document must distinguish remaining
+implementation-contract details from those settled choices. No additional
+business approval is needed for these five decisions. A readiness recheck and
+reviewed implementation plan remain next; this message is not implementation
+authorization. Prefer withdrawal first, with transfer separately bounded.
+PC1/PC2 remain pending; real accounts and financial execution remain prohibited.
+
 ## PTA-2B.1 implementation authorization and completion (DEC-111)
 
 The user authorized the bounded synthetic PTA-2B.1 amendment implementation

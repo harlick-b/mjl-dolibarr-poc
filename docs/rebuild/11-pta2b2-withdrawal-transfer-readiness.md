@@ -2,8 +2,39 @@
 
 Documentation-only review, 2026-10-26. Baseline:
 `641ba1313d8d2ce2d531a6ea13aefc79d57e0b94` (PTA-2B.1), clean worktree at start.
-**Neither capability is ready for authorization.** Recommendations below require
-owner approval; they are not new business rules or permission to implement.
+The initial review below found neither capability ready. The subsequent user
+approvals in DEC-112 supersede its pending-business-decision statements as follows.
+
+## Decision closure following the five user approvals
+
+The user approved reasoned Agent withdrawal with Supervisor then distinct
+Validator approval, pause at submission and prior resolution of any amendment;
+reasoned cancellation of a pending withdrawal; preserved history, ended Agent
+assignments and no restoration after effective withdrawal; exclusion of drafts;
+removal from current annual counts/budget only after approval without changing
+earlier history or releasing/returning funds; and later-year same-Project transfer
+preserving identity, Operations, budget and assignments, with pause, fresh review,
+pending-request cancellation and destination-year counting after approval.
+
+The user also approved restricting both capabilities to verified synthetic test
+Activities with no execution started. Work performed, spending, unresolved
+obligations or unknown financial status block them. This settles the presented
+W1/W2/T1/T2/F1 business choices. Do not ask for those approvals again.
+
+The detailed proposals below remain the input to a focused readiness recheck;
+the five answers do not automatically approve every unpresented design detail
+(for example exact transfer-opening timing, target-PTA creation timing, storage
+shape or replay contract). Resolve technical choices from existing authority
+without reopening settled business rules. Record any essential remaining
+business ambiguity explicitly rather than assuming blanket approval.
+
+No runtime work is authorized. The previous NOT_READY verdicts and independent
+review results below are historical; no post-approval READY verdict is claimed
+by this decision-recording update. Next: reconcile the bounded contract and
+recheck readiness, then prepare a plan ending with independent review-only
+handoff, implementer corrections and same-reviewer re-review. Prefer withdrawal
+first; transfer remains separately scoped. PC1/PC2 and real-account restrictions
+remain unchanged.
 
 ## 1. Authority and verified baseline
 
@@ -307,7 +338,7 @@ combined gates**, not test-function counts.
 | T07 | Later forward move needs new request/base/version/fresh chain; old command conflicts, both moves remain historical. No undo. Rollback removes only transaction-created target, never pre-existing PTA. |
 | T08 | Future execution/settlement or unknown finances deny, no spending/reversement reattribution/reuse. Closed Activity/Project deny. Query refreshes both annual contexts; old source history remains readable. |
 
-## 9. Decisions, owners and dependencies
+## 9. Initial decision package (business approvals superseded by DEC-112 above)
 
 | Gate/classification | Existing authority; exact recommendation requiring approval | Owner | Blocks |
 | --- | --- | --- | --- |
@@ -321,7 +352,7 @@ combined gates**, not test-function counts.
 | F2 / LATER_SLICE | Execution/financial obligations/late exceptions need authoritative records and eligibility before affected cases work. Replace temporary proof at realization cutover, never just update the manifest. | Finance/reporting owners and realization engineer | Execution-bearing cases, not an approved F1 sandbox |
 | PC1/PC2 / EXTERNAL_SECURITY_DEPENDENCY | Baseline 03 approvals remain pending; real identities/production prohibited. | Sponsor/RSSI and baseline owners | Real-account/production use |
 
-## 10. Independent review and verdict
+## 10. Initial independent review and verdict (before DEC-112)
 
 Independent engineering review: **PASS** after focused same-reviewer re-review.
 Independent security/specification review: **PASS** after focused same-reviewer
