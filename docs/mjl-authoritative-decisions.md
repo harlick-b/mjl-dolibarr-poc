@@ -19,6 +19,30 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-2A implementation authorization (DEC-109)
+
+The user authorized the bounded synthetic PTA-2A implementation defined by
+DEC-108, [readiness 09](rebuild/09-pta2-validation-readiness.md), and the approved
+implementation plan. The slice adds immutable Activity submissions, role-wide
+Supervisor prevalidation, distinct Validator final approval, reasoned returns,
+correction/resubmission cycles and revision history. It adds exactly three tables,
+four API responsibilities and the minimum existing-workspace React interactions;
+it adds no reviewer assignments, quorum, claiming or handoff mechanism.
+
+I2, C2, all V01–V20 checks, focused A1–A3/PTA-1 regressions and the mandatory
+independent engineering and security/specification review cycle remain completion
+gates. Only synthetic identities and disposable resources are authorized. PTA-2B,
+post-approval amendments, withdrawal, annual transfers, execution, finance,
+documents, reports, production deployment and real accounts remain excluded.
+PC1/PC2 remain pending. Stop after PTA-2A and do not infer authorization for a
+later slice.
+
+PTA-2A implementation completed on 2026-10-26 after I2/C2, V01–V20, focused
+A1–A3/PTA-1 regressions, quality checks and the mandatory independent
+engineering and security/specification correction/re-review cycle passed. This
+records synthetic development completion only; it does not authorize real
+accounts, production deployment or another slice.
+
 ## PTA-2A review policy closure (DEC-108)
 
 The user approves review by every active Admin-invited Supervisor and Validator

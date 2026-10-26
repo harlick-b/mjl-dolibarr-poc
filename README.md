@@ -2,10 +2,11 @@
 
 ## Dedicated application rebuild
 
-The rebuild foundation, authorized A1–A3 access slices and PTA-1 contain a French
+The rebuild foundation, authorized A1–A3 access slices and PTA-2A contain a French
 shell, service-health checks, first-Admin authentication, ordinary account
 administration, synthetic password recovery, and draft Project/PTA/Activity
-planning with Agent coordination assignments.
+planning with Agent coordination assignments, immutable submissions, two-stage
+review, corrections and revision history.
 A1 is disabled by default and restricted to explicit isolated synthetic policy
 and private fake-email capture. Real accounts and later business slices remain
 unauthorized. See [authority](docs/mjl-authoritative-decisions.md)
@@ -72,8 +73,9 @@ docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -
 docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -T backend alembic current
 ```
 
-At head, Alembic creates its version table, seven auth tables, and eight PTA-1
-relations. It creates no users, reference rows, Projects or other seed data.
+At head, Alembic creates its version table, seven auth tables, eight PTA-1
+relations and the three PTA-2A evidence tables. It creates no users, reference
+rows, Projects or other seed data.
 The URL comes from the environment, and malformed configuration errors omit
 credentials. Each request releases its session without implicit commit. Liveness
 returns `{"status":"ok"}` without connecting to PostgreSQL. Readiness executes
@@ -447,15 +449,15 @@ task-owned project, volume, policy, mailbox and test images. PC1/PC2 remain
 pending; real accounts, Admin recovery, approval workflow, later PTA/A4 work,
 production mail and deployment remain prohibited.
 
-### PTA-1 synthetic planning
+### PTA-2A synthetic planning and validation
 
-PTA-1 requires a fresh isolated `mjl_test_*` database migrated to `0005_pta1`,
+PTA-2A requires a fresh isolated `mjl_test_*` database migrated to `0006_pta2a`,
 the existing complete synthetic recovery policy, and `lifecycle_database` bound
 to that exact database. Before starting a business-capable runtime, a restricted
 operator provisions the singleton context once:
 
 ```bash
-python -m app.planning.provision --reason "PTA-1 isolated setup"
+python -m app.planning.provision --reason "PTA-2A isolated setup"
 ```
 
 The command is idempotent and writes one attributable audit with the first
@@ -470,17 +472,19 @@ The authorized UI routes are `/partners`, `/projects`,
 `/projects/:projectId/ptas/:year`, its Activity-creation child, and
 `/activities/:activityId`. Only ordinary synthetic roles can access planning.
 Validators manage references and Projects; Agents create/read/edit drafts;
-Supervisors and Validators manage Agent coordination assignments. No review,
-approval, document, reporting or later workflow action is present.
+Supervisors and Validators manage Agent coordination assignments. Activity-
+specific reviewer controls are absent. Every eligible Supervisor may
+prevalidate or return any Activity, and one distinct eligible Validator may
+approve or return it. Approved revisions and decisions are immutable.
 
-Use the isolated PTA-1 project and run the focused evidence with its database URL:
+Use the isolated PTA-2A project and run the focused evidence with its database URL:
 
 ```bash
-docker exec -e MJL_AUTH_MODE=off mjl-pta1-test-backend-1 sh -c 'TEST_DATABASE_URL="$DATABASE_URL" pytest -q tests/test_planning.py'
+docker exec -e MJL_AUTH_MODE=off mjl-pta2a-test-backend-1 sh -c 'TEST_DATABASE_URL="$DATABASE_URL" pytest -q tests/test_planning.py'
 npm --prefix frontend run test:unit
-API_PROXY_TARGET=http://127.0.0.1:8023 MJL_PTA1_CONTAINER=mjl-pta1-test-backend-1 PLAYWRIGHT_BROWSERS_PATH=/tmp/mjl-playwright npm --prefix frontend run test:e2e -- e2e/planning.spec.js
+API_PROXY_TARGET=http://127.0.0.1:8022 MJL_PTA2A_MAILBOX=/tmp/mjl-a1-mail-pta2a-browser MJL_PTA2A_CONTAINER=mjl-pta2a-test-backend-1 PLAYWRIGHT_BROWSERS_PATH=/tmp/mjl-playwright npm --prefix frontend run test:e2e -- e2e/planning.spec.js
 ```
 
 Use only synthetic identities and disposable resources. PC1/PC2 remain pending;
-real accounts, reviewer assignments/actions, approval workflow, later PTA/A4
-slices and production deployment remain prohibited.
+real accounts, reviewer assignments, PTA-2B and later PTA/A4 slices, and
+production deployment remain prohibited.

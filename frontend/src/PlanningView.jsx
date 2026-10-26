@@ -116,6 +116,7 @@ function Workspace({ screen, session, onDenied }) {
   const navigate = useNavigate()
   const user = session.user
   const [error, setError] = useState('')
+  const [workflowReconciliation, setWorkflowReconciliation] = useState(null)
   const authGeneration = useRef(0)
   const mutationController = useRef(null)
   const denyWorkspace = useCallback(() => {
@@ -148,9 +149,24 @@ function Workspace({ screen, session, onDenied }) {
         throw new DOMException('Stale authorization', 'AbortError')
       return result
     },
-    onError: (problem) => {
+    onError: async (problem, variables) => {
       if (problem.name === 'AbortError') return
       if (problem.status === 401 || problem.status === 403) denyWorkspace()
+      const uncertain =
+        problem.status === 409 ||
+        ['network', 'malformed'].includes(problem.kind)
+      const workflow = variables.path.match(
+        /^\/activities\/([^/]+)\/(?:submissions|revisions\/[^/]+\/decisions)$/,
+      )
+      if (uncertain && workflow) {
+        setWorkflowReconciliation({
+          activityId: workflow[1],
+          activityUpdatedAt: activity.dataUpdatedAt,
+          revisionsUpdatedAt: revisions.dataUpdatedAt,
+        })
+      }
+      if (uncertain)
+        await client.invalidateQueries({ queryKey: ['planning', user.id] })
       setError(problem.message)
     },
     onSuccess: async () => {
@@ -199,6 +215,57 @@ function Workspace({ screen, session, onDenied }) {
     ),
     enabled: Boolean(params.activityId),
   })
+  const revisions = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['activity-revisions', params.activityId, search.revisionCursor],
+      cursorPath(
+        `/activities/${params.activityId}/revisions`,
+        search.revisionCursor,
+      ),
+      onDenied,
+    ),
+    enabled: Boolean(params.activityId),
+  })
+  const selectedRevision = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['activity-revision', params.activityId, search.revision],
+      `/activities/${params.activityId}/revisions/${search.revision}`,
+      onDenied,
+    ),
+    enabled: Boolean(params.activityId && search.revision),
+  })
+  const currentRevision = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      [
+        'activity-current-revision',
+        params.activityId,
+        activity.data?.current_revision_id,
+      ],
+      `/activities/${params.activityId}/revisions/${activity.data?.current_revision_id}`,
+      onDenied,
+    ),
+    enabled: Boolean(params.activityId && activity.data?.current_revision_id),
+  })
+  const reconciliationBlocked = Boolean(
+    workflowReconciliation &&
+    (activity.data?.id !== workflowReconciliation.activityId ||
+      activity.isFetching ||
+      activity.isError ||
+      activity.dataUpdatedAt <= workflowReconciliation.activityUpdatedAt ||
+      revisions.isFetching ||
+      revisions.isError ||
+      revisions.dataUpdatedAt <= workflowReconciliation.revisionsUpdatedAt ||
+      (activity.data.current_revision_id &&
+        (currentRevision.isFetching ||
+          currentRevision.isError ||
+          !currentRevision.data))),
+  )
   const list = useQuery({
     ...planningQuery(
       api,
@@ -231,9 +298,17 @@ function Workspace({ screen, session, onDenied }) {
       onDenied,
     ),
   )
-  const loading = [partners, projects, context, activity, list, types].some(
-    (query) => query.isFetching && query.fetchStatus !== 'idle',
-  )
+  const loading = [
+    partners,
+    projects,
+    context,
+    activity,
+    revisions,
+    selectedRevision,
+    currentRevision,
+    list,
+    types,
+  ].some((query) => query.isFetching && query.fetchStatus !== 'idle')
   const submitSimple = (event, path, field) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -249,9 +324,17 @@ function Workspace({ screen, session, onDenied }) {
     })
   }
   if (
-    [partners, projects, context, activity, list, types].some(
-      (query) => query.isError,
-    )
+    [
+      partners,
+      projects,
+      context,
+      activity,
+      revisions,
+      selectedRevision,
+      currentRevision,
+      list,
+      types,
+    ].some((query) => query.isError)
   )
     return <p role="alert">{strings.unavailablePlanning}</p>
   return (
@@ -358,6 +441,10 @@ function Workspace({ screen, session, onDenied }) {
           typeResult={types.data}
           navigate={navigate}
           mutation={mutation}
+          mutationBlocked={mutation.isPending || reconciliationBlocked}
+          revisions={revisions.data}
+          selectedRevision={selectedRevision.data}
+          currentRevision={currentRevision.data}
         />
       )}
     </section>
@@ -677,8 +764,10 @@ export function ActivityForm({
           planned_end: end,
           allocation: total.toString(),
           operations: operations.map((row) => ({
-            ...row,
             id: row.id || undefined,
+            type_id: row.type_id,
+            name: row.name,
+            allocation: row.allocation,
           })),
           ...(initial
             ? { expected_version: initial.version }
@@ -843,19 +932,53 @@ function ActivityDetail({
   typeResult,
   navigate,
   mutation,
+  mutationBlocked,
+  revisions,
+  selectedRevision,
+  currentRevision,
 }) {
   const [editing, setEditing] = useState(false)
+  const [workflowAction, setWorkflowAction] = useState('')
+  const workflowOpener = useRef(null)
   const [selectedAgentIds, setSelectedAgentIds] = useState(item.agent_ids)
   const canAssign = ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(
     user.role,
   )
+  const submitWorkflow = (event) => {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const submission = workflowAction === 'submit'
+    mutation.mutate(
+      {
+        path: submission
+          ? `/activities/${item.id}/submissions`
+          : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
+        method: 'POST',
+        body: submission
+          ? { expected_version: item.version }
+          : {
+              expected_version: item.version,
+              decision: workflowAction,
+              ...(workflowAction === 'return'
+                ? {
+                    reason: data.get('reason'),
+                    ...(data.get('requested_amount')
+                      ? { requested_amount: data.get('requested_amount') }
+                      : {}),
+                  }
+                : {}),
+            },
+      },
+      { onSuccess: () => setWorkflowAction('') },
+    )
+  }
   if (editing)
     return (
       <ActivityForm
         types={types}
         typeResult={typeResult}
         navigate={navigate}
-        pending={mutation.isPending}
+        pending={mutationBlocked}
         initial={item}
         onSubmit={(body) =>
           mutation.mutate(
@@ -872,10 +995,54 @@ function ActivityDetail({
           <p className="eyebrow">{item.reference}</p>
           <h2>{item.name}</h2>
         </div>
-        {item.allowed_actions.includes('edit') && (
-          <Button onClick={() => setEditing(true)}>{strings.modify}</Button>
+        <div className="planning-actions">
+          {item.allowed_actions.includes('edit') && (
+            <Button disabled={mutationBlocked} onClick={() => setEditing(true)}>
+              {strings.modify}
+            </Button>
+          )}
+          {[
+            ['submit', strings.submitReview],
+            ['prevalidate', strings.prevalidate],
+            ['approve', strings.approve],
+            ['return', strings.returnCorrection],
+          ].map(
+            ([action, label]) =>
+              item.allowed_actions.includes(action) && (
+                <Button
+                  key={action}
+                  disabled={mutationBlocked}
+                  variant={action === 'return' ? 'outline' : 'default'}
+                  onClick={(event) => {
+                    workflowOpener.current = event.currentTarget
+                    setWorkflowAction(action)
+                  }}
+                >
+                  {label}
+                </Button>
+              ),
+          )}
+        </div>
+      </div>
+      <div className="review-progress" aria-label={strings.reviewProgress}>
+        <strong>{strings.status}: </strong>
+        {strings[item.state] || item.state}
+        {item.current_revision_id && currentRevision?.revision_number && (
+          <span> · Révision {currentRevision.revision_number}</span>
         )}
       </div>
+      {item.correction && (
+        <div className="planning-error" role="status">
+          <strong>{strings.returned}</strong>
+          <p>{item.correction.reason}</p>
+          {item.correction.requested_amount && (
+            <p>
+              {strings.requestedAmount}:{' '}
+              {formatXof(item.correction.requested_amount)}
+            </p>
+          )}
+        </div>
+      )}
       <p>{item.description}</p>
       <dl className="planning-facts">
         <div>
@@ -888,6 +1055,14 @@ function ActivityDetail({
           <dt>{strings.budget}</dt>
           <dd>{formatXof(item.allocation)}</dd>
         </div>
+        <div>
+          <dt>{strings.approvedBudget}</dt>
+          <dd>
+            {item.approved_allocation
+              ? formatXof(item.approved_allocation)
+              : strings.notApproved}
+          </dd>
+        </div>
       </dl>
       <h3>{strings.operations}</h3>
       <ul className="planning-list">
@@ -898,6 +1073,106 @@ function ActivityDetail({
           </li>
         ))}
       </ul>
+      <section aria-labelledby="activity-history-title">
+        <h3 id="activity-history-title">{strings.revisionHistory}</h3>
+        {!revisions?.data?.length ? (
+          <p>{strings.noRevision}</p>
+        ) : (
+          <ol className="review-timeline">
+            {revisions.data.map((revision) => (
+              <li key={revision.id}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate({
+                      search: (current) => ({
+                        ...current,
+                        revision: revision.id,
+                      }),
+                    })
+                  }
+                >
+                  Révision {revision.revision_number} · {revision.submitted_at}
+                </button>
+                {revision.decisions.map((decision) => (
+                  <p key={decision.id}>
+                    {strings[decision.outcome] || decision.outcome}
+                    {decision.reason ? ` — ${decision.reason}` : ''}
+                  </p>
+                ))}
+              </li>
+            ))}
+          </ol>
+        )}
+        {selectedRevision?.snapshot && (
+          <div className="revision-snapshot">
+            <h4>Révision {selectedRevision.revision_number}</h4>
+            <p>
+              {selectedRevision.snapshot.partner.name} ·{' '}
+              {selectedRevision.snapshot.project.reference} —{' '}
+              {selectedRevision.snapshot.project.name} · PTA{' '}
+              {selectedRevision.snapshot.pta.year} ·{' '}
+              {selectedRevision.snapshot.activity.reference}
+            </p>
+            <p>
+              {selectedRevision.snapshot.name} ·{' '}
+              {selectedRevision.snapshot.planned_start} au{' '}
+              {selectedRevision.snapshot.planned_end}
+            </p>
+            <p>{selectedRevision.snapshot.description}</p>
+            <p>{formatXof(selectedRevision.snapshot.allocation)}</p>
+            <h5>{strings.operations}</h5>
+            <ol>
+              {selectedRevision.snapshot.operations.map((operation) => (
+                <li key={operation.id}>
+                  {operation.type_label} — {operation.name} ·{' '}
+                  {formatXof(operation.allocation)}
+                </li>
+              ))}
+            </ol>
+            <p>
+              Soumise par {selectedRevision.snapshot.submitter.email} le{' '}
+              {selectedRevision.snapshot.submitted_at}
+            </p>
+            <p>
+              Agents coordonnés :{' '}
+              {selectedRevision.snapshot.agents
+                .map((row) => row.email)
+                .join(', ') || 'Aucun'}
+            </p>
+            <p>
+              Contributeurs :{' '}
+              {selectedRevision.snapshot.contributors
+                .map((row) => `${row.email} (${row.role})`)
+                .join(', ')}
+            </p>
+            <h5>Décisions</h5>
+            {!selectedRevision.decisions.length ? (
+              <p>Aucune décision.</p>
+            ) : (
+              <ol>
+                {selectedRevision.decisions.map((decision) => (
+                  <li key={decision.id}>
+                    {strings[decision.outcome] || decision.outcome} —{' '}
+                    {decision.actor_role} · {decision.decided_at}
+                    {decision.reason ? ` — ${decision.reason}` : ''}
+                    {decision.requested_amount
+                      ? ` — ${formatXof(decision.requested_amount)}`
+                      : ''}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
+        {revisions && (
+          <Pager
+            result={revisions}
+            cursorKey="revisionCursor"
+            navigate={navigate}
+          />
+        )}
+      </section>
       {canAssign && (
         <form
           onSubmit={(event) => {
@@ -918,6 +1193,7 @@ function ActivityDetail({
               <label key={agent.id}>
                 <input
                   type="checkbox"
+                  disabled={mutationBlocked}
                   name="agents"
                   value={agent.id}
                   checked={selectedAgentIds.includes(agent.id)}
@@ -940,9 +1216,52 @@ function ActivityDetail({
             cursorKey="agentCursor"
             navigate={navigate}
           />
-          <Button type="submit">{strings.saveAgents}</Button>
+          <Button type="submit" disabled={mutationBlocked}>
+            {strings.saveAgents}
+          </Button>
         </form>
       )}
+      <Modal
+        open={Boolean(workflowAction)}
+        onClose={() => setWorkflowAction('')}
+        label={strings.workflowConfirmation}
+        opener={workflowOpener}
+      >
+        <form className="review-dialog" onSubmit={submitWorkflow}>
+          <h2>{strings.workflowConfirmation}</h2>
+          <p>{strings.workflowExactRevision}</p>
+          {workflowAction === 'return' && (
+            <>
+              <label>
+                {strings.reason}
+                <textarea name="reason" required maxLength="4000" autoFocus />
+              </label>
+              {user.role === 'VALIDATEUR_DEFINITIF' && (
+                <label>
+                  {strings.requestedAmount}
+                  <input
+                    name="requested_amount"
+                    inputMode="numeric"
+                    pattern="[1-9][0-9]*"
+                  />
+                </label>
+              )}
+            </>
+          )}
+          <footer>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setWorkflowAction('')}
+            >
+              {strings.cancel}
+            </Button>
+            <Button type="submit" disabled={mutationBlocked}>
+              {strings.confirm}
+            </Button>
+          </footer>
+        </form>
+      </Modal>
     </div>
   )
 }

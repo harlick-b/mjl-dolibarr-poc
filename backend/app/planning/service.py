@@ -2,7 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 from urllib.parse import urlencode
 from uuid import UUID
@@ -15,6 +15,10 @@ from app.auth.service import AuthError, AuthService
 from app.planning.models import (
     Activity,
     ActivityAssignment,
+    ActivityContributor,
+    ActivityRevision,
+    ActivityRevisionDecision,
+    AnnualPTA,
     Operation,
     OperationType,
     Partner,
@@ -73,7 +77,14 @@ def reference(db: Session, sequence: str, prefix: str) -> str:
     return f"{prefix}-{number:06d}"
 
 
-def allowed(role: str, *, resource: str, state: str = "active") -> list[str]:
+def allowed(
+    role: str,
+    *,
+    resource: str,
+    state: str = "active",
+    contributor: bool = False,
+    prevalidator: bool = False,
+) -> list[str]:
     actions = ["read"]
     if role == "VALIDATEUR_DEFINITIF" and resource in {"partner", "type", "project"}:
         actions.append("create")
@@ -81,13 +92,37 @@ def allowed(role: str, *, resource: str, state: str = "active") -> list[str]:
         actions.append("close")
     if role == "AGENT_SAISIE" and resource == "pta" and state == "active":
         actions.append("create_activity")
-    if role == "AGENT_SAISIE" and resource == "activity":
-        actions.append("edit")
+    if (
+        role == "AGENT_SAISIE"
+        and resource == "activity"
+        and state
+        in {
+            "draft",
+            "returned_supervisor",
+            "returned_validator",
+        }
+    ):
+        actions.extend(["edit", "submit"])
     if (
         role in {"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"}
         and resource == "activity"
     ):
         actions.append("assign_agents")
+    if (
+        role == "AGENT_VERIFICATEUR"
+        and resource == "activity"
+        and state == "submitted"
+        and not contributor
+    ):
+        actions.extend(["prevalidate", "return"])
+    if (
+        role == "VALIDATEUR_DEFINITIF"
+        and resource == "activity"
+        and state == "prevalidated"
+        and not contributor
+        and not prevalidator
+    ):
+        actions.extend(["approve", "return"])
     return actions
 
 
@@ -121,7 +156,9 @@ def project_item(item: Project, role: str) -> dict[str, Any]:
     }
 
 
-def activity_item(db: Session, item: Activity, role: str) -> dict[str, Any]:
+def activity_item(
+    db: Session, item: Activity, role: str, actor_id: str | None = None
+) -> dict[str, Any]:
     operations = list(
         db.scalars(
             select(Operation)
@@ -139,6 +176,58 @@ def activity_item(db: Session, item: Activity, role: str) -> dict[str, Any]:
             .order_by(ActivityAssignment.agent_id)
         )
     )
+    contributor = bool(
+        actor_id
+        and db.scalar(
+            select(ActivityContributor.id)
+            .where(
+                ActivityContributor.activity_id == item.id,
+                ActivityContributor.user_id == actor_id,
+            )
+            .limit(1)
+        )
+    )
+    prevalidator = bool(
+        actor_id
+        and item.current_revision_id
+        and db.scalar(
+            select(ActivityRevisionDecision.id)
+            .where(
+                ActivityRevisionDecision.revision_id == item.current_revision_id,
+                ActivityRevisionDecision.stage == "supervisor",
+                ActivityRevisionDecision.outcome == "prevalidated",
+                ActivityRevisionDecision.actor_id == actor_id,
+            )
+            .limit(1)
+        )
+    )
+    approved_allocation = None
+    if item.approved_revision_id:
+        approved = db.get(ActivityRevision, item.approved_revision_id)
+        if approved:
+            approved_allocation = str(approved.snapshot["allocation"])
+    correction = None
+    if item.current_revision_id and item.state in {
+        "returned_supervisor",
+        "returned_validator",
+    }:
+        returned = db.scalar(
+            select(ActivityRevisionDecision)
+            .where(
+                ActivityRevisionDecision.revision_id == item.current_revision_id,
+                ActivityRevisionDecision.outcome == "returned",
+            )
+            .order_by(ActivityRevisionDecision.decided_at.desc())
+        )
+        if returned:
+            correction = {
+                "actor_id": returned.actor_id,
+                "actor_role": returned.actor_role,
+                "reason": returned.reason,
+                "requested_amount": str(returned.requested_amount)
+                if returned.requested_amount is not None
+                else None,
+            }
     return {
         "id": item.id,
         "pta_id": item.pta_id,
@@ -150,6 +239,10 @@ def activity_item(db: Session, item: Activity, role: str) -> dict[str, Any]:
         "allocation": str(item.allocation),
         "state": item.state,
         "version": item.version,
+        "current_revision_id": item.current_revision_id,
+        "approved_revision_id": item.approved_revision_id,
+        "approved_allocation": approved_allocation,
+        "correction": correction,
         "operations": [
             {
                 "id": row.id,
@@ -161,7 +254,160 @@ def activity_item(db: Session, item: Activity, role: str) -> dict[str, Any]:
             for row in operations
         ],
         "agent_ids": agent_ids,
-        "allowed_actions": allowed(role, resource="activity"),
+        "allowed_actions": allowed(
+            role,
+            resource="activity",
+            state=item.state,
+            contributor=contributor,
+            prevalidator=prevalidator,
+        ),
+    }
+
+
+def structural_content(db: Session, item: Activity) -> dict[str, Any]:
+    operations = list(
+        db.scalars(
+            select(Operation)
+            .where(Operation.activity_id == item.id, Operation.removed_at.is_(None))
+            .order_by(Operation.position)
+        )
+    )
+    return {
+        "name": item.name,
+        "description": item.description,
+        "planned_start": item.planned_start.isoformat(),
+        "planned_end": item.planned_end.isoformat(),
+        "allocation": str(item.allocation),
+        "operations": [
+            {
+                "id": row.id,
+                "type_id": row.type_id,
+                "name": row.name,
+                "allocation": str(row.allocation),
+                "position": row.position,
+            }
+            for row in operations
+        ],
+    }
+
+
+def revision_item(
+    db: Session, revision: ActivityRevision, *, include_snapshot: bool = True
+) -> dict[str, Any]:
+    decisions = list(
+        db.scalars(
+            select(ActivityRevisionDecision)
+            .where(ActivityRevisionDecision.revision_id == revision.id)
+            .order_by(ActivityRevisionDecision.decided_at, ActivityRevisionDecision.id)
+        )
+    )
+    result: dict[str, Any] = {
+        "id": revision.id,
+        "activity_id": revision.activity_id,
+        "revision_number": revision.revision_number,
+        "fingerprint": revision.fingerprint,
+        "submitter_id": revision.submitter_id,
+        "submitted_at": revision.submitted_at.isoformat(),
+        "decisions": [
+            {
+                "id": row.id,
+                "stage": row.stage,
+                "outcome": row.outcome,
+                "actor_id": row.actor_id,
+                "actor_role": row.actor_role,
+                "decided_at": row.decided_at.isoformat(),
+                "reason": row.reason,
+                "requested_amount": str(row.requested_amount)
+                if row.requested_amount is not None
+                else None,
+                "prevalidation_revision_id": row.prevalidation_revision_id,
+            }
+            for row in decisions
+        ],
+    }
+    if include_snapshot:
+        result["snapshot"] = revision.snapshot
+    return result
+
+
+def build_revision_snapshot(
+    db: Session, item: Activity, actor: User, submitted_at: datetime
+) -> dict[str, Any]:
+    pta = db.get(AnnualPTA, item.pta_id)
+    assert pta
+    project = db.get(Project, pta.project_id)
+    assert project
+    partner = db.get(Partner, project.partner_id)
+    assert partner
+    content = structural_content(db, item)
+    agent_ids = list(
+        db.scalars(
+            select(ActivityAssignment.agent_id)
+            .where(
+                ActivityAssignment.activity_id == item.id,
+                ActivityAssignment.ended_at.is_(None),
+            )
+            .order_by(ActivityAssignment.agent_id)
+        )
+    )
+    assignment_users = {
+        user.id: user for user in db.scalars(select(User).where(User.id.in_(agent_ids)))
+    }
+    type_ids = {row["type_id"] for row in content["operations"]}
+    type_labels = {
+        row.id: row.label
+        for row in db.scalars(
+            select(OperationType).where(OperationType.id.in_(type_ids))
+        )
+    }
+    snapshot_operations = [
+        {**row, "type_label": type_labels[row["type_id"]]}
+        for row in content["operations"]
+    ]
+    contributor_ids = list(
+        db.scalars(
+            select(ActivityContributor.user_id)
+            .where(ActivityContributor.activity_id == item.id)
+            .order_by(ActivityContributor.user_id)
+        )
+    )
+    users = {
+        user.id: user
+        for user in db.scalars(
+            select(User).where(User.id.in_(set(contributor_ids + [actor.id])))
+        )
+    }
+    return {
+        "context_id": CONTEXT,
+        "partner": {"id": partner.id, "name": partner.name},
+        "project": {
+            "id": project.id,
+            "reference": project.reference,
+            "name": project.name,
+        },
+        "pta": {"id": pta.id, "year": pta.year},
+        "activity": {"id": item.id, "reference": item.reference},
+        **content,
+        "operations": snapshot_operations,
+        "agent_ids": agent_ids,
+        "agents": [
+            {
+                "id": identifier,
+                "email": assignment_users[identifier].email,
+                "role": assignment_users[identifier].role,
+            }
+            for identifier in agent_ids
+        ],
+        "submitter": {"id": actor.id, "email": actor.email, "role": actor.role},
+        "submitted_at": submitted_at.isoformat(),
+        "contributors": [
+            {
+                "id": identifier,
+                "email": users[identifier].email,
+                "role": users[identifier].role,
+            }
+            for identifier in contributor_ids
+        ],
     }
 
 

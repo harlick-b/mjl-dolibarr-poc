@@ -50,7 +50,7 @@ def test_postgresql_readiness_and_session_rollback(isolated_url):
 
 
 @pytest.mark.integration
-def test_alembic_repeatable_upgrade_to_pta1(isolated_url, monkeypatch):
+def test_alembic_repeatable_upgrade_to_pta2a(isolated_url, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", isolated_url)
     root = Path(__file__).resolve().parents[1]
     config = Config(str(root / "alembic.ini"))
@@ -63,7 +63,7 @@ def test_alembic_repeatable_upgrade_to_pta1(isolated_url, monkeypatch):
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0005_pta1"
+                == "0006_pta2a"
             )
             assert set(inspect(connection).get_table_names()) == {
                 "alembic_version",
@@ -82,6 +82,9 @@ def test_alembic_repeatable_upgrade_to_pta1(isolated_url, monkeypatch):
                 "pta_activity",
                 "pta_operation",
                 "pta_activity_agent_assignment",
+                "pta_activity_contributor",
+                "pta_activity_revision",
+                "pta_activity_revision_decision",
             }
     finally:
         engine.dispose()

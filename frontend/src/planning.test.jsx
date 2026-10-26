@@ -9,11 +9,13 @@ import {
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
+import { toast } from 'sonner'
 import { App, makeRouter } from './router'
 import { ActivityForm } from './PlanningView'
 import { addThreeMonths, formatXof } from './planning'
 
 afterEach(() => {
+  toast.dismiss()
   window.dispatchEvent(new Event('online'))
   vi.unstubAllGlobals()
 })
@@ -34,6 +36,115 @@ test.each([
 test('formats an exact integer amount in XOF', () => {
   expect(formatXof('1250000')).toContain('1')
   expect(formatXof('1250000')).toContain('XOF')
+})
+
+test('an eligible Agent confirms submission of the current Activity version', async () => {
+  const user = userEvent.setup()
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+    this.dispatchEvent(new Event('close'))
+  }
+  const activity = {
+    id: 'activity-1',
+    pta_id: 'pta-1',
+    reference: 'ACT-000001',
+    name: 'Atelier',
+    description: 'Préparation de l’atelier',
+    planned_start: '2027-01-10',
+    planned_end: '2027-04-10',
+    allocation: '100000',
+    state: 'draft',
+    version: 1,
+    current_revision_id: null,
+    approved_revision_id: null,
+    approved_allocation: null,
+    operations: [
+      {
+        id: 'operation-1',
+        type_id: 'type-1',
+        name: 'Préparer',
+        allocation: '100000',
+        position: 1,
+      },
+    ],
+    agent_ids: [],
+    allowed_actions: ['read', 'edit', 'submit'],
+  }
+  const fetch = vi.fn((url, options = {}) => {
+    if (url.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (options.method === 'POST')
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: 'revision-1',
+            revision_number: 1,
+            activity_version: 2,
+          }),
+          { status: 201 },
+        ),
+      )
+    if (url.endsWith('/activities/activity-1'))
+      return Promise.resolve(new Response(JSON.stringify(activity)))
+    if (url.includes('/activities/activity-1/revisions'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      ),
+    )
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/activities/activity-1'] }),
+      )}
+    />,
+  )
+  await user.click(
+    await screen.findByRole('button', { name: 'Soumettre pour prévalidation' }),
+  )
+  await user.click(
+    screen.getByRole('dialog').querySelector('button[type="submit"]'),
+  )
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity-1/submissions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ expected_version: 1 }),
+      }),
+    ),
+  )
 })
 
 test('a new Activity keeps its request key across a lost-response retry', async () => {
@@ -348,6 +459,74 @@ test('a planning mutation invalidates and visibly refreshes the cached list', as
   expect(await within(card).findByText('Partenaire actualisé')).toBeVisible()
 })
 
+test('a 409 planning mutation refetches server state before another action', async () => {
+  const user = userEvent.setup()
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+    this.dispatchEvent(new Event('close'))
+  }
+  let partnerReads = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url, options = {}) => {
+      if (url.includes('/auth/'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'fixture',
+              user: { id: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      if (options.method === 'POST')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'activity_stale',
+              message: 'Version obsolète.',
+            }),
+            { status: 409 },
+          ),
+        )
+      if (String(url).includes('/api/v1/partners')) partnerReads += 1
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/partners'] }),
+      )}
+    />,
+  )
+  const heading = await screen.findByRole('heading', {
+    name: 'Partenaires',
+    level: 2,
+  })
+  const card = heading.closest('.planning-card')
+  await user.click(within(card).getByRole('button', { name: 'Ajouter' }))
+  const dialog = within(card).getByRole('dialog')
+  await user.type(within(dialog).getByLabelText('Nom'), 'Conflit')
+  await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+  await waitFor(() => expect(partnerReads).toBeGreaterThanOrEqual(2))
+  expect(screen.getByRole('alert')).toBeVisible()
+})
+
 test('a delayed planning result cannot repopulate content after access denial', async () => {
   let releasePartners
   let reportPartnerRequest
@@ -424,3 +603,165 @@ test('a delayed planning result cannot repopulate content after access denial', 
     expect(screen.queryByText('Partenaire retardé')).not.toBeInTheDocument(),
   )
 })
+
+test.each(['success', 'failure'])(
+  'an uncertain workflow response stays blocked through %s reconciliation',
+  async (refetchOutcome) => {
+    const user = userEvent.setup()
+    HTMLDialogElement.prototype.showModal = function () {
+      this.open = true
+    }
+    HTMLDialogElement.prototype.close = function () {
+      this.open = false
+      this.dispatchEvent(new Event('close'))
+    }
+    let committed = false
+    let activityReads = 0
+    let submissionCalls = 0
+    let resolveActivityRefetch
+    const activityRefetch = new Promise((resolve) => {
+      resolveActivityRefetch = resolve
+    })
+    const draft = {
+      id: 'activity-uncertain',
+      pta_id: 'pta-1',
+      reference: 'ACT-000099',
+      name: 'Activité à réconcilier',
+      description: 'Réponse réseau perdue',
+      planned_start: '2027-01-10',
+      planned_end: '2027-04-10',
+      allocation: '100000',
+      state: 'draft',
+      version: 1,
+      current_revision_id: null,
+      approved_revision_id: null,
+      approved_allocation: null,
+      operations: [
+        {
+          id: 'operation-1',
+          type_id: 'type-1',
+          name: 'Préparer',
+          allocation: '100000',
+          position: 1,
+        },
+      ],
+      agent_ids: [],
+      allowed_actions: ['read', 'edit', 'submit'],
+    }
+    const revision = {
+      id: 'revision-uncertain',
+      revision_number: 1,
+      activity_version: 2,
+      submitted_at: '2027-01-02T10:00:00Z',
+      decisions: [],
+    }
+    const fetch = vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: { id: 'agent', role: 'AGENT_SAISIE' },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      if (path.endsWith('/activities/activity-uncertain/submissions')) {
+        submissionCalls += 1
+        committed = true
+        return Promise.reject(new TypeError('lost response'))
+      }
+      if (path.endsWith('/activities/activity-uncertain')) {
+        activityReads += 1
+        if (committed) return activityRefetch
+        return Promise.resolve(new Response(JSON.stringify(draft)))
+      }
+      if (path.endsWith(`/revisions/${revision.id}`))
+        return Promise.resolve(new Response(JSON.stringify(revision)))
+      if (path.includes('/activities/activity-uncertain/revisions'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: committed ? 1 : 0,
+              data: committed ? [revision] : [],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    })
+    vi.stubGlobal('fetch', fetch)
+    render(
+      <App
+        router={makeRouter(
+          createMemoryHistory({
+            initialEntries: ['/activities/activity-uncertain'],
+          }),
+        )}
+      />,
+    )
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Soumettre pour prévalidation',
+      }),
+    )
+    await user.click(
+      screen.getByRole('dialog').querySelector('button[type="submit"]'),
+    )
+    await waitFor(() => expect(submissionCalls).toBe(1))
+    expect(
+      screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('dialog').querySelector('button[type="submit"]'),
+    ).toBeDisabled()
+    await act(async () => {
+      resolveActivityRefetch(
+        refetchOutcome === 'success'
+          ? new Response(
+              JSON.stringify({
+                ...draft,
+                state: 'submitted',
+                version: 2,
+                current_revision_id: revision.id,
+                allowed_actions: ['read'],
+              }),
+            )
+          : new Response(JSON.stringify({ code: 'service_unavailable' }), {
+              status: 503,
+            }),
+      )
+    })
+    expect(activityReads).toBeGreaterThanOrEqual(2)
+    expect(submissionCalls).toBe(1)
+    if (refetchOutcome === 'success') {
+      expect(
+        await screen.findByText('Soumise pour prévalidation'),
+      ).toBeVisible()
+      expect(
+        screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),
+      ).not.toBeInTheDocument()
+    } else {
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Les données de planification sont indisponibles.',
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),
+      ).not.toBeInTheDocument()
+    }
+  },
+)

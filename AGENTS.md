@@ -39,9 +39,11 @@ exact A2.2 guard compatibility, all sixteen checks and independent review.
 DEC-107 authorizes and completes bounded synthetic PTA-1 under readiness 08:
 single MJL ownership, reference/Project/annual PTA/draft Activity planning and
 Agent coordination assignments, exact guard cutover, all 24 checks, I1/C1 and
-independent review. Stop after PTA-1; technical Admin recovery, reinvitation,
-Activity review/approval, later PTA slices, general A4 and production remain
-deferred.
+independent review. DEC-109 authorizes and completes bounded synthetic PTA-2A
+under readiness 09 and DEC-108: immutable Activity revisions, role-wide two-
+stage review, returns/corrections, four APIs, three tables and all 20 checks with
+I2/C2 and independent review. Stop after PTA-2A; technical Admin recovery, reinvitation,
+PTA-2B and later slices, general A4 and production remain deferred.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
 

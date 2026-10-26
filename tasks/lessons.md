@@ -324,3 +324,9 @@ debugging discoveries. Do not add one-off observations or generic advice.
   the UI reactively and deliberately revalidate; `invalidateQueries()` on the
   removed key is insufficient. `mutation.reset()` likewise leaves MutationCache
   variables behind: remove settled credential mutations and clear them on unmount.
+
+- A migration cutover rehearsal must run the exact predecessor application
+  artifact to create its histories, stop that writer, and then exercise the
+  candidate through a distinct restricted runtime login. Creating data with the
+  candidate and downgrading only its schema does not prove predecessor behavior
+  or deployed credential separation.

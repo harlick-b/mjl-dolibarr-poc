@@ -84,6 +84,9 @@ class AuthService:
                 "pta_activity",
                 "pta_operation",
                 "pta_activity_agent_assignment",
+                "pta_activity_contributor",
+                "pta_activity_revision",
+                "pta_activity_revision_decision",
             )
         }
         if relations != expected:
@@ -91,7 +94,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0005_pta1"]:
+        if revisions != ["0006_pta2a"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -100,6 +103,12 @@ class AuthService:
             "activity_request_key",
             "assignment_one_current",
             "audit_business_bounded",
+            "activity_state_allowed",
+            "activity_revision_pointer_state",
+            "activity_revision_number",
+            "revision_decision_stage",
+            "decision_prevalidation_scope",
+            "decision_stage_role_outcome",
         }
         found = set(
             db.scalars(
@@ -144,6 +153,23 @@ class AuthService:
                   SELECT 'index', tablename, indexname, indexdef
                   FROM pg_catalog.pg_indexes
                   WHERE schemaname='public' AND tablename=ANY(:tables)
+                  UNION ALL
+                  SELECT 'trigger', c.relname, t.tgname,
+                    t.tgenabled::text || '|' || pg_get_triggerdef(t.oid)
+                  FROM pg_catalog.pg_trigger t
+                  JOIN pg_catalog.pg_class c ON c.oid=t.tgrelid
+                  JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+                  WHERE n.nspname='public' AND c.relname=ANY(:tables)
+                    AND NOT t.tgisinternal
+                  UNION ALL
+                  SELECT 'function', p.proname, p.oid::regprocedure::text,
+                    p.provolatile::text || '|' || p.prosecdef::text || '|' ||
+                    pg_get_functiondef(p.oid)
+                  FROM pg_catalog.pg_proc p
+                  JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+                  WHERE n.nspname='public' AND p.proname IN
+                    ('pta_reject_immutable','pta_validate_final_decision',
+                     'pta_validate_activity_review_state')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -151,7 +177,7 @@ class AuthService:
         ]
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         if hashlib.sha256(encoded_manifest.encode()).hexdigest() != (
-            "65c3559d5276d42175e40bf664a884706afe4c6b9591e91f88c85a3b6df9b614"
+            "fcc693aee248629992e2cab92a1bb6ef817429a60d2eb2592a707d5c1ac01a4a"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -284,6 +310,11 @@ class AuthService:
             "activity.create": "activity",
             "activity.replace": "activity",
             "activity.assign_agents": "activity",
+            "activity.submit": "activity",
+            "activity.prevalidate": "activity",
+            "activity.return_supervisor": "activity",
+            "activity.approve": "activity",
+            "activity.return_validator": "activity",
         }
         create_actions = {
             "partner.create",
@@ -292,9 +323,20 @@ class AuthService:
             "activity.create",
         }
         change_actions = set(shapes) - create_actions
+        workflow_actions = {
+            "activity.submit",
+            "activity.prevalidate",
+            "activity.return_supervisor",
+            "activity.approve",
+            "activity.return_validator",
+        }
         required = (
             {"context_id", "after"}
             if action in create_actions
+            else {"context_id", "before", "after", "revision", "decision"}
+            if action in workflow_actions - {"activity.submit"}
+            else {"context_id", "before", "after", "revision"}
+            if action == "activity.submit"
             else {"context_id", "before", "after", "removed_operations"}
             if action == "activity.replace"
             else {"context_id", "before", "after"}
@@ -348,6 +390,10 @@ class AuthService:
                     "allocation",
                     "state",
                     "version",
+                    "current_revision_id",
+                    "approved_revision_id",
+                    "approved_allocation",
+                    "correction",
                     "operations",
                     "agent_ids",
                     "allowed_actions",
@@ -392,7 +438,15 @@ class AuthService:
                         "state",
                     )
                 )
-                and value.get("state") == "draft"
+                and value.get("state")
+                in {
+                    "draft",
+                    "submitted",
+                    "prevalidated",
+                    "returned_supervisor",
+                    "returned_validator",
+                    "approved",
+                }
                 and isinstance(value.get("version"), int)
                 and value["version"] > 0
                 and isinstance(operations, list)
@@ -414,6 +468,63 @@ class AuthService:
                 )
             )
 
+        revision = business.get("revision")
+        decision = business.get("decision")
+        valid_revision = (
+            isinstance(revision, dict)
+            and set(revision)
+            == {
+                "id",
+                "revision_number",
+                "fingerprint",
+                "actor_id",
+                "actor_role",
+                "submitted_at",
+            }
+            and isinstance(revision.get("id"), str)
+            and isinstance(revision.get("revision_number"), int)
+            and revision["revision_number"] > 0
+            and isinstance(revision.get("fingerprint"), str)
+            and len(revision["fingerprint"]) == 64
+            and all(
+                isinstance(revision.get(key), str)
+                for key in ("actor_id", "actor_role", "submitted_at")
+            )
+        )
+        valid_decision = (
+            isinstance(decision, dict)
+            and set(decision)
+            == {
+                "id",
+                "stage",
+                "outcome",
+                "reason",
+                "requested_amount",
+                "actor_id",
+                "actor_role",
+                "decided_at",
+                "prevalidation_revision_id",
+            }
+            and all(
+                isinstance(decision.get(key), str) for key in ("id", "stage", "outcome")
+            )
+            and (
+                decision.get("reason") is None
+                or isinstance(decision.get("reason"), str)
+            )
+            and (
+                decision.get("requested_amount") is None
+                or isinstance(decision.get("requested_amount"), str)
+            )
+            and all(
+                isinstance(decision.get(key), str)
+                for key in ("actor_id", "actor_role", "decided_at")
+            )
+            and (
+                decision.get("prevalidation_revision_id") is None
+                or isinstance(decision.get("prevalidation_revision_id"), str)
+            )
+        )
         if (
             required is None
             or set(business) != required
@@ -423,6 +534,8 @@ class AuthService:
                 and not valid_removals(business.get("removed_operations"))
             )
             or not valid_item(after, shapes[action])
+            or (action in workflow_actions and not valid_revision)
+            or (action in workflow_actions - {"activity.submit"} and not valid_decision)
             or not isinstance(after, dict)
             or after.get("id") != target
             or (

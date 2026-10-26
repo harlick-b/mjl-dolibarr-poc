@@ -60,12 +60,56 @@
   gap: 20px;
 }
 .planning-title form,
+.planning-actions,
 .planning-grid,
 .operation-row {
   display: flex;
   gap: 12px;
   align-items: end;
   flex-wrap: wrap;
+}
+.planning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.review-progress {
+  border-left: 4px solid var(--color-primary);
+  background: var(--color-background);
+  padding: 12px 16px;
+}
+.review-timeline {
+  border-left: 1px solid var(--color-border);
+  display: grid;
+  gap: 16px;
+  margin-left: 8px;
+  padding-left: 24px;
+}
+.review-timeline li::marker {
+  color: var(--color-primary);
+}
+.review-timeline button {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+}
+.revision-snapshot {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  margin-top: 16px;
+  padding: 16px;
+}
+.review-dialog {
+  display: grid;
+  gap: 16px;
+  min-width: min(520px, calc(100vw - 40px));
+  padding: 24px;
+}
+.review-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .planning-card label {
   display: grid;

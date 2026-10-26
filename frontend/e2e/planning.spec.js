@@ -3,17 +3,58 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
-const mailbox = process.env.MJL_PTA1_MAILBOX
-const container = process.env.MJL_PTA1_CONTAINER
+const mailbox = process.env.MJL_PTA2A_MAILBOX || process.env.MJL_PTA1_MAILBOX
+const container =
+  process.env.MJL_PTA2A_CONTAINER || process.env.MJL_PTA1_CONTAINER
 const password = 'Synthetic!93'
 
 function mail(email, kind) {
+  if (process.env.MJL_PTA2A_CONTAINER) {
+    const value = execFileSync(
+      'docker',
+      [
+        'exec',
+        container,
+        'python',
+        '-c',
+        `import json,sys
+from pathlib import Path
+box=Path(sys.argv[1])
+items=[]
+for item in box.glob('*.json'):
+    message=json.loads(item.read_text())
+    if message.get('recipient') == sys.argv[2] and message.get('kind') == sys.argv[3]:
+        items.append((item.stat().st_mtime_ns,message.get('value','')))
+print(max(items,default=(0,''))[1])`,
+        mailbox,
+        email,
+        kind,
+      ],
+      { encoding: 'utf8' },
+    ).trim()
+    return value || undefined
+  }
   return readdirSync(mailbox)
     .map((file) => path.join(mailbox, file))
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
     .map((file) => JSON.parse(readFileSync(file, 'utf8')))
     .find((message) => message.recipient === email && message.kind === kind)
     ?.value
+}
+
+function clearSharedIpBucket() {
+  execFileSync('docker', [
+    'exec',
+    container,
+    'python',
+    '-c',
+    `import os
+from sqlalchemy import create_engine,text
+e=create_engine(os.environ['DATABASE_URL'])
+assert e.url.database == 'mjl_test_pta2a'
+with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
+e.dispose()`,
+  ])
 }
 
 async function waitForMail(email, kind) {
@@ -26,10 +67,12 @@ async function waitForMail(email, kind) {
 }
 
 async function accept(page, email) {
+  clearSharedIpBucket()
   await page.goto(await waitForMail(email, 'invitation'))
   await page.getByLabel('Mot de passe', { exact: true }).fill(password)
   await page.getByLabel('Confirmer le mot de passe').fill(password)
   await page.getByRole('button', { name: 'Définir mon mot de passe' }).click()
+  await expect(page).toHaveURL(/\/login$/)
   await page.getByLabel('Adresse e-mail').fill(email)
   await page.getByLabel('Mot de passe', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click()
@@ -63,14 +106,14 @@ async function api(page, route, method = 'GET', body) {
   )
 }
 
-test('P21–P23 Validator to Agent planning and coordination journey', async ({
+test('V19 planning, correction and final approval browser journey', async ({
   page,
   browser,
 }) => {
   test.skip(!mailbox || !container, 'Requires isolated PTA-1 environment')
   test.setTimeout(180000)
   await page.setViewportSize({ width: 390, height: 844 })
-  expect(container).toBe('mjl-pta1-test-backend-1')
+  expect(container).toBe('mjl-pta2a-test-backend-1')
   expect(mailbox).toMatch(/^\/tmp\/mjl-a1-mail-/)
   execFileSync('docker', [
     'exec',
@@ -243,7 +286,10 @@ test('P21–P23 Validator to Agent planning and coordination journey', async ({
     agent.getByRole('heading', { name: 'Activité navigateur' }),
   ).toBeVisible()
   await expect(agent.getByText(/300[\s\u202f]?000 XOF/).first()).toBeVisible()
-  await expect(agent.getByText(/révision|validation/i)).toHaveCount(0)
+  await expect(
+    agent.getByRole('heading', { name: 'Historique des révisions' }),
+  ).toBeVisible()
+  await expect(agent.getByText('Aucune révision soumise.')).toBeVisible()
   const activity = (
     await api(
       agent,
@@ -279,7 +325,7 @@ test('P21–P23 Validator to Agent planning and coordination journey', async ({
     `import os
 from sqlalchemy import create_engine,text
 e=create_engine(os.environ['DATABASE_URL'])
-assert e.url.database == 'mjl_test_pta1'
+assert e.url.database == 'mjl_test_pta2a'
 with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
 e.dispose()`,
   ])
@@ -305,7 +351,7 @@ e.dispose()`,
     `import os
 from sqlalchemy import create_engine,text
 e=create_engine(os.environ['DATABASE_URL'])
-assert e.url.database == 'mjl_test_pta1'
+assert e.url.database == 'mjl_test_pta2a'
 with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
 e.dispose()`,
   ])
@@ -327,7 +373,7 @@ e.dispose()`,
     `import os
 from sqlalchemy import create_engine,text
 e=create_engine(os.environ['DATABASE_URL'])
-assert e.url.database == 'mjl_test_pta1'
+assert e.url.database == 'mjl_test_pta2a'
 with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
 e.dispose()`,
   ])
@@ -370,6 +416,155 @@ e.dispose()`,
     return urls
   })
   expect(cached.some((url) => url.includes('/api/'))).toBe(false)
+
+  clearSharedIpBucket()
+  await agent.goto(`/activities/${activity.id}`)
+  await agent
+    .getByRole('button', { name: 'Soumettre pour prévalidation' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(agent.getByLabel('Progression de la validation')).toContainText(
+    'Soumise pour prévalidation',
+  )
+
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor
+    .getByRole('button', { name: 'Demander une correction' })
+    .click()
+  await supervisor
+    .getByRole('dialog')
+    .getByLabel('Motif de correction')
+    .fill('Préciser le résultat attendu.')
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(
+    supervisor.getByLabel('Progression de la validation'),
+  ).toContainText('Correction demandée par le Superviseur')
+
+  await agent.goto(`/activities/${activity.id}`)
+  await agent.getByRole('button', { name: 'Modifier' }).click()
+  await agent
+    .getByLabel('Description')
+    .fill('Planification corrigée après retour du Superviseur')
+  await agent.getByRole('button', { name: 'Enregistrer' }).click()
+  await agent
+    .getByRole('button', { name: 'Soumettre pour prévalidation' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+
+  clearSharedIpBucket()
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.getByRole('button', { name: 'Prévalider' }).click()
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(
+    supervisor.getByLabel('Progression de la validation'),
+  ).toContainText('Prévalidée — validation définitive attendue')
+
+  await validator.goto(`/activities/${activity.id}`)
+  await validator
+    .getByRole('button', { name: 'Demander une correction' })
+    .click()
+  const validatorReturn = validator.getByRole('dialog')
+  await validatorReturn
+    .getByLabel('Motif de correction')
+    .fill('Ajuster le budget proposé.')
+  await validatorReturn
+    .getByLabel('Montant indicatif demandé (facultatif)')
+    .fill('350000')
+  await validatorReturn.getByRole('button', { name: 'Confirmer' }).click()
+  await expect(
+    validator.getByLabel('Progression de la validation'),
+  ).toContainText('Correction demandée par le Validateur définitif')
+
+  await agent.goto(`/activities/${activity.id}`)
+  await expect(agent.getByText(/350[\s\u202f]?000 XOF/)).toBeVisible()
+  await agent.getByRole('button', { name: 'Modifier' }).click()
+  await agent.getByLabel('Budget de l’opération 1').fill('360000')
+  await agent.getByLabel('Description').fill('Budget final révisé')
+  await agent.getByRole('button', { name: 'Enregistrer' }).click()
+  await agent
+    .getByRole('button', { name: 'Soumettre pour prévalidation' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+
+  clearSharedIpBucket()
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.getByRole('button', { name: 'Prévalider' }).click()
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(
+    supervisor.getByLabel('Progression de la validation'),
+  ).toContainText('Prévalidée — validation définitive attendue')
+  clearSharedIpBucket()
+  await validator.goto(`/activities/${activity.id}`)
+  await validator
+    .getByRole('button', { name: 'Valider définitivement' })
+    .click()
+  await validator
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(
+    validator.getByLabel('Progression de la validation'),
+  ).toContainText('Validée définitivement')
+  await expect(
+    validator
+      .getByText('Budget approuvé')
+      .locator('..')
+      .getByText(/360[\s\u202f]?000 XOF/),
+  ).toBeVisible()
+  await expect(
+    validator.getByRole('heading', { name: 'Historique des révisions' }),
+  ).toBeVisible()
+  await expect(
+    validator.getByRole('button', { name: /Révision 3/ }),
+  ).toBeVisible()
+  await validator.getByRole('button', { name: /Révision 1/ }).click()
+  const frozenRevision = validator
+    .getByRole('heading', { name: 'Révision 1' })
+    .locator('..')
+  await expect(frozenRevision).toContainText('Partenaire navigateur')
+  await expect(frozenRevision).toContainText('Projet navigateur')
+  await expect(frozenRevision).toContainText('Atelier — Préparer l’atelier')
+  await expect(frozenRevision).toContainText('pta-agent@example.test')
+  await expect(frozenRevision).toContainText('Préciser le résultat attendu.')
+
+  const historyError = await validatorContext.newPage()
+  await historyError.route(
+    `**/api/v1/activities/${activity.id}/revisions*`,
+    async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'service_unavailable' }),
+      })
+    },
+  )
+  await historyError.goto(`/activities/${activity.id}?revisionCursor=failure`)
+  await expect(historyError.getByRole('alert')).toHaveText(
+    'Les données de planification sont indisponibles.',
+  )
+  await expect(historyError.getByText('Aucune révision soumise.')).toHaveCount(
+    0,
+  )
+  await historyError.close()
   await supervisorContext.close()
   await agentContext.close()
   await validatorContext.close()

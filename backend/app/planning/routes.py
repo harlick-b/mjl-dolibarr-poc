@@ -1,11 +1,11 @@
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import select, tuple_
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
@@ -15,6 +15,9 @@ from app.auth.service import AuthError
 from app.planning.models import (
     Activity,
     ActivityAssignment,
+    ActivityContributor,
+    ActivityRevision,
+    ActivityRevisionDecision,
     AnnualPTA,
     Operation,
     OperationType,
@@ -26,6 +29,7 @@ from app.planning.service import (
     Cursor,
     activity_item,
     assert_types,
+    build_revision_snapshot,
     clean,
     fingerprint,
     list_rows,
@@ -35,8 +39,11 @@ from app.planning.service import (
     principal,
     project_item,
     reference,
+    revision_item,
+    structural_content,
     type_item,
     validate_plan,
+    xof,
 )
 
 router = APIRouter(
@@ -149,6 +156,24 @@ class AssignmentReplace(Input):
         return normalized
 
 
+class SubmissionInput(Input):
+    expected_version: int = Field(gt=0, strict=True)
+
+
+class DecisionInput(Input):
+    expected_version: int = Field(gt=0, strict=True)
+    decision: Literal["prevalidate", "approve", "return"]
+    reason: str | None = Field(default=None, max_length=4000)
+    requested_amount: str | None = Field(
+        default=None, max_length=19, pattern=r"^[1-9][0-9]*$"
+    )
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalized_reason(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
 class PartnerOutput(Input):
     id: str
     name: str
@@ -181,6 +206,13 @@ class OperationOutput(Input):
     position: int
 
 
+class CorrectionOutput(Input):
+    actor_id: str
+    actor_role: Literal["AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"]
+    reason: str
+    requested_amount: str | None
+
+
 class ActivityOutput(Input):
     id: str
     pta_id: str
@@ -190,8 +222,19 @@ class ActivityOutput(Input):
     planned_start: str
     planned_end: str
     allocation: str
-    state: Literal["draft"]
+    state: Literal[
+        "draft",
+        "submitted",
+        "prevalidated",
+        "returned_supervisor",
+        "returned_validator",
+        "approved",
+    ]
     version: int
+    current_revision_id: str | None
+    approved_revision_id: str | None
+    approved_allocation: str | None
+    correction: CorrectionOutput | None
     operations: list[OperationOutput]
     agent_ids: list[str]
     allowed_actions: list[str]
@@ -214,6 +257,94 @@ class PTAContextOutput(Input):
 class AgentOutput(Input):
     id: str
     email: str
+
+
+class SnapshotIdentity(Input):
+    id: str
+    email: str
+    role: Literal["AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"]
+
+
+class SnapshotPartner(Input):
+    id: str
+    name: str
+
+
+class SnapshotProject(Input):
+    id: str
+    reference: str
+    name: str
+
+
+class SnapshotPTA(Input):
+    id: str
+    year: int
+
+
+class SnapshotActivity(Input):
+    id: str
+    reference: str
+
+
+class SnapshotOperation(OperationOutput):
+    type_label: str
+
+
+class RevisionSnapshot(Input):
+    context_id: Literal["MJL"]
+    partner: SnapshotPartner
+    project: SnapshotProject
+    pta: SnapshotPTA
+    activity: SnapshotActivity
+    name: str
+    description: str
+    planned_start: str
+    planned_end: str
+    allocation: str
+    operations: list[SnapshotOperation]
+    agent_ids: list[str]
+    agents: list[SnapshotIdentity]
+    submitter: SnapshotIdentity
+    submitted_at: str
+    contributors: list[SnapshotIdentity]
+    content_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class RevisionDecisionOutput(Input):
+    id: str
+    stage: Literal["supervisor", "validator"]
+    outcome: Literal["prevalidated", "approved", "returned"]
+    actor_id: str
+    actor_role: Literal["AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"]
+    decided_at: str
+    reason: str | None
+    requested_amount: str | None
+    prevalidation_revision_id: str | None
+
+
+class RevisionOutput(Input):
+    id: str
+    activity_id: str
+    revision_number: int
+    fingerprint: str
+    submitter_id: str
+    submitted_at: str
+    snapshot: RevisionSnapshot | None = None
+    decisions: list[RevisionDecisionOutput]
+    activity_version: int | None = None
+
+
+class DecisionOutput(Input):
+    id: str
+    stage: Literal["supervisor", "validator"]
+    outcome: Literal["prevalidated", "approved", "returned"]
+    actor_id: str
+    actor_role: Literal["AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"]
+    decided_at: str
+    reason: str | None
+    requested_amount: str | None
+    prevalidation_revision_id: str | None
+    activity_version: int
 
 
 class ListOutput[Item](Input):
@@ -653,7 +784,7 @@ def create_activity(
             return created(
                 request,
                 f"/api/v1/activities/{existing.id}",
-                activity_item(db, existing, actor.role),
+                activity_item(db, existing, actor.role, actor.id),
                 200,
             )
         assert_types(db, operations)
@@ -707,7 +838,15 @@ def create_activity(
                 )
             )
         db.flush()
-        result = activity_item(db, item, actor.role)
+        db.add(
+            ActivityContributor(
+                context_id=CONTEXT,
+                activity_id=item.id,
+                user_id=actor.id,
+                contributed_at=now,
+            )
+        )
+        result = activity_item(db, item, actor.role, actor.id)
         auth.business_audit(
             db,
             "activity.create",
@@ -762,6 +901,17 @@ def activities(
         rows = rows[:limit]
         if direction == "previous":
             rows.reverse()
+        if rows:
+            locked = {
+                row.id: row
+                for row in db.scalars(
+                    select(Activity)
+                    .where(Activity.id.in_([row.id for row in rows]))
+                    .order_by(Activity.id)
+                    .with_for_update(read=True)
+                )
+            }
+            rows = [locked[row.id] for row in rows]
 
         def link(row: Activity, move: str) -> str:
             value = cursor.encode(row.id, move)
@@ -771,7 +921,7 @@ def activities(
         return {
             "object": "list",
             "count": total,
-            "data": [activity_item(db, row, actor.role) for row in rows],
+            "data": [activity_item(db, row, actor.role, actor.id) for row in rows],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,
@@ -786,7 +936,402 @@ def activities(
 def activity_detail(identifier: str, request: Request, auth: Auth) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
-        return activity_item(db, get_activity(db, identifier), actor.role)
+        item = get_activity(db, identifier)
+        db.refresh(item, with_for_update={"read": True})
+        return activity_item(db, item, actor.role, actor.id)
+
+
+def workflow_audit(
+    auth: Auth,
+    db: Session,
+    action: str,
+    actor: User,
+    item: Activity,
+    before: dict[str, Any],
+    after: dict[str, Any],
+    revision: ActivityRevision,
+    decision: ActivityRevisionDecision | None = None,
+) -> None:
+    snapshot = cast(dict[str, Any], revision.snapshot)
+    submitter = cast(dict[str, str], snapshot["submitter"])
+    facts: dict[str, Any] = {
+        "context_id": CONTEXT,
+        "before": before,
+        "after": after,
+        "revision": {
+            "id": revision.id,
+            "revision_number": revision.revision_number,
+            "fingerprint": revision.fingerprint,
+            "actor_id": revision.submitter_id,
+            "actor_role": submitter["role"],
+            "submitted_at": revision.submitted_at.isoformat(),
+        },
+    }
+    if decision:
+        facts["decision"] = {
+            "id": decision.id,
+            "stage": decision.stage,
+            "outcome": decision.outcome,
+            "reason": decision.reason,
+            "requested_amount": str(decision.requested_amount)
+            if decision.requested_amount is not None
+            else None,
+            "actor_id": decision.actor_id,
+            "actor_role": decision.actor_role,
+            "decided_at": decision.decided_at.isoformat(),
+            "prevalidation_revision_id": decision.prevalidation_revision_id,
+        }
+    auth.business_audit(db, action, actor.id, item.id, facts)
+
+
+@router.post(
+    "/activities/{identifier}/submissions",
+    status_code=201,
+    response_model=RevisionOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def submit_activity(
+    identifier: str, body: SubmissionInput, request: Request, auth: Auth
+) -> Response:
+    import json
+
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
+        )
+        item = get_activity(db, identifier, lock=True)
+        if item.version != body.expected_version:
+            raise AuthError(409, "activity_stale")
+        if item.state not in {"draft", "returned_supervisor", "returned_validator"}:
+            raise AuthError(409, "activity_not_submittable")
+        before = activity_item(db, item, actor.role, actor.id)
+        previous = (
+            db.get(ActivityRevision, item.current_revision_id)
+            if item.current_revision_id
+            else None
+        )
+        current_structure = structural_content(db, item)
+        if previous:
+            previous_operations = cast(
+                list[dict[str, str | int]], previous.snapshot["operations"]
+            )
+            previous_structure = {
+                key: previous.snapshot[key]
+                for key in (
+                    "name",
+                    "description",
+                    "planned_start",
+                    "planned_end",
+                    "allocation",
+                )
+            }
+            previous_structure["operations"] = [
+                {
+                    key: row[key]
+                    for key in ("id", "type_id", "name", "allocation", "position")
+                }
+                for row in previous_operations
+            ]
+            if current_structure == previous_structure:
+                raise AuthError(409, "correction_unchanged")
+        now = auth.now(db)
+        if not db.scalar(
+            select(ActivityContributor.id).where(
+                ActivityContributor.activity_id == item.id,
+                ActivityContributor.user_id == actor.id,
+            )
+        ):
+            db.add(
+                ActivityContributor(
+                    context_id=CONTEXT,
+                    activity_id=item.id,
+                    user_id=actor.id,
+                    contributed_at=now,
+                )
+            )
+            db.flush()
+        snapshot = build_revision_snapshot(db, item, actor, now)
+        content_fingerprint = fingerprint(current_structure)
+        snapshot["content_fingerprint"] = content_fingerprint
+        if (
+            len(json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode())
+            > 1_048_576
+        ):
+            raise AuthError(422, "revision_too_large")
+        revision = ActivityRevision(
+            context_id=CONTEXT,
+            activity_id=item.id,
+            revision_number=(
+                db.scalar(
+                    select(func.max(ActivityRevision.revision_number)).where(
+                        ActivityRevision.activity_id == item.id
+                    )
+                )
+                or 0
+            )
+            + 1,
+            snapshot=snapshot,
+            fingerprint=content_fingerprint,
+            submitter_id=actor.id,
+            submitted_at=now,
+        )
+        db.add(revision)
+        db.flush()
+        item.current_revision_id = revision.id
+        item.state = "submitted"
+        item.version += 1
+        item.updated_at = now
+        db.flush()
+        after = activity_item(db, item, actor.role, actor.id)
+        workflow_audit(
+            auth, db, "activity.submit", actor, item, before, after, revision
+        )
+        payload = revision_item(db, revision)
+        payload["activity_version"] = item.version
+        return created(
+            request,
+            f"/api/v1/activities/{item.id}/revisions/{revision.id}",
+            payload,
+        )
+
+
+def decision_payload(row: ActivityRevisionDecision, version: int) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "stage": row.stage,
+        "outcome": row.outcome,
+        "actor_id": row.actor_id,
+        "actor_role": row.actor_role,
+        "decided_at": row.decided_at.isoformat(),
+        "reason": row.reason,
+        "requested_amount": str(row.requested_amount)
+        if row.requested_amount is not None
+        else None,
+        "prevalidation_revision_id": row.prevalidation_revision_id,
+        "activity_version": version,
+    }
+
+
+@router.post(
+    "/activities/{identifier}/revisions/{revision_id}/decisions",
+    status_code=201,
+    response_model=DecisionOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def decide_activity(
+    identifier: str,
+    revision_id: str,
+    body: DecisionInput,
+    request: Request,
+    auth: Auth,
+) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db,
+            auth,
+            *evidence(request, auth),
+            roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
+            mutation=True,
+        )
+        item = get_activity(db, identifier, lock=True)
+        revision = db.scalar(
+            select(ActivityRevision)
+            .where(
+                ActivityRevision.id == revision_id,
+                ActivityRevision.activity_id == item.id,
+            )
+            .with_for_update()
+        )
+        if not revision:
+            raise AuthError(404, "revision_not_found")
+        if item.version != body.expected_version:
+            raise AuthError(409, "activity_stale")
+        if item.current_revision_id != revision.id:
+            raise AuthError(409, "revision_obsolete")
+        if db.scalar(
+            select(ActivityContributor.id).where(
+                ActivityContributor.activity_id == item.id,
+                ActivityContributor.user_id == actor.id,
+            )
+        ):
+            raise AuthError(409, "reviewer_contributed")
+        if body.decision == "return" and not body.reason:
+            raise AuthError(422, "reason_required")
+        if body.decision != "return" and (
+            body.reason is not None or body.requested_amount is not None
+        ):
+            raise AuthError(422, "input_invalid")
+        before = activity_item(db, item, actor.role, actor.id)
+        now = auth.now(db)
+        prevalidation_id = None
+        if actor.role == "AGENT_VERIFICATEUR":
+            if item.state != "submitted" or body.decision not in {
+                "prevalidate",
+                "return",
+            }:
+                raise AuthError(409, "decision_ineligible")
+            stage = "supervisor"
+            outcome = "prevalidated" if body.decision == "prevalidate" else "returned"
+            item.state = (
+                "prevalidated"
+                if body.decision == "prevalidate"
+                else "returned_supervisor"
+            )
+            action = (
+                "activity.prevalidate"
+                if body.decision == "prevalidate"
+                else "activity.return_supervisor"
+            )
+        else:
+            if item.state != "prevalidated" or body.decision not in {
+                "approve",
+                "return",
+            }:
+                raise AuthError(409, "decision_ineligible")
+            prevalidation = db.scalar(
+                select(ActivityRevisionDecision).where(
+                    ActivityRevisionDecision.revision_id == revision.id,
+                    ActivityRevisionDecision.stage == "supervisor",
+                    ActivityRevisionDecision.outcome == "prevalidated",
+                )
+            )
+            if not prevalidation or prevalidation.actor_id == actor.id:
+                raise AuthError(409, "decision_ineligible")
+            stage = "validator"
+            outcome = "approved" if body.decision == "approve" else "returned"
+            if body.decision == "approve":
+                item.state = "approved"
+                item.approved_revision_id = revision.id
+                prevalidation_id = revision.id
+                action = "activity.approve"
+            else:
+                item.state = "returned_validator"
+                action = "activity.return_validator"
+        requested = xof(body.requested_amount) if body.requested_amount else None
+        if requested is not None and not (
+            actor.role == "VALIDATEUR_DEFINITIF" and body.decision == "return"
+        ):
+            raise AuthError(422, "input_invalid")
+        decision = ActivityRevisionDecision(
+            context_id=CONTEXT,
+            activity_id=item.id,
+            revision_id=revision.id,
+            stage=stage,
+            outcome=outcome,
+            actor_id=actor.id,
+            actor_role=actor.role,
+            decided_at=now,
+            reason=body.reason,
+            requested_amount=requested,
+            prevalidation_revision_id=prevalidation_id,
+        )
+        db.add(decision)
+        item.version += 1
+        item.updated_at = now
+        db.flush()
+        after = activity_item(db, item, actor.role, actor.id)
+        workflow_audit(auth, db, action, actor, item, before, after, revision, decision)
+        return created(
+            request,
+            f"/api/v1/activities/{item.id}/revisions/{revision.id}",
+            decision_payload(decision, item.version),
+        )
+
+
+@router.get(
+    "/activities/{identifier}/revisions", response_model=ListOutput[RevisionOutput]
+)
+def activity_revisions(
+    identifier: str,
+    request: Request,
+    auth: Auth,
+    args: Annotated[tuple[int, str | None], Depends(list_args)],
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        principal(db, auth, evidence(request, auth)[0])
+        item = get_activity(db, identifier)
+        db.refresh(item, with_for_update={"read": True})
+        limit, token = args
+        cursor = Cursor(auth, "activity-revisions", item.id, limit)
+        marker, direction = cursor.decode(token)
+        conditions = [ActivityRevision.activity_id == item.id]
+        if marker:
+            try:
+                number = int(marker)
+            except ValueError:
+                raise AuthError(422, "cursor_invalid") from None
+            conditions.append(
+                ActivityRevision.revision_number < number
+                if direction == "next"
+                else ActivityRevision.revision_number > number
+            )
+        order = (
+            ActivityRevision.revision_number.desc()
+            if direction == "next"
+            else ActivityRevision.revision_number.asc()
+        )
+        rows = list(
+            db.scalars(
+                select(ActivityRevision)
+                .where(*conditions)
+                .order_by(order)
+                .limit(limit + 1)
+            )
+        )
+        total = db.scalar(
+            select(func.count())
+            .select_from(ActivityRevision)
+            .where(ActivityRevision.activity_id == item.id)
+        )
+        more = len(rows) > limit
+        rows = rows[:limit]
+        if direction == "previous":
+            rows.reverse()
+
+        def link(row: ActivityRevision, move: str) -> str:
+            query = urlencode(
+                {
+                    "limit": limit,
+                    "cursor": cursor.encode(str(row.revision_number), move),
+                }
+            )
+            return f"{auth.policy.origin}/api/v1/activities/{item.id}/revisions?{query}"
+
+        return {
+            "object": "list",
+            "count": int(total or 0),
+            "data": [revision_item(db, row, include_snapshot=False) for row in rows],
+            "next": link(rows[-1], "next")
+            if rows and ((direction == "next" and more) or direction == "previous")
+            else None,
+            "previous": link(rows[0], "previous")
+            if rows
+            and ((direction == "previous" and more) or (direction == "next" and marker))
+            else None,
+        }
+
+
+@router.get(
+    "/activities/{identifier}/revisions/{revision_id}", response_model=RevisionOutput
+)
+def activity_revision_detail(
+    identifier: str, revision_id: str, request: Request, auth: Auth
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        principal(db, auth, evidence(request, auth)[0])
+        item = get_activity(db, identifier)
+        db.refresh(item, with_for_update={"read": True})
+        revision = db.scalar(
+            select(ActivityRevision).where(
+                ActivityRevision.id == revision_id,
+                ActivityRevision.activity_id == item.id,
+            )
+        )
+        if not revision:
+            raise AuthError(404, "revision_not_found")
+        return revision_item(db, revision)
 
 
 @router.patch(
@@ -808,6 +1353,8 @@ def replace_activity(
         assert pta
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
+        if item.state not in {"draft", "returned_supervisor", "returned_validator"}:
+            raise AuthError(409, "activity_not_editable")
         plan, incoming = validate_plan(payload, pta.year)
         assert_types(db, incoming)
         current = {
@@ -818,7 +1365,38 @@ def replace_activity(
                 .with_for_update()
             )
         }
-        before = activity_item(db, item, actor.role)
+        before_structure = structural_content(db, item)
+        before = activity_item(db, item, actor.role, actor.id)
+        if item.current_revision_id:
+            revision = db.get(ActivityRevision, item.current_revision_id)
+            assert revision
+            submitted_operations = cast(
+                list[dict[str, str | int]], revision.snapshot["operations"]
+            )
+            submitted_ids = {str(row["id"]) for row in submitted_operations}
+            submitted_allocation = int(cast(str, revision.snapshot["allocation"]))
+            incoming_ids = {row["id"] for row in incoming if row["id"]}
+            if not submitted_ids.issubset(incoming_ids):
+                raise AuthError(409, "submitted_operation_removal_forbidden")
+            if (
+                item.state == "returned_supervisor"
+                and plan["allocation"] != submitted_allocation
+            ):
+                raise AuthError(409, "correction_total_locked")
+            if item.state == "returned_validator":
+                returned = db.scalar(
+                    select(ActivityRevisionDecision).where(
+                        ActivityRevisionDecision.revision_id == revision.id,
+                        ActivityRevisionDecision.stage == "validator",
+                        ActivityRevisionDecision.outcome == "returned",
+                    )
+                )
+                assert returned
+                if (
+                    returned.requested_amount is None
+                    and plan["allocation"] != submitted_allocation
+                ):
+                    raise AuthError(409, "correction_total_locked")
         now = auth.now(db)
         original_positions = {
             operation.id: operation.position for operation in current.values()
@@ -867,7 +1445,22 @@ def replace_activity(
         item.version += 1
         item.updated_at = now
         db.flush()
-        after = activity_item(db, item, actor.role)
+        after_structure = structural_content(db, item)
+        if after_structure != before_structure and not db.scalar(
+            select(ActivityContributor.id).where(
+                ActivityContributor.activity_id == item.id,
+                ActivityContributor.user_id == actor.id,
+            )
+        ):
+            db.add(
+                ActivityContributor(
+                    context_id=CONTEXT,
+                    activity_id=item.id,
+                    user_id=actor.id,
+                    contributed_at=now,
+                )
+            )
+        after = activity_item(db, item, actor.role, actor.id)
         auth.business_audit(
             db,
             "activity.replace",
@@ -930,7 +1523,7 @@ def replace_assignments(
                 .with_for_update()
             )
         }
-        before = activity_item(db, item, actor.role)
+        before = activity_item(db, item, actor.role, actor.id)
         now = auth.now(db)
         for agent_id, assignment in current.items():
             if agent_id not in body.agent_ids:
@@ -950,7 +1543,7 @@ def replace_assignments(
         item.version += 1
         item.updated_at = now
         db.flush()
-        result = activity_item(db, item, actor.role)
+        result = activity_item(db, item, actor.role, actor.id)
         auth.business_audit(
             db,
             "activity.assign_agents",

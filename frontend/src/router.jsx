@@ -268,6 +268,8 @@ export function makeRouter(history) {
         projectCursor: String(search.projectCursor || '').slice(0, 512),
         activityCursor: String(search.activityCursor || '').slice(0, 512),
         agentCursor: String(search.agentCursor || '').slice(0, 512),
+        revisionCursor: String(search.revisionCursor || '').slice(0, 512),
+        revision: String(search.revision || '').slice(0, 36),
       }),
       loader: async ({ context }) => {
         try {

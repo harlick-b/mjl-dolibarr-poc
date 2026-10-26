@@ -10,10 +10,12 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Index,
+    Integer,
     String,
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.auth.models import Base
@@ -118,6 +120,18 @@ class Activity(Base):
                 "pta_annual.year",
             ],
         ),
+        ForeignKeyConstraint(
+            ["id", "current_revision_id"],
+            ["pta_activity_revision.activity_id", "pta_activity_revision.id"],
+            name="activity_current_revision_same_activity",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
+            ["id", "approved_revision_id"],
+            ["pta_activity_revision.activity_id", "pta_activity_revision.id"],
+            name="activity_approved_revision_same_activity",
+            use_alter=True,
+        ),
         UniqueConstraint("context_id", "id"),
         UniqueConstraint(
             "context_id",
@@ -127,7 +141,21 @@ class Activity(Base):
             "request_key",
             name="activity_request_key",
         ),
-        CheckConstraint("state = 'draft'", name="activity_draft_only"),
+        CheckConstraint(
+            "state IN ('draft','submitted','prevalidated','returned_supervisor',"
+            "'returned_validator','approved')",
+            name="activity_state_allowed",
+        ),
+        CheckConstraint(
+            "(state = 'draft' AND current_revision_id IS NULL "
+            "AND approved_revision_id IS NULL) OR "
+            "(state IN ('submitted','prevalidated','returned_supervisor',"
+            "'returned_validator') "
+            "AND current_revision_id IS NOT NULL AND approved_revision_id IS NULL) OR "
+            "(state = 'approved' AND current_revision_id IS NOT NULL "
+            "AND approved_revision_id = current_revision_id)",
+            name="activity_revision_pointer_state",
+        ),
         CheckConstraint("version > 0", name="activity_version_positive"),
         CheckConstraint("allocation > 0", name="activity_allocation_positive"),
         CheckConstraint("planned_end >= planned_start", name="activity_dates_ordered"),
@@ -141,7 +169,9 @@ class Activity(Base):
     planned_start: Mapped[date] = mapped_column(Date)
     planned_end: Mapped[date] = mapped_column(Date)
     allocation: Mapped[int] = mapped_column(BigInteger)
-    state: Mapped[str] = mapped_column(String(16), default="draft")
+    state: Mapped[str] = mapped_column(String(32), default="draft")
+    current_revision_id: Mapped[str | None] = mapped_column(String(36))
+    approved_revision_id: Mapped[str | None] = mapped_column(String(36))
     version: Mapped[int] = mapped_column(default=1)
     creator_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     request_actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
@@ -213,3 +243,119 @@ class ActivityAssignment(Base):
     assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_by_id: Mapped[str | None] = mapped_column(ForeignKey("auth_user.id"))
+
+
+class ActivityContributor(Base):
+    __tablename__ = "pta_activity_contributor"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        UniqueConstraint("activity_id", "user_id", name="activity_contributor_once"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    user_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    contributed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ActivityRevision(Base):
+    __tablename__ = "pta_activity_revision"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        UniqueConstraint("activity_id", "id", name="activity_revision_identity"),
+        UniqueConstraint(
+            "context_id", "activity_id", "id", name="activity_revision_scope"
+        ),
+        UniqueConstraint(
+            "activity_id", "revision_number", name="activity_revision_number"
+        ),
+        CheckConstraint("revision_number > 0", name="revision_number_positive"),
+        CheckConstraint(
+            "octet_length(snapshot::text) <= 1048576",
+            name="revision_snapshot_bounded",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    revision_number: Mapped[int] = mapped_column(Integer)
+    snapshot: Mapped[dict[str, object]] = mapped_column(JSONB)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    submitter_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ActivityRevisionDecision(Base):
+    __tablename__ = "pta_activity_revision_decision"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id", "revision_id"],
+            [
+                "pta_activity_revision.context_id",
+                "pta_activity_revision.activity_id",
+                "pta_activity_revision.id",
+            ],
+        ),
+        ForeignKeyConstraint(
+            ["context_id", "activity_id", "prevalidation_revision_id"],
+            [
+                "pta_activity_revision.context_id",
+                "pta_activity_revision.activity_id",
+                "pta_activity_revision.id",
+            ],
+        ),
+        UniqueConstraint("revision_id", "stage", name="revision_decision_stage"),
+        CheckConstraint(
+            "stage IN ('supervisor','validator')", name="decision_stage_allowed"
+        ),
+        CheckConstraint(
+            "outcome IN ('prevalidated','approved','returned')",
+            name="decision_outcome_allowed",
+        ),
+        CheckConstraint(
+            "(stage = 'supervisor' AND outcome IN ('prevalidated','returned') "
+            "AND actor_role = 'AGENT_VERIFICATEUR') OR "
+            "(stage = 'validator' AND outcome IN ('approved','returned') "
+            "AND actor_role = 'VALIDATEUR_DEFINITIF')",
+            name="decision_stage_role_outcome",
+        ),
+        CheckConstraint(
+            "(outcome = 'returned' AND reason IS NOT NULL "
+            "AND length(btrim(reason)) BETWEEN 1 AND 4000) "
+            "OR (outcome <> 'returned' AND reason IS NULL)",
+            name="decision_reason_required",
+        ),
+        CheckConstraint(
+            "requested_amount IS NULL OR requested_amount > 0",
+            name="decision_requested_amount_positive",
+        ),
+        CheckConstraint(
+            "(stage = 'validator' AND outcome = 'returned') "
+            "OR requested_amount IS NULL",
+            name="decision_requested_amount_scope",
+        ),
+        CheckConstraint(
+            "(stage = 'validator' AND outcome = 'approved' "
+            "AND prevalidation_revision_id = revision_id) "
+            "OR (outcome <> 'approved' AND prevalidation_revision_id IS NULL)",
+            name="decision_prevalidation_scope",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    revision_id: Mapped[str] = mapped_column(String(36))
+    stage: Mapped[str] = mapped_column(String(16))
+    outcome: Mapped[str] = mapped_column(String(16))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    actor_role: Mapped[str] = mapped_column(String(32))
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reason: Mapped[str | None] = mapped_column(String(4000))
+    requested_amount: Mapped[int | None] = mapped_column(BigInteger)
+    prevalidation_revision_id: Mapped[str | None] = mapped_column(String(36))
