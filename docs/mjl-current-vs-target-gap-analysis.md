@@ -4,7 +4,17 @@ This is implementation-debt evidence beneath the authority router and approved
 PTA brief (DEC-087). The pre-PTA rows below describe prior implementation,
 not satisfaction of the new target.
 
-## PTA-2 readiness decision closure (2026-10-26)
+## PTA-2B readiness follow-up (2026-10-26)
+
+PTA-2A is complete at `1f6c670` (DEC-109), superseding the implementation
+boundary in the historical entry below. The focused
+[PTA-2B review](rebuild/10-pta2b-amendments-readiness.md) separates amendment
+pause/candidate-disposition decisions A1/A2 from withdrawal W1 and annual
+transfer/attribution T1. L1–L3 remain open for their affected branches. Neither
+the whole slice nor its amendment subset is ready for authorization yet; no
+runtime change or new business approval follows from this documentation review.
+
+## PTA-2 readiness decision closure (historical, 2026-10-26)
 
 PTA-1 completion remains `70ff0f9`. [Readiness 09](rebuild/09-pta2-validation-readiness.md)
 records B1 resolved by DEC-108: role-wide Supervisor/Validator review, one eligible

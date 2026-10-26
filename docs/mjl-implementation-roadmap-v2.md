@@ -12,7 +12,18 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-2 readiness and decision closure (2026-10-26)
+## PTA-2A completion and PTA-2B readiness (2026-10-26)
+
+**PTA_2A_COMPLETE** at `1f6c670`; DEC-109 and
+[completion evidence](rebuild/10-pta2a-implementation-status.md) supersede the
+pre-implementation baseline in the historical decision-closure entry below.
+[PTA-2B readiness](rebuild/10-pta2b-amendments-readiness.md) recommends 2B.1
+same-year approved amendments, then separately decided withdrawal/transfers.
+**PTA_2B_NOT_READY**: amendment pause/candidate disposition requires sponsor
+closure; withdrawal/annual attribution has separate owners and blockers.
+No 2B implementation is authorized; PC1/PC2 remain pending.
+
+## PTA-2 readiness and decision closure (historical, 2026-10-26)
 
 [Readiness 09](rebuild/09-pta2-validation-readiness.md) recommends initial Activity
 validation (2A), then approved amendments/withdrawal/annual transfers (2B).
