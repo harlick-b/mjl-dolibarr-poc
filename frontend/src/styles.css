@@ -78,6 +78,20 @@
   background: var(--color-background);
   padding: 12px 16px;
 }
+
+.planning-version-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 16px;
+  margin-block: 20px;
+}
+
+.planning-version {
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: #fff;
+}
 .review-timeline {
   border-left: 1px solid var(--color-border);
   display: grid;

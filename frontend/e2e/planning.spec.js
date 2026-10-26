@@ -3,13 +3,19 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
-const mailbox = process.env.MJL_PTA2A_MAILBOX || process.env.MJL_PTA1_MAILBOX
+const mailbox =
+  process.env.MJL_PTA2B1_MAILBOX ||
+  process.env.MJL_PTA2A_MAILBOX ||
+  process.env.MJL_PTA1_MAILBOX
 const container =
-  process.env.MJL_PTA2A_CONTAINER || process.env.MJL_PTA1_CONTAINER
+  process.env.MJL_PTA2B1_CONTAINER ||
+  process.env.MJL_PTA2A_CONTAINER ||
+  process.env.MJL_PTA1_CONTAINER
+const database = process.env.MJL_PTA2B1_DATABASE || 'mjl_test_pta2a'
 const password = 'Synthetic!93'
 
 function mail(email, kind) {
-  if (process.env.MJL_PTA2A_CONTAINER) {
+  if (container) {
     const value = execFileSync(
       'docker',
       [
@@ -51,7 +57,7 @@ function clearSharedIpBucket() {
     `import os
 from sqlalchemy import create_engine,text
 e=create_engine(os.environ['DATABASE_URL'])
-assert e.url.database == 'mjl_test_pta2a'
+assert e.url.database == '${database}'
 with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
 e.dispose()`,
   ])
@@ -113,7 +119,7 @@ test('V19 planning, correction and final approval browser journey', async ({
   test.skip(!mailbox || !container, 'Requires isolated PTA-1 environment')
   test.setTimeout(180000)
   await page.setViewportSize({ width: 390, height: 844 })
-  expect(container).toBe('mjl-pta2a-test-backend-1')
+  expect(container).toMatch(/^mjl-pta2(?:a|b1)-test-backend-1$/)
   expect(mailbox).toMatch(/^\/tmp\/mjl-a1-mail-/)
   execFileSync('docker', [
     'exec',
@@ -325,7 +331,7 @@ test('V19 planning, correction and final approval browser journey', async ({
     `import os
 from sqlalchemy import create_engine,text
 e=create_engine(os.environ['DATABASE_URL'])
-assert e.url.database == 'mjl_test_pta2a'
+assert e.url.database == '${database}'
 with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
 e.dispose()`,
   ])
@@ -351,7 +357,7 @@ e.dispose()`,
     `import os
 from sqlalchemy import create_engine,text
 e=create_engine(os.environ['DATABASE_URL'])
-assert e.url.database == 'mjl_test_pta2a'
+assert e.url.database == '${database}'
 with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
 e.dispose()`,
   ])
@@ -373,7 +379,7 @@ e.dispose()`,
     `import os
 from sqlalchemy import create_engine,text
 e=create_engine(os.environ['DATABASE_URL'])
-assert e.url.database == 'mjl_test_pta2a'
+assert e.url.database == '${database}'
 with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
 e.dispose()`,
   ])
@@ -544,6 +550,122 @@ e.dispose()`,
   await expect(frozenRevision).toContainText('Atelier — Préparer l’atelier')
   await expect(frozenRevision).toContainText('pta-agent@example.test')
   await expect(frozenRevision).toContainText('Préciser le résultat attendu.')
+
+  await agent.goto(`/activities/${activity.id}`)
+  await agent.getByRole('button', { name: 'Demander une modification' }).click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif de la modification')
+    .fill('Adapter le calendrier approuvé.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(
+    agent.getByText(/exécution de cette activité est suspendue/i),
+  ).toBeVisible()
+  await expect(
+    agent.getByRole('region', { name: 'Version approuvée' }),
+  ).toBeVisible()
+  const firstAmendment = (await api(agent, `/activities/${activity.id}`)).body
+    .amendment.id
+  await agent.getByRole('button', { name: 'Modifier' }).click()
+  await agent
+    .getByLabel('Description')
+    .fill('Modification retournée puis approuvée')
+  await agent.getByRole('button', { name: 'Enregistrer' }).click()
+  await agent
+    .getByRole('button', { name: 'Soumettre pour prévalidation' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+
+  clearSharedIpBucket()
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor
+    .getByRole('button', { name: 'Demander une correction' })
+    .click()
+  await supervisor
+    .getByRole('dialog')
+    .getByLabel('Motif de correction')
+    .fill('Préciser la modification proposée.')
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+
+  await agent.goto(`/activities/${activity.id}`)
+  await agent.getByRole('button', { name: 'Modifier' }).click()
+  await agent.getByLabel('Description').fill('Modification corrigée et prête')
+  await agent.getByRole('button', { name: 'Enregistrer' }).click()
+  await agent
+    .getByRole('button', { name: 'Soumettre pour prévalidation' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  clearSharedIpBucket()
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.getByRole('button', { name: 'Prévalider' }).click()
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  clearSharedIpBucket()
+  await validator.goto(`/activities/${activity.id}`)
+  await validator
+    .getByRole('button', { name: 'Valider définitivement' })
+    .click()
+  await validator
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(
+    validator.getByLabel('Progression de la validation'),
+  ).toContainText('Validée définitivement')
+  await expect(
+    validator.getByText('Modification corrigée et prête').first(),
+  ).toBeVisible()
+
+  await agent.goto(`/activities/${activity.id}`)
+  await agent.getByRole('button', { name: 'Demander une modification' }).click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif de la modification')
+    .fill('Essai à annuler.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  const cancelledAmendment = (await api(agent, `/activities/${activity.id}`))
+    .body.amendment.id
+  await agent.getByRole('button', { name: 'Annuler la modification' }).click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif de l’annulation')
+    .fill('Retour à la version approuvée.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await agent.getByRole('button', { name: /Modification annulée/ }).click()
+  await expect(agent.getByText('Retour à la version approuvée.')).toBeVisible()
+  await agent.getByRole('button', { name: 'Demander une modification' }).click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif de la modification')
+    .fill('Nouvelle modification indépendante.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  const reopenedAmendment = (await api(agent, `/activities/${activity.id}`))
+    .body.amendment.id
+  expect(reopenedAmendment).not.toBe(cancelledAmendment)
+  expect(reopenedAmendment).not.toBe(firstAmendment)
 
   const historyError = await validatorContext.newPage()
   await historyError.route(

@@ -19,6 +19,25 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-2B.1 implementation authorization and completion (DEC-111)
+
+The user authorized the bounded synthetic PTA-2B.1 amendment implementation
+defined by DEC-110, [readiness 10](rebuild/10-pta2b-amendments-readiness.md) and
+the reviewed [implementation plan](rebuild/11-pta2b1-implementation-plan.md).
+The slice opens and edits one amendment while preserving the approved version,
+pauses execution from opening, requires a fresh two-stage review for replacement
+approval and permits reasoned cancellation back to the approved version. It adds
+three API responsibilities, two columns and migration `0007_pta2b1`, with no new
+tables.
+
+PTA-2B.1 completed on 2026-10-26 after I3/C3, all M01–M20 checks, focused
+regressions, quality/browser checks and the mandatory independent engineering
+and security/specification correction/re-review cycle passed. Completion evidence
+is recorded in [status 12](rebuild/12-pta2b1-implementation-status.md). This is
+synthetic development completion only. PC1/PC2, real accounts, production,
+withdrawal, annual transfers, execution/finance and later slices remain deferred.
+Stop after PTA-2B.1 and do not infer authorization for another slice.
+
 ## PTA-2B amendment pause and cancellation (DEC-110)
 
 The user approves pausing the affected Activity from amendment opening, through
@@ -36,12 +55,11 @@ close the A1/A2 business choices in
 
 The cancellation API, history, version/race and verification contract is now
 reconciled; independent engineering and security/specification reviews PASS.
-The amendment subset is `PTA_2B1_READY_FOR_AUTHORIZATION` under readiness 10 and
-[its implementation plan](rebuild/11-pta2b1-implementation-plan.md). I3/C3 and all
-twenty acceptance checks remain future mandatory implementation gates.
-Withdrawal and annual-history decisions remain separate. No implementation,
-execution infrastructure or real-account enablement is authorized; PC1/PC2 remain
-pending.
+The amendment subset reached `PTA_2B1_READY_FOR_AUTHORIZATION` under readiness 10
+and [its implementation plan](rebuild/11-pta2b1-implementation-plan.md). DEC-111
+later authorized and completed that subset. Withdrawal and annual-history
+decisions remain separate. No execution infrastructure or real-account
+enablement is authorized; PC1/PC2 remain pending.
 
 ## PTA-2A implementation authorization (DEC-109)
 

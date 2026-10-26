@@ -84,6 +84,7 @@ def allowed(
     state: str = "active",
     contributor: bool = False,
     prevalidator: bool = False,
+    amendment: bool = False,
 ) -> list[str]:
     actions = ["read"]
     if role == "VALIDATEUR_DEFINITIF" and resource in {"partner", "type", "project"}:
@@ -98,11 +99,16 @@ def allowed(
         and state
         in {
             "draft",
+            "amendment_draft",
             "returned_supervisor",
             "returned_validator",
         }
     ):
         actions.extend(["edit", "submit"])
+    if role == "AGENT_SAISIE" and resource == "activity" and state == "approved":
+        actions.append("open_amendment")
+    if role == "AGENT_SAISIE" and resource == "activity" and amendment:
+        actions.append("cancel_amendment")
     if (
         role in {"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"}
         and resource == "activity"
@@ -201,11 +207,11 @@ def activity_item(
             .limit(1)
         )
     )
-    approved_allocation = None
+    approved_projection = None
     if item.approved_revision_id:
         approved = db.get(ActivityRevision, item.approved_revision_id)
         if approved:
-            approved_allocation = str(approved.snapshot["allocation"])
+            approved_projection = snapshot_projection(approved.snapshot)
     correction = None
     if item.current_revision_id and item.state in {
         "returned_supervisor",
@@ -228,6 +234,7 @@ def activity_item(
                 if returned.requested_amount is not None
                 else None,
             }
+    candidate_projection = structural_content(db, item) if item.amendment_id else None
     return {
         "id": item.id,
         "pta_id": item.pta_id,
@@ -241,7 +248,17 @@ def activity_item(
         "version": item.version,
         "current_revision_id": item.current_revision_id,
         "approved_revision_id": item.approved_revision_id,
-        "approved_allocation": approved_allocation,
+        "approved_allocation": (
+            approved_projection["allocation"] if approved_projection else None
+        ),
+        "approved": approved_projection,
+        "candidate": candidate_projection,
+        "amendment": (
+            {"id": item.amendment_id, "reason": item.amendment_reason}
+            if item.amendment_id
+            else None
+        ),
+        "execution_paused": item.amendment_id is not None,
         "correction": correction,
         "operations": [
             {
@@ -260,7 +277,28 @@ def activity_item(
             state=item.state,
             contributor=contributor,
             prevalidator=prevalidator,
+            amendment=item.amendment_id is not None,
         ),
+    }
+
+
+def snapshot_projection(snapshot: dict[str, object]) -> dict[str, Any]:
+    operations = snapshot.get("operations")
+    assert isinstance(operations, list)
+    return {
+        "name": snapshot["name"],
+        "description": snapshot["description"],
+        "planned_start": snapshot["planned_start"],
+        "planned_end": snapshot["planned_end"],
+        "allocation": snapshot["allocation"],
+        "operations": [
+            {
+                key: row[key]
+                for key in ("id", "type_id", "name", "allocation", "position")
+            }
+            for row in operations
+            if isinstance(row, dict)
+        ],
     }
 
 
@@ -377,7 +415,7 @@ def build_revision_snapshot(
             select(User).where(User.id.in_(set(contributor_ids + [actor.id])))
         )
     }
-    return {
+    result: dict[str, Any] = {
         "context_id": CONTEXT,
         "partner": {"id": partner.id, "name": partner.name},
         "project": {
@@ -409,6 +447,15 @@ def build_revision_snapshot(
             for identifier in contributor_ids
         ],
     }
+    if item.amendment_id:
+        result.update(
+            {
+                "amendment_id": item.amendment_id,
+                "amendment_reason": item.amendment_reason,
+                "base_approved_revision_id": item.approved_revision_id,
+            }
+        )
+    return result
 
 
 class Cursor:

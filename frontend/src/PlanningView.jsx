@@ -156,7 +156,7 @@ function Workspace({ screen, session, onDenied }) {
         problem.status === 409 ||
         ['network', 'malformed'].includes(problem.kind)
       const workflow = variables.path.match(
-        /^\/activities\/([^/]+)\/(?:submissions|revisions\/[^/]+\/decisions)$/,
+        /^\/activities\/([^/]+)\/(?:submissions|amendments(?:\/[^/]+\/cancellation)?|revisions\/[^/]+\/decisions)$/,
       )
       if (uncertain && workflow) {
         setWorkflowReconciliation({
@@ -238,6 +238,16 @@ function Workspace({ screen, session, onDenied }) {
     ),
     enabled: Boolean(params.activityId && search.revision),
   })
+  const selectedAmendment = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['activity-amendment', params.activityId, search.amendment],
+      `/activities/${params.activityId}/amendments/${search.amendment}`,
+      onDenied,
+    ),
+    enabled: Boolean(params.activityId && search.amendment),
+  })
   const currentRevision = useQuery({
     ...planningQuery(
       api,
@@ -305,6 +315,7 @@ function Workspace({ screen, session, onDenied }) {
     activity,
     revisions,
     selectedRevision,
+    selectedAmendment,
     currentRevision,
     list,
     types,
@@ -331,6 +342,7 @@ function Workspace({ screen, session, onDenied }) {
       activity,
       revisions,
       selectedRevision,
+      selectedAmendment,
       currentRevision,
       list,
       types,
@@ -444,6 +456,7 @@ function Workspace({ screen, session, onDenied }) {
           mutationBlocked={mutation.isPending || reconciliationBlocked}
           revisions={revisions.data}
           selectedRevision={selectedRevision.data}
+          selectedAmendment={selectedAmendment.data}
           currentRevision={currentRevision.data}
         />
       )}
@@ -923,6 +936,39 @@ export function ActivityForm({
   )
 }
 
+function PlanningVersion({ title, value }) {
+  return (
+    <section className="planning-version" aria-label={title}>
+      <h3>{title}</h3>
+      <p>
+        <strong>{value.name}</strong>
+      </p>
+      <p>{value.description}</p>
+      <dl className="planning-facts">
+        <div>
+          <dt>{strings.period}</dt>
+          <dd>
+            {value.planned_start} au {value.planned_end}
+          </dd>
+        </div>
+        <div>
+          <dt>{strings.budget}</dt>
+          <dd>{formatXof(value.allocation)}</dd>
+        </div>
+      </dl>
+      <ul className="planning-list">
+        {value.operations.map((operation) => (
+          <li key={operation.id}>
+            {operation.type_label ? `${operation.type_label} — ` : ''}
+            {operation.name}
+            <span>{formatXof(operation.allocation)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 function ActivityDetail({
   item,
   user,
@@ -935,6 +981,7 @@ function ActivityDetail({
   mutationBlocked,
   revisions,
   selectedRevision,
+  selectedAmendment,
   currentRevision,
 }) {
   const [editing, setEditing] = useState(false)
@@ -948,26 +995,39 @@ function ActivityDetail({
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const submission = workflowAction === 'submit'
+    const opening = workflowAction === 'open_amendment'
+    const cancellation = workflowAction === 'cancel_amendment'
     mutation.mutate(
       {
-        path: submission
-          ? `/activities/${item.id}/submissions`
-          : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
+        path: opening
+          ? `/activities/${item.id}/amendments`
+          : cancellation
+            ? `/activities/${item.id}/amendments/${item.amendment.id}/cancellation`
+            : submission
+              ? `/activities/${item.id}/submissions`
+              : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
         method: 'POST',
-        body: submission
-          ? { expected_version: item.version }
-          : {
-              expected_version: item.version,
-              decision: workflowAction,
-              ...(workflowAction === 'return'
-                ? {
-                    reason: data.get('reason'),
-                    ...(data.get('requested_amount')
-                      ? { requested_amount: data.get('requested_amount') }
-                      : {}),
-                  }
-                : {}),
-            },
+        body:
+          opening || cancellation
+            ? {
+                expected_version: item.version,
+                expected_approved_revision_id: item.approved_revision_id,
+                reason: data.get('reason'),
+              }
+            : submission
+              ? { expected_version: item.version }
+              : {
+                  expected_version: item.version,
+                  decision: workflowAction,
+                  ...(workflowAction === 'return'
+                    ? {
+                        reason: data.get('reason'),
+                        ...(data.get('requested_amount')
+                          ? { requested_amount: data.get('requested_amount') }
+                          : {}),
+                      }
+                    : {}),
+                },
       },
       { onSuccess: () => setWorkflowAction('') },
     )
@@ -1001,6 +1061,29 @@ function ActivityDetail({
               {strings.modify}
             </Button>
           )}
+          {item.allowed_actions.includes('open_amendment') && (
+            <Button
+              disabled={mutationBlocked}
+              onClick={(event) => {
+                workflowOpener.current = event.currentTarget
+                setWorkflowAction('open_amendment')
+              }}
+            >
+              {strings.openAmendment}
+            </Button>
+          )}
+          {item.allowed_actions.includes('cancel_amendment') && (
+            <Button
+              disabled={mutationBlocked}
+              variant="outline"
+              onClick={(event) => {
+                workflowOpener.current = event.currentTarget
+                setWorkflowAction('cancel_amendment')
+              }}
+            >
+              {strings.cancelAmendment}
+            </Button>
+          )}
           {[
             ['submit', strings.submitReview],
             ['prevalidate', strings.prevalidate],
@@ -1024,6 +1107,25 @@ function ActivityDetail({
           )}
         </div>
       </div>
+      {item.execution_paused && (
+        <div className="planning-error" role="status">
+          <strong>{strings.candidateVersion}</strong>
+          <p>{strings.executionPaused}</p>
+          <p>{item.amendment.reason}</p>
+        </div>
+      )}
+      {item.amendment && item.approved && item.candidate && (
+        <div className="planning-version-grid">
+          <PlanningVersion
+            title={strings.approvedVersion}
+            value={item.approved}
+          />
+          <PlanningVersion
+            title={strings.candidateVersion}
+            value={item.candidate}
+          />
+        </div>
+      )}
       <div className="review-progress" aria-label={strings.reviewProgress}>
         <strong>{strings.status}: </strong>
         {strings[item.state] || item.state}
@@ -1079,27 +1181,50 @@ function ActivityDetail({
           <p>{strings.noRevision}</p>
         ) : (
           <ol className="review-timeline">
-            {revisions.data.map((revision) => (
-              <li key={revision.id}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate({
-                      search: (current) => ({
-                        ...current,
-                        revision: revision.id,
-                      }),
-                    })
-                  }
-                >
-                  Révision {revision.revision_number} · {revision.submitted_at}
-                </button>
-                {revision.decisions.map((decision) => (
-                  <p key={decision.id}>
-                    {strings[decision.outcome] || decision.outcome}
-                    {decision.reason ? ` — ${decision.reason}` : ''}
-                  </p>
-                ))}
+            {revisions.data.map((entry) => (
+              <li key={entry.id}>
+                {!entry.kind || entry.kind === 'revision' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate({
+                          search: (current) => ({
+                            ...current,
+                            revision: entry.id,
+                            amendment: undefined,
+                          }),
+                        })
+                      }
+                    >
+                      Révision {entry.revision_number} · {entry.submitted_at}
+                    </button>
+                    {entry.decisions.map((decision) => (
+                      <p key={decision.id}>
+                        {strings[decision.outcome] || decision.outcome}
+                        {decision.reason ? ` — ${decision.reason}` : ''}
+                      </p>
+                    ))}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate({
+                        search: (current) => ({
+                          ...current,
+                          amendment: entry.amendment_id,
+                          revision: undefined,
+                        }),
+                      })
+                    }
+                  >
+                    {entry.kind === 'amendment_open'
+                      ? 'Modification ouverte'
+                      : 'Modification annulée'}{' '}
+                    · {entry.occurred_at} — {entry.reason}
+                  </button>
+                )}
               </li>
             ))}
           </ol>
@@ -1162,6 +1287,33 @@ function ActivityDetail({
                   </li>
                 ))}
               </ol>
+            )}
+          </div>
+        )}
+        {selectedAmendment && (
+          <div className="revision-snapshot">
+            <h4>
+              {selectedAmendment.status === 'cancelled'
+                ? 'Modification annulée'
+                : selectedAmendment.status === 'approved'
+                  ? 'Modification approuvée'
+                  : 'Modification en cours'}
+            </h4>
+            <p>{selectedAmendment.reason}</p>
+            <p>
+              Ouverte par {selectedAmendment.opened_by_id} le{' '}
+              {selectedAmendment.opened_at}
+            </p>
+            <PlanningVersion
+              title={strings.candidateVersion}
+              value={selectedAmendment.candidate}
+            />
+            {selectedAmendment.cancellation && (
+              <p>
+                Annulée par {selectedAmendment.cancellation.actor_id} le{' '}
+                {selectedAmendment.cancellation.occurred_at} —{' '}
+                {selectedAmendment.cancellation.reason}
+              </p>
             )}
           </div>
         )}
@@ -1230,22 +1382,32 @@ function ActivityDetail({
         <form className="review-dialog" onSubmit={submitWorkflow}>
           <h2>{strings.workflowConfirmation}</h2>
           <p>{strings.workflowExactRevision}</p>
-          {workflowAction === 'return' && (
+          {['return', 'open_amendment', 'cancel_amendment'].includes(
+            workflowAction,
+          ) && (
             <>
+              {workflowAction === 'cancel_amendment' && (
+                <p>{strings.cancellationWarning}</p>
+              )}
               <label>
-                {strings.reason}
+                {workflowAction === 'open_amendment'
+                  ? strings.amendmentReason
+                  : workflowAction === 'cancel_amendment'
+                    ? strings.cancellationReason
+                    : strings.reason}
                 <textarea name="reason" required maxLength="4000" autoFocus />
               </label>
-              {user.role === 'VALIDATEUR_DEFINITIF' && (
-                <label>
-                  {strings.requestedAmount}
-                  <input
-                    name="requested_amount"
-                    inputMode="numeric"
-                    pattern="[1-9][0-9]*"
-                  />
-                </label>
-              )}
+              {workflowAction === 'return' &&
+                user.role === 'VALIDATEUR_DEFINITIF' && (
+                  <label>
+                    {strings.requestedAmount}
+                    <input
+                      name="requested_amount"
+                      inputMode="numeric"
+                      pattern="[1-9][0-9]*"
+                    />
+                  </label>
+                )}
             </>
           )}
           <footer>

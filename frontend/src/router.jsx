@@ -270,6 +270,7 @@ export function makeRouter(history) {
         agentCursor: String(search.agentCursor || '').slice(0, 512),
         revisionCursor: String(search.revisionCursor || '').slice(0, 512),
         revision: String(search.revision || '').slice(0, 36),
+        amendment: String(search.amendment || '').slice(0, 36),
       }),
       loader: async ({ context }) => {
         try {

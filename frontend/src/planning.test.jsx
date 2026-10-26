@@ -147,6 +147,300 @@ test('an eligible Agent confirms submission of the current Activity version', as
   )
 })
 
+test('an Agent opens and cancels an amendment while the approved version stays visible', async () => {
+  const user = userEvent.setup()
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+    this.dispatchEvent(new Event('close'))
+  }
+  const approved = {
+    name: 'Atelier approuvé',
+    description: 'Version approuvée',
+    planned_start: '2027-01-10',
+    planned_end: '2027-04-10',
+    allocation: '100000',
+    operations: [
+      {
+        id: 'operation-1',
+        type_id: 'type-1',
+        name: 'Préparer',
+        allocation: '100000',
+        position: 1,
+      },
+    ],
+  }
+  let activity = {
+    id: 'activity-1',
+    pta_id: 'pta-1',
+    reference: 'ACT-000001',
+    ...approved,
+    state: 'approved',
+    version: 4,
+    current_revision_id: 'revision-1',
+    approved_revision_id: 'revision-1',
+    approved_allocation: '100000',
+    approved,
+    candidate: null,
+    amendment: null,
+    execution_paused: false,
+    operations: approved.operations,
+    correction: null,
+    agent_ids: [],
+    allowed_actions: ['read', 'open_amendment'],
+  }
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (
+      path.endsWith('/activities/activity-1/amendments') &&
+      options.method === 'POST'
+    ) {
+      activity = {
+        ...activity,
+        state: 'amendment_draft',
+        version: 5,
+        amendment: {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          reason: 'Adapter.',
+        },
+        candidate: { ...approved, description: 'Version candidate' },
+        execution_paused: true,
+        allowed_actions: ['read', 'edit', 'submit', 'cancel_amendment'],
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify(activity), { status: 201 }),
+      )
+    }
+    if (path.includes('/cancellation') && options.method === 'POST') {
+      activity = {
+        ...activity,
+        state: 'approved',
+        version: 6,
+        amendment: null,
+        candidate: null,
+        execution_paused: false,
+        allowed_actions: ['read', 'open_amendment'],
+      }
+      return Promise.resolve(new Response(JSON.stringify(activity)))
+    }
+    if (path.endsWith('/activities/activity-1'))
+      return Promise.resolve(new Response(JSON.stringify(activity)))
+    if (path.includes('/activities/activity-1/revisions'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      ),
+    )
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/activities/activity-1'] }),
+      )}
+    />,
+  )
+  await user.click(
+    await screen.findByRole('button', { name: 'Demander une modification' }),
+  )
+  await user.type(screen.getByLabelText('Motif de la modification'), 'Adapter.')
+  await user.click(
+    screen.getByRole('dialog').querySelector('button[type="submit"]'),
+  )
+  expect(
+    await screen.findByText(/exécution de cette activité est suspendue/i),
+  ).toBeVisible()
+  expect(
+    screen.getByRole('region', { name: 'Version approuvée' }),
+  ).toBeVisible()
+  expect(
+    screen.getByRole('region', { name: 'Modification en préparation' }),
+  ).toBeVisible()
+  await user.click(
+    screen.getByRole('button', { name: 'Annuler la modification' }),
+  )
+  await user.type(
+    screen.getByLabelText('Motif de l’annulation'),
+    'Retour au socle.',
+  )
+  await user.click(
+    screen.getByRole('dialog').querySelector('button[type="submit"]'),
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByText(/exécution de cette activité est suspendue/i),
+    ).not.toBeInTheDocument(),
+  )
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/amendments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/cancellation',
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        expected_version: 5,
+        expected_approved_revision_id: 'revision-1',
+        reason: 'Retour au socle.',
+      }),
+    }),
+  )
+})
+
+function amendmentHistoryFetch({ failed = false } = {}) {
+  const activity = {
+    id: 'activity-1',
+    pta_id: 'pta-1',
+    reference: 'ACT-000001',
+    name: 'Activité courante',
+    description: 'Description courante',
+    planned_start: '2027-01-10',
+    planned_end: '2027-04-10',
+    allocation: '100000',
+    state: 'approved',
+    version: 8,
+    current_revision_id: 'revision-2',
+    approved_revision_id: 'revision-2',
+    approved_allocation: '100000',
+    approved: null,
+    candidate: null,
+    amendment: null,
+    execution_paused: false,
+    operations: [],
+    correction: null,
+    agent_ids: [],
+    allowed_actions: ['read', 'open_amendment'],
+  }
+  return vi.fn((url) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (path.includes('/amendments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'))
+      return Promise.resolve(
+        failed
+          ? new Response(JSON.stringify({ detail: 'unavailable' }), {
+              status: 503,
+            })
+          : new Response(
+              JSON.stringify({
+                id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                activity_id: 'activity-1',
+                status: 'approved',
+                reason: 'Ajustement approuvé',
+                base_approved_revision_id: 'revision-1',
+                opened_by_id: 'agent-1',
+                opened_at: '2027-03-01T09:00:00Z',
+                last_revision_id: 'revision-2',
+                cancellation: null,
+                candidate: {
+                  name: 'Nouveau nom approuvé',
+                  description: 'Version historique',
+                  planned_start: '2027-01-10',
+                  planned_end: '2027-04-10',
+                  allocation: '100000',
+                  operations: [
+                    {
+                      id: 'operation-1',
+                      type_id: 'type-1',
+                      type_label: 'Formation figée',
+                      name: 'Former',
+                      allocation: '100000',
+                      position: 1,
+                    },
+                  ],
+                },
+              }),
+            ),
+      )
+    if (path.endsWith('/activities/activity-1'))
+      return Promise.resolve(new Response(JSON.stringify(activity)))
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      ),
+    )
+  })
+}
+
+test('approved amendment history renders frozen names, labels, and actor evidence', async () => {
+  vi.stubGlobal('fetch', amendmentHistoryFetch())
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: [
+            '/activities/activity-1?amendment=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          ],
+        }),
+      )}
+    />,
+  )
+  expect(await screen.findByText('Modification approuvée')).toBeVisible()
+  expect(screen.getByText('Nouveau nom approuvé')).toBeVisible()
+  expect(screen.getByText(/Formation figée — Former/)).toBeVisible()
+  expect(screen.getByText(/Ouverte par agent-1/)).toBeVisible()
+})
+
+test('a failed amendment-history request blocks the workspace with an alert', async () => {
+  vi.stubGlobal('fetch', amendmentHistoryFetch({ failed: true }))
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: [
+            '/activities/activity-1?amendment=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          ],
+        }),
+      )}
+    />,
+  )
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Les données de planification sont indisponibles.',
+  )
+})
+
 test('a new Activity keeps its request key across a lost-response retry', async () => {
   const submit = vi.fn()
   const user = userEvent.setup()

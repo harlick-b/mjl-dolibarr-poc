@@ -142,19 +142,33 @@ class Activity(Base):
             name="activity_request_key",
         ),
         CheckConstraint(
-            "state IN ('draft','submitted','prevalidated','returned_supervisor',"
+            "state IN ('draft','amendment_draft','submitted','prevalidated',"
+            "'returned_supervisor',"
             "'returned_validator','approved')",
             name="activity_state_allowed",
         ),
         CheckConstraint(
             "(state = 'draft' AND current_revision_id IS NULL "
             "AND approved_revision_id IS NULL) OR "
+            "(state = 'amendment_draft' AND current_revision_id = approved_revision_id "
+            "AND approved_revision_id IS NOT NULL) OR "
             "(state IN ('submitted','prevalidated','returned_supervisor',"
             "'returned_validator') "
-            "AND current_revision_id IS NOT NULL AND approved_revision_id IS NULL) OR "
+            "AND current_revision_id IS NOT NULL AND ((amendment_id IS NULL "
+            "AND approved_revision_id IS NULL) OR (amendment_id IS NOT NULL "
+            "AND approved_revision_id IS NOT NULL "
+            "AND current_revision_id <> approved_revision_id))) OR "
             "(state = 'approved' AND current_revision_id IS NOT NULL "
             "AND approved_revision_id = current_revision_id)",
             name="activity_revision_pointer_state",
+        ),
+        CheckConstraint(
+            "(amendment_id IS NULL AND amendment_reason IS NULL AND "
+            "(approved_revision_id IS NULL OR state = 'approved')) OR "
+            "(amendment_id IS NOT NULL AND amendment_reason IS NOT NULL "
+            "AND length(btrim(amendment_reason)) BETWEEN 1 AND 4000 "
+            "AND approved_revision_id IS NOT NULL AND state <> 'approved')",
+            name="activity_amendment_state",
         ),
         CheckConstraint("version > 0", name="activity_version_positive"),
         CheckConstraint("allocation > 0", name="activity_allocation_positive"),
@@ -172,6 +186,8 @@ class Activity(Base):
     state: Mapped[str] = mapped_column(String(32), default="draft")
     current_revision_id: Mapped[str | None] = mapped_column(String(36))
     approved_revision_id: Mapped[str | None] = mapped_column(String(36))
+    amendment_id: Mapped[str | None] = mapped_column(String(36))
+    amendment_reason: Mapped[str | None] = mapped_column(String(4000))
     version: Mapped[int] = mapped_column(default=1)
     creator_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     request_actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))

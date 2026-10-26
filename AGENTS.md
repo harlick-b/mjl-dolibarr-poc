@@ -42,8 +42,13 @@ Agent coordination assignments, exact guard cutover, all 24 checks, I1/C1 and
 independent review. DEC-109 authorizes and completes bounded synthetic PTA-2A
 under readiness 09 and DEC-108: immutable Activity revisions, role-wide two-
 stage review, returns/corrections, four APIs, three tables and all 20 checks with
-I2/C2 and independent review. Stop after PTA-2A; technical Admin recovery, reinvitation,
-PTA-2B and later slices, general A4 and production remain deferred.
+I2/C2 and independent review. DEC-111 authorizes and completes bounded synthetic
+PTA-2B.1 under readiness 10 and DEC-110: approved-version-preserving amendments,
+pause from opening, fresh two-stage replacement approval, reasoned cancellation,
+three API responsibilities, two columns, no new tables, all M01–M20 checks and
+I3/C3 plus independent review. Stop after PTA-2B.1; technical Admin recovery,
+reinvitation, withdrawal, annual transfers, execution/finance, later PTA slices,
+general A4 and production remain deferred.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
 

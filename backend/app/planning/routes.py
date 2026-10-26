@@ -1,6 +1,7 @@
+from datetime import date
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
@@ -9,7 +10,7 @@ from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
-from app.auth.models import User
+from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.models import (
@@ -40,6 +41,7 @@ from app.planning.service import (
     project_item,
     reference,
     revision_item,
+    snapshot_projection,
     structural_content,
     type_item,
     validate_plan,
@@ -160,6 +162,21 @@ class SubmissionInput(Input):
     expected_version: int = Field(gt=0, strict=True)
 
 
+class AmendmentInput(SubmissionInput):
+    expected_approved_revision_id: str = Field(max_length=36)
+    reason: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("expected_approved_revision_id")
+    @classmethod
+    def approved_uuid(cls, value: str) -> str:
+        return str(UUID(value))
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalized_reason(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
 class DecisionInput(Input):
     expected_version: int = Field(gt=0, strict=True)
     decision: Literal["prevalidate", "approve", "return"]
@@ -213,6 +230,33 @@ class CorrectionOutput(Input):
     requested_amount: str | None
 
 
+class PlanningProjection(Input):
+    name: str
+    description: str
+    planned_start: str
+    planned_end: str
+    allocation: str
+    operations: list[OperationOutput]
+
+
+class AmendmentOperationOutput(OperationOutput):
+    type_label: str
+
+
+class AmendmentPlanningProjection(Input):
+    name: str
+    description: str
+    planned_start: str
+    planned_end: str
+    allocation: str
+    operations: list[AmendmentOperationOutput]
+
+
+class AmendmentOutput(Input):
+    id: str
+    reason: str
+
+
 class ActivityOutput(Input):
     id: str
     pta_id: str
@@ -224,6 +268,7 @@ class ActivityOutput(Input):
     allocation: str
     state: Literal[
         "draft",
+        "amendment_draft",
         "submitted",
         "prevalidated",
         "returned_supervisor",
@@ -234,6 +279,10 @@ class ActivityOutput(Input):
     current_revision_id: str | None
     approved_revision_id: str | None
     approved_allocation: str | None
+    approved: PlanningProjection | None
+    candidate: PlanningProjection | None
+    amendment: AmendmentOutput | None
+    execution_paused: bool
     correction: CorrectionOutput | None
     operations: list[OperationOutput]
     agent_ids: list[str]
@@ -307,7 +356,29 @@ class RevisionSnapshot(Input):
     submitter: SnapshotIdentity
     submitted_at: str
     contributors: list[SnapshotIdentity]
+    amendment_id: str | None = None
+    amendment_reason: str | None = None
+    base_approved_revision_id: str | None = None
     content_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class AmendmentCancellationOutput(Input):
+    reason: str
+    actor_id: str
+    occurred_at: str
+
+
+class AmendmentDetailOutput(Input):
+    id: str
+    activity_id: str
+    reason: str
+    base_approved_revision_id: str
+    opened_by_id: str
+    opened_at: str
+    status: Literal["active", "approved", "cancelled"]
+    candidate: AmendmentPlanningProjection
+    last_revision_id: str | None
+    cancellation: AmendmentCancellationOutput | None
 
 
 class RevisionDecisionOutput(Input):
@@ -332,6 +403,21 @@ class RevisionOutput(Input):
     snapshot: RevisionSnapshot | None = None
     decisions: list[RevisionDecisionOutput]
     activity_version: int | None = None
+
+
+class HistoryOutput(Input):
+    id: str
+    kind: Literal["revision", "amendment_open", "amendment_cancel"]
+    occurred_at: str
+    activity_id: str | None = None
+    revision_number: int | None = None
+    fingerprint: str | None = None
+    submitter_id: str | None = None
+    submitted_at: str | None = None
+    decisions: list[RevisionDecisionOutput] = Field(default_factory=list)
+    amendment_id: str | None = None
+    reason: str | None = None
+    actor_id: str | None = None
 
 
 class DecisionOutput(Input):
@@ -941,6 +1027,319 @@ def activity_detail(identifier: str, request: Request, auth: Auth) -> dict[str, 
         return activity_item(db, item, actor.role, actor.id)
 
 
+@router.post(
+    "/activities/{identifier}/amendments",
+    status_code=201,
+    response_model=ActivityOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def open_amendment(
+    identifier: str, body: AmendmentInput, request: Request, auth: Auth
+) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
+        )
+        item = get_activity(db, identifier, lock=True)
+        if item.version != body.expected_version:
+            raise AuthError(409, "activity_stale")
+        if (
+            item.state != "approved"
+            or item.amendment_id
+            or item.approved_revision_id != body.expected_approved_revision_id
+        ):
+            raise AuthError(409, "amendment_ineligible")
+        before = activity_item(db, item, actor.role, actor.id)
+        now = auth.now(db)
+        amendment_id = str(uuid4())
+        item.amendment_id = amendment_id
+        item.amendment_reason = body.reason
+        item.state = "amendment_draft"
+        item.version += 1
+        item.updated_at = now
+        db.flush()
+        after = activity_item(db, item, actor.role, actor.id)
+        auth.business_audit(
+            db,
+            "activity.amendment_open",
+            actor.id,
+            item.id,
+            {
+                "context_id": CONTEXT,
+                "before": before,
+                "after": after,
+                "amendment": {
+                    "id": amendment_id,
+                    "reason": body.reason,
+                    "base_approved_revision_id": item.approved_revision_id,
+                    "opened_by_id": actor.id,
+                    "opened_at": now.isoformat(),
+                },
+            },
+        )
+        return created(
+            request,
+            f"/api/v1/activities/{item.id}/amendments/{amendment_id}",
+            after,
+        )
+
+
+def amendment_audits(
+    db: Session, item: Activity, amendment_id: str
+) -> tuple[Audit, Audit | None]:
+    rows = list(
+        db.scalars(
+            select(Audit)
+            .where(
+                Audit.target == item.id,
+                Audit.action.in_(
+                    ["activity.amendment_open", "activity.amendment_cancel"]
+                ),
+            )
+            .order_by(Audit.occurred_at, Audit.id)
+        )
+    )
+    matches = [
+        row
+        for row in rows
+        if isinstance(row.business, dict)
+        and isinstance(row.business.get("amendment"), dict)
+        and row.business["amendment"].get("id") == amendment_id
+    ]
+    opened = next(
+        (row for row in matches if row.action == "activity.amendment_open"), None
+    )
+    if not opened:
+        raise AuthError(404, "amendment_not_found")
+    cancelled = next(
+        (row for row in matches if row.action == "activity.amendment_cancel"), None
+    )
+    return opened, cancelled
+
+
+def amendment_projection(db: Session, item: Activity) -> dict[str, Any]:
+    projection = structural_content(db, item)
+    labels = {
+        row.id: row.label
+        for row in db.scalars(
+            select(OperationType).where(
+                OperationType.id.in_(
+                    [row["type_id"] for row in projection["operations"]]
+                )
+            )
+        )
+    }
+    for operation in projection["operations"]:
+        operation["type_label"] = labels[operation["type_id"]]
+    return projection
+
+
+def amendment_snapshot_projection(snapshot: dict[str, Any]) -> dict[str, Any]:
+    projection = snapshot_projection(snapshot)
+    snapshot_operations = {
+        str(row["id"]): row
+        for row in cast(list[dict[str, Any]], snapshot["operations"])
+    }
+    for operation in projection["operations"]:
+        operation["type_label"] = str(
+            snapshot_operations[operation["id"]]["type_label"]
+        )
+    return projection
+
+
+@router.get(
+    "/activities/{identifier}/amendments/{amendment_id}",
+    response_model=AmendmentDetailOutput,
+)
+def amendment_detail(
+    identifier: str, amendment_id: str, request: Request, auth: Auth
+) -> dict[str, Any]:
+    try:
+        amendment_id = str(UUID(amendment_id))
+    except ValueError:
+        raise AuthError(404, "amendment_not_found") from None
+    with Session(auth.engine) as db, db.begin():
+        principal(db, auth, evidence(request, auth)[0])
+        item = get_activity(db, identifier)
+        db.refresh(item, with_for_update={"read": True})
+        opened, cancelled = amendment_audits(db, item, amendment_id)
+        opened_business = cast(dict[str, Any], opened.business)
+        cancelled_business = (
+            cast(dict[str, Any], cancelled.business) if cancelled else None
+        )
+        amendment = cast(dict[str, Any], opened_business["amendment"])
+        cancellation = None
+        last_revision_id = None
+        if cancelled_business:
+            candidate = cast(dict[str, Any], cancelled_business["candidate"])
+            status = "cancelled"
+            facts = cast(dict[str, Any], cancelled_business["cancellation"])
+            cancellation = facts
+            last_revision_id = cast(str | None, cancelled_business["last_revision_id"])
+        elif item.amendment_id == amendment_id:
+            candidate = amendment_projection(db, item)
+            status = "active"
+            if item.current_revision_id != item.approved_revision_id:
+                last_revision_id = item.current_revision_id
+        else:
+            completed = next(
+                (
+                    row
+                    for row in db.scalars(
+                        select(ActivityRevision)
+                        .where(ActivityRevision.activity_id == item.id)
+                        .order_by(ActivityRevision.revision_number.desc())
+                    )
+                    if cast(dict[str, Any], row.snapshot).get("amendment_id")
+                    == amendment_id
+                ),
+                None,
+            )
+            if not completed:
+                raise AuthError(404, "amendment_not_found")
+            candidate = amendment_snapshot_projection(
+                cast(dict[str, Any], completed.snapshot)
+            )
+            status = "approved"
+            last_revision_id = completed.id
+        return {
+            "id": amendment_id,
+            "activity_id": item.id,
+            "reason": amendment["reason"],
+            "base_approved_revision_id": amendment["base_approved_revision_id"],
+            "opened_by_id": amendment["opened_by_id"],
+            "opened_at": amendment["opened_at"],
+            "status": status,
+            "candidate": candidate,
+            "last_revision_id": last_revision_id,
+            "cancellation": cancellation,
+        }
+
+
+@router.post(
+    "/activities/{identifier}/amendments/{amendment_id}/cancellation",
+    response_model=ActivityOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def cancel_amendment(
+    identifier: str,
+    amendment_id: str,
+    body: AmendmentInput,
+    request: Request,
+    auth: Auth,
+) -> dict[str, Any]:
+    try:
+        amendment_id = str(UUID(amendment_id))
+    except ValueError:
+        raise AuthError(409, "amendment_stale") from None
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
+        )
+        item = get_activity(db, identifier, lock=True)
+        if item.version != body.expected_version:
+            raise AuthError(409, "activity_stale")
+        if (
+            item.amendment_id != amendment_id
+            or item.approved_revision_id != body.expected_approved_revision_id
+            or item.state
+            not in {
+                "amendment_draft",
+                "submitted",
+                "prevalidated",
+                "returned_supervisor",
+                "returned_validator",
+            }
+        ):
+            raise AuthError(409, "amendment_stale")
+        approved = db.get(ActivityRevision, item.approved_revision_id)
+        if not approved:
+            raise AuthError(409, "amendment_base_invalid")
+        before = activity_item(db, item, actor.role, actor.id)
+        candidate = amendment_projection(db, item)
+        now = auth.now(db)
+        approved_operations = cast(
+            list[dict[str, Any]], approved.snapshot["operations"]
+        )
+        approved_ids = {str(row["id"]) for row in approved_operations}
+        operations = {
+            row.id: row
+            for row in db.scalars(
+                select(Operation)
+                .where(Operation.activity_id == item.id)
+                .order_by(Operation.id)
+                .with_for_update()
+            )
+        }
+        if not approved_ids.issubset(operations):
+            raise AuthError(409, "amendment_base_invalid")
+        for row in operations.values():
+            if row.removed_at is None:
+                row.position += 1000
+        db.flush()
+        for position, saved in enumerate(approved_operations, start=1):
+            row = operations[str(saved["id"])]
+            row.type_id = str(saved["type_id"])
+            row.name = str(saved["name"])
+            row.allocation = int(str(saved["allocation"]))
+            row.position = int(saved.get("position", position))
+            row.removed_at = None
+            row.removed_by_id = None
+            row.updated_by_id = actor.id
+            row.updated_at = now
+        for row in operations.values():
+            if row.id not in approved_ids and row.removed_at is None:
+                row.removed_at = now
+                row.removed_by_id = actor.id
+        item.name = str(approved.snapshot["name"])
+        item.description = str(approved.snapshot["description"])
+        item.planned_start = date.fromisoformat(str(approved.snapshot["planned_start"]))
+        item.planned_end = date.fromisoformat(str(approved.snapshot["planned_end"]))
+        item.allocation = int(str(approved.snapshot["allocation"]))
+        last_revision_id = (
+            item.current_revision_id
+            if item.current_revision_id != item.approved_revision_id
+            else None
+        )
+        item.current_revision_id = item.approved_revision_id
+        item.state = "approved"
+        item.amendment_id = None
+        item.amendment_reason = None
+        item.version += 1
+        item.updated_at = now
+        db.flush()
+        after = activity_item(db, item, actor.role, actor.id)
+        _opened, cancelled = amendment_audits(db, item, amendment_id)
+        if cancelled:
+            raise AuthError(409, "amendment_stale")
+        auth.business_audit(
+            db,
+            "activity.amendment_cancel",
+            actor.id,
+            item.id,
+            {
+                "context_id": CONTEXT,
+                "before": before,
+                "after": after,
+                "amendment": {
+                    "id": amendment_id,
+                    "reason": before["amendment"]["reason"],
+                    "base_approved_revision_id": item.approved_revision_id,
+                },
+                "candidate": candidate,
+                "last_revision_id": last_revision_id,
+                "cancellation": {
+                    "reason": body.reason,
+                    "actor_id": actor.id,
+                    "occurred_at": now.isoformat(),
+                },
+            },
+        )
+        return after
+
+
 def workflow_audit(
     auth: Auth,
     db: Session,
@@ -967,6 +1366,13 @@ def workflow_audit(
             "submitted_at": revision.submitted_at.isoformat(),
         },
     }
+    if snapshot.get("amendment_id"):
+        facts["revision"].update(
+            {
+                "amendment_id": snapshot["amendment_id"],
+                "base_approved_revision_id": snapshot["base_approved_revision_id"],
+            }
+        )
     if decision:
         facts["decision"] = {
             "id": decision.id,
@@ -1003,7 +1409,12 @@ def submit_activity(
         item = get_activity(db, identifier, lock=True)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
-        if item.state not in {"draft", "returned_supervisor", "returned_validator"}:
+        if item.state not in {
+            "draft",
+            "amendment_draft",
+            "returned_supervisor",
+            "returned_validator",
+        }:
             raise AuthError(409, "activity_not_submittable")
         before = activity_item(db, item, actor.role, actor.id)
         previous = (
@@ -1150,6 +1561,12 @@ def decide_activity(
             raise AuthError(409, "activity_stale")
         if item.current_revision_id != revision.id:
             raise AuthError(409, "revision_obsolete")
+        snapshot = cast(dict[str, Any], revision.snapshot)
+        if item.amendment_id and (
+            snapshot.get("amendment_id") != item.amendment_id
+            or snapshot.get("base_approved_revision_id") != item.approved_revision_id
+        ):
+            raise AuthError(409, "amendment_stale")
         if db.scalar(
             select(ActivityContributor.id).where(
                 ActivityContributor.activity_id == item.id,
@@ -1204,6 +1621,8 @@ def decide_activity(
             if body.decision == "approve":
                 item.state = "approved"
                 item.approved_revision_id = revision.id
+                item.amendment_id = None
+                item.amendment_reason = None
                 prevalidation_id = revision.id
                 action = "activity.approve"
             else:
@@ -1241,7 +1660,7 @@ def decide_activity(
 
 
 @router.get(
-    "/activities/{identifier}/revisions", response_model=ListOutput[RevisionOutput]
+    "/activities/{identifier}/revisions", response_model=ListOutput[HistoryOutput]
 )
 def activity_revisions(
     identifier: str,
@@ -1256,45 +1675,119 @@ def activity_revisions(
         limit, token = args
         cursor = Cursor(auth, "activity-revisions", item.id, limit)
         marker, direction = cursor.decode(token)
-        conditions = [ActivityRevision.activity_id == item.id]
+        history: list[dict[str, Any]] = []
+        for revision in db.scalars(
+            select(ActivityRevision).where(ActivityRevision.activity_id == item.id)
+        ):
+            payload = revision_item(db, revision, include_snapshot=False)
+            history.append(
+                {
+                    "id": revision.id,
+                    "kind": "revision",
+                    "occurred_at": revision.submitted_at.isoformat(),
+                    "activity_id": revision.activity_id,
+                    "revision_number": revision.revision_number,
+                    "fingerprint": revision.fingerprint,
+                    "submitter_id": revision.submitter_id,
+                    "submitted_at": revision.submitted_at.isoformat(),
+                    "decisions": payload["decisions"],
+                    "amendment_id": cast(dict[str, Any], revision.snapshot).get(
+                        "amendment_id"
+                    ),
+                    "reason": None,
+                    "actor_id": None,
+                }
+            )
+        for audit in db.scalars(
+            select(Audit).where(
+                Audit.target == item.id,
+                Audit.action.in_(
+                    ["activity.amendment_open", "activity.amendment_cancel"]
+                ),
+            )
+        ):
+            facts = cast(dict[str, Any], audit.business)
+            amendment = cast(dict[str, Any], facts["amendment"])
+            cancelled = audit.action == "activity.amendment_cancel"
+            history.append(
+                {
+                    "id": f"{amendment['id']}:{'cancel' if cancelled else 'open'}",
+                    "kind": "amendment_cancel" if cancelled else "amendment_open",
+                    "occurred_at": audit.occurred_at.isoformat(),
+                    "revision_number": None,
+                    "submitter_id": None,
+                    "decisions": [],
+                    "amendment_id": amendment["id"],
+                    "reason": (
+                        facts["cancellation"]["reason"]
+                        if cancelled
+                        else amendment["reason"]
+                    ),
+                    "actor_id": audit.actor,
+                }
+            )
+
+        def history_key(row: dict[str, Any]) -> tuple[str, str, str]:
+            source = {
+                "revision": "r",
+                "amendment_open": "o",
+                "amendment_cancel": "c",
+            }[row["kind"]]
+            return (row["occurred_at"], source, row["id"])
+
+        history.sort(key=history_key, reverse=True)
+        marker_key = None
         if marker:
-            try:
-                number = int(marker)
-            except ValueError:
-                raise AuthError(422, "cursor_invalid") from None
-            conditions.append(
-                ActivityRevision.revision_number < number
-                if direction == "next"
-                else ActivityRevision.revision_number > number
+            parts = marker.split("|", 2)
+            if len(parts) != 3:
+                raise AuthError(422, "cursor_invalid")
+            marker_key = tuple(parts)
+            history = [
+                row
+                for row in history
+                if (
+                    history_key(row) < marker_key
+                    if direction == "next"
+                    else history_key(row) > marker_key
+                )
+            ]
+        if direction == "previous":
+            history.reverse()
+        total = (
+            len(history)
+            if marker_key is None
+            else (
+                db.scalar(
+                    select(func.count())
+                    .select_from(ActivityRevision)
+                    .where(ActivityRevision.activity_id == item.id)
+                )
+                or 0
             )
-        order = (
-            ActivityRevision.revision_number.desc()
-            if direction == "next"
-            else ActivityRevision.revision_number.asc()
-        )
-        rows = list(
-            db.scalars(
-                select(ActivityRevision)
-                .where(*conditions)
-                .order_by(order)
-                .limit(limit + 1)
+            + (
+                db.scalar(
+                    select(func.count())
+                    .select_from(Audit)
+                    .where(
+                        Audit.target == item.id,
+                        Audit.action.in_(
+                            ["activity.amendment_open", "activity.amendment_cancel"]
+                        ),
+                    )
+                )
+                or 0
             )
         )
-        total = db.scalar(
-            select(func.count())
-            .select_from(ActivityRevision)
-            .where(ActivityRevision.activity_id == item.id)
-        )
-        more = len(rows) > limit
-        rows = rows[:limit]
+        more = len(history) > limit
+        rows = history[:limit]
         if direction == "previous":
             rows.reverse()
 
-        def link(row: ActivityRevision, move: str) -> str:
+        def link(row: dict[str, Any], move: str) -> str:
             query = urlencode(
                 {
                     "limit": limit,
-                    "cursor": cursor.encode(str(row.revision_number), move),
+                    "cursor": cursor.encode("|".join(history_key(row)), move),
                 }
             )
             return f"{auth.policy.origin}/api/v1/activities/{item.id}/revisions?{query}"
@@ -1302,7 +1795,7 @@ def activity_revisions(
         return {
             "object": "list",
             "count": int(total or 0),
-            "data": [revision_item(db, row, include_snapshot=False) for row in rows],
+            "data": rows,
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,
@@ -1314,7 +1807,9 @@ def activity_revisions(
 
 
 @router.get(
-    "/activities/{identifier}/revisions/{revision_id}", response_model=RevisionOutput
+    "/activities/{identifier}/revisions/{revision_id}",
+    response_model=RevisionOutput,
+    response_model_exclude_unset=True,
 )
 def activity_revision_detail(
     identifier: str, revision_id: str, request: Request, auth: Auth
@@ -1353,7 +1848,12 @@ def replace_activity(
         assert pta
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
-        if item.state not in {"draft", "returned_supervisor", "returned_validator"}:
+        if item.state not in {
+            "draft",
+            "amendment_draft",
+            "returned_supervisor",
+            "returned_validator",
+        }:
             raise AuthError(409, "activity_not_editable")
         plan, incoming = validate_plan(payload, pta.year)
         assert_types(db, incoming)

@@ -12,7 +12,21 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-2A completion and PTA-2B readiness (2026-10-26)
+## PTA-2B.1 amendment completion (2026-10-26)
+
+**PTA_2B1_COMPLETE** under DEC-111. Migration `0007_pta2b1` adds two Activity
+columns and no table. The three amendment responsibilities preserve the approved
+version while a candidate pauses execution, require a fresh role-wide two-stage
+review for replacement approval and support reasoned cancellation with immutable
+history. I3/C3, all M01–M20 checks, focused regressions, the real-Chrome journey
+and both independent same-reviewer correction cycles passed. See
+[completion evidence](rebuild/12-pta2b1-implementation-status.md).
+
+This records synthetic development completion only. PC1/PC2 and real accounts
+remain pending. Withdrawal, annual transfers, execution/finance, production and
+later slices are deferred and require separate decisions and authorization.
+
+## PTA-2A completion and PTA-2B readiness (historical, 2026-10-26)
 
 **PTA_2A_COMPLETE** at `1f6c670`; DEC-109 and
 [completion evidence](rebuild/10-pta2a-implementation-status.md) supersede the
@@ -24,7 +38,8 @@ the reconciled contract and [plan](rebuild/11-pta2b1-implementation-plan.md) pas
 independent engineering and security/specification reviews. I3/C3 and M01–M20
 remain implementation gates. Full **PTA_2B_NOT_READY**: withdrawal/annual
 attribution has separate owners and blockers.
-No 2B implementation is authorized; PC1/PC2 remain pending.
+This was the pre-implementation state superseded by DEC-111. PC1/PC2 remain
+pending.
 
 ## PTA-2 readiness and decision closure (historical, 2026-10-26)
 

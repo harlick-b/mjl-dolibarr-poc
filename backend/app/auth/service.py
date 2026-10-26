@@ -94,7 +94,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0006_pta2a"]:
+        if revisions != ["0007_pta2b1"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -105,6 +105,7 @@ class AuthService:
             "audit_business_bounded",
             "activity_state_allowed",
             "activity_revision_pointer_state",
+            "activity_amendment_state",
             "activity_revision_number",
             "revision_decision_stage",
             "decision_prevalidation_scope",
@@ -177,7 +178,7 @@ class AuthService:
         ]
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         if hashlib.sha256(encoded_manifest.encode()).hexdigest() != (
-            "fcc693aee248629992e2cab92a1bb6ef817429a60d2eb2592a707d5c1ac01a4a"
+            "1b7e42ac9184522d5d87fa225872998640051c4e97fbec20e3fd770a6bd2d53d"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -302,6 +303,72 @@ class AuthService:
         target: str,
         business: dict[str, object],
     ) -> None:
+        business = dict(business)
+        revision_facts = business.get("revision")
+        before_facts = business.get("before")
+        amendment_replace = (
+            action == "activity.replace"
+            and isinstance(before_facts, dict)
+            and isinstance(before_facts.get("amendment"), dict)
+        )
+        compact_transition = (
+            action
+            in {
+                "activity.amendment_open",
+                "activity.amendment_cancel",
+            }
+            or amendment_replace
+            or (
+                action
+                in {
+                    "activity.submit",
+                    "activity.prevalidate",
+                    "activity.return_supervisor",
+                    "activity.approve",
+                    "activity.return_validator",
+                }
+                and isinstance(revision_facts, dict)
+                and isinstance(revision_facts.get("amendment_id"), str)
+            )
+        )
+        if compact_transition:
+            transition_fields = {
+                "id",
+                "state",
+                "version",
+                "current_revision_id",
+                "approved_revision_id",
+                "amendment_id",
+            }
+            for side in ("before", "after"):
+                value = business.get(side)
+                if isinstance(value, dict):
+                    amendment = value.get("amendment")
+                    content = (
+                        {
+                            key: value.get(key)
+                            for key in (
+                                "name",
+                                "description",
+                                "planned_start",
+                                "planned_end",
+                                "allocation",
+                                "operations",
+                            )
+                        }
+                        if amendment_replace
+                        else None
+                    )
+                    business[side] = {
+                        "amendment_id": (
+                            amendment.get("id") if isinstance(amendment, dict) else None
+                        ),
+                        **{
+                            key: value.get(key)
+                            for key in transition_fields - {"amendment_id"}
+                        },
+                        **({"content": content} if content is not None else {}),
+                    }
         shapes = {
             "partner.create": "partner",
             "operation_type.create": "type",
@@ -315,6 +382,8 @@ class AuthService:
             "activity.return_supervisor": "activity",
             "activity.approve": "activity",
             "activity.return_validator": "activity",
+            "activity.amendment_open": "activity",
+            "activity.amendment_cancel": "activity",
         }
         create_actions = {
             "partner.create",
@@ -339,6 +408,18 @@ class AuthService:
             if action == "activity.submit"
             else {"context_id", "before", "after", "removed_operations"}
             if action == "activity.replace"
+            else {"context_id", "before", "after", "amendment"}
+            if action == "activity.amendment_open"
+            else {
+                "context_id",
+                "before",
+                "after",
+                "amendment",
+                "candidate",
+                "last_revision_id",
+                "cancellation",
+            }
+            if action == "activity.amendment_cancel"
             else {"context_id", "before", "after"}
             if action in change_actions
             else None
@@ -393,6 +474,10 @@ class AuthService:
                     "current_revision_id",
                     "approved_revision_id",
                     "approved_allocation",
+                    "approved",
+                    "candidate",
+                    "amendment",
+                    "execution_paused",
                     "correction",
                     "operations",
                     "agent_ids",
@@ -441,6 +526,7 @@ class AuthService:
                 and value.get("state")
                 in {
                     "draft",
+                    "amendment_draft",
                     "submitted",
                     "prevalidated",
                     "returned_supervisor",
@@ -466,20 +552,153 @@ class AuthService:
                 and all(
                     isinstance(identifier, str) for identifier in value["agent_ids"]
                 )
+                and isinstance(value.get("execution_paused"), bool)
+            )
+
+        def valid_amendment_facts(value: object, *, opened: bool) -> bool:
+            if not isinstance(value, dict):
+                return False
+            fields = {"id", "reason", "base_approved_revision_id"}
+            if opened:
+                fields |= {"opened_by_id", "opened_at"}
+            return (
+                set(value) == fields
+                and all(isinstance(value.get(key), str) for key in fields)
+                and 1 <= len(value["reason"]) <= 4000
+            )
+
+        def valid_candidate(value: object) -> bool:
+            if not isinstance(value, dict):
+                return False
+            fields = {
+                "name",
+                "description",
+                "planned_start",
+                "planned_end",
+                "allocation",
+                "operations",
+            }
+            operations = value.get("operations")
+            operation_fields = {
+                "id",
+                "type_id",
+                "type_label",
+                "name",
+                "allocation",
+                "position",
+            }
+            return (
+                set(value) == fields
+                and all(
+                    isinstance(value.get(key), str) for key in fields - {"operations"}
+                )
+                and isinstance(operations, list)
+                and 1 <= len(operations) <= 100
+                and all(
+                    isinstance(row, dict)
+                    and set(row) == operation_fields
+                    and all(
+                        isinstance(row.get(key), str)
+                        for key in (
+                            "id",
+                            "type_id",
+                            "type_label",
+                            "name",
+                            "allocation",
+                        )
+                    )
+                    and isinstance(row.get("position"), int)
+                    and row["position"] > 0
+                    for row in operations
+                )
+            )
+
+        def valid_structural_content(value: object) -> bool:
+            fields = {
+                "name",
+                "description",
+                "planned_start",
+                "planned_end",
+                "allocation",
+                "operations",
+            }
+            operation_fields = {"id", "type_id", "name", "allocation", "position"}
+            return (
+                isinstance(value, dict)
+                and set(value) == fields
+                and all(
+                    isinstance(value.get(key), str) for key in fields - {"operations"}
+                )
+                and isinstance(value.get("operations"), list)
+                and 1 <= len(value["operations"]) <= 100
+                and all(
+                    isinstance(row, dict)
+                    and set(row) == operation_fields
+                    and all(
+                        isinstance(row.get(key), str)
+                        for key in ("id", "type_id", "name", "allocation")
+                    )
+                    and isinstance(row.get("position"), int)
+                    and row["position"] > 0
+                    for row in value["operations"]
+                )
+            )
+
+        def valid_transition(value: object, *, with_content: bool = False) -> bool:
+            fields = {
+                "id",
+                "state",
+                "version",
+                "current_revision_id",
+                "approved_revision_id",
+                "amendment_id",
+            }
+            if with_content:
+                fields.add("content")
+            return (
+                isinstance(value, dict)
+                and set(value) == fields
+                and isinstance(value.get("id"), str)
+                and isinstance(value.get("state"), str)
+                and isinstance(value.get("version"), int)
+                and value["version"] > 0
+                and all(
+                    value.get(key) is None or isinstance(value.get(key), str)
+                    for key in (
+                        "current_revision_id",
+                        "approved_revision_id",
+                        "amendment_id",
+                    )
+                )
+                and (not with_content or valid_structural_content(value.get("content")))
+            )
+
+        def valid_cancellation(value: object) -> bool:
+            return (
+                isinstance(value, dict)
+                and set(value) == {"reason", "actor_id", "occurred_at"}
+                and all(isinstance(value.get(key), str) for key in value)
+                and 1 <= len(value["reason"]) <= 4000
             )
 
         revision = business.get("revision")
         decision = business.get("decision")
+        revision_fields = {
+            "id",
+            "revision_number",
+            "fingerprint",
+            "actor_id",
+            "actor_role",
+            "submitted_at",
+        }
         valid_revision = (
             isinstance(revision, dict)
             and set(revision)
-            == {
-                "id",
-                "revision_number",
-                "fingerprint",
-                "actor_id",
-                "actor_role",
-                "submitted_at",
+            in {
+                frozenset(revision_fields),
+                frozenset(
+                    revision_fields | {"amendment_id", "base_approved_revision_id"}
+                ),
             }
             and isinstance(revision.get("id"), str)
             and isinstance(revision.get("revision_number"), int)
@@ -489,6 +708,13 @@ class AuthService:
             and all(
                 isinstance(revision.get(key), str)
                 for key in ("actor_id", "actor_role", "submitted_at")
+            )
+            and (
+                "amendment_id" not in revision
+                or all(
+                    isinstance(revision.get(key), str)
+                    for key in ("amendment_id", "base_approved_revision_id")
+                )
             )
         )
         valid_decision = (
@@ -533,7 +759,27 @@ class AuthService:
                 action == "activity.replace"
                 and not valid_removals(business.get("removed_operations"))
             )
-            or not valid_item(after, shapes[action])
+            or (
+                action == "activity.amendment_open"
+                and not valid_amendment_facts(business.get("amendment"), opened=True)
+            )
+            or (
+                action == "activity.amendment_cancel"
+                and (
+                    not valid_amendment_facts(business.get("amendment"), opened=False)
+                    or not valid_candidate(business.get("candidate"))
+                    or not valid_cancellation(business.get("cancellation"))
+                    or (
+                        business.get("last_revision_id") is not None
+                        and not isinstance(business.get("last_revision_id"), str)
+                    )
+                )
+            )
+            or (
+                not valid_transition(after, with_content=amendment_replace)
+                if compact_transition
+                else not valid_item(after, shapes[action])
+            )
             or (action in workflow_actions and not valid_revision)
             or (action in workflow_actions - {"activity.submit"} and not valid_decision)
             or not isinstance(after, dict)
@@ -541,14 +787,20 @@ class AuthService:
             or (
                 action in change_actions
                 and (
-                    not valid_item(before, shapes[action])
+                    (
+                        not valid_transition(before, with_content=amendment_replace)
+                        if compact_transition
+                        else not valid_item(before, shapes[action])
+                    )
                     or not isinstance(before, dict)
                     or before.get("id") != target
                 )
             )
         ):
             raise ValueError("Invalid business audit facts")
-        encoded = json.dumps(business, separators=(",", ":"), sort_keys=True)
+        encoded = json.dumps(
+            business, separators=(",", ":"), sort_keys=True, ensure_ascii=False
+        )
         if len(encoded.encode()) > 1_048_576:
             raise ValueError("Business audit exceeds its bounded contract")
         db.add(

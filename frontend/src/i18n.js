@@ -69,6 +69,17 @@ export const strings = new LocalizedStrings({
     returned_supervisor: 'Correction demandée par le Superviseur',
     returned_validator: 'Correction demandée par le Validateur définitif',
     approved: 'Validée définitivement',
+    amendment_draft: 'Modification en préparation',
+    openAmendment: 'Demander une modification',
+    cancelAmendment: 'Annuler la modification',
+    amendmentReason: 'Motif de la modification',
+    cancellationReason: 'Motif de l’annulation',
+    approvedVersion: 'Version approuvée',
+    candidateVersion: 'Modification en préparation',
+    executionPaused:
+      'L’exécution de cette activité est suspendue pendant l’examen de la modification.',
+    cancellationWarning:
+      'La version approuvée sera restaurée. La modification et son historique resteront consultables.',
     returned: 'Correction demandée',
     submitReview: 'Soumettre pour prévalidation',
     prevalidate: 'Prévalider',

@@ -330,3 +330,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   candidate through a distinct restricted runtime login. Creating data with the
   candidate and downgrading only its schema does not prove predecessor behavior
   or deployed credential separation.
+
+- Reducing an audit payload to meet a size bound must preserve the material
+  before/after values of edits that have no immutable revision yet. Remove
+  repeated projections, retain one bounded structural copy per side, and test
+  maximum encoded content plus edit/revert history and rollback of complete rows.
