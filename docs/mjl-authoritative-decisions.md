@@ -42,13 +42,20 @@ the [withdrawal/transfer readiness review](rebuild/11-pta2b2-withdrawal-transfer
    never started execution. Work performed, spending, unresolved obligations or
    unknown financial status block both actions pending later financial rules.
 
-These approvals close the five presented business choices, not every technical
-detail in the earlier proposal. The readiness document must distinguish remaining
-implementation-contract details from those settled choices. No additional
-business approval is needed for these five decisions. A readiness recheck and
-reviewed implementation plan remain next; this message is not implementation
-authorization. Prefer withdrawal first, with transfer separately bounded.
-PC1/PC2 remain pending; real accounts and financial execution remain prohibited.
+The subsequent user request authorized technical readiness finalization and
+sequential implementation plans, not runtime work. The reconciled
+[readiness](rebuild/11-pta2b2-withdrawal-transfer-readiness.md),
+[withdrawal plan](rebuild/13-pta2b2a-withdrawal-implementation-plan.md) and
+[transfer plan](rebuild/14-pta2b2b-transfer-implementation-plan.md) passed
+independent engineering and security/specification correction/re-review.
+**PTA_2B2_WITHDRAWAL_READY_FOR_AUTHORIZATION** and
+**PTA_2B2_TRANSFER_READY_FOR_AUTHORIZATION** apply only to these bounded synthetic
+contracts. Withdrawal precedes transfer; actual withdrawal completion/artifact is
+a mandatory transfer prerequisite. Each slice requires separate implementation
+authorization and ends with independent review-only handoff, corrections and
+same-reviewer re-review. No further approval of the five settled business choices
+is needed. Runtime evidence gates remain mandatory. PC1/PC2 remain pending;
+real accounts, financial execution and production remain prohibited.
 
 ## PTA-2B.1 implementation authorization and completion (DEC-111)
 

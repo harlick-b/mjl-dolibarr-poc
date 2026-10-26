@@ -2,8 +2,11 @@
 
 Documentation-only review, 2026-10-26. Baseline:
 `641ba1313d8d2ce2d531a6ea13aefc79d57e0b94` (PTA-2B.1), clean worktree at start.
-The initial review below found neither capability ready. The subsequent user
-approvals in DEC-112 supersede its pending-business-decision statements as follows.
+Current verdicts after DEC-112 and independent technical re-review:
+**PTA_2B2_WITHDRAWAL_READY_FOR_AUTHORIZATION** and
+**PTA_2B2_TRANSFER_READY_FOR_AUTHORIZATION**. Both are planning verdicts only;
+implement withdrawal first and satisfy its completion dependency before transfer.
+The earlier NOT_READY review is retained as historical evidence in §10.
 
 ## Decision closure following the five user approvals
 
@@ -21,24 +24,53 @@ Activities with no execution started. Work performed, spending, unresolved
 obligations or unknown financial status block them. This settles the presented
 W1/W2/T1/T2/F1 business choices. Do not ask for those approvals again.
 
-The detailed proposals below remain the input to a focused readiness recheck;
-the five answers do not automatically approve every unpresented design detail
-(for example exact transfer-opening timing, target-PTA creation timing, storage
-shape or replay contract). Resolve technical choices from existing authority
-without reopening settled business rules. Record any essential remaining
-business ambiguity explicitly rather than assuming blanket approval.
+## Technical recheck after DEC-112
 
-No runtime work is authorized. The previous NOT_READY verdicts and independent
-review results below are historical; no post-approval READY verdict is claimed
-by this decision-recording update. Next: reconcile the bounded contract and
-recheck readiness, then prepare a plan ending with independent review-only
-handoff, implementer corrections and same-reviewer re-review. Prefer withdrawal
-first; transfer remains separately scoped. PC1/PC2 and real-account restrictions
-remain unchanged.
+Planning baseline `356cc76`; actual runtime remains `641ba13`. The user now
+requests finalized technical readiness and sequential plans, not implementation.
+The five business choices are closed. The following implementation contracts
+resolve their technical details without adding business permissions:
+
+- [PTA-2B.2A withdrawal plan](13-pta2b2a-withdrawal-implementation-plan.md): one
+  Activity request-ID column, one migration, no table; two new POST commands,
+  purpose-aware existing revision decisions/history and approved-plan totals on
+  existing Project/year context. Pending withdrawal retains approved content;
+  effective withdrawal retains its separate reviewed request.
+- [PTA-2B.2B transfer plan](14-pta2b2b-transfer-implementation-plan.md): after
+  withdrawal completion, one transfer-ID column and current placement year,
+  one migration, no table; two new POST commands plus existing review/history.
+  Opening and submission are one action: pause starts when the request is sent.
+  No persisted transfer draft. Original create keys never change; target PTA is
+  created only at final approval. Candidate snapshots hold intended target year
+  with explicitly nullable target PTA ID; activation audit binds actual ID.
+- Existing shared review states are reused with strict bounded purpose metadata,
+  mutually exclusive pending requests, purpose/base/chain SQL constraints and
+  contributor protection. No generic workflow engine or independent ledger.
+- Exact-schema/no-import/no-execution proof is required per mutation, backed by
+  existing operator attestation plus an explicit disabled-by-default test-only
+  policy literal. Future realization must replace the proof, not simply approve
+  its new schema hash. Unknown responsibilities remain a denial.
+- Historical annual contribution selects the latest committed final approval
+  effective at the cutoff, including initial, amended and transferred content;
+  a latest withdrawal approval excludes contribution. Single-query snapshot,
+  exact XOF, no current-pointer/current-PTA join shortcut, no pending/cancelled
+  amounts. Extend existing PTA context with this planning-only summary and
+  optional as_of; no reporting module or realized-finance metrics. Context and
+  Activity-list GETs take shared advisory lock 1843201 before auth/row locks and
+  hold it through complete projections; writers take its exclusive counterpart.
+  This closes inter-statement membership/count/nullable-target races without
+  implying simultaneous consistency across separate HTTP requests.
+
+The numbered sections below remain rationale and shared acceptance requirements.
+Where their earlier tentative mechanism differs, the two linked plans own the
+exact technical contract (notably immediate transfer submission and its snapshot
+shape). Each plan ends with independent engineering/security review-only handoff,
+implementer corrections and same-reviewer re-review. Implementation still needs
+separate explicit authorization per slice. PC1/PC2 remain pending.
 
 ## 1. Authority and verified baseline
 
-Sources: [authority router](../mjl-authoritative-decisions.md) DEC-087–090/108–111,
+Sources: [authority router](../mjl-authoritative-decisions.md) DEC-087–090/108–112,
 [approved PTA brief](../mjl_codex_authoritative_pta_change_brief.md) §§2–5,
 [readiness 10](10-pta2b-amendments-readiness.md) §§6/11, roadmap, gap L1–L3,
 PTA-2A and [PTA-2B.1 completion](12-pta2b1-implementation-status.md), functional
@@ -70,7 +102,7 @@ The request's “Activity-specific reviewer authorization” does not reinstate
 reviewer assignments. Agent coordination is not access control. Admin has no
 business mutation; Partner access remains unimplemented.
 
-## 2. Withdrawal: confirmed contract and proposed W decisions
+## 2. Withdrawal contract under DEC-112
 
 Confirmed: withdrawal of approved content needs formal Supervisor then distinct
 Validator approval and retained administrative history. It does not delete an
@@ -79,7 +111,7 @@ instead restores the already approved plan; it is not Activity withdrawal.
 No authority grants financial reversal, settlement waiver or restoration after
 an effective withdrawal.
 
-**Recommended first contract, pending W1/W2/F1:**
+**Approved bounded business contract; exact implementation in plan 13:**
 
 - Any eligible Agent requests withdrawal of an `approved` Activity without an
   open amendment, in an active Project. Require trimmed reason (1–4000 chars),
@@ -105,17 +137,17 @@ an effective withdrawal.
   prevent new assignments/structural edits. Retain Operation identities and
   allocations as historical facts, without inventing individual cancellation,
   financial settlement or physical completion. No restoration initially.
-- W2 proposal: remove the Activity from current approved planned count/allocation
+- Approved W2: remove the Activity from current approved planned count/allocation
   only at effective withdrawal; earlier as-of totals remain unchanged. Keep
   withdrawn approved allocation visible historically, never available for reuse.
   Withdrawal adds no realized count/spending. No reporting UI is built here.
 
-W2 example if approved: allocation 100 F CFA contributes count 1/amount 100
+W2 example: allocation 100 F CFA contributes count 1/amount 100
 before and during review; after withdrawal current values become 0/0, while an
 earlier as-of view remains 1/100. Zero denominators stay non-calculable. This is
 planning attribution, not refund or administrative reversement evidence.
 
-## 3. Transfer: confirmed contract and proposed T decisions
+## 3. Transfer contract under DEC-112
 
 Confirmed: Projects span years with one PTA per relevant calendar year; Activity
 belongs to its planned start year. End date crossing New Year alone causes no
@@ -123,20 +155,20 @@ transfer. Changed start year requires formal audited transfer and preserved
 approved history, with two-stage approval of affected content. It is not financial
 virement or reallocation between Activities.
 
-**Recommended first contract, pending T1/T2/F1:**
+**Approved bounded business contract; exact implementation in plan 14:**
 
 - Eligible Agent proposes from an approved Activity without another pending
   amendment/withdrawal/transfer, in the same active Project and Partner/MJL scope.
   Target start year strictly later than current placement, within 2000–2200;
   no current-date cutoff. Same-year uses ordinary amendment; backward,
   cross-Project/Partner, closed, unapproved or financially unverifiable cases
-  reject. Forward-only is a recommendation, not existing authority.
+  reject. Forward-only is approved in DEC-112.
 - Require reason, target dates, expected source version and approved base.
   Retain Activity/reference, Operation IDs/types/allocations, contributors and
   coordination assignments. Restrict changes to dates/placement; other structure
   or budget changes require a separate same-year amendment.
-- Open a dated candidate, pause from opening and submit to fresh two-stage
-  review. Effective approved content/placement remain in source until approval.
+- Submit a dated candidate in one action, starting the pause and fresh two-stage
+  review together. Effective approved content/placement remain in source until approval.
   Returns permit correction and fresh submission. Reasoned Agent cancellation
   from every pending stage restores source with history intact. Do not create
   a destination PTA merely for preview/opening or leave one after cancellation.
@@ -148,7 +180,7 @@ virement or reallocation between Activities.
 - Preserve original create-request provenance/fingerprint forever. Replaying
   original creation after transfer resolves the same Activity, not a duplicate
   source-year record or implicit move back.
-- T2 proposal: current source contribution ends at transfer time and target
+- Approved T2: current source contribution ends at transfer time and target
   contribution begins once; prior as-of membership is preserved. For 100 F CFA
   transferred Y→Y+1, current source/target are 0/100, earlier as-of 100/0, never
   100/100 at the same effective instant. Joining only today's `Activity.pta_id`
@@ -173,7 +205,7 @@ or build partial financial execution to unblock these capabilities.
 
 | Scenario | Boundary |
 | --- | --- |
-| Synthetic planning-only Activity, no execution ever enabled | Could support the bounded journeys only if F1 approves verified isolated no-execution/no-import provenance as temporary eligibility evidence. No such authorization is inferred today. |
+| Synthetic planning-only Activity, no execution ever enabled | DEC-112 approves this bounded eligibility model; per-mutation technical proof remains mandatory before any separately authorized implementation is enabled. |
 | Real/imported/unverified database; missing or extra schema | Reject. Database naming or absent spending rows alone is insufficient. |
 | Open amendment | Reject opening withdrawal/transfer; explicitly resolve the candidate first. |
 | Historical approvals only | Preserve every fact; approval is not itself spending. Financial eligibility is independently required. |
@@ -182,7 +214,7 @@ or build partial financial execution to unblock these capabilities.
 | Unspent allocation | Never redistribute, mark returned or waive required administrative reversement. Resolution is a later financial responsibility. |
 | Annual history | Preserve approved snapshots and effective membership/status times; W2 and T2 are separate owner choices. |
 
-F1 recommendation is synthetic development only: verify disposable deployment/
+Approved F1 is synthetic development only: verify disposable deployment/
 artifact and no-import provenance, exact supported planning-only schema and
 test-only policy for every affected mutation. Existing exact guard is reusable,
 not proof of real-world absence of obligations. Any schema/version change denies.
@@ -191,17 +223,15 @@ per-Activity execution/obligation eligibility before these commands resume;
 merely accepting a new manifest is forbidden. Unknown responsibilities deny.
 No speculative financial table or `has_spending=false` flag.
 
-Recommend **PTA-2B.2A withdrawal first**, only after W1/W2/F1 close: it needs no
-placement/create-replay migration. **PTA-2B.2B transfer** independently needs
-T1/T2/F1 and annual continuity. These subdivisions remove genuine dependencies;
-transfer blockers do not automatically block withdrawal. Neither is ready now.
-Next action is §9's decision package. If F1 is declined, request a bounded
-realization/financial-eligibility readiness review next to define authoritative
-execution/obligation facts; this is not authorization to implement finance.
+Implement **PTA-2B.2A withdrawal first** after separate authorization, then
+**PTA-2B.2B transfer** after withdrawal completion and its own authorization.
+These subdivisions address real placement/replay/migration dependencies. No
+further W1/W2/T1/T2/F1 business approval is required. Financial-realization cases
+remain later work and do not block these verified synthetic planning-only slices.
 
 ## 5. Minimum persistence, API and transactions
 
-Impact estimates only until business choices close. Reuse Activity, Operation,
+The linked plans now fix these technical impacts; the summary below explains reuse. Reuse Activity, Operation,
 AnnualPTA, revisions/decisions/contributors, assignment history and atomic audit.
 No new table is demonstrated necessary; no generic workflow/state-machine engine.
 
@@ -211,8 +241,8 @@ withdrawal approval/effective timestamp. Existing revision/decision tables can
 carry the chain. Extend purpose/base/state and same-Activity deferred constraints;
 withdrawal approval must never become executable content approval. Pending
 request kinds are mutually exclusive. Extend DTO/history/allowed actions/pause
-and assignment-ending behavior. Exact SQL fields/states/migration count await W
-approval and I4 before implementation.
+and assignment-ending behavior. Plan 13 fixes SQL fields/states and the single migration; I4 is now a
+contract-conformance check, not an unresolved business design.
 
 Proposed responsibilities: reasoned request submission, scoped request read via
 existing revision/history, correction/resubmission and review via existing seams,
@@ -239,8 +269,8 @@ Proposed responsibilities: opening, scoped read, editing/submission, review and
 pending cancellation. Reuse amendment preparation/revision/history seams with
 explicit purpose guards; ordinary Activity PATCH must not move annual ownership.
 Preview reuses Project/year context with nullable PTA. Candidate paths include
-`/activities/{id}/transfers` and `/{transfer_id}/cancellation`; exact methods,
-payloads/responsibility count are fixed after T decisions. No separate annual-PTA
+`/activities/{id}/transfers` and `/{transfer_id}/cancellation`; plan 14 fixes methods,
+payloads and the two new POST responsibilities. No separate annual-PTA
 create API or finance route.
 
 One mutation transaction: advisory `1843201` first, current authentication
@@ -308,8 +338,8 @@ offline sends/queues/replay or PWA business API caching.
 
 ## 8. Focused acceptance oracles
 
-Proposed, not executed; no scope selected for implementation. Reconcile changed
-owner answers before READY. C01–C08 apply to either capability, W01–W06 only to
+Mandatory future verification, not executed in this documentation task. The
+linked plans resolve mechanisms and must be applied alongside these gates. C01–C08 apply to either capability, W01–W06 only to
 withdrawal, T01–T08 only to transfer: **14 withdrawal, 16 transfer, 22 distinct
 combined gates**, not test-function counts.
 
@@ -330,7 +360,7 @@ combined gates**, not test-function counts.
 | W05 | W2 example: current 1/100 before/during request, 0/0 after effect, earlier as-of still 1/100; concurrent reads coherent. Add approved amendment 100→120 before withdrawal: historical allocation is 100 before amendment approval, 120 afterward/until withdrawal, then current contribution zero; pending amendment changes nothing. Historical allocation visible, never reusable; zero denominator non-calculable. |
 | W06 | Closed Project/unknown obligations deny; Project close still returns `project_not_empty` after withdrawal. No hidden close/reopen or financial waiver. |
 | T01 | Approved same-active-Project forward candidate allowed; same-year/backward/out-of-range/cross-Project/Partner/closed/unapproved/open amendment/withdrawal deny. End-only year crossing never transfers. |
-| T02 | Preparation/review preserves source and approved content; correction needs fresh chain; pending cancellation restores source/history without orphan target. No allocation/Operation structural change piggybacks. |
+| T02 | Submitted/returned review preserves source and approved content; correction needs fresh chain; pending cancellation restores source/history without orphan target. No allocation/Operation structural change piggybacks. |
 | T03 | Approval reuses target or atomically creates one Project/year PTA, activates replacement and preserves Activity/reference/Operation identities/amounts/assignments. Preview creates nothing. |
 | T04 | Original create replay returns same Activity after transfer; changed original payload conflicts. Original keys/fingerprint/source snapshots byte-stable; SQL denies wrong current PTA/year/Project/MJL. |
 | T05 | T2 example: current source/target 0/100, earlier as-of 100/0, no double count. With approved amendment 100→120 before transfer, earlier source values are 100 then 120 by approval time and target receives 120 only on transfer; pending amendment changes nothing. Barrier read-vs-activation proves coherent source/target/history under selected snapshot strategy; no silent historical rewrite. |
@@ -338,19 +368,15 @@ combined gates**, not test-function counts.
 | T07 | Later forward move needs new request/base/version/fresh chain; old command conflicts, both moves remain historical. No undo. Rollback removes only transaction-created target, never pre-existing PTA. |
 | T08 | Future execution/settlement or unknown finances deny, no spending/reversement reattribution/reuse. Closed Activity/Project deny. Query refreshes both annual contexts; old source history remains readable. |
 
-## 9. Initial decision package (business approvals superseded by DEC-112 above)
+## 9. Remaining gates and owners
 
-| Gate/classification | Existing authority; exact recommendation requiring approval | Owner | Blocks |
+| Gate/classification | Status and required evidence | Owner | Scope |
 | --- | --- | --- | --- |
-| W1 / BEFORE_AUTHORIZATION | Brief §2 and readiness 10 W1 require formal review but leave mechanics open. Approve §2 approved-only/active-Project Agent request, reason, submission pause, fresh chain/returns/correction, pending cancellation, approval-time effect, preserved content/Operations, ended assignments and no restoration. Draft abandonment deferred. | User/business sponsor, finance concurrence | Withdrawal only |
-| W2 / BEFORE_AUTHORIZATION | Brief §5/gap L3 leave denominators unresolved. Approve current-total removal at effect, immutable earlier as-of membership and historical withdrawn allocation; not realized/reusable money. | Reporting owner/business sponsor | Withdrawal only |
-| T1 / BEFORE_AUTHORIZATION | Brief §2 requires audited changed-start-year transfer. Approve §3 same-Project forward-only approved/no-pending/no-execution scope, Agent proposal, opening pause/returns/correction/cancel, fresh chain, unchanged identities/amounts/assignments, target PTA at activation and repeated forward moves only. | User/business sponsor | Transfer only |
-| T2 / BEFORE_AUTHORIZATION | Brief §§2/5/gap L3 leave attribution open. Approve effective-time current placement, immutable past as-of membership, no double count and deferral of execution/spending-bearing transfers. | Reporting owner with finance | Transfer only |
-| F1 / BEFORE_AUTHORIZATION | Brief §3 forbids invented settlement/missing-as-zero. Approve §4 strictly synthetic verified no-execution/no-import environment as temporary proof; otherwise wait for financial eligibility readiness. No external custody investigation. | Business sponsor/finance; engineer provides provenance | Both, independently of W/T |
-| I4 / BEFORE_AFFECTED_IMPLEMENTATION | After business closure, freeze exact purpose/state/DTO/FK fields, returns/cancellation, as-of algorithm/event order, read isolation and direct-SQL oracles. No schema/table count approved here. | Engineer and independent reviewers | Affected capability |
-| C4 / BEFORE_CUTOVER | Exact artifact/schema/provenance rehearsal, non-owner runtime, drained writers, compatibility, focused checks and independent correction/re-review. | Engineer/operator | Affected synthetic enablement |
-| F2 / LATER_SLICE | Execution/financial obligations/late exceptions need authoritative records and eligibility before affected cases work. Replace temporary proof at realization cutover, never just update the manifest. | Finance/reporting owners and realization engineer | Execution-bearing cases, not an approved F1 sandbox |
-| PC1/PC2 / EXTERNAL_SECURITY_DEPENDENCY | Baseline 03 approvals remain pending; real identities/production prohibited. | Sponsor/RSSI and baseline owners | Real-account/production use |
+| W1/W2/T1/T2/F1 | CLOSED by DEC-112; no repeat business approval. | User | Both bounded slices |
+| I4 / BEFORE_AFFECTED_IMPLEMENTATION | Technical contract fixed in plans 13/14; verify actual predecessor, DTO/SQL mappings, snapshot purpose/null cases and annual algorithm conform before edits. Transfer predecessor must be the completed withdrawal artifact. | Implementer | Respective slice |
+| C4a/C4b / BEFORE_CUTOVER | Prove isolated provenance, exact predecessor upgrade, restricted runtime, fail-closed guard, migrations, all applicable gates and independent correction/re-review. These are mandatory future evidence, not reasons to claim implementation complete now. | Engineer/operator | Respective synthetic enablement |
+| F2 / LATER_SLICE | Authoritative execution/financial obligations and late exceptions before any executed/financially unknown case. Replace temporary proof before enabling lifecycle in realization schema. | Finance/reporting owners and realization engineer | Excluded cases |
+| PC1/PC2 / EXTERNAL_SECURITY_DEPENDENCY | Still pending; real accounts/production prohibited. | Sponsor/RSSI | Real-account/production use |
 
 ## 10. Initial independent review and verdict (before DEC-112)
 
@@ -374,3 +400,26 @@ Task verification: source/document inspection, new-file/documentation diff revie
 `git status`, `git diff --stat`, `git diff`, `git diff --check`. No runtime tests,
 builds/migrations/browser runs because no executable changes. Existing lessons
 evaluated; no repeated correction warrants an entry. Stop before implementation.
+
+## 11. Current readiness recheck
+
+Independent engineering review: **PASS** for both plans after correction and
+same-reviewer re-review. Independent security/specification review: **PASS** for
+both plans after focused re-review. Engineering found the existing context/list
+inter-statement read race during transfer; both plans now fix the exact shared
+advisory-before-auth protocol and require public-route barrier tests at nullable
+PTA lookup and membership/count selection. Security verified no implicit lock
+upgrade in the current authentication path. No remaining blocking plan findings.
+
+**PTA_2B2_WITHDRAWAL_READY_FOR_AUTHORIZATION**.
+**PTA_2B2_TRANSFER_READY_FOR_AUTHORIZATION** after withdrawal completion as the
+mandatory predecessor gate. Complete bounded synthetic PTA-2B.2 is technically
+ready for sequential authorization; no runtime work is authorized by this review.
+I4/C4a/C4b and all 14/16 checks remain mandatory implementation evidence, not passed
+runtime checks. PC1/PC2, real accounts and financial execution remain excluded.
+
+Verification: reviewed tracked diff and both new plans directly against actual
+code/authority; git diff --check passes. No runtime tests, database changes,
+browser runs or builds for this documentation-only work. Existing lessons were
+evaluated; the read-race correction is captured in the plans, with no unrelated
+lesson or runtime edit. Stop before implementation.
