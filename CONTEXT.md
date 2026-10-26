@@ -175,9 +175,16 @@ _Avoid_: Independent executable Activity creation, planning approval status
 **Révision du PTA**:
 Formal change to affected Activity content, allocation, dates or inclusion,
 requiring fresh two-stage approval while retaining earlier approved history.
-Execution of the affected Activity pauses while the change awaits approval;
-unaffected approved Activities continue.
+Execution/spending of the affected Activity pauses from amendment opening
+through review and correction until approval or reasoned cancellation; unrelated
+Activities continue. Only one amendment may be open for an Activity.
 _Avoid_: Silent overwrite of approved values, approval of all Activities together
+
+**Annulation de modification**:
+Agent cancellation of an open amendment with a mandatory reason. It preserves
+the candidate history and prior approval, restores the previously approved
+version and releases the amendment pause.
+_Avoid_: Withdrawal of the Activity, deletion of history, cancellation of an Operation
 
 **Transfert entre PTAs**:
 Audited change of annual attribution when an approved postponement changes the

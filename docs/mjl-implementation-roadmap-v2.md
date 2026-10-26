@@ -19,8 +19,11 @@ unresolved weaknesses and unapproved recommendations.
 pre-implementation baseline in the historical decision-closure entry below.
 [PTA-2B readiness](rebuild/10-pta2b-amendments-readiness.md) recommends 2B.1
 same-year approved amendments, then separately decided withdrawal/transfers.
-**PTA_2B_NOT_READY**: amendment pause/candidate disposition requires sponsor
-closure; withdrawal/annual attribution has separate owners and blockers.
+**PTA_2B1_READY_FOR_AUTHORIZATION**: DEC-110 closes amendment pause/cancellation;
+the reconciled contract and [plan](rebuild/11-pta2b1-implementation-plan.md) passed
+independent engineering and security/specification reviews. I3/C3 and M01–M20
+remain implementation gates. Full **PTA_2B_NOT_READY**: withdrawal/annual
+attribution has separate owners and blockers.
 No 2B implementation is authorized; PC1/PC2 remain pending.
 
 ## PTA-2 readiness and decision closure (historical, 2026-10-26)

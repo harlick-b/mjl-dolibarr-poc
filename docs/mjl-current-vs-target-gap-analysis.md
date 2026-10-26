@@ -10,9 +10,12 @@ PTA-2A is complete at `1f6c670` (DEC-109), superseding the implementation
 boundary in the historical entry below. The focused
 [PTA-2B review](rebuild/10-pta2b-amendments-readiness.md) separates amendment
 pause/candidate-disposition decisions A1/A2 from withdrawal W1 and annual
-transfer/attribution T1. L1–L3 remain open for their affected branches. Neither
-the whole slice nor its amendment subset is ready for authorization yet; no
-runtime change or new business approval follows from this documentation review.
+transfer/attribution T1. DEC-110 closes A1/A2: pause from opening and reasoned
+Agent cancellation with preserved history/prior approval. Cancellation contract
+and implementation plan passed both independent re-reviews:
+**PTA_2B1_READY_FOR_AUTHORIZATION**, with I3/C3 and M01–M20 implementation gates.
+Full **PTA_2B_NOT_READY**; W1/T1 and L1–L3 remain open for their affected branches.
+Readiness and business approvals do not authorize implementation.
 
 ## PTA-2 readiness decision closure (historical, 2026-10-26)
 

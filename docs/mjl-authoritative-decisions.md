@@ -19,14 +19,29 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
-## PTA-2B readiness review
+## PTA-2B amendment pause and cancellation (DEC-110)
 
-[PTA-2B readiness](rebuild/10-pta2b-amendments-readiness.md) reviews the actual
-PTA-2A completion at `1f6c670`. It recommends separate same-year amendments
-(2B.1) and withdrawal/annual transfer (2B.2). This is documentation only:
-amendment pause boundaries and candidate disposition still need sponsor
-approval; withdrawal and annual-history decisions remain separately blocked.
-No new business decision or implementation authorization is recorded here.
+The user approves pausing the affected Activity from amendment opening, through
+preparation, review and correction, until replacement approval or cancellation.
+This concerns execution/spending, not access to review or history; other
+Activities continue. The previous approved content remains authoritative and
+candidate amounts cannot authorize execution.
+
+The user also approves one open amendment per Activity and Agent cancellation
+with a mandatory reason. Cancellation preserves amendment history and the prior
+approval, releases this amendment's pause and resumes the prior approved version.
+Cancellation of an amendment is not withdrawal of the Activity. These decisions
+close the A1/A2 business choices in
+[PTA-2B readiness](rebuild/10-pta2b-amendments-readiness.md).
+
+The cancellation API, history, version/race and verification contract is now
+reconciled; independent engineering and security/specification reviews PASS.
+The amendment subset is `PTA_2B1_READY_FOR_AUTHORIZATION` under readiness 10 and
+[its implementation plan](rebuild/11-pta2b1-implementation-plan.md). I3/C3 and all
+twenty acceptance checks remain future mandatory implementation gates.
+Withdrawal and annual-history decisions remain separate. No implementation,
+execution infrastructure or real-account enablement is authorized; PC1/PC2 remain
+pending.
 
 ## PTA-2A implementation authorization (DEC-109)
 
