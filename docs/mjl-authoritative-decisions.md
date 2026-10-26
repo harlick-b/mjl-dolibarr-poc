@@ -19,6 +19,17 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-2 readiness review (documentation only)
+
+[PTA-2 readiness](rebuild/09-pta2-validation-readiness.md) recommends initial
+validation (2A) before approved amendments/withdrawal/annual transfers (2B).
+**PTA_2_NOT_READY**, **PTA_2A_NOT_READY**, **PTA_2B_NOT_READY**: DEC-105 mandates
+Activity-specific reviewers but does not settle their selection, management or
+replacement policy. The user/business sponsor owns that 2A blocker; business,
+finance and reporting owners retain later withdrawal/transfer/history decisions.
+The review proposes 20 focused 2A checks and exact schema/lifecycle integration
+gates. It changes no approved business decision and authorizes no implementation.
+
 ## PTA-1 implementation authorization and completion (DEC-107)
 
 The user authorized the bounded synthetic PTA-1 slice defined by

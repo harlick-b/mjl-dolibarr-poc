@@ -12,6 +12,18 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-2 readiness (2026-10-26)
+
+[Readiness 09](rebuild/09-pta2-validation-readiness.md) recommends Option B:
+initial Activity validation (2A), then approved amendments/withdrawal/annual
+transfers (2B). **PTA_2_NOT_READY**; both sub-slices are **NOT_READY**. The 2A
+blocker is the unapproved reviewer-assignment management/cardinality/replacement
+contract (B1), not the already-approved two-stage chain. Withdrawal, annual
+history and affected-execution decisions (B2) block only 2B. Twenty future focused
+2A acceptance checks are specified, with exact A2.2/A3 cutover and independent
+review gates. This review is documentation-only; no runtime verification or
+implementation occurred. PTA-1 completion remains the baseline below.
+
 ## PTA-1 planning foundation (DEC-104–107)
 
 **PTA_1_COMPLETE** — implemented only the bounded synthetic slice in

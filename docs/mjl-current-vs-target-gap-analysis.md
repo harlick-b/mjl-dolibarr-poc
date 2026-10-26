@@ -4,6 +4,18 @@ This is implementation-debt evidence beneath the authority router and approved
 PTA brief (DEC-087). The pre-PTA rows below describe prior implementation,
 not satisfaction of the new target.
 
+## PTA-2 readiness blockers (2026-10-26)
+
+PTA-1 completion is recorded at `70ff0f9`; the older implementation-debt sections
+below remain historical evidence. [Readiness 09](rebuild/09-pta2-validation-readiness.md)
+isolates B1: user/business sponsor approval of Activity reviewer management,
+cardinality, staffing time, assignment eligibility/states/reasons, replacement
+effects on pending review/prevalidation and responsibility release. DEC-105 does
+not supply those selection rules. This blocks initial validation authorization.
+Existing L1–L3 withdrawal, transfer and annual-history questions are B2 and block
+only the later amendment/transfer slice; they do not reopen the approved two-stage
+chain or equal Agent access. Both sub-slices remain NOT_READY; no runtime change.
+
 ## A1 enablement boundary (DEC-094)
 
 Synthetic A1 is implemented; PC1 (exact password/Unicode/normalization,
