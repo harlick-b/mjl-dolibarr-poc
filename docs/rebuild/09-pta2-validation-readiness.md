@@ -2,7 +2,7 @@
 
 Documentation-only readiness review, 2026-10-26. **No implementation authorized.**
 Business authority: [PTA brief](../mjl_codex_authoritative_pta_change_brief.md)
-§§2–5, DEC-087/089/090/104–107, and the retained rules in functional
+§§2–5, DEC-087/089/090/104–108, and the retained rules in functional
 specification §§9–13, permission matrix §Separation of Duties and status model
 §Activity Validation. Newer PTA rules override obsolete assignment-based Agent
 access, post-start bans and terminal-forever approval. Code/tests establish the
@@ -11,7 +11,8 @@ baseline, never business approval.
 ## 1. Verified PTA-1 baseline
 
 Completion commit: `70ff0f90cbd5083bef888128b5baab3534bf3d77`, parent `d5962c8`;
-HEAD matched it and the worktree was clean at review start. Source inspection
+HEAD matched it at the initial review; decision closure follows documentation
+commit `4f546e5`. Runtime remains unchanged. Source inspection
 agrees with [PTA-1 status](09-pta1-implementation-status.md) and the roadmap:
 
 | Existing seam | Verified behavior; material PTA-2 consequence |
@@ -21,7 +22,7 @@ agrees with [PTA-1 status](09-pta1-implementation-status.md) and the roadmap:
 | `planning/service.py:principal`, `allowed`, `locked_mutation` | Verified ordinary role plus exact environment verification; Admin denied; advisory lock `1843201` precedes mutating session/row locks. `allowed` currently advertises Agent edit without a state test: change it with the new backend state guards. |
 | `replace_assignments`, `ActivityAssignment` | Only Agent coordination assignments exist; Supervisor/Validator manage them. Unassigned Agents retain equal planning access. These are not reviewer assignments. |
 | `auth/service.py:business_audit` | Exact bounded before/after business facts in the write transaction; the allowed Activity audit shape is currently draft-only. Creator and all committed edit actors survive in audit; current `Operation.updated_by_id` alone is not cumulative contributor evidence. |
-| `auth/service.py:environment_verified`, `lifecycle_eligible` | Exact 16-relation `0005_pta1` manifest, revision and singleton; current Agent assignments block A2.2. A3 uses schema/provenance separately from assignment eligibility. Reviewer responsibilities must join the lifecycle predicate. |
+| `auth/service.py:environment_verified`, `lifecycle_eligible` | Exact 16-relation `0005_pta1` manifest, revision and singleton; current Agent assignments block A2.2. A3 uses schema/provenance separately from assignment eligibility. DEC-108 introduces no individual reviewer assignment or pending-work lifecycle blocker; existing Agent assignment restrictions remain. |
 | `PlanningView.jsx`, `planning.js`, `router.jsx` | Five planning routes, shared RestClient, Query cancellation/invalidation, offline denial, date clamp and exact display. Reuse the Activity workspace; no review UI exists yet. |
 
 Project states are `active/closed`; closure currently rejects any Activity, which
@@ -38,7 +39,7 @@ must not be copied.
 
 Recommend **Option B**:
 
-- **PTA-2A: initial validation.** Reviewer assignments, first submission, both
+- **PTA-2A: initial validation.** Role-based review eligibility, first submission, both
   decisions, reasoned correction/edit/resubmission loops, immutable numbered
   submissions and the first approved snapshot; scoped history, concurrency,
   audit, lifecycle guard integration and the minimum existing-workspace UI.
@@ -59,30 +60,45 @@ and additions remain available in correction. The retained dictionary §Opérati
 defers post-submission removal to the unresolved cancellation branch (L2). Do not
 silently extend the current draft-removal API to those Operations.
 
-## 3. Approved workflow and unresolved reviewer selection
+## 3. Approved role-based review (DEC-108)
 
 Confirmed actor codes: Agent `AGENT_SAISIE`, Supervisor/Prévalidateur
 `AGENT_VERIFICATEUR`, final Validator `VALIDATEUR_DEFINITIF`. One effective role;
 Admin has no planning/review power. All reads remain inside trusted MJL ownership
-and validated parent relationships. Review requires the exact Activity-specific
-assignment (DEC-105), active identity, current session, current revision/state and
-separation of duties; having the role or a stale UI capability is insufficient.
+and validated parent relationships. Every active Admin-invited Supervisor or
+Validator can review every Activity in that scope, subject to their stage,
+current verified session, exact revision/state and contributor separation.
+DEC-108 supersedes DEC-105's Activity-specific reviewer requirement only.
+Pending invitations do not confer access; normal password/OTP login is required.
 
-| Action | Confirmed actor / assignment / contributor rule | State and evidence |
+| Action | Actor / contributor rule | State and evidence |
 | --- | --- | --- |
-| Edit and submit | Any Agent in authorized MJL scope; no coordination-assignment requirement. Editing/submitting adds lineage contribution. | Draft or returned correction only; complete balanced plan; current version. |
-| Prevalidate / return | Assigned Supervisor; not creator, submitter or any cumulative structural contributor. | Current submitted revision; exact identity/assignment rechecked; return reason required. |
-| Approve / return | Assigned Validator; not contributor and not that revision's prevalidator, even after a role change. | Current prevalidated revision and its successful prevalidation; return reason required; no direct submitted→approved path. |
-| Change Agent coordination | Supervisor or Validator under existing PTA-1 rules. | Audited/versioned; no edit privilege is granted or revoked; assignment-only change does not itself invalidate financial prevalidation. |
-| Manage reviewer assignments | **Unresolved B1**: no approved manager, cardinality, selection or replacement policy. | Must specify permitted states, manager/contributor eligibility, self-designation, required reasons, release rules and effect on pending review. No default role-wide review or technical Admin fallback. |
-| Read revision/decision history | Existing ordinary business readers within the Activity's MJL ancestry. | Sanitized Activity-local business chronology; no general audit export, auth records or Partner portal access. |
+| Edit and submit | Any Agent in authorized MJL scope; no coordination-assignment requirement. Actual edits and submissions add lineage contribution. | Draft or returned correction; complete balanced plan; current version. |
+| Prevalidate / return | Any active Supervisor, excluding creator, submitters and cumulative structural contributors. | Current submitted revision; return reason required. |
+| Approve / return | Any active Validator, excluding contributors and that revision's prevalidator even after role change. | Current prevalidated revision and successful prevalidation; no bypass. |
+| Change Agent coordination | Supervisor or Validator under unchanged PTA-1 rules. | Audited/versioned; no review eligibility is granted; no financial prevalidation invalidation. |
+| Account invitation/lifecycle | Technical Admin through existing access functions. | No business decision privilege; deactivation ends access, preserves decisions and requires no Activity handoff. Existing Agent-assignment, self/Admin-target and provenance guards remain. |
+| Read revision/decision history | Existing ordinary business readers in the Activity's trusted MJL scope. | Sanitized Activity-local chronology, not global audit export or Partner portal access. |
 
-DEC-105 fixes the need for Activity-specific reviewers, not who appoints them.
-Supervisor/Validator authority over **Agents** cannot be extrapolated to selecting
-reviewers. B1 also must settle whether one reviewer per stage or multiple with
-quorum/selection is intended and when both stages must be staffed. Do not build a
-quorum engine or choose a fallback. An assignment manager who contributed cannot
-thereby acquire review eligibility. There is no segregation override.
+Multiple people may hold either review role. **One eligible Supervisor's
+prevalidation followed by one eligible Validator's approval is sufficient**;
+there is no all-reviewers vote, quorum, reviewer selection, claiming or individual
+assignment. The first valid committed decision wins its stage/version.
+Submission requires no preselected reviewers or nonempty reviewer pool. If no
+eligible person remains for a required stage, the Activity waits without bypass.
+
+Replacing, changing the role of, or deactivating a reviewer never erases completed
+decisions or cancels a valid prevalidation. Another eligible identity continues
+the remaining stage. Historical eligibility is captured at decision time; final
+approval does not require the former prevalidator to remain active or keep that
+role. It does require a successful prevalidation of the exact current revision
+and a different final actor. Structural correction creates a new submission and
+requires fresh prevalidation regardless of personnel continuity.
+
+The user's Admin-created-directly-in-database statement is recorded as a separate
+provisioning concern. This readiness recheck changes neither the guarded A1
+bootstrap nor its security contract, and authorizes no direct SQL account writes.
+The user approved keeping that issue separate; it is not a PTA-2A dependency.
 
 ## 4. Submission, correction and approval
 
@@ -113,11 +129,11 @@ actors and timestamps. Do not silently drop these rules as legacy behavior.
 
 Snapshots contain immutable context/Partner/Project/PTA/year identifiers and
 relevant display labels, Activity reference/name/description/dates/XOF allocation,
-ordered Operation IDs/type IDs and labels/names/amounts, coordination and reviewer
-assignment identities at submission, submitter/time, cumulative contributor IDs and
-role-at-submission facts, and content fingerprint. Financial structure and current
-assignment authorization are separate: old snapshot membership never authorizes a
-removed reviewer. Review events retain actor/role/time, exact revision, stage,
+ordered Operation IDs/type IDs and labels/names/amounts, Agent coordination
+assignments at submission, submitter/time, cumulative contributor IDs and
+role-at-submission facts, and content fingerprint. Do not snapshot the global
+reviewer pool: current role/session determines eligibility for a new decision.
+Review events retain actor/role/time, exact revision, stage,
 reason, requested amount where applicable, and before/after state/version.
 
 Cumulative contributors include creator, every submitter and every identity whose
@@ -128,13 +144,11 @@ document contribution remains a future Phase 4 integration obligation.
 
 ## 5. Minimal PostgreSQL and transaction proposal
 
-This is a design proposal pending B1, not a schema authorization. Reuse Activity,
+This is the bounded design under approved DEC-108, not a schema authorization.
+Reuse Activity,
 Operation, User, ownership, audit and the existing transaction/advisory seam.
 A single reviewed migration would add only the following concrete persistence:
 
-- Activity reviewer assignments: separate from Agent coordination; Activity,
-  stage, user, assigning actor/time, ending actor/time and reason. Historical
-  relationships remain attributable. Exact current uniqueness depends on B1.
 - Activity revisions: unique `(activity_id, revision_number)`, immutable bounded
   typed snapshot, submitter/time and fingerprint, with context/Activity composite
   ancestry. Do not create separate generic snapshot/Operation-history engines.
@@ -152,9 +166,9 @@ optimistic token for structural, assignment, submission and decision changes.
 Pointers cannot target another Activity. Do not conflate revision number with
 version: assignment changes advance version without changing financial content.
 One current submitted candidate per Activity; one immutable decision per stage per
-revision in the normal correction loop. If B1 requires review invalidation/repeat
-on the same snapshot, explicitly settle its review-attempt identity and constraints
-before adopting that uniqueness rule. Do not erase an old decision to make room.
+revision, enforced by a unique revision/stage constraint. Personnel changes do
+not reopen a decided stage. Do not erase an old decision to make room. Only three
+new tables are proposed; no reviewer assignment or review-attempt table.
 
 Use bounded snapshot schemas with the existing 1–100 Operations, exact positive
 XOF strings/BigInteger ceiling, name/description bounds and date-only rules.
@@ -180,8 +194,8 @@ imports or new demo data. New writes maintain membership atomically thereafter.
 Every mutation uses one use-case-owned transaction: existing advisory lock
 `1843201` **first**, then acting Context→User through current auth, other affected
 Users in deterministic ID order, applicable parent/Activity rows, revision and
-assignment/decision rows in deterministic order. Recheck session, role, scope,
-contribution, current reviewer assignment, exact revision/state and expected
+Agent-assignment/decision rows in deterministic order. Recheck session, role, scope,
+contribution, current effective role, exact revision/state and expected
 Activity version inside it. Helpers flush but never commit; route success is
 returned only after transaction exit/commit. Existing read paths can lock
 Context→User without taking this advisory lock; never introduce an Activity→User
@@ -190,11 +204,10 @@ lifecycle paths intact; prove interactions with deterministic PostgreSQL barrier
 
 | Mutation | Preconditions and atomic effect / audit |
 | --- | --- |
-| Reviewer assignment | B1 manager/state/reason, active role-correct targets, contributor and stage separation, expected Activity version; end/create assignments and any approved pending-review effect; `activity.assign_reviewers` records exact old/new identities and versions. |
 | Structural correction | Agent, editable state, expected version, retained correction-total rule; existing Operation/tombstone writes plus cumulative contributor membership; existing `activity.replace` audit with expanded explicit shape. |
-| Submission/resubmission | Agent, exact current version, editable state, validated full plan, B1 staffing and changed-content rules; allocate next revision under Activity lock, freeze snapshot/contributors, update current pointer/state/version; `activity.submit`. |
-| Supervisor decision | Current submitted revision and eligible current assigned noncontributor; append exact decision, state/version and `activity.prevalidate` or `activity.return_supervisor`. |
-| Validator decision | Current prevalidated revision, valid linked prevalidation and different eligible assigned noncontributor; append decision, state/version, approved pointer only on approval; `activity.approve` or `activity.return_validator`. |
+| Submission/resubmission | Agent, exact current version, editable state, validated full plan and changed-content rules; no reviewer staffing precondition; allocate next revision under Activity lock, freeze snapshot/contributors, update current pointer/state/version; `activity.submit`. |
+| Supervisor decision | Current submitted revision and eligible active Supervisor noncontributor; append exact decision, state/version and `activity.prevalidate` or `activity.return_supervisor`. |
+| Validator decision | Current prevalidated revision, valid linked prevalidation and different eligible active Validator noncontributor; append decision, state/version, approved pointer only on approval; `activity.approve` or `activity.return_validator`. |
 
 All writes and audit roll back on constraint, audit or commit failure. Expand the
 current strict audit allowlist explicitly; never relax it to arbitrary JSON.
@@ -209,14 +222,12 @@ Proposed additions under `/api/v1/activities/{id}` only:
 
 | Responsibility | Minimum contract |
 | --- | --- |
-| GET `/reviewer-options` | Manager-authorized role-filtered eligible candidates; DEC-102 cursor envelope; no general account directory. B1 determines manager and candidate rules. |
-| PUT `/reviewer-assignments` | Expected Activity version plus approved B1 stage selections/reason; no caller role/context. |
 | POST `/submissions` | Expected Activity version; backend freezes current plan, never accepts client-supplied approval/snapshot. |
 | POST `/revisions/{revision_id}/decisions` | Expected Activity version, finite stage-appropriate decision, reason and optional advisory requested amount only on Validator return. Server chooses eligibility/stage. |
 | GET `/revisions` | Scoped cursor history of immutable revisions with decisions; no global audit stream. |
 | GET `/revisions/{revision_id}` | Exact authorized frozen content and that revision's decision chronology. |
 
-Reuse Activity detail GET for current reviewer assignments, state/version,
+Reuse Activity detail GET for state/version,
 current-submitted/approved pointers and actor-specific allowed actions/review
 eligibility. Reuse existing PATCH for corrections, with explicit state/amount
 checks. No separate eligibility, correction, resubmission, review-page or generic
@@ -229,7 +240,7 @@ Lists default to 60, max 100, invalid limits 422, signed parent-bound cursors an
 
 Extend `/activities/$activityId` with current state, exact revision, review
 progress, read-only submitted/approved content, and an Activity-local history
-section. Assignment, reasoned return and confirmation use accessible dialogs,
+section. Reasoned return and confirmation use accessible dialogs,
 not new pages. Show proposed and approved amounts distinctly; no approval means
 no official approved value. Only permitted real server actions appear. Correction
 shows originating reviewer/reason and any advisory amount; resubmission clearly
@@ -250,7 +261,7 @@ After mutations invalidate Activity, revision detail/history and affected PTA/li
 queries. Cancel/mask stale responses on logout, role/scope loss or offline events;
 no persisted business cache, queued replay or optimistic local approval. Test
 keyboard containment/focus return, mobile, empty/loading/error/stale/denied states
-and refreshed eligibility when assignment changes.
+and refreshed eligibility after role/access changes. No reviewer picker or handoff UI.
 
 ## 7. Amendments, withdrawal and annual transfers (2B only)
 
@@ -290,29 +301,36 @@ Unused funds are never transferred between Activities.
 
 ## 8. A2.2/A3 compatibility, cutover and security
 
-Current reviewer assignments and pending reviewer responsibilities must block
-A2.2 role changes/deactivation, alongside existing Agent assignments. Historical
-ended assignments alone need not block; B1 must define valid release/handoff and
-when a completed review ceases to be a current responsibility. Do not permit
-assignment removal to conceal unresolved review work. Locks serialize assignment,
-decision and lifecycle requests in both orders; role/deactivation/reset immediately
-invalidates old sessions/OTP, and contributor exclusions survive new login/role.
-A3 recovery for an assigned ordinary reviewer must remain allowed on the verified
-schema; password reset must not erase assignment or decisions.
+DEC-108 removes individual reviewer responsibilities: a pending review or an
+old decision does not block A2.2 role changes/deactivation. Admin can deactivate
+an ordinary reviewer immediately through existing versioned, audited lifecycle
+commands; no transfer or replacement requirement and no last-reviewer lockout.
+Existing current Agent coordination assignments still block lifecycle changes;
+no other A2.2 restrictions are relaxed. If the eligible pool becomes empty,
+pending Activities wait. Do not implement reviewer responsibility rows or checks.
+
+The advisory lock serializes decision versus lifecycle/reset in both orders:
+if review commits first, its immutable decision remains valid after deactivation;
+if lifecycle commits first, the obsolete session cannot decide. A role change may
+give access to a different stage only after fresh login and all contributor and
+same-prevalidator exclusions. A3 reset remains allowed for ordinary reviewers
+on the exact schema and preserves history, while revoking old sessions/OTP.
 
 C2 cutover gate: verify fresh isolated provenance and literal TEST_ONLY policy;
 drain all old writers including background/CLI processes; apply one reviewed
 migration with separate DDL credentials, contributor reconstruction and exact
 constraints; install matching candidate backend/guard before reopening admission.
 Update the exact revision/relation/column/index/constraint (and any new immutability
-trigger) manifest and A2.2 responsibility predicate together. No dual-schema
+trigger) manifest and verify the existing A2.2 Agent-responsibility predicate
+together. No dual-schema
 wildcard or weakened guard. Verify singleton context, denied unsupported/extra/
 missing/weakened schema, non-DDL runtime privileges and immutable history as that
-runtime user. Prove A3 works and A2.2 blocks current responsibilities. Failure
+runtime user. Prove A3 works, A2.2 blocks Agent assignments, and review work alone
+does not block lifecycle. Failure
 keeps admission closed; rehearse on disposable resources, remove them afterward.
 
 Baseline 03 mapping: SEC-02/07 → explicit OpenAPI/DTO/replay and concurrency checks;
-SEC-03–06 → current session/role/assignment/contributor and lifecycle denial;
+SEC-03–06 → current session/role/contributor and lifecycle denial;
 SEC-08 → exact XOF, immutable snapshots and rollback; SEC-09 → attributable atomic
 append-only chronology, sanitized protected failure logs; SEC-11 → minimal scoped
 identity/history disclosure; SEC-13 → no offline/confidential persistence;
@@ -322,17 +340,17 @@ and SEC-E1–E6 retain their owners and gates. No PSSIE compliance is claimed.
 
 ## 9. Focused future acceptance checks (20)
 
-These are executable oracles to implement after B1 closes; **none executed here**.
+These are executable oracles for separately authorized implementation; **none executed here**.
 Use minimal synthetic identities and disposable PostgreSQL, actual FastAPI request
 paths, and deterministic barriers/observed locks rather than timing sleeps.
 
 | ID | Execution and required oracle |
 | --- | --- |
 | V01 | For every new and changed responsibility, real HTTP denies absent/anonymous/pending/expired/revoked sessions and technical Admin; missing/invalid Origin or CSRF denies every mutation. No protected data, row/version change or success audit on denial. |
-| V02 | Apply the approved B1 manager/cardinality/state matrix: only authorized manager changes reviewers; inactive/wrong-role/contributor/self-designation violations reject; exact assignments/history/version and audit persist. Test all allowed and denied cells once. |
-| V03 | Role-correct but unassigned reviewer and reviewer assigned to another Activity cannot decide. Creator, prior editor, reverted editor, removed-Operation editor and submitter cannot review after role change; the same prevalidator cannot final-approve after role change. |
+| V02 | Multiple active Supervisors/Validators can independently access eligible review on any Activity without assignment. One successful decision per stage suffices; no reviewer picker, assignment endpoint/table or quorum. Pending/inactive/wrong-role identities cannot decide. |
+| V03 | Creator, prior editor, reverted editor, removed-Operation editor and submitter cannot review after role change; the same prevalidator cannot final-approve after role change. Unrelated eligible same-role reviewers succeed without coordination assignment. |
 | V04 | Any ordinary Agent, including an unassigned second Agent, submits a complete balanced draft; one immutable revision and correct ancestry, contributor set and submission audit appear, no approved amount yet. Incomplete/spoofed/unbalanced submissions fail. |
-| V05 | Supervisor prevalidates exact revision; assigned Validator approves it; final decision links that successful prevalidation, approved pointer/value matches its immutable snapshot. Direct submitted→approved, swapped revision and cross-Activity prevalidation reject. |
+| V05 | Supervisor prevalidates exact revision; eligible Validator approves it; final decision links that successful prevalidation, approved pointer/value matches its immutable snapshot. Direct submitted→approved, swapped revision and cross-Activity prevalidation reject. |
 | V06 | Supervisor reasoned return preserves total, unlocks Agent correction even after end date; no-change/edit-then-revert resubmit rejects; genuine changed balanced content creates next revision. Old snapshot/decision remains byte-identical. |
 | V07 | Validator return goes directly to Agent. Without advisory amount total stays fixed; with positive advisory amount a different positive balanced total is accepted, not forced to the suggestion. Fresh Supervisor prevalidation is mandatory before final approval of the new revision. |
 | V08 | Raw Activity PATCH cannot edit submitted/prevalidated/approved content; forged state/pointers and reviewer structural edits reject. Returned-state edits/additions succeed under correction rules, but removal/cancellation of previously submitted Operations rejects. Direct SQL with runtime credential cannot UPDATE/DELETE immutable revisions/decisions. |
@@ -340,13 +358,13 @@ paths, and deterministic barriers/observed locks rather than timing sleeps.
 | V10 | Double submit at one version: one revision and success audit; losing/replayed request 409. Duplicate decisions at one version: one decision/state change; lost-response read reconciliation finds it without resubmission. |
 | V11 | Barrier Supervisor approve-vs-return and Validator approve-vs-return: one winner, one conflict; no two terminal decisions for one stage or approval lacking prevalidation. |
 | V12 | Barrier edit-vs-submit and return/correction-vs-final approval in both orders: no accepted decision on changed/obsolete content, no mutable submitted snapshot; results equivalent to a legal serial execution. |
-| V13 | B1 assignment replacement/removal races review in both orders: revoked reviewer cannot commit afterward; decided-before-removal follows the approved prevalidation-retention/reset policy without erased history or hidden pending responsibility. |
-| V14 | Inject audit, real constraint and outer commit failure for reviewer assignment, submission, correction and each decision stage: full rows/pointers/state/version/contributors roll back, no success audit or orphan; safe failure response/log. |
-| V15 | Reviewer assignment/lifecycle races both orders: no deactivated or wrong-role current reviewer; current responsibility blocks A2.2; approved release permits ordinary lifecycle but preserves history/contributor exclusions. |
-| V16 | A3 reset works for assigned reviewer on exact new schema; old sessions/OTP cannot edit/review. Barrier role/reset-vs-review both orders plus focused login/OTP/deactivation regressions complete without deadlock. |
+| V13 | Barrier reviewer deactivation/role-change versus decision in both orders: review-first remains historically valid; lifecycle-first denies the obsolete session. New eligible reviewer continues the remaining stage without repeating valid prevalidation or erasing history. |
+| V14 | Inject audit, real constraint and outer commit failure for submission, correction and each decision stage: full rows/pointers/state/version/contributors roll back, no success audit or orphan; safe failure response/log. |
+| V15 | Admin deactivates/changes an ordinary reviewer despite pending reviews or prior decisions; last eligible reviewer may be deactivated and Activity waits. Submission still succeeds with an empty pool; final approval without prevalidation fails. Existing current Agent-assignment lifecycle restriction and all Admin/self-target/provenance guards remain. |
+| V16 | A3 reset works for an ordinary reviewer on exact new schema; old sessions/OTP cannot edit/review. Barrier role/reset-vs-review both orders plus focused login/OTP/deactivation regressions complete without deadlock. |
 | V17 | Two independent Project/PTA trees: guessed mismatched revision/decision IDs, forged context, parent-bound cursor swaps and prevalidation references leak no protected content and cannot cross-link. Exact XOF ceiling, fractions/overflow, operation sum and date-clamp regressions pass. |
 | V18 | Generated OpenAPI has only selected responsibilities, strict DTO/auth/header/errors, exact revision/version fields and DEC-102 list envelope/default 60/max 100/invalid 422; no withdrawal/transfer/execution/document routes. |
-| V19 | Playwright covers assignment→Agent submit→Supervisor return→correction→prevalidation→Validator return→fresh cycle→approval/history. Query refetches list/detail/eligibility, ignores delayed old-auth response; keyboard/mobile/loading/error/empty/stale states work. Offline submit sends no write and reconnect never replays. |
+| V19 | Playwright covers Agent submit→Supervisor return→correction→prevalidation→Validator return→fresh cycle→approval/history. Query refetches list/detail/eligibility, ignores delayed old-auth response; keyboard/mobile/loading/error/empty/stale states work. Offline submit sends no write and reconnect never replays. |
 | V20 | Disposable C2 rehearsal: exact predecessor upgrade, complete contributor reconstruction (including prior/reverted/removed-Operation editors, excluding no-op-only saves), singleton and manifest; missing/unexpected/weakened schema/attribution fail closed; no old/mixed worker, no runtime DDL. A no-op-only saver remains review-eligible if otherwise qualified. Focused A1–A3/PTA-1 PostgreSQL regressions, lint/format/type/build and teardown pass. |
 
 PTA-2B is not included in this count. Its later oracles must separately prove
@@ -359,17 +377,16 @@ concrete implementation gates until B2 decisions close.
 
 | ID / timing | Owner and precise closure | Affected scope |
 | --- | --- | --- |
-| B1 — BEFORE_AUTHORIZATION | User/business sponsor: who appoints/removes each review stage, one/many reviewer cardinality and required staffing time; permitted states, manager/contributor/self-designation rules and reasons; replacement/removal effect on pending review and completed prevalidation; release/handoff rules preventing stranded responsibilities. Record an explicit decision; no inferred selection policy. | PTA-2A assignments, submission eligibility, decisions and A2.2; consequently all PTA-2. |
-| B2 — LATER_PTA_2_SLICE (before 2B authorization) | Business sponsor/finance/reporting owner: before/after-approval withdrawal and restoration, settled/executed restrictions, amendment pause entry/exit and rejection disposition, cross-year eligibility/target creation, source/target annual/as-of denominator/history policy (gap L1–L3). | PTA-2B only; does not block 2A once B1 closes. |
-| I2 — BEFORE_AFFECTED_IMPLEMENTATION | Engineer: freeze exact bounded snapshots/decision DTOs, reviewer constraints from B1, cumulative contributor migration proof, immutable-row protection and state/pointer invariants; resolve supplied inspiration availability for affected UI. | Authorized 2A schema/API/UI; not permission to decide B1. |
-| C2 — BEFORE_CUTOVER | Engineer/operator: matching artifact/schema/guard/responsibility predicate, drained writers, isolated provenance, all mandatory checks and independent reviews. | Enablement after separately authorized implementation. |
+| B1 — RESOLVED (DEC-108) | User approves role-wide review, one decision per stage, preserved decisions after personnel changes, fresh chain after structural correction and immediate ordinary reviewer deactivation without handoff. | No remaining PTA-2A business-authorization blocker. |
+| B2 — LATER_PTA_2_SLICE (before 2B authorization) | Business sponsor/finance/reporting owner: before/after-approval withdrawal and restoration, settled/executed restrictions, amendment pause entry/exit and rejection disposition, cross-year eligibility/target creation, source/target annual/as-of denominator/history policy (gap L1–L3). | PTA-2B only; B1 is closed and these questions do not block 2A. |
+| I2 — BEFORE_AFFECTED_IMPLEMENTATION | Engineer: freeze exact bounded snapshots/decision DTOs, one-decision-per-stage constraints, cumulative contributor migration proof, immutable-row protection and state/pointer invariants; resolve supplied inspiration availability for affected UI. | Separately authorized 2A schema/API/UI; DEC-108 is settled. |
+| C2 — BEFORE_CUTOVER | Engineer/operator: matching artifact/schema/guard and preserved Agent lifecycle predicate, drained writers, isolated provenance, all mandatory checks and independent reviews. | Enablement after separately authorized implementation. |
 | R2 — BEFORE_REAL_ACCOUNT_ENABLEMENT | Sponsor/RSSI: PC1/PC2 and actual identity/mail/data acceptance. | Real accounts remain prohibited. |
 | E2 — EXTERNAL_SECURITY_DEPENDENCY | Named Ministry/RSSI/legal/hosting/delivery owners in baseline 03 SEC-E1–E6. | Sensitive use, external assurance and deployment; no inferred compliance. |
 
-Engineering review: **PASS** after independent source/document inspection; the
-state-column width requirement was made explicit. Security/Specification review:
-**PASS** after correction and same-reviewer re-review of contributor backfill:
-unchanged saves do not make contributors, while actual edits later reverted do.
+Engineering decision-closure review: **PASS**. Security/Specification
+decision-closure review: **PASS**. Both independent reviewers inspected the actual
+five-document diff and full contract; no blocking findings remain.
 Independent reviews must assess whether the document accurately bounds unresolved
 rules; a review PASS is not a business-decision approval or readiness override.
 Any eventual implementation plan must end with a separate review-only agent
@@ -383,7 +400,8 @@ browser, build and historical suites intentionally skipped: no executable source
 or configuration changed. `tasks/lessons.md` evaluated; existing contributor and
 audit guidance suffices, with no additional durable lesson needed.
 
-**PTA_2_NOT_READY**. **PTA_2A_NOT_READY** until B1 is approved and reconciled into
-this contract and its oracles. **PTA_2B_NOT_READY** until B1, B2 and 2A dependency
-are resolved. No implementation, schema, tests, runtime or account configuration
-changed. Stop before implementation.
+**PTA_2_NOT_READY** for the whole scope. **PTA_2A_READY_FOR_AUTHORIZATION**
+under DEC-108 with both independent decision-closure reviews passed. I2 and C2
+remain mandatory implementation/cutover gates. **PTA_2B_NOT_READY**: B2 business
+questions and the 2A implementation dependency remain. No implementation, schema,
+tests, runtime or account configuration changed. Stop before implementation.

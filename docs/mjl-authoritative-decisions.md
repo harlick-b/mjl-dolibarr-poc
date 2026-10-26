@@ -19,16 +19,34 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
-## PTA-2 readiness review (documentation only)
+## PTA-2A review policy closure (DEC-108)
 
-[PTA-2 readiness](rebuild/09-pta2-validation-readiness.md) recommends initial
-validation (2A) before approved amendments/withdrawal/annual transfers (2B).
-**PTA_2_NOT_READY**, **PTA_2A_NOT_READY**, **PTA_2B_NOT_READY**: DEC-105 mandates
-Activity-specific reviewers but does not settle their selection, management or
-replacement policy. The user/business sponsor owns that 2A blocker; business,
-finance and reporting owners retain later withdrawal/transfer/history decisions.
-The review proposes 20 focused 2A checks and exact schema/lifecycle integration
-gates. It changes no approved business decision and authorizes no implementation.
+The user approves review by every active Admin-invited Supervisor and Validator
+within trusted MJL scope, without Activity-specific reviewer assignment. One
+eligible Supervisor prevalidation followed by one eligible distinct Validator
+approval is sufficient, not approval by every reviewer. Current role/session,
+exact revision/state, cumulative contributor and no-self-validation guards remain.
+This supersedes only DEC-105's Activity-specific reviewer-authorization requirement.
+Agent coordination assignments and equal Agent access remain unchanged.
+
+Completed decisions survive reviewer replacement, role change and deactivation;
+another eligible reviewer continues the remaining stage. Structural correction
+and resubmission still require fresh prevalidation and final approval. Admin may
+deactivate ordinary reviewers immediately through existing secured lifecycle
+commands without transferring Activities, including the last eligible reviewer;
+affected Activities then wait, without approval bypass. Pending reviews and old
+decisions create no individual lifecycle blocker. Existing Agent-assignment and
+self/Admin-target restrictions remain. No reviewer-pool staffing check blocks
+submission. These approvals supersede the earlier replacement/handoff proposal.
+
+[Readiness 09](rebuild/09-pta2-validation-readiness.md) now bounds initial validation
+with three proposed tables, four new API responsibilities and 20 focused gates.
+**PTA_2A_READY_FOR_AUTHORIZATION** after independent review; **PTA_2B_NOT_READY**
+and overall **PTA_2_NOT_READY** because amendment/withdrawal/annual-history
+questions remain with business/finance/reporting owners. This is decision closure
+and documentation only, not implementation authorization. The Admin direct-database
+provisioning comment remains separate; no bootstrap bypass, direct SQL account
+write, production use or real-account enablement is authorized. PC1/PC2 remain pending.
 
 ## PTA-1 implementation authorization and completion (DEC-107)
 

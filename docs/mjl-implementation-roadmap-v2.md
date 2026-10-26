@@ -12,17 +12,21 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-2 readiness (2026-10-26)
+## PTA-2 readiness and decision closure (2026-10-26)
 
-[Readiness 09](rebuild/09-pta2-validation-readiness.md) recommends Option B:
-initial Activity validation (2A), then approved amendments/withdrawal/annual
-transfers (2B). **PTA_2_NOT_READY**; both sub-slices are **NOT_READY**. The 2A
-blocker is the unapproved reviewer-assignment management/cardinality/replacement
-contract (B1), not the already-approved two-stage chain. Withdrawal, annual
-history and affected-execution decisions (B2) block only 2B. Twenty future focused
-2A acceptance checks are specified, with exact A2.2/A3 cutover and independent
-review gates. This review is documentation-only; no runtime verification or
-implementation occurred. PTA-1 completion remains the baseline below.
+[Readiness 09](rebuild/09-pta2-validation-readiness.md) recommends initial Activity
+validation (2A), then approved amendments/withdrawal/annual transfers (2B).
+DEC-108 resolves B1: every active invited Supervisor/Validator reviews without
+Activity assignment; one decision per stage suffices; personnel changes preserve
+valid decisions; ordinary reviewer deactivation requires no handoff. Contributor
+exclusions, fresh prevalidation after correction and current-session checks stay.
+**PTA_2A_READY_FOR_AUTHORIZATION**, subject to its I2/C2 implementation gates.
+**PTA_2B_NOT_READY** and whole-scope **PTA_2_NOT_READY**: B2 withdrawal, pause and
+annual-history questions remain. Three proposed tables, four new API
+responsibilities and 20 future checks replace the earlier reviewer-assignment
+proposal. No reviewer table, picker or assignment endpoint is needed. This is
+only documentation and approved decision closure; no runtime implementation or
+verification occurred. PTA-1 remains the implementation baseline below.
 
 ## PTA-1 planning foundation (DEC-104–107)
 
