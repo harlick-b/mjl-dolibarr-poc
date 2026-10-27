@@ -24,9 +24,12 @@ stop and surface the contradiction.
 The user requested a documentation-only transfer recheck against completed
 withdrawal `a3c3bd0`, with independent Engineering and Security/Specification
 review. The [current readiness closure](rebuild/11-pta2b2-withdrawal-transfer-readiness.md)
-supersedes earlier transfer READY wording: **PTA_2B2B_NOT_READY** pending B1,
-explicit owner selection of the recommended same-Activity placement model versus
-a linked destination representation. This records a recommendation, not approval.
+initially recorded PTA_2B2B_NOT_READY pending B1. The user subsequently explicitly
+approved keeping the same Activity and changing its current annual placement only
+at final approval, preserving earlier years through immutable history. B1 is
+closed: **PTA_2B2B_READY_FOR_AUTHORIZATION**. The reviewed technical contract and
+all sixteen implementation gates remain unchanged; model approval is not runtime
+authorization.
 DEC-112's workflow, forward-only same-Project scope, identity/history/amount/
 assignment preservation and synthetic-only boundary remain settled. Dates follow
 the brief/DEC-106; repeat forward moves require the same fresh approval rules.

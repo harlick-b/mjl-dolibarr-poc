@@ -1,12 +1,14 @@
 # PTA-2B.2B implementation plan: cross-year Activity transfer
 
 Planning only; separate implementation authorization required. The latest
-[readiness closure](11-pta2b2-withdrawal-transfer-readiness.md) supersedes prior
-READY wording: **PTA_2B2B_NOT_READY**, pending its single B1 representation choice.
-The design below remains the minimum recommendation, not owner approval.
+[readiness closure](11-pta2b2-withdrawal-transfer-readiness.md) verdict is **PTA_2B2B_READY_FOR_AUTHORIZATION** after explicit user approval of
+B1: retain the same Activity and move its annual placement only at final approval,
+preserving earlier years through immutable history. Implementation is not yet
+authorized.
 Withdrawal is complete at **`a3c3bd0`**, migration **`0008_pta2b2a`**; use that
 exact predecessor for C4b. Apply the closure's explicit post-transfer withdrawal
-snapshot/SQL compatibility correction before implementing this conditional plan.
+snapshot/SQL compatibility correction during the separately authorized
+implementation of this plan.
 No transfer runtime work is authorized. DEC-112's five business choices stay closed.
 
 ## 1. Scope and dependency gate

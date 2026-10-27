@@ -15,11 +15,11 @@ unresolved weaknesses and unapproved recommendations.
 ## PTA-2B.2 current boundary (DEC-112–114)
 
 Withdrawal **PTA_2B2A_COMPLETE** at `a3c3bd0`; [status 15](rebuild/15-pta2b2a-implementation-status.md)
-records 14/14 gates and independent reviews. Transfer **PTA_2B2B_NOT_READY**
+records 14/14 gates and independent reviews. Transfer **PTA_2B2B_READY_FOR_AUTHORIZATION**
 under the latest [readiness closure](rebuild/11-pta2b2-withdrawal-transfer-readiness.md),
-pending only explicit B1 representation approval. The existing
+after explicit user approval of B1’s same-Activity placement model. The existing
 [transfer plan](rebuild/14-pta2b2b-transfer-implementation-plan.md) remains
-conditional and requires separate implementation authorization. Its 16 gates,
+ready and requires separate implementation authorization. Its 16 gates,
 exact withdrawal predecessor cutover and independent implementation review remain
 future evidence. PC1/PC2, real accounts, finance and production remain excluded.
 

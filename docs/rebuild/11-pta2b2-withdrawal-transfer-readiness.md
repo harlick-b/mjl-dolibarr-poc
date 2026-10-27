@@ -1,9 +1,9 @@
 # PTA-2B.2 readiness: withdrawal and cross-year transfer
 
 Current documentation-only closure: 2026-10-27, clean baseline `a3c3bd0`
-(PTA-2B.2A complete). **PTA_2B2B_NOT_READY** pending the single representation
-choice B1 below. Transfer implementation remains unauthorized. This closure
-supersedes earlier transfer READY wording in this document and plan 14; it does
+(PTA-2B.2A complete). **PTA_2B2B_READY_FOR_AUTHORIZATION** after the user
+explicitly approved representation choice B1. Transfer implementation remains
+unauthorized. This verdict supersedes the B1-pending NOT_READY verdict; it does
 not reopen DEC-112's five approved business choices or withdrawal completion.
 Sections describing `641ba13`/`0007_pta2b1` below are retained as the earlier
 pre-withdrawal review, not the current runtime baseline.
@@ -67,32 +67,34 @@ silently overwrites a manual end date. Do not preserve duration automatically,
 force an exact one-year shift, or impose an unapproved current-date cutoff.
 Dates become effective only at final approval; old approved dates remain frozen.
 
-### B1 — minimum representation recommendation requiring owner approval
+### B1 — same-Activity representation approved by the user
 
-**Question:** approve keeping one Activity/Operation identity, changing only its
+**Approved decision:** keep one Activity/Operation identity, changing only its
 current annual placement and approved dates at final transfer approval, while
-preserving source-year evidence in immutable revisions and approval/audit history?
+preserving source-year evidence in immutable revisions and approval/audit history.
 
 **Constraints:** DEC-112 requires identity, Operations, amounts, assignments,
-previous history and destination attribution; the latest request explicitly asks
-for a recommendation without silently approving the representation.
+previous history and destination attribution. The closure request required an
+explicit recommendation; the user subsequently approved it.
 
-**Recommendation:** the same Activity row moves at approval; an immutable
+**Selected model:** the same Activity row moves at approval; an immutable
 transfer revision and activation audit preserve source, target, exact approved
 base, reason, actors and effective time. Existing as-of totals reconstruct each
 year. This avoids duplicating identity, assignments, create-replay or budgets.
-**Alternative:** a linked destination representation, retaining a source record;
+**Alternative not selected:** a linked destination representation retaining a
+source record;
 it requires additional representation/identity and counting rules with no current
 business need. It must not become an independently funded duplicate Activity.
 **Owner:** user/business owner. **Effect:** B1 controls plan 14's two-column
-placement design, annual membership and history representation. **Gate:** blocks
-PTA-2B.2B authorization until approved; no runtime change is permitted now.
-Prior plan review is not owner approval of this choice. No other settled
+placement design, annual membership and history representation. **Gate:** CLOSED
+by the user’s explicit approval following the closure review. Separate transfer
+implementation authorization and all sixteen verification gates remain required.
+The earlier NOT_READY verdict is superseded by this approval. No other settled
 W1/W2/T1/T2/F1 choice is reopened.
 
 ### Historical and financial boundary
 
-Under the recommended B1 model, allocation 100 approved in Y contributes 100 in
+Under the approved B1 model, allocation 100 approved in Y contributes 100 in
 Y until transfer approval at t; then current Y/Y+1 totals are 0/100. A cutoff
 before t remains 100/0. An earlier approved amendment to 120 contributes 120,
 not the original 100, at the transfer boundary. Pending, returned or cancelled
@@ -124,7 +126,7 @@ synthetic-only scope, but is required before broadening eligibility.
 
 ### Minimum conditional implementation and compatibility corrections
 
-If B1 is approved, reuse plan 14: one migration `0009_pta2b2b` after actual
+Under approved B1, use plan 14: one migration `0009_pta2b2b` after actual
 `0008_pta2b2a`, two Activity columns (`transfer_id`, `placement_year`), no new
 tables. Preserve original request provenance with the narrow immutable-fields
 constraint/trigger, updating the guard's explicit function list and manifest.
@@ -188,11 +190,13 @@ paths and complete rollback including newly created versus pre-existing target.
 Independent Engineering review: **PASS** after correction and same-reviewer
 re-review. Independent Security/Specification review: **PASS** after same-reviewer
 re-review. Neither found remaining blocking/high/medium document findings; PASS
-validates this conditional decision package, not B1 approval or implementation.
+validated the technical decision package before the user closed B1; no technical
+contract changed with that approval. Review PASS is not implementation evidence.
 Verified `git status`, documentation diff/stat and `git diff --check`. No runtime
 tests, builds, migrations or browser runs: only documentation changed. Existing
 lessons reviewed; no new durable lesson warranted.
-Verdict: **PTA_2B2B_NOT_READY**, solely B1 owner approval. PC1/PC2 remain pending;
+Verdict: **PTA_2B2B_READY_FOR_AUTHORIZATION**. B1 is closed; separate
+implementation authorization is still required. PC1/PC2 remain pending;
 real accounts and production remain prohibited. Stop before implementation.
 
 ## Earlier review record (2026-10-26)
