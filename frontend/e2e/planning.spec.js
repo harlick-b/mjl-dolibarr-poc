@@ -4,14 +4,19 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 const mailbox =
+  process.env.MJL_PTA2B2A_MAILBOX ||
   process.env.MJL_PTA2B1_MAILBOX ||
   process.env.MJL_PTA2A_MAILBOX ||
   process.env.MJL_PTA1_MAILBOX
 const container =
+  process.env.MJL_PTA2B2A_CONTAINER ||
   process.env.MJL_PTA2B1_CONTAINER ||
   process.env.MJL_PTA2A_CONTAINER ||
   process.env.MJL_PTA1_CONTAINER
-const database = process.env.MJL_PTA2B1_DATABASE || 'mjl_test_pta2a'
+const database =
+  process.env.MJL_PTA2B2A_DATABASE ||
+  process.env.MJL_PTA2B1_DATABASE ||
+  'mjl_test_pta2a'
 const password = 'Synthetic!93'
 
 function mail(email, kind) {
@@ -119,7 +124,7 @@ test('V19 planning, correction and final approval browser journey', async ({
   test.skip(!mailbox || !container, 'Requires isolated PTA-1 environment')
   test.setTimeout(180000)
   await page.setViewportSize({ width: 390, height: 844 })
-  expect(container).toMatch(/^mjl-pta2(?:a|b1)-test-backend-1$/)
+  expect(container).toMatch(/^mjl-pta2(?:a|b1|b2a)-test-backend-1$/)
   expect(mailbox).toMatch(/^\/tmp\/mjl-a1-mail-/)
   execFileSync('docker', [
     'exec',
@@ -666,6 +671,99 @@ e.dispose()`,
     .body.amendment.id
   expect(reopenedAmendment).not.toBe(cancelledAmendment)
   expect(reopenedAmendment).not.toBe(firstAmendment)
+
+  await agent.getByRole('button', { name: 'Annuler la modification' }).click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif de l’annulation')
+    .fill('Préparer le retrait synthétique.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await agent.getByRole('button', { name: 'Retirer l’activité' }).click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif du retrait')
+    .fill('Retrait synthétique à préciser.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(agent.getByText('Demande de retrait en cours')).toBeVisible()
+  await agent
+    .getByRole('button', { name: 'Annuler la demande de retrait' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif de l’annulation')
+    .fill('Conserver temporairement l’activité.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(agent.getByText(/Demande de retrait annulée/)).toBeVisible()
+  await expect(
+    agent.getByText('Conserver temporairement l’activité.'),
+  ).toBeVisible()
+  await agent.getByRole('button', { name: 'Retirer l’activité' }).click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif du retrait')
+    .fill('Retrait synthétique à préciser.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+
+  clearSharedIpBucket()
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor
+    .getByRole('button', { name: 'Demander une correction' })
+    .click()
+  await supervisor
+    .getByRole('dialog')
+    .getByLabel('Motif de correction')
+    .fill('Préciser la nécessité du retrait.')
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+
+  await agent.goto(`/activities/${activity.id}`)
+  await agent
+    .getByRole('button', { name: 'Corriger la demande de retrait' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif du retrait')
+    .fill('Retrait synthétique corrigé et justifié.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  clearSharedIpBucket()
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.getByRole('button', { name: 'Prévalider' }).click()
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  clearSharedIpBucket()
+  await validator.goto(`/activities/${activity.id}`)
+  await validator
+    .getByRole('button', { name: 'Valider définitivement' })
+    .click()
+  await validator
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(
+    validator.getByLabel('Progression de la validation'),
+  ).toContainText('Retirée')
+  await expect(
+    validator.getByRole('heading', { name: 'Agents coordonnés' }),
+  ).toHaveCount(0)
 
   const historyError = await validatorContext.newPage()
   await historyError.route(

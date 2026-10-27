@@ -2087,9 +2087,7 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
     document = planning["agent"].get("/openapi.json").json()
     paths = document["paths"]
     assert not any(
-        word in path
-        for path in paths
-        for word in ("withdraw", "transfer", "execution", "document")
+        word in path for path in paths for word in ("transfer", "execution", "document")
     )
     planning_paths = [
         path
@@ -2121,6 +2119,8 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
         "/api/v1/activities/{identifier}/amendments",
         "/api/v1/activities/{identifier}/amendments/{amendment_id}",
         "/api/v1/activities/{identifier}/amendments/{amendment_id}/cancellation",
+        "/api/v1/activities/{identifier}/withdrawals",
+        "/api/v1/activities/{identifier}/withdrawals/{withdrawal_id}/cancellation",
         "/api/v1/activities/{identifier}/assignments",
         "/api/v1/activities/{identifier}/submissions",
         "/api/v1/activities/{identifier}/revisions",
@@ -2443,7 +2443,7 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, au
             assert contributors == expected
             assert excluded not in contributors
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0007_pta2b1"
+                "0008_pta2b2a"
             )
     finally:
         engine.dispose()
@@ -2470,7 +2470,7 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0007_pta2b1"
+                "0008_pta2b2a"
             )
             assert db.scalar(text("SELECT count(*) FROM pta_activity_revision")) == 1
     finally:
@@ -3117,6 +3117,25 @@ def responsibility_cases(planning):
             f"/api/v1/activities/{activity['id']}/revisions/{uuid4()}/decisions",
             {"expected_version": 1, "decision": "prevalidate"},
         ),
+        (
+            "POST",
+            f"/api/v1/activities/{activity['id']}/withdrawals",
+            {
+                "expected_version": 1,
+                "expected_approved_revision_id": str(uuid4()),
+                "reason": "Refusé",
+            },
+        ),
+        (
+            "POST",
+            f"/api/v1/activities/{activity['id']}/withdrawals/{uuid4()}/cancellation",
+            {
+                "expected_version": 1,
+                "expected_approved_revision_id": str(uuid4()),
+                "expected_revision_id": str(uuid4()),
+                "reason": "Refusé",
+            },
+        ),
     ]
     return paths, mutations
 
@@ -3289,6 +3308,27 @@ def test_p02_every_mutation_rejects_missing_or_invalid_request_evidence(planning
             "POST",
             f"/api/v1/activities/{activity['id']}/revisions/{uuid4()}/decisions",
             {"expected_version": 1, "decision": "prevalidate"},
+        ),
+        (
+            planning["agent"],
+            "POST",
+            f"/api/v1/activities/{activity['id']}/withdrawals",
+            {
+                "expected_version": 1,
+                "expected_approved_revision_id": str(uuid4()),
+                "reason": "Refusé",
+            },
+        ),
+        (
+            planning["agent"],
+            "POST",
+            f"/api/v1/activities/{activity['id']}/withdrawals/{uuid4()}/cancellation",
+            {
+                "expected_version": 1,
+                "expected_approved_revision_id": str(uuid4()),
+                "expected_revision_id": str(uuid4()),
+                "reason": "Refusé",
+            },
         ),
     ]
     with Session(planning["auth"].engine) as db:

@@ -35,6 +35,7 @@ class Policy(BaseModel):
     recovery_email_limit: PositiveInt | None = None
     recovery_ip_window_seconds: PositiveInt | None = None
     recovery_ip_limit: PositiveInt | None = None
+    planning_lifecycle_fixture: str | None = None
 
     @property
     def recovery_enabled(self) -> bool:
@@ -95,6 +96,11 @@ def load_policy(url: str | URL) -> Policy | None:
             60,
             20,
         ):
+            raise ValueError
+        if policy.planning_lifecycle_fixture not in {
+            None,
+            "NO_EXECUTION_TEST_ONLY",
+        }:
             raise ValueError
         return policy
     except (OSError, KeyError, ValueError):

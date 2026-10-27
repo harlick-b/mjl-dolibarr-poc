@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import json
 from datetime import date, datetime
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlencode
 from uuid import UUID
 
@@ -85,6 +85,7 @@ def allowed(
     contributor: bool = False,
     prevalidator: bool = False,
     amendment: bool = False,
+    withdrawal: bool = False,
 ) -> list[str]:
     actions = ["read"]
     if role == "VALIDATEUR_DEFINITIF" and resource in {"partner", "type", "project"}:
@@ -96,6 +97,7 @@ def allowed(
     if (
         role == "AGENT_SAISIE"
         and resource == "activity"
+        and not withdrawal
         and state
         in {
             "draft",
@@ -106,12 +108,22 @@ def allowed(
     ):
         actions.extend(["edit", "submit"])
     if role == "AGENT_SAISIE" and resource == "activity" and state == "approved":
-        actions.append("open_amendment")
+        actions.extend(["open_amendment", "request_withdrawal"])
     if role == "AGENT_SAISIE" and resource == "activity" and amendment:
         actions.append("cancel_amendment")
     if (
+        role == "AGENT_SAISIE"
+        and resource == "activity"
+        and withdrawal
+        and state != "withdrawn"
+    ):
+        actions.append("cancel_withdrawal")
+        if state in {"returned_supervisor", "returned_validator"}:
+            actions.append("request_withdrawal")
+    if (
         role in {"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"}
         and resource == "activity"
+        and state != "withdrawn"
     ):
         actions.append("assign_agents")
     if (
@@ -235,6 +247,32 @@ def activity_item(
                 else None,
             }
     candidate_projection = structural_content(db, item) if item.amendment_id else None
+    withdrawal = None
+    if item.withdrawal_id and item.current_revision_id:
+        request_revision = db.get(ActivityRevision, item.current_revision_id)
+        if request_revision and isinstance(
+            request_revision.snapshot.get("withdrawal"), dict
+        ):
+            request_facts = cast(
+                dict[str, str], request_revision.snapshot["withdrawal"]
+            )
+            final_decision_at: datetime | None = None
+            if item.state == "withdrawn":
+                final_decision_at = db.scalar(
+                    select(ActivityRevisionDecision.decided_at).where(
+                        ActivityRevisionDecision.revision_id == request_revision.id,
+                        ActivityRevisionDecision.stage == "validator",
+                        ActivityRevisionDecision.outcome == "approved",
+                    )
+                )
+            withdrawal = {
+                **request_facts,
+                "current_revision_id": request_revision.id,
+                "status": "withdrawn" if item.state == "withdrawn" else "pending",
+                "final_decision_at": (
+                    final_decision_at.isoformat() if final_decision_at else None
+                ),
+            }
     return {
         "id": item.id,
         "pta_id": item.pta_id,
@@ -258,7 +296,9 @@ def activity_item(
             if item.amendment_id
             else None
         ),
-        "execution_paused": item.amendment_id is not None,
+        "withdrawal": withdrawal,
+        "execution_paused": item.amendment_id is not None
+        or (item.withdrawal_id is not None and item.state != "withdrawn"),
         "correction": correction,
         "operations": [
             {
@@ -278,6 +318,7 @@ def activity_item(
             contributor=contributor,
             prevalidator=prevalidator,
             amendment=item.amendment_id is not None,
+            withdrawal=item.withdrawal_id is not None,
         ),
     }
 
@@ -518,7 +559,7 @@ class Cursor:
                 or data["d"] not in {"next", "previous"}
             ):
                 raise ValueError
-            if not isinstance(data["i"], str) or not 1 <= len(data["i"]) <= 80:
+            if not isinstance(data["i"], str) or not 1 <= len(data["i"]) <= 128:
                 raise ValueError
             return data["i"], data["d"]
         except (ValueError, KeyError, TypeError, json.JSONDecodeError):

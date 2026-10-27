@@ -144,7 +144,7 @@ class Activity(Base):
         CheckConstraint(
             "state IN ('draft','amendment_draft','submitted','prevalidated',"
             "'returned_supervisor',"
-            "'returned_validator','approved')",
+            "'returned_validator','approved','withdrawn')",
             name="activity_state_allowed",
         ),
         CheckConstraint(
@@ -155,20 +155,39 @@ class Activity(Base):
             "(state IN ('submitted','prevalidated','returned_supervisor',"
             "'returned_validator') "
             "AND current_revision_id IS NOT NULL AND ((amendment_id IS NULL "
-            "AND approved_revision_id IS NULL) OR (amendment_id IS NOT NULL "
+            "AND withdrawal_id IS NULL AND approved_revision_id IS NULL) OR "
+            "(withdrawal_id IS NOT NULL AND amendment_id IS NULL "
+            "AND approved_revision_id IS NOT NULL "
+            "AND current_revision_id <> approved_revision_id) OR "
+            "(amendment_id IS NOT NULL "
             "AND approved_revision_id IS NOT NULL "
             "AND current_revision_id <> approved_revision_id))) OR "
             "(state = 'approved' AND current_revision_id IS NOT NULL "
-            "AND approved_revision_id = current_revision_id)",
+            "AND approved_revision_id = current_revision_id) OR "
+            "(state = 'withdrawn' AND current_revision_id IS NOT NULL "
+            "AND approved_revision_id IS NOT NULL "
+            "AND current_revision_id <> approved_revision_id "
+            "AND withdrawal_id IS NOT NULL)",
             name="activity_revision_pointer_state",
         ),
         CheckConstraint(
             "(amendment_id IS NULL AND amendment_reason IS NULL AND "
-            "(approved_revision_id IS NULL OR state = 'approved')) OR "
+            "(approved_revision_id IS NULL OR state IN ('approved','withdrawn') "
+            "OR withdrawal_id IS NOT NULL)) OR "
             "(amendment_id IS NOT NULL AND amendment_reason IS NOT NULL "
             "AND length(btrim(amendment_reason)) BETWEEN 1 AND 4000 "
             "AND approved_revision_id IS NOT NULL AND state <> 'approved')",
             name="activity_amendment_state",
+        ),
+        CheckConstraint(
+            "(withdrawal_id IS NULL AND state <> 'withdrawn') OR "
+            "(withdrawal_id IS NOT NULL AND amendment_id IS NULL "
+            "AND withdrawal_id ~ "
+            "'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' "
+            "AND approved_revision_id IS NOT NULL AND state IN "
+            "('submitted','prevalidated','returned_supervisor',"
+            "'returned_validator','withdrawn'))",
+            name="activity_withdrawal_state",
         ),
         CheckConstraint("version > 0", name="activity_version_positive"),
         CheckConstraint("allocation > 0", name="activity_allocation_positive"),
@@ -188,6 +207,7 @@ class Activity(Base):
     approved_revision_id: Mapped[str | None] = mapped_column(String(36))
     amendment_id: Mapped[str | None] = mapped_column(String(36))
     amendment_reason: Mapped[str | None] = mapped_column(String(4000))
+    withdrawal_id: Mapped[str | None] = mapped_column(String(36))
     version: Mapped[int] = mapped_column(default=1)
     creator_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     request_actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))

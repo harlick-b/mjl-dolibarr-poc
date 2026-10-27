@@ -123,13 +123,10 @@ test('an eligible Agent confirms submission of the current Activity version', as
     )
   })
   vi.stubGlobal('fetch', fetch)
-  render(
-    <App
-      router={makeRouter(
-        createMemoryHistory({ initialEntries: ['/activities/activity-1'] }),
-      )}
-    />,
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/activities/activity-1'] }),
   )
+  render(<App router={router} />)
   await user.click(
     await screen.findByRole('button', { name: 'Soumettre pour prévalidation' }),
   )
@@ -185,11 +182,12 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     approved,
     candidate: null,
     amendment: null,
+    withdrawal: null,
     execution_paused: false,
     operations: approved.operations,
     correction: null,
     agent_ids: [],
-    allowed_actions: ['read', 'open_amendment'],
+    allowed_actions: ['read', 'open_amendment', 'request_withdrawal'],
   }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
@@ -224,15 +222,44 @@ test('an Agent opens and cancels an amendment while the approved version stays v
         new Response(JSON.stringify(activity), { status: 201 }),
       )
     }
+    if (
+      path.endsWith('/activities/activity-1/withdrawals') &&
+      options.method === 'POST'
+    ) {
+      activity = {
+        ...activity,
+        state: 'submitted',
+        version: 7,
+        current_revision_id: 'revision-withdrawal',
+        withdrawal: {
+          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          reason: 'Retrait justifié.',
+        },
+        execution_paused: true,
+        allowed_actions: ['read', 'cancel_withdrawal'],
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: 'revision-withdrawal',
+            activity_version: 7,
+          }),
+          { status: 201 },
+        ),
+      )
+    }
     if (path.includes('/cancellation') && options.method === 'POST') {
+      const withdrawalCancellation = path.includes('/withdrawals/')
       activity = {
         ...activity,
         state: 'approved',
-        version: 6,
+        version: withdrawalCancellation ? 8 : 6,
+        current_revision_id: 'revision-1',
         amendment: null,
+        withdrawal: null,
         candidate: null,
         execution_paused: false,
-        allowed_actions: ['read', 'open_amendment'],
+        allowed_actions: ['read', 'open_amendment', 'request_withdrawal'],
       }
       return Promise.resolve(new Response(JSON.stringify(activity)))
     }
@@ -263,13 +290,12 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     )
   })
   vi.stubGlobal('fetch', fetch)
-  render(
-    <App
-      router={makeRouter(
-        createMemoryHistory({ initialEntries: ['/activities/activity-1'] }),
-      )}
-    />,
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/activities/activity-1'] }),
   )
+  const accessKey = ['access', 'admin', 'users', {}]
+  router.options.context.queryClient.setQueryData(accessKey, { items: [] })
+  render(<App router={router} />)
   await user.click(
     await screen.findByRole('button', { name: 'Demander une modification' }),
   )
@@ -312,6 +338,58 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       }),
     }),
   )
+  await user.click(screen.getByRole('button', { name: 'Retirer l’activité' }))
+  await user.type(
+    screen.getByLabelText('Motif du retrait'),
+    'Retrait justifié.',
+  )
+  await user.click(
+    screen.getByRole('dialog').querySelector('button[type="submit"]'),
+  )
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity-1/withdrawals',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          expected_version: 6,
+          expected_approved_revision_id: 'revision-1',
+          reason: 'Retrait justifié.',
+        }),
+      }),
+    ),
+  )
+  expect(await screen.findByText('Demande de retrait en cours')).toBeVisible()
+  expect(
+    router.options.context.queryClient.getQueryState(accessKey)?.isInvalidated,
+  ).toBe(true)
+  await user.click(
+    screen.getByRole('button', { name: 'Annuler la demande de retrait' }),
+  )
+  await user.type(
+    screen.getByLabelText('Motif de l’annulation'),
+    'Conserver l’activité.',
+  )
+  await user.click(
+    screen.getByRole('dialog').querySelector('button[type="submit"]'),
+  )
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity-1/withdrawals/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/cancellation',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          expected_version: 7,
+          expected_approved_revision_id: 'revision-1',
+          reason: 'Conserver l’activité.',
+          expected_revision_id: 'revision-withdrawal',
+        }),
+      }),
+    ),
+  )
+  expect(
+    screen.queryByText('Demande de retrait en cours'),
+  ).not.toBeInTheDocument()
 })
 
 function amendmentHistoryFetch({ failed = false } = {}) {

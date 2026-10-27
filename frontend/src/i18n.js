@@ -69,6 +69,7 @@ export const strings = new LocalizedStrings({
     returned_supervisor: 'Correction demandée par le Superviseur',
     returned_validator: 'Correction demandée par le Validateur définitif',
     approved: 'Validée définitivement',
+    withdrawn: 'Retirée',
     amendment_draft: 'Modification en préparation',
     openAmendment: 'Demander une modification',
     cancelAmendment: 'Annuler la modification',
@@ -80,6 +81,13 @@ export const strings = new LocalizedStrings({
       'L’exécution de cette activité est suspendue pendant l’examen de la modification.',
     cancellationWarning:
       'La version approuvée sera restaurée. La modification et son historique resteront consultables.',
+    requestWithdrawal: 'Retirer l’activité',
+    correctWithdrawal: 'Corriger la demande de retrait',
+    cancelWithdrawal: 'Annuler la demande de retrait',
+    withdrawalReason: 'Motif du retrait',
+    withdrawalPending: 'Demande de retrait en cours',
+    withdrawalPaused:
+      'L’exécution de cette activité est suspendue pendant l’examen du retrait. Le budget n’est pas réaffecté.',
     returned: 'Correction demandée',
     submitReview: 'Soumettre pour prévalidation',
     prevalidate: 'Prévalider',

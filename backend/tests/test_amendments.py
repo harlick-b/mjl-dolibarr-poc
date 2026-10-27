@@ -1091,7 +1091,8 @@ def test_m15_database_constraints_and_history_scope_fail_closed(planning):
     )
     assert first["next"]
     assert planning["agent"].get(first["next"]).status_code == 200
-    assert planning["agent"].get(first["next"][:-1] + "x").status_code == 422
+    tampered = first["next"].replace("cursor=", "cursor=x", 1)
+    assert planning["agent"].get(tampered).status_code == 422
 
 
 def test_m03_m05_late_dates_same_year_and_unchanged_submission(planning):
@@ -1367,7 +1368,13 @@ def test_m12_http_reads_are_coherent_during_cancellation(planning, resource):
 
     def observe_write(conn, _cursor, statement, _parameters, _context, _many):
         normalized = statement.upper()
-        if "FROM PTA_ACTIVITY" in normalized and "FOR UPDATE" in normalized:
+        row_lock = "FROM PTA_ACTIVITY" in normalized and "FOR UPDATE" in normalized
+        advisory_lock = (
+            resource == "list"
+            and "PG_ADVISORY_XACT_LOCK(1843201)" in normalized
+            and "_SHARED" not in normalized
+        )
+        if row_lock or advisory_lock:
             writer_pid["value"] = conn.connection.driver_connection.info.backend_pid
             attempted.set()
 
@@ -1396,7 +1403,9 @@ def test_m12_http_reads_are_coherent_during_cancellation(planning, resource):
                     "reason": "Annulation concurrente.",
                 },
             )
-            assert attempted.wait(5), "cancellation did not attempt Activity lock"
+            assert attempted.wait(5), (
+                "cancellation did not attempt its serialization lock"
+            )
             deadline = monotonic() + 5
             waiting = False
             while monotonic() < deadline:
@@ -1414,7 +1423,9 @@ def test_m12_http_reads_are_coherent_during_cancellation(planning, resource):
                 if waiting:
                     break
                 Event().wait(0.01)
-            assert waiting, "cancellation was not observed waiting on the read lock"
+            assert waiting, (
+                "cancellation was not observed waiting on read serialization"
+            )
             release.set()
             before = pending_read.result(timeout=10)
             cancelled = pending_write.result(timeout=10)

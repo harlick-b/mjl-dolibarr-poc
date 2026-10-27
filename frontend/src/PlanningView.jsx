@@ -108,6 +108,12 @@ function cursorFrom(link) {
   return link ? new URL(link).searchParams.get('cursor') || '' : ''
 }
 
+function workflowActivityId(path) {
+  return path.match(
+    /^\/activities\/([^/]+)\/(?:submissions|amendments(?:\/[^/]+\/cancellation)?|withdrawals(?:\/[^/]+\/cancellation)?|revisions\/[^/]+\/decisions)$/,
+  )?.[1]
+}
+
 function Workspace({ screen, session, onDenied }) {
   const { api } = useAPI()
   const client = useQueryClient()
@@ -155,23 +161,32 @@ function Workspace({ screen, session, onDenied }) {
       const uncertain =
         problem.status === 409 ||
         ['network', 'malformed'].includes(problem.kind)
-      const workflow = variables.path.match(
-        /^\/activities\/([^/]+)\/(?:submissions|amendments(?:\/[^/]+\/cancellation)?|revisions\/[^/]+\/decisions)$/,
-      )
-      if (uncertain && workflow) {
+      const activityId = workflowActivityId(variables.path)
+      if (uncertain && activityId) {
         setWorkflowReconciliation({
-          activityId: workflow[1],
+          activityId,
           activityUpdatedAt: activity.dataUpdatedAt,
           revisionsUpdatedAt: revisions.dataUpdatedAt,
         })
       }
-      if (uncertain)
-        await client.invalidateQueries({ queryKey: ['planning', user.id] })
+      if (uncertain) {
+        await Promise.all([
+          client.invalidateQueries({ queryKey: ['planning', user.id] }),
+          ...(activityId
+            ? [client.invalidateQueries({ queryKey: ['access'] })]
+            : []),
+        ])
+      }
       setError(problem.message)
     },
-    onSuccess: async () => {
+    onSuccess: async (_result, variables) => {
       setError('')
-      await client.invalidateQueries({ queryKey: ['planning', user.id] })
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['planning', user.id] }),
+        ...(workflowActivityId(variables.path)
+          ? [client.invalidateQueries({ queryKey: ['access'] })]
+          : []),
+      ])
       toast.success(strings.saved)
     },
   })
@@ -988,31 +1003,46 @@ function ActivityDetail({
   const [workflowAction, setWorkflowAction] = useState('')
   const workflowOpener = useRef(null)
   const [selectedAgentIds, setSelectedAgentIds] = useState(item.agent_ids)
-  const canAssign = ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(
-    user.role,
-  )
+  const canAssign =
+    ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(user.role) &&
+    item.allowed_actions.includes('assign_agents')
   const submitWorkflow = (event) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const submission = workflowAction === 'submit'
     const opening = workflowAction === 'open_amendment'
     const cancellation = workflowAction === 'cancel_amendment'
+    const withdrawal = workflowAction === 'request_withdrawal'
+    const withdrawalCancellation = workflowAction === 'cancel_withdrawal'
     mutation.mutate(
       {
         path: opening
           ? `/activities/${item.id}/amendments`
           : cancellation
             ? `/activities/${item.id}/amendments/${item.amendment.id}/cancellation`
-            : submission
-              ? `/activities/${item.id}/submissions`
-              : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
+            : withdrawal
+              ? `/activities/${item.id}/withdrawals`
+              : withdrawalCancellation
+                ? `/activities/${item.id}/withdrawals/${item.withdrawal.id}/cancellation`
+                : submission
+                  ? `/activities/${item.id}/submissions`
+                  : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
         method: 'POST',
         body:
-          opening || cancellation
+          opening || cancellation || withdrawal || withdrawalCancellation
             ? {
                 expected_version: item.version,
                 expected_approved_revision_id: item.approved_revision_id,
                 reason: data.get('reason'),
+                ...(withdrawal && item.withdrawal
+                  ? {
+                      withdrawal_id: item.withdrawal.id,
+                      expected_revision_id: item.current_revision_id,
+                    }
+                  : {}),
+                ...(withdrawalCancellation
+                  ? { expected_revision_id: item.current_revision_id }
+                  : {}),
               }
             : submission
               ? { expected_version: item.version }
@@ -1084,6 +1114,32 @@ function ActivityDetail({
               {strings.cancelAmendment}
             </Button>
           )}
+          {item.allowed_actions.includes('request_withdrawal') && (
+            <Button
+              disabled={mutationBlocked}
+              variant="outline"
+              onClick={(event) => {
+                workflowOpener.current = event.currentTarget
+                setWorkflowAction('request_withdrawal')
+              }}
+            >
+              {item.withdrawal
+                ? strings.correctWithdrawal
+                : strings.requestWithdrawal}
+            </Button>
+          )}
+          {item.allowed_actions.includes('cancel_withdrawal') && (
+            <Button
+              disabled={mutationBlocked}
+              variant="outline"
+              onClick={(event) => {
+                workflowOpener.current = event.currentTarget
+                setWorkflowAction('cancel_withdrawal')
+              }}
+            >
+              {strings.cancelWithdrawal}
+            </Button>
+          )}
           {[
             ['submit', strings.submitReview],
             ['prevalidate', strings.prevalidate],
@@ -1109,9 +1165,17 @@ function ActivityDetail({
       </div>
       {item.execution_paused && (
         <div className="planning-error" role="status">
-          <strong>{strings.candidateVersion}</strong>
-          <p>{strings.executionPaused}</p>
-          <p>{item.amendment.reason}</p>
+          <strong>
+            {item.withdrawal
+              ? strings.withdrawalPending
+              : strings.candidateVersion}
+          </strong>
+          <p>
+            {item.withdrawal
+              ? strings.withdrawalPaused
+              : strings.executionPaused}
+          </p>
+          <p>{item.withdrawal?.reason || item.amendment?.reason}</p>
         </div>
       )}
       {item.amendment && item.approved && item.candidate && (
@@ -1206,6 +1270,11 @@ function ActivityDetail({
                       </p>
                     ))}
                   </>
+                ) : entry.kind === 'withdrawal_cancel' ? (
+                  <p>
+                    Demande de retrait annulée · {entry.occurred_at} —{' '}
+                    {entry.reason}
+                  </p>
                 ) : (
                   <button
                     type="button"
@@ -1239,6 +1308,12 @@ function ActivityDetail({
               {selectedRevision.snapshot.pta.year} ·{' '}
               {selectedRevision.snapshot.activity.reference}
             </p>
+            {selectedRevision.snapshot.withdrawal && (
+              <p>
+                <strong>{strings.withdrawalReason} :</strong>{' '}
+                {selectedRevision.snapshot.withdrawal.reason}
+              </p>
+            )}
             <p>
               {selectedRevision.snapshot.name} ·{' '}
               {selectedRevision.snapshot.planned_start} au{' '}
@@ -1382,23 +1457,32 @@ function ActivityDetail({
         <form className="review-dialog" onSubmit={submitWorkflow}>
           <h2>{strings.workflowConfirmation}</h2>
           <p>{strings.workflowExactRevision}</p>
-          {['return', 'open_amendment', 'cancel_amendment'].includes(
-            workflowAction,
-          ) && (
+          {[
+            'return',
+            'open_amendment',
+            'cancel_amendment',
+            'request_withdrawal',
+            'cancel_withdrawal',
+          ].includes(workflowAction) && (
             <>
-              {workflowAction === 'cancel_amendment' && (
-                <p>{strings.cancellationWarning}</p>
-              )}
+              {['cancel_amendment', 'cancel_withdrawal'].includes(
+                workflowAction,
+              ) && <p>{strings.cancellationWarning}</p>}
               <label>
                 {workflowAction === 'open_amendment'
                   ? strings.amendmentReason
-                  : workflowAction === 'cancel_amendment'
+                  : ['cancel_amendment', 'cancel_withdrawal'].includes(
+                        workflowAction,
+                      )
                     ? strings.cancellationReason
-                    : strings.reason}
+                    : workflowAction === 'request_withdrawal'
+                      ? strings.withdrawalReason
+                      : strings.reason}
                 <textarea name="reason" required maxLength="4000" autoFocus />
               </label>
               {workflowAction === 'return' &&
-                user.role === 'VALIDATEUR_DEFINITIF' && (
+                user.role === 'VALIDATEUR_DEFINITIF' &&
+                !item.withdrawal && (
                   <label>
                     {strings.requestedAmount}
                     <input

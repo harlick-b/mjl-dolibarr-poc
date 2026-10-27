@@ -19,6 +19,28 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-2B.2A withdrawal implementation authorization and completion (DEC-113)
+
+The user explicitly authorized the bounded synthetic PTA-2B.2A Activity
+withdrawal implementation defined by DEC-112, the reconciled
+[readiness](rebuild/11-pta2b2-withdrawal-transfer-readiness.md) and the reviewed
+[withdrawal plan](rebuild/13-pta2b2a-withdrawal-implementation-plan.md). The
+slice permits an Agent to submit, correct or cancel a reasoned withdrawal request
+and requires a fresh eligible Supervisor prevalidation followed by a distinct
+eligible Validator approval. Pending withdrawal pauses execution while preserving
+approved content. Effective withdrawal is terminal, ends current Agent
+assignments, removes the Activity only from current annual approved totals and
+preserves all earlier facts and totals.
+
+PTA-2B.2A completed on 2026-10-27 after migration `0008_pta2b2a`, all
+C01–C08/W01–W06 gates, exact-predecessor cutover, focused/full regression,
+quality/browser checks and the mandatory independent engineering and
+security/specification correction/re-review cycle passed. Completion evidence is
+recorded in [status 15](rebuild/15-pta2b2a-implementation-status.md). This is
+synthetic development completion only. PC1/PC2, real accounts, production,
+cross-year transfer, restoration, execution/finance and later slices remain
+deferred. Stop after PTA-2B.2A and do not infer authorization for PTA-2B.2B.
+
 ## PTA-2B.2 business decision closure (DEC-112)
 
 The user explicitly approved all five plain-language recommendations following

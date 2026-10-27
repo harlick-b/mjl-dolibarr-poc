@@ -335,3 +335,7 @@ debugging discoveries. Do not add one-off observations or generic advice.
   before/after values of edits that have no immutable revision yet. Remove
   repeated projections, retain one bounded structural copy per side, and test
   maximum encoded content plus edit/revert history and rollback of complete rows.
+- When a schema guard hashes PostgreSQL definitions, an exact downgrade must
+  restore the canonical predecessor constraint expressions and function bodies,
+  not merely equivalent behavior. Verify the downgraded manifest against the
+  predecessor application artifact before accepting re-upgrade evidence.

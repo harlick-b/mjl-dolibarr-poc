@@ -46,9 +46,13 @@ I2/C2 and independent review. DEC-111 authorizes and completes bounded synthetic
 PTA-2B.1 under readiness 10 and DEC-110: approved-version-preserving amendments,
 pause from opening, fresh two-stage replacement approval, reasoned cancellation,
 three API responsibilities, two columns, no new tables, all M01–M20 checks and
-I3/C3 plus independent review. Stop after PTA-2B.1; technical Admin recovery,
-reinvitation, withdrawal, annual transfers, execution/finance, later PTA slices,
-general A4 and production remain deferred.
+I3/C3 plus independent review. DEC-113 authorizes and completes bounded synthetic
+PTA-2B.2A withdrawal under readiness 11 and DEC-112: reasoned request/correction/
+cancellation, fresh two-stage approval, terminal withdrawal, current annual
+total exclusion, one column, no new tables, all C01–C08/W01–W06 checks and exact
+predecessor cutover plus independent review. Stop after PTA-2B.2A; technical
+Admin recovery, reinvitation, cross-year transfer, restoration, execution/finance,
+later PTA slices, general A4 and production remain deferred.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
 
