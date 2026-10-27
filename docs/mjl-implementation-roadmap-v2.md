@@ -12,22 +12,16 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-2B.2 ready for sequential authorization (DEC-112)
+## PTA-2B.2 current boundary (DEC-112–114)
 
-The five business choices are approved. The reconciled
-[readiness](rebuild/11-pta2b2-withdrawal-transfer-readiness.md) and separate
-[withdrawal](rebuild/13-pta2b2a-withdrawal-implementation-plan.md) and
-[transfer](rebuild/14-pta2b2b-transfer-implementation-plan.md) plans passed
-independent engineering/security correction and same-reviewer re-review.
-**PTA_2B2_WITHDRAWAL_READY_FOR_AUTHORIZATION** and
-**PTA_2B2_TRANSFER_READY_FOR_AUTHORIZATION** apply to bounded synthetic planning
-only. Implement withdrawal first under separate authorization; transfer requires
-its completed predecessor and its own authorization. Plans specify one migration
-and no new tables per slice, two new POSTs each, existing revision/history reuse,
-per-mutation financial-eligibility proof, annual history and coherent reads.
-All 14 withdrawal/16 transfer gates and independent implementation review remain
-future mandatory evidence. No runtime work has started. PC1/PC2, real accounts,
-financial execution and production remain excluded.
+Withdrawal **PTA_2B2A_COMPLETE** at `a3c3bd0`; [status 15](rebuild/15-pta2b2a-implementation-status.md)
+records 14/14 gates and independent reviews. Transfer **PTA_2B2B_NOT_READY**
+under the latest [readiness closure](rebuild/11-pta2b2-withdrawal-transfer-readiness.md),
+pending only explicit B1 representation approval. The existing
+[transfer plan](rebuild/14-pta2b2b-transfer-implementation-plan.md) remains
+conditional and requires separate implementation authorization. Its 16 gates,
+exact withdrawal predecessor cutover and independent implementation review remain
+future evidence. PC1/PC2, real accounts, finance and production remain excluded.
 
 ## PTA-2B.1 amendment completion (2026-10-26)
 

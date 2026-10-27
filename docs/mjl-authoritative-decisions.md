@@ -19,6 +19,19 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-2B.2B documentation closure (DEC-114)
+
+The user requested a documentation-only transfer recheck against completed
+withdrawal `a3c3bd0`, with independent Engineering and Security/Specification
+review. The [current readiness closure](rebuild/11-pta2b2-withdrawal-transfer-readiness.md)
+supersedes earlier transfer READY wording: **PTA_2B2B_NOT_READY** pending B1,
+explicit owner selection of the recommended same-Activity placement model versus
+a linked destination representation. This records a recommendation, not approval.
+DEC-112's workflow, forward-only same-Project scope, identity/history/amount/
+assignment preservation and synthetic-only boundary remain settled. Dates follow
+the brief/DEC-106; repeat forward moves require the same fresh approval rules.
+Transfer implementation remains unauthorized. No withdrawal decision is reopened.
+
 ## PTA-2B.2A withdrawal implementation authorization and completion (DEC-113)
 
 The user explicitly authorized the bounded synthetic PTA-2B.2A Activity

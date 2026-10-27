@@ -1,14 +1,13 @@
 # PTA-2B.2B implementation plan: cross-year Activity transfer
 
-Planning only; separate implementation authorization required. Authority: DEC-112,
-[readiness](11-pta2b2-withdrawal-transfer-readiness.md), AGENTS.md and standards
-02/03/DEC-102. This follows completed/reviewed
-[withdrawal plan](13-pta2b2a-withdrawal-implementation-plan.md). Independent
-engineering and security/specification plan reviews: PASS after focused re-review.
-PTA_2B2_TRANSFER_READY_FOR_AUTHORIZATION, with withdrawal completion a mandatory
-pre-implementation dependency.
-Withdrawal is not implemented yet; its eventual committed artifact is the required
-predecessor. Do not invent its completion hash or run this slice automatically.
+Planning only; separate implementation authorization required. The latest
+[readiness closure](11-pta2b2-withdrawal-transfer-readiness.md) supersedes prior
+READY wording: **PTA_2B2B_NOT_READY**, pending its single B1 representation choice.
+The design below remains the minimum recommendation, not owner approval.
+Withdrawal is complete at **`a3c3bd0`**, migration **`0008_pta2b2a`**; use that
+exact predecessor for C4b. Apply the closure's explicit post-transfer withdrawal
+snapshot/SQL compatibility correction before implementing this conditional plan.
+No transfer runtime work is authorized. DEC-112's five business choices stay closed.
 
 ## 1. Scope and dependency gate
 

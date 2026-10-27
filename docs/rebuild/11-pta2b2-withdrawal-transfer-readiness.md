@@ -1,12 +1,201 @@
 # PTA-2B.2 readiness: withdrawal and cross-year transfer
 
-Documentation-only review, 2026-10-26. Baseline:
-`641ba1313d8d2ce2d531a6ea13aefc79d57e0b94` (PTA-2B.1), clean worktree at start.
-Current verdicts after DEC-112 and independent technical re-review:
-**PTA_2B2_WITHDRAWAL_READY_FOR_AUTHORIZATION** and
-**PTA_2B2_TRANSFER_READY_FOR_AUTHORIZATION**. Both are planning verdicts only;
-implement withdrawal first and satisfy its completion dependency before transfer.
-The earlier NOT_READY review is retained as historical evidence in §10.
+Current documentation-only closure: 2026-10-27, clean baseline `a3c3bd0`
+(PTA-2B.2A complete). **PTA_2B2B_NOT_READY** pending the single representation
+choice B1 below. Transfer implementation remains unauthorized. This closure
+supersedes earlier transfer READY wording in this document and plan 14; it does
+not reopen DEC-112's five approved business choices or withdrawal completion.
+Sections describing `641ba13`/`0007_pta2b1` below are retained as the earlier
+pre-withdrawal review, not the current runtime baseline.
+
+## 2026-10-27 transfer closure against completed withdrawal
+
+### Verified baseline and evidence limits
+
+Inspected commit `a3c3bd0`, its migration `0008_pta2b2a`, planning
+models/routes/service, authentication policy/service, React workspace and
+[completion record 15](15-pta2b2a-implementation-status.md). The record reports
+14/14 gates, 70 withdrawal cases, 427 backend cases, 45 frontend cases, one Chrome
+journey and independent Engineering/Security PASS. These are recorded predecessor
+results, not rerun tests or proof of transfer implementation. Working tree was
+clean. No database, runtime, migration or browser work occurs in this review.
+
+Actual reusable seams:
+
+- `AnnualPTA` has unique MJL/Project/year and no independent open/closed status.
+  Project must remain active; existing Project closure rejects any contained
+  Activity. Transfer never removes that same-Project relationship or deletes an
+  empty source PTA. No annual closing/reopening feature is introduced.
+- Activity's ancestry FK currently binds `request_year`, which also belongs to
+  original-create replay identity. Change current placement separately; never
+  overwrite the original request tuple/fingerprint or create another Activity
+  when its old creation request is replayed.
+- `approved_plan` already reads the whole Project, selects the latest finalized
+  revision by revision number at the cutoff, and attributes its frozen year.
+  Its join through current PTA filters Project, not current year: same-Project
+  transfer can reuse it. Context/list shared advisory reads already exist.
+- `environment_verified` pins 19 relations, `0008_pta2b2a` and manifest
+  `d17dea7c9bd70d7a68289c33114349d9f3f530aa0802dbebbae1bc3a9ca71980`.
+  Policy/provenance, MJL ownership and the explicit `NO_EXECUTION_TEST_ONLY`
+  fixture are cumulative gates. `lifecycle_eligible` checks all current Agent
+  assignments; transfer must preserve this check and those assignments.
+
+### Settled business contract and date semantics
+
+DEC-112 permits an eligible Agent to request a forward move of an approved
+Activity within the same active Project. Draft, withdrawn, closed, initial-review,
+open-amendment and pending-withdrawal Activities are ineligible. One role-wide
+eligible Supervisor prevalidates, then a distinct eligible Validator approves;
+original decisions never satisfy this new review. Existing contributor and
+current-session checks apply; Admin cannot mutate business data. There are no
+per-Activity reviewer assignments to transfer. Current Agent coordination remains
+unchanged, including legitimate assignment changes during review.
+
+Request submission starts the pause; pending/returned/cancelled requests keep
+source placement and approved amounts. Reasoned cancellation is available before
+final approval. Resolve conflicting requests first. Later forward moves require
+a new current base/version/request and fresh review; backward moves and an undo
+endpoint remain outside the approved forward-only scope. These are applications
+of the existing rules, not additional business approvals or a one-transfer cap.
+
+Target year derives from explicitly supplied date-only planned start (2000–2200,
+strictly after current placement year), not an independently editable PTA ID.
+End must be on/after start; an end in a different year alone never moves the
+Activity. Agent explicitly confirms both target dates. DEC-106's editable
+start-plus-three-calendar-months suggestion clamps invalid days and never
+silently overwrites a manual end date. Do not preserve duration automatically,
+force an exact one-year shift, or impose an unapproved current-date cutoff.
+Dates become effective only at final approval; old approved dates remain frozen.
+
+### B1 — minimum representation recommendation requiring owner approval
+
+**Question:** approve keeping one Activity/Operation identity, changing only its
+current annual placement and approved dates at final transfer approval, while
+preserving source-year evidence in immutable revisions and approval/audit history?
+
+**Constraints:** DEC-112 requires identity, Operations, amounts, assignments,
+previous history and destination attribution; the latest request explicitly asks
+for a recommendation without silently approving the representation.
+
+**Recommendation:** the same Activity row moves at approval; an immutable
+transfer revision and activation audit preserve source, target, exact approved
+base, reason, actors and effective time. Existing as-of totals reconstruct each
+year. This avoids duplicating identity, assignments, create-replay or budgets.
+**Alternative:** a linked destination representation, retaining a source record;
+it requires additional representation/identity and counting rules with no current
+business need. It must not become an independently funded duplicate Activity.
+**Owner:** user/business owner. **Effect:** B1 controls plan 14's two-column
+placement design, annual membership and history representation. **Gate:** blocks
+PTA-2B.2B authorization until approved; no runtime change is permitted now.
+Prior plan review is not owner approval of this choice. No other settled
+W1/W2/T1/T2/F1 choice is reopened.
+
+### Historical and financial boundary
+
+Under the recommended B1 model, allocation 100 approved in Y contributes 100 in
+Y until transfer approval at t; then current Y/Y+1 totals are 0/100. A cutoff
+before t remains 100/0. An earlier approved amendment to 120 contributes 120,
+not the original 100, at the transfer boundary. Pending, returned or cancelled
+transfers do not affect these totals. Subsequent transfer/amendment/withdrawal
+approvals form one chronological chain. Never update old snapshots or actors.
+Each HTTP response is coherent; two requests may straddle a commit. Cross-year
+no-double-count assertions use one SQL snapshot, not independent HTTP requests.
+
+Annual live totals are not immutable published reports. The rebuild has no
+report generation/storage module; do not rewrite, regenerate or import existing
+legacy/generated artifacts. Future reports must bind their generation/cutoff and
+approved basis, so later transfers cannot silently change issued evidence.
+No report feature or report-retention architecture is added in this slice.
+
+Only verified disposable synthetic planning with no execution ever enabled is
+eligible. Absent finance tables/rows, a test database name or allocation amount
+alone proves nothing. Reuse per-mutation provenance/schema/fixture checks for
+request, correction, decisions and cancellation. Unknown/imported/real data or
+future financial schema denies. Future realization must replace the temporary
+proof with authoritative Activity-level execution/obligation checks before these
+commands resume; adding a new accepted schema hash is insufficient.
+
+No financial facts, spending or obligations move. Unused allocation remains
+subject to mandatory administrative reversement under the separately approved
+realization workflow; transfer records neither money returned nor reusable funds.
+Executed Activities, explicit-zero spending, settlement/discrepancy/obligation
+cases stay deferred. Financial realization is not needed for the already approved
+synthetic-only scope, but is required before broadening eligibility.
+
+### Minimum conditional implementation and compatibility corrections
+
+If B1 is approved, reuse plan 14: one migration `0009_pta2b2b` after actual
+`0008_pta2b2a`, two Activity columns (`transfer_id`, `placement_year`), no new
+tables. Preserve original request provenance with the narrow immutable-fields
+constraint/trigger, updating the guard's explicit function list and manifest.
+Mutually exclude amendment/withdrawal/transfer purposes. Keep pending source
+placement; activate dates, approved pointer and placement together. No new engine.
+
+Two POST responsibilities: `/activities/{id}/transfers` (request/correction) and
+`/activities/{id}/transfers/{transfer_id}/cancellation`; reuse existing revision
+review/history GETs and decision POST. Strict date/reason/base/version/group
+validation and server-side source/destination Project/MJL checks apply. Destination
+is the same active Project's existing annual PTA, or one created only at final
+approval. Cancellation/preview creates nothing. Uniqueness prevents duplicates.
+
+Use existing advisory-first ordering, then auth/guard, Project, existing source/
+target PTAs in stable ID order, Activity and revision/children. Discover IDs under
+the advisory lock and revalidate after row locking; never acquire advisory last.
+Missing target creation is serialized by the existing advisory/Project lock plus
+unique Project/year. No new lock infrastructure. Audit and changes commit in one
+transaction; audit/constraint/commit failure leaves no target created by that
+transaction, no decision or partial placement, and preserves pre-existing PTAs.
+
+**Concrete predecessor correction:** `0008` review trigger compares withdrawal
+snapshot `pta` byte-for-byte with its approved base. Plan 14 transfer snapshots
+retain `pta.id=null` and reviewed target year even after activation. A later
+withdrawal must use the resolved current PTA, so the transfer migration must
+update both Python snapshot normalization and this purpose-specific SQL comparison:
+validate matching fixed Project/year and resolved current PTA against the approved
+transfer base, permitting only that ID normalization. Preserve all approved
+content/Operation comparisons and the exact rule for ordinary non-transfer bases.
+Do not rewrite the old transfer snapshot or globally allow null PTA IDs. Fresh
+amendment/withdrawal snapshots remove obsolete transfer metadata. This correction
+is a mandatory implementation gate, not an existing withdrawal regression fix.
+
+C4b predecessor is **`a3c3bd0`**, not `641ba13`: create its approved/amended and
+pending/cancelled/effective withdrawal histories through that artifact, drain
+writers, migrate with DDL credentials, exercise the candidate with a distinct
+restricted runtime. Prove unchanged old facts/create keys, A2.2 assignment
+restrictions, A3 recovery/session behavior, old-artifact rejection, schema tamper
+denial, exact clean downgrade/re-upgrade and evidence-bearing downgrade refusal.
+No dual-schema compatibility or weakened financial guard.
+
+React extends the existing Activity form/detail/history only: French transfer
+reason/target dates, derived-year preview, unchanged budget/Operations, review,
+return/correct/cancel and current context link. Reuse v3, Router, Query, Sonner and
+existing inspiration; no new screen. Reconcile Activity/history and both annual
+contexts after success or uncertain result before enabling actions. Preserve
+session-generation guards and no offline send/retry/reconnect replay.
+
+### Focused gates and review outcome
+
+Retain **16 acceptance gates C01–C08/T01–T08**, not a new test matrix. Existing
+§8 and plan 14 remain the conditional oracles. C06 explicitly includes PTA-2B.2A
+regression and exact `a3c3bd0` cutover. Extend T04/T05 within those gates with
+transfer→withdrawal request/cancellation/final approval and
+transfer→amendment→transfer, proving purpose normalization, unchanged original
+snapshots and correct current/historical totals. T01/C08 cover explicit date
+confirmation, DEC-106 manual-end preservation and cross-year-end-only non-transfer.
+T06 retains both-order races and one missing target PTA; C04 covers all mutation
+paths and complete rollback including newly created versus pre-existing target.
+
+Independent Engineering review: **PASS** after correction and same-reviewer
+re-review. Independent Security/Specification review: **PASS** after same-reviewer
+re-review. Neither found remaining blocking/high/medium document findings; PASS
+validates this conditional decision package, not B1 approval or implementation.
+Verified `git status`, documentation diff/stat and `git diff --check`. No runtime
+tests, builds, migrations or browser runs: only documentation changed. Existing
+lessons reviewed; no new durable lesson warranted.
+Verdict: **PTA_2B2B_NOT_READY**, solely B1 owner approval. PC1/PC2 remain pending;
+real accounts and production remain prohibited. Stop before implementation.
+
+## Earlier review record (2026-10-26)
 
 ## Decision closure following the five user approvals
 
@@ -401,7 +590,7 @@ Task verification: source/document inspection, new-file/documentation diff revie
 builds/migrations/browser runs because no executable changes. Existing lessons
 evaluated; no repeated correction warrants an entry. Stop before implementation.
 
-## 11. Current readiness recheck
+## 11. Earlier readiness recheck (superseded by 2026-10-27 closure)
 
 Independent engineering review: **PASS** for both plans after correction and
 same-reviewer re-review. Independent security/specification review: **PASS** for
