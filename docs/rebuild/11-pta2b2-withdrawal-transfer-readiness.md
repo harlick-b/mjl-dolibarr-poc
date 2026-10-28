@@ -1,5 +1,11 @@
 # PTA-2B.2 readiness: withdrawal and cross-year transfer
 
+Current status: withdrawal and transfer are implemented under DEC-113/114; see
+[withdrawal evidence](15-pta2b2a-implementation-status.md) and
+[transfer evidence](16-pta2b2b-transfer-implementation-status.md).
+The dated readiness/authorization statements below are historical. Preserve the
+contract and its future execution-eligibility dependency; do not reopen approvals.
+
 Current documentation-only closure: 2026-10-27, clean baseline `a3c3bd0`
 (PTA-2B.2A complete). **PTA_2B2B_READY_FOR_AUTHORIZATION** after the user
 explicitly approved representation choice B1. Transfer implementation remains

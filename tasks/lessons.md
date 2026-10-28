@@ -8,6 +8,10 @@
 Update this file only after repeated mistakes, user corrections, or durable
 debugging discoveries. Do not add one-off observations or generic advice.
 
+Read only lessons applicable to the current stack and changed behavior. The
+older mixed ledger below includes Dolibarr-only rules; those do not govern React
+or FastAPI. Current rebuild/process lessons are collected at the end.
+
 - Synthetic mailbox filenames are UUIDs and do not encode delivery order. Tests
   that need the latest message must compare the mailbox file set before and after
   the delivery, or select by an explicit delivery identifier.
@@ -314,6 +318,8 @@ debugging discoveries. Do not add one-off observations or generic advice.
   test every report type through the public response because single-type coverage
   misses wrapper-shape differences.
 
+## Rebuild and planning lessons
+
 - For the approved PTA administrative workflows, do not make external fund
   custody/source-of-funds questions block application design. MJL records the
   specified allocations, spending, requests and external declarations; the
@@ -339,3 +345,17 @@ debugging discoveries. Do not add one-off observations or generic advice.
   restore the canonical predecessor constraint expressions and function bodies,
   not merely equivalent behavior. Verify the downgraded manifest against the
   predecessor application artifact before accepting re-upgrade evidence.
+
+- Completed slices left authorization prose in plans/readiness files looking
+  current. Add a brief completion pointer and retain the dated contract; do not
+  require another approval because an earlier document says unauthorized.
+- Repeated external execution prompts duplicated rules already approved in the
+  repository. After a concrete slice is authorized, derive implementation locally
+  from one current contract; ask about missing business choices, not prompt format.
+- Fewer tables did not guarantee a simpler transfer implementation: shared state
+  combinations and snapshot exceptions increased the work. Compare total model,
+  constraint, API and verification cost before setting future representation limits.
+- Post-transfer amendment tests changed amounts but initially kept the same dates,
+  missing a constraint regression. Test meaningful changes to fields affected by
+  the new invariant across adjacent workflows; larger passing counts do not replace
+  that coverage. Keep the independent correction/re-review cycle that found it.

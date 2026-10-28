@@ -20,46 +20,45 @@ The proposed technical standard is
 `docs/rebuild/03-security-compliance-baseline.md` owns security requirements.
 The authority/business/API disposition register is
 `docs/rebuild/01-authority-and-business-baseline.md`.
-Readiness and the first proposed slice are in the existing roadmap.
-DEC-092 authorizes only the first technical foundation: frontend shell/health,
-PWA, FastAPI liveness/readiness, PostgreSQL connectivity, Alembic bookkeeping,
-quality tooling, isolated Compose and focused verification. DEC-094 now authorizes
-A1 first-Admin invitation/password/email-OTP/session/logout only, with synthetic
-identities, isolated test databases and test mail. PC1/PC2 remain pending; real
-accounts, A4, business modules and production deployment are not authorized.
-DEC-096 authorizes A2.1 ordinary-role invitations and account listing under
-readiness 05 at commit 2c1929e: five APIs, two table extensions, no new tables,
-all sixteen acceptance checks and focused A1 regressions.
-DEC-099 authorizes restricted A2.2 implementation under readiness 06 at `6659a05`:
-ordinary synthetic role changes/deactivation, one PATCH, no migrations, verified
-database provenance, fixed fail-closed eligibility and mandatory lock/race gates.
-DEC-103 authorizes and completes A3 ordinary synthetic-account password recovery
-under readiness 07: three POST responsibilities, one recovery table/migration,
-exact A2.2 guard compatibility, all sixteen checks and independent review.
-DEC-107 authorizes and completes bounded synthetic PTA-1 under readiness 08:
-single MJL ownership, reference/Project/annual PTA/draft Activity planning and
-Agent coordination assignments, exact guard cutover, all 24 checks, I1/C1 and
-independent review. DEC-109 authorizes and completes bounded synthetic PTA-2A
-under readiness 09 and DEC-108: immutable Activity revisions, role-wide two-
-stage review, returns/corrections, four APIs, three tables and all 20 checks with
-I2/C2 and independent review. DEC-111 authorizes and completes bounded synthetic
-PTA-2B.1 under readiness 10 and DEC-110: approved-version-preserving amendments,
-pause from opening, fresh two-stage replacement approval, reasoned cancellation,
-three API responsibilities, two columns, no new tables, all M01–M20 checks and
-I3/C3 plus independent review. DEC-113 authorizes and completes bounded synthetic
-PTA-2B.2A withdrawal under readiness 11 and DEC-112: reasoned request/correction/
-cancellation, fresh two-stage approval, terminal withdrawal, current annual
-total exclusion, one column, no new tables, all C01–C08/W01–W06 checks and exact
-predecessor cutover plus independent review. DEC-114 authorizes and completes
-bounded synthetic PTA-2B.2B transfer under
-readiness 11, DEC-112 and reviewed plan 14: one Activity identity, forward-only
-same-Project annual placement, fresh two-stage approval, reasoned cancellation,
-two columns, no new tables, all C01–C08/T01–T08 checks, exact-predecessor C4b and
-independent review. Stop after PTA-2B.2B; technical Admin recovery, reinvitation,
-reverse transfer, restoration, execution/finance, reports, later PTA slices,
-general A4 and production remain deferred.
+The current implementation boundary and evidence are in
+`docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
+router. Foundation, A1–A3 and synthetic PTA planning through PTA-2B.2B transfers
+are complete. These include restricted ordinary account lifecycle, immutable
+Activity approvals, amendments, withdrawal and forward same-Project transfer.
+PC1/PC2 remain pending; use synthetic identities, isolated databases and test mail
+only. Technical Admin recovery, reinvitation, reverse transfer, restoration,
+execution/finance, reports, later slices, general A4 and production remain deferred.
+The 2026-10-28 planning review authorizes documentation/process improvements only.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
+
+## Planning with minimal overhead
+
+- No externally written implementation prompt is required. Derive the next plan
+  from approved business rules and actual code; ask only about unresolved business
+  choices, contradictory requirements or missing external inputs. A short user
+  authorization is sufficient once the slice is concrete. Keep explicit stop rules.
+- Maintain one concise contract per new slice: user-visible outcome/exclusions,
+  changed API/data/UI seams, genuine decisions/dependencies, checks with expected
+  results, and the mandatory independent review handoff below. Extend an existing
+  readiness document when sufficient; add a separate plan only when it materially
+  helps execution. Link settled standards instead of restating them. Do not require
+  a closure/recheck document or a second authorization for routine technical fixes.
+- Describe invariants before prescribing table/endpoint counts. Prefer existing
+  seams, but justify added representation or abstraction by a current need and
+  total implementation cost. Explicit slice limits remain binding. No generic
+  workflow framework or broad cleanup project follows from a complexity concern.
+- Map checks to changed behavior and risks, reuse existing coverage, and test
+  interactions with adjacent workflows. Run focused checks while iterating; run a
+  broad regression when required or justified by shared changes. After a fix,
+  rerun affected checks, widening only for changed dependencies or unresolved risk.
+  Never waive a mandatory gate or relabel older evidence as a final-candidate run.
+- Record the tested source/artifact and actual command/results together. Keep
+  migration compatibility evidence tied to that candidate. Measure slow setup
+  before optimizing fixtures; retain disposable isolation and real database tests.
+- At completion, update the current roadmap once and link detailed evidence.
+  Mark old authorization/status prose as historical without rewriting its contract.
+  Read only task-relevant lessons; legacy-specific rules are not rebuild mandates.
 
 ## Legacy workspace
 

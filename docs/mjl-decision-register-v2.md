@@ -172,7 +172,12 @@ The following are not decisions and must not be invented:
 
 | DEC-108 | Every active Admin-invited Supervisor/Validator may review every Activity in trusted MJL scope without Activity-specific reviewer assignment. One eligible Supervisor prevalidation then one distinct eligible Validator approval suffice. Contributor exclusions persist. Personnel changes preserve completed decisions; structural corrections require a fresh chain. Admin may deactivate ordinary reviewers without handoff, including the last eligible reviewer; pending Activities wait without bypass. Existing Agent-assignment and Admin/self-target guards remain. | BUSINESS_RULES_APPROVED; PTA_2A_READY_FOR_AUTHORIZATION; implementation NOT_AUTHORIZED | Authority router and readiness 09 | User explicitly selected role-wide review, approved one decision per stage and the other proposals on 2026-10-26. Supersedes DEC-105's Activity-specific reviewer requirement and the earlier handoff proposal only. No bootstrap change or real-account enablement. |
 
-## PTA-2B.2B documentation closure (2026-10-27)
+## PTA-2B.2B documentation closure (historical, 2026-10-27)
+
+The row below records the pre-implementation decision. Subsequent user
+authorization and completion at `a6247ef` are recorded by DEC-114 in the
+[authority router](mjl-authoritative-decisions.md) and
+[status 16](rebuild/16-pta2b2b-transfer-implementation-status.md).
 
 | ID | Decision / recommendation | Status | Evidence / owner |
 | --- | --- | --- | --- |

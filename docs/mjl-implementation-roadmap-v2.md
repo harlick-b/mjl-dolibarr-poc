@@ -23,7 +23,38 @@ Activity identity while moving its current annual placement only after fresh
 two-stage approval. PC1/PC2, real accounts, reverse transfer, restoration,
 execution/finance, reports, later slices and production remain excluded.
 
-## PTA-2B.1 amendment completion (2026-10-26)
+## Planning review and next work (2026-10-28)
+
+Read-only source/document review at `7e6735b`, with independent implementation
+and process reviewers, found maintenance overhead rather than speculative
+infrastructure. No runtime or dependency change is authorized by this review.
+Future planning follows `AGENTS.md`; no external implementation prompt is needed.
+
+| Finding and evidence | Planning improvement |
+| --- | --- |
+| Readiness 11 and plan 14 repeat substantial API/schema/transaction rules and retain pre-authorization wording after completion. | Mark historical status, link current completion, and use one concise contract per new slice. Do not require another closure/recheck document when no decision remains open. |
+| `AuthService.environment_verified` hashes the whole supported schema, including physical column positions. Planning changes therefore affect the authentication guard. | Retain the current fail-closed contract. Execution integration must replace the temporary no-execution eligibility proof with real per-Activity facts; simply allowing a new schema hash is insufficient. Do not grow this temporary mechanism into the permanent design by default. |
+| Revision persistence repeats across transfer/withdrawal/submission routes; `PlanningView` selects workflow URLs/payloads through nested branches. | When a new authorized behavior touches these paths, consider one small helper for identical revision mechanics and explicit UI action builders. Keep business eligibility distinct. No general workflow engine or standalone cleanup project. |
+| Planning fixtures migrate a fresh database and invite/authenticate several accounts per case; the recorded full backend run took 28m49s. | Run focused checks during iteration, broad checks when required or justified, and affected checks after fixes. Measure setup cost before optimizing; retain isolation and integrated auth/migration coverage. This review did not prove redundant historical runs or measure their setup share. |
+| Restricting tables moved complexity into Activity purpose combinations, JSON history and predecessor SQL rewriting. | Judge future designs by total complexity and invariants, not table count alone. Existing slice limits remain binding; no replacement schema is proposed here. |
+
+The approved business sequence below remains the roadmap. Prepare the next
+execution slice locally from the approved brief and actual code, without asking
+the user to write an implementation prompt. Scope it to recording completed work
+and explicit final spending per Operation, plus safe interaction with planning
+changes and account eligibility. Financial approvals/declarations/closure follow
+as separate coherent increments; do not reopen the approved basic workflow.
+Before implementation, resolve only decisions that block the selected increment.
+Known later questions include zero-spending settlement and late discrepancy
+resolution in the [gap analysis](mjl-current-vs-target-gap-analysis.md).
+The realization inspiration already exists under `docs/inspiration/realisations`;
+check its applicability before requesting more design material.
+
+Each concrete implementation plan must finish with the independent review-only
+handoff, implementer corrections and same-reviewer re-review required by
+`AGENTS.md`. Scope authorization is still required; this review starts no slice.
+
+## PTA-2B.1 amendment completion (historical, 2026-10-26)
 
 **PTA_2B1_COMPLETE** under DEC-111. Migration `0007_pta2b1` adds two Activity
 columns and no table. The three amendment responsibilities preserve the approved
@@ -349,17 +380,18 @@ objects/installers, existing PHP class paths and old test runners are historical
 references only; each new-stack slice receives separate implementation approval.
 
 The business rules in `mjl_codex_authoritative_pta_change_brief.md` are approved.
-The 2026-10-21 impact audit is recorded in the gap analysis. Runtime implementation
-has not started. The sequence below is proposed for review; implement only the
-next authorized slice and stop after it. Do not generate separate permanent
-phase execution/validation reports: keep concise state here and evidence in Git.
+Planning through withdrawal and transfer (rows 1–2) is implemented in the bounded
+synthetic environment; their execution-aware extensions remain dependent on
+row 3. Rows 3–7 remain proposed work requiring separate authorization. Derive
+their concrete plans locally; keep one current contract and concise evidence,
+not another externally authored execution prompt. Stop after the authorized slice.
 
 | Slice | Requirement and smallest implementation scope | Dependencies / exit evidence |
 | --- | --- | --- |
 | 1. PTA planning foundation | Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Agent coordination assignments managed by Supervisor/Validator. Reconcile schema, commands, route/token guards and reads together. | Project closure and PTA creation are settled by DEC-089/090. DEC-104–106 settle the trusted singleton context, defer reviewer assignments/actions and define date clamping. Disposable API/DB tests cover context/parent forgery, Project/first-PTA creation races, unassigned Agent access and forbidden bypass. Existing screen changes need inspiration check before implementation. |
-| 2. Approved amendments and annual transfer | Extend immutable Activity revisions with separate approved/candidate content, fresh two-stage review with affected execution paused while approval is pending, late corrections, withdrawal and atomic cross-year transfer. Reuse contributor/audit protections. | Slice 1; decide withdrawal/annual history semantics. Affected-only execution pause is settled by DEC-090. Prove pending amounts cannot alter approved execution/reporting and stale decisions cannot activate content. |
+| 2. Approved amendments and annual transfer | Implemented for synthetic planning-only Activities: immutable approved/candidate content, fresh two-stage review, amendments, withdrawal and forward annual transfer. | DEC-110/112/114 settle pause, withdrawal and annual history. Execution integration must preserve those decisions and replace temporary eligibility with actual obligations checks. |
 | 3. Realization and administrative settlement | Final Operation spending replacing itemized expense approvals/reversals, distinct décaissement/virement approvals, separate Agent → Supervisor → Validator insufficiency authorization, external confirmation, automatic reversement requirement/declarations and direct Agent closure. Retire conflicting old finance/completion paths. | Slices 1–2 and exception/zero-amount decisions from gap analysis. Focused missing/zero/XOF, stale-basis, no-self-approval, discrepancy/full-return and closure tests. No bank execution. |
-| 4. Annual metrics and Fiche | Whole-PTA approved denominators; closed-only realization/spending; provide Fiche PDF and guarded PDF/XLSX exports with history/reconciliation. | Slices 2–3 and historical attribution decision. Prove UI filters cannot alter official denominator, pending amendments stay excluded and history is not truncated. File references activate only with slice 6. |
+| 4. Annual metrics and Fiche | Whole-PTA approved denominators; closed-only realization/spending; provide Fiche PDF and guarded PDF/XLSX exports with history/reconciliation. | Slices 2–3; reuse settled withdrawal/transfer annual attribution. Prove UI filters cannot alter official denominator, pending amendments stay excluded and history is not truncated. File references activate only with slice 6. |
 | 5. Administrative relance | Focused 21-day scheduler, recipient/channel outcomes, in-app notifications and email; browser push if required by clarified PWA contract. | Stable dates/assignments/closure from slices 1–3; verify mail, agree retry/rescheduling and browser permission behavior. Focused due/reschedule/closure/deduplication tests. No generic notification platform. |
 | 6. Guarded optional documents | Reconcile Phase 4 to optional PTA/Activity/revision/decision/request/confirmation/return contexts and Partner visibility. Implement only the separately authorized security slice. | Existing document gate and relevant storage/preview/security decisions. Keep deny-all until guarded route and entity/Partner isolation checks pass; no mandatory attachments or requirement-blocking machinery. |
 | 7. Partner portal | Exclusive one-Partner invitation/auth binding; own current/past Projects and approved PTA/progress; authorized decisions, Fiches, files and scoped exports. | Can prepare identity/API work after slices 1–2; complete experience depends on slices 3–4 and allowed files on slice 6. Verify real mail/OTP before enablement, cross-Partner denial and no internal-role escalation. |

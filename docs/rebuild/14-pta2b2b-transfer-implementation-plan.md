@@ -1,5 +1,10 @@
 # PTA-2B.2B implementation plan: cross-year Activity transfer
 
+Current status: implemented at `a6247ef` under DEC-114; see
+[completion evidence](16-pta2b2b-transfer-implementation-status.md).
+The authorization wording below records the historical planning stage. The
+contract is retained for traceability, not a request for renewed authorization.
+
 Planning only; separate implementation authorization required. The latest
 [readiness closure](11-pta2b2-withdrawal-transfer-readiness.md) verdict is **PTA_2B2B_READY_FOR_AUTHORIZATION** after explicit user approval of
 B1: retain the same Activity and move its annual placement only at final approval,

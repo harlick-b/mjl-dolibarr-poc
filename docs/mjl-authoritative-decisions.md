@@ -19,6 +19,13 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+The roadmap owns current completion state. Earlier dated authorization and
+readiness statements below record their stage in history; they do not revoke
+later explicit authorizations. Future planning follows the minimal-overhead rules
+in `AGENTS.md`, updated at the user's request on 2026-10-28. No external detailed
+execution prompt is required after a concrete slice is authorized. This process
+review does not authorize any additional runtime slice or relax security gates.
+
 ## PTA-2B.2B transfer implementation authorization and completion (DEC-114)
 
 The user explicitly authorized the bounded synthetic PTA-2B.2B cross-year
