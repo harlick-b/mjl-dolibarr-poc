@@ -110,7 +110,7 @@ function cursorFrom(link) {
 
 function workflowActivityId(path) {
   return path.match(
-    /^\/activities\/([^/]+)\/(?:submissions|amendments(?:\/[^/]+\/cancellation)?|withdrawals(?:\/[^/]+\/cancellation)?|revisions\/[^/]+\/decisions)$/,
+    /^\/activities\/([^/]+)\/(?:submissions|amendments(?:\/[^/]+\/cancellation)?|withdrawals(?:\/[^/]+\/cancellation)?|transfers(?:\/[^/]+\/cancellation)?|revisions\/[^/]+\/decisions)$/,
   )?.[1]
 }
 
@@ -1001,6 +1001,9 @@ function ActivityDetail({
 }) {
   const [editing, setEditing] = useState(false)
   const [workflowAction, setWorkflowAction] = useState('')
+  const [transferTargetYear, setTransferTargetYear] = useState(
+    item.transfer?.target_year || '',
+  )
   const workflowOpener = useRef(null)
   const [selectedAgentIds, setSelectedAgentIds] = useState(item.agent_ids)
   const canAssign =
@@ -1014,6 +1017,8 @@ function ActivityDetail({
     const cancellation = workflowAction === 'cancel_amendment'
     const withdrawal = workflowAction === 'request_withdrawal'
     const withdrawalCancellation = workflowAction === 'cancel_withdrawal'
+    const transfer = workflowAction === 'request_transfer'
+    const transferCancellation = workflowAction === 'cancel_transfer'
     mutation.mutate(
       {
         path: opening
@@ -1024,12 +1029,21 @@ function ActivityDetail({
               ? `/activities/${item.id}/withdrawals`
               : withdrawalCancellation
                 ? `/activities/${item.id}/withdrawals/${item.withdrawal.id}/cancellation`
-                : submission
-                  ? `/activities/${item.id}/submissions`
-                  : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
+                : transfer
+                  ? `/activities/${item.id}/transfers`
+                  : transferCancellation
+                    ? `/activities/${item.id}/transfers/${item.transfer.id}/cancellation`
+                    : submission
+                      ? `/activities/${item.id}/submissions`
+                      : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
         method: 'POST',
         body:
-          opening || cancellation || withdrawal || withdrawalCancellation
+          opening ||
+          cancellation ||
+          withdrawal ||
+          withdrawalCancellation ||
+          transfer ||
+          transferCancellation
             ? {
                 expected_version: item.version,
                 expected_approved_revision_id: item.approved_revision_id,
@@ -1041,6 +1055,21 @@ function ActivityDetail({
                     }
                   : {}),
                 ...(withdrawalCancellation
+                  ? { expected_revision_id: item.current_revision_id }
+                  : {}),
+                ...(transfer
+                  ? {
+                      planned_start: data.get('planned_start'),
+                      planned_end: data.get('planned_end'),
+                      ...(item.transfer
+                        ? {
+                            transfer_id: item.transfer.id,
+                            expected_revision_id: item.current_revision_id,
+                          }
+                        : {}),
+                    }
+                  : {}),
+                ...(transferCancellation
                   ? { expected_revision_id: item.current_revision_id }
                   : {}),
               }
@@ -1140,6 +1169,32 @@ function ActivityDetail({
               {strings.cancelWithdrawal}
             </Button>
           )}
+          {item.allowed_actions.includes('request_transfer') && (
+            <Button
+              disabled={mutationBlocked}
+              variant="outline"
+              onClick={(event) => {
+                workflowOpener.current = event.currentTarget
+                setWorkflowAction('request_transfer')
+              }}
+            >
+              {item.transfer
+                ? strings.correctTransfer
+                : strings.requestTransfer}
+            </Button>
+          )}
+          {item.allowed_actions.includes('cancel_transfer') && (
+            <Button
+              disabled={mutationBlocked}
+              variant="outline"
+              onClick={(event) => {
+                workflowOpener.current = event.currentTarget
+                setWorkflowAction('cancel_transfer')
+              }}
+            >
+              {strings.cancelTransfer}
+            </Button>
+          )}
           {[
             ['submit', strings.submitReview],
             ['prevalidate', strings.prevalidate],
@@ -1166,16 +1221,24 @@ function ActivityDetail({
       {item.execution_paused && (
         <div className="planning-error" role="status">
           <strong>
-            {item.withdrawal
-              ? strings.withdrawalPending
-              : strings.candidateVersion}
+            {item.transfer
+              ? strings.transferPending
+              : item.withdrawal
+                ? strings.withdrawalPending
+                : strings.candidateVersion}
           </strong>
           <p>
-            {item.withdrawal
-              ? strings.withdrawalPaused
-              : strings.executionPaused}
+            {item.transfer
+              ? strings.transferPaused
+              : item.withdrawal
+                ? strings.withdrawalPaused
+                : strings.executionPaused}
           </p>
-          <p>{item.withdrawal?.reason || item.amendment?.reason}</p>
+          <p>
+            {item.transfer?.reason ||
+              item.withdrawal?.reason ||
+              item.amendment?.reason}
+          </p>
         </div>
       )}
       {item.amendment && item.approved && item.candidate && (
@@ -1230,6 +1293,15 @@ function ActivityDetail({
           </dd>
         </div>
       </dl>
+      <Link
+        to="/projects/$projectId/ptas/$year"
+        params={{
+          projectId: item.project_id,
+          year: String(item.placement_year),
+        }}
+      >
+        {strings.openCurrentAnnualPlan}
+      </Link>
       <h3>{strings.operations}</h3>
       <ul className="planning-list">
         {item.operations.map((row) => (
@@ -1270,10 +1342,14 @@ function ActivityDetail({
                       </p>
                     ))}
                   </>
-                ) : entry.kind === 'withdrawal_cancel' ? (
+                ) : ['withdrawal_cancel', 'transfer_cancel'].includes(
+                    entry.kind,
+                  ) ? (
                   <p>
-                    Demande de retrait annulée · {entry.occurred_at} —{' '}
-                    {entry.reason}
+                    {entry.kind === 'transfer_cancel'
+                      ? 'Demande de transfert annulée'
+                      : 'Demande de retrait annulée'}{' '}
+                    · {entry.occurred_at} — {entry.reason}
                   </p>
                 ) : (
                   <button
@@ -1312,6 +1388,14 @@ function ActivityDetail({
               <p>
                 <strong>{strings.withdrawalReason} :</strong>{' '}
                 {selectedRevision.snapshot.withdrawal.reason}
+              </p>
+            )}
+            {selectedRevision.snapshot.transfer && (
+              <p>
+                <strong>{strings.transferReason} :</strong>{' '}
+                {selectedRevision.snapshot.transfer.reason} · PTA{' '}
+                {selectedRevision.snapshot.transfer.source_pta.year} vers PTA{' '}
+                {selectedRevision.snapshot.transfer.target_year}
               </p>
             )}
             <p>
@@ -1463,26 +1547,85 @@ function ActivityDetail({
             'cancel_amendment',
             'request_withdrawal',
             'cancel_withdrawal',
+            'request_transfer',
+            'cancel_transfer',
           ].includes(workflowAction) && (
             <>
-              {['cancel_amendment', 'cancel_withdrawal'].includes(
-                workflowAction,
-              ) && <p>{strings.cancellationWarning}</p>}
+              {[
+                'cancel_amendment',
+                'cancel_withdrawal',
+                'cancel_transfer',
+              ].includes(workflowAction) && (
+                <p>{strings.cancellationWarning}</p>
+              )}
               <label>
                 {workflowAction === 'open_amendment'
                   ? strings.amendmentReason
-                  : ['cancel_amendment', 'cancel_withdrawal'].includes(
-                        workflowAction,
-                      )
+                  : [
+                        'cancel_amendment',
+                        'cancel_withdrawal',
+                        'cancel_transfer',
+                      ].includes(workflowAction)
                     ? strings.cancellationReason
                     : workflowAction === 'request_withdrawal'
                       ? strings.withdrawalReason
-                      : strings.reason}
+                      : workflowAction === 'request_transfer'
+                        ? strings.transferReason
+                        : strings.reason}
                 <textarea name="reason" required maxLength="4000" autoFocus />
               </label>
+              {workflowAction === 'request_transfer' && (
+                <>
+                  <div className="planning-facts">
+                    <div>
+                      <strong>{strings.sourceAnnualPlan}</strong>{' '}
+                      {item.placement_year}
+                    </div>
+                    <div>
+                      <strong>{strings.targetAnnualPlan}</strong>{' '}
+                      {transferTargetYear || strings.chooseStartDate}
+                    </div>
+                    <div>
+                      <strong>{strings.unchangedBudget}</strong>{' '}
+                      {formatXof(item.allocation)}
+                    </div>
+                  </div>
+                  <p>{strings.unchangedOperations}</p>
+                  <ul className="planning-list">
+                    {item.operations.map((operation) => (
+                      <li key={operation.id}>
+                        {operation.name}
+                        <span>{formatXof(operation.allocation)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="planning-version-grid">
+                    <label>
+                      {strings.targetStart}
+                      <input
+                        name="planned_start"
+                        type="date"
+                        required
+                        onChange={(event) =>
+                          setTransferTargetYear(
+                            event.target.value
+                              ? Number(event.target.value.slice(0, 4))
+                              : '',
+                          )
+                        }
+                      />
+                    </label>
+                    <label>
+                      {strings.targetEnd}
+                      <input name="planned_end" type="date" required />
+                    </label>
+                  </div>
+                </>
+              )}
               {workflowAction === 'return' &&
                 user.role === 'VALIDATEUR_DEFINITIF' &&
-                !item.withdrawal && (
+                !item.withdrawal &&
+                !item.transfer && (
                   <label>
                     {strings.requestedAmount}
                     <input

@@ -2086,9 +2086,7 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
     assert planning["agent"].get("/api/v1/partners?limit=101").status_code == 422
     document = planning["agent"].get("/openapi.json").json()
     paths = document["paths"]
-    assert not any(
-        word in path for path in paths for word in ("transfer", "execution", "document")
-    )
+    assert not any(word in path for path in paths for word in ("execution", "document"))
     planning_paths = [
         path
         for path in paths
@@ -2121,6 +2119,8 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
         "/api/v1/activities/{identifier}/amendments/{amendment_id}/cancellation",
         "/api/v1/activities/{identifier}/withdrawals",
         "/api/v1/activities/{identifier}/withdrawals/{withdrawal_id}/cancellation",
+        "/api/v1/activities/{identifier}/transfers",
+        "/api/v1/activities/{identifier}/transfers/{transfer_id}/cancellation",
         "/api/v1/activities/{identifier}/assignments",
         "/api/v1/activities/{identifier}/submissions",
         "/api/v1/activities/{identifier}/revisions",
@@ -2443,7 +2443,7 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, au
             assert contributors == expected
             assert excluded not in contributors
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0008_pta2b2a"
+                "0009_pta2b2b"
             )
     finally:
         engine.dispose()
@@ -2470,7 +2470,7 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0008_pta2b2a"
+                "0009_pta2b2b"
             )
             assert db.scalar(text("SELECT count(*) FROM pta_activity_revision")) == 1
     finally:
@@ -2624,7 +2624,7 @@ def test_p03_database_ancestry_and_client_context_fail_closed(planning):
         ).status_code
         == 422
     )
-    with Session(planning["auth"].engine) as db, pytest.raises(IntegrityError):
+    with Session(planning["auth"].engine) as db, pytest.raises(DBAPIError):
         row = db.get(Activity, created.json()["id"])
         assert row
         row.request_project_id = second_project["id"]

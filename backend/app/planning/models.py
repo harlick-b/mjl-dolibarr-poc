@@ -112,7 +112,7 @@ class Activity(Base):
     __tablename__ = "pta_activity"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["context_id", "pta_id", "request_project_id", "request_year"],
+            ["context_id", "pta_id", "request_project_id", "placement_year"],
             [
                 "pta_annual.context_id",
                 "pta_annual.id",
@@ -155,11 +155,18 @@ class Activity(Base):
             "(state IN ('submitted','prevalidated','returned_supervisor',"
             "'returned_validator') "
             "AND current_revision_id IS NOT NULL AND ((amendment_id IS NULL "
-            "AND withdrawal_id IS NULL AND approved_revision_id IS NULL) OR "
+            "AND withdrawal_id IS NULL AND transfer_id IS NULL "
+            "AND approved_revision_id IS NULL) OR "
             "(withdrawal_id IS NOT NULL AND amendment_id IS NULL "
+            "AND transfer_id IS NULL "
             "AND approved_revision_id IS NOT NULL "
             "AND current_revision_id <> approved_revision_id) OR "
             "(amendment_id IS NOT NULL "
+            "AND withdrawal_id IS NULL AND transfer_id IS NULL "
+            "AND approved_revision_id IS NOT NULL "
+            "AND current_revision_id <> approved_revision_id) OR "
+            "(transfer_id IS NOT NULL AND amendment_id IS NULL "
+            "AND withdrawal_id IS NULL "
             "AND approved_revision_id IS NOT NULL "
             "AND current_revision_id <> approved_revision_id))) OR "
             "(state = 'approved' AND current_revision_id IS NOT NULL "
@@ -173,8 +180,9 @@ class Activity(Base):
         CheckConstraint(
             "(amendment_id IS NULL AND amendment_reason IS NULL AND "
             "(approved_revision_id IS NULL OR state IN ('approved','withdrawn') "
-            "OR withdrawal_id IS NOT NULL)) OR "
-            "(amendment_id IS NOT NULL AND amendment_reason IS NOT NULL "
+            "OR withdrawal_id IS NOT NULL OR transfer_id IS NOT NULL)) OR "
+            "(amendment_id IS NOT NULL AND withdrawal_id IS NULL "
+            "AND transfer_id IS NULL AND amendment_reason IS NOT NULL "
             "AND length(btrim(amendment_reason)) BETWEEN 1 AND 4000 "
             "AND approved_revision_id IS NOT NULL AND state <> 'approved')",
             name="activity_amendment_state",
@@ -182,12 +190,26 @@ class Activity(Base):
         CheckConstraint(
             "(withdrawal_id IS NULL AND state <> 'withdrawn') OR "
             "(withdrawal_id IS NOT NULL AND amendment_id IS NULL "
+            "AND transfer_id IS NULL "
             "AND withdrawal_id ~ "
             "'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' "
             "AND approved_revision_id IS NOT NULL AND state IN "
             "('submitted','prevalidated','returned_supervisor',"
             "'returned_validator','withdrawn'))",
             name="activity_withdrawal_state",
+        ),
+        CheckConstraint(
+            "transfer_id IS NULL OR (amendment_id IS NULL AND withdrawal_id IS NULL "
+            "AND transfer_id ~ "
+            "'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' "
+            "AND approved_revision_id IS NOT NULL AND state IN "
+            "('submitted','prevalidated','returned_supervisor','returned_validator'))",
+            name="activity_transfer_state",
+        ),
+        CheckConstraint(
+            "placement_year BETWEEN 2000 AND 2200 AND "
+            "extract(year from planned_start)::integer = placement_year",
+            name="activity_placement_year_valid",
         ),
         CheckConstraint("version > 0", name="activity_version_positive"),
         CheckConstraint("allocation > 0", name="activity_allocation_positive"),
@@ -208,6 +230,8 @@ class Activity(Base):
     amendment_id: Mapped[str | None] = mapped_column(String(36))
     amendment_reason: Mapped[str | None] = mapped_column(String(4000))
     withdrawal_id: Mapped[str | None] = mapped_column(String(36))
+    transfer_id: Mapped[str | None] = mapped_column(String(36))
+    placement_year: Mapped[int] = mapped_column(Integer)
     version: Mapped[int] = mapped_column(default=1)
     creator_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     request_actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))

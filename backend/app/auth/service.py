@@ -94,7 +94,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0008_pta2b2a"]:
+        if revisions != ["0009_pta2b2b"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -107,6 +107,8 @@ class AuthService:
             "activity_revision_pointer_state",
             "activity_amendment_state",
             "activity_withdrawal_state",
+            "activity_transfer_state",
+            "activity_placement_year_valid",
             "activity_revision_number",
             "revision_decision_stage",
             "decision_prevalidation_scope",
@@ -171,15 +173,18 @@ class AuthService:
                   JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
                   WHERE n.nspname='public' AND p.proname IN
                     ('pta_reject_immutable','pta_validate_final_decision',
-                     'pta_validate_activity_review_state')
+                     'pta_validate_activity_review_state',
+                     'pta_validate_activity_transfer_state',
+                     'pta_preserve_activity_request')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
             )
         ]
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
-        if hashlib.sha256(encoded_manifest.encode()).hexdigest() != (
-            "d17dea7c9bd70d7a68289c33114349d9f3f530aa0802dbebbae1bc3a9ca71980"
+        manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
+        if manifest_hash != (
+            "72cbff3b75683755bfa436e8e5d6efa7d10c0d7de482f252d39975544b7f428d"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -318,6 +323,7 @@ class AuthService:
                 "activity.amendment_open",
                 "activity.amendment_cancel",
                 "activity.withdrawal_cancel",
+                "activity.transfer_cancel",
             }
             or amendment_replace
             or (
@@ -333,11 +339,17 @@ class AuthService:
                     "activity.withdrawal_return_supervisor",
                     "activity.withdrawal_approve",
                     "activity.withdrawal_return_validator",
+                    "activity.transfer_submit",
+                    "activity.transfer_prevalidate",
+                    "activity.transfer_return_supervisor",
+                    "activity.transfer_approve",
+                    "activity.transfer_return_validator",
                 }
                 and isinstance(revision_facts, dict)
                 and (
                     isinstance(revision_facts.get("amendment_id"), str)
                     or isinstance(revision_facts.get("withdrawal_id"), str)
+                    or isinstance(revision_facts.get("transfer_id"), str)
                 )
             )
         )
@@ -348,14 +360,18 @@ class AuthService:
                 "version",
                 "current_revision_id",
                 "approved_revision_id",
+                "pta_id",
+                "placement_year",
                 "amendment_id",
                 "withdrawal_id",
+                "transfer_id",
             }
             for side in ("before", "after"):
                 value = business.get(side)
                 if isinstance(value, dict):
                     amendment = value.get("amendment")
                     withdrawal = value.get("withdrawal")
+                    transfer = value.get("transfer")
                     content = (
                         {
                             key: value.get(key)
@@ -380,10 +396,13 @@ class AuthService:
                             if isinstance(withdrawal, dict)
                             else None
                         ),
+                        "transfer_id": (
+                            transfer.get("id") if isinstance(transfer, dict) else None
+                        ),
                         **{
                             key: value.get(key)
                             for key in transition_fields
-                            - {"amendment_id", "withdrawal_id"}
+                            - {"amendment_id", "withdrawal_id", "transfer_id"}
                         },
                         **({"content": content} if content is not None else {}),
                     }
@@ -408,6 +427,12 @@ class AuthService:
             "activity.withdrawal_approve": "activity",
             "activity.withdrawal_return_validator": "activity",
             "activity.withdrawal_cancel": "activity",
+            "activity.transfer_submit": "activity",
+            "activity.transfer_prevalidate": "activity",
+            "activity.transfer_return_supervisor": "activity",
+            "activity.transfer_approve": "activity",
+            "activity.transfer_return_validator": "activity",
+            "activity.transfer_cancel": "activity",
         }
         create_actions = {
             "partner.create",
@@ -427,6 +452,11 @@ class AuthService:
             "activity.withdrawal_return_supervisor",
             "activity.withdrawal_approve",
             "activity.withdrawal_return_validator",
+            "activity.transfer_submit",
+            "activity.transfer_prevalidate",
+            "activity.transfer_return_supervisor",
+            "activity.transfer_approve",
+            "activity.transfer_return_validator",
         }
         required = (
             {"context_id", "after"}
@@ -442,9 +472,19 @@ class AuthService:
             if action == "activity.withdrawal_approve"
             else {"context_id", "before", "after", "revision", "decision"}
             if action
-            in workflow_actions - {"activity.submit", "activity.withdrawal_submit"}
+            in workflow_actions
+            - {
+                "activity.submit",
+                "activity.withdrawal_submit",
+                "activity.transfer_submit",
+            }
             else {"context_id", "before", "after", "revision"}
-            if action in {"activity.submit", "activity.withdrawal_submit"}
+            if action
+            in {
+                "activity.submit",
+                "activity.withdrawal_submit",
+                "activity.transfer_submit",
+            }
             else {"context_id", "before", "after", "removed_operations"}
             if action == "activity.replace"
             else {"context_id", "before", "after", "amendment"}
@@ -468,6 +508,15 @@ class AuthService:
                 "cancellation",
             }
             if action == "activity.withdrawal_cancel"
+            else {
+                "context_id",
+                "before",
+                "after",
+                "transfer",
+                "current_revision_id",
+                "cancellation",
+            }
+            if action == "activity.transfer_cancel"
             else {"context_id", "before", "after"}
             if action in change_actions
             else None
@@ -512,6 +561,7 @@ class AuthService:
                 "activity": {
                     "id",
                     "pta_id",
+                    "project_id",
                     "reference",
                     "name",
                     "description",
@@ -527,6 +577,8 @@ class AuthService:
                     "candidate",
                     "amendment",
                     "withdrawal",
+                    "transfer",
+                    "placement_year",
                     "execution_paused",
                     "correction",
                     "operations",
@@ -564,6 +616,7 @@ class AuthService:
                     isinstance(value.get(key), str)
                     for key in (
                         "pta_id",
+                        "project_id",
                         "reference",
                         "name",
                         "description",
@@ -702,8 +755,11 @@ class AuthService:
                 "version",
                 "current_revision_id",
                 "approved_revision_id",
+                "pta_id",
+                "placement_year",
                 "amendment_id",
                 "withdrawal_id",
+                "transfer_id",
             }
             if with_content:
                 fields.add("content")
@@ -714,6 +770,8 @@ class AuthService:
                 and isinstance(value.get("state"), str)
                 and isinstance(value.get("version"), int)
                 and value["version"] > 0
+                and isinstance(value.get("pta_id"), str)
+                and isinstance(value.get("placement_year"), int)
                 and all(
                     value.get(key) is None or isinstance(value.get(key), str)
                     for key in (
@@ -721,6 +779,7 @@ class AuthService:
                         "approved_revision_id",
                         "amendment_id",
                         "withdrawal_id",
+                        "transfer_id",
                     )
                 )
                 and (not with_content or valid_structural_content(value.get("content")))
@@ -755,6 +814,16 @@ class AuthService:
                 frozenset(
                     revision_fields | {"withdrawal_id", "base_approved_revision_id"}
                 ),
+                frozenset(
+                    revision_fields
+                    | {
+                        "transfer_id",
+                        "base_approved_revision_id",
+                        "reason",
+                        "source_pta",
+                        "target_year",
+                    }
+                ),
             }
             and isinstance(revision.get("id"), str)
             and isinstance(revision.get("revision_number"), int)
@@ -768,6 +837,7 @@ class AuthService:
             and (
                 "amendment_id" not in revision
                 and "withdrawal_id" not in revision
+                and "transfer_id" not in revision
                 or all(
                     isinstance(revision.get(key), str)
                     for key in (
@@ -776,8 +846,21 @@ class AuthService:
                             "amendment_id"
                             if "amendment_id" in revision
                             else "withdrawal_id"
+                            if "withdrawal_id" in revision
+                            else "transfer_id"
                         ),
                     )
+                )
+            )
+            and (
+                "transfer_id" not in revision
+                or (
+                    isinstance(revision.get("reason"), str)
+                    and isinstance(revision.get("source_pta"), dict)
+                    and set(revision["source_pta"]) == {"id", "year"}
+                    and isinstance(revision["source_pta"].get("id"), str)
+                    and isinstance(revision["source_pta"].get("year"), int)
+                    and isinstance(revision.get("target_year"), int)
                 )
             )
         )
@@ -848,6 +931,14 @@ class AuthService:
                 )
             )
             or (
+                action == "activity.transfer_cancel"
+                and (
+                    not isinstance(business.get("transfer"), dict)
+                    or not isinstance(business.get("current_revision_id"), str)
+                    or not valid_cancellation(business.get("cancellation"))
+                )
+            )
+            or (
                 action == "activity.withdrawal_approve"
                 and (
                     not isinstance(ended_assignment_ids, list)
@@ -865,7 +956,12 @@ class AuthService:
             or (action in workflow_actions and not valid_revision)
             or (
                 action
-                in workflow_actions - {"activity.submit", "activity.withdrawal_submit"}
+                in workflow_actions
+                - {
+                    "activity.submit",
+                    "activity.withdrawal_submit",
+                    "activity.transfer_submit",
+                }
                 and not valid_decision
             )
             or not isinstance(after, dict)

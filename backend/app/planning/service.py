@@ -86,6 +86,7 @@ def allowed(
     prevalidator: bool = False,
     amendment: bool = False,
     withdrawal: bool = False,
+    transfer: bool = False,
 ) -> list[str]:
     actions = ["read"]
     if role == "VALIDATEUR_DEFINITIF" and resource in {"partner", "type", "project"}:
@@ -98,6 +99,7 @@ def allowed(
         role == "AGENT_SAISIE"
         and resource == "activity"
         and not withdrawal
+        and not transfer
         and state
         in {
             "draft",
@@ -108,7 +110,7 @@ def allowed(
     ):
         actions.extend(["edit", "submit"])
     if role == "AGENT_SAISIE" and resource == "activity" and state == "approved":
-        actions.extend(["open_amendment", "request_withdrawal"])
+        actions.extend(["open_amendment", "request_withdrawal", "request_transfer"])
     if role == "AGENT_SAISIE" and resource == "activity" and amendment:
         actions.append("cancel_amendment")
     if (
@@ -120,6 +122,10 @@ def allowed(
         actions.append("cancel_withdrawal")
         if state in {"returned_supervisor", "returned_validator"}:
             actions.append("request_withdrawal")
+    if role == "AGENT_SAISIE" and resource == "activity" and transfer:
+        actions.append("cancel_transfer")
+        if state in {"returned_supervisor", "returned_validator"}:
+            actions.append("request_transfer")
     if (
         role in {"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"}
         and resource == "activity"
@@ -273,9 +279,18 @@ def activity_item(
                     final_decision_at.isoformat() if final_decision_at else None
                 ),
             }
+    transfer = None
+    if item.transfer_id and item.current_revision_id:
+        request_revision = db.get(ActivityRevision, item.current_revision_id)
+        if request_revision and isinstance(
+            request_revision.snapshot.get("transfer"), dict
+        ):
+            facts = cast(dict[str, Any], request_revision.snapshot["transfer"])
+            transfer = {**facts, "current_revision_id": request_revision.id}
     return {
         "id": item.id,
         "pta_id": item.pta_id,
+        "project_id": item.request_project_id,
         "reference": item.reference,
         "name": item.name,
         "description": item.description,
@@ -297,8 +312,11 @@ def activity_item(
             else None
         ),
         "withdrawal": withdrawal,
+        "transfer": transfer,
+        "placement_year": item.placement_year,
         "execution_paused": item.amendment_id is not None
-        or (item.withdrawal_id is not None and item.state != "withdrawn"),
+        or (item.withdrawal_id is not None and item.state != "withdrawn")
+        or item.transfer_id is not None,
         "correction": correction,
         "operations": [
             {
@@ -319,6 +337,7 @@ def activity_item(
             prevalidator=prevalidator,
             amendment=item.amendment_id is not None,
             withdrawal=item.withdrawal_id is not None,
+            transfer=item.transfer_id is not None,
         ),
     }
 

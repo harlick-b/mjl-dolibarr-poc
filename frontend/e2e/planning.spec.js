@@ -4,16 +4,19 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 const mailbox =
+  process.env.MJL_PTA2B2B_MAILBOX ||
   process.env.MJL_PTA2B2A_MAILBOX ||
   process.env.MJL_PTA2B1_MAILBOX ||
   process.env.MJL_PTA2A_MAILBOX ||
   process.env.MJL_PTA1_MAILBOX
 const container =
+  process.env.MJL_PTA2B2B_CONTAINER ||
   process.env.MJL_PTA2B2A_CONTAINER ||
   process.env.MJL_PTA2B1_CONTAINER ||
   process.env.MJL_PTA2A_CONTAINER ||
   process.env.MJL_PTA1_CONTAINER
 const database =
+  process.env.MJL_PTA2B2B_DATABASE ||
   process.env.MJL_PTA2B2A_DATABASE ||
   process.env.MJL_PTA2B1_DATABASE ||
   'mjl_test_pta2a'
@@ -122,9 +125,9 @@ test('V19 planning, correction and final approval browser journey', async ({
   browser,
 }) => {
   test.skip(!mailbox || !container, 'Requires isolated PTA-1 environment')
-  test.setTimeout(180000)
+  test.setTimeout(300000)
   await page.setViewportSize({ width: 390, height: 844 })
-  expect(container).toMatch(/^mjl-pta2(?:a|b1|b2a)-test-backend-1$/)
+  expect(container).toMatch(/^mjl-pta2(?:a|b1|b2a|b2b)-test-backend-1$/)
   expect(mailbox).toMatch(/^\/tmp\/mjl-a1-mail-/)
   execFileSync('docker', [
     'exec',
@@ -681,6 +684,128 @@ e.dispose()`,
     .getByRole('dialog')
     .getByRole('button', { name: 'Confirmer' })
     .click()
+  await agent
+    .getByRole('button', { name: 'Transférer vers un autre PTA' })
+    .click()
+  await expect(
+    agent.getByRole('dialog').getByText('PTA source :').locator('..'),
+  ).toContainText('2027')
+  await expect(
+    agent.getByRole('dialog').getByText(/Budget approuvé inchangé/),
+  ).toBeVisible()
+  await expect(
+    agent.getByRole('dialog').getByText(/Les Opérations et leurs montants/),
+  ).toBeVisible()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif du transfert')
+    .fill('Reporter le calendrier annuel.')
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Nouvelle date de début')
+    .fill('2028-02-01')
+  await expect(
+    agent.getByRole('dialog').getByText('PTA cible :').locator('..'),
+  ).toContainText('2028')
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Nouvelle date de fin')
+    .fill('2028-09-30')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(agent.getByText('Demande de transfert en cours')).toBeVisible()
+  await agent
+    .getByRole('button', { name: 'Annuler la demande de transfert' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif de l’annulation')
+    .fill('Conserver le calendrier actuel.')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(agent.getByText(/Demande de transfert annulée/)).toBeVisible()
+
+  await agent
+    .getByRole('button', { name: 'Transférer vers un autre PTA' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif du transfert')
+    .fill('Reporter définitivement le calendrier.')
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Nouvelle date de début')
+    .fill('2028-03-01')
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Nouvelle date de fin')
+    .fill('2028-10-31')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  clearSharedIpBucket()
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor
+    .getByRole('button', { name: 'Demander une correction' })
+    .click()
+  await supervisor
+    .getByRole('dialog')
+    .getByLabel('Motif de correction')
+    .fill('Préciser la fin du calendrier transféré.')
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+
+  await agent.goto(`/activities/${activity.id}`)
+  await agent
+    .getByRole('button', { name: 'Corriger la demande de transfert' })
+    .click()
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Motif du transfert')
+    .fill('Reporter avec un calendrier corrigé.')
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Nouvelle date de début')
+    .fill('2028-03-01')
+  await agent
+    .getByRole('dialog')
+    .getByLabel('Nouvelle date de fin')
+    .fill('2028-11-30')
+  await agent
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+
+  clearSharedIpBucket()
+  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.getByRole('button', { name: 'Prévalider' }).click()
+  await supervisor
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  clearSharedIpBucket()
+  await validator.goto(`/activities/${activity.id}`)
+  await validator
+    .getByRole('button', { name: 'Valider définitivement' })
+    .click()
+  await validator
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirmer' })
+    .click()
+  await expect(validator.getByText('2028-03-01 au 2028-11-30')).toBeVisible()
+  await validator
+    .getByRole('link', { name: 'Ouvrir le PTA annuel actuel' })
+    .click()
+  await expect(validator).toHaveURL(/\/projects\/[^/]+\/ptas\/2028(?:\?|$)/)
+
+  await agent.goto(`/activities/${activity.id}`)
   await agent.getByRole('button', { name: 'Retirer l’activité' }).click()
   await agent
     .getByRole('dialog')

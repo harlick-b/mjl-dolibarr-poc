@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import func, select, text, tuple_
 from sqlalchemy.orm import Session
 
@@ -196,6 +196,22 @@ class WithdrawalCancellationInput(AmendmentInput):
         return str(UUID(value))
 
 
+class TransferInput(AmendmentInput):
+    planned_start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    planned_end: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    transfer_id: str | None = Field(default=None, max_length=36)
+    expected_revision_id: str | None = Field(default=None, max_length=36)
+
+    @field_validator("transfer_id", "expected_revision_id")
+    @classmethod
+    def optional_uuid(cls, value: str | None) -> str | None:
+        return str(UUID(value)) if value is not None else None
+
+
+class TransferCancellationInput(WithdrawalCancellationInput):
+    pass
+
+
 class DecisionInput(Input):
     expected_version: int = Field(gt=0, strict=True)
     decision: Literal["prevalidate", "approve", "return"]
@@ -285,9 +301,24 @@ class WithdrawalOutput(Input):
     final_decision_at: str | None
 
 
+class TransferSourceOutput(Input):
+    id: str
+    year: int
+
+
+class TransferOutput(Input):
+    id: str
+    reason: str
+    base_approved_revision_id: str
+    source_pta: TransferSourceOutput
+    target_year: int
+    current_revision_id: str
+
+
 class ActivityOutput(Input):
     id: str
     pta_id: str
+    project_id: str
     reference: str
     name: str
     description: str
@@ -312,6 +343,8 @@ class ActivityOutput(Input):
     candidate: PlanningProjection | None
     amendment: AmendmentOutput | None
     withdrawal: WithdrawalOutput | None
+    transfer: TransferOutput | None
+    placement_year: int
     execution_paused: bool
     correction: CorrectionOutput | None
     operations: list[OperationOutput]
@@ -426,7 +459,7 @@ class SnapshotProject(Input):
 
 
 class SnapshotPTA(Input):
-    id: str
+    id: str | None
     year: int
 
 
@@ -447,6 +480,14 @@ class WithdrawalRevisionFacts(Input):
     base_approved_revision_id: str = Field(
         pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     )
+
+
+class TransferRevisionFacts(Input):
+    id: str
+    reason: str = Field(min_length=1, max_length=4000)
+    base_approved_revision_id: str
+    source_pta: TransferSourceOutput
+    target_year: int = Field(ge=2000, le=2200)
 
 
 class RevisionSnapshot(Input):
@@ -470,7 +511,14 @@ class RevisionSnapshot(Input):
     amendment_reason: str | None = None
     base_approved_revision_id: str | None = None
     withdrawal: WithdrawalRevisionFacts | None = None
+    transfer: TransferRevisionFacts | None = None
     content_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def transfer_pta_identity(self) -> "RevisionSnapshot":
+        if (self.pta.id is None) != (self.transfer is not None):
+            raise ValueError("PTA identity may be absent only for a transfer revision")
+        return self
 
 
 class AmendmentCancellationOutput(Input):
@@ -518,7 +566,13 @@ class RevisionOutput(Input):
 
 class HistoryOutput(Input):
     id: str
-    kind: Literal["revision", "amendment_open", "amendment_cancel", "withdrawal_cancel"]
+    kind: Literal[
+        "revision",
+        "amendment_open",
+        "amendment_cancel",
+        "withdrawal_cancel",
+        "transfer_cancel",
+    ]
     occurred_at: str
     activity_id: str | None = None
     revision_number: int | None = None
@@ -528,6 +582,7 @@ class HistoryOutput(Input):
     decisions: list[RevisionDecisionOutput] = Field(default_factory=list)
     amendment_id: str | None = None
     withdrawal_id: str | None = None
+    transfer_id: str | None = None
     reason: str | None = None
     actor_id: str | None = None
 
@@ -1020,6 +1075,7 @@ def create_activity(
             request_actor_id=actor.id,
             request_project_id=project.id,
             request_year=year,
+            placement_year=year,
             request_key=body.request_key,
             request_fingerprint=digest,
             created_at=now,
@@ -1171,6 +1227,229 @@ def withdrawal_environment(auth: Auth) -> None:
 
 
 @router.post(
+    "/activities/{identifier}/transfers",
+    status_code=201,
+    response_model=RevisionOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def request_transfer(
+    identifier: str, body: TransferInput, request: Request, auth: Auth
+) -> Response:
+    import json
+
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
+        )
+        withdrawal_environment(auth)
+        item = get_activity_for_command(db, identifier)
+        if item.version != body.expected_version:
+            raise AuthError(409, "activity_stale")
+        if item.approved_revision_id != body.expected_approved_revision_id:
+            raise AuthError(409, "transfer_ineligible")
+        try:
+            planned_start = date.fromisoformat(body.planned_start)
+            planned_end = date.fromisoformat(body.planned_end)
+        except ValueError:
+            raise AuthError(422, "input_invalid") from None
+        target_year = planned_start.year
+        if (
+            planned_end < planned_start
+            or target_year <= item.placement_year
+            or target_year > 2200
+        ):
+            raise AuthError(422, "input_invalid")
+        project = db.get(Project, item.request_project_id, with_for_update=True)
+        if (
+            not project
+            or project.state != "active"
+            or item.amendment_id
+            or item.withdrawal_id
+        ):
+            raise AuthError(409, "transfer_ineligible")
+        correcting = item.transfer_id is not None
+        if correcting:
+            if (
+                item.state not in {"returned_supervisor", "returned_validator"}
+                or body.transfer_id != item.transfer_id
+                or body.expected_revision_id != item.current_revision_id
+            ):
+                raise AuthError(409, "transfer_stale")
+            prior = db.get(ActivityRevision, item.current_revision_id)
+            if not prior or not isinstance(prior.snapshot.get("transfer"), dict):
+                raise AuthError(409, "transfer_stale")
+            prior_transfer = cast(dict[str, Any], prior.snapshot["transfer"])
+            if (
+                prior_transfer.get("reason") == body.reason
+                and prior.snapshot.get("planned_start") == body.planned_start
+                and prior.snapshot.get("planned_end") == body.planned_end
+            ):
+                raise AuthError(409, "correction_unchanged")
+            transfer_id = item.transfer_id
+        else:
+            if (
+                item.state != "approved"
+                or item.transfer_id
+                or body.transfer_id is not None
+                or body.expected_revision_id is not None
+            ):
+                raise AuthError(409, "transfer_ineligible")
+            transfer_id = str(uuid4())
+        approved = db.get(ActivityRevision, item.approved_revision_id)
+        if not approved:
+            raise AuthError(409, "transfer_base_invalid")
+        now = auth.now(db)
+        if not db.scalar(
+            select(ActivityContributor.id).where(
+                ActivityContributor.activity_id == item.id,
+                ActivityContributor.user_id == actor.id,
+            )
+        ):
+            db.add(
+                ActivityContributor(
+                    context_id=CONTEXT,
+                    activity_id=item.id,
+                    user_id=actor.id,
+                    contributed_at=now,
+                )
+            )
+            db.flush()
+        snapshot = build_revision_snapshot(db, item, actor, now)
+        for key in (
+            "amendment_id",
+            "amendment_reason",
+            "base_approved_revision_id",
+            "withdrawal",
+            "transfer",
+        ):
+            snapshot.pop(key, None)
+        snapshot["planned_start"] = body.planned_start
+        snapshot["planned_end"] = body.planned_end
+        snapshot["pta"] = {"id": None, "year": target_year}
+        snapshot["transfer"] = {
+            "id": transfer_id,
+            "reason": body.reason,
+            "base_approved_revision_id": item.approved_revision_id,
+            "source_pta": {"id": item.pta_id, "year": item.placement_year},
+            "target_year": target_year,
+        }
+        fingerprint_value = fingerprint(snapshot)
+        snapshot["content_fingerprint"] = fingerprint_value
+        encoded = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
+        if len(encoded) > 1_048_576:
+            raise AuthError(422, "revision_too_large")
+        revision = ActivityRevision(
+            context_id=CONTEXT,
+            activity_id=item.id,
+            revision_number=(
+                db.scalar(
+                    select(func.max(ActivityRevision.revision_number)).where(
+                        ActivityRevision.activity_id == item.id
+                    )
+                )
+                or 0
+            )
+            + 1,
+            snapshot=snapshot,
+            fingerprint=fingerprint_value,
+            submitter_id=actor.id,
+            submitted_at=now,
+        )
+        db.add(revision)
+        db.flush()
+        before = activity_item(db, item, actor.role, actor.id)
+        item.transfer_id = transfer_id
+        item.current_revision_id = revision.id
+        item.state = "submitted"
+        item.version += 1
+        item.updated_at = now
+        db.flush()
+        after = activity_item(db, item, actor.role, actor.id)
+        workflow_audit(
+            auth, db, "activity.transfer_submit", actor, item, before, after, revision
+        )
+        payload = revision_item(db, revision)
+        payload["activity_version"] = item.version
+        return created(
+            request,
+            f"/api/v1/activities/{item.id}/revisions/{revision.id}",
+            payload,
+        )
+
+
+@router.post(
+    "/activities/{identifier}/transfers/{transfer_id}/cancellation",
+    response_model=ActivityOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def cancel_transfer(
+    identifier: str,
+    transfer_id: str,
+    body: TransferCancellationInput,
+    request: Request,
+    auth: Auth,
+) -> dict[str, Any]:
+    try:
+        transfer_id = str(UUID(transfer_id))
+    except ValueError:
+        raise AuthError(409, "transfer_stale") from None
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
+        )
+        withdrawal_environment(auth)
+        item = get_activity_for_command(db, identifier)
+        if item.version != body.expected_version:
+            raise AuthError(409, "activity_stale")
+        if (
+            item.transfer_id != transfer_id
+            or item.current_revision_id != body.expected_revision_id
+            or item.approved_revision_id != body.expected_approved_revision_id
+            or item.state
+            not in {
+                "submitted",
+                "prevalidated",
+                "returned_supervisor",
+                "returned_validator",
+            }
+        ):
+            raise AuthError(409, "transfer_stale")
+        revision = db.get(ActivityRevision, item.current_revision_id)
+        if not revision or not isinstance(revision.snapshot.get("transfer"), dict):
+            raise AuthError(409, "transfer_stale")
+        before = activity_item(db, item, actor.role, actor.id)
+        now = auth.now(db)
+        item.current_revision_id = item.approved_revision_id
+        item.transfer_id = None
+        item.state = "approved"
+        item.version += 1
+        item.updated_at = now
+        db.flush()
+        after = activity_item(db, item, actor.role, actor.id)
+        auth.business_audit(
+            db,
+            "activity.transfer_cancel",
+            actor.id,
+            item.id,
+            {
+                "context_id": CONTEXT,
+                "before": before,
+                "after": after,
+                "transfer": revision.snapshot["transfer"],
+                "current_revision_id": revision.id,
+                "cancellation": {
+                    "reason": body.reason,
+                    "actor_id": actor.id,
+                    "occurred_at": now.isoformat(),
+                },
+            },
+        )
+        return after
+
+
+@router.post(
     "/activities/{identifier}/withdrawals",
     status_code=201,
     response_model=RevisionOutput,
@@ -1197,7 +1476,12 @@ def request_withdrawal(
             .join(AnnualPTA, AnnualPTA.project_id == Project.id)
             .where(AnnualPTA.id == item.pta_id)
         )
-        if not project or project.state != "active" or item.amendment_id:
+        if (
+            not project
+            or project.state != "active"
+            or item.amendment_id
+            or item.transfer_id
+        ):
             raise AuthError(409, "withdrawal_ineligible")
         correcting = item.withdrawal_id is not None
         if correcting:
@@ -1386,6 +1670,8 @@ def open_amendment(
         if (
             item.state != "approved"
             or item.amendment_id
+            or item.withdrawal_id
+            or item.transfer_id
             or item.approved_revision_id != body.expected_approved_revision_id
         ):
             raise AuthError(409, "amendment_ineligible")
@@ -1720,6 +2006,17 @@ def workflow_audit(
                 "base_approved_revision_id": withdrawal["base_approved_revision_id"],
             }
         )
+    transfer = snapshot.get("transfer")
+    if isinstance(transfer, dict):
+        facts["revision"].update(
+            {
+                "transfer_id": transfer["id"],
+                "base_approved_revision_id": transfer["base_approved_revision_id"],
+                "reason": transfer["reason"],
+                "source_pta": transfer["source_pta"],
+                "target_year": transfer["target_year"],
+            }
+        )
     if decision:
         facts["decision"] = {
             "id": decision.id,
@@ -1760,6 +2057,8 @@ def submit_activity(
             raise AuthError(409, "activity_stale")
         if item.withdrawal_id:
             raise AuthError(409, "withdrawal_pending")
+        if item.transfer_id:
+            raise AuthError(409, "transfer_pending")
         if item.state not in {
             "draft",
             "amendment_draft",
@@ -1897,7 +2196,39 @@ def decide_activity(
             roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
-        item = get_activity_for_command(db, identifier)
+        preview = get_activity(db, identifier)
+        preview_revision = db.scalar(
+            select(ActivityRevision).where(
+                ActivityRevision.id == revision_id,
+                ActivityRevision.activity_id == preview.id,
+            )
+        )
+        preview_transfer = (
+            preview_revision.snapshot.get("transfer") if preview_revision else None
+        )
+        transfer_project: Project | None = None
+        if preview.transfer_id and isinstance(preview_transfer, dict):
+            transfer_project = db.get(
+                Project, preview.request_project_id, with_for_update=True
+            )
+            target_year = preview_transfer.get("target_year")
+            if not transfer_project or not isinstance(target_year, int):
+                raise AuthError(409, "transfer_stale")
+            list(
+                db.scalars(
+                    select(AnnualPTA)
+                    .where(
+                        AnnualPTA.project_id == preview.request_project_id,
+                        AnnualPTA.year.in_([preview.placement_year, target_year]),
+                    )
+                    .order_by(AnnualPTA.id)
+                    .with_for_update()
+                )
+            )
+            db.refresh(preview, with_for_update=True)
+            item = preview
+        else:
+            item = get_activity_for_command(db, identifier)
         revision = db.scalar(
             select(ActivityRevision)
             .where(
@@ -1914,6 +2245,7 @@ def decide_activity(
             raise AuthError(409, "revision_obsolete")
         snapshot = cast(dict[str, Any], revision.snapshot)
         withdrawal_request = cast(dict[str, str] | None, snapshot.get("withdrawal"))
+        transfer_request = cast(dict[str, Any] | None, snapshot.get("transfer"))
         if item.withdrawal_id:
             withdrawal_environment(auth)
             if (
@@ -1923,6 +2255,15 @@ def decide_activity(
                 != item.approved_revision_id
             ):
                 raise AuthError(409, "withdrawal_stale")
+        if item.transfer_id:
+            withdrawal_environment(auth)
+            if (
+                not transfer_request
+                or transfer_request.get("id") != item.transfer_id
+                or transfer_request.get("base_approved_revision_id")
+                != item.approved_revision_id
+            ):
+                raise AuthError(409, "transfer_stale")
         if item.amendment_id and (
             snapshot.get("amendment_id") != item.amendment_id
             or snapshot.get("base_approved_revision_id") != item.approved_revision_id
@@ -1941,7 +2282,9 @@ def decide_activity(
             body.reason is not None or body.requested_amount is not None
         ):
             raise AuthError(422, "input_invalid")
-        if withdrawal_request and body.requested_amount is not None:
+        if (
+            withdrawal_request or transfer_request
+        ) and body.requested_amount is not None:
             raise AuthError(422, "input_invalid")
         before = activity_item(db, item, actor.role, actor.id)
         now = auth.now(db)
@@ -1970,6 +2313,12 @@ def decide_activity(
                     "activity.withdrawal_prevalidate"
                     if body.decision == "prevalidate"
                     else "activity.withdrawal_return_supervisor"
+                )
+            elif transfer_request:
+                action = (
+                    "activity.transfer_prevalidate"
+                    if body.decision == "prevalidate"
+                    else "activity.transfer_return_supervisor"
                 )
         else:
             if item.state != "prevalidated" or body.decision not in {
@@ -2008,6 +2357,37 @@ def decide_activity(
                         assignment.ended_at = now_for_assignments
                         assignment.ended_by_id = actor.id
                         ended_assignment_ids.append(assignment.id)
+                elif transfer_request:
+                    if not transfer_project or transfer_project.state != "active":
+                        raise AuthError(409, "transfer_ineligible")
+                    target_year = int(transfer_request["target_year"])
+                    target = db.scalar(
+                        select(AnnualPTA).where(
+                            AnnualPTA.project_id == item.request_project_id,
+                            AnnualPTA.year == target_year,
+                        )
+                    )
+                    if not target:
+                        target = AnnualPTA(
+                            context_id=CONTEXT,
+                            project_id=item.request_project_id,
+                            year=target_year,
+                            creator_id=actor.id,
+                            created_at=now,
+                        )
+                        db.add(target)
+                        db.flush()
+                    item.pta_id = target.id
+                    item.placement_year = target_year
+                    item.planned_start = date.fromisoformat(
+                        cast(str, snapshot["planned_start"])
+                    )
+                    item.planned_end = date.fromisoformat(
+                        cast(str, snapshot["planned_end"])
+                    )
+                    item.state = "approved"
+                    item.approved_revision_id = revision.id
+                    item.transfer_id = None
                 else:
                     item.state = "approved"
                     item.approved_revision_id = revision.id
@@ -2017,6 +2397,8 @@ def decide_activity(
                 action = (
                     "activity.withdrawal_approve"
                     if withdrawal_request
+                    else "activity.transfer_approve"
+                    if transfer_request
                     else "activity.approve"
                 )
             else:
@@ -2024,6 +2406,8 @@ def decide_activity(
                 action = (
                     "activity.withdrawal_return_validator"
                     if withdrawal_request
+                    else "activity.transfer_return_validator"
+                    if transfer_request
                     else "activity.return_validator"
                 )
         requested = xof(body.requested_amount) if body.requested_amount else None
@@ -2107,6 +2491,11 @@ def activity_revisions(
                         .get("withdrawal", {})
                         .get("id")
                     ),
+                    "transfer_id": (
+                        cast(dict[str, Any], revision.snapshot)
+                        .get("transfer", {})
+                        .get("id")
+                    ),
                     "reason": None,
                     "actor_id": None,
                 }
@@ -2119,20 +2508,28 @@ def activity_revisions(
                         "activity.amendment_open",
                         "activity.amendment_cancel",
                         "activity.withdrawal_cancel",
+                        "activity.transfer_cancel",
                     ]
                 ),
             )
         ):
             facts = cast(dict[str, Any], audit.business)
             withdrawal_cancel = audit.action == "activity.withdrawal_cancel"
+            transfer_cancel = audit.action == "activity.transfer_cancel"
             amendment = cast(
                 dict[str, Any],
-                facts["withdrawal"] if withdrawal_cancel else facts["amendment"],
+                facts["transfer"]
+                if transfer_cancel
+                else facts["withdrawal"]
+                if withdrawal_cancel
+                else facts["amendment"],
             )
             cancelled = audit.action == "activity.amendment_cancel"
             suffix = (
                 "withdrawal-cancel"
                 if withdrawal_cancel
+                else "transfer-cancel"
+                if transfer_cancel
                 else "amendment-cancel"
                 if cancelled
                 else "amendment-open"
@@ -2143,6 +2540,8 @@ def activity_revisions(
                     "kind": (
                         "withdrawal_cancel"
                         if withdrawal_cancel
+                        else "transfer_cancel"
+                        if transfer_cancel
                         else "amendment_cancel"
                         if cancelled
                         else "amendment_open"
@@ -2151,11 +2550,16 @@ def activity_revisions(
                     "revision_number": None,
                     "submitter_id": None,
                     "decisions": [],
-                    "amendment_id": None if withdrawal_cancel else amendment["id"],
+                    "amendment_id": (
+                        None
+                        if withdrawal_cancel or transfer_cancel
+                        else amendment["id"]
+                    ),
                     "withdrawal_id": amendment["id"] if withdrawal_cancel else None,
+                    "transfer_id": amendment["id"] if transfer_cancel else None,
                     "reason": (
                         facts["cancellation"]["reason"]
-                        if cancelled or withdrawal_cancel
+                        if cancelled or withdrawal_cancel or transfer_cancel
                         else amendment["reason"]
                     ),
                     "actor_id": audit.actor,
@@ -2168,6 +2572,7 @@ def activity_revisions(
                 "amendment_open": "o",
                 "amendment_cancel": "c",
                 "withdrawal_cancel": "w",
+                "transfer_cancel": "t",
             }[row["kind"]]
             return (row["occurred_at"], source, row["id"])
 
@@ -2211,6 +2616,7 @@ def activity_revisions(
                                 "activity.amendment_open",
                                 "activity.amendment_cancel",
                                 "activity.withdrawal_cancel",
+                                "activity.transfer_cancel",
                             ]
                         ),
                     )
@@ -2289,6 +2695,8 @@ def replace_activity(
             raise AuthError(409, "activity_stale")
         if item.withdrawal_id:
             raise AuthError(409, "withdrawal_pending")
+        if item.transfer_id:
+            raise AuthError(409, "transfer_pending")
         if item.state not in {
             "draft",
             "amendment_draft",

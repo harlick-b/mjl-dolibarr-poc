@@ -50,6 +50,7 @@ test('an eligible Agent confirms submission of the current Activity version', as
   const activity = {
     id: 'activity-1',
     pta_id: 'pta-1',
+    project_id: 'project-1',
     reference: 'ACT-000001',
     name: 'Atelier',
     description: 'Préparation de l’atelier',
@@ -172,6 +173,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   let activity = {
     id: 'activity-1',
     pta_id: 'pta-1',
+    project_id: 'project-1',
     reference: 'ACT-000001',
     ...approved,
     state: 'approved',
@@ -183,11 +185,18 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     candidate: null,
     amendment: null,
     withdrawal: null,
+    transfer: null,
+    placement_year: 2027,
     execution_paused: false,
     operations: approved.operations,
     correction: null,
     agent_ids: [],
-    allowed_actions: ['read', 'open_amendment', 'request_withdrawal'],
+    allowed_actions: [
+      'read',
+      'open_amendment',
+      'request_withdrawal',
+      'request_transfer',
+    ],
   }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
@@ -248,18 +257,50 @@ test('an Agent opens and cancels an amendment while the approved version stays v
         ),
       )
     }
+    if (
+      path.endsWith('/activities/activity-1/transfers') &&
+      options.method === 'POST'
+    ) {
+      activity = {
+        ...activity,
+        state: 'submitted',
+        version: 9,
+        current_revision_id: 'revision-transfer',
+        transfer: {
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          reason: 'Calendrier 2028.',
+          source_pta: { id: 'pta-1', year: 2027 },
+          target_year: 2028,
+        },
+        execution_paused: true,
+        allowed_actions: ['read', 'cancel_transfer'],
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ id: 'revision-transfer', activity_version: 9 }),
+          { status: 201 },
+        ),
+      )
+    }
     if (path.includes('/cancellation') && options.method === 'POST') {
       const withdrawalCancellation = path.includes('/withdrawals/')
+      const transferCancellation = path.includes('/transfers/')
       activity = {
         ...activity,
         state: 'approved',
-        version: withdrawalCancellation ? 8 : 6,
+        version: transferCancellation ? 10 : withdrawalCancellation ? 8 : 6,
         current_revision_id: 'revision-1',
         amendment: null,
         withdrawal: null,
+        transfer: null,
         candidate: null,
         execution_paused: false,
-        allowed_actions: ['read', 'open_amendment', 'request_withdrawal'],
+        allowed_actions: [
+          'read',
+          'open_amendment',
+          'request_withdrawal',
+          'request_transfer',
+        ],
       }
       return Promise.resolve(new Response(JSON.stringify(activity)))
     }
@@ -390,12 +431,73 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     screen.queryByText('Demande de retrait en cours'),
   ).not.toBeInTheDocument()
+  await user.click(
+    screen.getByRole('button', { name: 'Transférer vers un autre PTA' }),
+  )
+  expect(screen.getByText('PTA source :').parentElement).toHaveTextContent(
+    '2027',
+  )
+  expect(screen.getByText(/Budget approuvé inchangé/)).toBeVisible()
+  expect(screen.getByText(/Les Opérations et leurs montants/)).toBeVisible()
+  await user.type(
+    screen.getByLabelText('Motif du transfert'),
+    'Calendrier 2028.',
+  )
+  await user.type(screen.getByLabelText('Nouvelle date de début'), '2028-02-01')
+  expect(screen.getByText('PTA cible :').parentElement).toHaveTextContent(
+    '2028',
+  )
+  await user.type(screen.getByLabelText('Nouvelle date de fin'), '2028-08-31')
+  await user.click(
+    screen.getByRole('dialog').querySelector('button[type="submit"]'),
+  )
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity-1/transfers',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          expected_version: 8,
+          expected_approved_revision_id: 'revision-1',
+          reason: 'Calendrier 2028.',
+          planned_start: '2028-02-01',
+          planned_end: '2028-08-31',
+        }),
+      }),
+    ),
+  )
+  expect(await screen.findByText('Demande de transfert en cours')).toBeVisible()
+  await user.click(
+    screen.getByRole('button', { name: 'Annuler la demande de transfert' }),
+  )
+  await user.type(
+    screen.getByLabelText('Motif de l’annulation'),
+    'Maintenir 2027.',
+  )
+  await user.click(
+    screen.getByRole('dialog').querySelector('button[type="submit"]'),
+  )
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity-1/transfers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/cancellation',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          expected_version: 9,
+          expected_approved_revision_id: 'revision-1',
+          reason: 'Maintenir 2027.',
+          expected_revision_id: 'revision-transfer',
+        }),
+      }),
+    ),
+  )
 })
 
 function amendmentHistoryFetch({ failed = false } = {}) {
   const activity = {
     id: 'activity-1',
     pta_id: 'pta-1',
+    project_id: 'project-1',
     reference: 'ACT-000001',
     name: 'Activité courante',
     description: 'Description courante',
@@ -997,6 +1099,7 @@ test.each(['success', 'failure'])(
     const draft = {
       id: 'activity-uncertain',
       pta_id: 'pta-1',
+      project_id: 'project-1',
       reference: 'ACT-000099',
       name: 'Activité à réconcilier',
       description: 'Réponse réseau perdue',
