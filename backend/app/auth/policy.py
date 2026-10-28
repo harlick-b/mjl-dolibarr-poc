@@ -99,7 +99,7 @@ def load_policy(url: str | URL) -> Policy | None:
             raise ValueError
         if policy.planning_lifecycle_fixture not in {
             None,
-            "NO_EXECUTION_TEST_ONLY",
+            "SYNTHETIC_EXECUTION_TEST_ONLY",
         }:
             raise ValueError
         return policy

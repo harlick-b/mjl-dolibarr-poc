@@ -55,7 +55,7 @@ def auth_env(monkeypatch, tmp_path):
         "recovery_email_limit": 3,
         "recovery_ip_window_seconds": 60,
         "recovery_ip_limit": 20,
-        "planning_lifecycle_fixture": "NO_EXECUTION_TEST_ONLY",
+        "planning_lifecycle_fixture": "SYNTHETIC_EXECUTION_TEST_ONLY",
     }
     policy_file = tmp_path / "policy.json"
     policy_file.write_text(json.dumps(config))

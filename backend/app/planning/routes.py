@@ -1221,9 +1221,16 @@ def activity_detail(identifier: str, request: Request, auth: Auth) -> dict[str, 
         return activity_item(db, item, actor.role, actor.id)
 
 
-def withdrawal_environment(auth: Auth) -> None:
-    if auth.policy.planning_lifecycle_fixture != "NO_EXECUTION_TEST_ONLY":
+def lifecycle_environment(auth: Auth) -> None:
+    if auth.policy.planning_lifecycle_fixture != "SYNTHETIC_EXECUTION_TEST_ONLY":
         raise AuthError(409, "eligibility_unverified")
+
+
+def lifecycle_eligible(db: Session, auth: Auth, item: Activity) -> None:
+    from app.planning.execution import assert_never_started
+
+    lifecycle_environment(auth)
+    assert_never_started(db, item)
 
 
 @router.post(
@@ -1242,8 +1249,8 @@ def request_transfer(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        withdrawal_environment(auth)
         item = get_activity_for_command(db, identifier)
+        lifecycle_eligible(db, auth, item)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if item.approved_revision_id != body.expected_approved_revision_id:
@@ -1399,7 +1406,7 @@ def cancel_transfer(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        withdrawal_environment(auth)
+        lifecycle_environment(auth)
         item = get_activity_for_command(db, identifier)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
@@ -1465,8 +1472,8 @@ def request_withdrawal(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        withdrawal_environment(auth)
         item = get_activity_for_command(db, identifier)
+        lifecycle_eligible(db, auth, item)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if item.approved_revision_id != body.expected_approved_revision_id:
@@ -1600,7 +1607,7 @@ def cancel_withdrawal(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        withdrawal_environment(auth)
+        lifecycle_environment(auth)
         item = get_activity_for_command(db, identifier)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
@@ -2247,7 +2254,7 @@ def decide_activity(
         withdrawal_request = cast(dict[str, str] | None, snapshot.get("withdrawal"))
         transfer_request = cast(dict[str, Any] | None, snapshot.get("transfer"))
         if item.withdrawal_id:
-            withdrawal_environment(auth)
+            lifecycle_eligible(db, auth, item)
             if (
                 not withdrawal_request
                 or withdrawal_request.get("id") != item.withdrawal_id
@@ -2256,7 +2263,7 @@ def decide_activity(
             ):
                 raise AuthError(409, "withdrawal_stale")
         if item.transfer_id:
-            withdrawal_environment(auth)
+            lifecycle_eligible(db, auth, item)
             if (
                 not transfer_request
                 or transfer_request.get("id") != item.transfer_id
@@ -2778,6 +2785,8 @@ def replace_activity(
             operation.updated_at = now
         for operation in current.values():
             if operation.id not in used:
+                if operation.execution_started_at is not None:
+                    raise AuthError(409, "started_operation_removal_forbidden")
                 operation.removed_at = now
                 operation.removed_by_id = actor.id
                 operation.position = original_positions[operation.id]

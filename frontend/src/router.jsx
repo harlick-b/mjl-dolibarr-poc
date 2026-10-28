@@ -3,6 +3,7 @@ import { AuthView } from './AuthView'
 import { sessionQuery } from './auth'
 import { useRouterState } from '@tanstack/react-router'
 import { HealthView } from './HealthView'
+import { ExecutionView } from './ExecutionView'
 import { PlanningView } from './PlanningView'
 import { healthQuery } from './health'
 import {
@@ -281,6 +282,28 @@ export function makeRouter(history) {
       },
     }),
   )
+  const executionRoutes = [
+    ['/execution/$ptaId', 'list'],
+    ['/execution/activities/$activityId', 'detail'],
+  ].map(([path, screen]) =>
+    createRoute({
+      getParentRoute: () => root,
+      path,
+      component: () => <ExecutionView screen={screen} />,
+      gcTime: 0,
+      validateSearch: (search) => ({
+        cursor: String(search.cursor || '').slice(0, 512),
+        historyCursor: String(search.historyCursor || '').slice(0, 512),
+      }),
+      loader: async ({ context }) => {
+        try {
+          await context.queryClient.fetchQuery(sessionQuery)
+        } catch {
+          /* The protected view handles denial without exposing cached data. */
+        }
+      },
+    }),
+  )
   return createRouter({
     routeTree: root.addChildren([
       home,
@@ -288,6 +311,7 @@ export function makeRouter(history) {
       ...authRoutes,
       access,
       ...planningRoutes,
+      ...executionRoutes,
     ]),
     context: { queryClient, api },
     history,

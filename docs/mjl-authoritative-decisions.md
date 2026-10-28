@@ -26,6 +26,31 @@ in `AGENTS.md`, updated at the user's request on 2026-10-28. No external detaile
 execution prompt is required after a concrete slice is authorized. This process
 review does not authorize any additional runtime slice or relax security gates.
 
+## PTA-3A Operation execution authorization (DEC-115)
+
+The user explicitly authorized the bounded synthetic PTA-3A implementation from
+the single implementation contract supplied on 2026-10-28. An Agent may start an
+approved Operation from its approved start date, record exact integer XOF
+spending and physical completion, and correct mistakes with a reason before any
+future financial request exists. Starting work remains immutable. All internal
+business roles may read; Supervisor and Validator access is read-only.
+
+Migration `0010_pta3a` extends the existing Operation with four execution fields
+and no table. The slice adds four REST responsibilities and the French React
+realization workspace. It replaces the temporary no-execution planning guard
+with per-Activity evidence, so started Activities cannot enter withdrawal or
+transfer review while reasoned cancellation of an already pending request stays
+available. Financial requests, payment declarations, reversement, formal
+Activity closure, documents, notifications, real accounts and production remain
+deferred.
+
+PTA-3A completed on 2026-10-28 after the focused disposable PostgreSQL suite,
+the 509-test combined backend regression, frontend quality/build checks, two
+real-Chrome journeys and the mandatory independent engineering and
+security/specification correction/re-review cycle passed. Completion evidence is
+recorded in [status 17](rebuild/17-pta3a-implementation-status.md). This is
+synthetic development completion only and does not authorize the next slice.
+
 ## PTA-2B.2B transfer implementation authorization and completion (DEC-114)
 
 The user explicitly authorized the bounded synthetic PTA-2B.2B cross-year

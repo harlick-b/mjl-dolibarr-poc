@@ -185,6 +185,34 @@
   color: var(--color-muted-foreground);
   font-size: 13px;
 }
+.execution-list {
+  display: grid;
+  gap: 16px;
+}
+.execution-summary {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.execution-summary dd {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-navy);
+}
+.execution-operation > p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.execution-check {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  min-height: 44px;
+}
+.execution-check input {
+  min-height: auto;
+  width: 20px;
+  height: 20px;
+}
 @media (width <= 640px) {
   .operation-row > * {
     width: 100%;

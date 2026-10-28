@@ -2086,7 +2086,7 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
     assert planning["agent"].get("/api/v1/partners?limit=101").status_code == 422
     document = planning["agent"].get("/openapi.json").json()
     paths = document["paths"]
-    assert not any(word in path for path in paths for word in ("execution", "document"))
+    assert not any("document" in path for path in paths)
     planning_paths = [
         path
         for path in paths
@@ -2126,6 +2126,10 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
         "/api/v1/activities/{identifier}/revisions",
         "/api/v1/activities/{identifier}/revisions/{revision_id}",
         "/api/v1/activities/{identifier}/revisions/{revision_id}/decisions",
+        "/api/v1/ptas/{identifier}/execution",
+        "/api/v1/activities/{identifier}/execution",
+        "/api/v1/activities/{identifier}/execution/history",
+        "/api/v1/activities/{identifier}/operations/{operation_id}/execution",
         "/api/v1/assignment-agents",
     }
     for path in planning_paths:
@@ -2443,7 +2447,7 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, au
             assert contributors == expected
             assert excluded not in contributors
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0009_pta2b2b"
+                "0010_pta3a"
             )
     finally:
         engine.dispose()
@@ -2470,7 +2474,7 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0009_pta2b2b"
+                "0010_pta3a"
             )
             assert db.scalar(text("SELECT count(*) FROM pta_activity_revision")) == 1
     finally:

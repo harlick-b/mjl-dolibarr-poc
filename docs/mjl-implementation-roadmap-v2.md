@@ -12,7 +12,23 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-2B.2 current boundary (DEC-112–114)
+## PTA-3A current boundary (DEC-115)
+
+**PTA_3A_COMPLETE** on 2026-10-28. It adds Operation start, actual spending,
+physical completion, reasoned correction history and the React realization
+workspace. It does not make an Activity officially realized and does not create
+a financial request, spending ledger, payment workflow or closure workflow.
+Completion evidence is recorded in
+[status 17](rebuild/17-pta3a-implementation-status.md). The focused PostgreSQL
+suite, combined backend regression, frontend quality/build and browser journeys,
+and independent correction/re-review gates passed. PC1/PC2, real accounts and
+production remain excluded.
+
+The next business slice is not authorized. It may begin the first financial
+request only after its correction-freeze rule, review responsibilities and
+settlement behavior are decided.
+
+## PTA-2B.2 completed boundary (DEC-112–114)
 
 Withdrawal **PTA_2B2A_COMPLETE** at `a3c3bd0`; [status 15](rebuild/15-pta2b2a-implementation-status.md)
 records 14/14 gates and independent reviews. Transfer **PTA_2B2B_COMPLETE** at
@@ -21,7 +37,8 @@ records all 16 gates, the exact withdrawal predecessor cutover and independent
 engineering and security/specification reviews. The implementation preserves one
 Activity identity while moving its current annual placement only after fresh
 two-stage approval. PC1/PC2, real accounts, reverse transfer, restoration,
-execution/finance, reports, later slices and production remain excluded.
+execution/finance, reports, later slices and production remained excluded until
+the later PTA-3A authorization in DEC-115.
 
 ## Planning review and next work (2026-10-28)
 

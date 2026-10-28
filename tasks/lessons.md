@@ -359,3 +359,10 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   missing a constraint regression. Test meaningful changes to fields affected by
   the new invariant across adjacent workflows; larger passing counts do not replace
   that coverage. Keep the independent correction/re-review cycle that found it.
+- A bounded Unicode input contract and a byte-bounded audit contract must agree at
+  their maximums. Derive the audit byte ceiling from every validated before/after
+  text field plus JSON overhead, then test maximum multibyte input; a smaller
+  arbitrary byte limit turns valid requests into transaction-time 500 responses.
+- A cursor-paginated audit API is incomplete unless its screen exposes independent
+  Router-owned pagination. Do not reuse a list cursor for detail history, and cover
+  navigation to an older page in the browser journey.

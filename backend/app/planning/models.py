@@ -264,6 +264,20 @@ class Operation(Base):
         ),
         CheckConstraint("allocation > 0", name="operation_allocation_positive"),
         CheckConstraint("position > 0", name="operation_position_positive"),
+        CheckConstraint(
+            "actual_spent IS NULL OR actual_spent >= 0",
+            name="operation_actual_spent_nonnegative",
+        ),
+        CheckConstraint(
+            "execution_started_at IS NOT NULL OR "
+            "(execution_completed=false AND actual_spent IS NULL "
+            "AND execution_observation='')",
+            name="operation_execution_started_before_facts",
+        ),
+        CheckConstraint(
+            "execution_completed=false OR actual_spent IS NOT NULL",
+            name="operation_completion_has_amount",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     context_id: Mapped[str] = mapped_column(String(3))
@@ -278,6 +292,12 @@ class Operation(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     removed_by_id: Mapped[str | None] = mapped_column(ForeignKey("auth_user.id"))
+    execution_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    execution_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    actual_spent: Mapped[int | None] = mapped_column(BigInteger)
+    execution_observation: Mapped[str] = mapped_column(String(4000), default="")
 
 
 class ActivityAssignment(Base):

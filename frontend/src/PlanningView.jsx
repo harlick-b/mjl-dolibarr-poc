@@ -698,6 +698,15 @@ function PTA({ context, result, navigate }) {
             <Plus size={16} /> {strings.newActivity}
           </Link>
         )}
+        {context.pta && (
+          <Link
+            className="planning-button"
+            to="/execution/$ptaId"
+            params={{ ptaId: context.pta.id }}
+          >
+            Réalisation
+          </Link>
+        )}
       </div>
       {activities.length ? (
         <ul className="planning-list">

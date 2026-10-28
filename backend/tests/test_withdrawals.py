@@ -33,7 +33,7 @@ from app.auth.models import Audit
 def enable_withdrawals(clients):
     auth = clients["auth"]
     auth.policy = auth.policy.model_copy(
-        update={"planning_lifecycle_fixture": "NO_EXECUTION_TEST_ONLY"}
+        update={"planning_lifecycle_fixture": "SYNTHETIC_EXECUTION_TEST_ONLY"}
     )
 
 

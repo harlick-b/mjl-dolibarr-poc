@@ -45,7 +45,7 @@ class AuthService:
     def environment_verified(
         self, db: Session, *, require_context: bool = True
     ) -> None:
-        """Verify the exact isolated PTA-1 database without inferring eligibility."""
+        """Verify the exact isolated synthetic PTA database."""
         if (
             not self.policy.recovery_enabled
             or not self.policy.lifecycle_database
@@ -94,7 +94,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0009_pta2b2b"]:
+        if revisions != ["0010_pta3a"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -113,6 +113,9 @@ class AuthService:
             "revision_decision_stage",
             "decision_prevalidation_scope",
             "decision_stage_role_outcome",
+            "operation_actual_spent_nonnegative",
+            "operation_execution_started_before_facts",
+            "operation_completion_has_amount",
         }
         found = set(
             db.scalars(
@@ -175,7 +178,8 @@ class AuthService:
                     ('pta_reject_immutable','pta_validate_final_decision',
                      'pta_validate_activity_review_state',
                      'pta_validate_activity_transfer_state',
-                     'pta_preserve_activity_request')
+                     'pta_preserve_activity_request',
+                     'pta_preserve_operation_execution')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -184,7 +188,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "72cbff3b75683755bfa436e8e5d6efa7d10c0d7de482f252d39975544b7f428d"
+            "87480f971f8c931af83d0f2d1ee6cc4938ee59c6f73f4ac8a3d86be86bc90799"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -310,6 +314,91 @@ class AuthService:
         business: dict[str, object],
     ) -> None:
         business = dict(business)
+        if action in {
+            "operation.execution_started",
+            "operation.execution_recorded",
+            "operation.execution_corrected",
+        }:
+            execution_required = {
+                "context_id",
+                "activity_id",
+                "operation_id",
+                "approved_revision_id",
+                "approved_allocation",
+                "before",
+                "after",
+                "correction_reason",
+            }
+
+            def valid_execution_facts(value: object) -> bool:
+                fields = {
+                    "execution_started_at",
+                    "execution_completed",
+                    "actual_spent",
+                    "execution_observation",
+                }
+                return (
+                    isinstance(value, dict)
+                    and set(value) == fields
+                    and (
+                        value["execution_started_at"] is None
+                        or isinstance(value["execution_started_at"], str)
+                    )
+                    and isinstance(value["execution_completed"], bool)
+                    and (
+                        value["actual_spent"] is None
+                        or (
+                            isinstance(value["actual_spent"], str)
+                            and value["actual_spent"].isascii()
+                            and value["actual_spent"].isdecimal()
+                        )
+                    )
+                    and isinstance(value["execution_observation"], str)
+                    and len(value["execution_observation"]) <= 4000
+                )
+
+            if (
+                set(business) != execution_required
+                or business.get("context_id") != "MJL"
+                or business.get("operation_id") != target
+                or not all(
+                    isinstance(business.get(key), str)
+                    for key in (
+                        "activity_id",
+                        "operation_id",
+                        "approved_revision_id",
+                        "approved_allocation",
+                    )
+                )
+                or not valid_execution_facts(business.get("before"))
+                or not valid_execution_facts(business.get("after"))
+                or (
+                    business.get("correction_reason") is not None
+                    and (
+                        not isinstance(business.get("correction_reason"), str)
+                        or not 1 <= len(str(business["correction_reason"])) <= 4000
+                    )
+                )
+            ):
+                raise ValueError("Invalid business audit facts")
+            encoded = json.dumps(
+                business, separators=(",", ":"), sort_keys=True, ensure_ascii=False
+            )
+            if len(encoded.encode()) > 65536:
+                raise ValueError("Business audit exceeds its bounded contract")
+            db.add(
+                Audit(
+                    business=business,
+                    occurred_at=self.now(db),
+                    action=action,
+                    actor=actor,
+                    target=target,
+                    outcome="ok",
+                    request_id=request_id.get() or str(uuid4()),
+                )
+            )
+            db.flush()
+            return
         revision_facts = business.get("revision")
         before_facts = business.get("before")
         amendment_replace = (

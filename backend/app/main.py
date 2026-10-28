@@ -18,6 +18,7 @@ from app.auth.service import AuthError, AuthService, digest, request_id
 from app.config import database_url as read_database_url
 from app.database import make_engine
 from app.health import router
+from app.planning.execution import router as execution_router
 from app.planning.routes import router as planning_router
 
 
@@ -39,6 +40,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(access_router)
     app.include_router(planning_router)
+    app.include_router(execution_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:
         response = JSONResponse(

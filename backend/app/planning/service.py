@@ -7,7 +7,7 @@ from typing import Any, cast
 from urllib.parse import urlencode
 from uuid import UUID
 
-from sqlalchemy import func, select, text, true
+from sqlalchemy import func, or_, select, text, true
 from sqlalchemy.orm import Session
 
 from app.auth.models import User
@@ -190,6 +190,21 @@ def activity_item(
             .order_by(Operation.position)
         )
     )
+    has_execution = bool(
+        db.scalar(
+            select(Operation.id)
+            .where(
+                Operation.activity_id == item.id,
+                or_(
+                    Operation.execution_started_at.is_not(None),
+                    Operation.execution_completed.is_(True),
+                    Operation.actual_spent.is_not(None),
+                    Operation.execution_observation != "",
+                ),
+            )
+            .limit(1)
+        )
+    )
     agent_ids = list(
         db.scalars(
             select(ActivityAssignment.agent_id)
@@ -287,6 +302,22 @@ def activity_item(
         ):
             facts = cast(dict[str, Any], request_revision.snapshot["transfer"])
             transfer = {**facts, "current_revision_id": request_revision.id}
+    actions = allowed(
+        role,
+        resource="activity",
+        state=item.state,
+        contributor=contributor,
+        prevalidator=prevalidator,
+        amendment=item.amendment_id is not None,
+        withdrawal=item.withdrawal_id is not None,
+        transfer=item.transfer_id is not None,
+    )
+    if has_execution:
+        actions = [
+            action
+            for action in actions
+            if action not in {"request_withdrawal", "request_transfer"}
+        ]
     return {
         "id": item.id,
         "pta_id": item.pta_id,
@@ -329,16 +360,7 @@ def activity_item(
             for row in operations
         ],
         "agent_ids": agent_ids,
-        "allowed_actions": allowed(
-            role,
-            resource="activity",
-            state=item.state,
-            contributor=contributor,
-            prevalidator=prevalidator,
-            amendment=item.amendment_id is not None,
-            withdrawal=item.withdrawal_id is not None,
-            transfer=item.transfer_id is not None,
-        ),
+        "allowed_actions": actions,
     }
 
 
