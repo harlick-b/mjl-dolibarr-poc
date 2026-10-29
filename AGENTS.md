@@ -22,14 +22,15 @@ The authority/business/API disposition register is
 `docs/rebuild/01-authority-and-business-baseline.md`.
 The current implementation boundary and evidence are in
 `docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
-router. Foundation, A1–A3 and synthetic PTA planning through PTA-3B disbursement
-authorization are complete. DEC-116 governs the bounded synthetic workflow: an
-Agent submits finalized actual spending, a Supervisor
-prevalidates and a distinct Validator approves; reasoned return/cancellation
-permits correction and fresh submission before final approval. Migration
-`0011_pta3b` adds two financial authorization tables and the French realization
-workspace exposes the five REST responsibilities. PC1/PC2 remain pending; use
-synthetic identities, isolated databases and test mail only. Stop after PTA-3B.
+router. Foundation, A1–A3 and synthetic PTA planning through PTA-3C virement
+request authorization are complete. DEC-117 governs the bounded workflow: after
+PTA-3B approval, an Agent requests administrative authorization for exactly that
+approved amount; a Supervisor prevalidates and a distinct Validator approves.
+Reasoned return/cancellation permits a fresh request without changing or
+releasing the approved spending basis. Migration `0012_pta3c` adds two dedicated
+tables and the French realization workspace exposes five REST responsibilities.
+PC1/PC2 remain pending; use synthetic identities, isolated databases and test
+mail only. Stop after PTA-3C.
 Technical Admin recovery, reinvitation, reverse transfer, restoration, external
 payment or virement confirmation, reversement, formal closure, documents,
 notifications, later slices, general A4 and production remain deferred.

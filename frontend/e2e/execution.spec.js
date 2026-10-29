@@ -41,6 +41,14 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
     operation_count: 1,
     works_completed: completed,
     spending_total: completed ? '120000' : null,
+    virement_context: {
+      disbursement_request_id: null,
+      amount: null,
+      current_request_id: null,
+      current_state: null,
+      can_submit: false,
+      unavailable_reason: 'disbursement_required',
+    },
     allowed_actions: ['read'],
     operations: [operation()],
   })
@@ -82,6 +90,16 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
         },
       })
     if (path.endsWith('/disbursement-requests'))
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        },
+      })
+    if (path.endsWith('/virement-requests'))
       return route.fulfill({
         json: {
           object: 'list',
@@ -174,14 +192,24 @@ test('reviewer sees pause, resume and paginated history without mutation control
           ],
           next: second
             ? null
-            : 'http://testserver/api/v1/activities/activity-1/execution/history?cursor=older',
+            : 'http://127.0.0.1:4173/api/v1/activities/activity-1/execution/history?cursor=older',
           previous: second
-            ? 'http://testserver/api/v1/activities/activity-1/execution/history'
+            ? 'http://127.0.0.1:4173/api/v1/activities/activity-1/execution/history'
             : null,
         },
       })
     }
     if (url.pathname.endsWith('/disbursement-requests'))
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        },
+      })
+    if (url.pathname.endsWith('/virement-requests'))
       return route.fulfill({
         json: {
           object: 'list',
@@ -213,6 +241,14 @@ test('reviewer sees pause, resume and paginated history without mutation control
           operation_count: 1,
           works_completed: false,
           spending_total: null,
+          virement_context: {
+            disbursement_request_id: null,
+            amount: null,
+            current_request_id: null,
+            current_state: null,
+            can_submit: false,
+            unavailable_reason: 'disbursement_required',
+          },
           allowed_actions: ['read'],
           operations: [
             {
@@ -252,13 +288,17 @@ test('reviewer sees pause, resume and paginated history without mutation control
   ).toBeVisible()
 })
 
-test('PTA-3B Agent submission and two-stage financial authorization', async ({
+test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
   let role = 'AGENT_SAISIE'
   let version = 7
   let request = null
   let requestNumber = 0
+  let virement = null
+  let cancelledVirement = null
+  let virementNumber = 0
   const actions = () => {
     if (!request) return []
     if (
@@ -275,6 +315,27 @@ test('PTA-3B Agent submission and two-stage financial authorization', async ({
   const financial = () =>
     request
       ? { ...request, activity_version: version, allowed_actions: actions() }
+      : null
+  const virementActions = () => {
+    if (!virement) return []
+    if (
+      role === 'AGENT_SAISIE' &&
+      !['approved', 'cancelled'].includes(virement.state)
+    )
+      return ['read', 'cancel']
+    if (role === 'AGENT_VERIFICATEUR' && virement.state === 'submitted')
+      return ['read', 'prevalidate', 'return']
+    if (role === 'VALIDATEUR_DEFINITIF' && virement.state === 'prevalidated')
+      return ['read', 'approve', 'return']
+    return ['read']
+  }
+  const virementResult = () =>
+    virement
+      ? {
+          ...virement,
+          activity_version: version,
+          allowed_actions: virementActions(),
+        }
       : null
   await page.route('**/api/v1/**', async (route) => {
     const incoming = route.request()
@@ -298,6 +359,104 @@ test('PTA-3B Agent submission and two-stage financial authorization', async ({
           previous: null,
         },
       })
+    if (path.endsWith('/virement-requests') && incoming.method() === 'POST') {
+      version += 1
+      virementNumber += 1
+      virement = {
+        id: `44444444-4444-4444-8444-${String(virementNumber).padStart(12, '4')}`,
+        activity_id: 'activity-1',
+        disbursement_request_id: request.id,
+        approved_revision_id: '11111111-1111-4111-8111-111111111111',
+        amount: '100000',
+        state: 'submitted',
+        submitter_id: 'agent',
+        submitted_at: '2026-10-28T13:00:00Z',
+        decisions: [],
+        cancellation: null,
+      }
+      return route.fulfill({ status: 201, json: virementResult() })
+    }
+    if (
+      path.includes('/virement-requests/') &&
+      path.endsWith('/decisions') &&
+      incoming.method() === 'POST'
+    ) {
+      const body = incoming.postDataJSON()
+      version += 1
+      if (body.decision === 'prevalidate') {
+        virement.state = 'prevalidated'
+        virement.decisions.push({
+          id: 'virement-supervisor',
+          stage: 'supervisor',
+          outcome: 'prevalidated',
+          reason: null,
+        })
+      } else if (body.decision === 'approve') {
+        virement.state = 'approved'
+        virement.decisions.push({
+          id: 'virement-validator',
+          stage: 'validator',
+          outcome: 'approved',
+          reason: null,
+        })
+      } else {
+        virement.state = 'returned'
+        virement.decisions.push({
+          id: `virement-return-${virementNumber}`,
+          stage: role === 'AGENT_VERIFICATEUR' ? 'supervisor' : 'validator',
+          outcome: 'returned',
+          reason: body.reason,
+        })
+      }
+      return route.fulfill({ status: 201, json: virementResult() })
+    }
+    if (
+      path.includes('/virement-requests/') &&
+      path.endsWith('/cancellation') &&
+      incoming.method() === 'POST'
+    ) {
+      version += 1
+      virement.state = 'cancelled'
+      virement.cancellation = { reason: incoming.postDataJSON().reason }
+      cancelledVirement = structuredClone(virementResult())
+      return route.fulfill({ status: 201, json: virementResult() })
+    }
+    if (
+      virement &&
+      path.endsWith(`/virement-requests/${virement.id}`) &&
+      incoming.method() === 'GET'
+    )
+      return route.fulfill({ json: virementResult() })
+    if (
+      cancelledVirement &&
+      path.endsWith(`/virement-requests/${cancelledVirement.id}`) &&
+      incoming.method() === 'GET'
+    )
+      return route.fulfill({ json: cancelledVirement })
+    if (path.endsWith('/virement-requests')) {
+      const historical = new URL(incoming.url()).searchParams.has('cursor')
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: virementNumber,
+          data: historical
+            ? cancelledVirement
+              ? [cancelledVirement]
+              : []
+            : virement
+              ? [virementResult()]
+              : [],
+          next:
+            !historical && cancelledVirement
+              ? '/api/v1/activities/activity-1/virement-requests?cursor=older'
+              : null,
+          previous:
+            historical && cancelledVirement
+              ? '/api/v1/activities/activity-1/virement-requests?cursor=newer'
+              : null,
+        },
+      })
+    }
     if (
       path.endsWith('/disbursement-requests') &&
       incoming.method() === 'POST'
@@ -372,7 +531,7 @@ test('PTA-3B Agent submission and two-stage financial authorization', async ({
           ],
           next: null,
           previous:
-            'http://localhost:5173/api/v1/activities/activity-1/disbursement-requests?cursor=newer',
+            'http://127.0.0.1:4173/api/v1/activities/activity-1/disbursement-requests?cursor=newer',
         },
       })
     if (path.endsWith('/disbursement-requests'))
@@ -382,7 +541,7 @@ test('PTA-3B Agent submission and two-stage financial authorization', async ({
           count: request ? 2 : 0,
           data: request ? [financial()] : [],
           next: request
-            ? 'http://localhost:5173/api/v1/activities/activity-1/disbursement-requests?cursor=older'
+            ? 'http://127.0.0.1:4173/api/v1/activities/activity-1/disbursement-requests?cursor=older'
             : null,
           previous: null,
         },
@@ -408,6 +567,29 @@ test('PTA-3B Agent submission and two-stage financial authorization', async ({
           operation_count: 1,
           works_completed: true,
           spending_total: '100000',
+          virement_context: {
+            disbursement_request_id:
+              request?.state === 'approved' ? request.id : null,
+            amount: request?.state === 'approved' ? request.amount : null,
+            current_request_id:
+              virement && virement.state !== 'cancelled' ? virement.id : null,
+            current_state:
+              virement && virement.state !== 'cancelled'
+                ? virement.state
+                : null,
+            can_submit:
+              role === 'AGENT_SAISIE' &&
+              request?.state === 'approved' &&
+              (!virement || virement.state === 'cancelled'),
+            unavailable_reason:
+              virement && virement.state !== 'cancelled'
+                ? 'virement_exists'
+                : request?.state === 'approved'
+                  ? role === 'AGENT_SAISIE'
+                    ? null
+                    : 'reviewer_read_only'
+                  : 'disbursement_required',
+          },
           allowed_actions: ['read'],
           operations: [
             {
@@ -469,4 +651,76 @@ test('PTA-3B Agent submission and two-stage financial authorization', async ({
   await expect(page).toHaveURL(/financeCursor=older/)
   await page.getByText('Historique des demandes (2)').click()
   await expect(page.getByText('Annulée').first()).toBeVisible()
+
+  role = 'AGENT_SAISIE'
+  await page.reload()
+  const virementSection = page.getByRole('region', {
+    name: 'Autorisation de virement',
+  })
+  await virementSection
+    .getByRole('button', { name: /Demander le virement de.*100.*000 XOF/ })
+    .click()
+  await expect(
+    virementSection.getByText('Soumise au Superviseur', { exact: true }),
+  ).toBeVisible()
+
+  role = 'AGENT_VERIFICATEUR'
+  await page.reload()
+  await virementSection
+    .getByLabel('Motif obligatoire')
+    .fill('Compléter le dossier.')
+  await virementSection.getByRole('button', { name: 'Retourner' }).click()
+  await expect(
+    virementSection.getByText('Retournée pour correction', { exact: true }),
+  ).toBeVisible()
+
+  role = 'AGENT_SAISIE'
+  await page.reload()
+  await virementSection
+    .getByLabel('Motif obligatoire')
+    .fill('Nouvelle demande de virement.')
+  await virementSection
+    .getByRole('button', { name: 'Annuler la demande' })
+    .click()
+  await virementSection
+    .getByRole('button', { name: /Demander le virement de.*100.*000 XOF/ })
+    .click()
+
+  role = 'AGENT_VERIFICATEUR'
+  await page.reload()
+  await virementSection.getByRole('button', { name: 'Prévalider' }).click()
+  role = 'VALIDATEUR_DEFINITIF'
+  await page.reload()
+  await virementSection.getByRole('button', { name: 'Autoriser' }).click()
+  await expect(
+    virementSection.getByText('Autorisée', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByText(/ne confirme pas qu’un virement externe/i),
+  ).toBeVisible()
+  await virementSection.getByText('Historique des demandes (2)').click()
+  await virementSection
+    .getByRole('navigation', { name: 'Pagination des virements' })
+    .getByRole('button', { name: 'Suivant' })
+    .click()
+  await expect(page).toHaveURL(/virementCursor=older/)
+  await virementSection.getByText('Historique des demandes (2)').click()
+  await virementSection
+    .getByRole('button', { name: /Annulée.*100.*000 XOF/ })
+    .click()
+  await expect(page).toHaveURL(
+    new RegExp(`virementRequest=${cancelledVirement.id}`),
+  )
+  await page.goBack()
+  await expect(page).toHaveURL(/virementCursor=older/)
+  await expect(page).not.toHaveURL(
+    new RegExp(`virementRequest=${cancelledVirement.id}`),
+  )
+  await page.goBack()
+  await expect(page).not.toHaveURL(/virementCursor=older/)
+  await page.goForward()
+  await page.goForward()
+  await expect(page).toHaveURL(
+    new RegExp(`virementRequest=${cancelledVirement.id}`),
+  )
 })

@@ -544,3 +544,107 @@ class DisbursementDecision(Base):
     decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     reason: Mapped[str | None] = mapped_column(String(4000))
     prevalidation_decision_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class VirementRequest(Base):
+    __tablename__ = "pta_virement_request"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        ForeignKeyConstraint(
+            ["activity_id", "disbursement_request_id"],
+            ["pta_disbursement_request.activity_id", "pta_disbursement_request.id"],
+        ),
+        UniqueConstraint("activity_id", "id", name="virement_request_scope"),
+        CheckConstraint(
+            "state IN ('submitted','prevalidated','returned','approved','cancelled')",
+            name="virement_request_state_allowed",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(excluded_reviewer_ids)='array' AND "
+            "octet_length(excluded_reviewer_ids::text) <= 1048576",
+            name="virement_exclusions_bounded",
+        ),
+        CheckConstraint(
+            "(state='cancelled' AND cancelled_by_id IS NOT NULL AND "
+            "cancelled_at IS NOT NULL AND cancellation_reason IS NOT NULL AND "
+            "length(btrim(cancellation_reason)) BETWEEN 1 AND 4000) OR "
+            "(state<>'cancelled' AND cancelled_by_id IS NULL AND "
+            "cancelled_at IS NULL AND cancellation_reason IS NULL)",
+            name="virement_cancellation_facts",
+        ),
+        Index(
+            "virement_one_open_per_activity",
+            "activity_id",
+            unique=True,
+            postgresql_where=text("state <> 'cancelled'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    disbursement_request_id: Mapped[str] = mapped_column(String(36))
+    excluded_reviewer_ids: Mapped[list[str]] = mapped_column(JSONB)
+    submitter_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    state: Mapped[str] = mapped_column(String(16), default="submitted")
+    cancelled_by_id: Mapped[str | None] = mapped_column(ForeignKey("auth_user.id"))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancellation_reason: Mapped[str | None] = mapped_column(String(4000))
+
+
+class VirementDecision(Base):
+    __tablename__ = "pta_virement_decision"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["activity_id", "request_id"],
+            ["pta_virement_request.activity_id", "pta_virement_request.id"],
+        ),
+        ForeignKeyConstraint(
+            ["request_id", "prevalidation_decision_id"],
+            ["pta_virement_decision.request_id", "pta_virement_decision.id"],
+            use_alter=True,
+        ),
+        UniqueConstraint("request_id", "id", name="virement_decision_scope"),
+        UniqueConstraint("request_id", "stage", name="virement_decision_stage"),
+        CheckConstraint(
+            "stage IN ('supervisor','validator')",
+            name="virement_decision_stage_allowed",
+        ),
+        CheckConstraint(
+            "outcome IN ('prevalidated','approved','returned')",
+            name="virement_decision_outcome_allowed",
+        ),
+        CheckConstraint(
+            "(stage='supervisor' AND outcome IN ('prevalidated','returned') AND "
+            "actor_role='AGENT_VERIFICATEUR') OR "
+            "(stage='validator' AND outcome IN ('approved','returned') AND "
+            "actor_role='VALIDATEUR_DEFINITIF')",
+            name="virement_decision_role_allowed",
+        ),
+        CheckConstraint(
+            "(outcome='returned' AND reason IS NOT NULL AND "
+            "length(btrim(reason)) BETWEEN 1 AND 4000) OR "
+            "(outcome<>'returned' AND reason IS NULL)",
+            name="virement_decision_reason",
+        ),
+        CheckConstraint(
+            "(stage='validator' AND "
+            "prevalidation_decision_id IS NOT NULL) OR "
+            "(stage<>'validator' AND "
+            "prevalidation_decision_id IS NULL)",
+            name="virement_prevalidation_reference",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    activity_id: Mapped[str] = mapped_column(String(36))
+    request_id: Mapped[str] = mapped_column(String(36))
+    stage: Mapped[str] = mapped_column(String(16))
+    outcome: Mapped[str] = mapped_column(String(16))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    actor_role: Mapped[str] = mapped_column(String(32))
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reason: Mapped[str | None] = mapped_column(String(4000))
+    prevalidation_decision_id: Mapped[str | None] = mapped_column(String(36))

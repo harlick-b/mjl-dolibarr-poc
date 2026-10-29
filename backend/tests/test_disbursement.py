@@ -32,8 +32,10 @@ from app.planning.models import (
 )
 
 
-def finish_activity(clients, amounts=(100_000, 200_000), actor="agent"):
-    activity = approved_execution_activity(clients)
+def finish_activity(
+    clients, amounts=(100_000, 200_000), actor="agent", allocations=None
+):
+    activity = approved_execution_activity(clients, allocations=allocations)
     detail = (
         clients["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
@@ -686,7 +688,7 @@ def test_financial_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0011_pta3b"
+                "0012_pta3c"
             )
     finally:
         engine.dispose()

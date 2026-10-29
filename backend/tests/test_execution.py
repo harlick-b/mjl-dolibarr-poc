@@ -29,18 +29,34 @@ def execution_path(activity, operation):
     return f"/api/v1/activities/{activity['id']}/operations/{operation['id']}/execution"
 
 
-def approved_execution_activity(clients, *, planned_start=None, planned_end=None):
+def approved_execution_activity(
+    clients, *, planned_start=None, planned_end=None, allocations=None
+):
     _partner, operation_type, project = references(clients)
     today = datetime.now(ZoneInfo("Africa/Porto-Novo")).date()
+    plan_changes = {
+        "planned_start": planned_start or today.isoformat(),
+        "planned_end": planned_end or (today + timedelta(days=90)).isoformat(),
+    }
+    if allocations is not None:
+        plan_changes.update(
+            {
+                "allocation": str(sum(allocations)),
+                "operations": [
+                    {
+                        "type_id": operation_type["id"],
+                        "name": f"Opération {position}",
+                        "allocation": str(amount),
+                    }
+                    for position, amount in enumerate(allocations, 1)
+                ],
+            }
+        )
     created = post(
         clients["agent"],
         f"/api/v1/projects/{project['id']}/ptas/{today.year}/activities",
         {
-            **plan(
-                operation_type,
-                planned_start=planned_start or today.isoformat(),
-                planned_end=planned_end or (today + timedelta(days=90)).isoformat(),
-            ),
+            **plan(operation_type, **plan_changes),
             "request_key": str(uuid4()),
         },
     ).json()
@@ -1166,7 +1182,7 @@ def test_execution_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0011_pta3b"
+                "0012_pta3c"
             )
             assert (
                 db.scalar(

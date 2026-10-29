@@ -21,6 +21,7 @@ from app.health import router
 from app.planning.disbursement import router as disbursement_router
 from app.planning.execution import router as execution_router
 from app.planning.routes import router as planning_router
+from app.planning.virement import router as virement_router
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
@@ -43,6 +44,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(planning_router)
     app.include_router(execution_router)
     app.include_router(disbursement_router)
+    app.include_router(virement_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:
         response = JSONResponse(

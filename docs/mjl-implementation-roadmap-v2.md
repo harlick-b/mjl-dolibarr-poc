@@ -12,7 +12,21 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-3B current boundary (DEC-116)
+## PTA-3C current boundary (DEC-117)
+
+**PTA_3C_COMPLETE** on 2026-10-29. It adds a separate administrative virement
+request for exactly the amount approved by PTA-3B, followed by fresh Supervisor
+prevalidation and distinct Validator approval. Reasoned return and cancellation
+permit a fresh request while preserving the approved spending basis and its
+freeze. Completion evidence is recorded in
+[status 19](rebuild/19-pta3c-implementation-status.md).
+
+This records no external transfer, payment confirmation or movement of funds.
+Discrepancy handling, reversement, formal Activity closure and every later slice
+remain unimplemented and require separate decisions and authorization. PC1/PC2,
+real accounts and production remain excluded.
+
+## PTA-3B completed boundary (DEC-116)
 
 **PTA_3B_COMPLETE** on 2026-10-29.
 It adds an administrative request for the
@@ -27,6 +41,9 @@ This authorizes no payment or movement of funds. External payment/virement
 confirmation, reversement, formal Activity closure and every later slice remain
 unimplemented and require separate business decisions and authorization.
 PC1/PC2, real accounts and production remain excluded.
+
+The later PTA-3C authorization superseded PTA-3B's former next-slice boundary.
+PTA-3B remains the immutable source amount and approval basis for PTA-3C.
 
 ## PTA-3A completed boundary (DEC-115)
 

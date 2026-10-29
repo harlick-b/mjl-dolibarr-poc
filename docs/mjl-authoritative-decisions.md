@@ -26,6 +26,29 @@ in `AGENTS.md`, updated at the user's request on 2026-10-28. No external detaile
 execution prompt is required after a concrete slice is authorized. This process
 review does not authorize any additional runtime slice or relax security gates.
 
+## PTA-3C virement request authorization (DEC-117)
+
+The user explicitly authorized the bounded synthetic PTA-3C implementation on
+2026-10-29. After PTA-3B approval, an Agent may submit a separate virement
+request for exactly the approved PTA-3B amount; the server supplies that amount
+and accepts no alternative. One eligible Supervisor prevalidates and one
+distinct eligible Validator approves through fresh decisions.
+
+An Agent may cancel a submitted, prevalidated or returned virement request with
+a reason and submit a fresh request for the same locked amount. Cancellation
+does not cancel the source décaissement authorization or release its execution
+and planning freeze. External transfer confirmation, bank execution,
+discrepancy handling, reversement and formal Activity closure remain deferred.
+The implementation contract supplied with the authorization is the only PTA-3C
+plan; no additional readiness cycle is required.
+
+PTA-3C completed its disposable PostgreSQL, exact-predecessor migration,
+combined backend, frontend quality/build, real-Chrome and independent
+correction/re-review gates on 2026-10-29. Migration `0012_pta3c` and the five
+REST responsibilities implement the bounded workflow. [Status 19](rebuild/19-pta3c-implementation-status.md)
+records the evidence. This synthetic completion authorizes no later slice;
+PC1/PC2, real accounts and production remain prohibited.
+
 ## PTA-3B disbursement authorization and completion (DEC-116)
 
 The user explicitly authorized the bounded synthetic PTA-3B implementation from

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { App, makeRouter } from './router.jsx'
+import { cursorFrom } from './pagination'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -24,6 +25,14 @@ function detail({ started = false, completed = false } = {}) {
     operation_count: 1,
     works_completed: completed,
     spending_total: completed ? '100000' : null,
+    virement_context: {
+      disbursement_request_id: null,
+      amount: null,
+      current_request_id: null,
+      current_state: null,
+      can_submit: false,
+      unavailable_reason: 'disbursement_required',
+    },
     allowed_actions: ['read'],
     operations: [
       {
@@ -73,6 +82,18 @@ test('Agent starts and records an Operation without offline replay', async () =>
         ),
       )
     if (path.endsWith('/disbursement-requests'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    if (path.endsWith('/virement-requests'))
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -201,6 +222,18 @@ test('Agent submits finalized spending for disbursement authorization', async ()
           }),
         ),
       )
+    if (path.endsWith('/virement-requests'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
     if (path.endsWith('/activities/activity-1/execution'))
       return Promise.resolve(
         new Response(
@@ -263,9 +296,118 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   ).toBeVisible()
 })
 
-test('offline invalidation aborts and clears a pending financial mutation', async () => {
+test.each([
+  ['décaissement', '/disbursement-requests', /Soumettre 100.*000 XOF/],
+  ['virement', '/virement-requests', /Demander le virement de 100.*000 XOF/],
+])(
+  'offline invalidation aborts and clears a pending %s mutation',
+  async (_label, mutationPath, buttonName) => {
+    const user = userEvent.setup()
+    let mutationSignal
+    const execution = detail({ started: true, completed: true })
+    if (mutationPath === '/virement-requests')
+      execution.virement_context = {
+        disbursement_request_id: '33333333-3333-4333-8333-333333333333',
+        amount: '100000',
+        current_request_id: null,
+        current_state: null,
+        can_submit: true,
+        unavailable_reason: null,
+      }
+    const fetch = vi.fn((url, options = {}) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: { id: 'agent', role: 'AGENT_SAISIE' },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      if (path.endsWith('/execution/history'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 0,
+              data: [],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      if (path.endsWith(mutationPath) && options.method === 'POST') {
+        mutationSignal = options.signal
+        return new Promise((_resolve, reject) =>
+          options.signal.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          ),
+        )
+      }
+      if (path.endsWith('/disbursement-requests'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 0,
+              data: [],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      if (path.endsWith('/virement-requests'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 0,
+              data: [],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return Promise.resolve(new Response(JSON.stringify(execution)))
+      return Promise.resolve(new Response('{}', { status: 404 }))
+    })
+    vi.stubGlobal('fetch', fetch)
+    const router = makeRouter(
+      createMemoryHistory({
+        initialEntries: ['/execution/activities/activity-1'],
+      }),
+    )
+    render(<App router={router} />)
+    await user.click(await screen.findByRole('button', { name: buttonName }))
+    await waitFor(() => expect(mutationSignal).toBeDefined())
+    window.dispatchEvent(new Event('offline'))
+    expect(await screen.findByText(/Reconnectez-vous/)).toBeVisible()
+    expect(mutationSignal.aborted).toBe(true)
+    expect(
+      router.options.context.queryClient.getMutationCache().getAll(),
+    ).toEqual([])
+    window.dispatchEvent(new Event('online'))
+  },
+)
+
+test('Agent submits the locked disbursement amount for virement authorization', async () => {
   const user = userEvent.setup()
-  let mutationSignal
+  const sourceId = '33333333-3333-4333-8333-333333333333'
+  const requestId = '44444444-4444-4444-8444-444444444444'
+  let virement = null
+  const execution = detail({ started: true, completed: true })
+  execution.virement_context = {
+    disbursement_request_id: sourceId,
+    amount: '100000',
+    current_request_id: null,
+    current_state: null,
+    can_submit: true,
+    unavailable_reason: null,
+  }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
     if (path.includes('/auth/session'))
@@ -291,49 +433,182 @@ test('offline invalidation aborts and clears a pending financial mutation', asyn
           }),
         ),
       )
-    if (path.endsWith('/disbursement-requests') && options.method === 'POST') {
-      mutationSignal = options.signal
-      return new Promise((_resolve, reject) =>
-        options.signal.addEventListener('abort', () =>
-          reject(new DOMException('Aborted', 'AbortError')),
-        ),
-      )
-    }
     if (path.endsWith('/disbursement-requests'))
       return Promise.resolve(
         new Response(
           JSON.stringify({
             object: 'list',
-            count: 0,
+            count: 1,
             data: [],
             next: null,
             previous: null,
           }),
         ),
       )
-    if (path.endsWith('/activities/activity-1/execution'))
+    if (path.endsWith('/virement-requests') && options.method === 'POST') {
+      virement = {
+        id: requestId,
+        activity_id: 'activity-1',
+        disbursement_request_id: sourceId,
+        approved_revision_id: execution.approved_revision_id,
+        amount: '100000',
+        state: 'submitted',
+        submitter_id: 'agent',
+        submitted_at: new Date().toISOString(),
+        cancellation: null,
+        decisions: [],
+        allowed_actions: ['read', 'cancel'],
+        activity_version: 8,
+      }
+      execution.version = 8
+      execution.virement_context = {
+        ...execution.virement_context,
+        current_request_id: requestId,
+        current_state: 'submitted',
+        can_submit: false,
+        unavailable_reason: 'virement_exists',
+      }
+      return Promise.resolve(new Response(JSON.stringify(virement)))
+    }
+    if (path.endsWith(`/virement-requests/${requestId}`))
+      return Promise.resolve(new Response(JSON.stringify(virement)))
+    if (path.endsWith('/virement-requests'))
       return Promise.resolve(
         new Response(
-          JSON.stringify(detail({ started: true, completed: true })),
+          JSON.stringify({
+            object: 'list',
+            count: virement ? 1 : 0,
+            data: virement ? [virement] : [],
+            next: null,
+            previous: null,
+          }),
         ),
       )
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(new Response(JSON.stringify(execution)))
     return Promise.resolve(new Response('{}', { status: 404 }))
   })
   vi.stubGlobal('fetch', fetch)
-  const router = makeRouter(
-    createMemoryHistory({
-      initialEntries: ['/execution/activities/activity-1'],
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+  await user.click(
+    await screen.findByRole('button', {
+      name: /Demander le virement de 100.*000 XOF/,
     }),
   )
-  render(<App router={router} />)
-  await user.click(
-    await screen.findByRole('button', { name: /Soumettre 100.*000 XOF/ }),
-  )
-  await waitFor(() => expect(mutationSignal).toBeDefined())
-  window.dispatchEvent(new Event('offline'))
-  expect(await screen.findByText(/Reconnectez-vous/)).toBeVisible()
-  expect(mutationSignal.aborted).toBe(true)
   expect(
-    router.options.context.queryClient.getMutationCache().getAll(),
-  ).toEqual([])
+    (await screen.findAllByText('Soumise au Superviseur'))[0],
+  ).toBeVisible()
+  expect(
+    screen.getByText(/ne confirme pas qu’un virement externe/i),
+  ).toBeVisible()
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/virement-requests',
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        expected_version: 7,
+        expected_disbursement_request_id: sourceId,
+      }),
+    }),
+  )
+})
+
+test('an uncertain virement submission stays blocked until reconciliation succeeds', async () => {
+  const user = userEvent.setup()
+  const execution = detail({ started: true, completed: true })
+  execution.virement_context = {
+    disbursement_request_id: '33333333-3333-4333-8333-333333333333',
+    amount: '100000',
+    current_request_id: null,
+    current_state: null,
+    can_submit: true,
+    unavailable_reason: null,
+  }
+  let executionCalls = 0
+  let finishReconciliation
+  const list = new Response(
+    JSON.stringify({
+      object: 'list',
+      count: 0,
+      data: [],
+      next: null,
+      previous: null,
+    }),
+  )
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (path.endsWith('/virement-requests') && options.method === 'POST')
+      return Promise.reject(new TypeError('Synthetic uncertain response'))
+    if (path.endsWith('/activities/activity-1/execution')) {
+      executionCalls += 1
+      if (executionCalls === 1)
+        return Promise.resolve(new Response(JSON.stringify(execution)))
+      return new Promise((resolve) => {
+        finishReconciliation = () =>
+          resolve(new Response(JSON.stringify(execution)))
+      })
+    }
+    if (
+      path.endsWith('/execution/history') ||
+      path.endsWith('/disbursement-requests') ||
+      path.endsWith('/virement-requests')
+    )
+      return Promise.resolve(list.clone())
+    return Promise.resolve(new Response('{}', { status: 404 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+  const submit = await screen.findByRole('button', {
+    name: /Demander le virement de 100.*000 XOF/,
+  })
+  await user.click(submit)
+  await waitFor(() => expect(finishReconciliation).toBeDefined())
+  expect(submit).toBeDisabled()
+  finishReconciliation()
+  await waitFor(() => expect(submit).toBeEnabled())
+})
+
+test('realization cursors reject foreign and malformed links', () => {
+  expect(
+    cursorFrom(
+      'http://localhost:3000/api/v1/activities/activity-1/virement-requests?cursor=next',
+      '/activities/activity-1/virement-requests',
+    ),
+  ).toBe('next')
+  expect(
+    cursorFrom(
+      'https://example.test/api/v1/activities/activity-1/virement-requests?cursor=forged',
+      '/activities/activity-1/virement-requests',
+    ),
+  ).toBe('')
+  expect(
+    cursorFrom('not a valid URL', '/activities/activity-1/virement-requests'),
+  ).toBe('')
 })

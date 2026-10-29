@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { sessionKey, sessionQuery } from './auth'
 import { Button } from './components/ui/button'
 import { formatXof } from './planning'
+import { cursorFrom } from './pagination'
 import { useAPI } from './RestClientProvider'
 
 function cursorPath(path, cursor) {
@@ -121,6 +122,8 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     ),
     enabled: screen === 'detail' && Boolean(params.activityId),
   })
+  const virementRequestId =
+    search.virementRequest || detail.data?.virement_context?.current_request_id
   const history = useQuery({
     ...executionQuery(
       api,
@@ -159,6 +162,32 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       screen === 'detail' &&
       Boolean(params.activityId) &&
       Boolean(search.financeRequest),
+  })
+  const virements = useQuery({
+    ...executionQuery(
+      api,
+      session.user.id,
+      ['virements', params.activityId, search.virementCursor],
+      cursorPath(
+        `/activities/${params.activityId}/virement-requests`,
+        search.virementCursor,
+      ),
+      onDenied,
+    ),
+    enabled: screen === 'detail' && Boolean(params.activityId),
+  })
+  const selectedVirement = useQuery({
+    ...executionQuery(
+      api,
+      session.user.id,
+      ['virement-detail', params.activityId, virementRequestId],
+      `/activities/${params.activityId}/virement-requests/${virementRequestId}`,
+      onDenied,
+    ),
+    enabled:
+      screen === 'detail' &&
+      Boolean(params.activityId) &&
+      Boolean(virementRequestId),
   })
   const list = useQuery({
     ...executionQuery(
@@ -266,12 +295,22 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         }),
         client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
       ])
-      if (variables.path.endsWith('/cancellation'))
+      if (
+        variables.path.endsWith('/cancellation') &&
+        variables.path.startsWith('/disbursement-requests')
+      )
         await navigate({
           search: (current) => ({ ...current, financeRequest: '' }),
         })
+      if (
+        variables.path.endsWith('/cancellation') &&
+        variables.path.startsWith('/virement-requests')
+      )
+        await navigate({
+          search: (current) => ({ ...current, virementRequest: '' }),
+        })
       setError('')
-      toast.success('Autorisation de décaissement mise à jour.')
+      toast.success('Suivi financier mis à jour.')
     },
     onError: async (problem) => {
       if (problem.name === 'AbortError') return
@@ -296,7 +335,9 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           detail,
           history,
           finance,
+          virements,
           ...(search.financeRequest ? [selectedFinance] : []),
+          ...(virementRequestId ? [selectedVirement] : []),
         ]
   if (relevant.some((query) => query.isError))
     return <p role="alert">Les données de réalisation sont indisponibles.</p>
@@ -310,7 +351,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           navigate({
             search: (current) => ({
               ...current,
-              cursor: new URL(link).searchParams.get('cursor') || '',
+              cursor: cursorFrom(link, `/ptas/${params.ptaId}/execution`),
             }),
           })
         }
@@ -322,8 +363,12 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       history={history.data}
       finance={finance.data}
       selectedFinance={selectedFinance.data}
+      virements={virements.data}
+      selectedVirement={selectedVirement.data}
       role={session.user.role}
       financeHistoryPage={Boolean(search.financeCursor)}
+      virementHistoryPage={Boolean(search.virementCursor)}
+      virementSelectedBySearch={Boolean(search.virementRequest)}
       error={error}
       pending={
         mutation.isPending ||
@@ -331,7 +376,9 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         detail.isFetching ||
         history.isFetching ||
         finance.isFetching ||
-        selectedFinance.isFetching
+        selectedFinance.isFetching ||
+        virements.isFetching ||
+        selectedVirement.isFetching
       }
       mutate={(operationId, body) => mutation.mutate({ operationId, body })}
       mutateFinance={(path, body) => financeMutation.mutate({ path, body })}
@@ -339,7 +386,10 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         navigate({
           search: (current) => ({
             ...current,
-            historyCursor: new URL(link).searchParams.get('cursor') || '',
+            historyCursor: cursorFrom(
+              link,
+              `/activities/${params.activityId}/execution/history`,
+            ),
           }),
         })
       }
@@ -347,13 +397,32 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         navigate({
           search: (current) => ({
             ...current,
-            financeCursor: new URL(link).searchParams.get('cursor') || '',
+            financeCursor: cursorFrom(
+              link,
+              `/activities/${params.activityId}/disbursement-requests`,
+            ),
           }),
         })
       }
       onFinanceSelect={(requestId) =>
         navigate({
           search: (current) => ({ ...current, financeRequest: requestId }),
+        })
+      }
+      onVirementPage={(link) =>
+        navigate({
+          search: (current) => ({
+            ...current,
+            virementCursor: cursorFrom(
+              link,
+              `/activities/${params.activityId}/virement-requests`,
+            ),
+          }),
+        })
+      }
+      onVirementSelect={(requestId) =>
+        navigate({
+          search: (current) => ({ ...current, virementRequest: requestId }),
         })
       }
     />
@@ -433,8 +502,12 @@ function ExecutionDetail({
   history,
   finance,
   selectedFinance,
+  virements,
+  selectedVirement,
   role,
   financeHistoryPage,
+  virementHistoryPage,
+  virementSelectedBySearch,
   error,
   pending,
   mutate,
@@ -442,6 +515,8 @@ function ExecutionDetail({
   onHistoryPage,
   onFinancePage,
   onFinanceSelect,
+  onVirementPage,
+  onVirementSelect,
 }) {
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
@@ -533,6 +608,18 @@ function ExecutionDetail({
         mutate={mutateFinance}
         onPage={onFinancePage}
         onSelect={onFinanceSelect}
+      />
+      <VirementSection
+        detail={detail}
+        result={virements}
+        selected={selectedVirement}
+        selectedBySearch={virementSelectedBySearch}
+        role={role}
+        historicalPage={virementHistoryPage}
+        pending={pending}
+        mutate={mutateFinance}
+        onPage={onVirementPage}
+        onSelect={onVirementSelect}
       />
       <section
         className="planning-card"
@@ -775,6 +862,218 @@ function DisbursementSection({
             <nav
               className="planning-actions"
               aria-label="Pagination financière"
+            >
+              <Button
+                variant="outline"
+                disabled={!result.previous}
+                onClick={() => onPage(result.previous)}
+              >
+                Précédent
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!result.next}
+                onClick={() => onPage(result.next)}
+              >
+                Suivant
+              </Button>
+            </nav>
+          )}
+        </details>
+      )}
+    </section>
+  )
+}
+
+function VirementSection({
+  detail,
+  result,
+  selected,
+  selectedBySearch,
+  role,
+  historicalPage,
+  pending,
+  mutate,
+  onPage,
+  onSelect,
+}) {
+  const requests = result?.data || []
+  const current = selected
+  const context = detail.virement_context
+  const stateLabels = {
+    submitted: 'Soumise au Superviseur',
+    prevalidated: 'Prévalidée, en attente du Validateur',
+    returned: 'Retournée pour correction',
+    approved: 'Autorisée',
+    cancelled: 'Annulée',
+  }
+  const version = current?.activity_version || detail.version
+  return (
+    <section className="planning-card" aria-labelledby="virement-title">
+      <div className="planning-title">
+        <div>
+          <p className="eyebrow">Suivi administratif</p>
+          <h2 id="virement-title">Autorisation de virement</h2>
+        </div>
+        {current && <strong>{stateLabels[current.state]}</strong>}
+      </div>
+      <p>
+        Cette autorisation porte sur le montant de décaissement déjà approuvé.
+        Elle ne confirme pas qu’un virement externe a été effectué.
+      </p>
+      {current ? (
+        <>
+          <p className="review-progress">
+            Montant verrouillé : <strong>{formatXof(current.amount)}</strong>.
+            L’autorisation de décaissement et les dépenses restent figées, même
+            si cette demande est annulée.
+          </p>
+          {selectedBySearch && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onSelect('')}
+            >
+              Fermer le détail
+            </Button>
+          )}
+          <ol className="review-timeline">
+            {current.decisions.map((decision) => (
+              <li key={decision.id}>
+                <strong>
+                  {decision.stage === 'supervisor'
+                    ? 'Superviseur'
+                    : 'Validateur'}{' '}
+                  · {stateLabels[decision.outcome] || decision.outcome}
+                </strong>
+                {decision.reason && <p>{decision.reason}</p>}
+              </li>
+            ))}
+          </ol>
+          <div className="planning-actions">
+            {current.allowed_actions.includes('prevalidate') && (
+              <Button
+                disabled={pending || !navigator.onLine}
+                onClick={() =>
+                  mutate(`/virement-requests/${current.id}/decisions`, {
+                    expected_version: version,
+                    decision: 'prevalidate',
+                  })
+                }
+              >
+                <ShieldCheck size={16} /> Prévalider
+              </Button>
+            )}
+            {current.allowed_actions.includes('approve') && (
+              <Button
+                disabled={pending || !navigator.onLine}
+                onClick={() =>
+                  mutate(`/virement-requests/${current.id}/decisions`, {
+                    expected_version: version,
+                    decision: 'approve',
+                  })
+                }
+              >
+                <ShieldCheck size={16} /> Autoriser
+              </Button>
+            )}
+          </div>
+          {(current.allowed_actions.includes('return') ||
+            current.allowed_actions.includes('cancel')) && (
+            <form
+              className="planning-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                const data = new FormData(event.currentTarget)
+                const reason = String(data.get('reason') || '')
+                const cancellation =
+                  event.nativeEvent.submitter?.value === 'cancel'
+                mutate(
+                  `/virement-requests/${current.id}/${
+                    cancellation ? 'cancellation' : 'decisions'
+                  }`,
+                  cancellation
+                    ? { expected_version: version, reason }
+                    : {
+                        expected_version: version,
+                        decision: 'return',
+                        reason,
+                      },
+                )
+              }}
+            >
+              <label>
+                Motif obligatoire
+                <textarea name="reason" required maxLength="4000" />
+              </label>
+              <div className="planning-actions">
+                {current.allowed_actions.includes('return') && (
+                  <Button
+                    type="submit"
+                    value="return"
+                    variant="outline"
+                    disabled={pending || !navigator.onLine}
+                  >
+                    Retourner
+                  </Button>
+                )}
+                {current.allowed_actions.includes('cancel') && (
+                  <Button
+                    type="submit"
+                    value="cancel"
+                    variant="outline"
+                    disabled={pending || !navigator.onLine}
+                  >
+                    <XCircle size={16} /> Annuler la demande
+                  </Button>
+                )}
+              </div>
+            </form>
+          )}
+        </>
+      ) : role === 'AGENT_SAISIE' && !historicalPage ? (
+        <Button
+          disabled={!context.can_submit || pending || !navigator.onLine}
+          onClick={() =>
+            mutate('/virement-requests', {
+              expected_version: detail.version,
+              expected_disbursement_request_id: context.disbursement_request_id,
+            })
+          }
+        >
+          <CircleDollarSign size={16} /> Demander le virement de{' '}
+          {context.amount ? formatXof(context.amount) : '—'}
+        </Button>
+      ) : (
+        <p>
+          {context.unavailable_reason === 'disbursement_required'
+            ? 'L’autorisation de décaissement doit être approuvée auparavant.'
+            : 'Consultez l’état et l’historique de l’autorisation.'}
+        </p>
+      )}
+      {requests.length > 0 && (
+        <details>
+          <summary>Historique des demandes ({result.count})</summary>
+          <ol className="review-timeline">
+            {requests.map((request) => (
+              <li key={request.id}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onSelect(request.id)}
+                >
+                  {stateLabels[request.state]} · {formatXof(request.amount)}
+                </Button>
+                {request.cancellation?.reason && (
+                  <p>{request.cancellation.reason}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+          {(result.previous || result.next) && (
+            <nav
+              className="planning-actions"
+              aria-label="Pagination des virements"
             >
               <Button
                 variant="outline"

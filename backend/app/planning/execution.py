@@ -20,6 +20,7 @@ from app.planning.models import (
     DisbursementRequest,
     Operation,
     Project,
+    VirementRequest,
 )
 from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
 from app.planning.service import CONTEXT, Cursor, locked_mutation, page_rows, principal
@@ -120,6 +121,15 @@ class ExecutionOperationOutput(Input):
     allowed_actions: list[str]
 
 
+class VirementContextOutput(Input):
+    disbursement_request_id: str | None
+    amount: str | None
+    current_request_id: str | None
+    current_state: str | None
+    can_submit: bool
+    unavailable_reason: str | None
+
+
 class ExecutionDetailOutput(Input):
     id: str
     pta_id: str
@@ -139,6 +149,7 @@ class ExecutionDetailOutput(Input):
     works_completed: bool
     spending_total: str | None
     operations: list[ExecutionOperationOutput]
+    virement_context: VirementContextOutput
     allowed_actions: list[str]
 
 
@@ -253,11 +264,24 @@ def pause_reason(item: Activity, project: Project | None) -> str | None:
 def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
     revision, operations = approved_operations(db, item)
     project = db.get(Project, item.request_project_id)
-    reason = pause_reason(item, project)
+    planning_reason = pause_reason(item, project)
+    reason = planning_reason
     financial = db.scalar(
         select(DisbursementRequest).where(
             DisbursementRequest.activity_id == item.id,
             DisbursementRequest.state != "cancelled",
+        )
+    )
+    approved_disbursement = db.scalar(
+        select(DisbursementRequest).where(
+            DisbursementRequest.activity_id == item.id,
+            DisbursementRequest.state == "approved",
+        )
+    )
+    current_virement = db.scalar(
+        select(VirementRequest).where(
+            VirementRequest.activity_id == item.id,
+            VirementRequest.state != "cancelled",
         )
     )
     if reason is None and financial is not None:
@@ -330,6 +354,31 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
         "works_completed": complete == len(projected),
         "spending_total": str(known_total) if all_known else None,
         "operations": projected,
+        "virement_context": {
+            "disbursement_request_id": approved_disbursement.id
+            if approved_disbursement
+            else None,
+            "amount": str(approved_disbursement.amount)
+            if approved_disbursement
+            else None,
+            "current_request_id": current_virement.id if current_virement else None,
+            "current_state": current_virement.state if current_virement else None,
+            "can_submit": role == "AGENT_SAISIE"
+            and approved_disbursement is not None
+            and current_virement is None
+            and planning_reason is None,
+            "unavailable_reason": (
+                "disbursement_required"
+                if approved_disbursement is None
+                else "virement_exists"
+                if current_virement is not None
+                else planning_reason
+                if planning_reason is not None
+                else "reviewer_read_only"
+                if role != "AGENT_SAISIE"
+                else None
+            ),
+        },
         "allowed_actions": ["read"],
     }
 
