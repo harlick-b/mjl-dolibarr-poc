@@ -439,3 +439,108 @@ class ActivityRevisionDecision(Base):
     reason: Mapped[str | None] = mapped_column(String(4000))
     requested_amount: Mapped[int | None] = mapped_column(BigInteger)
     prevalidation_revision_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class DisbursementRequest(Base):
+    __tablename__ = "pta_disbursement_request"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        ForeignKeyConstraint(
+            ["activity_id", "approved_revision_id"],
+            ["pta_activity_revision.activity_id", "pta_activity_revision.id"],
+        ),
+        UniqueConstraint("activity_id", "id", name="disbursement_request_scope"),
+        CheckConstraint(
+            "state IN ('submitted','prevalidated','returned','approved','cancelled')",
+            name="disbursement_request_state_allowed",
+        ),
+        CheckConstraint("amount > 0", name="disbursement_amount_positive"),
+        CheckConstraint(
+            "octet_length(snapshot::text) <= 1048576",
+            name="disbursement_snapshot_bounded",
+        ),
+        CheckConstraint(
+            "(state='cancelled' AND cancelled_by_id IS NOT NULL AND "
+            "cancelled_at IS NOT NULL AND cancellation_reason IS NOT NULL AND "
+            "length(btrim(cancellation_reason)) BETWEEN 1 AND 4000) OR "
+            "(state<>'cancelled' AND cancelled_by_id IS NULL AND "
+            "cancelled_at IS NULL AND cancellation_reason IS NULL)",
+            name="disbursement_cancellation_facts",
+        ),
+        Index(
+            "disbursement_one_open_per_activity",
+            "activity_id",
+            unique=True,
+            postgresql_where=text("state <> 'cancelled'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    approved_revision_id: Mapped[str] = mapped_column(String(36))
+    snapshot: Mapped[dict[str, object]] = mapped_column(JSONB)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    submitter_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    state: Mapped[str] = mapped_column(String(16), default="submitted")
+    cancelled_by_id: Mapped[str | None] = mapped_column(ForeignKey("auth_user.id"))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancellation_reason: Mapped[str | None] = mapped_column(String(4000))
+
+
+class DisbursementDecision(Base):
+    __tablename__ = "pta_disbursement_decision"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["activity_id", "request_id"],
+            ["pta_disbursement_request.activity_id", "pta_disbursement_request.id"],
+        ),
+        ForeignKeyConstraint(
+            ["request_id", "prevalidation_decision_id"],
+            ["pta_disbursement_decision.request_id", "pta_disbursement_decision.id"],
+            use_alter=True,
+        ),
+        UniqueConstraint("request_id", "id", name="disbursement_decision_scope"),
+        UniqueConstraint("request_id", "stage", name="disbursement_decision_stage"),
+        CheckConstraint(
+            "stage IN ('supervisor','validator')",
+            name="disbursement_decision_stage_allowed",
+        ),
+        CheckConstraint(
+            "outcome IN ('prevalidated','approved','returned')",
+            name="disbursement_decision_outcome_allowed",
+        ),
+        CheckConstraint(
+            "(stage='supervisor' AND outcome IN ('prevalidated','returned') AND "
+            "actor_role='AGENT_VERIFICATEUR') OR "
+            "(stage='validator' AND outcome IN ('approved','returned') AND "
+            "actor_role='VALIDATEUR_DEFINITIF')",
+            name="disbursement_decision_role_allowed",
+        ),
+        CheckConstraint(
+            "(outcome='returned' AND reason IS NOT NULL AND "
+            "length(btrim(reason)) BETWEEN 1 AND 4000) OR "
+            "(outcome<>'returned' AND reason IS NULL)",
+            name="disbursement_decision_reason",
+        ),
+        CheckConstraint(
+            "(stage='validator' AND outcome='approved' AND "
+            "prevalidation_decision_id IS NOT NULL) OR "
+            "(NOT (stage='validator' AND outcome='approved') AND "
+            "prevalidation_decision_id IS NULL)",
+            name="disbursement_prevalidation_reference",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    activity_id: Mapped[str] = mapped_column(String(36))
+    request_id: Mapped[str] = mapped_column(String(36))
+    stage: Mapped[str] = mapped_column(String(16))
+    outcome: Mapped[str] = mapped_column(String(16))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    actor_role: Mapped[str] = mapped_column(String(32))
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reason: Mapped[str | None] = mapped_column(String(4000))
+    prevalidation_decision_id: Mapped[str | None] = mapped_column(String(36))

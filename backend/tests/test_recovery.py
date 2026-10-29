@@ -209,7 +209,7 @@ def test_a3_migration_preserves_existing_auth_evidence(auth_env):
         with engine.connect() as db:
             assert (
                 db.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0010_pta3a"
+                == "0011_pta3b"
             )
             for table in (
                 "auth_user",

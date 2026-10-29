@@ -1674,6 +1674,9 @@ def open_amendment(
         item = get_activity_for_command(db, identifier)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
+        from app.planning.disbursement import assert_disbursement_unfrozen
+
+        assert_disbursement_unfrozen(db, item.id)
         if (
             item.state != "approved"
             or item.amendment_id

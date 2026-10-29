@@ -22,15 +22,17 @@ The authority/business/API disposition register is
 `docs/rebuild/01-authority-and-business-baseline.md`.
 The current implementation boundary and evidence are in
 `docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
-router. Foundation, A1–A3 and synthetic PTA planning through PTA-2B.2B transfers
-are complete. DEC-115 authorizes bounded synthetic PTA-3A Operation execution:
-explicit start, actual XOF spending, physical completion, reasoned correction
-history, four REST responsibilities, migration `0010_pta3a`, no new table and a
-French React realization workspace. PC1/PC2 remain pending; use synthetic
-identities, isolated databases and test mail only. Stop after PTA-3A. Technical
-Admin recovery, reinvitation, reverse transfer, restoration, financial requests,
-payment, reversement, formal closure, documents, notifications, later slices,
-general A4 and production remain deferred.
+router. Foundation, A1–A3 and synthetic PTA planning through PTA-3B disbursement
+authorization are complete. DEC-116 governs the bounded synthetic workflow: an
+Agent submits finalized actual spending, a Supervisor
+prevalidates and a distinct Validator approves; reasoned return/cancellation
+permits correction and fresh submission before final approval. Migration
+`0011_pta3b` adds two financial authorization tables and the French realization
+workspace exposes the five REST responsibilities. PC1/PC2 remain pending; use
+synthetic identities, isolated databases and test mail only. Stop after PTA-3B.
+Technical Admin recovery, reinvitation, reverse transfer, restoration, external
+payment or virement confirmation, reversement, formal closure, documents,
+notifications, later slices, general A4 and production remain deferred.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
 

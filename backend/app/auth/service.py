@@ -87,6 +87,8 @@ class AuthService:
                 "pta_activity_contributor",
                 "pta_activity_revision",
                 "pta_activity_revision_decision",
+                "pta_disbursement_request",
+                "pta_disbursement_decision",
             )
         }
         if relations != expected:
@@ -94,7 +96,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0010_pta3a"]:
+        if revisions != ["0011_pta3b"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -116,6 +118,16 @@ class AuthService:
             "operation_actual_spent_nonnegative",
             "operation_execution_started_before_facts",
             "operation_completion_has_amount",
+            "disbursement_request_state_allowed",
+            "disbursement_amount_positive",
+            "disbursement_snapshot_bounded",
+            "disbursement_cancellation_facts",
+            "disbursement_one_open_per_activity",
+            "disbursement_decision_stage",
+            "disbursement_decision_role_allowed",
+            "disbursement_decision_reason",
+            "disbursement_prevalidation_reference",
+            "disbursement_prevalidation_same_request",
         }
         found = set(
             db.scalars(
@@ -179,7 +191,10 @@ class AuthService:
                      'pta_validate_activity_review_state',
                      'pta_validate_activity_transfer_state',
                      'pta_preserve_activity_request',
-                     'pta_preserve_operation_execution')
+                     'pta_preserve_operation_execution',
+                     'auth_audit_immutable',
+                     'pta_preserve_disbursement',
+                     'pta_validate_disbursement_state')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -188,7 +203,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "87480f971f8c931af83d0f2d1ee6cc4938ee59c6f73f4ac8a3d86be86bc90799"
+            "3ea526420792d3057d00be796854045a1332a91afec7a2c0ee7e430b41edcb07"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -314,6 +329,48 @@ class AuthService:
         business: dict[str, object],
     ) -> None:
         business = dict(business)
+        if action.startswith("disbursement."):
+            disbursement_required = {
+                "context_id",
+                "activity_id",
+                "request_id",
+                "amount",
+                "before_state",
+                "after_state",
+            }
+            disbursement_states = {
+                None,
+                "submitted",
+                "prevalidated",
+                "returned",
+                "approved",
+                "cancelled",
+            }
+            if (
+                set(business) != disbursement_required
+                or business.get("context_id") != "MJL"
+                or business.get("request_id") != target
+                or not isinstance(business.get("activity_id"), str)
+                or not isinstance(business.get("amount"), str)
+                or not str(business["amount"]).isascii()
+                or not str(business["amount"]).isdecimal()
+                or business.get("before_state") not in disbursement_states
+                or business.get("after_state") not in disbursement_states - {None}
+            ):
+                raise ValueError("Invalid business audit facts")
+            db.add(
+                Audit(
+                    business=business,
+                    occurred_at=self.now(db),
+                    action=action,
+                    actor=actor,
+                    target=target,
+                    outcome="ok",
+                    request_id=request_id.get() or str(uuid4()),
+                )
+            )
+            db.flush()
+            return
         if action in {
             "operation.execution_started",
             "operation.execution_recorded",

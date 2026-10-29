@@ -294,6 +294,8 @@ export function makeRouter(history) {
       validateSearch: (search) => ({
         cursor: String(search.cursor || '').slice(0, 512),
         historyCursor: String(search.historyCursor || '').slice(0, 512),
+        financeCursor: String(search.financeCursor || '').slice(0, 512),
+        financeRequest: String(search.financeRequest || '').slice(0, 36),
       }),
       loader: async ({ context }) => {
         try {

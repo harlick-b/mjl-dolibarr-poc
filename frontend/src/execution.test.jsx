@@ -72,6 +72,18 @@ test('Agent starts and records an Operation without offline replay', async () =>
           }),
         ),
       )
+    if (path.endsWith('/disbursement-requests'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
     if (path.includes('/operations/') && options.method === 'PATCH') {
       const body = JSON.parse(options.body)
       current =
@@ -120,4 +132,208 @@ test('Agent starts and records an Operation without offline replay', async () =>
       }),
     ),
   )
+})
+
+test('Agent submits finalized spending for disbursement authorization', async () => {
+  const user = userEvent.setup()
+  let requests = []
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (path.endsWith('/execution/history'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    if (path.endsWith('/disbursement-requests') && options.method === 'POST') {
+      requests = [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          activity_id: 'activity-1',
+          amount: '100000',
+          state: 'submitted',
+          activity_version: 8,
+          decisions: [],
+          cancellation: null,
+          allowed_actions: ['read', 'cancel'],
+        },
+      ]
+      return Promise.resolve(new Response(JSON.stringify(requests[0])))
+    }
+    if (path.endsWith('/cancellation') && options.method === 'POST') {
+      requests[0] = {
+        ...requests[0],
+        state: 'cancelled',
+        activity_version: 9,
+        cancellation: { reason: 'Corriger les montants.' },
+        allowed_actions: ['read'],
+      }
+      return Promise.resolve(new Response(JSON.stringify(requests[0])))
+    }
+    if (path.includes('/disbursement-requests/'))
+      return Promise.resolve(new Response(JSON.stringify(requests[0])))
+    if (path.endsWith('/disbursement-requests'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: requests.length,
+            data: requests,
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(detail({ started: true, completed: true })),
+        ),
+      )
+    return Promise.resolve(new Response('{}', { status: 404 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+  await user.click(
+    await screen.findByRole('button', {
+      name: /Soumettre 100.*000 XOF/,
+    }),
+  )
+  expect(
+    (await screen.findAllByText('Soumise au Superviseur'))[0],
+  ).toBeVisible()
+  expect(
+    screen.getByText(/ne signifie pas que le paiement a été effectué/i),
+  ).toBeVisible()
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity-1/disbursement-requests',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          expected_version: 7,
+          expected_approved_revision_id: '11111111-1111-4111-8111-111111111111',
+        }),
+      }),
+    ),
+  )
+  await user.click(
+    screen.getByRole('button', {
+      name: /Soumise au Superviseur.*100.*000 XOF/,
+    }),
+  )
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity-1/disbursement-requests/33333333-3333-4333-8333-333333333333',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    ),
+  )
+  await user.type(
+    screen.getByLabelText('Motif obligatoire'),
+    'Corriger les montants.',
+  )
+  await user.click(screen.getByRole('button', { name: 'Annuler la demande' }))
+  expect(
+    await screen.findByRole('button', { name: /Soumettre 100.*000 XOF/ }),
+  ).toBeVisible()
+})
+
+test('offline invalidation aborts and clears a pending financial mutation', async () => {
+  const user = userEvent.setup()
+  let mutationSignal
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (path.endsWith('/execution/history'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    if (path.endsWith('/disbursement-requests') && options.method === 'POST') {
+      mutationSignal = options.signal
+      return new Promise((_resolve, reject) =>
+        options.signal.addEventListener('abort', () =>
+          reject(new DOMException('Aborted', 'AbortError')),
+        ),
+      )
+    }
+    if (path.endsWith('/disbursement-requests'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(detail({ started: true, completed: true })),
+        ),
+      )
+    return Promise.resolve(new Response('{}', { status: 404 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  const router = makeRouter(
+    createMemoryHistory({
+      initialEntries: ['/execution/activities/activity-1'],
+    }),
+  )
+  render(<App router={router} />)
+  await user.click(
+    await screen.findByRole('button', { name: /Soumettre 100.*000 XOF/ }),
+  )
+  await waitFor(() => expect(mutationSignal).toBeDefined())
+  window.dispatchEvent(new Event('offline'))
+  expect(await screen.findByText(/Reconnectez-vous/)).toBeVisible()
+  expect(mutationSignal.aborted).toBe(true)
+  expect(
+    router.options.context.queryClient.getMutationCache().getAll(),
+  ).toEqual([])
 })

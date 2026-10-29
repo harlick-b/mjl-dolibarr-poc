@@ -81,6 +81,16 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
           previous: null,
         },
       })
+    if (path.endsWith('/disbursement-requests'))
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        },
+      })
     if (path.includes('/operations/') && request.method() === 'PATCH') {
       mutationCount += 1
       const body = request.postDataJSON()
@@ -171,6 +181,16 @@ test('reviewer sees pause, resume and paginated history without mutation control
         },
       })
     }
+    if (url.pathname.endsWith('/disbursement-requests'))
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        },
+      })
     if (url.pathname.endsWith('/activities/activity-1/execution'))
       return route.fulfill({
         json: {
@@ -230,4 +250,223 @@ test('reviewer sees pause, resume and paginated history without mutation control
   await expect(
     page.getByRole('heading', { name: 'Vérification de l’accès' }),
   ).toBeVisible()
+})
+
+test('PTA-3B Agent submission and two-stage financial authorization', async ({
+  page,
+}) => {
+  let role = 'AGENT_SAISIE'
+  let version = 7
+  let request = null
+  let requestNumber = 0
+  const actions = () => {
+    if (!request) return []
+    if (
+      role === 'AGENT_SAISIE' &&
+      !['approved', 'cancelled'].includes(request.state)
+    )
+      return ['read', 'cancel']
+    if (role === 'AGENT_VERIFICATEUR' && request.state === 'submitted')
+      return ['read', 'prevalidate', 'return']
+    if (role === 'VALIDATEUR_DEFINITIF' && request.state === 'prevalidated')
+      return ['read', 'approve', 'return']
+    return ['read']
+  }
+  const financial = () =>
+    request
+      ? { ...request, activity_version: version, allowed_actions: actions() }
+      : null
+  await page.route('**/api/v1/**', async (route) => {
+    const incoming = route.request()
+    const path = new URL(incoming.url()).pathname
+    if (path === '/api/v1/auth/session')
+      return route.fulfill({
+        json: {
+          state: 'verified',
+          csrf: 'csrf',
+          user: { id: role, role },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        },
+      })
+    if (path.endsWith('/execution/history'))
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        },
+      })
+    if (
+      path.endsWith('/disbursement-requests') &&
+      incoming.method() === 'POST'
+    ) {
+      version += 1
+      requestNumber += 1
+      request = {
+        id: `33333333-3333-4333-8333-${String(requestNumber).padStart(12, '3')}`,
+        activity_id: 'activity-1',
+        amount: '100000',
+        state: 'submitted',
+        submitted_at: '2026-10-28T11:00:00Z',
+        decisions: [],
+        cancellation: null,
+      }
+      return route.fulfill({ status: 201, json: financial() })
+    }
+    if (path.endsWith('/decisions') && incoming.method() === 'POST') {
+      const body = incoming.postDataJSON()
+      version += 1
+      if (body.decision === 'prevalidate') {
+        request.state = 'prevalidated'
+        request.decisions.push({
+          id: 'decision-supervisor',
+          stage: 'supervisor',
+          outcome: 'prevalidated',
+          reason: null,
+        })
+      } else if (body.decision === 'approve') {
+        request.state = 'approved'
+        request.decisions.push({
+          id: 'decision-validator',
+          stage: 'validator',
+          outcome: 'approved',
+          reason: null,
+        })
+      } else {
+        request.state = 'returned'
+        request.decisions.push({
+          id: `decision-return-${requestNumber}`,
+          stage: role === 'AGENT_VERIFICATEUR' ? 'supervisor' : 'validator',
+          outcome: 'returned',
+          reason: body.reason,
+        })
+      }
+      return route.fulfill({ status: 201, json: financial() })
+    }
+    if (path.endsWith('/cancellation') && incoming.method() === 'POST') {
+      const body = incoming.postDataJSON()
+      version += 1
+      request.state = 'cancelled'
+      request.cancellation = { reason: body.reason }
+      return route.fulfill({ status: 201, json: financial() })
+    }
+    if (
+      path.endsWith('/disbursement-requests') &&
+      new URL(incoming.url()).searchParams.get('cursor') === 'older'
+    )
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: 2,
+          data: [
+            {
+              ...financial(),
+              id: 'request-cancelled-history',
+              state: 'cancelled',
+              cancellation: { reason: 'Correction historique.' },
+              decisions: [],
+              allowed_actions: ['read'],
+            },
+          ],
+          next: null,
+          previous:
+            'http://localhost:5173/api/v1/activities/activity-1/disbursement-requests?cursor=newer',
+        },
+      })
+    if (path.endsWith('/disbursement-requests'))
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: request ? 2 : 0,
+          data: request ? [financial()] : [],
+          next: request
+            ? 'http://localhost:5173/api/v1/activities/activity-1/disbursement-requests?cursor=older'
+            : null,
+          previous: null,
+        },
+      })
+    if (path.endsWith('/activities/activity-1/execution'))
+      return route.fulfill({
+        json: {
+          id: 'activity-1',
+          pta_id: 'pta-1',
+          project_id: 'project-1',
+          reference: 'ACT-000001',
+          name: 'Former les équipes',
+          planned_start: '2026-10-28',
+          planned_end: '2026-12-31',
+          approved_allocation: '100000',
+          approved_revision_id: '11111111-1111-4111-8111-111111111111',
+          version,
+          execution_paused: false,
+          pause_reason: null,
+          mutation_unavailable_reason:
+            role === 'AGENT_SAISIE' ? null : 'reviewer_read_only',
+          completed_operations: 1,
+          operation_count: 1,
+          works_completed: true,
+          spending_total: '100000',
+          allowed_actions: ['read'],
+          operations: [
+            {
+              id: 'operation-1',
+              type_id: 'type-1',
+              type_label: 'Formation',
+              name: 'Préparer la session',
+              approved_allocation: '100000',
+              position: 1,
+              execution_started_at: '2026-10-28T09:00:00Z',
+              execution_completed: true,
+              actual_spent: '100000',
+              execution_observation: 'Travaux terminés.',
+              variance: '0',
+              allowed_actions:
+                role === 'AGENT_SAISIE' && !request ? ['record'] : [],
+            },
+          ],
+        },
+      })
+    return route.fulfill({ status: 404, json: {} })
+  })
+
+  await page.goto('/execution/activities/activity-1')
+  await page.getByRole('button', { name: /Soumettre.*100.*000 XOF/ }).click()
+  await expect(page.getByText('Soumise au Superviseur').first()).toBeVisible()
+
+  role = 'AGENT_VERIFICATEUR'
+  await page.reload()
+  await page.getByLabel('Motif obligatoire').fill('Préciser la dépense.')
+  await page.getByRole('button', { name: 'Retourner' }).click()
+  await expect(
+    page.getByText('Retournée pour correction').first(),
+  ).toBeVisible()
+
+  role = 'AGENT_SAISIE'
+  await page.reload()
+  await page.getByLabel('Motif obligatoire').fill('Correction de la saisie.')
+  await page.getByRole('button', { name: 'Annuler la demande' }).click()
+  await expect(page.getByText('Annulée').first()).toBeVisible()
+  await page.getByRole('button', { name: /Soumettre.*100.*000 XOF/ }).click()
+  await expect(page.getByText('Soumise au Superviseur').first()).toBeVisible()
+
+  role = 'AGENT_VERIFICATEUR'
+  await page.reload()
+  await page.getByRole('button', { name: 'Prévalider' }).click()
+  await expect(page.getByText(/attente du Validateur/).first()).toBeVisible()
+
+  role = 'VALIDATEUR_DEFINITIF'
+  await page.reload()
+  await page.getByRole('button', { name: 'Autoriser' }).click()
+  await expect(page.getByText('Autorisée').first()).toBeVisible()
+  await expect(page.getByText(/paiement a été effectué/)).toBeVisible()
+  await page.getByText('Historique des demandes (2)').click()
+  await page
+    .getByRole('navigation', { name: 'Pagination financière' })
+    .getByRole('button', { name: 'Suivant' })
+    .click()
+  await expect(page).toHaveURL(/financeCursor=older/)
+  await page.getByText('Historique des demandes (2)').click()
+  await expect(page.getByText('Annulée').first()).toBeVisible()
 })

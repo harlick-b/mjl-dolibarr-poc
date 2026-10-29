@@ -366,3 +366,7 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
 - A cursor-paginated audit API is incomplete unless its screen exposes independent
   Router-owned pagination. Do not reuse a list cursor for detail history, and cover
   navigation to an older page in the browser journey.
+- When a final workflow state depends on child decision rows, row checks and
+  immutability triggers do not prove the decision chain. Validate the aggregate at
+  deferred transaction commit and test malformed direct writes, including review
+  order, distinct actors and returned/cancelled histories.

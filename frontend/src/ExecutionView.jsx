@@ -8,7 +8,13 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { CheckCircle2, CircleDollarSign, Play } from 'lucide-react'
+import {
+  CheckCircle2,
+  CircleDollarSign,
+  Play,
+  ShieldCheck,
+  XCircle,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { sessionKey, sessionQuery } from './auth'
 import { Button } from './components/ui/button'
@@ -43,6 +49,7 @@ export function ExecutionView({ screen }) {
     setBlocked(true)
     void client.cancelQueries({ queryKey: ['execution'] })
     client.removeQueries({ queryKey: ['execution'] })
+    client.getMutationCache().clear()
     client.removeQueries({ queryKey: sessionKey, exact: true })
   }, [client])
   useEffect(() => {
@@ -127,6 +134,32 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     ),
     enabled: screen === 'detail' && Boolean(params.activityId),
   })
+  const finance = useQuery({
+    ...executionQuery(
+      api,
+      session.user.id,
+      ['finance', params.activityId, search.financeCursor],
+      cursorPath(
+        `/activities/${params.activityId}/disbursement-requests`,
+        search.financeCursor,
+      ),
+      onDenied,
+    ),
+    enabled: screen === 'detail' && Boolean(params.activityId),
+  })
+  const selectedFinance = useQuery({
+    ...executionQuery(
+      api,
+      session.user.id,
+      ['finance-detail', params.activityId, search.financeRequest],
+      `/activities/${params.activityId}/disbursement-requests/${search.financeRequest}`,
+      onDenied,
+    ),
+    enabled:
+      screen === 'detail' &&
+      Boolean(params.activityId) &&
+      Boolean(search.financeRequest),
+  })
   const list = useQuery({
     ...executionQuery(
       api,
@@ -205,7 +238,66 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       setError(problem.message)
     },
   })
-  const relevant = screen === 'list' ? [list] : [detail, history]
+  const financeMutation = useMutation({
+    retry: false,
+    networkMode: 'always',
+    meta: { localError: true },
+    mutationFn: async ({ path, body }) => {
+      const activeGeneration = generation.current
+      const requestController = new AbortController()
+      controller.current = requestController
+      const result = await api.request(
+        `/api/v1/activities/${params.activityId}${path}`,
+        {
+          method: 'POST',
+          body,
+          csrf: session.csrf,
+          signal: requestController.signal,
+        },
+      )
+      if (activeGeneration !== generation.current)
+        throw new DOMException('Stale authorization', 'AbortError')
+      return result
+    },
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: ['execution', session.user.id],
+        }),
+        client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
+      ])
+      if (variables.path.endsWith('/cancellation'))
+        await navigate({
+          search: (current) => ({ ...current, financeRequest: '' }),
+        })
+      setError('')
+      toast.success('Autorisation de décaissement mise à jour.')
+    },
+    onError: async (problem) => {
+      if (problem.name === 'AbortError') return
+      if (problem.status === 401 || problem.status === 403) onDenied()
+      if (
+        problem.status === 409 ||
+        ['network', 'malformed'].includes(problem.kind)
+      )
+        await Promise.all([
+          client.invalidateQueries({
+            queryKey: ['execution', session.user.id],
+          }),
+          client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
+        ])
+      setError(problem.message)
+    },
+  })
+  const relevant =
+    screen === 'list'
+      ? [list]
+      : [
+          detail,
+          history,
+          finance,
+          ...(search.financeRequest ? [selectedFinance] : []),
+        ]
   if (relevant.some((query) => query.isError))
     return <p role="alert">Les données de réalisation sont indisponibles.</p>
   if (relevant.some((query) => query.isPending))
@@ -228,15 +320,40 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     <ExecutionDetail
       detail={detail.data}
       history={history.data}
+      finance={finance.data}
+      selectedFinance={selectedFinance.data}
+      role={session.user.role}
+      financeHistoryPage={Boolean(search.financeCursor)}
       error={error}
-      pending={mutation.isPending || detail.isFetching || history.isFetching}
+      pending={
+        mutation.isPending ||
+        financeMutation.isPending ||
+        detail.isFetching ||
+        history.isFetching ||
+        finance.isFetching ||
+        selectedFinance.isFetching
+      }
       mutate={(operationId, body) => mutation.mutate({ operationId, body })}
+      mutateFinance={(path, body) => financeMutation.mutate({ path, body })}
       onHistoryPage={(link) =>
         navigate({
           search: (current) => ({
             ...current,
             historyCursor: new URL(link).searchParams.get('cursor') || '',
           }),
+        })
+      }
+      onFinancePage={(link) =>
+        navigate({
+          search: (current) => ({
+            ...current,
+            financeCursor: new URL(link).searchParams.get('cursor') || '',
+          }),
+        })
+      }
+      onFinanceSelect={(requestId) =>
+        navigate({
+          search: (current) => ({ ...current, financeRequest: requestId }),
         })
       }
     />
@@ -314,10 +431,17 @@ function ExecutionList({ result, onPage }) {
 function ExecutionDetail({
   detail,
   history,
+  finance,
+  selectedFinance,
+  role,
+  financeHistoryPage,
   error,
   pending,
   mutate,
+  mutateFinance,
   onHistoryPage,
+  onFinancePage,
+  onFinanceSelect,
 }) {
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
@@ -328,6 +452,7 @@ function ExecutionDetail({
     activity_not_approved: 'l’Activité n’est pas approuvée',
     reviewer_read_only: 'votre rôle permet uniquement la consultation',
     before_planned_start: 'la date de début planifiée n’est pas atteinte',
+    disbursement_frozen: 'une autorisation de décaissement est en cours',
   }
   const historyLabels = {
     'operation.execution_started': 'Opération démarrée',
@@ -398,6 +523,17 @@ function ExecutionDetail({
           />
         ))}
       </div>
+      <DisbursementSection
+        detail={detail}
+        result={finance}
+        selected={selectedFinance}
+        role={role}
+        historicalPage={financeHistoryPage}
+        pending={pending}
+        mutate={mutateFinance}
+        onPage={onFinancePage}
+        onSelect={onFinanceSelect}
+      />
       <section
         className="planning-card"
         aria-labelledby="execution-history-title"
@@ -438,6 +574,226 @@ function ExecutionDetail({
           </nav>
         )}
       </section>
+    </section>
+  )
+}
+
+function DisbursementSection({
+  detail,
+  result,
+  selected,
+  role,
+  historicalPage,
+  pending,
+  mutate,
+  onPage,
+  onSelect,
+}) {
+  const requests = result?.data || []
+  const active = requests.find((request) => request.state !== 'cancelled')
+  const current = selected || active
+  const stateLabels = {
+    submitted: 'Soumise au Superviseur',
+    prevalidated: 'Prévalidée, en attente du Validateur',
+    returned: 'Retournée pour correction',
+    approved: 'Autorisée',
+    cancelled: 'Annulée',
+  }
+  const canSubmit =
+    role === 'AGENT_SAISIE' &&
+    !historicalPage &&
+    !active &&
+    !selected &&
+    detail.works_completed &&
+    Number(detail.spending_total) > 0
+  const version = current?.activity_version || detail.version
+  return (
+    <section className="planning-card" aria-labelledby="disbursement-title">
+      <div className="planning-title">
+        <div>
+          <p className="eyebrow">Suivi administratif</p>
+          <h2 id="disbursement-title">Autorisation de décaissement</h2>
+        </div>
+        {current && <strong>{stateLabels[current.state]}</strong>}
+      </div>
+      <p>
+        Cette étape autorise administrativement le montant final. Elle ne
+        signifie pas que le paiement a été effectué.
+      </p>
+      {current ? (
+        <>
+          <p className="review-progress">
+            Montant soumis : <strong>{formatXof(current.amount)}</strong>. Les
+            {current.state === 'cancelled'
+              ? ' dépenses et les modifications ont été libérées à l’annulation de cette demande.'
+              : ' dépenses et les modifications de planification restent figées '}
+            {current.state === 'approved'
+              ? 'définitivement pour cette première version.'
+              : current.state === 'cancelled'
+                ? ''
+                : 'tant que cette demande n’est pas annulée.'}
+          </p>
+          {selected && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onSelect('')}
+            >
+              Fermer le détail
+            </Button>
+          )}
+          <ol className="review-timeline">
+            {current.decisions.map((decision) => (
+              <li key={decision.id}>
+                <strong>
+                  {decision.stage === 'supervisor'
+                    ? 'Superviseur'
+                    : 'Validateur'}{' '}
+                  · {stateLabels[decision.outcome] || decision.outcome}
+                </strong>
+                {decision.reason && <p>{decision.reason}</p>}
+              </li>
+            ))}
+          </ol>
+          <div className="planning-actions">
+            {current.allowed_actions.includes('prevalidate') && (
+              <Button
+                disabled={pending || !navigator.onLine}
+                onClick={() =>
+                  mutate(`/disbursement-requests/${current.id}/decisions`, {
+                    expected_version: version,
+                    decision: 'prevalidate',
+                  })
+                }
+              >
+                <ShieldCheck size={16} /> Prévalider
+              </Button>
+            )}
+            {current.allowed_actions.includes('approve') && (
+              <Button
+                disabled={pending || !navigator.onLine}
+                onClick={() =>
+                  mutate(`/disbursement-requests/${current.id}/decisions`, {
+                    expected_version: version,
+                    decision: 'approve',
+                  })
+                }
+              >
+                <ShieldCheck size={16} /> Autoriser
+              </Button>
+            )}
+          </div>
+          {(current.allowed_actions.includes('return') ||
+            current.allowed_actions.includes('cancel')) && (
+            <form
+              className="planning-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                const data = new FormData(event.currentTarget)
+                const reason = String(data.get('reason') || '')
+                const cancellation =
+                  event.nativeEvent.submitter?.value === 'cancel'
+                mutate(
+                  `/disbursement-requests/${current.id}/${
+                    cancellation ? 'cancellation' : 'decisions'
+                  }`,
+                  cancellation
+                    ? { expected_version: version, reason }
+                    : {
+                        expected_version: version,
+                        decision: 'return',
+                        reason,
+                      },
+                )
+              }}
+            >
+              <label>
+                Motif obligatoire
+                <textarea name="reason" required maxLength="4000" />
+              </label>
+              <div className="planning-actions">
+                {current.allowed_actions.includes('return') && (
+                  <Button
+                    type="submit"
+                    value="return"
+                    variant="outline"
+                    disabled={pending || !navigator.onLine}
+                  >
+                    Retourner
+                  </Button>
+                )}
+                {current.allowed_actions.includes('cancel') && (
+                  <Button
+                    type="submit"
+                    value="cancel"
+                    variant="outline"
+                    disabled={pending || !navigator.onLine}
+                  >
+                    <XCircle size={16} /> Annuler la demande
+                  </Button>
+                )}
+              </div>
+            </form>
+          )}
+        </>
+      ) : role === 'AGENT_SAISIE' && !historicalPage ? (
+        <Button
+          disabled={!canSubmit || pending || !navigator.onLine}
+          onClick={() =>
+            mutate('/disbursement-requests', {
+              expected_version: detail.version,
+              expected_approved_revision_id: detail.approved_revision_id,
+            })
+          }
+        >
+          <CircleDollarSign size={16} /> Soumettre{' '}
+          {formatXof(detail.spending_total)}
+        </Button>
+      ) : (
+        <p>Consultez l’état et l’historique de l’autorisation.</p>
+      )}
+      {requests.length > 0 && (
+        <details>
+          <summary>Historique des demandes ({result.count})</summary>
+          <ol className="review-timeline">
+            {requests.map((request) => (
+              <li key={request.id}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onSelect(request.id)}
+                >
+                  {stateLabels[request.state]} · {formatXof(request.amount)}
+                </Button>
+                {request.cancellation?.reason && (
+                  <p>{request.cancellation.reason}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+          {(result.previous || result.next) && (
+            <nav
+              className="planning-actions"
+              aria-label="Pagination financière"
+            >
+              <Button
+                variant="outline"
+                disabled={!result.previous}
+                onClick={() => onPage(result.previous)}
+              >
+                Précédent
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!result.next}
+                onClick={() => onPage(result.next)}
+              >
+                Suivant
+              </Button>
+            </nav>
+          )}
+        </details>
+      )}
     </section>
   )
 }

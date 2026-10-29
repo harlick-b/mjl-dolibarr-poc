@@ -26,6 +26,37 @@ in `AGENTS.md`, updated at the user's request on 2026-10-28. No external detaile
 execution prompt is required after a concrete slice is authorized. This process
 review does not authorize any additional runtime slice or relax security gates.
 
+## PTA-3B disbursement authorization and completion (DEC-116)
+
+The user explicitly authorized the bounded synthetic PTA-3B implementation from
+the implementation contract supplied on 2026-10-28. Once every approved
+Operation is physically complete and has a final actual XOF amount, an Agent may
+submit the server-calculated Activity total. One eligible Supervisor may
+prevalidate it and one distinct eligible Validator may grant the final
+administrative authorization. Contributors, execution authors and the submitter
+cannot review their own work.
+
+A returned request remains frozen until an Agent cancels it with a reason. A
+reasoned cancellation before final approval releases execution and planning for
+correction and permits a fresh request. An approved request is permanent in this
+bounded version. The workflow records authorization only; it does not claim that
+funds were paid or moved. Zero-total and insufficient-budget settlement,
+external payment/virement confirmation, reversement and formal Activity closure
+remain deferred.
+
+Migration `0011_pta3b` adds the request and immutable decision tables. Five REST
+responsibilities and the French realization workspace provide submission,
+paginated history/detail, review and cancellation. The implementation verifies
+the complete immutable execution/audit chain, rejects historical overspending,
+uses Activity version conflicts and advisory-lock ordering, freezes adjacent
+mutations, and records state changes with their audit in one transaction.
+
+PTA-3B completed its disposable PostgreSQL, combined backend, frontend
+quality/build, real-Chrome and independent correction/re-review gates on
+2026-10-29. [Status 18](rebuild/18-pta3b-implementation-status.md) records the
+evidence. This synthetic completion authorizes no later slice. PC1/PC2, real
+accounts and production remain prohibited.
+
 ## PTA-3A Operation execution authorization (DEC-115)
 
 The user explicitly authorized the bounded synthetic PTA-3A implementation from

@@ -12,7 +12,23 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-3A current boundary (DEC-115)
+## PTA-3B current boundary (DEC-116)
+
+**PTA_3B_COMPLETE** on 2026-10-29.
+It adds an administrative request for the
+finalized actual spending of a completed Activity, followed by Supervisor
+prevalidation and distinct Validator approval. Return or reasoned cancellation
+before final approval permits correction and a fresh request; final approval
+permanently freezes the execution facts in this bounded version. Completion
+evidence is recorded in
+[status 18](rebuild/18-pta3b-implementation-status.md).
+
+This authorizes no payment or movement of funds. External payment/virement
+confirmation, reversement, formal Activity closure and every later slice remain
+unimplemented and require separate business decisions and authorization.
+PC1/PC2, real accounts and production remain excluded.
+
+## PTA-3A completed boundary (DEC-115)
 
 **PTA_3A_COMPLETE** on 2026-10-28. It adds Operation start, actual spending,
 physical completion, reasoned correction history and the React realization
@@ -24,9 +40,8 @@ suite, combined backend regression, frontend quality/build and browser journeys,
 and independent correction/re-review gates passed. PC1/PC2, real accounts and
 production remain excluded.
 
-The next business slice is not authorized. It may begin the first financial
-request only after its correction-freeze rule, review responsibilities and
-settlement behavior are decided.
+The later PTA-3B authorization superseded the former “next slice” wording. PTA-3A
+remains the execution basis for that financial authorization.
 
 ## PTA-2B.2 completed boundary (DEC-112–114)
 

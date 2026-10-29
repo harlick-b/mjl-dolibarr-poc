@@ -17,6 +17,7 @@ from app.planning.models import (
     Activity,
     ActivityRevision,
     AnnualPTA,
+    DisbursementRequest,
     Operation,
     Project,
 )
@@ -253,6 +254,14 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
     revision, operations = approved_operations(db, item)
     project = db.get(Project, item.request_project_id)
     reason = pause_reason(item, project)
+    financial = db.scalar(
+        select(DisbursementRequest).where(
+            DisbursementRequest.activity_id == item.id,
+            DisbursementRequest.state != "cancelled",
+        )
+    )
+    if reason is None and financial is not None:
+        reason = "disbursement_frozen"
     today = db.scalar(
         select(text("(clock_timestamp() AT TIME ZONE 'Africa/Porto-Novo')::date"))
     )
@@ -455,6 +464,9 @@ def change_execution(
             raise AuthError(409, "activity_stale")
         if item.approved_revision_id != body.expected_approved_revision_id:
             raise AuthError(409, "approved_revision_stale")
+        from app.planning.disbursement import assert_disbursement_unfrozen
+
+        assert_disbursement_unfrozen(db, item.id)
         project = db.get(Project, item.request_project_id, with_for_update=True)
         reason = pause_reason(item, project)
         if reason:
