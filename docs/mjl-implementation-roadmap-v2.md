@@ -12,6 +12,21 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-3E planned boundary (DEC-119)
+
+The business contract is ready for implementation authorization. PTA-3E derives
+the unused approved allocation after the external virement confirmation. A
+positive amount requires one Agent declaration that the exact amount was returned
+outside MJL; the date is required, a reference/comment is optional, and reasoned
+date/note corrections preserve history before closure. A zero required amount
+needs no declaration. There is no additional reviewer approval, bank execution or
+reuse of leftover funds.
+
+[Plan 21](rebuild/21-pta3e-reversement-implementation-plan.md) defines the
+smallest implementation and verification boundary. Runtime implementation is not
+yet authorized. Partial/different amounts, discrepancies, insufficiency, formal
+Activity closure and later slices remain deferred.
+
 ## PTA-3D current boundary (DEC-118)
 
 PTA-3D implements an Agent declaration that the exact PTA-3C-approved amount was

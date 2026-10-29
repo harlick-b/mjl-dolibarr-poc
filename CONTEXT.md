@@ -151,7 +151,10 @@ _Avoid_: Independent bank verification by MJL
 
 **Reversement**:
 External return to the Partner of unused authorized budget. The required amount
-is distinct from the amount actually declared returned.
+is distinct from the amount actually declared returned. In the bounded first
+version, a positive requirement is declared once for its exact full amount; the
+date is required, a reference/comment is optional, and reasoned date/note
+corrections retain history before closure. A zero requirement needs no declaration.
 _Avoid_: Reallocation to another Activity, in-app payment, inferred completion
 
 **Clôture de l'Activité**:

@@ -26,6 +26,24 @@ in `AGENTS.md`, updated at the user's request on 2026-10-28. No external detaile
 execution prompt is required after a concrete slice is authorized. This process
 review does not authorize any additional runtime slice or relax security gates.
 
+## PTA-3E reversement decision closure (DEC-119)
+
+The user approved the bounded first reversement rules on 2026-10-29. After the
+external virement confirmation, MJL derives the unused amount as
+`max(0, approved Activity allocation - final spending)`. When positive, an Agent
+records one external return for exactly that server-owned amount, with a required
+effective date and an optional reference/comment. No Supervisor or Validator
+approval is added, and MJL neither executes nor independently verifies the return.
+
+Partial or different returned amounts remain blocked for a later discrepancy
+workflow. Before Activity closure, an Agent may append a reasoned correction to
+the date or note while preserving prior declarations. A derived amount of
+`0 F CFA` means that nothing is owed and requires no artificial declaration.
+Unused funds are never reassigned to another Activity. These approvals make the
+PTA-3E implementation contract concrete; they do not authorize runtime changes.
+Formal Activity closure, insufficiency and discrepancy handling, documents,
+banking integration, real accounts and production remain separate work.
+
 ## PTA-3D external virement confirmation (DEC-118)
 
 The user explicitly authorized the bounded synthetic PTA-3D implementation on
