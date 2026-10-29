@@ -20,6 +20,7 @@ from app.planning.models import (
     DisbursementRequest,
     Operation,
     Project,
+    VirementConfirmation,
     VirementRequest,
 )
 from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
@@ -128,6 +129,7 @@ class VirementContextOutput(Input):
     current_state: str | None
     can_submit: bool
     unavailable_reason: str | None
+    confirmation_revision: int | None
 
 
 class ExecutionDetailOutput(Input):
@@ -284,6 +286,16 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
             VirementRequest.state != "cancelled",
         )
     )
+    current_confirmation = (
+        db.scalar(
+            select(VirementConfirmation)
+            .where(VirementConfirmation.request_id == current_virement.id)
+            .order_by(VirementConfirmation.revision.desc())
+            .limit(1)
+        )
+        if current_virement
+        else None
+    )
     if reason is None and financial is not None:
         reason = "disbursement_frozen"
     today = db.scalar(
@@ -378,6 +390,9 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
                 if role != "AGENT_SAISIE"
                 else None
             ),
+            "confirmation_revision": current_confirmation.revision
+            if current_confirmation
+            else None,
         },
         "allowed_actions": ["read"],
     }

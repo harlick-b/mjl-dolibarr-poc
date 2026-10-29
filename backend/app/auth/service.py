@@ -91,6 +91,7 @@ class AuthService:
                 "pta_disbursement_decision",
                 "pta_virement_request",
                 "pta_virement_decision",
+                "pta_virement_confirmation",
             )
         }
         if relations != expected:
@@ -98,7 +99,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0012_pta3c"]:
+        if revisions != ["0013_pta3d"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -139,6 +140,10 @@ class AuthService:
             "virement_decision_reason",
             "virement_prevalidation_reference",
             "virement_prevalidation_same_request",
+            "virement_confirmation_revision",
+            "virement_confirmation_revision_positive",
+            "virement_confirmation_amount_positive",
+            "virement_confirmation_correction_reason",
         }
         found = set(
             db.scalars(
@@ -207,7 +212,8 @@ class AuthService:
                      'pta_preserve_disbursement',
                      'pta_validate_disbursement_state',
                      'pta_preserve_virement',
-                     'pta_validate_virement_state')
+                     'pta_validate_virement_state',
+                     'pta_preserve_virement_confirmation')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -216,7 +222,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "5053fdd33271f8626eb2f540a570c1f9e6961c3ffc1c4cd413db53f71b653727"
+            "a97eb2a27a98da29587ea746536c0cc1dbcebfc6830efd2564ff5ca9162f63fa"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -342,6 +348,52 @@ class AuthService:
         business: dict[str, object],
     ) -> None:
         business = dict(business)
+        if action.startswith("virement_confirmation."):
+            confirmation_required = {
+                "context_id",
+                "activity_id",
+                "request_id",
+                "confirmation_id",
+                "revision",
+                "amount",
+                "before",
+                "after",
+                "reason",
+            }
+            if (
+                set(business) != confirmation_required
+                or business.get("context_id") != "MJL"
+                or business.get("confirmation_id") != target
+                or not isinstance(business.get("activity_id"), str)
+                or not isinstance(business.get("request_id"), str)
+                or not isinstance(business.get("revision"), int)
+                or not isinstance(business.get("amount"), str)
+                or not str(business["amount"]).isascii()
+                or not str(business["amount"]).isdecimal()
+                or not isinstance(business.get("after"), dict)
+                or not (
+                    business.get("before") is None
+                    or isinstance(business.get("before"), dict)
+                )
+                or not (
+                    business.get("reason") is None
+                    or isinstance(business.get("reason"), str)
+                )
+            ):
+                raise ValueError("Invalid business audit facts")
+            db.add(
+                Audit(
+                    business=business,
+                    occurred_at=self.now(db),
+                    action=action,
+                    actor=actor,
+                    target=target,
+                    outcome="ok",
+                    request_id=request_id.get() or str(uuid4()),
+                )
+            )
+            db.flush()
+            return
         if action.startswith("virement."):
             virement_required = {
                 "context_id",

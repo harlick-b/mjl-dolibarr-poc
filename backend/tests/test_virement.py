@@ -23,7 +23,12 @@ from test_planning import (
 
 from app.auth.models import Audit, User
 from app.auth.service import AuthError
-from app.planning.models import Activity, ActivityContributor, VirementRequest
+from app.planning.models import (
+    Activity,
+    ActivityContributor,
+    VirementConfirmation,
+    VirementRequest,
+)
 
 
 def approved_disbursement(clients, *, amounts=(100_000, 200_000), allocations=None):
@@ -62,8 +67,10 @@ def virement_collection(activity):
     return f"/api/v1/activities/{activity['id']}/virement-requests"
 
 
-def submit_virement(clients):
-    activity, source = approved_disbursement(clients)
+def submit_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
+    activity, source = approved_disbursement(
+        clients, amounts=amounts, allocations=allocations
+    )
     response = post(
         clients["agent"],
         virement_collection(activity),
@@ -74,6 +81,445 @@ def submit_virement(clients):
     )
     assert response.status_code == 201, response.text
     return activity, source, response.json()
+
+
+def approved_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
+    activity, source, request = submit_virement(
+        clients, amounts=amounts, allocations=allocations
+    )
+    prevalidated = post(
+        clients["supervisor"],
+        f"{virement_collection(activity)}/{request['id']}/decisions",
+        {
+            "expected_version": request["activity_version"],
+            "decision": "prevalidate",
+        },
+    )
+    assert prevalidated.status_code == 201, prevalidated.text
+    approved = post(
+        clients["validator"],
+        f"{virement_collection(activity)}/{request['id']}/decisions",
+        {
+            "expected_version": prevalidated.json()["activity_version"],
+            "decision": "approve",
+        },
+    )
+    assert approved.status_code == 201, approved.text
+    return activity, source, approved.json()
+
+
+def test_agent_declares_exact_external_transfer_and_corrects_with_history(planning):
+    activity, _source, request = approved_virement(planning)
+    path = f"{virement_collection(activity)}/{request['id']}/confirmation"
+    declared = post(
+        planning["agent"],
+        path,
+        {
+            "expected_version": request["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": "Référence banque TEST-001",
+        },
+    )
+    assert declared.status_code == 201, declared.text
+    assert declared.json()["amount"] == "300000"
+    assert declared.json()["revision"] == 1
+    assert declared.json()["transfer_date"] == "2026-10-28"
+    assert declared.json()["correction_reason"] is None
+
+    corrected = post(
+        planning["agent2"],
+        path + "/corrections",
+        {
+            "expected_version": declared.json()["activity_version"],
+            "transfer_date": "2026-10-27",
+            "note": "Référence banque TEST-002",
+            "reason": "Correction de la date et de la référence.",
+        },
+    )
+    assert corrected.status_code == 201, corrected.text
+    assert corrected.json()["revision"] == 2
+    assert corrected.json()["amount"] == "300000"
+
+    history = planning["supervisor"].get(path + "/history")
+    assert history.status_code == 200, history.text
+    assert history.json()["count"] == 2
+    assert [row["revision"] for row in history.json()["data"]] == [2, 1]
+    assert history.json()["data"][1]["note"] == "Référence banque TEST-001"
+
+
+def test_confirmation_fails_closed_for_role_date_amount_and_noop(planning):
+    activity, _source, request = approved_virement(planning)
+    path = f"{virement_collection(activity)}/{request['id']}/confirmation"
+    body = {
+        "expected_version": request["activity_version"],
+        "transfer_date": "2026-10-28",
+        "note": "TEST-001",
+    }
+    assert post(planning["supervisor"], path, body).status_code == 403
+    assert planning["agent"].post(path, json=body).status_code in {401, 403}
+    assert post(planning["agent"], path, {**body, "amount": "1"}).status_code == 422
+    assert (
+        post(
+            planning["agent"],
+            path,
+            {**body, "transfer_date": "2999-01-01"},
+        ).status_code
+        == 422
+    )
+    declared = post(planning["agent"], path, body)
+    assert declared.status_code == 201, declared.text
+    assert post(planning["agent2"], path, body).status_code == 409
+    correction = {
+        **body,
+        "expected_version": declared.json()["activity_version"],
+        "reason": "Tentative sans changement.",
+    }
+    unchanged = post(planning["agent2"], path + "/corrections", correction)
+    assert unchanged.status_code == 409
+    assert unchanged.json()["code"] == "confirmation_unchanged"
+    assert post(planning["agent2"], path + "/corrections", body).status_code == 422
+
+
+def test_confirmation_serializes_and_database_history_is_immutable(planning):
+    activity, _source, request = approved_virement(planning)
+    path = f"{virement_collection(activity)}/{request['id']}/confirmation"
+    body = {
+        "expected_version": request["activity_version"],
+        "transfer_date": "2026-10-28",
+        "note": None,
+    }
+    responses = ordered_advisory_race(
+        planning["auth"],
+        lambda: post(planning["agent"], path, body),
+        lambda: post(planning["agent2"], path, body),
+    )
+    assert sorted(response.status_code for response in responses) == [201, 409]
+    auth = planning["auth"]
+    with Session(auth.engine) as db:
+        confirmation = db.scalar(select(VirementConfirmation))
+        assert confirmation
+        confirmation_id = confirmation.id
+        assert (
+            len(
+                list(
+                    db.scalars(
+                        select(Audit).where(
+                            Audit.action == "virement_confirmation.declared"
+                        )
+                    )
+                )
+            )
+            == 1
+        )
+    with pytest.raises(DBAPIError), Session(auth.engine) as db, db.begin():
+        db.execute(
+            text("UPDATE pta_virement_confirmation SET amount=1 WHERE id=:id"),
+            {"id": confirmation_id},
+        )
+
+
+def test_concurrent_confirmation_corrections_append_exactly_one_revision(planning):
+    activity, _source, request = approved_virement(planning)
+    path = f"{virement_collection(activity)}/{request['id']}/confirmation"
+    declared = post(
+        planning["agent"],
+        path,
+        {
+            "expected_version": request["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": "TEST-INITIAL",
+        },
+    ).json()
+    responses = ordered_advisory_race(
+        planning["auth"],
+        lambda: post(
+            planning["agent"],
+            path + "/corrections",
+            {
+                "expected_version": declared["activity_version"],
+                "transfer_date": "2026-10-27",
+                "note": "TEST-FIRST",
+                "reason": "Première correction concurrente.",
+            },
+        ),
+        lambda: post(
+            planning["agent2"],
+            path + "/corrections",
+            {
+                "expected_version": declared["activity_version"],
+                "transfer_date": "2026-10-26",
+                "note": "TEST-SECOND",
+                "reason": "Deuxième correction concurrente.",
+            },
+        ),
+    )
+    assert sorted(response.status_code for response in responses) == [201, 409]
+    history = planning["validator"].get(path + "/history").json()
+    assert history["count"] == 2
+    assert [row["revision"] for row in history["data"]] == [2, 1]
+
+
+def test_agent_deactivation_wins_before_confirmation_correction(planning):
+    activity, _source, request = approved_virement(planning)
+    path = f"{virement_collection(activity)}/{request['id']}/confirmation"
+    declared = post(
+        planning["agent"],
+        path,
+        {
+            "expected_version": request["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": None,
+        },
+    ).json()
+    account = next(
+        row
+        for row in planning["admin"].get("/api/v1/access/users").json()["items"]
+        if row["email"] == "agent2@example.test"
+    )
+    deactivated, denied = ordered_advisory_race(
+        planning["auth"],
+        lambda: planning["admin"].patch(
+            f"/api/v1/access/users/{account['id']}",
+            headers=headers(planning["admin"]),
+            json={"expected_version": account["version"], "deactivate": True},
+        ),
+        lambda: post(
+            planning["agent2"],
+            path + "/corrections",
+            {
+                "expected_version": declared["activity_version"],
+                "transfer_date": "2026-10-27",
+                "note": None,
+                "reason": "Correction concurrente synthétique.",
+            },
+        ),
+    )
+    assert (deactivated.status_code, denied.status_code) == (200, 401)
+    assert planning["validator"].get(path + "/history").json()["count"] == 1
+
+
+def test_confirmation_rejects_unapproved_and_foreign_virement(planning):
+    activity, _source, unapproved = submit_virement(planning)
+    body = {
+        "expected_version": unapproved["activity_version"],
+        "transfer_date": "2026-10-28",
+        "note": None,
+    }
+    rejected = post(
+        planning["agent"],
+        f"{virement_collection(activity)}/{unapproved['id']}/confirmation",
+        body,
+    )
+    assert rejected.status_code == 409
+    assert rejected.json()["code"] == "virement_not_approved"
+
+    other_activity, _other_source, approved = approved_virement(planning)
+    foreign = post(
+        planning["agent"],
+        f"{virement_collection(activity)}/{approved['id']}/confirmation",
+        body,
+    )
+    assert foreign.status_code == 404
+    assert other_activity["id"] != activity["id"]
+
+
+def test_confirmation_preserves_large_exact_xof_and_maximum_unicode(planning):
+    amounts = (4_000_000_000, 5_000_000_000)
+    activity, _source, request = approved_virement(
+        planning, amounts=amounts, allocations=amounts
+    )
+    path = f"{virement_collection(activity)}/{request['id']}/confirmation"
+    maximum = "é" * 4000
+    declared = post(
+        planning["agent"],
+        path,
+        {
+            "expected_version": request["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": maximum,
+        },
+    )
+    assert declared.status_code == 201, declared.text
+    assert declared.json()["amount"] == "9000000000"
+    corrected = post(
+        planning["agent2"],
+        path + "/corrections",
+        {
+            "expected_version": declared.json()["activity_version"],
+            "transfer_date": "2026-10-27",
+            "note": None,
+            "reason": maximum,
+        },
+    )
+    assert corrected.status_code == 201, corrected.text
+    assert corrected.json()["correction_reason"] == maximum
+
+
+def test_replaced_confirmation_guard_function_fails_schema_guard(planning):
+    with planning["auth"].engine.connect() as db:
+        transaction = db.begin()
+        db.execute(
+            text(
+                "CREATE OR REPLACE FUNCTION pta_preserve_virement_confirmation() "
+                "RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN OLD; END $$"
+            )
+        )
+        with pytest.raises(AuthError, match="eligibility_unverified"):
+            planning["auth"].environment_verified(db)
+        transaction.rollback()
+
+
+def test_confirmation_rechecks_the_locked_financial_basis(planning, monkeypatch):
+    activity, _source, request = approved_virement(planning)
+    import app.planning.virement as virement_module
+
+    original = virement_module.verified_financial_basis
+
+    def stale(db, item):
+        total, operations, authors = original(db, item)
+        return total + 1, operations, authors
+
+    monkeypatch.setattr(virement_module, "verified_financial_basis", stale)
+    response = post(
+        planning["agent"],
+        f"{virement_collection(activity)}/{request['id']}/confirmation",
+        {
+            "expected_version": request["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": None,
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["code"] == "financial_basis_stale"
+    with Session(planning["auth"].engine) as db:
+        assert db.scalar(select(VirementConfirmation)) is None
+        assert db.get(Activity, activity["id"]).version == request["activity_version"]
+
+
+@pytest.mark.parametrize("failure", ["constraint", "commit"])
+def test_constraint_or_commit_failure_rolls_back_confirmation(
+    planning, monkeypatch, failure
+):
+    activity, _source, request = approved_virement(planning)
+    path = f"{virement_collection(activity)}/{request['id']}/confirmation"
+    with planning["auth"].engine.connect() as db:
+        before = db.execute(
+            text(
+                "SELECT version,"
+                "(SELECT count(*) FROM pta_virement_confirmation "
+                "WHERE activity_id=:id),"
+                "(SELECT count(*) FROM auth_audit "
+                "WHERE action LIKE 'virement_confirmation.%' "
+                "AND business->>'activity_id'=:id) "
+                "FROM pta_activity WHERE id=:id"
+            ),
+            {"id": activity["id"]},
+        ).one()
+    original_audit = planning["auth"].business_audit
+
+    def inject_failure(db, action, *args, **kwargs):
+        result = original_audit(db, action, *args, **kwargs)
+        if action == "virement_confirmation.declared":
+            if failure == "constraint":
+                db.execute(
+                    text(
+                        "INSERT INTO mjl_ownership_context(id,created_at) "
+                        "VALUES ('BAD',clock_timestamp())"
+                    )
+                )
+            else:
+                db.info["fail_confirmation_commit"] = True
+        return result
+
+    monkeypatch.setattr(planning["auth"], "business_audit", inject_failure)
+    if failure == "commit":
+        original_commit = SessionTransaction.commit
+
+        def fail_commit(transaction, *args, **kwargs):
+            if transaction.session.info.pop("fail_confirmation_commit", False):
+                raise IntegrityError(
+                    "synthetic confirmation commit failure", {}, Exception()
+                )
+            return original_commit(transaction, *args, **kwargs)
+
+        monkeypatch.setattr(SessionTransaction, "commit", fail_commit)
+    response = post(
+        planning["agent"],
+        path,
+        {
+            "expected_version": request["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": None,
+        },
+    )
+    assert response.status_code == 503
+    with planning["auth"].engine.connect() as db:
+        after = db.execute(
+            text(
+                "SELECT version,"
+                "(SELECT count(*) FROM pta_virement_confirmation "
+                "WHERE activity_id=:id),"
+                "(SELECT count(*) FROM auth_audit "
+                "WHERE action LIKE 'virement_confirmation.%' "
+                "AND business->>'activity_id'=:id) "
+                "FROM pta_activity WHERE id=:id"
+            ),
+            {"id": activity["id"]},
+        ).one()
+    assert after == before
+
+
+def test_confirmation_audit_failure_rolls_back_declaration(planning, monkeypatch):
+    activity, _source, request = approved_virement(planning)
+    original = planning["auth"].business_audit
+
+    def fail(db, action, actor, target, business):
+        if action == "virement_confirmation.declared":
+            raise RuntimeError("synthetic confirmation audit failure")
+        return original(db, action, actor, target, business)
+
+    monkeypatch.setattr(planning["auth"], "business_audit", fail)
+    with pytest.raises(RuntimeError, match="synthetic confirmation audit failure"):
+        post(
+            planning["agent"],
+            f"{virement_collection(activity)}/{request['id']}/confirmation",
+            {
+                "expected_version": request["activity_version"],
+                "transfer_date": "2026-10-28",
+                "note": None,
+            },
+        )
+    detail = planning["validator"].get(
+        f"{virement_collection(activity)}/{request['id']}"
+    )
+    assert detail.status_code == 200
+    assert detail.json()["current_confirmation"] is None
+    assert detail.json()["activity_version"] == request["activity_version"]
+
+
+def test_confirmation_evidence_refuses_destructive_downgrade(planning, auth_env):
+    activity, _source, request = approved_virement(planning)
+    declared = post(
+        planning["agent"],
+        f"{virement_collection(activity)}/{request['id']}/confirmation",
+        {
+            "expected_version": request["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": None,
+        },
+    )
+    assert declared.status_code == 201
+    planning["auth"].engine.dispose()
+    with pytest.raises(Exception, match="Refusing destructive PTA-3D downgrade"):
+        command.downgrade(Config("alembic.ini"), "0012_pta3c")
+    engine = create_engine(auth_env.url)
+    try:
+        with engine.connect() as db:
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "0013_pta3d"
+            )
+    finally:
+        engine.dispose()
 
 
 def test_agent_submits_locked_amount_and_fresh_reviewers_authorize_virement(planning):
@@ -176,6 +622,7 @@ def test_return_cancellation_and_fresh_request_keep_disbursement_frozen(planning
         "current_state": None,
         "can_submit": True,
         "unavailable_reason": None,
+        "confirmation_revision": None,
     }
     fresh = post(
         planning["agent2"],
@@ -299,6 +746,9 @@ def test_routes_enforce_roles_csrf_scope_and_cursor_contract(planning):
         base + "/{request_id}": {"get"},
         base + "/{request_id}/decisions": {"post"},
         base + "/{request_id}/cancellation": {"post"},
+        base + "/{request_id}/confirmation": {"post"},
+        base + "/{request_id}/confirmation/corrections": {"post"},
+        base + "/{request_id}/confirmation/history": {"get"},
     }
     for route, methods in responsibilities.items():
         assert methods <= set(schema["paths"][route])
@@ -965,7 +1415,7 @@ def test_virement_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0012_pta3c"
+                "0013_pta3d"
             )
     finally:
         engine.dispose()

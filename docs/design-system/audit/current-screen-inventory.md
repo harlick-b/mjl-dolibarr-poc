@@ -4,7 +4,7 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 inventory records current routes and their access boundaries. It is
 repository-visible evidence, not user acceptance.
 
-## React PTA-3A (DEC-115)
+## React PTA-3A–3D (DEC-115–118)
 
 `/execution/$ptaId` lists approved Activities and their execution summaries.
 `/execution/activities/$activityId` shows the approved Operations, start and
@@ -12,6 +12,10 @@ record/correction controls for Agents, pause/ineligibility reasons, exact XOF
 variance and paginated execution history. Supervisor and Validator views are
 read-only; Admin is denied. Mutations remain online-only and clear protected
 state on session invalidation.
+The same Activity workspace presents décaissement and virement authorizations,
+then lets an Agent declare the fixed approved amount as transferred with its
+effective date and optional note. Corrections require a reason and retain
+paginated history. Supervisors and Validators can read these declarations.
 
 ## React A2.1–A2.2 (DEC-096/099)
 

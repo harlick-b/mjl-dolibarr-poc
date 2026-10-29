@@ -4,6 +4,15 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 file records current repository-visible UI evidence, not user acceptance or
 browser verification for this documentation update.
 
+## React PTA-3D evidence (DEC-118)
+
+The realization workspace reuses the approved financial-card composition for
+external virement declarations. It displays the server-owned amount, requires
+the effective date and explicit attestation, keeps the reference optional and
+shows immutable correction history. Mutations remain online-only and refresh
+the affected Query projections. Automated checks do not establish human visual
+or accessibility acceptance.
+
 ## React A2.2 evidence (DEC-099)
 
 Existing Admin table/dialog patterns now cover restricted role/deactivation with

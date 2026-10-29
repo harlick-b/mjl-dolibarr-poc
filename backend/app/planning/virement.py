@@ -19,6 +19,7 @@ from app.planning.models import (
     ActivityContributor,
     DisbursementRequest,
     Project,
+    VirementConfirmation,
     VirementDecision,
     VirementRequest,
 )
@@ -91,6 +92,17 @@ class CancellationOutput(Input):
     reason: str
 
 
+class ConfirmationOutput(Input):
+    id: str
+    revision: int
+    amount: str
+    transfer_date: str
+    note: str | None
+    actor_id: str
+    recorded_at: str
+    correction_reason: str | None
+
+
 class RequestOutput(Input):
     id: str
     activity_id: str
@@ -103,6 +115,7 @@ class RequestOutput(Input):
     cancellation: CancellationOutput | None
     decisions: list[DecisionOutput]
     allowed_actions: list[str]
+    current_confirmation: ConfirmationOutput | None
 
 
 class MutationOutput(RequestOutput):
@@ -231,6 +244,17 @@ def output(
         db, financial.activity_id, financial.disbursement_request_id
     )
     rows = request_decisions(db, financial.id)
+    confirmation = db.scalar(
+        select(VirementConfirmation)
+        .where(VirementConfirmation.request_id == financial.id)
+        .order_by(VirementConfirmation.revision.desc())
+        .limit(1)
+    )
+    actions = allowed_actions(role, actor_id, financial, rows)
+    if role == "AGENT_SAISIE" and financial.state == "approved":
+        actions.append(
+            "correct_confirmation" if confirmation else "declare_confirmation"
+        )
     return {
         "id": financial.id,
         "activity_id": financial.activity_id,
@@ -264,7 +288,21 @@ def output(
             }
             for row in rows
         ],
-        "allowed_actions": allowed_actions(role, actor_id, financial, rows),
+        "allowed_actions": actions,
+        "current_confirmation": (
+            {
+                "id": confirmation.id,
+                "revision": confirmation.revision,
+                "amount": str(confirmation.amount),
+                "transfer_date": confirmation.transfer_date.isoformat(),
+                "note": confirmation.note,
+                "actor_id": confirmation.actor_id,
+                "recorded_at": confirmation.recorded_at.isoformat(),
+                "correction_reason": confirmation.correction_reason,
+            }
+            if confirmation
+            else None
+        ),
     }
 
 

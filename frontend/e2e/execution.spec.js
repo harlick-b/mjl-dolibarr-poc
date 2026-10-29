@@ -299,6 +299,8 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
   let virement = null
   let cancelledVirement = null
   let virementNumber = 0
+  let confirmations = []
+  let confirmationMutationCount = 0
   const actions = () => {
     if (!request) return []
     if (
@@ -327,6 +329,11 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
       return ['read', 'prevalidate', 'return']
     if (role === 'VALIDATEUR_DEFINITIF' && virement.state === 'prevalidated')
       return ['read', 'approve', 'return']
+    if (role === 'AGENT_SAISIE' && virement.state === 'approved')
+      return [
+        'read',
+        confirmations.length ? 'correct_confirmation' : 'declare_confirmation',
+      ]
     return ['read']
   }
   const virementResult = () =>
@@ -373,6 +380,7 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
         submitted_at: '2026-10-28T13:00:00Z',
         decisions: [],
         cancellation: null,
+        current_confirmation: null,
       }
       return route.fulfill({ status: 201, json: virementResult() })
     }
@@ -409,6 +417,78 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
         })
       }
       return route.fulfill({ status: 201, json: virementResult() })
+    }
+    if (
+      virement &&
+      path.endsWith(`/virement-requests/${virement.id}/confirmation`) &&
+      incoming.method() === 'POST'
+    ) {
+      const body = incoming.postDataJSON()
+      confirmationMutationCount += 1
+      version += 1
+      confirmations = [
+        {
+          id: 'confirmation-1',
+          activity_id: 'activity-1',
+          request_id: virement.id,
+          revision: 1,
+          amount: '100000',
+          transfer_date: body.transfer_date,
+          note: body.note,
+          actor_id: 'agent',
+          recorded_at: '2026-10-29T09:00:00Z',
+          correction_reason: null,
+        },
+      ]
+      virement.current_confirmation = confirmations[0]
+      return route.fulfill({ status: 201, json: confirmations[0] })
+    }
+    if (
+      virement &&
+      path.endsWith(
+        `/virement-requests/${virement.id}/confirmation/corrections`,
+      ) &&
+      incoming.method() === 'POST'
+    ) {
+      const body = incoming.postDataJSON()
+      confirmationMutationCount += 1
+      version += 1
+      const corrected = {
+        id: 'confirmation-2',
+        activity_id: 'activity-1',
+        request_id: virement.id,
+        revision: 2,
+        amount: '100000',
+        transfer_date: body.transfer_date,
+        note: body.note,
+        actor_id: 'agent',
+        recorded_at: '2026-10-29T10:00:00Z',
+        correction_reason: body.reason,
+      }
+      confirmations = [corrected, ...confirmations]
+      virement.current_confirmation = corrected
+      return route.fulfill({ status: 201, json: corrected })
+    }
+    if (
+      virement &&
+      path.endsWith(`/virement-requests/${virement.id}/confirmation/history`)
+    ) {
+      const older = new URL(incoming.url()).searchParams.has('cursor')
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: confirmations.length,
+          data: older ? confirmations.slice(1) : confirmations.slice(0, 1),
+          next:
+            !older && confirmations.length > 1
+              ? `/api/v1/activities/activity-1/virement-requests/${virement.id}/confirmation/history?cursor=older`
+              : null,
+          previous:
+            older && confirmations.length > 1
+              ? `/api/v1/activities/activity-1/virement-requests/${virement.id}/confirmation/history?cursor=newer`
+              : null,
+        },
+      })
     }
     if (
       path.includes('/virement-requests/') &&
@@ -698,6 +778,82 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
   await expect(
     page.getByText(/ne confirme pas qu’un virement externe/i),
   ).toBeVisible()
+
+  role = 'AGENT_SAISIE'
+  await page.reload()
+  await virementSection
+    .getByLabel('Date effective du virement')
+    .fill('2026-10-28')
+  await virementSection
+    .getByLabel(/Référence ou commentaire/)
+    .fill('BANQUE-001')
+  await virementSection.getByLabel(/Je confirme que ce montant/).check()
+  await virementSection
+    .getByRole('button', { name: 'Enregistrer la déclaration' })
+    .click()
+  await expect(
+    virementSection.getByRole('definition').filter({ hasText: 'BANQUE-001' }),
+  ).toBeVisible()
+  await expect(
+    virementSection.getByRole('definition').filter({ hasText: /^agent$/ }),
+  ).toBeVisible()
+
+  await virementSection
+    .getByLabel('Date effective du virement')
+    .fill('2026-10-27')
+  await virementSection
+    .getByLabel(/Référence ou commentaire/)
+    .fill('BANQUE-002')
+  await virementSection
+    .getByLabel('Motif de la correction')
+    .fill('Date bancaire corrigée.')
+  await virementSection.getByLabel(/Je confirme que ce montant/).check()
+  await virementSection
+    .getByRole('button', { name: 'Corriger la déclaration' })
+    .click()
+  await expect(
+    virementSection.getByRole('definition').filter({ hasText: 'BANQUE-002' }),
+  ).toBeVisible()
+  await virementSection.getByText('Historique des déclarations (2)').click()
+  await virementSection
+    .getByRole('navigation', {
+      name: 'Pagination des déclarations de virement',
+    })
+    .getByRole('button', { name: 'Suivant' })
+    .click()
+  await expect(page).toHaveURL(/confirmationCursor=older/)
+  await virementSection.getByText('Historique des déclarations (2)').click()
+  await expect(virementSection.getByText('BANQUE-001')).toBeVisible()
+  await page.goBack()
+  await expect(page).not.toHaveURL(/confirmationCursor=older/)
+
+  await expect(
+    virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+  ).toBeVisible()
+  expect(confirmationMutationCount).toBe(2)
+  await page.context().setOffline(true)
+  await expect(
+    page.getByRole('heading', { name: 'Vérification de l’accès' }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Vérifier l’accès' }),
+  ).toBeDisabled()
+  expect(confirmationMutationCount).toBe(2)
+  await page.context().setOffline(false)
+  await page.reload()
+  await expect(
+    virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+  ).toBeVisible()
+  expect(confirmationMutationCount).toBe(2)
+
+  role = 'AGENT_VERIFICATEUR'
+  await page.reload()
+  await expect(
+    virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+  ).toHaveCount(0)
+
+  role = 'AGENT_SAISIE'
+  await page.reload()
   await virementSection.getByText('Historique des demandes (2)').click()
   await virementSection
     .getByRole('navigation', { name: 'Pagination des virements' })

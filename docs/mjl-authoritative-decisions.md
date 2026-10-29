@@ -26,6 +26,22 @@ in `AGENTS.md`, updated at the user's request on 2026-10-28. No external detaile
 execution prompt is required after a concrete slice is authorized. This process
 review does not authorize any additional runtime slice or relax security gates.
 
+## PTA-3D external virement confirmation (DEC-118)
+
+The user explicitly authorized the bounded synthetic PTA-3D implementation on
+2026-10-29. After PTA-3C approval, an Agent declares that the exact approved
+amount was transferred outside MJL. The server supplies that amount; the Agent
+records the effective date and may add an optional reference/comment. MJL does
+not execute or independently verify the banking transaction.
+
+The user approved blocking different amounts pending a later discrepancy
+workflow. An Agent may append a reasoned correction to the date or note before
+future reversement or closure begins, preserving every earlier declaration.
+No additional business approval applies to the external declaration. Migration
+`0013_pta3d`, three REST responsibilities and the existing realization workspace
+implement this boundary. Reversement, discrepancy handling, formal closure,
+documents and banking integration remain deferred.
+
 ## PTA-3C virement request authorization (DEC-117)
 
 The user explicitly authorized the bounded synthetic PTA-3C implementation on

@@ -189,6 +189,28 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       Boolean(params.activityId) &&
       Boolean(virementRequestId),
   })
+  const confirmationHistory = useQuery({
+    ...executionQuery(
+      api,
+      session.user.id,
+      [
+        'confirmation-history',
+        params.activityId,
+        virementRequestId,
+        search.confirmationCursor,
+      ],
+      cursorPath(
+        `/activities/${params.activityId}/virement-requests/${virementRequestId}/confirmation/history`,
+        search.confirmationCursor,
+      ),
+      onDenied,
+    ),
+    enabled:
+      screen === 'detail' &&
+      Boolean(params.activityId) &&
+      Boolean(virementRequestId) &&
+      selectedVirement.data?.state === 'approved',
+  })
   const list = useQuery({
     ...executionQuery(
       api,
@@ -338,6 +360,9 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           virements,
           ...(search.financeRequest ? [selectedFinance] : []),
           ...(virementRequestId ? [selectedVirement] : []),
+          ...(selectedVirement.data?.state === 'approved'
+            ? [confirmationHistory]
+            : []),
         ]
   if (relevant.some((query) => query.isError))
     return <p role="alert">Les données de réalisation sont indisponibles.</p>
@@ -365,6 +390,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       selectedFinance={selectedFinance.data}
       virements={virements.data}
       selectedVirement={selectedVirement.data}
+      confirmationHistory={confirmationHistory.data}
       role={session.user.role}
       financeHistoryPage={Boolean(search.financeCursor)}
       virementHistoryPage={Boolean(search.virementCursor)}
@@ -378,7 +404,8 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         finance.isFetching ||
         selectedFinance.isFetching ||
         virements.isFetching ||
-        selectedVirement.isFetching
+        selectedVirement.isFetching ||
+        confirmationHistory.isFetching
       }
       mutate={(operationId, body) => mutation.mutate({ operationId, body })}
       mutateFinance={(path, body) => financeMutation.mutate({ path, body })}
@@ -423,6 +450,17 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       onVirementSelect={(requestId) =>
         navigate({
           search: (current) => ({ ...current, virementRequest: requestId }),
+        })
+      }
+      onConfirmationPage={(link) =>
+        navigate({
+          search: (current) => ({
+            ...current,
+            confirmationCursor: cursorFrom(
+              link,
+              `/activities/${params.activityId}/virement-requests/${virementRequestId}/confirmation/history`,
+            ),
+          }),
         })
       }
     />
@@ -504,6 +542,7 @@ function ExecutionDetail({
   selectedFinance,
   virements,
   selectedVirement,
+  confirmationHistory,
   role,
   financeHistoryPage,
   virementHistoryPage,
@@ -517,6 +556,7 @@ function ExecutionDetail({
   onFinanceSelect,
   onVirementPage,
   onVirementSelect,
+  onConfirmationPage,
 }) {
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
@@ -613,6 +653,7 @@ function ExecutionDetail({
         detail={detail}
         result={virements}
         selected={selectedVirement}
+        confirmationHistory={confirmationHistory}
         selectedBySearch={virementSelectedBySearch}
         role={role}
         historicalPage={virementHistoryPage}
@@ -620,6 +661,7 @@ function ExecutionDetail({
         mutate={mutateFinance}
         onPage={onVirementPage}
         onSelect={onVirementSelect}
+        onConfirmationPage={onConfirmationPage}
       />
       <section
         className="planning-card"
@@ -890,12 +932,14 @@ function VirementSection({
   result,
   selected,
   selectedBySearch,
+  confirmationHistory,
   role,
   historicalPage,
   pending,
   mutate,
   onPage,
   onSelect,
+  onConfirmationPage,
 }) {
   const requests = result?.data || []
   const current = selected
@@ -978,6 +1022,151 @@ function VirementSection({
               </Button>
             )}
           </div>
+          {current.state === 'approved' && (
+            <div className="planning-card">
+              <h3>Virement externe déclaré</h3>
+              <p>
+                MJL enregistre la déclaration de l’Agent sans vérifier le
+                mouvement bancaire. Le montant doit correspondre exactement à{' '}
+                <strong>{formatXof(current.amount)}</strong>.
+              </p>
+              {current.current_confirmation && (
+                <dl className="execution-summary">
+                  <div>
+                    <dt>Date effective</dt>
+                    <dd>{current.current_confirmation.transfer_date}</dd>
+                  </div>
+                  <div>
+                    <dt>Référence ou commentaire</dt>
+                    <dd>{current.current_confirmation.note || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Déclaré par</dt>
+                    <dd>{current.current_confirmation.actor_id}</dd>
+                  </div>
+                  <div>
+                    <dt>Enregistré le</dt>
+                    <dd>
+                      <time dateTime={current.current_confirmation.recorded_at}>
+                        {current.current_confirmation.recorded_at}
+                      </time>
+                    </dd>
+                  </div>
+                </dl>
+              )}
+              {(current.allowed_actions.includes('declare_confirmation') ||
+                current.allowed_actions.includes('correct_confirmation')) && (
+                <form
+                  key={current.current_confirmation?.revision || 'initial'}
+                  className="planning-form"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    const data = new FormData(event.currentTarget)
+                    const correcting = Boolean(current.current_confirmation)
+                    mutate(
+                      `/virement-requests/${current.id}/confirmation${
+                        correcting ? '/corrections' : ''
+                      }`,
+                      {
+                        expected_version: version,
+                        transfer_date: String(data.get('transfer_date') || ''),
+                        note: String(data.get('note') || ''),
+                        ...(correcting
+                          ? { reason: String(data.get('reason') || '') }
+                          : {}),
+                      },
+                    )
+                  }}
+                >
+                  <label>
+                    Date effective du virement
+                    <input
+                      type="date"
+                      name="transfer_date"
+                      required
+                      defaultValue={current.current_confirmation?.transfer_date}
+                    />
+                  </label>
+                  <label>
+                    Référence ou commentaire (facultatif)
+                    <textarea
+                      name="note"
+                      maxLength="4000"
+                      defaultValue={current.current_confirmation?.note || ''}
+                    />
+                  </label>
+                  {current.current_confirmation && (
+                    <label>
+                      Motif de la correction
+                      <textarea name="reason" required maxLength="4000" />
+                    </label>
+                  )}
+                  <label>
+                    <input type="checkbox" required /> Je confirme que ce
+                    montant a été viré.
+                  </label>
+                  <Button type="submit" disabled={pending || !navigator.onLine}>
+                    {current.current_confirmation
+                      ? 'Corriger la déclaration'
+                      : 'Enregistrer la déclaration'}
+                  </Button>
+                </form>
+              )}
+              {confirmationHistory?.data?.length > 0 && (
+                <details>
+                  <summary>
+                    Historique des déclarations ({confirmationHistory.count})
+                  </summary>
+                  <ol className="review-timeline">
+                    {confirmationHistory.data.map((entry) => (
+                      <li key={entry.id}>
+                        <strong>
+                          Version {entry.revision} · {formatXof(entry.amount)} ·{' '}
+                          {entry.transfer_date}
+                        </strong>
+                        {entry.note && <p>{entry.note}</p>}
+                        <p>
+                          Déclaré par {entry.actor_id} ·{' '}
+                          <time dateTime={entry.recorded_at}>
+                            {entry.recorded_at}
+                          </time>
+                        </p>
+                        {entry.correction_reason && (
+                          <p>Motif : {entry.correction_reason}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                  {(confirmationHistory.previous ||
+                    confirmationHistory.next) && (
+                    <nav
+                      className="planning-actions"
+                      aria-label="Pagination des déclarations de virement"
+                    >
+                      <Button
+                        variant="outline"
+                        disabled={!confirmationHistory.previous}
+                        onClick={() =>
+                          onConfirmationPage(confirmationHistory.previous)
+                        }
+                      >
+                        Précédent
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={!confirmationHistory.next}
+                        onClick={() =>
+                          onConfirmationPage(confirmationHistory.next)
+                        }
+                      >
+                        Suivant
+                      </Button>
+                    </nav>
+                  )}
+                </details>
+              )}
+            </div>
+          )}
           {(current.allowed_actions.includes('return') ||
             current.allowed_actions.includes('cancel')) && (
             <form

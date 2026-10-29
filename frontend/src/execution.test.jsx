@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -313,6 +313,7 @@ test.each([
         current_state: null,
         can_submit: true,
         unavailable_reason: null,
+        confirmation_revision: null,
       }
     const fetch = vi.fn((url, options = {}) => {
       const path = String(url)
@@ -386,7 +387,7 @@ test.each([
     await waitFor(() => expect(mutationSignal).toBeDefined())
     window.dispatchEvent(new Event('offline'))
     expect(await screen.findByText(/Reconnectez-vous/)).toBeVisible()
-    expect(mutationSignal.aborted).toBe(true)
+    await waitFor(() => expect(mutationSignal.aborted).toBe(true))
     expect(
       router.options.context.queryClient.getMutationCache().getAll(),
     ).toEqual([])
@@ -518,6 +519,211 @@ test('Agent submits the locked disbursement amount for virement authorization', 
         expected_disbursement_request_id: sourceId,
       }),
     }),
+  )
+})
+
+test('Agent declares the fixed approved virement amount without retyping it', async () => {
+  const user = userEvent.setup()
+  const requestId = '44444444-4444-4444-8444-444444444444'
+  const execution = detail({ started: true, completed: true })
+  execution.virement_context = {
+    disbursement_request_id: '33333333-3333-4333-8333-333333333333',
+    amount: '100000',
+    current_request_id: requestId,
+    current_state: 'approved',
+    can_submit: false,
+    unavailable_reason: 'virement_exists',
+    confirmation_revision: null,
+  }
+  let virement = {
+    id: requestId,
+    activity_id: 'activity-1',
+    amount: '100000',
+    state: 'approved',
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read', 'declare_confirmation'],
+    current_confirmation: null,
+    activity_version: 7,
+  }
+  let confirmations = []
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (
+      path.endsWith(
+        `/virement-requests/${requestId}/confirmation/corrections`,
+      ) &&
+      options.method === 'POST'
+    ) {
+      const body = JSON.parse(options.body)
+      const revision = confirmations.length + 1
+      const corrected = {
+        id: `confirmation-${revision}`,
+        revision,
+        amount: '100000',
+        transfer_date: body.transfer_date,
+        note: body.note,
+        actor_id: 'agent',
+        recorded_at: `2026-10-29T1${revision}:00:00Z`,
+        correction_reason: body.reason,
+      }
+      confirmations = [corrected, ...confirmations]
+      virement = {
+        ...virement,
+        current_confirmation: corrected,
+        activity_version: 7 + revision,
+      }
+      execution.version = 7 + revision
+      return Promise.resolve(new Response(JSON.stringify(corrected)))
+    }
+    if (
+      path.endsWith(`/virement-requests/${requestId}/confirmation`) &&
+      options.method === 'POST'
+    ) {
+      const body = JSON.parse(options.body)
+      const declared = {
+        id: 'confirmation-1',
+        revision: 1,
+        amount: '100000',
+        transfer_date: body.transfer_date,
+        note: body.note,
+        actor_id: 'agent',
+        recorded_at: '2026-10-29T10:00:00Z',
+        correction_reason: null,
+      }
+      confirmations = [declared]
+      virement = {
+        ...virement,
+        current_confirmation: declared,
+        allowed_actions: ['read', 'correct_confirmation'],
+        activity_version: 8,
+      }
+      execution.version = 8
+      return Promise.resolve(
+        new Response(JSON.stringify(virement.current_confirmation)),
+      )
+    }
+    if (path.endsWith(`/virement-requests/${requestId}/confirmation/history`))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            ...empty,
+            count: confirmations.length,
+            data: confirmations,
+          }),
+        ),
+      )
+    if (path.endsWith(`/virement-requests/${requestId}`))
+      return Promise.resolve(new Response(JSON.stringify(virement)))
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(new Response(JSON.stringify(execution)))
+    if (
+      path.endsWith('/execution/history') ||
+      path.endsWith('/disbursement-requests') ||
+      path.endsWith('/virement-requests')
+    )
+      return Promise.resolve(new Response(JSON.stringify(empty)))
+    return Promise.resolve(new Response('{}', { status: 404 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+  expect(
+    await screen.findByText(/MJL enregistre la déclaration/i),
+  ).toBeVisible()
+  await user.type(
+    screen.getByLabelText('Date effective du virement'),
+    '2026-10-28',
+  )
+  await user.type(screen.getByLabelText(/Référence ou commentaire/), 'TEST-001')
+  await user.click(screen.getByLabelText(/Je confirme que ce montant/))
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer la déclaration' }),
+  )
+  expect(fetch).toHaveBeenCalledWith(
+    `/api/v1/activities/activity-1/virement-requests/${requestId}/confirmation`,
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        expected_version: 7,
+        transfer_date: '2026-10-28',
+        note: 'TEST-001',
+      }),
+    }),
+  )
+  await screen.findByRole('button', { name: 'Corriger la déclaration' })
+  const virementSection = screen
+    .getByRole('heading', { name: 'Autorisation de virement' })
+    .closest('section')
+  const virementPanel = within(virementSection)
+  await user.clear(virementPanel.getByLabelText('Date effective du virement'))
+  await user.type(
+    virementPanel.getByLabelText('Date effective du virement'),
+    '2026-10-27',
+  )
+  await user.clear(virementPanel.getByLabelText(/Référence ou commentaire/))
+  await user.type(
+    virementPanel.getByLabelText(/Référence ou commentaire/),
+    'TEST-002',
+  )
+  await user.type(
+    virementPanel.getByLabelText('Motif de la correction'),
+    'Première correction.',
+  )
+  await user.click(virementPanel.getByLabelText(/Je confirme que ce montant/))
+  await user.click(
+    virementPanel.getByRole('button', { name: 'Corriger la déclaration' }),
+  )
+  await waitFor(() =>
+    expect(virementPanel.getByLabelText('Motif de la correction')).toHaveValue(
+      '',
+    ),
+  )
+  expect(
+    virementPanel.getByLabelText('Date effective du virement'),
+  ).toHaveValue('2026-10-27')
+  await user.type(
+    virementPanel.getByLabelText('Motif de la correction'),
+    'Deuxième correction.',
+  )
+  await user.clear(virementPanel.getByLabelText(/Référence ou commentaire/))
+  await user.type(
+    virementPanel.getByLabelText(/Référence ou commentaire/),
+    'TEST-003',
+  )
+  await user.click(virementPanel.getByLabelText(/Je confirme que ce montant/))
+  await user.click(
+    virementPanel.getByRole('button', { name: 'Corriger la déclaration' }),
+  )
+  await waitFor(() =>
+    expect(
+      virementPanel.getByLabelText(/Référence ou commentaire/),
+    ).toHaveValue('TEST-003'),
   )
 })
 

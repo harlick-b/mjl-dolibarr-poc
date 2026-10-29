@@ -12,6 +12,18 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-3D current boundary (DEC-118)
+
+PTA-3D implements an Agent declaration that the exact PTA-3C-approved amount was
+transferred externally, with an effective date and optional reference/comment.
+Reasoned corrections append immutable history. MJL records the declaration but
+does not initiate or verify the bank transaction. Completion evidence is in
+[status 20](rebuild/20-pta3d-implementation-status.md).
+
+Different or partial amounts, discrepancy handling, reversement, formal Activity
+closure, documents, banking integration and every later slice remain
+unimplemented. PC1/PC2, real accounts and production remain excluded.
+
 ## PTA-3C current boundary (DEC-117)
 
 **PTA_3C_COMPLETE** on 2026-10-29. It adds a separate administrative virement
@@ -21,10 +33,8 @@ permit a fresh request while preserving the approved spending basis and its
 freeze. Completion evidence is recorded in
 [status 19](rebuild/19-pta3c-implementation-status.md).
 
-This records no external transfer, payment confirmation or movement of funds.
-Discrepancy handling, reversement, formal Activity closure and every later slice
-remain unimplemented and require separate decisions and authorization. PC1/PC2,
-real accounts and production remain excluded.
+PTA-3C records authorization only. The later PTA-3D slice records the Agent's
+external-transfer declaration while preserving PTA-3C as its immutable source.
 
 ## PTA-3B completed boundary (DEC-116)
 
