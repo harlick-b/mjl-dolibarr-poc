@@ -516,7 +516,7 @@ def test_confirmation_evidence_refuses_destructive_downgrade(planning, auth_env)
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0013_pta3d"
+                "0014_pta3e"
             )
     finally:
         engine.dispose()
@@ -749,6 +749,9 @@ def test_routes_enforce_roles_csrf_scope_and_cursor_contract(planning):
         base + "/{request_id}/confirmation": {"post"},
         base + "/{request_id}/confirmation/corrections": {"post"},
         base + "/{request_id}/confirmation/history": {"get"},
+        base + "/{request_id}/reversement": {"post"},
+        base + "/{request_id}/reversement/corrections": {"post"},
+        base + "/{request_id}/reversement/history": {"get"},
     }
     for route, methods in responsibilities.items():
         assert methods <= set(schema["paths"][route])
@@ -1415,7 +1418,7 @@ def test_virement_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0013_pta3d"
+                "0014_pta3e"
             )
     finally:
         engine.dispose()

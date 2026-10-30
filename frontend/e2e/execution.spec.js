@@ -288,7 +288,7 @@ test('reviewer sees pause, resume and paginated history without mutation control
   ).toBeVisible()
 })
 
-test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
+test('PTA-3B through PTA-3E administrative settlement journey', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
@@ -301,6 +301,8 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
   let virementNumber = 0
   let confirmations = []
   let confirmationMutationCount = 0
+  let reversements = []
+  let reversementMutationCount = 0
   const actions = () => {
     if (!request) return []
     if (
@@ -329,12 +331,28 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
       return ['read', 'prevalidate', 'return']
     if (role === 'VALIDATEUR_DEFINITIF' && virement.state === 'prevalidated')
       return ['read', 'approve', 'return']
-    if (role === 'AGENT_SAISIE' && virement.state === 'approved')
+    if (role === 'AGENT_SAISIE' && virement.state === 'approved') {
+      if (reversements.length) return ['read']
       return [
         'read',
         confirmations.length ? 'correct_confirmation' : 'declare_confirmation',
       ]
+    }
     return ['read']
+  }
+  const reversementResult = () => {
+    if (!confirmations.length) return null
+    const current = reversements[0] || null
+    return {
+      required_amount: '20000',
+      declared_amount: current ? '20000' : '0',
+      status: current ? 'declared' : 'required',
+      current_declaration: current,
+      allowed_actions:
+        role === 'AGENT_SAISIE'
+          ? ['read', current ? 'correct' : 'declare']
+          : ['read'],
+    }
   }
   const virementResult = () =>
     virement
@@ -342,6 +360,7 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
           ...virement,
           activity_version: version,
           allowed_actions: virementActions(),
+          reversement: reversementResult(),
         }
       : null
   await page.route('**/api/v1/**', async (route) => {
@@ -486,6 +505,78 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
           previous:
             older && confirmations.length > 1
               ? `/api/v1/activities/activity-1/virement-requests/${virement.id}/confirmation/history?cursor=newer`
+              : null,
+        },
+      })
+    }
+    if (
+      virement &&
+      path.endsWith(
+        `/virement-requests/${virement.id}/reversement/corrections`,
+      ) &&
+      incoming.method() === 'POST'
+    ) {
+      const body = incoming.postDataJSON()
+      reversementMutationCount += 1
+      version += 1
+      const corrected = {
+        id: 'reversement-2',
+        activity_id: 'activity-1',
+        request_id: virement.id,
+        confirmation_id: confirmations[0].id,
+        revision: 2,
+        returned_amount: '20000',
+        return_date: body.return_date,
+        note: body.note,
+        actor_id: 'agent',
+        recorded_at: '2026-10-29T12:00:00Z',
+        correction_reason: body.reason,
+      }
+      reversements = [corrected, ...reversements]
+      return route.fulfill({ status: 201, json: corrected })
+    }
+    if (
+      virement &&
+      path.endsWith(`/virement-requests/${virement.id}/reversement`) &&
+      incoming.method() === 'POST'
+    ) {
+      const body = incoming.postDataJSON()
+      reversementMutationCount += 1
+      version += 1
+      reversements = [
+        {
+          id: 'reversement-1',
+          activity_id: 'activity-1',
+          request_id: virement.id,
+          confirmation_id: confirmations[0].id,
+          revision: 1,
+          returned_amount: '20000',
+          return_date: body.return_date,
+          note: body.note,
+          actor_id: 'agent',
+          recorded_at: '2026-10-29T11:00:00Z',
+          correction_reason: null,
+        },
+      ]
+      return route.fulfill({ status: 201, json: reversements[0] })
+    }
+    if (
+      virement &&
+      path.endsWith(`/virement-requests/${virement.id}/reversement/history`)
+    ) {
+      const older = new URL(incoming.url()).searchParams.has('cursor')
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: reversements.length,
+          data: older ? reversements.slice(1) : reversements.slice(0, 1),
+          next:
+            !older && reversements.length > 1
+              ? `/api/v1/activities/activity-1/virement-requests/${virement.id}/reversement/history?cursor=older`
+              : null,
+          previous:
+            older && reversements.length > 1
+              ? `/api/v1/activities/activity-1/virement-requests/${virement.id}/reversement/history?cursor=newer`
               : null,
         },
       })
@@ -636,7 +727,7 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
           name: 'Former les équipes',
           planned_start: '2026-10-28',
           planned_end: '2026-12-31',
-          approved_allocation: '100000',
+          approved_allocation: '120000',
           approved_revision_id: '11111111-1111-4111-8111-111111111111',
           version,
           execution_paused: false,
@@ -677,13 +768,13 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
               type_id: 'type-1',
               type_label: 'Formation',
               name: 'Préparer la session',
-              approved_allocation: '100000',
+              approved_allocation: '120000',
               position: 1,
               execution_started_at: '2026-10-28T09:00:00Z',
               execution_completed: true,
               actual_spent: '100000',
               execution_observation: 'Travaux terminés.',
-              variance: '0',
+              variance: '-20000',
               allowed_actions:
                 role === 'AGENT_SAISIE' && !request ? ['record'] : [],
             },
@@ -785,9 +876,11 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
     .getByLabel('Date effective du virement')
     .fill('2026-10-28')
   await virementSection
-    .getByLabel(/Référence ou commentaire/)
+    .getByLabel('Référence ou commentaire (facultatif)')
     .fill('BANQUE-001')
-  await virementSection.getByLabel(/Je confirme que ce montant/).check()
+  await virementSection
+    .getByLabel('Je confirme que ce montant a été viré.')
+    .check()
   await virementSection
     .getByRole('button', { name: 'Enregistrer la déclaration' })
     .click()
@@ -802,12 +895,14 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
     .getByLabel('Date effective du virement')
     .fill('2026-10-27')
   await virementSection
-    .getByLabel(/Référence ou commentaire/)
+    .getByLabel('Référence ou commentaire (facultatif)')
     .fill('BANQUE-002')
   await virementSection
     .getByLabel('Motif de la correction')
     .fill('Date bancaire corrigée.')
-  await virementSection.getByLabel(/Je confirme que ce montant/).check()
+  await virementSection
+    .getByLabel('Je confirme que ce montant a été viré.')
+    .check()
   await virementSection
     .getByRole('button', { name: 'Corriger la déclaration' })
     .click()
@@ -831,6 +926,67 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
     virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
   ).toBeVisible()
   expect(confirmationMutationCount).toBe(2)
+  const reversementSection = virementSection.getByRole('region', {
+    name: 'Reversement au Partenaire',
+  })
+  await expect(
+    reversementSection.getByText('20 000 XOF', { exact: true }).first(),
+  ).toBeVisible()
+  await reversementSection
+    .getByLabel('Date effective du reversement')
+    .fill('2026-10-28')
+  await reversementSection
+    .getByLabel(/Référence ou commentaire du reversement/)
+    .fill('REVERSEMENT-001')
+  await reversementSection.getByLabel(/montant exact a été reversé/).check()
+  await reversementSection
+    .getByRole('button', { name: 'Enregistrer le reversement' })
+    .click()
+  await expect(
+    reversementSection
+      .getByRole('definition')
+      .filter({ hasText: 'REVERSEMENT-001' }),
+  ).toBeVisible()
+  await expect(
+    virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+  ).toHaveCount(0)
+
+  await reversementSection
+    .getByLabel('Date effective du reversement')
+    .fill('2026-10-29')
+  await reversementSection
+    .getByLabel(/Référence ou commentaire du reversement/)
+    .fill('REVERSEMENT-002')
+  await reversementSection
+    .getByLabel('Motif de la correction du reversement')
+    .fill('Date de reversement corrigée.')
+  await reversementSection.getByLabel(/montant exact a été reversé/).check()
+  await reversementSection
+    .getByRole('button', { name: 'Corriger le reversement' })
+    .click()
+  await expect(
+    reversementSection
+      .getByRole('definition')
+      .filter({ hasText: 'REVERSEMENT-002' }),
+  ).toBeVisible()
+  await reversementSection.getByText('Historique des reversements (2)').click()
+  await reversementSection
+    .getByRole('navigation', {
+      name: 'Pagination des déclarations de reversement',
+    })
+    .getByRole('button', { name: 'Suivant' })
+    .click()
+  await expect(page).toHaveURL(/reversementCursor=older/)
+  await reversementSection.getByText('Historique des reversements (2)').click()
+  await expect(
+    reversementSection
+      .getByRole('listitem')
+      .filter({ hasText: 'REVERSEMENT-001' }),
+  ).toBeVisible()
+  await page.goBack()
+  await expect(page).not.toHaveURL(/reversementCursor=older/)
+  expect(reversementMutationCount).toBe(2)
+
   await page.context().setOffline(true)
   await expect(
     page.getByRole('heading', { name: 'Vérification de l’accès' }),
@@ -839,17 +995,22 @@ test('PTA-3B and PTA-3C two-stage financial authorizations', async ({
     page.getByRole('button', { name: 'Vérifier l’accès' }),
   ).toBeDisabled()
   expect(confirmationMutationCount).toBe(2)
+  expect(reversementMutationCount).toBe(2)
   await page.context().setOffline(false)
   await page.reload()
   await expect(
-    virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+    reversementSection.getByRole('button', { name: 'Corriger le reversement' }),
   ).toBeVisible()
   expect(confirmationMutationCount).toBe(2)
+  expect(reversementMutationCount).toBe(2)
 
   role = 'AGENT_VERIFICATEUR'
   await page.reload()
   await expect(
     virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+  ).toHaveCount(0)
+  await expect(
+    reversementSection.getByRole('button', { name: 'Corriger le reversement' }),
   ).toHaveCount(0)
 
   role = 'AGENT_SAISIE'

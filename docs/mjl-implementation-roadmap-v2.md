@@ -12,9 +12,9 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-3E planned boundary (DEC-119)
+## PTA-3E current boundary (DEC-119)
 
-The business contract is ready for implementation authorization. PTA-3E derives
+**PTA_3E_COMPLETE** on 2026-10-30. PTA-3E derives
 the unused approved allocation after the external virement confirmation. A
 positive amount requires one Agent declaration that the exact amount was returned
 outside MJL; the date is required, a reference/comment is optional, and reasoned
@@ -23,9 +23,10 @@ needs no declaration. There is no additional reviewer approval, bank execution o
 reuse of leftover funds.
 
 [Plan 21](rebuild/21-pta3e-reversement-implementation-plan.md) defines the
-smallest implementation and verification boundary. Runtime implementation is not
-yet authorized. Partial/different amounts, discrepancies, insufficiency, formal
-Activity closure and later slices remain deferred.
+implemented boundary; [status 22](rebuild/22-pta3e-implementation-status.md)
+records its verification and independent review. Partial/different amounts,
+discrepancies, insufficiency, formal Activity closure and later slices remain
+deferred. PC1/PC2, real accounts and production remain excluded.
 
 ## PTA-3D current boundary (DEC-118)
 
@@ -35,9 +36,10 @@ Reasoned corrections append immutable history. MJL records the declaration but
 does not initiate or verify the bank transaction. Completion evidence is in
 [status 20](rebuild/20-pta3d-implementation-status.md).
 
-Different or partial amounts, discrepancy handling, reversement, formal Activity
-closure, documents, banking integration and every later slice remain
-unimplemented. PC1/PC2, real accounts and production remain excluded.
+Different or partial amounts, discrepancy handling, formal Activity closure,
+documents, banking integration and every later slice remain unimplemented.
+PTA-3E now records the exact positive unused-funds return while preserving PTA-3D
+as its immutable confirmation basis.
 
 ## PTA-3C current boundary (DEC-117)
 

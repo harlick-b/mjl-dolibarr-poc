@@ -211,6 +211,28 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       Boolean(virementRequestId) &&
       selectedVirement.data?.state === 'approved',
   })
+  const reversementHistory = useQuery({
+    ...executionQuery(
+      api,
+      session.user.id,
+      [
+        'reversement-history',
+        params.activityId,
+        virementRequestId,
+        search.reversementCursor,
+      ],
+      cursorPath(
+        `/activities/${params.activityId}/virement-requests/${virementRequestId}/reversement/history`,
+        search.reversementCursor,
+      ),
+      onDenied,
+    ),
+    enabled:
+      screen === 'detail' &&
+      Boolean(params.activityId) &&
+      Boolean(virementRequestId) &&
+      Boolean(selectedVirement.data?.reversement),
+  })
   const list = useQuery({
     ...executionQuery(
       api,
@@ -363,6 +385,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           ...(selectedVirement.data?.state === 'approved'
             ? [confirmationHistory]
             : []),
+          ...(selectedVirement.data?.reversement ? [reversementHistory] : []),
         ]
   if (relevant.some((query) => query.isError))
     return <p role="alert">Les données de réalisation sont indisponibles.</p>
@@ -391,6 +414,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       virements={virements.data}
       selectedVirement={selectedVirement.data}
       confirmationHistory={confirmationHistory.data}
+      reversementHistory={reversementHistory.data}
       role={session.user.role}
       financeHistoryPage={Boolean(search.financeCursor)}
       virementHistoryPage={Boolean(search.virementCursor)}
@@ -405,7 +429,8 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         selectedFinance.isFetching ||
         virements.isFetching ||
         selectedVirement.isFetching ||
-        confirmationHistory.isFetching
+        confirmationHistory.isFetching ||
+        reversementHistory.isFetching
       }
       mutate={(operationId, body) => mutation.mutate({ operationId, body })}
       mutateFinance={(path, body) => financeMutation.mutate({ path, body })}
@@ -459,6 +484,17 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
             confirmationCursor: cursorFrom(
               link,
               `/activities/${params.activityId}/virement-requests/${virementRequestId}/confirmation/history`,
+            ),
+          }),
+        })
+      }
+      onReversementPage={(link) =>
+        navigate({
+          search: (current) => ({
+            ...current,
+            reversementCursor: cursorFrom(
+              link,
+              `/activities/${params.activityId}/virement-requests/${virementRequestId}/reversement/history`,
             ),
           }),
         })
@@ -543,6 +579,7 @@ function ExecutionDetail({
   virements,
   selectedVirement,
   confirmationHistory,
+  reversementHistory,
   role,
   financeHistoryPage,
   virementHistoryPage,
@@ -557,6 +594,7 @@ function ExecutionDetail({
   onVirementPage,
   onVirementSelect,
   onConfirmationPage,
+  onReversementPage,
 }) {
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
@@ -654,6 +692,7 @@ function ExecutionDetail({
         result={virements}
         selected={selectedVirement}
         confirmationHistory={confirmationHistory}
+        reversementHistory={reversementHistory}
         selectedBySearch={virementSelectedBySearch}
         role={role}
         historicalPage={virementHistoryPage}
@@ -662,6 +701,7 @@ function ExecutionDetail({
         onPage={onVirementPage}
         onSelect={onVirementSelect}
         onConfirmationPage={onConfirmationPage}
+        onReversementPage={onReversementPage}
       />
       <section
         className="planning-card"
@@ -933,6 +973,7 @@ function VirementSection({
   selected,
   selectedBySearch,
   confirmationHistory,
+  reversementHistory,
   role,
   historicalPage,
   pending,
@@ -940,6 +981,7 @@ function VirementSection({
   onPage,
   onSelect,
   onConfirmationPage,
+  onReversementPage,
 }) {
   const requests = result?.data || []
   const current = selected
@@ -1164,6 +1206,208 @@ function VirementSection({
                     </nav>
                   )}
                 </details>
+              )}
+              {current.reversement && (
+                <section
+                  className="planning-card"
+                  aria-labelledby="reversement-title"
+                >
+                  <h3 id="reversement-title">Reversement au Partenaire</h3>
+                  <p>
+                    Montant autorisé :{' '}
+                    <strong>{formatXof(detail.approved_allocation)}</strong> ·
+                    montant dépensé :{' '}
+                    <strong>{formatXof(current.amount)}</strong>.
+                  </p>
+                  <dl className="execution-summary">
+                    <div>
+                      <dt>Montant à reverser</dt>
+                      <dd>{formatXof(current.reversement.required_amount)}</dd>
+                    </div>
+                    <div>
+                      <dt>Montant déclaré reversé</dt>
+                      <dd>{formatXof(current.reversement.declared_amount)}</dd>
+                    </div>
+                  </dl>
+                  {current.reversement.status === 'not_required' && (
+                    <p className="review-progress">
+                      <CheckCircle2 size={16} aria-hidden="true" /> Aucun
+                      reversement requis.
+                    </p>
+                  )}
+                  {current.reversement.current_declaration && (
+                    <dl className="execution-summary">
+                      <div>
+                        <dt>Date effective du reversement</dt>
+                        <dd>
+                          {current.reversement.current_declaration.return_date}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Référence ou commentaire</dt>
+                        <dd>
+                          {current.reversement.current_declaration.note || '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Déclaré par</dt>
+                        <dd>
+                          {current.reversement.current_declaration.actor_id}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Enregistré le</dt>
+                        <dd>
+                          <time
+                            dateTime={
+                              current.reversement.current_declaration
+                                .recorded_at
+                            }
+                          >
+                            {
+                              current.reversement.current_declaration
+                                .recorded_at
+                            }
+                          </time>
+                        </dd>
+                      </div>
+                    </dl>
+                  )}
+                  {(current.reversement.allowed_actions.includes('declare') ||
+                    current.reversement.allowed_actions.includes(
+                      'correct',
+                    )) && (
+                    <form
+                      key={
+                        current.reversement.current_declaration?.revision ||
+                        'initial'
+                      }
+                      className="planning-form"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        const data = new FormData(event.currentTarget)
+                        const correcting = Boolean(
+                          current.reversement.current_declaration,
+                        )
+                        mutate(
+                          `/virement-requests/${current.id}/reversement${
+                            correcting ? '/corrections' : ''
+                          }`,
+                          {
+                            expected_version: version,
+                            return_date: String(data.get('return_date') || ''),
+                            note: String(data.get('reversement_note') || ''),
+                            ...(correcting
+                              ? {
+                                  reason: String(
+                                    data.get('reversement_reason') || '',
+                                  ),
+                                }
+                              : {}),
+                          },
+                        )
+                      }}
+                    >
+                      <label>
+                        Date effective du reversement
+                        <input
+                          type="date"
+                          name="return_date"
+                          required
+                          defaultValue={
+                            current.reversement.current_declaration?.return_date
+                          }
+                        />
+                      </label>
+                      <label>
+                        Référence ou commentaire du reversement (facultatif)
+                        <textarea
+                          name="reversement_note"
+                          maxLength="4000"
+                          defaultValue={
+                            current.reversement.current_declaration?.note || ''
+                          }
+                        />
+                      </label>
+                      {current.reversement.current_declaration && (
+                        <label>
+                          Motif de la correction du reversement
+                          <textarea
+                            name="reversement_reason"
+                            required
+                            maxLength="4000"
+                          />
+                        </label>
+                      )}
+                      <label>
+                        <input type="checkbox" required /> Je confirme que ce
+                        montant exact a été reversé au Partenaire.
+                      </label>
+                      <Button
+                        type="submit"
+                        disabled={pending || !navigator.onLine}
+                      >
+                        {current.reversement.current_declaration
+                          ? 'Corriger le reversement'
+                          : 'Enregistrer le reversement'}
+                      </Button>
+                    </form>
+                  )}
+                  {reversementHistory?.data?.length > 0 && (
+                    <details>
+                      <summary>
+                        Historique des reversements ({reversementHistory.count})
+                      </summary>
+                      <ol className="review-timeline">
+                        {reversementHistory.data.map((entry) => (
+                          <li key={entry.id}>
+                            <strong>
+                              Version {entry.revision} ·{' '}
+                              {formatXof(entry.returned_amount)} ·{' '}
+                              {entry.return_date}
+                            </strong>
+                            {entry.note && <p>{entry.note}</p>}
+                            <p>
+                              Déclaré par {entry.actor_id} ·{' '}
+                              <time dateTime={entry.recorded_at}>
+                                {entry.recorded_at}
+                              </time>
+                            </p>
+                            {entry.correction_reason && (
+                              <p>Motif : {entry.correction_reason}</p>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                      {(reversementHistory.previous ||
+                        reversementHistory.next) && (
+                        <nav
+                          className="planning-actions"
+                          aria-label="Pagination des déclarations de reversement"
+                        >
+                          <Button
+                            variant="outline"
+                            disabled={!reversementHistory.previous}
+                            onClick={() =>
+                              onReversementPage(reversementHistory.previous)
+                            }
+                          >
+                            Précédent
+                          </Button>
+                          <Button
+                            variant="outline"
+                            disabled={!reversementHistory.next}
+                            onClick={() =>
+                              onReversementPage(reversementHistory.next)
+                            }
+                          >
+                            Suivant
+                          </Button>
+                        </nav>
+                      )}
+                    </details>
+                  )}
+                </section>
               )}
             </div>
           )}

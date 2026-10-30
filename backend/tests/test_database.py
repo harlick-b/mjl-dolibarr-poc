@@ -50,7 +50,7 @@ def test_postgresql_readiness_and_session_rollback(isolated_url):
 
 
 @pytest.mark.integration
-def test_alembic_repeatable_upgrade_to_pta3d(isolated_url, monkeypatch):
+def test_alembic_repeatable_upgrade_to_pta3e(isolated_url, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", isolated_url)
     root = Path(__file__).resolve().parents[1]
     config = Config(str(root / "alembic.ini"))
@@ -63,7 +63,7 @@ def test_alembic_repeatable_upgrade_to_pta3d(isolated_url, monkeypatch):
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0013_pta3d"
+                == "0014_pta3e"
             )
             assert set(inspect(connection).get_table_names()) == {
                 "alembic_version",
@@ -90,6 +90,7 @@ def test_alembic_repeatable_upgrade_to_pta3d(isolated_url, monkeypatch):
                 "pta_virement_request",
                 "pta_virement_decision",
                 "pta_virement_confirmation",
+                "pta_reversement_declaration",
             }
             columns = {
                 column["name"]

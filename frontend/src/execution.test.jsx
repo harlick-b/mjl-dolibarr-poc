@@ -727,6 +727,292 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   )
 })
 
+test('Agent records the exact reversement and preserves reasoned corrections', async () => {
+  const user = userEvent.setup()
+  const requestId = '44444444-4444-4444-8444-444444444444'
+  const execution = detail({ started: true, completed: true })
+  execution.approved_allocation = '300000'
+  execution.spending_total = '200000'
+  execution.virement_context = {
+    disbursement_request_id: '33333333-3333-4333-8333-333333333333',
+    amount: '200000',
+    current_request_id: requestId,
+    current_state: 'approved',
+    can_submit: false,
+    unavailable_reason: 'virement_exists',
+  }
+  const confirmation = {
+    id: 'confirmation-1',
+    revision: 1,
+    amount: '200000',
+    transfer_date: '2026-10-27',
+    note: 'VIREMENT-001',
+    actor_id: 'agent',
+    recorded_at: '2026-10-27T10:00:00Z',
+    correction_reason: null,
+  }
+  let declarations = []
+  let virement = {
+    id: requestId,
+    activity_id: 'activity-1',
+    amount: '200000',
+    state: 'approved',
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read', 'correct_confirmation'],
+    current_confirmation: confirmation,
+    reversement: {
+      required_amount: '100000',
+      declared_amount: '0',
+      status: 'required',
+      current_declaration: null,
+      allowed_actions: ['read', 'declare'],
+    },
+    activity_version: 8,
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (
+      path.endsWith(`/virement-requests/${requestId}/reversement`) &&
+      options.method === 'POST'
+    ) {
+      const body = JSON.parse(options.body)
+      const declared = {
+        id: 'reversement-1',
+        revision: 1,
+        returned_amount: '100000',
+        return_date: body.return_date,
+        note: body.note,
+        actor_id: 'agent',
+        recorded_at: '2026-10-28T10:00:00Z',
+        correction_reason: null,
+        activity_version: 9,
+      }
+      declarations = [declared]
+      virement = {
+        ...virement,
+        activity_version: 9,
+        allowed_actions: ['read'],
+        reversement: {
+          ...virement.reversement,
+          declared_amount: '100000',
+          status: 'declared',
+          current_declaration: declared,
+          allowed_actions: ['read', 'correct'],
+        },
+      }
+      execution.version = 9
+      return Promise.resolve(new Response(JSON.stringify(declared)))
+    }
+    if (
+      path.endsWith(
+        `/virement-requests/${requestId}/reversement/corrections`,
+      ) &&
+      options.method === 'POST'
+    ) {
+      const body = JSON.parse(options.body)
+      const corrected = {
+        ...declarations[0],
+        id: 'reversement-2',
+        revision: 2,
+        return_date: body.return_date,
+        note: body.note,
+        correction_reason: body.reason,
+        recorded_at: '2026-10-29T10:00:00Z',
+        activity_version: 10,
+      }
+      declarations = [corrected, ...declarations]
+      virement = {
+        ...virement,
+        activity_version: 10,
+        reversement: {
+          ...virement.reversement,
+          current_declaration: corrected,
+        },
+      }
+      execution.version = 10
+      return Promise.resolve(new Response(JSON.stringify(corrected)))
+    }
+    if (path.endsWith(`/virement-requests/${requestId}/reversement/history`))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            ...empty,
+            count: declarations.length,
+            data: declarations,
+          }),
+        ),
+      )
+    if (path.endsWith(`/virement-requests/${requestId}/confirmation/history`))
+      return Promise.resolve(new Response(JSON.stringify(empty)))
+    if (path.endsWith(`/virement-requests/${requestId}`))
+      return Promise.resolve(new Response(JSON.stringify(virement)))
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(new Response(JSON.stringify(execution)))
+    if (
+      path.endsWith('/execution/history') ||
+      path.endsWith('/disbursement-requests') ||
+      path.endsWith('/virement-requests')
+    )
+      return Promise.resolve(new Response(JSON.stringify(empty)))
+    return Promise.resolve(new Response('{}', { status: 404 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+
+  const title = await screen.findByRole('heading', {
+    name: 'Reversement au Partenaire',
+  })
+  const panel = within(title.closest('section'))
+  expect(panel.getByText('100 000 XOF', { exact: true })).toBeVisible()
+  await user.type(
+    panel.getByLabelText('Date effective du reversement'),
+    '2026-10-28',
+  )
+  await user.type(
+    panel.getByLabelText(/Référence ou commentaire du reversement/),
+    'REVERSEMENT-001',
+  )
+  await user.click(panel.getByLabelText(/montant exact a été reversé/))
+  await user.click(
+    panel.getByRole('button', { name: 'Enregistrer le reversement' }),
+  )
+  expect(fetch).toHaveBeenCalledWith(
+    `/api/v1/activities/activity-1/virement-requests/${requestId}/reversement`,
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        expected_version: 8,
+        return_date: '2026-10-28',
+        note: 'REVERSEMENT-001',
+      }),
+    }),
+  )
+  await screen.findByRole('button', { name: 'Corriger le reversement' })
+  await user.clear(panel.getByLabelText('Date effective du reversement'))
+  await user.type(
+    panel.getByLabelText('Date effective du reversement'),
+    '2026-10-29',
+  )
+  await user.type(
+    panel.getByLabelText('Motif de la correction du reversement'),
+    'Date corrigée.',
+  )
+  await user.click(panel.getByLabelText(/montant exact a été reversé/))
+  await user.click(
+    panel.getByRole('button', { name: 'Corriger le reversement' }),
+  )
+  await waitFor(() =>
+    expect(panel.getByLabelText('Date effective du reversement')).toHaveValue(
+      '2026-10-29',
+    ),
+  )
+})
+
+test('zero reversement displays settlement without a declaration form', async () => {
+  const requestId = '44444444-4444-4444-8444-444444444444'
+  const execution = detail({ started: true, completed: true })
+  execution.virement_context = {
+    disbursement_request_id: '33333333-3333-4333-8333-333333333333',
+    amount: '100000',
+    current_request_id: requestId,
+    current_state: 'approved',
+    can_submit: false,
+    unavailable_reason: 'virement_exists',
+  }
+  const virement = {
+    id: requestId,
+    amount: '100000',
+    state: 'approved',
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read', 'correct_confirmation'],
+    current_confirmation: {
+      id: 'confirmation-1',
+      revision: 1,
+      amount: '100000',
+      transfer_date: '2026-10-27',
+      note: null,
+      actor_id: 'agent',
+      recorded_at: '2026-10-27T10:00:00Z',
+      correction_reason: null,
+    },
+    reversement: {
+      required_amount: '0',
+      declared_amount: '0',
+      status: 'not_required',
+      current_declaration: null,
+      allowed_actions: ['read'],
+    },
+    activity_version: 8,
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  vi.stubGlobal('fetch', (url) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (path.endsWith(`/virement-requests/${requestId}`))
+      return Promise.resolve(new Response(JSON.stringify(virement)))
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(new Response(JSON.stringify(execution)))
+    return Promise.resolve(new Response(JSON.stringify(empty)))
+  })
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+  expect(await screen.findByText('Aucun reversement requis.')).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Enregistrer le reversement' }),
+  ).not.toBeInTheDocument()
+})
+
 test('an uncertain virement submission stays blocked until reconciliation succeeds', async () => {
   const user = userEvent.setup()
   const execution = detail({ started: true, completed: true })

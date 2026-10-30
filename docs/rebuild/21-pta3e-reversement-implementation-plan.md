@@ -1,6 +1,8 @@
 # PTA-3E implementation plan: reversement of unused funds
 
-Planning status: **ready for implementation authorization**, not implemented.
+Historical planning status: **implemented and independently reviewed** on
+2026-10-30. Completion evidence is in
+[status 22](22-pta3e-implementation-status.md).
 Authority: DEC-119, the approved PTA brief, standards 02/03 and the completed
 PTA-3D boundary at `4cd704a`. This is the only implementation contract needed for
 PTA-3E. A short explicit authorization is sufficient.

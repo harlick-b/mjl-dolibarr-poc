@@ -19,6 +19,7 @@ from app.planning.models import (
     ActivityContributor,
     DisbursementRequest,
     Project,
+    ReversementDeclaration,
     VirementConfirmation,
     VirementDecision,
     VirementRequest,
@@ -103,6 +104,25 @@ class ConfirmationOutput(Input):
     correction_reason: str | None
 
 
+class ReversementDeclarationOutput(Input):
+    id: str
+    revision: int
+    returned_amount: str
+    return_date: str
+    note: str | None
+    actor_id: str
+    recorded_at: str
+    correction_reason: str | None
+
+
+class ReversementOutput(Input):
+    required_amount: str
+    declared_amount: str
+    status: Literal["not_required", "required", "declared"]
+    current_declaration: ReversementDeclarationOutput | None
+    allowed_actions: list[str]
+
+
 class RequestOutput(Input):
     id: str
     activity_id: str
@@ -116,6 +136,7 @@ class RequestOutput(Input):
     decisions: list[DecisionOutput]
     allowed_actions: list[str]
     current_confirmation: ConfirmationOutput | None
+    reversement: ReversementOutput | None
 
 
 class MutationOutput(RequestOutput):
@@ -250,11 +271,59 @@ def output(
         .order_by(VirementConfirmation.revision.desc())
         .limit(1)
     )
+    reversement = db.scalar(
+        select(ReversementDeclaration)
+        .where(ReversementDeclaration.request_id == financial.id)
+        .order_by(ReversementDeclaration.revision.desc())
+        .limit(1)
+    )
     actions = allowed_actions(role, actor_id, financial, rows)
     if role == "AGENT_SAISIE" and financial.state == "approved":
-        actions.append(
-            "correct_confirmation" if confirmation else "declare_confirmation"
-        )
+        if not confirmation:
+            actions.append("declare_confirmation")
+        elif not reversement:
+            actions.append("correct_confirmation")
+    reversement_output: dict[str, Any] | None = None
+    if confirmation and financial.state == "approved":
+        allocation = source.snapshot.get("allocation")
+        if (
+            not isinstance(allocation, str)
+            or not allocation.isascii()
+            or not allocation.isdecimal()
+        ):
+            raise AuthError(409, "financial_basis_stale")
+        required = int(allocation) - source.amount
+        if required < 0:
+            raise AuthError(409, "financial_insufficiency_unresolved")
+        reversement_actions = ["read"]
+        if role == "AGENT_SAISIE" and required > 0:
+            reversement_actions.append("correct" if reversement else "declare")
+        reversement_output = {
+            "required_amount": str(required),
+            "declared_amount": str(reversement.amount) if reversement else "0",
+            "status": (
+                "not_required"
+                if required == 0
+                else "declared"
+                if reversement
+                else "required"
+            ),
+            "current_declaration": (
+                {
+                    "id": reversement.id,
+                    "revision": reversement.revision,
+                    "returned_amount": str(reversement.amount),
+                    "return_date": reversement.return_date.isoformat(),
+                    "note": reversement.note,
+                    "actor_id": reversement.actor_id,
+                    "recorded_at": reversement.recorded_at.isoformat(),
+                    "correction_reason": reversement.correction_reason,
+                }
+                if reversement
+                else None
+            ),
+            "allowed_actions": reversement_actions,
+        }
     return {
         "id": financial.id,
         "activity_id": financial.activity_id,
@@ -303,6 +372,7 @@ def output(
             if confirmation
             else None
         ),
+        "reversement": reversement_output,
     }
 
 

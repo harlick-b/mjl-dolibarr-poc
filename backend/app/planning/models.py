@@ -679,3 +679,39 @@ class VirementConfirmation(Base):
     actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     correction_reason: Mapped[str | None] = mapped_column(String(4000))
+
+
+class ReversementDeclaration(Base):
+    __tablename__ = "pta_reversement_declaration"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["activity_id", "request_id"],
+            ["pta_virement_request.activity_id", "pta_virement_request.id"],
+        ),
+        UniqueConstraint(
+            "request_id", "revision", name="reversement_declaration_revision"
+        ),
+        CheckConstraint(
+            "revision > 0", name="reversement_declaration_revision_positive"
+        ),
+        CheckConstraint("amount > 0", name="reversement_declaration_amount_positive"),
+        CheckConstraint(
+            "(revision=1 AND correction_reason IS NULL) OR "
+            "(revision>1 AND correction_reason IS NOT NULL AND "
+            "length(btrim(correction_reason)) BETWEEN 1 AND 4000)",
+            name="reversement_declaration_correction_reason",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    activity_id: Mapped[str] = mapped_column(String(36))
+    request_id: Mapped[str] = mapped_column(String(36))
+    confirmation_id: Mapped[str] = mapped_column(
+        ForeignKey("pta_virement_confirmation.id")
+    )
+    revision: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    return_date: Mapped[date] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(String(4000))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    correction_reason: Mapped[str | None] = mapped_column(String(4000))

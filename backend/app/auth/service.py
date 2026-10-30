@@ -92,6 +92,7 @@ class AuthService:
                 "pta_virement_request",
                 "pta_virement_decision",
                 "pta_virement_confirmation",
+                "pta_reversement_declaration",
             )
         }
         if relations != expected:
@@ -99,7 +100,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0013_pta3d"]:
+        if revisions != ["0014_pta3e"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -144,6 +145,10 @@ class AuthService:
             "virement_confirmation_revision_positive",
             "virement_confirmation_amount_positive",
             "virement_confirmation_correction_reason",
+            "reversement_declaration_revision",
+            "reversement_declaration_revision_positive",
+            "reversement_declaration_amount_positive",
+            "reversement_declaration_correction_reason",
         }
         found = set(
             db.scalars(
@@ -213,7 +218,8 @@ class AuthService:
                      'pta_validate_disbursement_state',
                      'pta_preserve_virement',
                      'pta_validate_virement_state',
-                     'pta_preserve_virement_confirmation')
+                     'pta_preserve_virement_confirmation',
+                     'pta_preserve_reversement_declaration')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -222,7 +228,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "a97eb2a27a98da29587ea746536c0cc1dbcebfc6830efd2564ff5ca9162f63fa"
+            "dfd6b708059d6504249c5bfb2628d37af1d06aeed652666e0747ef1264aaf432"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -348,6 +354,59 @@ class AuthService:
         business: dict[str, object],
     ) -> None:
         business = dict(business)
+        if action.startswith("reversement."):
+            reversement_required = {
+                "context_id",
+                "activity_id",
+                "request_id",
+                "confirmation_id",
+                "declaration_id",
+                "revision",
+                "required_amount",
+                "returned_amount",
+                "before",
+                "after",
+                "reason",
+            }
+            if (
+                set(business) != reversement_required
+                or business.get("context_id") != "MJL"
+                or business.get("declaration_id") != target
+                or not all(
+                    isinstance(business.get(key), str)
+                    for key in ("activity_id", "request_id", "confirmation_id")
+                )
+                or not isinstance(business.get("revision"), int)
+                or not all(
+                    isinstance(business.get(key), str)
+                    and str(business[key]).isascii()
+                    and str(business[key]).isdecimal()
+                    for key in ("required_amount", "returned_amount")
+                )
+                or not isinstance(business.get("after"), dict)
+                or not (
+                    business.get("before") is None
+                    or isinstance(business.get("before"), dict)
+                )
+                or not (
+                    business.get("reason") is None
+                    or isinstance(business.get("reason"), str)
+                )
+            ):
+                raise ValueError("Invalid business audit facts")
+            db.add(
+                Audit(
+                    business=business,
+                    occurred_at=self.now(db),
+                    action=action,
+                    actor=actor,
+                    target=target,
+                    outcome="ok",
+                    request_id=request_id.get() or str(uuid4()),
+                )
+            )
+            db.flush()
+            return
         if action.startswith("virement_confirmation."):
             confirmation_required = {
                 "context_id",

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.auth.dto import ErrorResponse
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
-from app.planning.models import VirementConfirmation
+from app.planning.models import ReversementDeclaration, VirementConfirmation
 from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
 from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
 from app.planning.virement import exact_request, verified_source
@@ -130,6 +130,12 @@ def create_confirmation(
         if financial.state != "approved":
             raise AuthError(409, "virement_not_approved")
         previous = current(db, financial.id, lock=True)
+        if previous and db.scalar(
+            select(ReversementDeclaration.id).where(
+                ReversementDeclaration.request_id == financial.id
+            )
+        ):
+            raise AuthError(409, "confirmation_frozen")
         if correction != (previous is not None):
             raise AuthError(
                 409,
