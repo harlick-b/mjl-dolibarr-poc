@@ -2128,6 +2128,7 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
         "/api/v1/activities/{identifier}/revisions/{revision_id}/decisions",
         "/api/v1/ptas/{identifier}/execution",
         "/api/v1/activities/{identifier}/execution",
+        "/api/v1/activities/{identifier}/closure",
         "/api/v1/activities/{identifier}/execution/history",
         "/api/v1/activities/{identifier}/operations/{operation_id}/execution",
         "/api/v1/activities/{identifier}/disbursement-requests",
@@ -2461,7 +2462,7 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, au
             assert contributors == expected
             assert excluded not in contributors
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0014_pta3e"
+                "0015_pta3f"
             )
     finally:
         engine.dispose()
@@ -2488,7 +2489,7 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0014_pta3e"
+                "0015_pta3f"
             )
             assert db.scalar(text("SELECT count(*) FROM pta_activity_revision")) == 1
     finally:

@@ -345,6 +345,9 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   restore the canonical predecessor constraint expressions and function bodies,
   not merely equivalent behavior. Verify the downgraded manifest against the
   predecessor application artifact before accepting re-upgrade evidence.
+- Schema manifests must identify PostgreSQL columns by stable names rather than
+  physical attribute positions. A drop and re-add can leave internal column slots
+  while restoring the same public schema, causing a false provenance rejection.
 
 - Completed slices left authorization prose in plans/readiness files looking
   current. Add a brief completion pointer and retain the dated contract; do not

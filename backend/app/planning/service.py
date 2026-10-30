@@ -118,7 +118,7 @@ def allowed(
         role == "AGENT_SAISIE"
         and resource == "activity"
         and withdrawal
-        and state != "withdrawn"
+        and state not in {"withdrawn", "closed"}
     ):
         actions.append("cancel_withdrawal")
         if state in {"returned_supervisor", "returned_validator"}:
@@ -130,7 +130,7 @@ def allowed(
     if (
         role in {"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"}
         and resource == "activity"
-        and state != "withdrawn"
+        and state not in {"withdrawn", "closed"}
     ):
         actions.append("assign_agents")
     if (
@@ -370,6 +370,14 @@ def activity_item(
         ],
         "agent_ids": agent_ids,
         "allowed_actions": actions,
+        "closure": (
+            {
+                "closed_by_id": item.closed_by_id,
+                "closed_at": item.closed_at.isoformat(),
+            }
+            if item.closed_by_id and item.closed_at
+            else None
+        ),
     }
 
 

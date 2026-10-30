@@ -182,17 +182,15 @@ def excluded_reviewers(db: Session, item: Activity, submitter_id: str) -> set[st
 
 
 def verified_financial_basis(
-    db: Session, item: Activity
+    db: Session, item: Activity, *, lock: bool = True
 ) -> tuple[int, list[dict[str, object]], set[str]]:
-    revision, approved = approved_operations(db, item, lock=True)
-    all_rows = list(
-        db.scalars(
-            select(Operation)
-            .where(Operation.activity_id == item.id)
-            .order_by(Operation.id)
-            .with_for_update()
-        )
+    revision, approved = approved_operations(db, item, lock=lock)
+    operation_statement = (
+        select(Operation).where(Operation.activity_id == item.id).order_by(Operation.id)
     )
+    if lock:
+        operation_statement = operation_statement.with_for_update()
+    all_rows = list(db.scalars(operation_statement))
     active_ids = {row.id for row in all_rows if row.removed_at is None}
     approved_ids = {row.id for row, _ in approved}
     removed = [row for row in all_rows if row.removed_at is not None]

@@ -19,6 +19,9 @@ function detail({ started = false, completed = false } = {}) {
     approved_allocation: '100000',
     approved_revision_id: '11111111-1111-4111-8111-111111111111',
     version: started ? (completed ? 7 : 6) : 5,
+    state: 'approved',
+    closure: null,
+    closure_blockers: ['execution_incomplete'],
     execution_paused: false,
     pause_reason: null,
     completed_operations: completed ? 1 : 0,
@@ -52,6 +55,150 @@ function detail({ started = false, completed = false } = {}) {
     ],
   }
 }
+
+test('Agent confirms eligible Activity closure and sees terminal evidence', async () => {
+  const user = userEvent.setup()
+  let current = {
+    ...detail({ started: true, completed: true }),
+    version: 11,
+    closure_blockers: [],
+    allowed_actions: ['read', 'close'],
+  }
+  const emptyList = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (path.endsWith('/closure') && options.method === 'POST') {
+      current = {
+        ...current,
+        state: 'closed',
+        version: 12,
+        closure: {
+          closed_by_id: 'agent',
+          closed_at: '2026-10-30T15:00:00Z',
+        },
+        allowed_actions: ['read'],
+      }
+      return Promise.resolve(new Response(JSON.stringify(current)))
+    }
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(new Response(JSON.stringify(current)))
+    if (
+      path.endsWith('/execution/history') ||
+      path.endsWith('/disbursement-requests') ||
+      path.endsWith('/virement-requests')
+    )
+      return Promise.resolve(new Response(JSON.stringify(emptyList)))
+    return Promise.resolve(new Response('{}', { status: 404 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+  const button = await screen.findByRole('button', {
+    name: 'Clôturer l’activité',
+  })
+  const confirmation = screen.getByLabelText(
+    /Je confirme que l’Activité est entièrement réalisée/,
+  )
+  expect(confirmation).not.toBeChecked()
+  await user.click(confirmation)
+  await user.click(button)
+  expect(await screen.findByText('Activité clôturée')).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Clôturer l’activité' }),
+  ).toBeNull()
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/closure',
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ expected_version: 11 }),
+    }),
+  )
+})
+
+test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
+  '%s sees closed evidence without closure controls',
+  async (role) => {
+    const current = {
+      ...detail({ started: true, completed: true }),
+      state: 'closed',
+      version: 12,
+      closure: {
+        closed_by_id: 'agent',
+        closed_at: '2026-10-30T15:00:00Z',
+      },
+      closure_blockers: [],
+      allowed_actions: ['read'],
+    }
+    const emptyList = {
+      object: 'list',
+      count: 0,
+      data: [],
+      next: null,
+      previous: null,
+    }
+    const fetch = vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: { id: 'reviewer', role },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return Promise.resolve(new Response(JSON.stringify(current)))
+      if (
+        path.endsWith('/execution/history') ||
+        path.endsWith('/disbursement-requests') ||
+        path.endsWith('/virement-requests')
+      )
+        return Promise.resolve(new Response(JSON.stringify(emptyList)))
+      return Promise.resolve(new Response('{}', { status: 404 }))
+    })
+    vi.stubGlobal('fetch', fetch)
+    render(
+      <App
+        router={makeRouter(
+          createMemoryHistory({
+            initialEntries: ['/execution/activities/activity-1'],
+          }),
+        )}
+      />,
+    )
+    expect(await screen.findByText('Activité clôturée')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Clôturer l’activité' }),
+    ).toBeNull()
+  },
+)
 
 test('Agent starts and records an Operation without offline replay', async () => {
   const user = userEvent.setup()

@@ -63,7 +63,7 @@ def test_alembic_repeatable_upgrade_to_pta3e(isolated_url, monkeypatch):
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0014_pta3e"
+                == "0015_pta3f"
             )
             assert set(inspect(connection).get_table_names()) == {
                 "alembic_version",

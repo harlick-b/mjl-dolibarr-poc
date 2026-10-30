@@ -15,11 +15,13 @@ from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.models import (
     Activity,
+    ActivityAssignment,
     ActivityRevision,
     AnnualPTA,
     DisbursementRequest,
     Operation,
     Project,
+    ReversementDeclaration,
     VirementConfirmation,
     VirementRequest,
 )
@@ -107,6 +109,15 @@ class ExecutionMutation(Input):
         return self
 
 
+class ClosureInput(Input):
+    expected_version: int = Field(gt=0, strict=True)
+
+
+class ClosureOutput(Input):
+    closed_by_id: str
+    closed_at: str
+
+
 class ExecutionOperationOutput(Input):
     id: str
     type_id: str
@@ -143,6 +154,9 @@ class ExecutionDetailOutput(Input):
     approved_allocation: str
     approved_revision_id: str
     version: int
+    state: str
+    closure: ClosureOutput | None
+    closure_blockers: list[str]
     execution_paused: bool
     pause_reason: str | None
     mutation_unavailable_reason: str | None
@@ -164,6 +178,9 @@ class ExecutionListItem(Input):
     approved_allocation: str
     approved_revision_id: str
     version: int
+    state: str
+    closure: ClosureOutput | None
+    closure_blockers: list[str]
     execution_paused: bool
     pause_reason: str | None
     completed_operations: int
@@ -252,6 +269,8 @@ def pause_reason(item: Activity, project: Project | None) -> str | None:
         return "project_inactive"
     if item.state == "withdrawn":
         return "activity_withdrawn"
+    if item.state == "closed":
+        return "activity_closed"
     if item.amendment_id:
         return "amendment_pending"
     if item.withdrawal_id:
@@ -261,6 +280,80 @@ def pause_reason(item: Activity, project: Project | None) -> str | None:
     if item.state != "approved":
         return "activity_not_approved"
     return None
+
+
+def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list[str]:
+    """Return server-owned closure blockers; every uncertainty fails closed."""
+    if item.state == "closed":
+        return []
+    blockers: list[str] = []
+    project = db.get(Project, item.request_project_id, with_for_update=lock)
+    if pause_reason(item, project) is not None:
+        blockers.append("planning_not_approved")
+    try:
+        from app.planning.disbursement import verified_financial_basis
+
+        spent, _operation_facts, _authors = verified_financial_basis(
+            db, item, lock=lock
+        )
+    except AuthError as error:
+        blockers.append(error.code)
+        return list(dict.fromkeys(blockers))
+    source_statement = select(DisbursementRequest).where(
+        DisbursementRequest.activity_id == item.id,
+        DisbursementRequest.state != "cancelled",
+    )
+    virement_statement = select(VirementRequest).where(
+        VirementRequest.activity_id == item.id,
+        VirementRequest.state != "cancelled",
+    )
+    if lock:
+        source_statement = source_statement.with_for_update()
+        virement_statement = virement_statement.with_for_update()
+    source = db.scalar(source_statement)
+    financial = db.scalar(virement_statement)
+    if not source or source.state != "approved" or source.amount != spent:
+        blockers.append("disbursement_not_settled")
+    if (
+        not financial
+        or financial.state != "approved"
+        or not source
+        or financial.disbursement_request_id != source.id
+    ):
+        blockers.append("virement_not_settled")
+        return list(dict.fromkeys(blockers))
+    confirmation_statement = (
+        select(VirementConfirmation)
+        .where(VirementConfirmation.request_id == financial.id)
+        .order_by(VirementConfirmation.revision.desc())
+        .limit(1)
+    )
+    if lock:
+        confirmation_statement = confirmation_statement.with_for_update()
+    confirmation = db.scalar(confirmation_statement)
+    if not confirmation or confirmation.amount != spent:
+        blockers.append("virement_confirmation_required")
+        return list(dict.fromkeys(blockers))
+    required = item.allocation - spent
+    if required < 0:
+        blockers.append("financial_insufficiency_unresolved")
+    elif required > 0:
+        declaration_statement = (
+            select(ReversementDeclaration)
+            .where(ReversementDeclaration.request_id == financial.id)
+            .order_by(ReversementDeclaration.revision.desc())
+            .limit(1)
+        )
+        if lock:
+            declaration_statement = declaration_statement.with_for_update()
+        declaration = db.scalar(declaration_statement)
+        if (
+            not declaration
+            or declaration.confirmation_id != confirmation.id
+            or declaration.amount != required
+        ):
+            blockers.append("reversement_not_settled")
+    return list(dict.fromkeys(blockers))
 
 
 def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
@@ -347,6 +440,18 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
                 "allowed_actions": actions,
             }
         )
+    blockers = closure_blockers(db, item)
+    closure = (
+        {
+            "closed_by_id": item.closed_by_id,
+            "closed_at": item.closed_at.isoformat(),
+        }
+        if item.closed_by_id and item.closed_at
+        else None
+    )
+    actions = ["read"]
+    if role == "AGENT_SAISIE" and item.state == "approved" and not blockers:
+        actions.append("close")
     return {
         "id": item.id,
         "pta_id": item.pta_id,
@@ -358,6 +463,9 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
         "approved_allocation": cast(str, revision.snapshot["allocation"]),
         "approved_revision_id": revision.id,
         "version": item.version,
+        "state": item.state,
+        "closure": closure,
+        "closure_blockers": blockers,
         "execution_paused": reason is not None,
         "pause_reason": reason,
         "mutation_unavailable_reason": unavailable_reason,
@@ -394,8 +502,68 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
             if current_confirmation
             else None,
         },
-        "allowed_actions": ["read"],
+        "allowed_actions": actions,
     }
+
+
+@router.post(
+    "/activities/{identifier}/closure",
+    response_model=ExecutionDetailOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def close_activity(
+    identifier: str, body: ClosureInput, request: Request, auth: Auth
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
+        )
+        item = get_activity_for_command(db, identifier)
+        if item.version != body.expected_version:
+            raise AuthError(409, "activity_stale")
+        blockers = closure_blockers(db, item, lock=True)
+        if blockers:
+            raise AuthError(409, blockers[0])
+        now = auth.now(db)
+        assignments = list(
+            db.scalars(
+                select(ActivityAssignment)
+                .where(
+                    ActivityAssignment.activity_id == item.id,
+                    ActivityAssignment.ended_at.is_(None),
+                )
+                .order_by(ActivityAssignment.id)
+                .with_for_update()
+            )
+        )
+        before_version = item.version
+        item.state = "closed"
+        item.closed_by_id = actor.id
+        item.closed_at = now
+        item.version += 1
+        item.updated_at = now
+        for assignment in assignments:
+            assignment.ended_at = now
+            assignment.ended_by_id = actor.id
+        db.flush()
+        auth.business_audit(
+            db,
+            "activity.closed",
+            actor.id,
+            item.id,
+            {
+                "context_id": CONTEXT,
+                "activity_id": item.id,
+                "approved_revision_id": item.approved_revision_id,
+                "before_version": before_version,
+                "version": item.version,
+                "closed_by_id": actor.id,
+                "closed_at": now.isoformat(),
+                "ended_assignment_ids": [row.id for row in assignments],
+            },
+        )
+        return execution_detail(db, item, actor.role)
 
 
 def assert_never_started(db: Session, item: Activity) -> None:

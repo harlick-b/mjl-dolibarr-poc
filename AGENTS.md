@@ -23,19 +23,19 @@ The authority/business/API disposition register is
 The current implementation boundary and evidence are in
 `docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
 router. Foundation, A1–A3 and synthetic PTA planning and execution through
-PTA-3E reversement declaration are complete. DEC-119 governs the current bounded
-workflow: after external virement confirmation, the server derives unused funds
-from the approved allocation and final spending. An Agent records the exact
-positive external return, or no declaration when the result is zero; reasoned
-date/note corrections preserve immutable history. Migration `0014_pta3e` adds
-one append-only table and the French realization workspace exposes three new REST
-responsibilities.
+PTA-3F Activity closure are complete. DEC-120 governs the current bounded
+workflow: after approved settlement and the exact zero or positive reversement
+outcome, an Agent directly closes the Activity. Closure records immutable
+actor/time evidence, ends active coordination assignments and makes planning,
+Operation and financial corrections terminal. Migration `0015_pta3f` adds two
+Activity columns and no table; the French realization workspace exposes one new
+REST responsibility.
 PC1/PC2 remain pending; use synthetic identities, isolated databases and test
-mail only. Stop after PTA-3E.
+mail only. Stop after PTA-3F.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
-partial/different reversements, discrepancy or insufficiency handling, formal
-closure, documents, notifications, banking integration, later slices, general A4
-and production remain deferred.
+partial/different reversements, discrepancy or insufficiency handling, annual
+metrics/reports, documents, notifications, banking integration, later slices,
+general A4 and production remain deferred.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
 

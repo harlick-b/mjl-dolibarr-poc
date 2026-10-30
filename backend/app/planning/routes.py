@@ -334,6 +334,7 @@ class ActivityOutput(Input):
         "returned_validator",
         "approved",
         "withdrawn",
+        "closed",
     ]
     version: int
     current_revision_id: str | None
@@ -350,6 +351,7 @@ class ActivityOutput(Input):
     operations: list[OperationOutput]
     agent_ids: list[str]
     allowed_actions: list[str]
+    closure: dict[str, str] | None
 
 
 class PTAOutput(Input):
@@ -2873,7 +2875,7 @@ def replace_assignments(
         item = get_activity(db, identifier, lock=True)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
-        if item.state == "withdrawn":
+        if item.state in {"withdrawn", "closed"}:
             raise AuthError(409, "assignment_ineligible")
         current = {
             row.agent_id: row

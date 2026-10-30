@@ -1,5 +1,130 @@
 import { expect, test } from '@playwright/test'
 
+test('PTA-3F eligible Agent closes and keeps terminal evidence', async ({
+  page,
+}) => {
+  let closed = false
+  let closureMutations = 0
+  let role = 'AGENT_SAISIE'
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  const detail = () => ({
+    id: 'activity-close',
+    pta_id: 'pta-1',
+    project_id: 'project-1',
+    reference: 'ACT-000099',
+    name: 'Activité prête à clôturer',
+    planned_start: '2026-10-01',
+    planned_end: '2026-10-30',
+    approved_allocation: '100000',
+    approved_revision_id: '11111111-1111-4111-8111-111111111111',
+    version: closed ? 13 : 12,
+    state: closed ? 'closed' : 'approved',
+    closure: closed
+      ? { closed_by_id: 'agent', closed_at: '2026-10-30T15:00:00Z' }
+      : null,
+    closure_blockers: [],
+    execution_paused: closed,
+    pause_reason: closed ? 'activity_closed' : null,
+    mutation_unavailable_reason: closed ? 'activity_closed' : null,
+    completed_operations: 1,
+    operation_count: 1,
+    works_completed: true,
+    spending_total: '100000',
+    virement_context: {
+      disbursement_request_id: 'disbursement-1',
+      amount: '100000',
+      current_request_id: null,
+      current_state: null,
+      can_submit: false,
+      unavailable_reason: 'virement_exists',
+    },
+    allowed_actions: closed ? ['read'] : ['read', 'close'],
+    operations: [
+      {
+        id: 'operation-1',
+        type_id: 'type-1',
+        type_label: 'Formation',
+        name: 'Réaliser la formation',
+        approved_allocation: '100000',
+        position: 1,
+        execution_started_at: '2026-10-01T09:00:00Z',
+        execution_completed: true,
+        actual_spent: '100000',
+        execution_observation: 'Terminée.',
+        variance: '0',
+        allowed_actions: [],
+      },
+    ],
+  })
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v1/auth/session')
+      return route.fulfill({
+        json: {
+          state: 'verified',
+          csrf: 'csrf',
+          user: { id: role === 'AGENT_SAISIE' ? 'agent' : 'reviewer', role },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        },
+      })
+    if (path.endsWith('/closure') && request.method() === 'POST') {
+      closureMutations += 1
+      expect(request.postDataJSON()).toEqual({ expected_version: 12 })
+      closed = true
+      return route.fulfill({ json: detail() })
+    }
+    if (path.endsWith('/activities/activity-close/execution'))
+      return route.fulfill({ json: detail() })
+    if (
+      path.endsWith('/execution/history') ||
+      path.endsWith('/disbursement-requests') ||
+      path.endsWith('/virement-requests')
+    )
+      return route.fulfill({ json: empty })
+    return route.fulfill({ status: 404, json: {} })
+  })
+  await page.goto('/execution/activities/activity-close')
+  await page.context().setOffline(true)
+  await expect(
+    page.getByRole('heading', { name: 'Vérification de l’accès' }),
+  ).toBeVisible()
+  expect(closureMutations).toBe(0)
+  await page.context().setOffline(false)
+  await page.reload()
+  await expect(
+    page.getByRole('button', { name: 'Clôturer l’activité' }),
+  ).toBeVisible()
+  await page.waitForTimeout(100)
+  expect(closureMutations).toBe(0)
+  await page
+    .getByLabel(/Je confirme que l’Activité est entièrement réalisée/)
+    .check()
+  await page.getByRole('button', { name: 'Clôturer l’activité' }).click()
+  await expect(
+    page.getByText('Activité clôturée', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Clôturer l’activité' }),
+  ).toHaveCount(0)
+  expect(closureMutations).toBe(1)
+  role = 'AGENT_VERIFICATEUR'
+  await page.reload()
+  await expect(
+    page.getByText('Activité clôturée', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Clôturer l’activité' }),
+  ).toHaveCount(0)
+  expect(closureMutations).toBe(1)
+})
+
 test('PTA-3A start, spending, completion and correction browser journey', async ({
   page,
 }) => {

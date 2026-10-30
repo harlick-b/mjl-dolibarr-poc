@@ -966,7 +966,7 @@ def test_concurrent_execution_edits_reject_stale_second_write(planning):
     assert (first.status_code, second.status_code) == (200, 409)
 
 
-def test_execution_openapi_exposes_only_the_four_contract_responsibilities(planning):
+def test_execution_openapi_exposes_closure_responsibility(planning):
     paths = planning["agent"].app.openapi()["paths"]
     assert set(paths["/api/v1/ptas/{identifier}/execution"]) == {"get"}
     assert set(paths["/api/v1/activities/{identifier}/execution"]) == {"get"}
@@ -974,12 +974,20 @@ def test_execution_openapi_exposes_only_the_four_contract_responsibilities(plann
     assert set(paths[history]) == {"get"}
     mutation = "/api/v1/activities/{identifier}/operations/{operation_id}/execution"
     assert set(paths[mutation]) == {"patch"}
+    closure = "/api/v1/activities/{identifier}/closure"
+    assert set(paths[closure]) == {"post"}
     headers_present = {
         parameter["name"]
         for parameter in paths[mutation]["patch"]["parameters"]
         if parameter["in"] == "header"
     }
     assert headers_present == {"Origin", "X-CSRF-Token"}
+    closure_headers = {
+        parameter["name"]
+        for parameter in paths[closure]["post"]["parameters"]
+        if parameter["in"] == "header"
+    }
+    assert closure_headers == {"Origin", "X-CSRF-Token"}
 
 
 def test_execution_audit_rejects_unbounded_or_unexpected_facts(planning):
@@ -1182,7 +1190,7 @@ def test_execution_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0014_pta3e"
+                "0015_pta3f"
             )
             assert (
                 db.scalar(

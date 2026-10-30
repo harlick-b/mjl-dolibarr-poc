@@ -36,10 +36,14 @@ settlement discrepancy remains. No Supervisor or Validator closure decision,
 manual closure date, reason or document is required. The server records actor/time
 and only closed Activities count as physically realized.
 
-The user instructed Codex to proceed with the next planning step on 2026-10-30.
+The user instructed Codex to proceed with the next planning step and then
+explicitly authorized PTA-3F implementation on 2026-10-30.
 [Plan 23](rebuild/23-pta3f-activity-closure-implementation-plan.md) defines the
-smallest bounded implementation and independent-review contract. This records no
-runtime authorization. Zero-total and insufficient/discrepant settlement,
+smallest bounded implementation and independent-review contract. Implementation
+evidence is recorded in [status 24](rebuild/24-pta3f-implementation-status.md);
+`PTA_3F_COMPLETE` was recorded on 2026-10-30 after mandatory independent review
+passed. Zero-total and
+insufficient/discrepant settlement,
 nonempty Project closure, annual KPIs/Fiche, documents, notifications, real
 accounts and production remain separate work.
 

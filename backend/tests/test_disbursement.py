@@ -688,7 +688,7 @@ def test_financial_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0014_pta3e"
+                "0015_pta3f"
             )
     finally:
         engine.dispose()

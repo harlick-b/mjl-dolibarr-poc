@@ -354,7 +354,11 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           search: (current) => ({ ...current, virementRequest: '' }),
         })
       setError('')
-      toast.success('Suivi financier mis à jour.')
+      toast.success(
+        variables.path === '/closure'
+          ? 'Activité clôturée.'
+          : 'Suivi financier mis à jour.',
+      )
     },
     onError: async (problem) => {
       if (problem.name === 'AbortError') return
@@ -599,6 +603,7 @@ function ExecutionDetail({
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
     activity_withdrawn: 'l’Activité a été retirée',
+    activity_closed: 'l’Activité est clôturée',
     amendment_pending: 'une modification est en cours',
     withdrawal_pending: 'une demande de retrait est en cours',
     transfer_pending: 'un transfert est en cours',
@@ -703,6 +708,11 @@ function ExecutionDetail({
         onConfirmationPage={onConfirmationPage}
         onReversementPage={onReversementPage}
       />
+      <ClosureSection
+        detail={detail}
+        pending={pending}
+        mutate={mutateFinance}
+      />
       <section
         className="planning-card"
         aria-labelledby="execution-history-title"
@@ -743,6 +753,83 @@ function ExecutionDetail({
           </nav>
         )}
       </section>
+    </section>
+  )
+}
+
+function ClosureSection({ detail, pending, mutate }) {
+  const blockerLabels = {
+    planning_not_approved:
+      'L’Activité doit être approuvée sans demande en cours.',
+    execution_ineligible:
+      'Les Opérations approuvées ne peuvent pas être vérifiées.',
+    execution_incomplete:
+      'Toutes les Opérations doivent être terminées et chiffrées.',
+    execution_history_unverified: 'L’historique de réalisation est incomplet.',
+    spending_ineligible: 'Le total final des dépenses ne peut pas être réglé.',
+    disbursement_not_settled: 'Le décaissement exact doit être approuvé.',
+    virement_not_settled: 'Le virement exact doit être approuvé.',
+    virement_confirmation_required: 'Le virement externe doit être confirmé.',
+    reversement_not_settled: 'Le reversement exact doit être enregistré.',
+    financial_insufficiency_unresolved:
+      'Les dépenses dépassent le montant approuvé.',
+  }
+  const blockers = detail.closure_blockers || []
+  return (
+    <section className="planning-card" aria-labelledby="closure-title">
+      <h2 id="closure-title">Clôture de l’activité</h2>
+      {detail.closure ? (
+        <>
+          <p className="review-progress">
+            <CheckCircle2 size={16} aria-hidden="true" /> Activité clôturée
+          </p>
+          <dl className="execution-summary">
+            <div>
+              <dt>Clôturée par</dt>
+              <dd>{detail.closure.closed_by_id}</dd>
+            </div>
+            <div>
+              <dt>Clôturée le</dt>
+              <dd>
+                <time dateTime={detail.closure.closed_at}>
+                  {detail.closure.closed_at}
+                </time>
+              </dd>
+            </div>
+          </dl>
+        </>
+      ) : (
+        <>
+          <p>
+            La clôture confirme que les travaux, le virement et le reversement
+            éventuel sont terminés.
+          </p>
+          {blockers.length > 0 && (
+            <ul>
+              {blockers.map((blocker) => (
+                <li key={blocker}>{blockerLabels[blocker] || blocker}</li>
+              ))}
+            </ul>
+          )}
+          {detail.allowed_actions?.includes('close') && (
+            <form
+              className="planning-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                mutate('/closure', { expected_version: detail.version })
+              }}
+            >
+              <label>
+                <input type="checkbox" required /> Je confirme que l’Activité
+                est entièrement réalisée et réglée.
+              </label>
+              <Button type="submit" disabled={pending || !navigator.onLine}>
+                Clôturer l’activité
+              </Button>
+            </form>
+          )}
+        </>
+      )}
     </section>
   )
 }

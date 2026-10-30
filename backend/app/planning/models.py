@@ -144,7 +144,7 @@ class Activity(Base):
         CheckConstraint(
             "state IN ('draft','amendment_draft','submitted','prevalidated',"
             "'returned_supervisor',"
-            "'returned_validator','approved','withdrawn')",
+            "'returned_validator','approved','withdrawn','closed')",
             name="activity_state_allowed",
         ),
         CheckConstraint(
@@ -171,6 +171,8 @@ class Activity(Base):
             "AND current_revision_id <> approved_revision_id))) OR "
             "(state = 'approved' AND current_revision_id IS NOT NULL "
             "AND approved_revision_id = current_revision_id) OR "
+            "(state = 'closed' AND current_revision_id IS NOT NULL "
+            "AND approved_revision_id = current_revision_id) OR "
             "(state = 'withdrawn' AND current_revision_id IS NOT NULL "
             "AND approved_revision_id IS NOT NULL "
             "AND current_revision_id <> approved_revision_id "
@@ -179,7 +181,8 @@ class Activity(Base):
         ),
         CheckConstraint(
             "(amendment_id IS NULL AND amendment_reason IS NULL AND "
-            "(approved_revision_id IS NULL OR state IN ('approved','withdrawn') "
+            "(approved_revision_id IS NULL OR state IN "
+            "('approved','withdrawn','closed') "
             "OR withdrawal_id IS NOT NULL OR transfer_id IS NOT NULL)) OR "
             "(amendment_id IS NOT NULL AND withdrawal_id IS NULL "
             "AND transfer_id IS NULL AND amendment_reason IS NOT NULL "
@@ -212,6 +215,12 @@ class Activity(Base):
             name="activity_placement_year_valid",
         ),
         CheckConstraint("version > 0", name="activity_version_positive"),
+        CheckConstraint(
+            "(state='closed' AND closed_at IS NOT NULL "
+            "AND closed_by_id IS NOT NULL) OR "
+            "(state<>'closed' AND closed_at IS NULL AND closed_by_id IS NULL)",
+            name="activity_closure_facts",
+        ),
         CheckConstraint("allocation > 0", name="activity_allocation_positive"),
         CheckConstraint("planned_end >= planned_start", name="activity_dates_ordered"),
     )
@@ -241,6 +250,8 @@ class Activity(Base):
     request_fingerprint: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_by_id: Mapped[str | None] = mapped_column(ForeignKey("auth_user.id"))
 
 
 class Operation(Base):

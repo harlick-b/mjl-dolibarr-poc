@@ -100,7 +100,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0014_pta3e"]:
+        if revisions != ["0015_pta3f"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -114,6 +114,7 @@ class AuthService:
             "activity_amendment_state",
             "activity_withdrawal_state",
             "activity_transfer_state",
+            "activity_closure_facts",
             "activity_placement_year_valid",
             "activity_revision_number",
             "revision_decision_stage",
@@ -170,7 +171,7 @@ class AuthService:
             for row in db.execute(
                 text("""
                 SELECT * FROM (
-                  SELECT 'column' kind, c.relname object, a.attnum::text name,
+                  SELECT 'column' kind, c.relname object, a.attname name,
                     a.attname || '|' ||
                     pg_catalog.format_type(a.atttypid,a.atttypmod) || '|' ||
                     a.attnotnull::text || '|' ||
@@ -219,7 +220,9 @@ class AuthService:
                      'pta_preserve_virement',
                      'pta_validate_virement_state',
                      'pta_preserve_virement_confirmation',
-                     'pta_preserve_reversement_declaration')
+                     'pta_preserve_reversement_declaration',
+                     'pta_validate_activity_closure',
+                     'pta_reject_closed_financial_change')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -228,7 +231,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "dfd6b708059d6504249c5bfb2628d37af1d06aeed652666e0747ef1264aaf432"
+            "3e1a75efabeb2de9476f4cba2ebb3631051947aecb73ebf6f8089e724c33424e"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -354,6 +357,58 @@ class AuthService:
         business: dict[str, object],
     ) -> None:
         business = dict(business)
+        if action == "activity.closed":
+            closure_required = {
+                "context_id",
+                "activity_id",
+                "approved_revision_id",
+                "before_version",
+                "version",
+                "closed_by_id",
+                "closed_at",
+                "ended_assignment_ids",
+            }
+            before_version = business.get("before_version")
+            version = business.get("version")
+            ended_ids = business.get("ended_assignment_ids")
+            if (
+                set(business) != closure_required
+                or business.get("context_id") != "MJL"
+                or business.get("activity_id") != target
+                or not all(
+                    isinstance(business.get(key), str)
+                    for key in (
+                        "activity_id",
+                        "approved_revision_id",
+                        "closed_by_id",
+                        "closed_at",
+                    )
+                )
+                or not isinstance(before_version, int)
+                or not isinstance(version, int)
+                or version != before_version + 1
+                or not isinstance(ended_ids, list)
+                or not all(isinstance(value, str) for value in ended_ids)
+            ):
+                raise ValueError("Invalid business audit facts")
+            encoded = json.dumps(
+                business, separators=(",", ":"), sort_keys=True, ensure_ascii=False
+            )
+            if len(encoded.encode()) > 65536:
+                raise ValueError("Business audit exceeds its bounded contract")
+            db.add(
+                Audit(
+                    business=business,
+                    occurred_at=self.now(db),
+                    action=action,
+                    actor=actor,
+                    target=target,
+                    outcome="ok",
+                    request_id=request_id.get() or str(uuid4()),
+                )
+            )
+            db.flush()
+            return
         if action.startswith("reversement."):
             reversement_required = {
                 "context_id",
@@ -898,6 +953,7 @@ class AuthService:
                     "operations",
                     "agent_ids",
                     "allowed_actions",
+                    "closure",
                 },
             }[shape]
             if set(value) != fields or not isinstance(value.get("id"), str):
@@ -950,6 +1006,7 @@ class AuthService:
                     "returned_validator",
                     "approved",
                     "withdrawn",
+                    "closed",
                 }
                 and isinstance(value.get("version"), int)
                 and value["version"] > 0
@@ -971,6 +1028,17 @@ class AuthService:
                     isinstance(identifier, str) for identifier in value["agent_ids"]
                 )
                 and isinstance(value.get("execution_paused"), bool)
+                and (
+                    value.get("closure") is None
+                    or (
+                        isinstance(value.get("closure"), dict)
+                        and set(value["closure"]) == {"closed_by_id", "closed_at"}
+                        and all(
+                            isinstance(value["closure"].get(key), str)
+                            for key in ("closed_by_id", "closed_at")
+                        )
+                    )
+                )
             )
 
         def valid_amendment_facts(value: object, *, opened: bool) -> bool:
