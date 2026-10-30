@@ -26,6 +26,23 @@ in `AGENTS.md`, updated at the user's request on 2026-10-28. No external detaile
 execution prompt is required after a concrete slice is authorized. This process
 review does not authorize any additional runtime slice or relax security gates.
 
+## PTA-3F direct Activity closure planning contract (DEC-120)
+
+The approved PTA brief already settles formal Activity closure: an active Agent
+closes directly after every Operation is physically complete with explicit final
+spending, the current décaissement and virement chains are finally approved, the
+external virement is confirmed, any positive reversement is fully declared and no
+settlement discrepancy remains. No Supervisor or Validator closure decision,
+manual closure date, reason or document is required. The server records actor/time
+and only closed Activities count as physically realized.
+
+The user instructed Codex to proceed with the next planning step on 2026-10-30.
+[Plan 23](rebuild/23-pta3f-activity-closure-implementation-plan.md) defines the
+smallest bounded implementation and independent-review contract. This records no
+runtime authorization. Zero-total and insufficient/discrepant settlement,
+nonempty Project closure, annual KPIs/Fiche, documents, notifications, real
+accounts and production remain separate work.
+
 ## PTA-3E reversement decision closure (DEC-119)
 
 The user approved the bounded first reversement rules on 2026-10-29 and explicitly

@@ -12,6 +12,20 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-3F planned boundary (DEC-120)
+
+PTA-3F is ready for implementation authorization. An active Agent directly closes
+an eligible Activity after the server rechecks complete Operations, explicit final
+spending, final décaissement/virement approval, current external confirmation and
+the exact reversement outcome. Closure records immutable actor/time evidence, ends
+active coordination assignments without deleting history, freezes earlier
+correction paths and makes the Activity eligible for later closed-only metrics.
+
+[Plan 23](rebuild/23-pta3f-activity-closure-implementation-plan.md) is the single
+implementation contract. It adds no reviewer stage, closure note/date, document,
+KPI/report, Project closure change or generic workflow infrastructure. Zero-total,
+insufficient and discrepant settlement remain fail-closed pending their own rules.
+
 ## PTA-3E current boundary (DEC-119)
 
 **PTA_3E_COMPLETE** on 2026-10-30. PTA-3E derives
