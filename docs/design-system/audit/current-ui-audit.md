@@ -4,6 +4,15 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 file records current repository-visible UI evidence, not user acceptance or
 browser verification for this documentation update.
 
+## React PTA-4A evidence (DEC-121)
+
+The annual PTA screen reuses the supplied dashboard inspiration’s two-card metric
+composition and approved v3 tokens. It displays physical and financial execution,
+exact supporting counts/XOF amounts, an explicit zero-denominator state and
+responsive one-column reflow. Focused Vitest and real-Chromium checks establish
+the exercised behavior; human visual and accessibility acceptance remain
+outstanding.
+
 ## React PTA-3D evidence (DEC-118)
 
 The realization workspace reuses the approved financial-card composition for

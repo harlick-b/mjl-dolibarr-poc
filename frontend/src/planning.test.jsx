@@ -12,7 +12,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { toast } from 'sonner'
 import { App, makeRouter } from './router'
 import { ActivityForm } from './PlanningView'
-import { addThreeMonths, formatXof } from './planning'
+import { addThreeMonths, formatPercentage, formatXof } from './planning'
 
 afterEach(() => {
   toast.dismiss()
@@ -36,6 +36,92 @@ test.each([
 test('formats an exact integer amount in XOF', () => {
   expect(formatXof('1250000')).toContain('1')
   expect(formatXof('1250000')).toContain('XOF')
+})
+
+test('formats annual rates without capping and preserves zero denominators', () => {
+  expect(formatPercentage('11', '10')).toBe('110 %')
+  expect(formatPercentage('1', '3')).toBe('33,3 %')
+  expect(formatPercentage('0', '0')).toBe('Non calculable')
+})
+
+test('the annual plan shows whole-PTA physical and financial metrics', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: { id: 'agent', role: 'AGENT_SAISIE' },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      if (path.endsWith('/projects/project-1/ptas/2027'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              project: {
+                id: 'project-1',
+                name: 'Projet métriques',
+                allowed_actions: ['read'],
+              },
+              year: 2027,
+              pta: { id: 'pta-1' },
+              allowed_actions: ['read'],
+              approved_plan: { activity_count: 5, allocation: '9200000' },
+            }),
+          ),
+        )
+      if (path.endsWith('/ptas/pta-1/metrics'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              pta_id: 'pta-1',
+              as_of: '2027-10-30T10:00:00Z',
+              physical: { closed_activities: 1, approved_activities: 5 },
+              financial: {
+                closed_spending: '1000000',
+                approved_allocation: '9200000',
+              },
+            }),
+          ),
+        )
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/projects/project-1/ptas/2027'],
+        }),
+      )}
+    />,
+  )
+
+  const metrics = await screen.findByRole('region', {
+    name: 'Indicateurs annuels',
+  })
+  expect(within(metrics).getByText('Exécution physique')).toBeVisible()
+  expect(within(metrics).getByText('20 %')).toBeVisible()
+  expect(within(metrics).getByText('Exécution financière')).toBeVisible()
+  expect(within(metrics).getByText('10,9 %')).toBeVisible()
+  expect(within(metrics).getByText(/1 activité.*5 approuvée/)).toBeVisible()
+  expect(within(metrics).getByText(/1.*000.*000.*9.*200.*000/)).toBeVisible()
 })
 
 test('an eligible Agent confirms submission of the current Activity version', async () => {

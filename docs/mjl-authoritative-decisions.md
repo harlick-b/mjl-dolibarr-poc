@@ -19,6 +19,27 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-4A current annual metrics authorization (DEC-121)
+
+The user explicitly authorized PTA-4A on 2026-10-30. The bounded slice exposes
+current whole-PTA physical and financial progress using the already approved
+rules: closed Activities over definitively approved planned Activities, and the
+final spending of closed Activities over the definitively approved annual
+allocation. Zero denominators are non-calculable and results are not capped at
+100 percent. Pending amendments retain their approved baseline, approved
+withdrawals are excluded, and approved transfers count in their current
+destination year.
+
+[Plan 25](rebuild/25-pta4a-annual-metrics-implementation-plan.md) is the concise
+implementation and independent-review contract. Historical as-of KPI
+reconstruction, Fiche generation, exports, reminders, documents, Partner access,
+real accounts and production remain outside PTA-4A.
+
+PTA-4A completed on 2026-11-02 after focused disposable-PostgreSQL, adjacent
+workflow, OpenAPI, frontend quality/build and real-Chromium checks passed. The
+mandatory independent correction/re-review returned PASS. [Status 26](rebuild/26-pta4a-implementation-status.md)
+records the exact evidence. This completion authorizes no later slice.
+
 The roadmap owns current completion state. Earlier dated authorization and
 readiness statements below record their stage in history; they do not revoke
 later explicit authorizations. Future planning follows the minimal-overhead rules

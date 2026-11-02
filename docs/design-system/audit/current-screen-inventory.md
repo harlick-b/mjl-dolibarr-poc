@@ -4,7 +4,15 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 inventory records current routes and their access boundaries. It is
 repository-visible evidence, not user acceptance.
 
-## React PTA-3A–3E (DEC-115–119)
+## React PTA-4A (DEC-121)
+
+`/projects/$projectId/ptas/$year` shows the current whole-PTA physical and
+financial metrics in the approved two-card dashboard composition. Exact server
+facts remain independent of Activity pagination; percentages are French-formatted,
+uncapped and explicitly non-calculable at a zero denominator. All business roles
+may read; Admin remains denied by the planning workspace and backend.
+
+## React PTA-3A–3F (DEC-115–120)
 
 `/execution/$ptaId` lists approved Activities and their execution summaries.
 `/execution/activities/$activityId` shows the approved Operations, start and

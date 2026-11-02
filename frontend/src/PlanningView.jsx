@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { sessionKey, sessionQuery } from './auth'
 import { strings } from './i18n'
 import { useAPI } from './RestClientProvider'
-import { addThreeMonths, formatXof } from './planning'
+import { addThreeMonths, formatPercentage, formatXof } from './planning'
 import { Button } from './components/ui/button'
 
 const labels = {
@@ -304,6 +304,16 @@ function Workspace({ screen, session, onDenied }) {
     ),
     enabled: Boolean(context.data?.pta?.id),
   })
+  const metrics = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['pta-metrics', context.data?.pta?.id],
+      `/ptas/${context.data?.pta?.id}/metrics`,
+      onDenied,
+    ),
+    enabled: Boolean(context.data?.pta?.id),
+  })
   const agents = useQuery({
     ...planningQuery(
       api,
@@ -333,6 +343,7 @@ function Workspace({ screen, session, onDenied }) {
     selectedAmendment,
     currentRevision,
     list,
+    metrics,
     types,
   ].some((query) => query.isFetching && query.fetchStatus !== 'idle')
   const submitSimple = (event, path, field) => {
@@ -360,6 +371,7 @@ function Workspace({ screen, session, onDenied }) {
       selectedAmendment,
       currentRevision,
       list,
+      metrics,
       types,
     ].some((query) => query.isError)
   )
@@ -436,7 +448,12 @@ function Workspace({ screen, session, onDenied }) {
         />
       )}
       {screen === 'pta' && (
-        <PTA context={context.data} result={list.data} navigate={navigate} />
+        <PTA
+          context={context.data}
+          metrics={metrics.data}
+          result={list.data}
+          navigate={navigate}
+        />
       )}
       {screen === 'activityNew' && (
         <ActivityForm
@@ -676,7 +693,7 @@ function Projects({
   )
 }
 
-function PTA({ context, result, navigate }) {
+function PTA({ context, metrics, result, navigate }) {
   if (!context) return <p role="status">Chargement…</p>
   const activities = result?.data || []
   return (
@@ -708,6 +725,42 @@ function PTA({ context, result, navigate }) {
           </Link>
         )}
       </div>
+      {metrics && (
+        <section className="annual-metrics" aria-label="Indicateurs annuels">
+          <article>
+            <h3>{strings.physicalExecution}</h3>
+            <strong>
+              {formatPercentage(
+                metrics.physical.closed_activities,
+                metrics.physical.approved_activities,
+              )}
+            </strong>
+            <p>
+              {strings.formatString(
+                strings.closedActivitiesMetric,
+                metrics.physical.closed_activities,
+                metrics.physical.approved_activities,
+              )}
+            </p>
+          </article>
+          <article>
+            <h3>{strings.financialExecution}</h3>
+            <strong>
+              {formatPercentage(
+                metrics.financial.closed_spending,
+                metrics.financial.approved_allocation,
+              )}
+            </strong>
+            <p>
+              {strings.formatString(
+                strings.closedSpendingMetric,
+                formatXof(metrics.financial.closed_spending),
+                formatXof(metrics.financial.approved_allocation),
+              )}
+            </p>
+          </article>
+        </section>
+      )}
       {activities.length ? (
         <ul className="planning-list">
           {activities.map((row) => (

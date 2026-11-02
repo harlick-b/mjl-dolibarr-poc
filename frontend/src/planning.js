@@ -17,3 +17,13 @@ export function formatXof(value) {
   const amount = typeof value === 'bigint' ? value : BigInt(value || 0)
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(amount)} XOF`
 }
+import { strings } from './i18n'
+
+export function formatPercentage(numerator, denominator) {
+  const total = BigInt(denominator)
+  if (total === 0n) return strings.notCalculable
+  const tenths = (BigInt(numerator) * 1000n + total / 2n) / total
+  const whole = tenths / 10n
+  const decimal = tenths % 10n
+  return `${whole}${decimal ? `,${decimal}` : ''} %`
+}

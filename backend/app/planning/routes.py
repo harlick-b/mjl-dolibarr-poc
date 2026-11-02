@@ -375,6 +375,23 @@ class PTAContextOutput(Input):
     approved_plan: ApprovedPlanOutput
 
 
+class PhysicalMetricOutput(Input):
+    closed_activities: int = Field(ge=0)
+    approved_activities: int = Field(ge=0)
+
+
+class FinancialMetricOutput(Input):
+    closed_spending: str = Field(pattern=r"^(0|[1-9][0-9]*)$")
+    approved_allocation: str = Field(pattern=r"^(0|[1-9][0-9]*)$")
+
+
+class AnnualMetricsOutput(Input):
+    pta_id: str
+    as_of: str
+    physical: PhysicalMetricOutput
+    financial: FinancialMetricOutput
+
+
 def locked_read(db: Session) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock_shared(1843201)"))
 
@@ -1144,6 +1161,42 @@ def get_activity_for_command(db: Session, identifier: str) -> Activity:
         raise AuthError(404, "activity_not_found")
     db.refresh(item, with_for_update=True)
     return item
+
+
+@router.get("/ptas/{identifier}/metrics", response_model=AnnualMetricsOutput)
+def annual_metrics(identifier: str, request: Request, auth: Auth) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_read(db)
+        principal(db, auth, evidence(request, auth)[0])
+        pta = db.get(AnnualPTA, identifier)
+        if not pta or pta.context_id != CONTEXT:
+            raise AuthError(404, "pta_not_found")
+        cutoff = cutoff_value(db, None)
+        plan = approved_plan(db, pta.project_id, pta.year, cutoff)
+        realized = db.execute(
+            select(
+                func.count(func.distinct(Activity.id)).label("activity_count"),
+                func.coalesce(func.sum(Operation.actual_spent), 0).label("spending"),
+            )
+            .join(Operation, Operation.activity_id == Activity.id)
+            .where(
+                Activity.pta_id == pta.id,
+                Activity.state == "closed",
+                Operation.removed_at.is_(None),
+            )
+        ).one()
+        return {
+            "pta_id": pta.id,
+            "as_of": plan["as_of"],
+            "physical": {
+                "closed_activities": int(realized.activity_count),
+                "approved_activities": plan["activity_count"],
+            },
+            "financial": {
+                "closed_spending": str(realized.spending),
+                "approved_allocation": plan["allocation"],
+            },
+        }
 
 
 @router.get("/ptas/{identifier}/activities", response_model=ListOutput[ActivityOutput])

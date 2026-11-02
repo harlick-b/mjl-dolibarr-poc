@@ -25,6 +25,9 @@ export const strings = new LocalizedStrings({
     partners: 'Partenaires',
     projects: 'Projets',
     annualPlan: 'Plan de travail annuel',
+    physicalExecution: 'Exécution physique',
+    financialExecution: 'Exécution financière',
+    notCalculable: 'Non calculable',
     newActivity: 'Nouvelle activité',
     activityDetail: 'Détail de l’activité',
     add: 'Ajouter',
@@ -127,6 +130,8 @@ export const strings = new LocalizedStrings({
     operationNameNumber: 'Nom de l’opération {0}',
     operationBudgetNumber: 'Budget de l’opération {0}',
     operationRemoveNumber: 'Retirer l’opération {0}',
+    closedActivitiesMetric: '{0} activité(s) clôturée(s) sur {1} approuvée(s)',
+    closedSpendingMetric: '{0} de dépenses clôturées sur {1}',
   },
 })
 

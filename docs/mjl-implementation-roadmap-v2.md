@@ -12,7 +12,24 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
-## PTA-3F current boundary (DEC-120)
+## PTA-4A current boundary (DEC-121)
+
+**PTA_4A_COMPLETE** on 2026-11-02. The selected current Project/year PTA now
+shows whole-plan physical and financial progress. The API returns exact closed
+and approved Activity counts plus closed spending and approved allocation; the
+French UI presents the resulting percentages without capping and shows a
+non-calculable state for zero denominators. Pending amendments retain their
+approved baseline, approved withdrawals are excluded, and transfers move the
+denominator only after destination approval.
+
+[Plan 25](rebuild/25-pta4a-annual-metrics-implementation-plan.md) defines the
+bounded contract; [status 26](rebuild/26-pta4a-implementation-status.md) records
+verification and the mandatory independent review record. This read-only slice adds one endpoint and
+two cards, with no migration, table, mutation, export or reporting framework.
+Historical as-of KPIs, Fiche generation, exports and later slices remain
+deferred.
+
+## PTA-3F boundary (DEC-120)
 
 **PTA_3F_COMPLETE** on 2026-10-30. An active Agent directly closes
 an eligible Activity after the server rechecks complete Operations, explicit final
@@ -472,9 +489,9 @@ objects/installers, existing PHP class paths and old test runners are historical
 references only; each new-stack slice receives separate implementation approval.
 
 The business rules in `mjl_codex_authoritative_pta_change_brief.md` are approved.
-Planning through withdrawal and transfer (rows 1–2) is implemented in the bounded
-synthetic environment; their execution-aware extensions remain dependent on
-row 3. Rows 3–7 remain proposed work requiring separate authorization. Derive
+Planning, realization/settlement and the current metric portion of row 4 are
+implemented in the bounded synthetic environment. The remaining row 4 outputs
+and rows 5–7 remain proposed work requiring separate authorization. Derive
 their concrete plans locally; keep one current contract and concise evidence,
 not another externally authored execution prompt. Stop after the authorized slice.
 
@@ -482,8 +499,8 @@ not another externally authored execution prompt. Stop after the authorized slic
 | --- | --- | --- |
 | 1. PTA planning foundation | Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Agent coordination assignments managed by Supervisor/Validator. Reconcile schema, commands, route/token guards and reads together. | Project closure and PTA creation are settled by DEC-089/090. DEC-104–106 settle the trusted singleton context, defer reviewer assignments/actions and define date clamping. Disposable API/DB tests cover context/parent forgery, Project/first-PTA creation races, unassigned Agent access and forbidden bypass. Existing screen changes need inspiration check before implementation. |
 | 2. Approved amendments and annual transfer | Implemented for synthetic planning-only Activities: immutable approved/candidate content, fresh two-stage review, amendments, withdrawal and forward annual transfer. | DEC-110/112/114 settle pause, withdrawal and annual history. Execution integration must preserve those decisions and replace temporary eligibility with actual obligations checks. |
-| 3. Realization and administrative settlement | Final Operation spending replacing itemized expense approvals/reversals, distinct décaissement/virement approvals, separate Agent → Supervisor → Validator insufficiency authorization, external confirmation, automatic reversement requirement/declarations and direct Agent closure. Retire conflicting old finance/completion paths. | Slices 1–2 and exception/zero-amount decisions from gap analysis. Focused missing/zero/XOF, stale-basis, no-self-approval, discrepancy/full-return and closure tests. No bank execution. |
-| 4. Annual metrics and Fiche | Whole-PTA approved denominators; closed-only realization/spending; provide Fiche PDF and guarded PDF/XLSX exports with history/reconciliation. | Slices 2–3; reuse settled withdrawal/transfer annual attribution. Prove UI filters cannot alter official denominator, pending amendments stay excluded and history is not truncated. File references activate only with slice 6. |
+| 3. Realization and administrative settlement | Implemented for the bounded approved path through direct Activity closure. Zero-total, insufficiency and discrepancy exceptions remain deferred. | PTA-3A–3F status records contain focused and regression evidence. No bank execution. |
+| 4. Annual metrics and Fiche | Current whole-PTA metrics are implemented with approved denominators and closed-only realization/spending. Fiche PDF, guarded exports and historical as-of KPI reconstruction remain separate. | DEC-121/status 26 prove pagination-independent current metrics, pending approved baselines and withdrawal/transfer attribution. File references activate only with slice 6. |
 | 5. Administrative relance | Focused 21-day scheduler, recipient/channel outcomes, in-app notifications and email; browser push if required by clarified PWA contract. | Stable dates/assignments/closure from slices 1–3; verify mail, agree retry/rescheduling and browser permission behavior. Focused due/reschedule/closure/deduplication tests. No generic notification platform. |
 | 6. Guarded optional documents | Reconcile Phase 4 to optional PTA/Activity/revision/decision/request/confirmation/return contexts and Partner visibility. Implement only the separately authorized security slice. | Existing document gate and relevant storage/preview/security decisions. Keep deny-all until guarded route and entity/Partner isolation checks pass; no mandatory attachments or requirement-blocking machinery. |
 | 7. Partner portal | Exclusive one-Partner invitation/auth binding; own current/past Projects and approved PTA/progress; authorized decisions, Fiches, files and scoped exports. | Can prepare identity/API work after slices 1–2; complete experience depends on slices 3–4 and allowed files on slice 6. Verify real mail/OTP before enablement, cross-Partner denial and no internal-role escalation. |
