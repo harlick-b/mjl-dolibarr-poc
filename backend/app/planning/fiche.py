@@ -50,8 +50,14 @@ router = APIRouter(
     prefix="/api/v1",
     tags=["PTA Activity Fiche"],
     dependencies=[
-        Depends(APIKeyCookie(name="mjl_local", auto_error=False)),
-        Depends(APIKeyCookie(name="__Host-mjl", auto_error=False)),
+        Depends(
+            APIKeyCookie(name="mjl_local", scheme_name="LocalSession", auto_error=False)
+        ),
+        Depends(
+            APIKeyCookie(
+                name="__Host-mjl", scheme_name="SecureSession", auto_error=False
+            )
+        ),
     ],
     responses={
         status: {"model": ErrorResponse} for status in (401, 403, 404, 409, 429, 503)
@@ -90,6 +96,32 @@ EXECUTION_ACTION_LABELS = {
     "operation.execution_recorded": "Réalisation enregistrée",
     "operation.execution_corrected": "Réalisation corrigée",
 }
+ACTIVITY_ACTION_LABELS = {
+    "activity.create": "Activité créée",
+    "activity.replace": "Brouillon modifié",
+    "activity.assign_agents": "Agents assignés",
+    "activity.submit": "Révision soumise",
+    "activity.prevalidate": "Révision prévalidée",
+    "activity.return_supervisor": "Révision retournée par le superviseur",
+    "activity.approve": "Révision approuvée",
+    "activity.return_validator": "Révision retournée par le validateur",
+    "activity.amendment_open": "Ouverture de modification",
+    "activity.amendment_cancel": "Annulation de modification",
+    "activity.withdrawal_submit": "Demande de retrait soumise",
+    "activity.withdrawal_prevalidate": "Retrait prévalidé",
+    "activity.withdrawal_return_supervisor": "Retrait retourné par le superviseur",
+    "activity.withdrawal_approve": "Retrait approuvé",
+    "activity.withdrawal_return_validator": "Retrait retourné par le validateur",
+    "activity.withdrawal_cancel": "Annulation du retrait",
+    "activity.transfer_submit": "Demande de transfert soumise",
+    "activity.transfer_prevalidate": "Transfert prévalidé",
+    "activity.transfer_return_supervisor": "Transfert retourné par le superviseur",
+    "activity.transfer_approve": "Transfert approuvé",
+    "activity.transfer_return_validator": "Transfert retourné par le validateur",
+    "activity.transfer_cancel": "Annulation du transfert",
+    "activity.closed": "Activité clôturée",
+}
+AUDIT_ACTION_LABELS = {**ACTIVITY_ACTION_LABELS, **EXECUTION_ACTION_LABELS}
 
 
 def text(value: object | None) -> str:
@@ -148,12 +180,18 @@ def projection(
         db, ActivityRevisionDecision, activity.id, ActivityRevisionDecision.decided_at
     )
     operations = rows(db, Operation, activity.id, Operation.position)
+    operation_type_ids = {item.type_id for item in operations}
+    snapshot_operations = revision.snapshot.get("operations", [])
+    if isinstance(snapshot_operations, list):
+        operation_type_ids.update(
+            str(item["type_id"])
+            for item in snapshot_operations
+            if isinstance(item, dict) and item.get("type_id")
+        )
     operation_types = {
         item.id: item.label
         for item in db.scalars(
-            select(OperationType).where(
-                OperationType.id.in_({item.type_id for item in operations})
-            )
+            select(OperationType).where(OperationType.id.in_(operation_type_ids))
         )
     }
     disbursements = rows(
@@ -422,22 +460,36 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         decisions_by_revision.setdefault(decision.revision_id, []).append(decision)
     for revision in data["revisions"]:
         revision_actor = text(actors.get(revision.submitter_id, revision.submitter_id))
+        submission_reason: object | None = None
+        for key in ("withdrawal", "transfer"):
+            request = revision.snapshot.get(key)
+            if isinstance(request, dict) and request.get("reason"):
+                submission_reason = request["reason"]
+                break
+        reason_suffix = (
+            f" · Motif : {text(submission_reason)}" if submission_reason else ""
+        )
         chronology.append(
             Paragraph(
                 f"<b>Révision {revision.revision_number}</b> · soumise le "
-                f"{day(revision.submitted_at)} par {revision_actor}",
+                f"{day(revision.submitted_at)} par {revision_actor}{reason_suffix}",
                 small,
             )
         )
         for decision in decisions_by_revision.get(revision.id, []):
             reason = f" · Motif : {text(decision.reason)}" if decision.reason else ""
+            requested = (
+                f" · Montant demandé : {xof(decision.requested_amount)}"
+                if decision.requested_amount is not None
+                else ""
+            )
             role = text(ROLE_LABELS.get(decision.actor_role, decision.actor_role))
             outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
             decision_actor = text(actors.get(decision.actor_id, decision.actor_id))
             chronology.append(
                 Paragraph(
                     f"{day(decision.decided_at)} · {role} · {outcome} · "
-                    f"{decision_actor}{reason}",
+                    f"{decision_actor}{reason}{requested}",
                     small,
                 )
             )
@@ -611,7 +663,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     audit_lines: list[Any] = []
     for item in data["audits"]:
         actor = text(actors.get(item.actor, item.actor))
-        action = EXECUTION_ACTION_LABELS.get(item.action, item.action)
+        action = AUDIT_ACTION_LABELS.get(item.action, item.action)
         line = f"{day(item.occurred_at)} · {text(action)} · {actor}"
         facts = item.business if isinstance(item.business, dict) else {}
         if item.action.startswith("operation.execution_"):
@@ -645,6 +697,15 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 )
             if facts.get("correction_reason"):
                 line += f" · Motif : {text(facts['correction_reason'])}"
+        else:
+            audit_reason: object | None = None
+            for key in ("cancellation", "decision", "amendment", "revision"):
+                nested = facts.get(key)
+                if isinstance(nested, dict) and nested.get("reason"):
+                    audit_reason = nested["reason"]
+                    break
+            if audit_reason:
+                line += f" · Motif : {text(audit_reason)}"
         audit_lines.append(Paragraph(line, small))
     story.extend(audit_lines or [Paragraph("Aucun événement enregistré.", small)])
 

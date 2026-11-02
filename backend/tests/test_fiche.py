@@ -7,11 +7,17 @@ import pytest
 from pypdf import PdfReader
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from test_amendments import approved_activity, edit_amendment, open_amendment
+from test_amendments import (
+    approved_activity,
+    cancel_amendment,
+    edit_amendment,
+    open_amendment,
+)
 from test_closure import close_path, settled_activity
 from test_disbursement import collection, finish_activity
 from test_execution import approved_execution_activity, execution_path
 from test_planning import admin, patch, plan, planning, post, references
+from test_withdrawals import enable_withdrawals
 
 from app.auth.models import Audit
 from app.planning import fiche
@@ -66,6 +72,7 @@ def test_closed_activity_fiche_contains_authoritative_history_and_is_audited(pla
     assert re.search(r"Montant à reverser\s+100 000 F CFA", content)
     assert re.search(r"Montant reversé\s+100 000 F CFA", content)
     normalized = re.sub(r"\s+", " ", content)
+    assert "activity." not in normalized
     assert re.search(
         r"Confirmation virement · révision 1 .*? par agent@example\.test",
         normalized,
@@ -128,6 +135,114 @@ def test_fiche_preserves_approved_baseline_and_unknown_spending(planning):
     assert "CONTENU CANDIDAT NON APPROUVÉ" not in content
     assert re.search(r"Montant à reverser\s+Non renseigné", content)
     assert re.search(r"Montant reversé\s+Non renseigné", content)
+
+
+def test_fiche_uses_approved_operation_type_during_pending_amendment(planning):
+    approved, _operation_type = approved_activity(planning)
+    candidate_type = post(
+        planning["validator"],
+        "/api/v1/operation-types",
+        {"label": "Type candidat non approuvé"},
+    ).json()
+    opened = open_amendment(planning, approved, "Changer le type d’opération.")
+    changed = patch(
+        planning["agent2"],
+        f"/api/v1/activities/{approved['id']}",
+        plan(
+            candidate_type,
+            description="CONTENU CANDIDAT NON APPROUVÉ",
+            allocation=approved["allocation"],
+            operations=[
+                {
+                    **{key: value for key, value in row.items() if key != "position"},
+                    "type_id": candidate_type["id"],
+                }
+                for row in approved["operations"]
+            ],
+            expected_version=opened["version"],
+        ),
+    )
+    assert changed.status_code == 200, changed.text
+
+    content = pdf_text(planning["supervisor"].get(fiche_path(approved)))
+    assert "Formation" in content
+    assert "Type candidat non approuvé" not in content
+
+
+def test_fiche_renders_requested_amount_and_audit_reasons_in_french(planning):
+    approved, operation_type = approved_activity(planning)
+    open_reason = "Adapter le budget après vérification."
+    opened = open_amendment(planning, approved, open_reason)
+    candidate = edit_amendment(
+        planning,
+        opened,
+        operation_type,
+        "Contenu proposé pour correction.",
+    )
+    revision = post(
+        planning["agent"],
+        f"/api/v1/activities/{approved['id']}/submissions",
+        {"expected_version": candidate["version"]},
+    ).json()
+    prevalidated = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{approved['id']}/revisions/{revision['id']}/decisions",
+        {
+            "expected_version": revision["activity_version"],
+            "decision": "prevalidate",
+        },
+    ).json()
+    returned = post(
+        planning["validator"],
+        f"/api/v1/activities/{approved['id']}/revisions/{revision['id']}/decisions",
+        {
+            "expected_version": prevalidated["activity_version"],
+            "decision": "return",
+            "reason": "Réviser le montant proposé.",
+            "requested_amount": "350000",
+        },
+    )
+    assert returned.status_code == 201, returned.text
+
+    returned_content = re.sub(
+        r"\s+", " ", pdf_text(planning["agent"].get(fiche_path(approved)))
+    )
+    assert "Montant demandé : 350 000 F CFA" in returned_content
+
+    cancellation_reason = "Abandonner cette correction budgétaire."
+    returned_activity = (
+        planning["agent"].get(f"/api/v1/activities/{approved['id']}").json()
+    )
+    cancelled = cancel_amendment(
+        planning, returned_activity, reason=cancellation_reason
+    )
+    cancelled_content = re.sub(
+        r"\s+", " ", pdf_text(planning["agent"].get(fiche_path(cancelled)))
+    )
+    assert open_reason in cancelled_content
+    assert cancellation_reason in cancelled_content
+    assert "Ouverture de modification" in cancelled_content
+    assert "Annulation de modification" in cancelled_content
+    assert "activity." not in cancelled_content
+
+
+def test_fiche_renders_withdrawal_submission_reason(planning):
+    approved, _operation_type = approved_activity(planning)
+    enable_withdrawals(planning)
+    withdrawal_reason = "Le programme annuel ne permet plus cette activité."
+    response = post(
+        planning["agent2"],
+        f"/api/v1/activities/{approved['id']}/withdrawals",
+        {
+            "expected_version": approved["version"],
+            "expected_approved_revision_id": approved["approved_revision_id"],
+            "reason": withdrawal_reason,
+        },
+    )
+    assert response.status_code == 201, response.text
+
+    content = re.sub(r"\s+", " ", pdf_text(planning["agent"].get(fiche_path(approved))))
+    assert withdrawal_reason in content
 
 
 def test_fiche_renders_execution_corrections_and_financial_cancellation(planning):
@@ -248,12 +363,16 @@ def test_fiche_splits_valid_maximum_length_description(planning):
 
 
 def test_openapi_describes_the_pdf_success_response(planning):
-    operation = (
-        planning["agent"]
-        .get("/openapi.json")
-        .json()["paths"]["/api/v1/activities/{identifier}/fiche.pdf"]["get"]
-    )
+    contract = planning["agent"].get("/openapi.json").json()
+    operation = contract["paths"]["/api/v1/activities/{identifier}/fiche.pdf"]["get"]
     assert "application/pdf" in operation["responses"]["200"]["content"]
+    schemes = contract["components"]["securitySchemes"]
+    assert schemes["LocalSession"]["name"] == "mjl_local"
+    assert schemes["SecureSession"]["name"] == "__Host-mjl"
+    assert {tuple(entry) for entry in operation["security"]} == {
+        ("LocalSession",),
+        ("SecureSession",),
+    }
 
 
 def test_failed_render_rolls_back_generation_audit(planning, monkeypatch):

@@ -63,7 +63,25 @@ Run from the repository root unless a working directory is stated:
   `npm run build` passed.
 - From `frontend`, `npm run test:e2e -- e2e/fiche.spec.js` — **1 passed** using
   real Chromium after sandbox escalation allowed the local preview listener.
-- `git diff --check` — passed on the review candidate.
+
+## Exact-commit review corrections
+
+Independent review of commit `41cc974` found four bounded projection/contract
+gaps. The corrected candidate now resolves approved Operation-type labels from
+the immutable approved snapshot as well as current rows, renders requested
+correction amounts and available workflow reasons (including withdrawal and
+transfer submission reasons), uses French labels for the finite Activity
+journal actions, and exposes distinct `LocalSession` and `SecureSession`
+OpenAPI cookie schemes.
+
+The added public-boundary tests first failed on the missing approved type,
+requested amount, withdrawal reason and French journal behavior. On final
+backend image
+`sha256:366a35e8c3804a7133d368ab157fe9404be254ff12c7f1a07b85960462bb67ca`,
+`pytest -q tests/test_fiche.py` passed **10 tests** in **65.55 seconds**. Ruff
+format/lint, strict mypy and `git diff --check` also passed. The broader
+121-test result above belongs to the earlier candidate and is not relabelled as
+post-correction evidence.
 
 ## Independent review
 
@@ -82,3 +100,7 @@ status evidence names the exact final image and result. Neither reviewer modifie
 files. No blocking correctness, security, specification, scope, overengineering
 or verification finding remains. This is synthetic development completion, not
 application acceptance or production readiness.
+
+Two further read-only reviewers then inspected exact commit `41cc974` and found
+the bounded gaps recorded above. After the corrections, those same reviewers
+performed focused re-reviews and both returned **PASS**. Neither modified files.
