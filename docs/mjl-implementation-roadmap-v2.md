@@ -12,6 +12,22 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-6B global audit history boundary (DEC-126)
+
+**PTA_6B_COMPLETE** on 2026-11-02. Validateurs définitifs and Admins can
+consult a sanitized, newest-first global chronology from existing append-only
+audit evidence. Signed cursor pagination returns stable actor identity and the
+related Activity when recorded, while withholding raw audit payloads, request
+identifiers, proofs and hashes. The French screen clears protected Query data on
+offline or authorization loss.
+
+[Plan 35](rebuild/35-pta6b-global-audit-history-plan.md) defines the bounded
+contract; [status 36](rebuild/36-pta6b-implementation-status.md) records focused
+PostgreSQL/API, frontend, browser and completed independent correction/re-review
+evidence. One read responsibility and one screen were added with no migration,
+mutation, export or reporting framework. Global audit export, document preview,
+Partner access, real accounts, production and later slices remain deferred.
+
 ## PTA-6A optional Activity attachment boundary (DEC-125)
 
 **PTA_6A_COMPLETE** on 2026-11-02. The isolated synthetic application

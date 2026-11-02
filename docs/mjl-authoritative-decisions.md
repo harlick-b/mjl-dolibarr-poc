@@ -19,6 +19,22 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-6B global audit history authorization (DEC-126)
+
+The user instructed Codex to review the completed change, then audit and
+implement the smallest ready next slice on 2026-11-02. The audit selected a
+sanitized read-only global chronology for Validateur définitif and Admin from
+the existing append-only audit evidence. [Plan 35](rebuild/35-pta6b-global-audit-history-plan.md)
+is the bounded implementation and independent-review contract. It adds no
+migration, mutation, raw audit JSON disclosure, Partner access, export engine or
+generic reporting framework.
+
+PTA-6B completed after signed-cursor, authorization, historical-actor,
+sanitization, offline-cache, OpenAPI and browser checks plus the mandatory
+independent correction/re-review cycle. [Status 36](rebuild/36-pta6b-implementation-status.md)
+records the evidence. Global audit export, document preview and later slices
+remain deferred.
+
 ## PTA-6A optional Activity attachments authorization (DEC-125)
 
 The user instructed Codex to review PTA-5, then audit and implement the next

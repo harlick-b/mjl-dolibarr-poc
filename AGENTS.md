@@ -23,7 +23,7 @@ The authority/business/API disposition register is
 The current implementation boundary and evidence are in
 `docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
 router. Foundation, A1–A3 and synthetic PTA planning and execution through
-PTA-6A are complete. DEC-121 governs current whole-PTA physical and financial
+PTA-6B are complete. DEC-121 governs current whole-PTA physical and financial
 metrics. DEC-122 adds the regenerable French Activity Fiche PDF from approved
 planning, execution, settlement and chronology facts. DEC-123 completes Project
 closure: a Validator may close an empty Project or one containing only terminal
@@ -36,8 +36,11 @@ DEC-125 adds optional append-only PDF/JPEG/PNG evidence to an Activity in the
 isolated synthetic environment. Agents and Validators upload; internal business
 roles list and download through fresh authorization. Migration `0017_pta6a` adds
 one table and three REST responsibilities.
+DEC-126 adds a sanitized, newest-first global audit chronology for Validators
+and Admins. It reuses the append-only audit table, adds one read responsibility
+and one screen, and adds no migration or export.
 PC1/PC2 remain pending; use synthetic identities, isolated databases and test
-mail only. Stop after PTA-6A.
+mail only. Stop after PTA-6B.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 partial/different reversements, discrepancy or insufficiency handling, historical
 metrics, annual/global exports, document preview/replacement/withdrawal/categories,

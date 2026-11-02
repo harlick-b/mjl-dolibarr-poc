@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import RequestResponseEndpoint
 
+from app.audit_history import router as audit_history_router
 from app.auth.access import router as access_router
 from app.auth.models import Context
 from app.auth.policy import load_policy
@@ -55,6 +56,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(reversement_router)
     app.include_router(reminders_router)
     app.include_router(documents_router)
+    app.include_router(audit_history_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:
         response = JSONResponse(
@@ -108,6 +110,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                     "/api/v1/activities",
                     "/api/v1/assignment-agents",
                     "/api/v1/notifications",
+                    "/api/v1/audit-events",
                 )
             )
             if sensitive:

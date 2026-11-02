@@ -7,6 +7,7 @@ import { HealthView } from './HealthView'
 import { ExecutionView } from './ExecutionView'
 import { PlanningView } from './PlanningView'
 import { NotificationView } from './NotificationView'
+import { AuditHistoryView } from './AuditHistoryView'
 import { healthQuery } from './health'
 import {
   MutationCache,
@@ -27,7 +28,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
-import { Bell, FolderKanban, House } from 'lucide-react'
+import { Bell, FolderKanban, History, House } from 'lucide-react'
 import { useAPI } from './RestClientProvider'
 
 function WorkspaceShell() {
@@ -88,6 +89,13 @@ function WorkspaceShell() {
               </span>
             )}
           </Link>
+          {['ADMIN_PLATEFORME', 'VALIDATEUR_DEFINITIF'].includes(
+            session.data?.user?.role,
+          ) && (
+            <Link to="/history" activeProps={{ 'aria-current': 'page' }}>
+              <History aria-hidden="true" size={19} /> Historique
+            </Link>
+          )}
         </nav>
       </aside>
       <main className="workspace-main">
@@ -113,6 +121,7 @@ function Shell() {
     return <Outlet />
   if (
     path === '/notifications' ||
+    path === '/history' ||
     path.startsWith('/projects') ||
     path.startsWith('/activities') ||
     path.startsWith('/execution')
@@ -405,6 +414,22 @@ export function makeRouter(history) {
       }
     },
   })
+  const historyRoute = createRoute({
+    getParentRoute: () => root,
+    path: '/history',
+    component: AuditHistoryView,
+    gcTime: 0,
+    validateSearch: (search) => ({
+      cursor: String(search.cursor || '').slice(0, 512),
+    }),
+    loader: async ({ context }) => {
+      try {
+        await context.queryClient.fetchQuery(sessionQuery)
+      } catch {
+        /* View owns denial. */
+      }
+    },
+  })
   return createRouter({
     routeTree: root.addChildren([
       home,
@@ -414,6 +439,7 @@ export function makeRouter(history) {
       ...planningRoutes,
       ...executionRoutes,
       notifications,
+      historyRoute,
     ]),
     context: { queryClient, api },
     history,

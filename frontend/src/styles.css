@@ -20,6 +20,34 @@
   --spacing: 4px;
 }
 
+.audit-history-card {
+  overflow-x: auto;
+}
+.audit-history-list {
+  min-width: 760px;
+  margin: 16px 0 24px;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+  list-style: none;
+}
+.audit-history-list li {
+  display: grid;
+  grid-template-columns: 1.1fr 1.2fr 1.8fr 1.2fr;
+  gap: 20px;
+  align-items: start;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.audit-history-list div {
+  display: grid;
+  gap: 4px;
+}
+.audit-history-list time,
+.audit-history-list small {
+  color: var(--color-muted-foreground);
+  font-size: 0.82rem;
+}
+
 .workspace-shell {
   min-height: 100vh;
   display: grid;
