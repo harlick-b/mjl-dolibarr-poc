@@ -95,6 +95,72 @@ def test_agent_closes_complete_activity_atomically(planning):
     assert replay.status_code == 409
 
 
+@pytest.mark.parametrize("first", ["activity", "project"])
+def test_activity_and_project_closure_serialize(planning, first):
+    activity, _request, version = settled_activity(planning)
+
+    def close_activity():
+        return post(
+            planning["agent"], close_path(activity), {"expected_version": version}
+        )
+
+    def close_project():
+        return patch(
+            planning["validator"],
+            f"/api/v1/projects/{activity['project_id']}",
+            {"expected_version": 1, "action": "close"},
+        )
+
+    first_response, second_response = ordered_advisory_race(
+        planning["auth"],
+        close_activity if first == "activity" else close_project,
+        close_project if first == "activity" else close_activity,
+    )
+    activity_response = first_response if first == "activity" else second_response
+    project_response = second_response if first == "activity" else first_response
+    assert activity_response.status_code == 200, activity_response.text
+    assert project_response.status_code == (200 if first == "activity" else 409)
+
+
+def test_terminal_activity_does_not_hide_unfinished_sibling(planning):
+    activity, _request, version = settled_activity(planning)
+    closed = post(
+        planning["agent"], close_path(activity), {"expected_version": version}
+    )
+    assert closed.status_code == 200, closed.text
+    terminal = planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
+    operation_type = {"id": terminal["operations"][0]["type_id"]}
+    draft = post(
+        planning["agent2"],
+        f"/api/v1/projects/{terminal['project_id']}/ptas/"
+        f"{terminal['placement_year']}/activities",
+        {
+            "name": "Activité encore inachevée",
+            "description": "Doit continuer à bloquer le Projet.",
+            "planned_start": f"{terminal['placement_year']}-06-01",
+            "planned_end": f"{terminal['placement_year']}-09-01",
+            "allocation": "1000",
+            "operations": [
+                {
+                    "type_id": operation_type["id"],
+                    "name": "Travail restant",
+                    "allocation": "1000",
+                }
+            ],
+            "request_key": str(uuid4()),
+        },
+    )
+    assert draft.status_code == 201, draft.text
+
+    response = patch(
+        planning["validator"],
+        f"/api/v1/projects/{terminal['project_id']}",
+        {"expected_version": 1, "action": "close"},
+    )
+    assert response.status_code == 409
+    assert response.json()["code"] == "project_not_empty"
+
+
 def test_closure_accepts_zero_reversement_without_declaration(planning):
     activity, _request, version = settled_activity(planning, reversement=False)
     response = post(

@@ -12,6 +12,21 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-4C Project closure boundary (DEC-123)
+
+**PTA_4C_COMPLETE** on 2026-11-02. A Validator can now close an empty Project or
+a Project whose Activities across all annual PTAs are terminally `closed` or
+`withdrawn`. Any unfinished Activity keeps the existing fail-closed conflict.
+The implementation reuses the existing PATCH responsibility, version check,
+shared advisory lock, audit transaction and React action.
+
+[Plan 29](rebuild/29-pta4c-project-closure-readiness-and-implementation-plan.md)
+defines the bounded contract; [status 30](rebuild/30-pta4c-implementation-status.md)
+records focused PostgreSQL and UI evidence plus the completed independent
+review/correction cycle. This slice adds no endpoint, migration, table, page or
+dependency. Reopening, Partner deactivation, reminders, documents, exports,
+Partner access and later slices remain deferred.
+
 ## PTA-4B Activity Fiche boundary (DEC-122)
 
 **PTA_4B_COMPLETE** on 2026-11-02. Every internal business

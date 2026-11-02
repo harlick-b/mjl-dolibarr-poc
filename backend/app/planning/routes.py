@@ -874,7 +874,10 @@ def close_project(
         if db.scalar(
             select(Activity.id)
             .join(AnnualPTA, Activity.pta_id == AnnualPTA.id)
-            .where(AnnualPTA.project_id == item.id)
+            .where(
+                AnnualPTA.project_id == item.id,
+                Activity.state.notin_(("closed", "withdrawn")),
+            )
             .limit(1)
         ):
             raise AuthError(409, "project_not_empty")

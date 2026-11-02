@@ -149,8 +149,8 @@ def test_w02_fresh_two_stage_approval_withdraws_activity(planning):
         f"/api/v1/projects/{project_id}",
         {"expected_version": 1, "action": "close"},
     )
-    assert project_close.status_code == 409
-    assert "project_not_empty" in project_close.text
+    assert project_close.status_code == 200, project_close.text
+    assert project_close.json()["state"] == "closed"
 
 
 def test_w05_annual_history_tracks_amendment_then_withdrawal(planning):

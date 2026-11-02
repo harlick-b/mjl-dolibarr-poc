@@ -633,7 +633,10 @@ implementation is not authorized and document routes remain deny-all.
   that PTA and planned-start-year attribution. Create it automatically when an
   Agent first plans an Activity for that Project/year (DEC-089).
   Project closure is blocked while any Activity or required financial step
-  remains unfinished (DEC-090).
+  remains unfinished (DEC-090). DEC-123 applies that settled rule to the
+  completed rebuild lifecycle: empty Projects and Projects containing only
+  terminal `closed` or `withdrawn` Activities may close; any other Activity
+  state blocks closure.
 - All Agents have the same visibility and editing rights across PTAs and
   Activities within the active entity, subject to workflow state. Assignments
   are coordination/notification metadata managed by Supervisor and Validator.
