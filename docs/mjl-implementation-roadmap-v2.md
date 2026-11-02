@@ -12,6 +12,21 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-6C audited global-history CSV boundary (DEC-127)
+
+**PTA_6C_COMPLETE** on 2026-11-02. Validateurs définitifs and Admins can
+download one bounded, exact snapshot of the sanitized global audit chronology as
+a UTF-8 BOM, semicolon-separated, French-headed and formula-safe CSV. Successful
+generation records export ID, snapshot time, row and byte counts and the artifact
+SHA-256 in the existing append-only audit transaction.
+
+[Plan 37](rebuild/37-pta6c-audit-csv-export-plan.md) defines the bounded
+contract; [status 38](rebuild/38-pta6c-implementation-status.md) records focused
+PostgreSQL/API, frontend, browser and mandatory independent correction/re-review
+evidence. One POST responsibility and one existing-screen action were added with
+no migration, table, storage, job or report framework. PDF/XLSX audit exports,
+Partner access, real accounts, production and later slices remain deferred.
+
 ## PTA-6B global audit history boundary (DEC-126)
 
 **PTA_6B_COMPLETE** on 2026-11-02. Validateurs définitifs and Admins can

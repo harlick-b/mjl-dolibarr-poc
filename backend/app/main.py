@@ -111,6 +111,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                     "/api/v1/assignment-agents",
                     "/api/v1/notifications",
                     "/api/v1/audit-events",
+                    "/api/v1/reports",
                 )
             )
             if sensitive:

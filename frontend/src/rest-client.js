@@ -22,7 +22,15 @@ function messageFor(status) {
 export class RestClient {
   async request(
     path,
-    { signal, csrf, body, rawBody, headers = {}, method } = {},
+    {
+      signal,
+      csrf,
+      body,
+      rawBody,
+      headers = {},
+      method,
+      responseType = 'json',
+    } = {},
   ) {
     if (!navigator.onLine)
       throw new ApiError('Connexion indisponible. Aucune action envoyée.', {
@@ -64,6 +72,14 @@ export class RestClient {
       })
     }
     if (response.status === 204) return null
+    if (responseType === 'blob') {
+      const disposition = response.headers.get('Content-Disposition') || ''
+      const match = disposition.match(/filename="([A-Za-z0-9._-]{1,200})"/)
+      return {
+        blob: await response.blob(),
+        filename: match?.[1] || 'telechargement.csv',
+      }
+    }
     try {
       return await response.json()
     } catch {
@@ -73,6 +89,10 @@ export class RestClient {
 
   auth(path, options) {
     return this.request(`/api/v1/auth/${path}`, options)
+  }
+
+  download(path, options) {
+    return this.request(path, { ...options, responseType: 'blob' })
   }
 }
 

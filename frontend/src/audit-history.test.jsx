@@ -4,15 +4,29 @@ import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { App, makeRouter } from './router'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 test('validator browses the sanitized global history', async () => {
   const calls = []
+  let exported = false
+  const createObjectURL = vi.fn(() => 'blob:history')
+  const revokeObjectURL = vi.fn()
+  const NativeURL = URL
+  class DownloadURL extends NativeURL {}
+  DownloadURL.createObjectURL = createObjectURL
+  DownloadURL.revokeObjectURL = revokeObjectURL
+  vi.stubGlobal('URL', DownloadURL)
+  const click = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
   vi.stubGlobal(
     'fetch',
-    vi.fn((url) => {
+    vi.fn((url, options = {}) => {
       const path = String(url)
-      calls.push(path)
+      calls.push([path, options])
       if (path.includes('/auth/session'))
         return Promise.resolve(
           new Response(
@@ -24,12 +38,41 @@ test('validator browses the sanitized global history', async () => {
             }),
           ),
         )
+      if (path.includes('/reports/audit/exports')) {
+        exported = true
+        return Promise.resolve(
+          new Response('csv', {
+            headers: {
+              'Content-Type': 'text/csv',
+              'Content-Disposition':
+                'attachment; filename="historique-audit-test.csv"',
+            },
+          }),
+        )
+      }
+      const exportEvent = exported
+        ? [
+            {
+              id: 13,
+              occurred_at: '2028-02-08T09:01:00Z',
+              action: 'audit.export',
+              label: 'Historique exporté',
+              outcome: 'ok',
+              actor: {
+                id: 'validator',
+                email: 'validator@example.test',
+              },
+              activity: null,
+            },
+          ]
+        : []
       return Promise.resolve(
         new Response(
           JSON.stringify({
             object: 'list',
-            count: 2,
+            count: 2 + exportEvent.length,
             data: [
+              ...exportEvent,
               {
                 id: 12,
                 occurred_at: '2028-02-08T09:00:00Z',
@@ -78,12 +121,39 @@ test('validator browses the sanitized global history', async () => {
     'href',
     '/activities/activity-1',
   )
-  expect(
-    screen.queryByRole('button', { name: /Exporter/ }),
-  ).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Exporter/ })).toBeVisible()
+  const online = vi.spyOn(window.navigator, 'onLine', 'get')
+  online.mockReturnValue(false)
+  await userEvent.click(screen.getByRole('button', { name: 'Exporter le CSV' }))
+  expect(calls.some(([path]) => path.includes('/reports/audit/exports'))).toBe(
+    false,
+  )
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: 'Exporter le CSV' }),
+    ).toBeEnabled(),
+  )
+  online.mockReturnValue(true)
+  await userEvent.click(screen.getByRole('button', { name: 'Exporter le CSV' }))
+  await waitFor(() => expect(createObjectURL).toHaveBeenCalled())
+  expect(click).toHaveBeenCalled()
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:history')
+  const exportCalls = calls.filter(([path]) =>
+    path.includes('/reports/audit/exports'),
+  )
+  expect(exportCalls).toHaveLength(1)
+  expect(exportCalls[0][1]).toEqual(
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ format: 'csv' }),
+    }),
+  )
+  expect(await screen.findByText('Historique exporté')).toBeVisible()
   await userEvent.click(screen.getByRole('button', { name: 'Suivant' }))
   await waitFor(() =>
-    expect(calls.some((path) => path.includes('cursor=next-page'))).toBe(true),
+    expect(calls.some(([path]) => path.includes('cursor=next-page'))).toBe(
+      true,
+    ),
   )
   window.dispatchEvent(new Event('offline'))
   expect(

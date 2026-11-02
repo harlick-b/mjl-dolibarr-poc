@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
+import { Download } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
+import { toast } from 'sonner'
 import { sessionKey, sessionQuery } from './auth'
 import { cursorFrom } from './pagination'
 import { useAPI } from './RestClientProvider'
@@ -24,6 +26,7 @@ export function AuditHistoryView() {
     setBlocked(true)
     void client.cancelQueries({ queryKey: historyRoot })
     client.removeQueries({ queryKey: historyRoot })
+    client.getMutationCache().clear()
     client.removeQueries({ queryKey: sessionKey, exact: true })
   }, [client])
   useEffect(() => {
@@ -73,8 +76,11 @@ export function AuditHistoryView() {
 
 function History({ session, onDenied }) {
   const { api } = useAPI()
+  const client = useQueryClient()
   const navigate = useNavigate()
   const search = useSearch({ strict: false })
+  const generation = useRef(0)
+  const exportController = useRef(null)
   const cursor = search.cursor || ''
   const canOpenActivity = session.user.role === 'VALIDATEUR_DEFINITIF'
   const result = useQuery({
@@ -91,6 +97,46 @@ function History({ session, onDenied }) {
       }
     },
     gcTime: 0,
+  })
+  useEffect(
+    () => () => {
+      generation.current += 1
+      exportController.current?.abort()
+    },
+    [],
+  )
+  const download = useMutation({
+    retry: false,
+    networkMode: 'always',
+    mutationFn: async () => {
+      const current = generation.current
+      const controller = new AbortController()
+      exportController.current = controller
+      const file = await api.download('/api/v1/reports/audit/exports', {
+        method: 'POST',
+        csrf: session.csrf,
+        body: { format: 'csv' },
+        signal: controller.signal,
+      })
+      if (current !== generation.current)
+        throw new DOMException('Stale authorization', 'AbortError')
+      return file
+    },
+    onError: (error) => {
+      if (error.status === 401 || error.status === 403) onDenied()
+    },
+    onSuccess: async ({ blob, filename }) => {
+      const href = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = filename
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+      await client.invalidateQueries({ queryKey: historyRoot })
+      toast.success('Export CSV généré.')
+    },
   })
   if (result.isPending) return <p role="status">Chargement de l’historique…</p>
   if (result.isError)
@@ -110,6 +156,15 @@ function History({ session, onDenied }) {
           <p className="eyebrow">Traçabilité</p>
           <h1>Historique</h1>
         </div>
+        <button
+          className="planning-button"
+          disabled={download.isPending}
+          onClick={() => download.mutate()}
+          type="button"
+        >
+          <Download aria-hidden="true" size={18} />
+          {download.isPending ? 'Génération…' : 'Exporter le CSV'}
+        </button>
       </div>
       <div className="planning-card audit-history-card">
         <p>

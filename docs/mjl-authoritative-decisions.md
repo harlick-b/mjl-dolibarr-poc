@@ -19,6 +19,23 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-6C audited global-history CSV authorization (DEC-127)
+
+The user instructed Codex to review PTA-6B, then audit and implement the next
+smallest ready slice on 2026-11-02. The bounded slice is the CSV action shown in
+the approved global-history design for Validateurs définitifs and Admins.
+[Plan 37](rebuild/37-pta6c-audit-csv-export-plan.md) is the implementation and
+independent-review contract. It adds one audited synchronous POST and extends the
+existing history screen without a migration, table, stored artifact, background
+job or generic reporting framework.
+
+PTA-6C completed after exact snapshot, authorization/CSRF, deterministic
+deactivation race, sanitized formula-safe CSV, transactional audit rollback,
+bounded-size, OpenAPI, frontend and Chromium checks plus the mandatory
+independent correction/re-review cycle. [Status 38](rebuild/38-pta6c-implementation-status.md)
+records the evidence. PDF/XLSX audit exports, Partner access and later slices
+remain deferred.
+
 ## PTA-6B global audit history authorization (DEC-126)
 
 The user instructed Codex to review the completed change, then audit and

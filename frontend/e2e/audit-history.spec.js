@@ -14,6 +14,15 @@ test('validator reads the global history on desktop and mobile', async ({
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })
+    if (path === '/api/v1/reports/audit/exports')
+      return route.fulfill({
+        body: '\ufeffIdentifiant export;test',
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition':
+            'attachment; filename="historique-audit-test.csv"',
+        },
+      })
     if (path === '/api/v1/audit-events')
       return route.fulfill({
         json: {
@@ -48,6 +57,11 @@ test('validator reads the global history on desktop and mobile', async ({
   await expect(page.getByRole('heading', { name: 'Historique' })).toBeVisible()
   await expect(page.getByText('Activité clôturée')).toBeVisible()
   await expect(page.getByRole('link', { name: /ACT-001/ })).toBeVisible()
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Exporter le CSV' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('historique-audit-test.csv')
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.getByText('validator@example.test')).toBeVisible()

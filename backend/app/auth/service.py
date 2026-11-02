@@ -333,8 +333,11 @@ class AuthService:
                 "planned_end",
                 "email_status",
                 "media_type",
+                "format",
+                "row_count",
                 "byte_size",
                 "sha256",
+                "as_of",
             }
             if set(details) - allowed or any(
                 type(v) not in (str, int) for v in details.values()

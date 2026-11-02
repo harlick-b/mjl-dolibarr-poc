@@ -1,10 +1,15 @@
-from typing import Annotated, Any, Literal
+import csv
+import hashlib
+from datetime import datetime
+from io import StringIO
+from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
@@ -66,11 +71,16 @@ class AuditList(Output):
     previous: str | None
 
 
+class ExportInput(Output):
+    format: Literal["csv"]
+
+
 ACTION_LABELS = {
     "abuse_limit": "Limite de sécurité atteinte",
     "access_denied": "Accès refusé",
     "account_deactivate": "Compte désactivé",
     "account_role_change": "Rôle du compte modifié",
+    "audit.export": "Historique exporté",
     "activity.amendment_cancel": "Modification annulée",
     "activity.amendment_open": "Modification ouverte",
     "activity.approve": "Activité approuvée",
@@ -158,6 +168,104 @@ def activity_identifier(row: Audit) -> str | None:
     return None
 
 
+def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
+    actor_ids = {row.actor for row in rows if len(row.actor) == 36}
+    users = {
+        user.id: user for user in db.scalars(select(User).where(User.id.in_(actor_ids)))
+    }
+    activity_ids = {
+        activity_id
+        for row in rows
+        if (activity_id := activity_identifier(row)) is not None
+    }
+    activities = {
+        item.id: item
+        for item in db.scalars(select(Activity).where(Activity.id.in_(activity_ids)))
+    }
+    data = []
+    for row in rows:
+        user = users.get(row.actor)
+        activity = activities.get(activity_identifier(row) or "")
+        data.append(
+            {
+                "id": row.id,
+                "occurred_at": row.occurred_at.isoformat(),
+                "action": row.action,
+                "label": ACTION_LABELS.get(row.action, "Événement enregistré"),
+                "outcome": row.outcome,
+                "actor": ({"id": user.id, "email": user.email} if user else None),
+                "activity": (
+                    {
+                        "id": activity.id,
+                        "reference": activity.reference,
+                        "name": activity.name,
+                    }
+                    if activity
+                    else None
+                ),
+            }
+        )
+    return data
+
+
+def csv_cell(value: object) -> str:
+    result = "" if value is None else str(value)
+    if result.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + result
+    return result
+
+
+def export_csv(
+    rows: list[dict[str, Any]],
+    export_id: str,
+    snapshot_at: str,
+    generated_at: str,
+    actor_email: str,
+) -> bytes:
+    output = StringIO(newline="")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+    metadata = (
+        ("Identifiant export", export_id),
+        ("Généré par", actor_email),
+        ("Date de génération UTC", generated_at),
+        ("Données capturées UTC", snapshot_at),
+        ("Périmètre", "Historique global MJL autorisé"),
+    )
+    writer.writerows((csv_cell(key), csv_cell(value)) for key, value in metadata)
+    writer.writerow(())
+    writer.writerow(
+        (
+            "Identifiant événement",
+            "Date et heure UTC",
+            "Action",
+            "Résultat",
+            "Identifiant acteur",
+            "Courriel acteur",
+            "Référence activité",
+            "Nom activité",
+        )
+    )
+    for row in rows:
+        actor = row["actor"] or {}
+        activity = row["activity"] or {}
+        writer.writerow(
+            tuple(
+                csv_cell(value)
+                for value in (
+                    row["id"],
+                    row["occurred_at"],
+                    row["label"],
+                    row["outcome"],
+                    actor.get("id"),
+                    actor.get("email"),
+                    activity.get("reference"),
+                    activity.get("name"),
+                )
+            )
+        )
+    return ("\ufeff" + output.getvalue()).encode("utf-8")
+
+
 @router.get("/audit-events", response_model=AuditList)
 def audit_events(
     request: Request,
@@ -192,56 +300,16 @@ def audit_events(
         if direction == "previous":
             rows.reverse()
 
-        actor_ids = {row.actor for row in rows if len(row.actor) == 36}
-        users = {
-            user.id: user
-            for user in db.scalars(select(User).where(User.id.in_(actor_ids)))
-        }
-        activity_ids = {
-            activity_id
-            for row in rows
-            if (activity_id := activity_identifier(row)) is not None
-        }
-        activities = {
-            item.id: item
-            for item in db.scalars(
-                select(Activity).where(Activity.id.in_(activity_ids))
-            )
-        }
-
         def link(row: Audit, move: str) -> str:
             query = urlencode(
                 {"limit": limit, "cursor": cursor.encode(str(row.id), move)}
             )
             return f"{auth.policy.origin}/api/v1/audit-events?{query}"
 
-        data = []
-        for row in rows:
-            user = users.get(row.actor)
-            activity = activities.get(activity_identifier(row) or "")
-            data.append(
-                {
-                    "id": row.id,
-                    "occurred_at": row.occurred_at.isoformat(),
-                    "action": row.action,
-                    "label": ACTION_LABELS.get(row.action, "Événement enregistré"),
-                    "outcome": row.outcome,
-                    "actor": ({"id": user.id, "email": user.email} if user else None),
-                    "activity": (
-                        {
-                            "id": activity.id,
-                            "reference": activity.reference,
-                            "name": activity.name,
-                        }
-                        if activity
-                        else None
-                    ),
-                }
-            )
         return {
             "object": "list",
             "count": total,
-            "data": data,
+            "data": projected_rows(db, rows),
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,
@@ -250,3 +318,91 @@ def audit_events(
             and ((direction == "previous" and more) or (direction == "next" and marker))
             else None,
         }
+
+
+@router.post(
+    "/reports/audit/exports",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "Export CSV audité de l’historique global.",
+            "content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}},
+        }
+    },
+)
+def audit_export(body: ExportInput, request: Request, auth: Auth) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        db.execute(text("SELECT pg_advisory_xact_lock_shared(1843201)"))
+        secret, csrf = evidence(request, auth)
+        actor = principal(
+            db,
+            auth,
+            secret,
+            csrf,
+            roles={"VALIDATEUR_DEFINITIF", "ADMIN_PLATEFORME"},
+            mutation=True,
+        )
+        raw_snapshot, raw_event_ids = db.execute(
+            text(
+                """
+                /* audit_export_snapshot */
+                SELECT statement_timestamp(),
+                       COALESCE(
+                         array_agg(selected.id ORDER BY selected.id),
+                         ARRAY[]::bigint[]
+                       )
+                FROM (
+                  SELECT id FROM auth_audit ORDER BY id LIMIT 10001
+                ) AS selected
+                """
+            )
+        ).one()
+        snapshot = cast(datetime, raw_snapshot)
+        event_ids = cast(list[int], raw_event_ids)
+        # The IDs and advertised time come from one statement. Audit rows are
+        # append-only; the shared lifecycle lock keeps their User/Activity
+        # projections stable while they are materialized below.
+        rows = (
+            list(
+                db.scalars(
+                    select(Audit).where(Audit.id.in_(event_ids)).order_by(Audit.id)
+                )
+            )
+            if event_ids
+            else []
+        )
+        if len(rows) > 10_000:
+            raise AuthError(422, "selection_too_large")
+        snapshot_at = snapshot.isoformat()
+        export_id = str(uuid4())
+        generated_at = auth.now(db).isoformat()
+        artifact = export_csv(
+            projected_rows(db, rows),
+            export_id,
+            snapshot_at,
+            generated_at,
+            actor.email,
+        )
+        digest = hashlib.sha256(artifact).hexdigest()
+        auth.audit(
+            db,
+            "audit.export",
+            actor.id,
+            export_id,
+            details={
+                "format": body.format,
+                "row_count": len(rows),
+                "byte_size": len(artifact),
+                "sha256": digest,
+                "as_of": snapshot_at,
+            },
+        )
+        filename = f"historique-audit-{export_id}.csv"
+        return Response(
+            artifact,
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(artifact)),
+            },
+        )

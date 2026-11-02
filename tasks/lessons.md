@@ -380,3 +380,7 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
 - A bounded upload must count streamed request chunks before accumulation. Run
   synchronous parsers and database work outside the async event loop, parse outside
   the global lifecycle lock, then reauthorize under that lock before atomic storage.
+- At PostgreSQL READ COMMITTED, an export timestamp selected separately from its
+  rows is not an exact snapshot. Capture the timestamp and exact append-only row
+  IDs in one statement, then test absence by the concurrent row's exported ID;
+  checking a raw internal action that the export omits is a false oracle.

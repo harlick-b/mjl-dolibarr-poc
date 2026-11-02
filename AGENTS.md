@@ -39,11 +39,15 @@ one table and three REST responsibilities.
 DEC-126 adds a sanitized, newest-first global audit chronology for Validators
 and Admins. It reuses the append-only audit table, adds one read responsibility
 and one screen, and adds no migration or export.
+DEC-127 adds an audited, exact-snapshot CSV export of that sanitized chronology
+for Validators and Admins. It adds one POST responsibility and one existing-screen
+action with no migration, table, stored artifact, job or reporting framework.
 PC1/PC2 remain pending; use synthetic identities, isolated databases and test
-mail only. Stop after PTA-6B.
+mail only. Stop after PTA-6C.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 partial/different reversements, discrepancy or insufficiency handling, historical
-metrics, annual/global exports, document preview/replacement/withdrawal/categories,
+metrics, annual exports, PDF/XLSX global audit exports,
+document preview/replacement/withdrawal/categories,
 Partner or wider document contexts, production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later
 slices, general A4 and production remain deferred.
