@@ -423,6 +423,9 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   const accessKey = ['access', 'admin', 'users', {}]
   router.options.context.queryClient.setQueryData(accessKey, { items: [] })
   render(<App router={router} />)
+  expect(
+    await screen.findByRole('link', { name: 'Télécharger la fiche PDF' }),
+  ).toHaveAttribute('href', '/api/v1/activities/activity-1/fiche.pdf')
   await user.click(
     await screen.findByRole('button', { name: 'Demander une modification' }),
   )

@@ -12,6 +12,25 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-4B Activity Fiche boundary (DEC-122)
+
+**PTA_4B_COMPLETE** on 2026-11-02. Every internal business
+role can download a French PDF Fiche for an Activity with an approved revision.
+It regenerates the approved plan, Operations and execution facts, approval and
+correction chronology, financial authorization, external settlement,
+reversement, closure, supporting-document availability and generation date from
+the current authoritative rows. Successful generation is audited. Draft-only
+Activities fail closed; Admin remains outside business records.
+
+[Plan 27](rebuild/27-pta4b-fiche-readiness-and-implementation-plan.md) defines
+the bounded contract; [status 28](rebuild/28-pta4b-implementation-status.md)
+records final-candidate verification and the completed mandatory independent
+review/correction cycle.
+The implementation adds one guarded endpoint and one existing-screen action,
+with no migration, stored PDF, document subsystem, signature, preview page or
+generic export framework. Partner access, annual/global exports and later slices
+remain deferred.
+
 ## PTA-4A current boundary (DEC-121)
 
 **PTA_4A_COMPLETE** on 2026-11-02. The selected current Project/year PTA now

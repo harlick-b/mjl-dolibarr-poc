@@ -19,6 +19,24 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-4B Activity Fiche authorization (DEC-122)
+
+The user instructed Codex on 2026-11-02 to audit and then implement the next
+slice. The bounded next slice is the approved per-Activity Fiche récapitulative
+PDF. It is generated from current authoritative data for an Activity with an
+approved revision and includes its context, approved plan/Operations, execution,
+decision/correction chronology, administrative settlement, reversement, closure,
+supporting-document availability and generation date. The immutable source rows
+remain the proof; no signature system is added.
+
+[Readiness and plan 27](rebuild/27-pta4b-fiche-readiness-and-implementation-plan.md)
+records `PTA_4B_READY_FOR_IMPLEMENTATION` and the smallest authorized
+implementation. It adds no stored PDF, migration, document storage, generic
+export framework, Partner portal or historical as-of regeneration. The same
+instruction authorizes implementation after the audit without another approval.
+[Status 28](rebuild/28-pta4b-implementation-status.md) records
+`PTA_4B_COMPLETE` after focused verification and independent correction/re-review.
+
 ## PTA-4A current annual metrics authorization (DEC-121)
 
 The user explicitly authorized PTA-4A on 2026-10-30. The bounded slice exposes

@@ -8,7 +8,7 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { Plus, Save } from 'lucide-react'
+import { Download, Plus, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { sessionKey, sessionQuery } from './auth'
 import { strings } from './i18n'
@@ -1177,6 +1177,14 @@ function ActivityDetail({
           <h2>{item.name}</h2>
         </div>
         <div className="planning-actions">
+          {item.approved_revision_id && (
+            <Button asChild variant="outline">
+              <a href={`/api/v1/activities/${item.id}/fiche.pdf`} download>
+                <Download aria-hidden="true" />
+                {strings.downloadActivityFiche}
+              </a>
+            </Button>
+          )}
           {item.allowed_actions.includes('edit') && (
             <Button disabled={mutationBlocked} onClick={() => setEditing(true)}>
               {strings.modify}

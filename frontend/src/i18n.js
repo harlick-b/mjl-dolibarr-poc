@@ -30,6 +30,7 @@ export const strings = new LocalizedStrings({
     notCalculable: 'Non calculable',
     newActivity: 'Nouvelle activité',
     activityDetail: 'Détail de l’activité',
+    downloadActivityFiche: 'Télécharger la fiche PDF',
     add: 'Ajouter',
     create: 'Créer',
     cancel: 'Annuler',

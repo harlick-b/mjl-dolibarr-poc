@@ -373,3 +373,7 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   immutability triggers do not prove the decision chain. Validate the aggregate at
   deferred transaction commit and test malformed direct writes, including review
   order, distinct actors and returned/cancelled histories.
+- Administrative PDF checks must bind each financial label to its exact extracted
+  value; a document-wide amount assertion can pass against the wrong row. Exercise
+  maximum valid narrative content and correction-only changes, and verify that the
+  rendered chronology identifies who changed what and when in user-facing language.
