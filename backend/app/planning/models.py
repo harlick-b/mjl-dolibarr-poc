@@ -336,6 +336,41 @@ class ActivityAssignment(Base):
     ended_by_id: Mapped[str | None] = mapped_column(ForeignKey("auth_user.id"))
 
 
+class ActivityReminder(Base):
+    __tablename__ = "pta_activity_reminder"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        ForeignKeyConstraint(
+            ["activity_id", "approved_revision_id"],
+            ["pta_activity_revision.activity_id", "pta_activity_revision.id"],
+        ),
+        UniqueConstraint(
+            "activity_id", "agent_id", "planned_end", name="reminder_cycle_once"
+        ),
+        CheckConstraint("due_on = planned_end - 21", name="reminder_due_date"),
+        CheckConstraint(
+            "email_status IN ('unconfirmed','delivered','failed','skipped')",
+            name="reminder_email_status_allowed",
+        ),
+        CheckConstraint("version > 0", name="reminder_version_positive"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    approved_revision_id: Mapped[str] = mapped_column(String(36))
+    agent_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    planned_end: Mapped[date] = mapped_column(Date)
+    due_on: Mapped[date] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_status: Mapped[str] = mapped_column(String(16), default="unconfirmed")
+    email_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(default=1)
+
+
 class ActivityContributor(Base):
     __tablename__ = "pta_activity_contributor"
     __table_args__ = (

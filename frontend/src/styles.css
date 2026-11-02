@@ -20,6 +20,80 @@
   --spacing: 4px;
 }
 
+.workspace-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+}
+.workspace-sidebar {
+  background: #fff;
+  border-right: 1px solid var(--color-border);
+  padding: 24px 16px;
+}
+.workspace-brand,
+.workspace-sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  color: var(--color-navy);
+  text-decoration: none;
+}
+.workspace-brand {
+  padding: 0 12px 24px;
+  font-weight: 700;
+}
+.workspace-sidebar nav {
+  display: grid;
+  gap: 4px;
+}
+.workspace-sidebar nav a {
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+}
+.workspace-sidebar nav a[aria-current='page'] {
+  background: #eaf1f5;
+  font-weight: 600;
+}
+.workspace-main {
+  width: 100%;
+  max-width: 1120px;
+  padding: 48px;
+}
+.notification-badge {
+  margin-left: auto;
+  min-width: 24px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+}
+.notification-list {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.notification-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 20px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.notification-list li.is-unread {
+  background: #f2f7fa;
+}
+.notification-list p {
+  margin: 6px 0;
+}
+.notification-list small {
+  color: var(--color-muted-foreground);
+}
+
 .planning-stack {
   display: grid;
   gap: 24px;
@@ -242,6 +316,26 @@
   height: 20px;
 }
 @media (width <= 640px) {
+  .workspace-shell {
+    display: block;
+  }
+  .workspace-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .workspace-sidebar nav {
+    display: flex;
+    overflow-x: auto;
+  }
+  .workspace-main {
+    padding: 24px 16px;
+  }
+  .notification-list li {
+    grid-template-columns: auto 1fr;
+  }
+  .notification-list button {
+    grid-column: 1 / -1;
+  }
   .operation-row > * {
     width: 100%;
   }

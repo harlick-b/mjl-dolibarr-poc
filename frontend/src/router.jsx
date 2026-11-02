@@ -1,15 +1,19 @@
 import { AccessView } from './AccessView'
 import { AuthView } from './AuthView'
 import { sessionQuery } from './auth'
+import { useCallback, useEffect } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { HealthView } from './HealthView'
 import { ExecutionView } from './ExecutionView'
 import { PlanningView } from './PlanningView'
+import { NotificationView } from './NotificationView'
 import { healthQuery } from './health'
 import {
   MutationCache,
   QueryClient,
   QueryClientProvider,
+  useQuery,
+  useQueryClient,
 } from '@tanstack/react-query'
 import { HelmetProvider } from 'react-helmet-async'
 import { Toaster, toast } from 'sonner'
@@ -23,6 +27,75 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
+import { Bell, FolderKanban, House } from 'lucide-react'
+import { useAPI } from './RestClientProvider'
+
+function WorkspaceShell() {
+  const { api } = useAPI()
+  const client = useQueryClient()
+  const session = useQuery(sessionQuery)
+  const userId = session.data?.user?.id
+  const clear = useCallback(() => {
+    void client.cancelQueries({ queryKey: ['notifications'] })
+    client.removeQueries({ queryKey: ['notifications'] })
+  }, [client])
+  useEffect(() => {
+    const channel = new BroadcastChannel('mjl-auth')
+    channel.onmessage = clear
+    window.addEventListener('offline', clear)
+    const timer = session.data?.expires_at
+      ? setTimeout(
+          clear,
+          Math.max(0, Date.parse(session.data.expires_at) - Date.now()),
+        )
+      : undefined
+    return () => {
+      channel.close()
+      window.removeEventListener('offline', clear)
+      clearTimeout(timer)
+    }
+  }, [clear, session.data?.expires_at])
+  const unread = useQuery({
+    queryKey: ['notifications', userId, 'unread', '', 1],
+    queryFn: ({ signal }) =>
+      api.request('/api/v1/notifications?state=unread&limit=1', { signal }),
+    enabled:
+      session.data?.state === 'verified' &&
+      session.data?.user?.role === 'AGENT_SAISIE',
+    gcTime: 0,
+  })
+  return (
+    <div className="workspace-shell">
+      <aside className="workspace-sidebar">
+        <Link to="/" className="workspace-brand" aria-label="MJL — accueil">
+          <img src="/icon-192.png" alt="" width="36" height="36" /> MJL
+        </Link>
+        <nav aria-label="Espace de travail">
+          <Link to="/" activeProps={{ 'aria-current': 'page' }}>
+            <House aria-hidden="true" size={19} /> Accueil
+          </Link>
+          <Link to="/projects" activeProps={{ 'aria-current': 'page' }}>
+            <FolderKanban aria-hidden="true" size={19} /> Planification
+          </Link>
+          <Link to="/notifications" activeProps={{ 'aria-current': 'page' }}>
+            <Bell aria-hidden="true" size={19} /> Notifications
+            {unread.data?.count > 0 && (
+              <span
+                className="notification-badge"
+                aria-label={`${unread.data.count} non lues`}
+              >
+                {unread.data.count}
+              </span>
+            )}
+          </Link>
+        </nav>
+      </aside>
+      <main className="workspace-main">
+        <Outlet />
+      </main>
+    </div>
+  )
+}
 
 function Shell() {
   const path = useRouterState({ select: (state) => state.location.pathname })
@@ -38,6 +111,13 @@ function Shell() {
     ].includes(path)
   )
     return <Outlet />
+  if (
+    path === '/notifications' ||
+    path.startsWith('/projects') ||
+    path.startsWith('/activities') ||
+    path.startsWith('/execution')
+  )
+    return <WorkspaceShell />
   return (
     <div className="min-h-screen">
       <header className="border-b border-border bg-white">
@@ -308,6 +388,22 @@ export function makeRouter(history) {
       },
     }),
   )
+  const notifications = createRoute({
+    getParentRoute: () => root,
+    path: '/notifications',
+    component: NotificationView,
+    gcTime: 0,
+    validateSearch: (search) => ({
+      cursor: String(search.cursor || '').slice(0, 512),
+    }),
+    loader: async ({ context }) => {
+      try {
+        await context.queryClient.fetchQuery(sessionQuery)
+      } catch {
+        /* View owns the denied/unavailable presentation. */
+      }
+    },
+  })
   return createRouter({
     routeTree: root.addChildren([
       home,
@@ -316,6 +412,7 @@ export function makeRouter(history) {
       access,
       ...planningRoutes,
       ...executionRoutes,
+      notifications,
     ]),
     context: { queryClient, api },
     history,

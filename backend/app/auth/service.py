@@ -93,6 +93,7 @@ class AuthService:
                 "pta_virement_decision",
                 "pta_virement_confirmation",
                 "pta_reversement_declaration",
+                "pta_activity_reminder",
             )
         }
         if relations != expected:
@@ -100,7 +101,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0015_pta3f"]:
+        if revisions != ["0016_pta5"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -231,7 +232,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "3e1a75efabeb2de9476f4cba2ebb3631051947aecb73ebf6f8089e724c33424e"
+            "a81f3b97c203594eba5970dfc732af2137cc0e116b8aa70f9d5e5924c15bde6e"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -325,6 +326,10 @@ class AuthService:
                 "before_credential_version",
                 "credential_version",
                 "reason",
+                "activity_id",
+                "agent_id",
+                "planned_end",
+                "email_status",
             }
             if set(details) - allowed or any(
                 type(v) not in (str, int) for v in details.values()

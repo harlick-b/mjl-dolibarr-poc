@@ -21,6 +21,7 @@ from app.health import router
 from app.planning.disbursement import router as disbursement_router
 from app.planning.execution import router as execution_router
 from app.planning.fiche import router as fiche_router
+from app.planning.reminders import router as reminders_router
 from app.planning.reversement import router as reversement_router
 from app.planning.routes import router as planning_router
 from app.planning.virement import router as virement_router
@@ -51,6 +52,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(virement_router)
     app.include_router(virement_confirmation_router)
     app.include_router(reversement_router)
+    app.include_router(reminders_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:
         response = JSONResponse(
@@ -103,6 +105,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                     "/api/v1/ptas",
                     "/api/v1/activities",
                     "/api/v1/assignment-agents",
+                    "/api/v1/notifications",
                 )
             )
             if sensitive:

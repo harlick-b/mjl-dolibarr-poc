@@ -19,6 +19,23 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-5 administrative reminders authorization (DEC-124)
+
+The user instructed Codex to audit and implement the next slice and approved the
+remaining reminder choices on 2026-11-02. MJL creates an in-app notification,
+visible from the sidebar, and attempts email once for every assigned Agent 21
+calendar days before the current approved Activity end date. A new assignment
+receives the current cycle; an approved end-date change starts a new cycle while
+history remains. Failed email has no automatic retry, and successful email is
+never resent. Browser push is not required.
+
+[Readiness and plan 31](rebuild/31-pta5-reminders-readiness-and-implementation-plan.md)
+is the bounded implementation and mandatory independent-review contract. It adds
+one focused reminder representation and dispatcher, not a generic notification
+platform, queue, push service or production scheduler.
+[Status 32](rebuild/32-pta5-implementation-status.md) records
+`PTA_5_COMPLETE` after focused verification and independent correction/re-review.
+
 ## PTA-4B Activity Fiche authorization (DEC-122)
 
 The user instructed Codex on 2026-11-02 to audit and then implement the next

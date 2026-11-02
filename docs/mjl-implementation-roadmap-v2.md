@@ -12,6 +12,22 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-5 administrative reminder boundary (DEC-124)
+
+**PTA_5_COMPLETE** on 2026-11-02. Twenty-one calendar days before an
+Activity's current approved end date, every currently assigned active Agent gets
+one in-app notification and one synthetic email attempt. Assignment and approved
+date changes create the appropriate new cycle without deleting history. Failed or
+unconfirmed email is not retried automatically; successful email is never resent.
+
+[Plan 31](rebuild/31-pta5-reminders-readiness-and-implementation-plan.md)
+defines the bounded contract; [status 32](rebuild/32-pta5-implementation-status.md)
+records disposable PostgreSQL, frontend and mandatory independent
+correction/re-review evidence. Migration `0016_pta5` adds one table; two recipient
+API responsibilities, one focused dispatcher and the sidebar notification centre
+complete the slice. Browser push, generic notification infrastructure, real mail,
+production scheduling, documents, Partner access and later slices remain deferred.
+
 ## PTA-4C Project closure boundary (DEC-123)
 
 **PTA_4C_COMPLETE** on 2026-11-02. A Validator can now close an empty Project or
@@ -534,8 +550,8 @@ not another externally authored execution prompt. Stop after the authorized slic
 | 1. PTA planning foundation | Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Agent coordination assignments managed by Supervisor/Validator. Reconcile schema, commands, route/token guards and reads together. | Project closure and PTA creation are settled by DEC-089/090. DEC-104–106 settle the trusted singleton context, defer reviewer assignments/actions and define date clamping. Disposable API/DB tests cover context/parent forgery, Project/first-PTA creation races, unassigned Agent access and forbidden bypass. Existing screen changes need inspiration check before implementation. |
 | 2. Approved amendments and annual transfer | Implemented for synthetic planning-only Activities: immutable approved/candidate content, fresh two-stage review, amendments, withdrawal and forward annual transfer. | DEC-110/112/114 settle pause, withdrawal and annual history. Execution integration must preserve those decisions and replace temporary eligibility with actual obligations checks. |
 | 3. Realization and administrative settlement | Implemented for the bounded approved path through direct Activity closure. Zero-total, insufficiency and discrepancy exceptions remain deferred. | PTA-3A–3F status records contain focused and regression evidence. No bank execution. |
-| 4. Annual metrics and Fiche | Current whole-PTA metrics are implemented with approved denominators and closed-only realization/spending. Fiche PDF, guarded exports and historical as-of KPI reconstruction remain separate. | DEC-121/status 26 prove pagination-independent current metrics, pending approved baselines and withdrawal/transfer attribution. File references activate only with slice 6. |
-| 5. Administrative relance | Focused 21-day scheduler, recipient/channel outcomes, in-app notifications and email; browser push if required by clarified PWA contract. | Stable dates/assignments/closure from slices 1–3; verify mail, agree retry/rescheduling and browser permission behavior. Focused due/reschedule/closure/deduplication tests. No generic notification platform. |
+| 4. Annual metrics and Fiche | Current whole-PTA metrics and the regenerable per-Activity French Fiche PDF are implemented. Guarded exports and historical as-of KPI reconstruction remain separate. | DEC-121/status 26 and DEC-122/status 28 record the bounded metric and Fiche evidence. File references activate only with slice 6. |
+| 5. Administrative relance | Implemented: focused 21-day dispatcher, durable recipient/channel outcomes, sidebar notification centre and one synthetic email attempt per cycle. Browser push, real mail and production scheduling remain separate. | DEC-124/status 32 record due/reschedule/closure/deduplication, delivery, pagination, online-only UI and independent-review evidence. No generic notification platform. |
 | 6. Guarded optional documents | Reconcile Phase 4 to optional PTA/Activity/revision/decision/request/confirmation/return contexts and Partner visibility. Implement only the separately authorized security slice. | Existing document gate and relevant storage/preview/security decisions. Keep deny-all until guarded route and entity/Partner isolation checks pass; no mandatory attachments or requirement-blocking machinery. |
 | 7. Partner portal | Exclusive one-Partner invitation/auth binding; own current/past Projects and approved PTA/progress; authorized decisions, Fiches, files and scoped exports. | Can prepare identity/API work after slices 1–2; complete experience depends on slices 3–4 and allowed files on slice 6. Verify real mail/OTP before enablement, cross-Partner denial and no internal-role escalation. |
 
