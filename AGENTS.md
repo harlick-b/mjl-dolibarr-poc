@@ -23,19 +23,18 @@ The authority/business/API disposition register is
 The current implementation boundary and evidence are in
 `docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
 router. Foundation, A1–A3 and synthetic PTA planning and execution through
-PTA-4A current annual metrics are complete. DEC-121 governs this bounded
-reporting surface: whole-PTA physical progress uses closed Activities over the
-definitively approved plan, and financial progress uses their final spending over
-the definitively approved annual allocation. Zero denominators are
-non-calculable and percentages are not capped. PTA-4A adds no migration or
-mutation; one guarded REST read and two French PTA metric cards reuse the
-existing annual attribution and exact XOF rules.
+PTA-4C are complete. DEC-121 governs current whole-PTA physical and financial
+metrics. DEC-122 adds the regenerable French Activity Fiche PDF from approved
+planning, execution, settlement and chronology facts. DEC-123 completes Project
+closure: a Validator may close an empty Project or one containing only terminal
+`closed` or `withdrawn` Activities; every unfinished Activity remains a blocker.
+PTA-4B and PTA-4C add no migration.
 PC1/PC2 remain pending; use synthetic identities, isolated databases and test
-mail only. Stop after PTA-4A.
+mail only. Stop after PTA-4C.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 partial/different reversements, discrepancy or insufficiency handling, historical
-metrics, Fiche/exports, documents, notifications, banking integration, later slices,
-general A4 and production remain deferred.
+metrics, annual/global exports, documents, notifications, banking integration,
+later slices, general A4 and production remain deferred.
 
 When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
 
