@@ -156,7 +156,7 @@ def ordered_advisory_race(auth, first, second):
                                 "SELECT count(*) FROM pg_stat_activity "
                                 "WHERE datname=current_database() "
                                 "AND wait_event_type='Lock' "
-                                "AND query LIKE '%pg_advisory_xact_lock(1843201)%'"
+                                "AND query LIKE '%pg_advisory_xact_lock%1843201%'"
                             )
                         )
                     )
@@ -2464,7 +2464,7 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, au
             assert contributors == expected
             assert excluded not in contributors
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0016_pta5"
+                "0017_pta6a"
             )
     finally:
         engine.dispose()
@@ -2491,7 +2491,7 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0016_pta5"
+                "0017_pta6a"
             )
             assert db.scalar(text("SELECT count(*) FROM pta_activity_revision")) == 1
     finally:

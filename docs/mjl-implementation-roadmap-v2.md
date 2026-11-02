@@ -12,6 +12,21 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-6A optional Activity attachment boundary (DEC-125)
+
+**PTA_6A_COMPLETE** on 2026-11-02. The isolated synthetic application
+can store optional append-only PDF/JPEG/PNG evidence on an Activity. Agents and
+Validators can upload; internal business roles can list and download through a
+fresh server-side authorization check. Upload and successful download are
+audited. Migration `0017_pta6a` adds one table; three focused REST
+responsibilities and one compact Activity panel complete the slice.
+
+[Plan 33](rebuild/33-pta6a-activity-documents-plan.md) defines the bounded
+contract; [status 34](rebuild/34-pta6a-implementation-status.md) records final
+evidence and the completed independent correction/re-review gate. Preview,
+Partner access, replacement/withdrawal, categories, wider document contexts,
+production storage/scanning/retention, real accounts and later slices remain deferred.
+
 ## PTA-5 administrative reminder boundary (DEC-124)
 
 **PTA_5_COMPLETE** on 2026-11-02. Twenty-one calendar days before an

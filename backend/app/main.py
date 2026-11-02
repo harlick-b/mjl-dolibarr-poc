@@ -19,6 +19,7 @@ from app.config import database_url as read_database_url
 from app.database import make_engine
 from app.health import router
 from app.planning.disbursement import router as disbursement_router
+from app.planning.documents import router as documents_router
 from app.planning.execution import router as execution_router
 from app.planning.fiche import router as fiche_router
 from app.planning.reminders import router as reminders_router
@@ -53,6 +54,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(virement_confirmation_router)
     app.include_router(reversement_router)
     app.include_router(reminders_router)
+    app.include_router(documents_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:
         response = JSONResponse(

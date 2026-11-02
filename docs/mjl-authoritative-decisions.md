@@ -19,6 +19,21 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-6A optional Activity attachments authorization (DEC-125)
+
+The user instructed Codex to review PTA-5, then audit and implement the next
+slice on 2026-11-02. The audit bounds that slice to optional Activity attachments
+under the existing isolated synthetic-test gate. [Plan 33](rebuild/33-pta6a-activity-documents-plan.md)
+is the implementation and independent-review contract. Partner disclosure,
+safe inline preview, production scanner/storage/key custody, retention/deletion
+and broader document contexts remain later decisions; the old complex ECM design
+does not return.
+
+PTA-6A completed on 2026-11-02 after bounded streaming, lifecycle and audit
+rollback checks, migration regressions, the focused browser journey and the
+mandatory independent correction/re-review cycle. [Status 34](rebuild/34-pta6a-implementation-status.md)
+records the evidence.
+
 ## PTA-5 administrative reminders authorization (DEC-124)
 
 The user instructed Codex to audit and implement the next slice and approved the

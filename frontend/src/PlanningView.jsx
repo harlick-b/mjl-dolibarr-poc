@@ -479,6 +479,8 @@ function Workspace({ screen, session, onDenied }) {
         <ActivityDetail
           item={activity.data}
           user={user}
+          csrf={session.csrf}
+          documentCursor={search.documentCursor}
           agents={agents.data?.data || []}
           agentResult={agents.data}
           types={types.data?.data || []}
@@ -1049,6 +1051,8 @@ function PlanningVersion({ title, value }) {
 function ActivityDetail({
   item,
   user,
+  csrf,
+  documentCursor,
   agents,
   agentResult,
   types,
@@ -1381,6 +1385,14 @@ function ActivityDetail({
           </li>
         ))}
       </ul>
+      <ActivityDocuments
+        activityId={item.id}
+        user={user}
+        csrf={csrf}
+        cursor={documentCursor}
+        navigate={navigate}
+        blocked={mutationBlocked}
+      />
       <section aria-labelledby="activity-history-title">
         <h3 id="activity-history-title">{strings.revisionHistory}</h3>
         {!revisions?.data?.length ? (
@@ -1722,5 +1734,135 @@ function ActivityDetail({
         </form>
       </Modal>
     </div>
+  )
+}
+
+function ActivityDocuments({
+  activityId,
+  user,
+  csrf,
+  cursor,
+  navigate,
+  blocked,
+}) {
+  const { api } = useAPI()
+  const client = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const opener = useRef(null)
+  const documents = useQuery(
+    planningQuery(
+      api,
+      user.id,
+      ['documents', activityId, cursor],
+      cursorPath(`/activities/${activityId}/documents`, cursor),
+    ),
+  )
+  const upload = useMutation({
+    retry: false,
+    networkMode: 'always',
+    mutationFn: ({ file }) =>
+      api.request(`/api/v1/activities/${activityId}/documents`, {
+        method: 'POST',
+        csrf,
+        rawBody: file,
+        headers: {
+          'Content-Type': file.type,
+          'X-File-Name': file.name,
+        },
+      }),
+    onSuccess: async () => {
+      await client.invalidateQueries({
+        queryKey: ['planning', user.id, 'documents', activityId],
+      })
+      setOpen(false)
+      toast.success(strings.saved)
+    },
+  })
+  const canUpload = ['AGENT_SAISIE', 'VALIDATEUR_DEFINITIF'].includes(user.role)
+  return (
+    <section
+      aria-labelledby="activity-documents-title"
+      className="planning-card"
+    >
+      <div className="planning-title">
+        <h3 id="activity-documents-title">{strings.attachments}</h3>
+        {canUpload && (
+          <Button
+            variant="outline"
+            disabled={blocked || upload.isPending}
+            onClick={(event) => {
+              opener.current = event.currentTarget
+              setOpen(true)
+            }}
+          >
+            <Plus aria-hidden="true" /> {strings.addAttachment}
+          </Button>
+        )}
+      </div>
+      {documents.isPending ? (
+        <p role="status">Chargement…</p>
+      ) : documents.isError ? (
+        <p role="alert">Les pièces sont indisponibles.</p>
+      ) : !documents.data?.data.length ? (
+        <p>{strings.noAttachment}</p>
+      ) : (
+        <ul className="planning-list">
+          {documents.data.data.map((document) => (
+            <li key={document.id}>
+              <span>{document.name}</span>
+              <a
+                href={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
+                download
+              >
+                <Download aria-hidden="true" /> {strings.download}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Pager
+        result={documents.data}
+        cursorKey="documentCursor"
+        navigate={navigate}
+      />
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        label={strings.addAttachment}
+        opener={opener}
+      >
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const file =
+              event.currentTarget.querySelector('input[type="file"]')
+                ?.files?.[0]
+            if (file?.size > 0) upload.mutate({ file })
+          }}
+        >
+          <label>
+            {strings.chooseAttachment}
+            <input
+              name="attachment"
+              type="file"
+              accept="application/pdf,image/jpeg,image/png"
+              required
+            />
+          </label>
+          <div className="modal-actions">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              {strings.cancel}
+            </Button>
+            <Button disabled={blocked || upload.isPending} type="submit">
+              {strings.add}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </section>
   )
 }

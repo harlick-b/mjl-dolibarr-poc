@@ -9,7 +9,9 @@ dependencies = [
   "psycopg[binary]>=3.2,<4",
   "alembic>=1.15,<2",
   "argon2-cffi>=25.1,<26",
+  "pillow>=13,<14",
   "reportlab>=4.4,<5",
+  "pypdf>=6,<7",
 ]
 
 [dependency-groups]
@@ -19,7 +21,6 @@ dev = [
   "ruff>=0.11,<1",
   "mypy>=1.15,<2",
   "openapi-spec-validator>=0.7,<1",
-  "pypdf>=6,<7",
 ]
 
 [tool.pytest.ini_options]

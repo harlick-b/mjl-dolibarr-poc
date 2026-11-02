@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     String,
     UniqueConstraint,
     text,
@@ -369,6 +370,33 @@ class ActivityReminder(Base):
     email_status: Mapped[str] = mapped_column(String(16), default="unconfirmed")
     email_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(default=1)
+
+
+class ActivityDocument(Base):
+    __tablename__ = "pta_activity_document"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        CheckConstraint(
+            "byte_size > 0 AND byte_size <= 20971520", name="document_size"
+        ),
+        CheckConstraint(
+            "media_type IN ('application/pdf','image/jpeg','image/png')",
+            name="document_media_type",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    display_name: Mapped[str] = mapped_column(String(200))
+    media_type: Mapped[str] = mapped_column(String(32))
+    byte_size: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64))
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    uploaded_by_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class ActivityContributor(Base):

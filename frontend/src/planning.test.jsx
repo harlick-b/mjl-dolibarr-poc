@@ -284,6 +284,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       'request_transfer',
     ],
   }
+  let documents = []
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
     if (path.includes('/auth/session'))
@@ -297,6 +298,35 @@ test('an Agent opens and cancels an amendment while the approved version stays v
           }),
         ),
       )
+    if (path.endsWith('/activities/activity-1/documents')) {
+      if (options.method === 'POST') {
+        documents = [
+          {
+            id: 'document-1',
+            activity_id: 'activity-1',
+            name: 'preuve.png',
+            media_type: 'image/png',
+            size: 3,
+            uploaded_by_id: 'agent',
+            uploaded_at: '2027-01-02T10:00:00Z',
+          },
+        ]
+        return Promise.resolve(
+          new Response(JSON.stringify(documents[0]), { status: 201 }),
+        )
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: documents.length,
+            data: documents,
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    }
     if (
       path.endsWith('/activities/activity-1/amendments') &&
       options.method === 'POST'
@@ -426,6 +456,57 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     await screen.findByRole('link', { name: 'Télécharger la fiche PDF' }),
   ).toHaveAttribute('href', '/api/v1/activities/activity-1/fiche.pdf')
+  expect(await screen.findByText('Aucune pièce justificative.')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Ajouter une pièce' }))
+  await user.upload(
+    screen.getByLabelText('Choisir un fichier PDF, JPEG ou PNG'),
+    new File(['png'], 'preuve.png', { type: 'image/png' }),
+  )
+  const online = vi.spyOn(window.navigator, 'onLine', 'get')
+  online.mockReturnValue(false)
+  fireEvent.submit(
+    screen.getByRole('dialog').querySelector('button[type="submit"]').form,
+  )
+  expect(
+    await screen.findByText('Connexion indisponible. Aucune action envoyée.'),
+  ).toBeVisible()
+  expect(
+    fetch.mock.calls.filter(
+      ([url, options]) =>
+        String(url).endsWith('/activities/activity-1/documents') &&
+        options?.method === 'POST',
+    ),
+  ).toHaveLength(0)
+  online.mockReturnValue(true)
+  window.dispatchEvent(new Event('online'))
+  await act(async () => Promise.resolve())
+  expect(
+    fetch.mock.calls.filter(
+      ([url, options]) =>
+        String(url).endsWith('/activities/activity-1/documents') &&
+        options?.method === 'POST',
+    ),
+  ).toHaveLength(0)
+  fireEvent.submit(
+    screen.getByRole('dialog').querySelector('button[type="submit"]').form,
+  )
+  expect(
+    await screen.findByRole('link', { name: 'Télécharger' }),
+  ).toHaveAttribute(
+    'href',
+    '/api/v1/activities/activity-1/documents/document-1/download',
+  )
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/documents',
+    expect.objectContaining({
+      method: 'POST',
+      body: expect.any(File),
+      headers: expect.objectContaining({
+        'Content-Type': 'image/png',
+        'X-File-Name': 'preuve.png',
+      }),
+    }),
+  )
   await user.click(
     await screen.findByRole('button', { name: 'Demander une modification' }),
   )
@@ -580,7 +661,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       }),
     ),
   )
-})
+}, 10000)
 
 function amendmentHistoryFetch({ failed = false } = {}) {
   const activity = {

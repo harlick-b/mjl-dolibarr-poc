@@ -20,7 +20,10 @@ function messageFor(status) {
 }
 
 export class RestClient {
-  async request(path, { signal, csrf, body, method } = {}) {
+  async request(
+    path,
+    { signal, csrf, body, rawBody, headers = {}, method } = {},
+  ) {
     if (!navigator.onLine)
       throw new ApiError('Connexion indisponible. Aucune action envoyée.', {
         kind: 'offline',
@@ -34,9 +37,16 @@ export class RestClient {
         signal,
         headers:
           body === undefined
-            ? {}
-            : { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-        body: body === undefined ? undefined : JSON.stringify(body),
+            ? {
+                ...headers,
+                ...(rawBody === undefined ? {} : { 'X-CSRF-Token': csrf }),
+              }
+            : {
+                ...headers,
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrf,
+              },
+        body: body === undefined ? rawBody : JSON.stringify(body),
       })
     } catch (error) {
       if (error?.name === 'AbortError') throw error

@@ -350,6 +350,7 @@ export function makeRouter(history) {
         activityCursor: String(search.activityCursor || '').slice(0, 512),
         agentCursor: String(search.agentCursor || '').slice(0, 512),
         revisionCursor: String(search.revisionCursor || '').slice(0, 512),
+        documentCursor: String(search.documentCursor || '').slice(0, 512),
         revision: String(search.revision || '').slice(0, 36),
         amendment: String(search.amendment || '').slice(0, 36),
       }),

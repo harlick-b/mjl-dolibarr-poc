@@ -94,6 +94,7 @@ class AuthService:
                 "pta_virement_confirmation",
                 "pta_reversement_declaration",
                 "pta_activity_reminder",
+                "pta_activity_document",
             )
         }
         if relations != expected:
@@ -101,7 +102,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0016_pta5"]:
+        if revisions != ["0017_pta6a"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -223,7 +224,8 @@ class AuthService:
                      'pta_preserve_virement_confirmation',
                      'pta_preserve_reversement_declaration',
                      'pta_validate_activity_closure',
-                     'pta_reject_closed_financial_change')
+                     'pta_reject_closed_financial_change',
+                     'pta_preserve_activity_document')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -232,7 +234,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "a81f3b97c203594eba5970dfc732af2137cc0e116b8aa70f9d5e5924c15bde6e"
+            "6c7494f38cb3b34c8cd94ce4c21b3768cbaabf62cf156a937d9970bf5258c718"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -330,6 +332,9 @@ class AuthService:
                 "agent_id",
                 "planned_end",
                 "email_status",
+                "media_type",
+                "byte_size",
+                "sha256",
             }
             if set(details) - allowed or any(
                 type(v) not in (str, int) for v in details.values()

@@ -377,3 +377,6 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   value; a document-wide amount assertion can pass against the wrong row. Exercise
   maximum valid narrative content and correction-only changes, and verify that the
   rendered chronology identifies who changed what and when in user-facing language.
+- A bounded upload must count streamed request chunks before accumulation. Run
+  synchronous parsers and database work outside the async event loop, parse outside
+  the global lifecycle lock, then reauthorize under that lock before atomic storage.
