@@ -22,8 +22,8 @@ The authority/business/API disposition register is
 `docs/rebuild/01-authority-and-business-baseline.md`.
 The current implementation boundary and evidence are in
 `docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
-router. Foundation, A1–A3 and synthetic PTA planning and execution through
-PTA-6B are complete. DEC-121 governs current whole-PTA physical and financial
+router. Foundation, A1–A3 and the synthetic PTA slices through PTA-6D are
+complete. DEC-121 governs current whole-PTA physical and financial
 metrics. DEC-122 adds the regenerable French Activity Fiche PDF from approved
 planning, execution, settlement and chronology facts. DEC-123 completes Project
 closure: a Validator may close an empty Project or one containing only terminal
@@ -42,12 +42,16 @@ and one screen, and adds no migration or export.
 DEC-127 adds an audited, exact-snapshot CSV export of that sanitized chronology
 for Validators and Admins. It adds one POST responsibility and one existing-screen
 action with no migration, table, stored artifact, job or reporting framework.
+DEC-128 adds a freshly authorized and audited inline preview for stored JPEG/PNG
+Activity evidence. The existing Activity panel loads protected bytes through the
+shared REST client into a bounded modal. PDF remains download-only. It adds one
+GET responsibility with no migration, table, converter or thumbnail service.
 PC1/PC2 remain pending; use synthetic identities, isolated databases and test
-mail only. Stop after PTA-6C.
+mail only. Stop after PTA-6D.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 partial/different reversements, discrepancy or insufficiency handling, historical
 metrics, annual exports, PDF/XLSX global audit exports,
-document preview/replacement/withdrawal/categories,
+PDF preview and document replacement/withdrawal/categories,
 Partner or wider document contexts, production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later
 slices, general A4 and production remain deferred.

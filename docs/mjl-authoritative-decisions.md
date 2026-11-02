@@ -19,6 +19,23 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-6D safe Activity image-preview authorization (DEC-128)
+
+The user instructed Codex to review PTA-6C, then audit and implement the next
+smallest ready slice on 2026-11-02. The audit selected inline preview of already
+verified JPEG/PNG Activity evidence for authorized internal business users.
+[Plan 39](rebuild/39-pta6d-safe-image-preview-plan.md) is the bounded
+implementation and independent-review contract. PDF remains download-only; the
+slice adds no migration, table, converter, sanitizer, thumbnail service, Partner
+access or production document infrastructure.
+
+PTA-6D completed after current-role and parent-resource authorization, lifecycle
+serialization, transactional preview-audit rollback, protected cancellable blob
+loading, offline/authorization-loss handling, responsive Chromium checks and the
+mandatory independent correction/re-review cycle. [Status 40](rebuild/40-pta6d-implementation-status.md)
+records the evidence. PDF preview, document lifecycle changes, production
+storage/scanning/retention and later slices remain deferred.
+
 ## PTA-6C audited global-history CSV authorization (DEC-127)
 
 The user instructed Codex to review PTA-6B, then audit and implement the next

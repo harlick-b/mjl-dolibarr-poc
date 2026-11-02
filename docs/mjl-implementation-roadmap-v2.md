@@ -12,6 +12,23 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-6D safe Activity image-preview boundary (DEC-128)
+
+**PTA_6D_COMPLETE** on 2026-11-02. Authorized internal business users can open
+already verified JPEG/PNG Activity evidence in a bounded modal. The server
+reauthorizes each request, audits successful delivery transactionally and returns
+inline bytes with no-store, nosniff, same-origin and restrictive content-policy
+headers. The browser fetches protected bytes through the shared REST client,
+cancels stale requests and releases temporary object URLs.
+
+[Plan 39](rebuild/39-pta6d-safe-image-preview-plan.md) defines the boundary;
+[status 40](rebuild/40-pta6d-implementation-status.md) records PostgreSQL/API,
+frontend, Chromium and mandatory independent correction/re-review evidence. One
+GET responsibility and one existing-screen action were added with no migration,
+table, converter, thumbnail or document framework. PDF preview, Partner access,
+document replacement/withdrawal/categories, production storage/scanning/retention,
+real accounts and later slices remain deferred.
+
 ## PTA-6C audited global-history CSV boundary (DEC-127)
 
 **PTA_6C_COMPLETE** on 2026-11-02. Validateurs définitifs and Admins can

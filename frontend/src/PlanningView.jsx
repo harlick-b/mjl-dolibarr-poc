@@ -8,7 +8,7 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { Download, Plus, Save } from 'lucide-react'
+import { Download, Eye, Plus, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { sessionKey, sessionQuery } from './auth'
 import { strings } from './i18n'
@@ -492,13 +492,14 @@ function Workspace({ screen, session, onDenied }) {
           selectedRevision={selectedRevision.data}
           selectedAmendment={selectedAmendment.data}
           currentRevision={currentRevision.data}
+          onDenied={denyWorkspace}
         />
       )}
     </section>
   )
 }
 
-function Modal({ open, onClose, label, children, opener }) {
+function Modal({ open, onClose, label, children, opener, className }) {
   const ref = useRef(null)
   useEffect(() => {
     const dialog = ref.current
@@ -510,6 +511,7 @@ function Modal({ open, onClose, label, children, opener }) {
     <dialog
       ref={ref}
       aria-label={label}
+      className={className}
       onCancel={onClose}
       onClose={() => {
         onClose()
@@ -1064,6 +1066,7 @@ function ActivityDetail({
   selectedRevision,
   selectedAmendment,
   currentRevision,
+  onDenied,
 }) {
   const [editing, setEditing] = useState(false)
   const [workflowAction, setWorkflowAction] = useState('')
@@ -1392,6 +1395,7 @@ function ActivityDetail({
         cursor={documentCursor}
         navigate={navigate}
         blocked={mutationBlocked}
+        onDenied={onDenied}
       />
       <section aria-labelledby="activity-history-title">
         <h3 id="activity-history-title">{strings.revisionHistory}</h3>
@@ -1744,11 +1748,18 @@ function ActivityDocuments({
   cursor,
   navigate,
   blocked,
+  onDenied,
 }) {
   const { api } = useAPI()
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [preview, setPreview] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState('')
   const opener = useRef(null)
+  const previewOpener = useRef(null)
+  const previewController = useRef(null)
+  const previewGeneration = useRef(0)
+  const previewUrlRef = useRef('')
   const documents = useQuery(
     planningQuery(
       api,
@@ -1778,6 +1789,45 @@ function ActivityDocuments({
       toast.success(strings.saved)
     },
   })
+  const releasePreview = useCallback(() => {
+    previewGeneration.current += 1
+    previewController.current?.abort()
+    previewController.current = null
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    previewUrlRef.current = ''
+    setPreviewUrl('')
+  }, [])
+  useEffect(() => releasePreview, [releasePreview])
+  const imagePreview = useMutation({
+    retry: false,
+    networkMode: 'always',
+    gcTime: 0,
+    mutationFn: async ({ document, generation }) => {
+      const controller = new AbortController()
+      previewController.current = controller
+      const result = await api.download(
+        `/api/v1/activities/${activityId}/documents/${document.id}/preview`,
+        { signal: controller.signal },
+      )
+      if (generation !== previewGeneration.current)
+        throw new DOMException('Stale authorization', 'AbortError')
+      return result.blob
+    },
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob)
+      previewUrlRef.current = url
+      setPreviewUrl(url)
+    },
+    onError: (error) => {
+      if (error.name === 'AbortError') return
+      if (error.status === 401 || error.status === 403) onDenied()
+    },
+  })
+  const closePreview = () => {
+    releasePreview()
+    imagePreview.reset()
+    setPreview(null)
+  }
   const canUpload = ['AGENT_SAISIE', 'VALIDATEUR_DEFINITIF'].includes(user.role)
   return (
     <section
@@ -1810,12 +1860,30 @@ function ActivityDocuments({
           {documents.data.data.map((document) => (
             <li key={document.id}>
               <span>{document.name}</span>
-              <a
-                href={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
-                download
-              >
-                <Download aria-hidden="true" /> {strings.download}
-              </a>
+              <div className="planning-actions">
+                {['image/jpeg', 'image/png'].includes(document.media_type) && (
+                  <Button
+                    aria-label={`${strings.preview} de ${document.name}`}
+                    variant="outline"
+                    onClick={(event) => {
+                      previewOpener.current = event.currentTarget
+                      releasePreview()
+                      imagePreview.reset()
+                      setPreview(document)
+                      const generation = previewGeneration.current
+                      imagePreview.mutate({ document, generation })
+                    }}
+                  >
+                    <Eye aria-hidden="true" /> {strings.preview}
+                  </Button>
+                )}
+                <a
+                  href={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
+                  download
+                >
+                  <Download aria-hidden="true" /> {strings.download}
+                </a>
+              </div>
             </li>
           ))}
         </ul>
@@ -1862,6 +1930,47 @@ function ActivityDocuments({
             </Button>
           </div>
         </form>
+      </Modal>
+      <Modal
+        open={Boolean(preview)}
+        onClose={closePreview}
+        label={
+          preview ? `${strings.preview} — ${preview.name}` : strings.preview
+        }
+        opener={previewOpener}
+        className="document-preview-dialog"
+      >
+        {preview && (
+          <div className="document-preview">
+            <h3>{preview.name}</h3>
+            {imagePreview.isPending ? (
+              <p role="status">Chargement de l’aperçu…</p>
+            ) : imagePreview.isError ? (
+              <p role="alert">
+                {imagePreview.error?.kind === 'offline'
+                  ? 'Connexion indisponible. Reconnectez-vous pour afficher l’aperçu.'
+                  : 'L’aperçu est indisponible.'}
+              </p>
+            ) : previewUrl ? (
+              <img
+                src={previewUrl}
+                alt={`${strings.preview} de ${preview.name}`}
+              />
+            ) : null}
+            <div className="modal-actions">
+              <Button type="button" variant="outline" onClick={closePreview}>
+                {strings.dismiss}
+              </Button>
+              <a
+                className="planning-button"
+                href={`/api/v1/activities/${activityId}/documents/${preview.id}/download`}
+                download
+              >
+                <Download aria-hidden="true" /> {strings.download}
+              </a>
+            </div>
+          </div>
+        )}
       </Modal>
     </section>
   )

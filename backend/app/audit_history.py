@@ -112,6 +112,7 @@ ACTION_LABELS = {
     "disbursement.returned": "Décaissement retourné",
     "disbursement.submit": "Demande de décaissement soumise",
     "document.download": "Document téléchargé",
+    "document.preview": "Document consulté",
     "document.upload": "Document ajouté",
     "invitation_accept": "Invitation acceptée",
     "invitation_delivery": "Invitation envoyée",

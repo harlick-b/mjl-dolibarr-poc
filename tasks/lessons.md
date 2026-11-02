@@ -384,3 +384,7 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   rows is not an exact snapshot. Capture the timestamp and exact append-only row
   IDs in one statement, then test absence by the concurrent row's exported ID;
   checking a raw internal action that the export omits is a false oracle.
+- Protected inline media must use the authenticated REST client rather than a raw
+  element URL when the workspace owns offline and authorization-loss behavior.
+  Abort stale requests, reject late authorization generations, revoke object URLs
+  and reset mutation data so sensitive bytes are not retained after close.

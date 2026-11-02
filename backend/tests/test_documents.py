@@ -8,10 +8,11 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from fastapi.testclient import TestClient
 from PIL import Image
 from reportlab.pdfgen import canvas
-from sqlalchemy import create_engine, select, text
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy import create_engine, event, select, text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 from test_access import admin as admin
@@ -119,6 +120,69 @@ def test_optional_attachment_upload_list_and_guarded_download(planning):
             db.scalars(select(Audit.action).where(Audit.target == document["id"]))
         )
         assert actions == ["document.upload", "document.download"]
+
+
+@pytest.mark.parametrize(
+    ("content", "name", "media_type"),
+    ((png, "preuve.png", "image/png"), (jpeg, "preuve.jpg", "image/jpeg")),
+)
+def test_guarded_image_preview_is_inline_audited_and_pdf_stays_download_only(
+    planning, content, name, media_type
+):
+    item = activity(planning)
+    image = upload(planning["agent"], item["id"], content(), name, media_type).json()
+    pdf_item = upload(
+        planning["agent"], item["id"], pdf(), "preuve.pdf", "application/pdf"
+    ).json()
+
+    preview = planning["supervisor"].get(
+        f"/api/v1/activities/{item['id']}/documents/{image['id']}/preview"
+    )
+    assert preview.status_code == 200 and preview.content == content()
+    assert preview.headers["content-type"].startswith(media_type)
+    assert preview.headers["content-disposition"].startswith("inline;")
+    assert preview.headers["cache-control"] == "no-store"
+    assert preview.headers["x-content-type-options"] == "nosniff"
+    assert preview.headers["content-security-policy"] == "default-src 'none'; sandbox"
+    assert preview.headers["cross-origin-resource-policy"] == "same-origin"
+
+    validator_preview = planning["validator"].get(
+        f"/api/v1/activities/{item['id']}/documents/{image['id']}/preview"
+    )
+    assert validator_preview.status_code == 200
+    anonymous = TestClient(planning["agent"].app, base_url="http://localhost")
+    try:
+        assert (
+            anonymous.get(
+                f"/api/v1/activities/{item['id']}/documents/{image['id']}/preview"
+            ).status_code
+            == 401
+        )
+    finally:
+        anonymous.close()
+
+    unavailable = planning["supervisor"].get(
+        f"/api/v1/activities/{item['id']}/documents/{pdf_item['id']}/preview"
+    )
+    assert unavailable.status_code == 422
+    assert (
+        planning["admin"]
+        .get(
+            f"/api/v1/activities/{item['id']}/documents/{image['id']}/preview",
+            headers=headers(planning["admin"]),
+        )
+        .status_code
+        == 403
+    )
+    with Session(planning["auth"].engine) as db:
+        actions = list(
+            db.scalars(select(Audit.action).where(Audit.target == image["id"]))
+        )
+        assert sorted(actions) == [
+            "document.preview",
+            "document.preview",
+            "document.upload",
+        ]
 
 
 def test_upload_permissions_and_content_validation(planning):
@@ -250,6 +314,10 @@ def test_document_ids_are_parent_scoped_and_rows_are_append_only(planning):
         f"/api/v1/activities/{second['id']}/documents/{document['id']}/download"
     )
     assert guessed.status_code == 404
+    guessed_preview = planning["agent"].get(
+        f"/api/v1/activities/{second['id']}/documents/{document['id']}/preview"
+    )
+    assert guessed_preview.status_code == 404
     with pytest.raises(DBAPIError):
         with planning["auth"].engine.begin() as db:
             db.execute(
@@ -280,21 +348,48 @@ def test_upload_audit_failure_rolls_back_document(planning, monkeypatch):
         assert db.query(Audit).filter(Audit.action == "document.upload").count() == 0
 
 
-def test_download_audit_failure_returns_no_document(planning, monkeypatch):
+def test_document_download_audit_failure_returns_no_document(planning, monkeypatch):
     item = activity(planning)
     document = upload(planning["agent"], item["id"]).json()
     original = planning["auth"].audit
 
-    def fail_download(db, action, *args, **kwargs):
-        if action == "document.download":
+    def fail_delivery(db, current_action, *args, **kwargs):
+        if current_action == "document.download":
             raise RuntimeError("synthetic audit failure")
-        return original(db, action, *args, **kwargs)
+        return original(db, current_action, *args, **kwargs)
 
-    monkeypatch.setattr(planning["auth"], "audit", fail_download)
+    monkeypatch.setattr(planning["auth"], "audit", fail_delivery)
     with pytest.raises(RuntimeError, match="synthetic audit failure"):
         planning["agent"].get(
             f"/api/v1/activities/{item['id']}/documents/{document['id']}/download"
         )
+    with Session(planning["auth"].engine) as db:
+        actions = list(
+            db.scalars(select(Audit.action).where(Audit.target == document["id"]))
+        )
+        assert actions == ["document.upload"]
+
+
+def test_preview_audit_database_failure_returns_503_without_image(planning):
+    item = activity(planning)
+    document = upload(planning["agent"], item["id"]).json()
+
+    def reject(_connection, _cursor, statement, parameters, _context, _many):
+        if "INSERT INTO auth_audit" in statement and "document.preview" in str(
+            parameters
+        ):
+            raise OperationalError(statement, parameters, Exception("synthetic"))
+
+    event.listen(planning["auth"].engine, "before_cursor_execute", reject)
+    try:
+        response = planning["agent"].get(
+            f"/api/v1/activities/{item['id']}/documents/{document['id']}/preview"
+        )
+    finally:
+        event.remove(planning["auth"].engine, "before_cursor_execute", reject)
+    assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.content != png()
     with Session(planning["auth"].engine) as db:
         actions = list(
             db.scalars(select(Audit.action).where(Audit.target == document["id"]))
@@ -333,7 +428,8 @@ def test_upload_parsing_does_not_hold_lifecycle_lock(planning, monkeypatch):
         assert db.query(ActivityDocument).count() == 0
 
 
-def test_deactivation_serializes_before_document_download(planning):
+@pytest.mark.parametrize("suffix", ("download", "preview"))
+def test_deactivation_serializes_before_document_delivery(planning, suffix):
     item = activity(planning)
     document = upload(planning["agent"], item["id"]).json()
     with Session(planning["auth"].engine) as db:
@@ -348,7 +444,7 @@ def test_deactivation_serializes_before_document_download(planning):
             json={"expected_version": version, "deactivate": True},
         ),
         lambda: planning["agent"].get(
-            f"/api/v1/activities/{item['id']}/documents/{document['id']}/download"
+            f"/api/v1/activities/{item['id']}/documents/{document['id']}/{suffix}"
         ),
     )
     assert deactivated.status_code == 200
@@ -364,7 +460,7 @@ def test_unexpected_document_schema_fails_closed(planning):
         assert db.query(ActivityDocument).count() == 0
 
 
-def test_document_openapi_keeps_preview_and_deletion_out(planning):
+def test_document_openapi_exposes_image_preview_and_keeps_deletion_out(planning):
     paths = planning["agent"].get("/openapi.json").json()["paths"]
     base = "/api/v1/activities/{activity_id}/documents"
     assert set(paths[base]) == {"get", "post"}
@@ -374,7 +470,12 @@ def test_document_openapi_keeps_preview_and_deletion_out(planning):
         "image/png",
     }
     assert set(paths[base + "/{document_id}/download"]) == {"get"}
-    assert not any("preview" in path for path in paths)
+    preview = paths[base + "/{document_id}/preview"]
+    assert set(preview) == {"get"}
+    assert set(preview["get"]["responses"]["200"]["content"]) == {
+        "image/jpeg",
+        "image/png",
+    }
     assert (
         "application/octet-stream"
         in paths[base + "/{document_id}/download"]["get"]["responses"]["200"]["content"]

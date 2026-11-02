@@ -4,6 +4,16 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 file records current repository-visible UI evidence, not user acceptance or
 browser verification for this documentation update.
 
+## React PTA-6A/PTA-6D evidence (DEC-125/128)
+
+The Activity workspace uses its existing card, list and action patterns for
+optional evidence. JPEG/PNG rows open a bounded modal with loading, offline and
+failure states, a retained download action, keyboard close/focus return and
+mobile containment. Protected bytes use the authenticated REST client and are
+released when the modal closes. PDF rows remain download-only. Focused Vitest
+and Chromium checks establish exercised behavior; human visual and accessibility
+acceptance remain outstanding.
+
 ## React PTA-4A evidence (DEC-121)
 
 The annual PTA screen reuses the supplied dashboard inspiration’s two-card metric

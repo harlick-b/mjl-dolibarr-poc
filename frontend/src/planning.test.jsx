@@ -233,6 +233,13 @@ test('an eligible Agent confirms submission of the current Activity version', as
 
 test('an Agent opens and cancels an amendment while the approved version stays visible', async () => {
   const user = userEvent.setup()
+  const createObjectURL = vi.fn(() => 'blob:preview')
+  const revokeObjectURL = vi.fn()
+  const NativeURL = URL
+  class PreviewURL extends NativeURL {}
+  PreviewURL.createObjectURL = createObjectURL
+  PreviewURL.revokeObjectURL = revokeObjectURL
+  vi.stubGlobal('URL', PreviewURL)
   HTMLDialogElement.prototype.showModal = function () {
     this.open = true
   }
@@ -285,6 +292,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     ],
   }
   let documents = []
+  let previewStatus = 200
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
     if (path.includes('/auth/session'))
@@ -298,6 +306,12 @@ test('an Agent opens and cancels an amendment while the approved version stays v
           }),
         ),
       )
+    if (path.endsWith('/documents/document-1/preview'))
+      return Promise.resolve(
+        new Response(previewStatus === 200 ? 'png' : '{}', {
+          status: previewStatus,
+        }),
+      )
     if (path.endsWith('/activities/activity-1/documents')) {
       if (options.method === 'POST') {
         documents = [
@@ -309,6 +323,15 @@ test('an Agent opens and cancels an amendment while the approved version stays v
             size: 3,
             uploaded_by_id: 'agent',
             uploaded_at: '2027-01-02T10:00:00Z',
+          },
+          {
+            id: 'document-2',
+            activity_id: 'activity-1',
+            name: 'preuve.pdf',
+            media_type: 'application/pdf',
+            size: 3,
+            uploaded_by_id: 'agent',
+            uploaded_at: '2027-01-02T09:00:00Z',
           },
         ]
         return Promise.resolve(
@@ -490,12 +513,47 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   fireEvent.submit(
     screen.getByRole('dialog').querySelector('button[type="submit"]').form,
   )
+  const imageRow = (await screen.findByText('preuve.png')).closest('li')
   expect(
-    await screen.findByRole('link', { name: 'Télécharger' }),
+    within(imageRow).getByRole('link', { name: 'Télécharger' }),
   ).toHaveAttribute(
     'href',
     '/api/v1/activities/activity-1/documents/document-1/download',
   )
+  const previewButton = within(imageRow).getByRole('button', {
+    name: 'Aperçu de preuve.png',
+  })
+  online.mockReturnValue(false)
+  await user.click(previewButton)
+  let preview = screen.getByRole('dialog', { name: 'Aperçu — preuve.png' })
+  expect(await within(preview).findByRole('alert')).toHaveTextContent(
+    'Connexion indisponible',
+  )
+  expect(
+    fetch.mock.calls.filter(([url]) => String(url).endsWith('/preview')),
+  ).toHaveLength(0)
+  await user.click(within(preview).getByRole('button', { name: 'Fermer' }))
+  online.mockReturnValue(true)
+  await user.click(previewButton)
+  preview = screen.getByRole('dialog', { name: 'Aperçu — preuve.png' })
+  expect(
+    await within(preview).findByRole('img', { name: 'Aperçu de preuve.png' }),
+  ).toHaveAttribute('src', 'blob:preview')
+  expect(createObjectURL).toHaveBeenCalledOnce()
+  expect(
+    fetch.mock.calls.filter(([url]) => String(url).endsWith('/preview')),
+  ).toHaveLength(1)
+  expect(
+    within(preview).getByRole('link', { name: 'Télécharger' }),
+  ).toHaveAttribute(
+    'href',
+    '/api/v1/activities/activity-1/documents/document-1/download',
+  )
+  await user.click(within(preview).getByRole('button', { name: 'Fermer' }))
+  expect(preview).not.toBeVisible()
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview')
+  const pdfRow = screen.getByText('preuve.pdf').closest('li')
+  expect(within(pdfRow).queryByRole('button', { name: /Aperçu/ })).toBeNull()
   expect(fetch).toHaveBeenCalledWith(
     '/api/v1/activities/activity-1/documents',
     expect.objectContaining({
@@ -661,6 +719,15 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       }),
     ),
   )
+  previewStatus = 403
+  await user.click(
+    within(screen.getByText('preuve.png').closest('li')).getByRole('button', {
+      name: 'Aperçu de preuve.png',
+    }),
+  )
+  expect(
+    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
+  ).toBeVisible()
 }, 10000)
 
 function amendmentHistoryFetch({ failed = false } = {}) {

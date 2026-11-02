@@ -4,6 +4,15 @@ MJL product decisions come from `docs/mjl-authoritative-decisions.md`. This
 inventory records current routes and their access boundaries. It is
 repository-visible evidence, not user acceptance.
 
+## React PTA-6A/PTA-6D Activity evidence (DEC-125/128)
+
+`/activities/$activityId` contains a compact optional-evidence panel. Agents and
+Validators may add PDF/JPEG/PNG files; internal business roles may list and
+download them. JPEG/PNG rows also expose an accessible, responsive preview modal
+loaded through fresh protected authorization. PDF remains download-only. Admin
+and Partner access, deletion, replacement and production document storage remain
+outside this surface.
+
 ## React PTA-4A (DEC-121)
 
 `/projects/$projectId/ptas/$year` shows the current whole-PTA physical and

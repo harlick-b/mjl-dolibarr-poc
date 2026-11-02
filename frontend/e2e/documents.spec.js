@@ -10,6 +10,7 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
   }
   let documents = []
   let upload
+  let previewed = 0
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
@@ -59,6 +60,17 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
           allowed_actions: ['read'],
         },
       })
+    if (path === '/api/v1/activities/activity-1/documents/document-1/preview') {
+      previewed += 1
+      return route.fulfill({
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=',
+          'base64',
+        ),
+        contentType: 'image/png',
+        headers: { 'Cache-Control': 'no-store' },
+      })
+    }
     if (path === '/api/v1/activities/activity-1/documents') {
       if (request.method() === 'POST') {
         upload = {
@@ -76,6 +88,15 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
             size: upload.body.length,
             uploaded_by_id: 'agent',
             uploaded_at: '2027-01-02T10:00:00Z',
+          },
+          {
+            id: 'document-2',
+            activity_id: 'activity-1',
+            name: 'preuve.pdf',
+            media_type: 'application/pdf',
+            size: 3,
+            uploaded_by_id: 'agent',
+            uploaded_at: '2027-01-02T09:00:00Z',
           },
         ]
         return route.fulfill({ status: 201, json: documents[0] })
@@ -101,12 +122,29 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
     .click()
 
   await expect(page.getByText('preuve.png')).toBeVisible()
+  const imageRow = page.getByRole('listitem').filter({ hasText: 'preuve.png' })
   await expect(
-    page.getByRole('link', { name: 'Télécharger', exact: true }),
+    imageRow.getByRole('link', { name: 'Télécharger', exact: true }),
   ).toHaveAttribute(
     'href',
     '/api/v1/activities/activity-1/documents/document-1/download',
   )
+  await imageRow.getByRole('button', { name: 'Aperçu de preuve.png' }).click()
+  const preview = page.getByRole('dialog', { name: 'Aperçu — preuve.png' })
+  await expect(
+    preview.getByRole('img', { name: 'Aperçu de preuve.png' }),
+  ).toBeVisible()
+  await expect.poll(() => previewed).toBe(1)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(preview).toBeVisible()
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true)
+  await preview.getByRole('button', { name: 'Fermer' }).click()
+  const pdfRow = page.getByRole('listitem').filter({ hasText: 'preuve.pdf' })
+  await expect(pdfRow.getByRole('button', { name: /Aperçu/ })).toHaveCount(0)
   expect(upload).toEqual({
     csrf: 'csrf',
     type: 'image/png',

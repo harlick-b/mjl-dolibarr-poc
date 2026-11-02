@@ -372,3 +372,43 @@ def download(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+@router.get(
+    "/activities/{activity_id}/documents/{document_id}/preview",
+    response_class=Response,
+    responses={200: {"content": {"image/jpeg": {}, "image/png": {}}}},
+)
+def preview(
+    activity_id: str, document_id: str, request: Request, auth: Auth
+) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        locked_read(db)
+        actor = principal(db, auth, evidence(request, auth)[0])
+        activity(db, activity_id)
+        item = db.get(ActivityDocument, document_id)
+        if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
+            raise AuthError(404, "document_not_found")
+        if item.media_type not in {"image/jpeg", "image/png"}:
+            raise AuthError(422, "document_preview_unsupported")
+        auth.audit(
+            db,
+            "document.preview",
+            actor.id,
+            item.id,
+            details={"activity_id": activity_id},
+        )
+        content, media_type, name = item.content, item.media_type, item.display_name
+    fallback = re.sub(r"[^A-Za-z0-9._-]", "_", name) or "image"
+    disposition = f"inline; filename=\"{fallback}\"; filename*=UTF-8''{quote(name)}"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": disposition,
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
