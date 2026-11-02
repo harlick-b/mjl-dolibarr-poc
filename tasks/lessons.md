@@ -388,3 +388,7 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   element URL when the workspace owns offline and authorization-loss behavior.
   Abort stale requests, reject late authorization generations, revoke object URLs
   and reset mutation data so sensitive bytes are not retained after close.
+- A deferred hypothetical exception is not a product requirement. Before asking
+  the user to design an exception workflow, establish that the real business
+  process can produce that case; otherwise preserve the exact bounded rule and
+  remove the invented branch from active planning.

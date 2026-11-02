@@ -62,17 +62,18 @@ instructions for the new stack. No PHP remediation or old test campaign follows
 from this audit. The architecture verdict in the older PTA audit is superseded
 for future development, while its business gaps remain useful.
 
-Eight LATER_PRODUCT_DECISION groups remain. They block only the named feature,
-not the health-only local foundation. Current approved behavior must not be
-reopened as a question; banking custody and reallocation remain excluded.
+The following product-decision groups record the remaining boundaries after
+DEC-129. They block only the named feature, not synthetic development. Current
+approved behavior must not be reopened as a question; banking custody,
+partial reversement and reallocation remain excluded.
 
 | ID | Decision and smallest required clarification | Owner / blocked scope |
 | --- | --- | --- |
-| L1 | Who resolves late settlement discrepancies, what evidence releases closure, and where definitive financial facts become immutable with linked correction? No expense-ledger revival. | Client business sponsor/finance; exceptional settlement and correction branch |
-| L2 | Project reopening, Partner deactivation and Operation cancellation/reopening after PTA approval; no bypass of Project closure guard. | Client business sponsor; affected lifecycle branches |
-| L3 | Annual denominator/history treatment after approved withdrawal or cross-year transfer. | Client reporting owner; historical KPI/export cases |
-| L4 | Zero-spending request/confirmation waivers, partial reversement and correction of declarations. | Client finance owner; those settlement cases |
-| L5 | Partner-visible decision/evidence fields and allowed document contexts; file policy, retention, scanner and key/storage responsibility. | Client data owner/RSSI; Partner disclosure and Phase 4 |
+| L1 | No current discrepancy workflow: reversement is one exact, unsplit server-derived surplus. A different/partial case needs a real user-supplied scenario before design. | No current slice; do not invent an exception branch |
+| L2 | Closed Activities/Projects do not generally reopen. Future Partner deactivation requires no active Project or unfinished Activity. Operation-level exception changes remain separately deferred. | Only a later explicitly requested lifecycle branch |
+| L3 | Current withdrawal/transfer attribution is settled; historical as-of reconstruction remains outside the approved first current-PTA CSV. | Client reporting owner; later historical exports only |
+| L4 | Zero spending uses explicit per-Operation zeros plus a reasoned Supervisor/Validator-approved Activity declaration, with no zero-value payment requests. | Approved but unimplemented bounded slice |
+| L5 | Partner business projection is settled, but Partner attachment visibility remains pending. General documents stay Activity-scoped; storage retention, scanner and key ownership remain external. | Client data owner/RSSI; Partner files and production documents |
 | L6 | Whether PWA relance includes background push; re-notification/reschedule and delivery policy. | Client product owner/email operator; notification slice |
 | L7 | Whether a future slice permits incomplete drafts. PTA-1 requires one-or-more balanced positive Operation allocations; DEC-106 resolves its calendar-date default. | Client product owner; any future incomplete-draft behavior |
 | L8 | Phase 5 accounting structure/examples and Phase 6 official Partner templates/mappings, plus client meaning of SPD. | Client accounting/reporting/delivery owners; relevant later outputs |
@@ -299,18 +300,15 @@ Also resolved (DEC-090): Project closure is blocked while any Activity or requir
 financial step remains unfinished. Execution of an Activity pauses while its
 proposed amendment awaits approval; unrelated approved Activities continue.
 
-1. Who resolves late exceptions/amount discrepancies, and which evidence releases
-   closure? Blocks the exception branch of settlement design.
-2. What are Project reopening rules and the effect of Partner deactivation?
-   Deactivation must not bypass the approved Project closure guard. How do
-   approved withdrawal/transfer affect historical annual denominators? These
-   details block only their lifecycle and reporting branches.
-3. For explicit zero final spending, are zero-amount request/confirmation stages
-   required or waived? How are partial reversements recorded and discrepancies
-   corrected? No automatic exception or fabricated settlement will be added.
-4. Which justificatifs/decision fields are Partner-visible, and who determines
-   that? Is PWA notification intended to include background browser push? These
-   block only the relevant portal/document/notification slices.
+1. Which Activity attachments, if any, may a Validator explicitly share with a
+   Partner? Until decided, the Partner portal exposes no files.
+2. Are Operation-level cancellation/reopening exceptions needed after approval?
+   No generic Activity or Project reopening follows from this question.
+3. Is PWA background browser push needed beyond the implemented notification
+   centre and one email attempt? This blocks only a future push slice.
+4. Does a future product need incomplete Activity drafts, and what official
+   report templates/SPD definition does the client require? These block only
+   their respective later outputs.
 
 Do not require all answers before independent planning can progress. Prefer the
 smallest direct choices (one current candidate per Activity; no aggregate PTA

@@ -145,17 +145,25 @@ approval; distinct from confirmation of the external transfer.
 _Avoid_: Bank instruction, irreversible one-request-ever rule
 
 **Confirmation de virement**:
-Agent declaration of the actual external transfer amount and date, with optional
-supporting evidence.
+Agent declaration that the exact server-supplied approved amount was transferred
+outside MJL, with its date and optional supporting evidence.
 _Avoid_: Independent bank verification by MJL
 
 **Reversement**:
-External return to the Partner of unused authorized budget. The required amount
-is distinct from the amount actually declared returned. In the bounded first
-version, a positive requirement is declared once for its exact full amount; the
-date is required, a reference/comment is optional, and reasoned date/note
-corrections retain history before closure. A zero requirement needs no declaration.
+External return to the Partner of the single surplus derived as approved Activity
+allocation minus final spending. A positive surplus is transferred outside MJL
+once for its exact full amount and recorded as such; it is not split and the user
+does not enter an alternative amount. The date is required, a reference/comment
+is optional, and reasoned date/note corrections retain history before closure. A
+zero surplus needs no reversement declaration.
 _Avoid_: Reallocation to another Activity, in-app payment, inferred completion
+
+**Déclaration de dépense nulle**:
+Reasoned Activity declaration available only when every Operation has an explicit
+final value of zero, prevalidated by one Supervisor and approved by one distinct
+Validator. It replaces artificial zero-value décaissement, virement and
+reversement requests before direct Agent closure.
+_Avoid_: Missing spending treated as zero, fabricated payment request
 
 **Clôture de l'Activité**:
 Direct Agent action after physical completion, final spending and all required
@@ -195,8 +203,10 @@ Activity's planned start year.
 _Avoid_: Moving history silently, attribution by end year
 
 **Identité Partenaire**:
-Admin-invited read-only identity linked to exactly one Partner, for consultation
-of that Partner's authorized records.
+Individually Admin-invited read-only identity linked permanently to exactly one
+Partner, for consultation of that Partner's approved Projects/PTAs, progress,
+final decisions, Fiches and completed financial results. Several identities may
+belong to the same Partner; none gains internal drafts, comments or global audit.
 _Avoid_: Internal business role, multi-role switch, public registration
 
 ## Exception workflows
@@ -235,8 +245,10 @@ _Avoid_: Generic operational export labeled official
 ## Contextual document evidence
 
 **Document justificatif contextuel**:
-Optional evidence tied to its PTA, Activity, revision, decision, request or
-external declaration context and delivered only through guarded MJL routes.
+Optional evidence tied to an Activity and delivered only through guarded MJL
+routes. A later explicit need may permit evidence on external virement or
+reversement declarations and their corrections; this does not create generic
+Project/PTA folders or evidence on every approval.
 _Avoid_: Partenaire attachment, public link, raw ECM document
 
 **Catégorie documentaire**:

@@ -46,13 +46,17 @@ DEC-128 adds a freshly authorized and audited inline preview for stored JPEG/PNG
 Activity evidence. The existing Activity panel loads protected bytes through the
 shared REST client into a bounded modal. PDF remains download-only. It adds one
 GET responsibility with no migration, table, converter or thumbnail service.
-PC1/PC2 remain pending; use synthetic identities, isolated databases and test
-mail only. Stop after PTA-6D.
+DEC-129 settles the intended PC1/PC2 product policy, exact unsplit reversement,
+validated zero-spending path, limited Activity-document scope, Partner portal
+projection, no-reopening rule and first annual CSV boundary. External
+RSSI/mail/hosting acceptance remains pending; use synthetic identities, isolated
+databases and test mail only. Stop after PTA-6D.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
-partial/different reversements, discrepancy or insufficiency handling, historical
-metrics, annual exports, PDF/XLSX global audit exports,
-PDF preview and document replacement/withdrawal/categories,
-Partner or wider document contexts, production document storage/scanning/retention,
+insufficiency implementation, zero-spending implementation, historical metrics,
+the approved current-PTA CSV, PDF/XLSX global audit exports,
+PDF preview and approved document replacement/withdrawal,
+Partner portal implementation and Partner attachment visibility,
+production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later
 slices, general A4 and production remain deferred.
 

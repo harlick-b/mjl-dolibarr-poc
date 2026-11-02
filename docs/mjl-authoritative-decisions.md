@@ -19,6 +19,55 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## Remaining product decisions closure (DEC-129)
+
+The user clarified and approved the following rules on 2026-11-02. They are
+business authority for later bounded slices, not implementation authorization.
+
+- MJL does not execute bank transfers. For reversement, the server derives the
+  single surplus as approved Activity allocation minus final spending. When it is
+  positive, that exact full amount is transferred outside MJL once and recorded
+  as such. It is not split into smaller transfers and the user supplies no
+  alternative amount. Partial/different reversements and a discrepancy-approval
+  workflow were hypothetical repository questions, not a stated product case;
+  do not implement them unless a real case is later supplied.
+- A zero-spending Activity requires an explicit zero for every Operation and one
+  reasoned Activity declaration, prevalidated by one Supervisor and approved by
+  one distinct Validator. It then requires no artificial décaissement, virement
+  or reversement request; the Agent may close it after approval.
+- General evidence remains Activity-scoped. Do not add generic Project/PTA
+  folders, categories or attachments to every approval. If a real need arises,
+  a later slice may add optional evidence specifically to external virement and
+  reversement declarations and their reasoned corrections.
+- An Agent may withdraw only their own attachment and must give a reason; a
+  Validator may withdraw any attachment and is the only role allowed to do so
+  after Activity closure. Withdrawal preserves metadata/history and prevents
+  ordinary preview or download. A correction is a new upload linked to the
+  withdrawn item, not a generic version engine.
+- A Partner portal may have several individually invited read-only users, each
+  permanently bound to exactly one Partner. They may see only that Partner's
+  approved Projects/PTAs, progress, final decisions, Fiches and completed
+  financial results. Drafts, internal comments, global audit, access
+  administration and other Partners remain hidden. Partner attachment visibility
+  remains undecided, so portal work must hide attachments until separately
+  approved.
+- Closed Activities and Projects have no general reopening in the first version.
+  A future Partner deactivation, if implemented, is permitted only with no active
+  Project or unfinished Activity and never removes history.
+- The first annual export is a current-PTA CSV of approved Activities, current
+  metrics and final financial facts. Historical as-of exports and official
+  PDF/XLSX outputs wait for their own approved contracts/templates.
+- PC1 adopts the tested password, seven-day invitation, ten-minute/five-attempt
+  OTP, ten-minute lock, 60-second/three-resend and bounded-abuse policy. PC2
+  permits independent device sessions; credential, role and lifecycle security
+  changes revoke all sessions, and background refresh does not extend idle time.
+  External RSSI/mail/hosting acceptance remains deferred before real accounts or
+  production.
+
+Provider/region, production storage/scanning/retention/key custody, real mail,
+official templates and SPD meaning remain external decisions. Stop after PTA-6D;
+none of these decisions authorizes a runtime slice.
+
 ## PTA-6D safe Activity image-preview authorization (DEC-128)
 
 The user instructed Codex to review PTA-6C, then audit and implement the next
