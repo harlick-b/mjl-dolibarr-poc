@@ -37,6 +37,10 @@ SMTP, manual resend or additional business workflow was added.
   caches are principal-scoped and cleared on authorization/offline expiry events.
 - Backend Ruff lint/format, strict mypy and `git diff --check` passed. The only
   warning is the existing Starlette/httpx test dependency deprecation.
+- A later independent committed-change review found and corrected two focused
+  races: reads now take the lifecycle lock before authentication, and an
+  approved same-date amendment keeps its existing delivery cycle. The corrected
+  disposable-PostgreSQL suite passed **14 tests**; both reviewers returned PASS.
 
 ## Independent review
 

@@ -167,7 +167,11 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                 return None
             recipient = db.get(User, item.agent_id)
             activity = db.get(Activity, item.activity_id)
-            revision = db.get(ActivityRevision, item.approved_revision_id)
+            revision = (
+                db.get(ActivityRevision, activity.approved_revision_id)
+                if activity and activity.approved_revision_id
+                else None
+            )
             assignment = db.scalar(
                 select(ActivityAssignment).where(
                     ActivityAssignment.activity_id == item.activity_id,
@@ -182,20 +186,22 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                 and recipient.role == "AGENT_SAISIE"
                 and activity is not None
                 and activity.state not in {"closed", "withdrawn"}
-                and activity.approved_revision_id == item.approved_revision_id
                 and revision is not None
                 and assignment is not None
             ):
-                name, _planned_end = _snapshot(revision)
-                try:
-                    message = (
-                        f"{activity.reference} — {name} — échéance "
-                        f"{item.planned_end.isoformat()}"
-                    )
-                    auth.mail.send(recipient.email, "activity_reminder", message)
-                    status = "delivered"
-                except OSError:
-                    status = "failed"
+                name, planned_end = _snapshot(revision)
+                if planned_end != item.planned_end:
+                    status = "skipped"
+                else:
+                    try:
+                        message = (
+                            f"{activity.reference} — {name} — échéance "
+                            f"{item.planned_end.isoformat()}"
+                        )
+                        auth.mail.send(recipient.email, "activity_reminder", message)
+                        status = "delivered"
+                    except OSError:
+                        status = "failed"
             item.email_status = status
             item.email_completed_at = auth.now(db)
             auth.audit(
@@ -321,10 +327,10 @@ def mark_read(
     identifier: str, body: ReadInput, request: Request, auth: Auth
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        locked_mutation(db)
         item = db.get(ActivityReminder, identifier, with_for_update=True)
         if not item or item.agent_id != actor.id:
             raise AuthError(404, "notification_not_found")

@@ -14,6 +14,7 @@ from test_closure import close_path, settled_activity
 from test_planning import ordered_advisory_race, patch, plan, planning, post, put
 from test_withdrawals import request_withdrawal
 
+from app.auth.models import User
 from app.planning.models import ActivityReminder
 from app.planning.reminders import deliver_reminder, dispatch_due_reminders
 
@@ -128,6 +129,59 @@ def test_approved_end_date_change_creates_a_new_cycle_and_keeps_history(planning
     assert back["data"][0]["id"] == first_page["data"][0]["id"]
 
 
+def test_same_end_date_amendment_keeps_the_existing_delivery_cycle(
+    planning, monkeypatch
+):
+    activity, operation_type = approved_activity(planning)
+    assigned, _ids = assign(planning, activity, "agent")
+    monkeypatch.setattr(
+        "app.planning.reminders.deliver_reminder", lambda _auth, _identifier: None
+    )
+    assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 1
+    with Session(planning["auth"].engine) as db:
+        reminder_id = db.scalar(select(ActivityReminder.id))
+
+    opened = open_amendment(planning, assigned)
+    edited = patch(
+        planning["agent"],
+        f"/api/v1/activities/{activity['id']}",
+        plan(
+            operation_type,
+            description="Même échéance, contenu corrigé",
+            allocation=activity["allocation"],
+            operations=[
+                {key: value for key, value in row.items() if key != "position"}
+                for row in activity["operations"]
+            ],
+            expected_version=opened["version"],
+        ),
+    ).json()
+    revision = post(
+        planning["agent"],
+        f"/api/v1/activities/{activity['id']}/submissions",
+        {"expected_version": edited["version"]},
+    ).json()
+    prevalidated = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{activity['id']}/revisions/{revision['id']}/decisions",
+        {"expected_version": revision["activity_version"], "decision": "prevalidate"},
+    ).json()
+    approved = post(
+        planning["validator"],
+        f"/api/v1/activities/{activity['id']}/revisions/{revision['id']}/decisions",
+        {
+            "expected_version": prevalidated["activity_version"],
+            "decision": "approve",
+        },
+    )
+    assert approved.status_code == 201, approved.text
+
+    monkeypatch.undo()
+    assert deliver_reminder(planning["auth"], reminder_id) == "delivered"
+    assert len(reminder_mail(planning)) == 1
+    assert dispatch_due_reminders(planning["auth"], date(2028, 2, 9)) == 0
+
+
 def test_boundaries_and_ineligible_recipients_do_not_create_reminders(planning):
     activity, _ = approved_activity(planning)
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 0
@@ -227,6 +281,38 @@ def test_read_is_versioned_and_not_visible_to_another_agent(planning):
     assert replay.status_code == 409
     unread = planning["agent"].get("/api/v1/notifications?state=unread")
     assert unread.json()["count"] == 0
+
+
+def test_deactivation_serializes_before_notification_read(planning):
+    activity, _ = approved_activity(planning)
+    assigned, _ids = assign(planning, activity, "agent")
+    dispatch_due_reminders(planning["auth"], date(2028, 2, 8))
+    item = planning["agent"].get("/api/v1/notifications").json()["data"][0]
+    assign(planning, assigned)
+    with Session(planning["auth"].engine) as db:
+        user = db.scalar(select(User).where(User.email == "agent@example.test"))
+        assert user is not None
+        user_id, user_version = user.id, user.version
+
+    deactivated, denied = ordered_advisory_race(
+        planning["auth"],
+        lambda: planning["admin"].patch(
+            f"/api/v1/access/users/{user_id}",
+            headers=headers(planning["admin"]),
+            json={"expected_version": user_version, "deactivate": True},
+        ),
+        lambda: planning["agent"].patch(
+            f"/api/v1/notifications/{item['id']}",
+            headers=headers(planning["agent"]),
+            json={"expected_version": item["version"]},
+        ),
+    )
+    assert deactivated.status_code == 200, deactivated.text
+    assert denied.status_code == 401
+    with Session(planning["auth"].engine) as db:
+        reminder = db.get(ActivityReminder, item["id"])
+        assert reminder is not None
+        assert reminder.read_at is None and reminder.version == item["version"]
 
 
 def test_failed_mail_is_recorded_once_without_retry(planning, monkeypatch):
