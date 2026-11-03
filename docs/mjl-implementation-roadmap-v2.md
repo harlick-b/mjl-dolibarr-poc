@@ -8,6 +8,17 @@ approvals, verdicts, and phase sequencing. Implement only the requested slice,
 check scope before editing, and use focused verification. Production
 preparation remains deferred until explicitly requested.
 
+## Repository cleanup
+
+The legacy Dolibarr/MariaDB POC runtime was retired on 2026-11-03 at the user's
+request. Its custom PHP module, root legacy tests and JavaScript tooling, old
+Compose file and local runtime data were removed without creating another backup;
+the user confirmed that no real data existed. Git history and frozen legacy
+documents retain historical evidence. The dedicated `backend/`, `frontend/` and
+`compose.rebuild.yaml` development path remains current. Obsolete POC-only
+functional, test and deployment documents were removed; current React design
+audits retain only rebuild evidence.
+
 Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.

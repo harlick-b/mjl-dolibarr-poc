@@ -97,19 +97,13 @@ When the user explicitly authorizes a slice, derive the smallest complete implem
   Mark old authorization/status prose as historical without rewriting its contract.
   Read only task-relevant lessons; legacy-specific rules are not rebuild mandates.
 
-## Legacy workspace
+## Historical legacy evidence
 
-The existing Dolibarr 23.0.2/MariaDB 11 POC remains a behavioral reference and
-has never been deployed to production. Preserve it, its data and frozen
-architecture/Engineering Standard as historical evidence. Do not edit Dolibarr
-core. Its custom-module location, bootstrap, native sessions, database adapter,
-lifecycle and PHP presentation rules govern legacy maintenance only.
-
-Existing `docker compose up -d`, `http://127.0.0.1:8080/`, `package.json` scripts
-and `docs/mjl-acceptance-tests.md` belong to that POC. They are not new-stack
-commands. New frontend/backend directories and configuration require separate
-implementation authorization. Do not migrate sample data or native accounts;
-a future first-admin bootstrap must be guarded and non-seeding.
+The Dolibarr 23.0.2/MariaDB 11 proof of concept was retired on 2026-11-03. Its
+runtime, custom PHP module, local data, root JavaScript test harness and legacy
+Compose file are no longer present. Git history and the frozen legacy documents
+remain historical behavioral evidence only. Do not restore or use legacy
+commands, paths, accounts or architecture as rebuild implementation guidance.
 
 ## Engineering and security
 
@@ -197,7 +191,9 @@ readiness or authorization for another slice.
 ## Git and stopping
 
 Preserve unrelated worktree changes. Do not perform destructive Git/filesystem
-operations without explicit authorization. Historical documents remain intact.
+operations without explicit authorization. Preserve remaining historical
+documents unless the user explicitly authorizes another bounded cleanup; Git
+history is the evidence source for documents already retired on 2026-11-03.
 Do not deploy, change production configuration or infer later phase permission.
 A foundation readiness verdict means only that a separate implementation request
 can follow. Stop after the authorized scope.

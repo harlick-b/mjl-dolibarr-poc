@@ -130,7 +130,8 @@ coverage does not establish completion of the underlying deliverable.
 
 CLIENT-INFRA-01 retains Ministry constraints, but LDAP/SSO is expressly not a
 current dependency. CLIENT-MIG-01 proposed interpretation: assess the empty
-production source, record no historical reprise, preserve POC/Git as reference,
+production source, record no historical reprise, preserve Git history and frozen
+POC documents as reference,
 and provide behavioral non-regression evidence. Client confirmation is required
 for contractual delivery acceptance; no production data migration is fabricated.
 

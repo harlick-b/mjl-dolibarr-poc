@@ -36,7 +36,8 @@ Retain distinct planning/execution/completeness states, French labels, exact
 money, responsive controls, focus and non-color cues. Customize accessible shadcn
 primitives minimally; do not copy PHP widgets, jQuery/Select2 or no-JavaScript
 form fallbacks as rebuild requirements. Add components only for real consumers.
-The screen inventory/UI audit remain POC evidence, not the new route map.
+The screen inventory and UI audit record current React implementation evidence;
+the Router and application code remain the executable route owners.
 
 ## Approved generation governance
 
@@ -66,30 +67,11 @@ current UI audit own implementation state and outstanding review needs.
 - [Semantic tokens](approved/v3/design-tokens/semantic-tokens.json)
 - [Token documentation](approved/v3/design-tokens/README.md)
 
-## Historical POC font integration
+## Font delivery
 
-Inter remains the primary browser font with Arial, Helvetica, and sans-serif
-fallbacks. The integration details below describe the retained POC only. The
-rebuild must confirm its font hosting/CSP/privacy policy before sensitive use. The approved Google Fonts CSS2 source is emitted exactly once on
-login, password-reset, and MJL browser documents through the custom header
-hook. It is absent from authenticated native Dolibarr pages, downloads,
-exports, email, and other non-browser output.
-
-No Dolibarr core, database schema, permission, workflow, export format, email
-contract, or guarded-document behavior changes are part of v3.
-
-Loading Google Fonts discloses ordinary network metadata, including the IP
-address, user agent, request timing, and requested Google URLs. Eligible pages
-emit a `same-origin` referrer meta policy and external font links use
-`referrerpolicy="no-referrer"`; production must also preserve the
-`Referrer-Policy: same-origin` response header. These controls prevent Google
-from receiving MJL application paths and query tokens; they do not suppress
-ordinary connection metadata.
-The gstatic font origin may receive the Google stylesheet URL as its referrer.
-Production infrastructure must preserve this policy.
-
-If production CSP is introduced, it must allow
-`https://fonts.googleapis.com` in `style-src` and
-`https://fonts.gstatic.com` in `font-src`, or an approved local Inter pipeline
-must replace the CDN source. Other deferred deployment questions are in the
-[deployment checklist](../mjl-deployment-checklist.md).
+Inter remains the primary browser font with Arial, Helvetica and sans-serif
+fallbacks. The React application packages Inter locally through `@fontsource`;
+browser rendering does not depend on Google Fonts or another remote font service.
+Production CSP and static-asset delivery must permit the application's own font
+files. Exports and email must remain independent of browser font loading. The
+security baseline owns the remaining hosting, CSP and privacy acceptance gates.

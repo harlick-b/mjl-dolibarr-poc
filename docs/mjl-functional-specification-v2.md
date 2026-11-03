@@ -479,8 +479,9 @@ assignments. A stale action fails safely and never overwrites committed work.
 ## 29. Verification
 
 Select focused checks for the changed business behavior and its concrete
-authorization or data-integrity risks. `docs/mjl-acceptance-tests.md` owns
-verification selection and reporting guidance.
+authorization or data-integrity risks. `AGENTS.md` owns verification selection
+and reporting guidance; the roadmap and per-slice status records own current
+evidence.
 
 ## 30. Future Document Scope
 

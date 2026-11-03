@@ -3,8 +3,8 @@
 ## Rebuild scope (DEC-091)
 
 This glossary retains business meaning under the PTA brief. React/FastAPI and
-PostgreSQL replace Dolibarr as the future technical foundation; native object,
-Admin-reset, ECM and tenant implementation terms below describe the retained POC.
+PostgreSQL replace Dolibarr as the technical foundation; native object,
+Admin-reset, ECM and tenant implementation terms below describe the retired POC.
 The new database imports no sample data or native accounts. DEC-094 implements guarded first-Admin invitation provisioning only in an
 explicit isolated synthetic environment; real accounts remain unauthorized. Document series/version-engine terminology below
 is historical Phase 4 planning only: the rebuild needs optional private contextual
@@ -272,10 +272,10 @@ _Avoid_: Delete, restore as current, silent hide
 
 ## Local data lifecycle
 
-**Administrateur technique conservé**:
-The single native Dolibarr administrator account retained across the clean
-local reset solely for platform administration and recovery.
-_Avoid_: Migrated sample Admin, business superuser
+**Administrateur technique de la plateforme**:
+The independently provisioned application Admin role used for access management;
+it is not imported from the retired Dolibarr POC and has no business mutation.
+_Avoid_: Migrated native Admin, business superuser
 
 **Données de démonstration persistantes**:
 User-visible local sample records intended to demonstrate the completed
@@ -288,7 +288,7 @@ Test-scoped data created only inside an isolated tenant and destroyed with that
 tenant after verification.
 _Avoid_: Shared sample database, persistent seed, production example
 
-**Réinitialisation locale propre**:
-Approved deletion of legacy sample data without mapping or migrating it into
-the target model, while preserving the one technical administrator.
-_Avoid_: Selective compatibility migration, old-to-new data mapping
+**Base locale propre**:
+An empty dedicated-application database provisioned without legacy accounts,
+sample data or old-to-new mapping. Tests create only disposable isolated data.
+_Avoid_: Selective compatibility migration, persistent demonstration seed

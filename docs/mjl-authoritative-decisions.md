@@ -13,6 +13,17 @@ and never imply current user acceptance.
 5. Gap analysis and current-state evidence.
 6. Existing code and tests as current-state evidence only.
 
+## Legacy POC retirement (2026-11-03)
+
+The user authorized repository cleanup after confirming that the Dolibarr POC
+contains no real data requiring backup. The legacy `custom/` PHP module, root
+legacy test/tooling stack, Dolibarr Compose file and local MariaDB/document data
+were retired. The dedicated React/FastAPI application, its dependencies and
+tests remain current. Git history and frozen legacy documents preserve historical
+evidence; they do not authorize restoring the retired runtime. The same cleanup
+later removed the obsolete POC functional map, test matrix and deployment
+checklist, and pruned retired POC sections from active design audits.
+
 The latest user instruction supersedes every conflicting earlier project
 decision, approval, plan, report, test convention, and skill procedure. Update
 conflicting active guidance instead of applying an older rule. If canonical
@@ -808,9 +819,9 @@ implementation is not authorized and document routes remain deny-all.
 - Production preparation and production-readiness assessment are deferred until
   the user explicitly requests them.
 - The application is not live. Existing local sample data is not migrated.
-- Preserve the existing POC tenant and its native technical administrator. The
-  rebuild starts clean with a separately guarded first-admin bootstrap, not
-  migration of native accounts or sample data.
+- The retired POC tenant and its native technical administrator are not migrated.
+  The dedicated application starts clean with a separately guarded first-admin
+  bootstrap and no native accounts or sample data.
 - Create no persistent sample/demo dataset until the user approves one. Tests
   may create minimal records only in isolated disposable tenants and must tear
   them down.
@@ -880,8 +891,8 @@ implementation is not authorized and document routes remain deny-all.
 
 ## Implementation boundary
 
-The POC remains outside Dolibarr core. Native capabilities are legacy reference
-only; the rebuild uses the proposed dedicated frontend/backend boundaries. The roadmap records which phases are
+The retired POC stayed outside Dolibarr core. Native capabilities are historical
+reference only; the rebuild uses the proposed dedicated frontend/backend boundaries. The roadmap records which phases are
 implemented; that status does not establish acceptance.
 
 Over-engineering is banned. Remove obsolete mechanisms and their stale

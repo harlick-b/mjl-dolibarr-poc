@@ -19,7 +19,7 @@ The frozen Dolibarr architecture and Engineering Standard remain unchanged
 historical evidence, not technical authority for the rebuild. Their former
 approval does not approve the proposed new standard or any implementation.
 
-The targeted disposition inventory below covers **27 existing files** (explicit
+The targeted disposition inventory below covers **24 existing files** (explicit
 paths, each counted once), plus the local inspiration collection as one
 uncounted reference collection. It is not a count of approved requirements or
 an exhaustive repository census. Split classifications apply to different
@@ -39,19 +39,21 @@ sections of mixed documents; they do not make obsolete prose authoritative.
 | `architecture-audit/14-preservation-ledger.md` | REUSABLE_BEHAVIORAL_EVIDENCE; LEGACY_TECHNICAL_REFERENCE | Historical 35-rule migration contract, reclassified below rather than automatically ported. |
 | `architecture-audit/17-target-architecture-proposal.md`, `mjl-engineering-standard-v1.md` | LEGACY_TECHNICAL_REFERENCE; HISTORICAL | Keep byte-identical; the router scopes their frozen authority to the historical POC. |
 | `design-system/README.md`, `design-system/DESIGN.md`, `design-system/approved/v3/DESIGN.md`, `design-system/approved/v3/design-tokens/tokens.json`, `design-system/approved/v3/design-tokens/semantic-tokens.json` | CURRENT_VISUAL_AUTHORITY; old implementation/product assertions SUPERSEDED | Retain tokens, Inter, density, responsive/accessibility intent. React components replace PHP widgets; no default shadcn visual reset. |
-| `design-system/audit/current-screen-inventory.md`, `design-system/audit/current-ui-audit.md`, `mjl-current-app-functional-map.md`, `mjl-acceptance-tests.md` | REUSABLE_BEHAVIORAL_EVIDENCE | POC screen/test evidence only; no inherited demand to execute old matrices for this audit or scaffold. |
-| `mjl-deployment-checklist.md` | LEGACY_TECHNICAL_REFERENCE; DECISION_REQUIRED for external facts | Keep unresolved operator/security facts; commercial cloud direction does not approve provider/region. |
-| `inspiration/` (local, ignored collection; not included in 27-file count) | CURRENT_VISUAL_AUTHORITY for relevant composition references | Actual auth, dashboard, Partner, Project, Activity and history references exist; they do not define permissions. Missing PTA/settlement/portal/document screen references block those screen designs only. |
+| `design-system/audit/current-screen-inventory.md`, `design-system/audit/current-ui-audit.md` | REUSABLE_REBUILD_UI_EVIDENCE | Keep current React route/presentation evidence; Router, code and focused checks remain executable owners. |
+| `inspiration/` (local, ignored collection; not included in 24-file count) | CURRENT_VISUAL_AUTHORITY for relevant composition references | Actual auth, dashboard, Partner, Project, Activity and history references exist; they do not define permissions. Missing PTA/settlement/portal/document screen references block those screen designs only. |
 
 No missing authority-router target was identified in this audit. The security
 prompt's requested generated baseline was absent; its absence is explicitly
 resolved by 03. Inspiration files are local and may be absent in a fresh clone.
+The retired POC functional map and acceptance matrix were later removed with the
+runtime; their historical details remain in Git. Baseline 03 owns unresolved
+deployment, hosting, mail, backup, monitoring and external acceptance facts.
 
 Eight superseded technical instruction families apply **only to the rebuild**:
 
 | Family | Superseded requirement | Rebuild direction |
 | --- | --- | --- |
-| T1 | All MJL work must live in a Dolibarr custom module/theme | Dedicated frontend/backend; preserve old core and POC unchanged. |
+| T1 | All MJL work must live in a Dolibarr custom module/theme | Dedicated frontend/backend; the retired POC remains available only through Git history and frozen documents. |
 | T2 | `main.inc.php`, native hooks and module descriptor bootstrap | React/Vite and FastAPI application entrypoints. |
 | T3 | Native Dolibarr/PHP sessions, password adapters and login hooks | Application-managed FastAPI session boundary; retain invitation/password/OTP policy. |
 | T4 | MariaDB adapter, native activation and predecessor-schema machinery | PostgreSQL, SQLAlchemy 2, reviewed Alembic migrations; clean database. |
@@ -88,7 +90,7 @@ not authorization to implement.
 | B17 Partner portal and audit exports | MODIFY | Admin-invited exclusive read-only identity bound to exactly one Partner; own current/past Project, approved PTA/progress/Fiche and authorized records only. Guard guessed IDs/files/exports. Global audit exports remain Validator/Admin only. |
 | B18 identity and sessions | RETAIN | Invitation-only, Admin sends invites, email/password then email OTP, backend authorization; exclusive internal roles, technical Admin no business mutation. Idle and absolute maximum 24h, then password+OTP; no remembered devices, public registration, LDAP/SSO dependency. |
 | B19 audit, concurrency and outputs | RETAIN | Append-only audit atomic with mutation; exact-revision/stale/replay guards, immutable validated records, traceable authorized correction. French PDF/XLSX and supplemental audited Excel-readable CSV; bounded authorized snapshots and guarded delivery. |
-| B20 native Admin/sample reset | NOT_APPLICABLE | Do not migrate native Admin or POC sample/business records into clean PostgreSQL. Plan guarded first-admin setup without hard-coded credentials; no persistent demo data. Preserve existing POC, no reset executed here. |
+| B20 native Admin/sample reset | NOT_APPLICABLE | Do not migrate native Admin or POC sample/business records into clean PostgreSQL. Plan guarded first-admin setup without hard-coded credentials; no persistent demo data. The later POC retirement preserved evidence in Git history and frozen documents. |
 | B21 accounting and bespoke official reports | DECISION_REQUIRED | Phase 5 accounting rules/examples and Phase 6 Partner templates/mappings remain client-gated (DEC-022/023); current Fiche requirement is not deferred behind those gates. Contractual validated accounting immutability remains. |
 
 Totals: RETAIN 4, MODIFY 14, SUPERSEDED 1, NOT_APPLICABLE 1,
@@ -118,7 +120,7 @@ RETAIN means the invariant, not the named PHP class, must survive.
 | RT-010 | 1 | MODIFY | Explicit organizational/Partner scope; equal Agents; no mandatory Dolibarr entity field or multi-tenant SaaS. |
 | RT-011 | 1 | SUPERSEDED | No predecessor POC schema modes; explicit Alembic migration state replaces readiness branches. |
 | RT-012 | 1 | MODIFY | Consistent bounded export snapshot, private render, fresh authorization and audit; no forced old spool implementation. |
-| RT-013 | 1 | RETAIN | Keep existing POC document endpoints denied; rebuild exposes none before its document slice. |
+| RT-013 | 1 | RETAIN | At this audit boundary the POC document endpoints were denied and the rebuild exposed none before a separately authorized document slice. The POC runtime was later retired. |
 | RT-014 | 1 | NOT_APPLICABLE | Native ERP object/PDF/spreadsheet adapters are not required dependencies. |
 | RT-015 | 1 | SUPERSEDED | Old module-gated hourly auto-completion does not govern explicit Agent closure; relance is separate later work. |
 | SEC-AUTH-001, SEC-AUTH-002 | 2 | RETAIN | Admin-only invitation, high-entropy link proof with stored verifier digest. |
@@ -139,7 +141,8 @@ RETAIN means the invariant, not the named PHP class, must survive.
 | LIFE-003, LIFE-004 | 2 | NOT_APPLICABLE | No native schema activation or unsupported ERP module disabling in rebuild. |
 
 Totals: RETAIN 14, MODIFY 12, SUPERSEDED 5, NOT_APPLICABLE 3,
-DECISION_REQUIRED 1 = 35. This table does not authorize changing the retained POC.
+DECISION_REQUIRED 1 = 35. This historical audit table did not authorize changing
+the POC; the user separately authorized its later retirement.
 
 ## Existing REST operations: 75/75
 
