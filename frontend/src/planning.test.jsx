@@ -312,6 +312,86 @@ test('an Agent opens and cancels an amendment while the approved version stays v
           status: previewStatus,
         }),
       )
+    if (
+      path.endsWith('/documents/document-2/withdrawal') &&
+      options.method === 'POST'
+    ) {
+      const body = JSON.parse(options.body)
+      documents = documents.map((document) =>
+        document.id === 'document-2'
+          ? {
+              ...document,
+              withdrawal: {
+                reason: body.reason,
+                withdrawn_by_id: 'agent',
+                withdrawn_at: '2027-01-02T11:00:00Z',
+                replacement_document_id: body.replacement_document_id,
+                replacement_document_name: 'preuve.png',
+              },
+              allowed_actions: [],
+            }
+          : document,
+      )
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: 'document_withdrawn' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }
+    if (path.endsWith('/activities/activity-1/documents?limit=60'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 2,
+            data: [
+              {
+                id: 'document-newest',
+                activity_id: 'activity-1',
+                name: 'autre-piece.png',
+                media_type: 'image/png',
+                size: 3,
+                uploaded_by_id: 'agent',
+                uploaded_at: '2027-01-02T12:00:00Z',
+                withdrawal: null,
+                allowed_actions: ['withdraw'],
+              },
+            ],
+            next: 'https://mjl.test/api/v1/activities/activity-1/documents?limit=60&cursor=candidate-next',
+            previous: null,
+          }),
+        ),
+      )
+    if (
+      path.endsWith(
+        '/activities/activity-1/documents?limit=60&cursor=candidate-next',
+      )
+    )
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 2,
+            data: documents.filter((document) => document.id === 'document-1'),
+            next: null,
+            previous:
+              'https://mjl.test/api/v1/activities/activity-1/documents?limit=60',
+          }),
+        ),
+      )
+    if (path.endsWith('/activities/activity-1/documents?cursor=older'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: documents.length,
+            data: documents.filter((document) => document.id === 'document-2'),
+            next: null,
+            previous: '/api/v1/activities/activity-1/documents',
+          }),
+        ),
+      )
     if (path.endsWith('/activities/activity-1/documents')) {
       if (options.method === 'POST') {
         documents = [
@@ -323,6 +403,8 @@ test('an Agent opens and cancels an amendment while the approved version stays v
             size: 3,
             uploaded_by_id: 'agent',
             uploaded_at: '2027-01-02T10:00:00Z',
+            withdrawal: null,
+            allowed_actions: ['withdraw'],
           },
           {
             id: 'document-2',
@@ -332,6 +414,8 @@ test('an Agent opens and cancels an amendment while the approved version stays v
             size: 3,
             uploaded_by_id: 'agent',
             uploaded_at: '2027-01-02T09:00:00Z',
+            withdrawal: null,
+            allowed_actions: ['withdraw'],
           },
         ]
         return Promise.resolve(
@@ -552,6 +636,14 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   await user.click(within(preview).getByRole('button', { name: 'Fermer' }))
   expect(preview).not.toBeVisible()
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview')
+  await act(async () => {
+    await router.navigate({
+      to: '/activities/$activityId',
+      params: { activityId: 'activity-1' },
+      search: (previous) => ({ ...previous, documentCursor: 'older' }),
+    })
+  })
+  await waitFor(() => expect(screen.queryByText('preuve.png')).toBeNull())
   const pdfRow = screen.getByText('preuve.pdf').closest('li')
   expect(within(pdfRow).queryByRole('button', { name: /Aperçu/ })).toBeNull()
   expect(fetch).toHaveBeenCalledWith(
@@ -565,6 +657,69 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       }),
     }),
   )
+  await user.click(
+    within(pdfRow).getByRole('button', { name: 'Retirer la pièce' }),
+  )
+  const withdrawalDialog = screen.getByRole('dialog', {
+    name: 'Retirer la pièce',
+  })
+  await user.type(
+    within(withdrawalDialog).getByLabelText('Motif du retrait'),
+    'Pièce incorrecte.',
+  )
+  expect(
+    within(withdrawalDialog).queryByRole('option', { name: 'preuve.png' }),
+  ).toBeNull()
+  await user.click(
+    within(withdrawalDialog).getByRole('button', { name: 'Suivant' }),
+  )
+  await within(withdrawalDialog).findByRole('option', { name: 'preuve.png' })
+  await user.selectOptions(
+    within(withdrawalDialog).getByLabelText('Pièce corrigée (facultatif)'),
+    'document-1',
+  )
+  online.mockReturnValue(false)
+  await user.click(
+    within(withdrawalDialog).getByRole('button', { name: 'Retirer' }),
+  )
+  expect(
+    fetch.mock.calls.filter(([url]) =>
+      String(url).endsWith('/documents/document-2/withdrawal'),
+    ),
+  ).toHaveLength(0)
+  online.mockReturnValue(true)
+  window.dispatchEvent(new Event('online'))
+  await user.click(
+    within(withdrawalDialog).getByRole('button', { name: 'Retirer' }),
+  )
+  const withdrawnStatus = await screen.findByText(/Pièce retirée/)
+  const withdrawnRow = withdrawnStatus.closest('li')
+  expect(
+    within(withdrawnRow).queryByRole('link', { name: 'Télécharger' }),
+  ).toBeNull()
+  expect(
+    within(withdrawnRow).queryByRole('button', { name: /Aperçu/ }),
+  ).toBeNull()
+  expect(withdrawnRow).toHaveTextContent('Pièce incorrecte.')
+  expect(withdrawnRow).toHaveTextContent('Remplacée par preuve.png')
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/documents/document-2/withdrawal',
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        reason: 'Pièce incorrecte.',
+        replacement_document_id: 'document-1',
+      }),
+    }),
+  )
+  await act(async () => {
+    await router.navigate({
+      to: '/activities/$activityId',
+      params: { activityId: 'activity-1' },
+      search: (previous) => ({ ...previous, documentCursor: undefined }),
+    })
+  })
+  await screen.findByText('preuve.png')
   await user.click(
     await screen.findByRole('button', { name: 'Demander une modification' }),
   )

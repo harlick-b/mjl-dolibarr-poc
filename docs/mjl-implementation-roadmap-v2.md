@@ -12,6 +12,22 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-7B Activity attachment withdrawal boundary (DEC-131)
+
+**PTA_7B_COMPLETE** on 2026-11-03. An Agent can withdraw only their own
+Activity attachment with a reason. A Validator can withdraw any attachment and
+is the sole role allowed after Activity closure. Withdrawn evidence remains in
+history but can no longer be previewed or downloaded. A corrected later upload
+may be linked without introducing a general version system.
+
+[Plan 43](rebuild/43-pta7b-document-withdrawal-plan.md) defines the bounded
+contract; [status 44](rebuild/44-pta7b-implementation-status.md) records the
+PostgreSQL/API, Fiche, UI, browser and independent correction/re-review evidence.
+Migration `0019_pta7b` adds one append-only fact table and one POST responsibility
+extends the existing document panel. Restoration, generic categories/versions,
+Partner attachment visibility, wider document contexts, production storage,
+real accounts and later slices remain deferred.
+
 ## PTA-7A validated zero-spending closure boundary (DEC-130)
 
 **PTA_7A_COMPLETE** on 2026-11-03. An Agent can close an approved Activity

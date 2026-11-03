@@ -52,11 +52,13 @@ projection, no-reopening rule and first annual CSV boundary. External
 RSSI/mail/hosting acceptance remains pending; use synthetic identities, isolated
 databases and test mail only. DEC-130 implements the validated zero-spending
 closure path with migration `0018_pta7a`, two focused tables and the existing
-execution workspace. Stop after PTA-7A.
+execution workspace. DEC-131 implements reasoned Activity attachment withdrawal
+and optional linked correction with migration `0019_pta7b`, one focused table and
+the existing Activity panel/Fiche. Stop after PTA-7B.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 insufficiency implementation, historical metrics,
 the approved current-PTA CSV, PDF/XLSX global audit exports,
-PDF preview and approved document replacement/withdrawal,
+PDF preview and document restoration/general versioning,
 Partner portal implementation and Partner attachment visibility,
 production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later

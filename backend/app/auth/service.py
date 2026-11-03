@@ -95,6 +95,7 @@ class AuthService:
                 "pta_reversement_declaration",
                 "pta_activity_reminder",
                 "pta_activity_document",
+                "pta_activity_document_withdrawal",
                 "pta_zero_spending_declaration",
                 "pta_zero_spending_decision",
             )
@@ -104,7 +105,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0018_pta7a"]:
+        if revisions != ["0019_pta7b"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -163,6 +164,8 @@ class AuthService:
             "zero_spending_decision_reason",
             "zero_spending_prevalidation_reference",
             "zero_spending_prevalidation_same_declaration",
+            "document_withdrawal_reason",
+            "document_withdrawal_not_self",
         }
         found = set(
             db.scalars(
@@ -238,7 +241,8 @@ class AuthService:
                      'pta_reject_closed_financial_change',
                      'pta_preserve_activity_document')
                      OR p.proname IN ('pta_preserve_zero_spending',
-                       'pta_validate_zero_spending_state')
+                       'pta_validate_zero_spending_state',
+                       'pta_validate_activity_document_withdrawal')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -247,7 +251,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "86ef09efcda66764e70b5680e464a3583e49150edb00e8e158d206c3689d2e77"
+            "c9d7a2e6b5b036c2bbe2fcdbb64b5fdb7eaaeeb98feaaea72d205f62609b9dd7"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -351,6 +355,7 @@ class AuthService:
                 "byte_size",
                 "sha256",
                 "as_of",
+                "replacement_document_id",
             }
             if set(details) - allowed or any(
                 type(v) not in (str, int) for v in details.values()

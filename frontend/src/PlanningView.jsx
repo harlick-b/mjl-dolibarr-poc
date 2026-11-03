@@ -1754,9 +1754,12 @@ function ActivityDocuments({
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [withdrawing, setWithdrawing] = useState(null)
+  const [replacementCursor, setReplacementCursor] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
   const opener = useRef(null)
   const previewOpener = useRef(null)
+  const withdrawalOpener = useRef(null)
   const previewController = useRef(null)
   const previewGeneration = useRef(0)
   const previewUrlRef = useRef('')
@@ -1768,6 +1771,20 @@ function ActivityDocuments({
       cursorPath(`/activities/${activityId}/documents`, cursor),
     ),
   )
+  const replacementDocuments = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['documents', activityId, 'replacement-candidates', replacementCursor],
+      `/activities/${activityId}/documents?limit=60${
+        replacementCursor
+          ? `&cursor=${encodeURIComponent(replacementCursor)}`
+          : ''
+      }`,
+      onDenied,
+    ),
+    enabled: Boolean(withdrawing),
+  })
   const upload = useMutation({
     retry: false,
     networkMode: 'always',
@@ -1787,6 +1804,40 @@ function ActivityDocuments({
       })
       setOpen(false)
       toast.success(strings.saved)
+    },
+  })
+  const withdraw = useMutation({
+    retry: false,
+    networkMode: 'always',
+    mutationFn: ({ documentId, reason, replacementDocumentId }) =>
+      api.request(
+        `/api/v1/activities/${activityId}/documents/${documentId}/withdrawal`,
+        {
+          method: 'POST',
+          csrf,
+          body: {
+            reason,
+            replacement_document_id: replacementDocumentId || null,
+          },
+        },
+      ),
+    onSuccess: async () => {
+      await client.invalidateQueries({
+        queryKey: ['planning', user.id, 'documents', activityId],
+      })
+      setWithdrawing(null)
+      setReplacementCursor('')
+      toast.success(strings.saved)
+    },
+    onError: async (error) => {
+      if (error.status === 401 || error.status === 403) onDenied()
+      if (error.status === 409) {
+        await client.invalidateQueries({
+          queryKey: ['planning', user.id, 'documents', activityId],
+        })
+        setWithdrawing(null)
+        setReplacementCursor('')
+      }
     },
   })
   const releasePreview = useCallback(() => {
@@ -1859,30 +1910,55 @@ function ActivityDocuments({
         <ul className="planning-list">
           {documents.data.data.map((document) => (
             <li key={document.id}>
-              <span>{document.name}</span>
+              <span>
+                {document.name}
+                <small>
+                  {document.withdrawal
+                    ? ` · ${strings.withdrawnAttachment} · ${document.withdrawal.reason}`
+                    : ` · ${strings.currentAttachment}`}
+                  {document.withdrawal?.replacement_document_name &&
+                    ` · ${strings.replacedBy} ${document.withdrawal.replacement_document_name}`}
+                </small>
+              </span>
               <div className="planning-actions">
-                {['image/jpeg', 'image/png'].includes(document.media_type) && (
+                {!document.withdrawal &&
+                  ['image/jpeg', 'image/png'].includes(document.media_type) && (
+                    <Button
+                      aria-label={`${strings.preview} de ${document.name}`}
+                      variant="outline"
+                      onClick={(event) => {
+                        previewOpener.current = event.currentTarget
+                        releasePreview()
+                        imagePreview.reset()
+                        setPreview(document)
+                        const generation = previewGeneration.current
+                        imagePreview.mutate({ document, generation })
+                      }}
+                    >
+                      <Eye aria-hidden="true" /> {strings.preview}
+                    </Button>
+                  )}
+                {!document.withdrawal && (
+                  <a
+                    href={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
+                    download
+                  >
+                    <Download aria-hidden="true" /> {strings.download}
+                  </a>
+                )}
+                {document.allowed_actions?.includes('withdraw') && (
                   <Button
-                    aria-label={`${strings.preview} de ${document.name}`}
                     variant="outline"
+                    disabled={blocked || withdraw.isPending}
                     onClick={(event) => {
-                      previewOpener.current = event.currentTarget
-                      releasePreview()
-                      imagePreview.reset()
-                      setPreview(document)
-                      const generation = previewGeneration.current
-                      imagePreview.mutate({ document, generation })
+                      withdrawalOpener.current = event.currentTarget
+                      setReplacementCursor('')
+                      setWithdrawing(document)
                     }}
                   >
-                    <Eye aria-hidden="true" /> {strings.preview}
+                    {strings.withdrawAttachment}
                   </Button>
                 )}
-                <a
-                  href={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
-                  download
-                >
-                  <Download aria-hidden="true" /> {strings.download}
-                </a>
               </div>
             </li>
           ))}
@@ -1930,6 +2006,99 @@ function ActivityDocuments({
             </Button>
           </div>
         </form>
+      </Modal>
+      <Modal
+        open={Boolean(withdrawing)}
+        onClose={() => {
+          setWithdrawing(null)
+          setReplacementCursor('')
+        }}
+        label={strings.withdrawAttachment}
+        opener={withdrawalOpener}
+      >
+        {withdrawing && (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              const values = new FormData(event.currentTarget)
+              withdraw.mutate({
+                documentId: withdrawing.id,
+                reason: values.get('reason'),
+                replacementDocumentId: values.get('replacement_document_id'),
+              })
+            }}
+          >
+            <h3>
+              {strings.withdrawAttachment} — {withdrawing.name}
+            </h3>
+            <label>
+              {strings.attachmentWithdrawalReason}
+              <textarea name="reason" required maxLength="4000" autoFocus />
+            </label>
+            <label>
+              {strings.replacementAttachment}
+              <select name="replacement_document_id" defaultValue="">
+                <option value="">{strings.noReplacementAttachment}</option>
+                {(replacementDocuments.data?.data || [])
+                  .filter(
+                    (candidate) =>
+                      candidate.id !== withdrawing.id &&
+                      !candidate.withdrawal &&
+                      candidate.uploaded_at > withdrawing.uploaded_at,
+                  )
+                  .map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <div
+              className="modal-actions"
+              aria-label="Pages des pièces corrigées"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!replacementDocuments.data?.previous}
+                onClick={() =>
+                  setReplacementCursor(
+                    cursorFrom(replacementDocuments.data?.previous),
+                  )
+                }
+              >
+                {strings.previous}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!replacementDocuments.data?.next}
+                onClick={() =>
+                  setReplacementCursor(
+                    cursorFrom(replacementDocuments.data?.next),
+                  )
+                }
+              >
+                {strings.next}
+              </Button>
+            </div>
+            <div className="modal-actions">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setWithdrawing(null)
+                  setReplacementCursor('')
+                }}
+              >
+                {strings.cancel}
+              </Button>
+              <Button disabled={blocked || withdraw.isPending} type="submit">
+                {strings.remove}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
       <Modal
         open={Boolean(preview)}

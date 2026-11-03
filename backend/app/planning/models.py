@@ -399,6 +399,29 @@ class ActivityDocument(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class ActivityDocumentWithdrawal(Base):
+    __tablename__ = "pta_activity_document_withdrawal"
+    __table_args__ = (
+        CheckConstraint(
+            "length(btrim(reason)) BETWEEN 1 AND 4000",
+            name="document_withdrawal_reason",
+        ),
+        CheckConstraint(
+            "replacement_document_id IS NULL OR replacement_document_id <> document_id",
+            name="document_withdrawal_not_self",
+        ),
+    )
+    document_id: Mapped[str] = mapped_column(
+        ForeignKey("pta_activity_document.id"), primary_key=True
+    )
+    replacement_document_id: Mapped[str | None] = mapped_column(
+        ForeignKey("pta_activity_document.id")
+    )
+    reason: Mapped[str] = mapped_column(String(4000))
+    withdrawn_by_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    withdrawn_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class ActivityContributor(Base):
     __tablename__ = "pta_activity_contributor"
     __table_args__ = (

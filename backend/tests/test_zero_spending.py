@@ -394,7 +394,7 @@ def test_zero_spending_migration_round_trip_when_empty(auth_env):
     command.upgrade(config, "head")
     with create_engine(auth_env.url).connect() as db:
         assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0018_pta7a"
+            "0019_pta7b"
         )
 
 
@@ -487,7 +487,7 @@ def test_used_zero_spending_migration_refuses_destructive_downgrade(planning, au
         command.downgrade(Config("alembic.ini"), "0017_pta6a")
     with create_engine(auth_env.url).connect() as db:
         assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0018_pta7a"
+            "0019_pta7b"
         )
 
 

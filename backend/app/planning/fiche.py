@@ -21,7 +21,7 @@ from reportlab.platypus import (  # type: ignore[import-untyped]
     TableStyle,
 )
 from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
@@ -29,6 +29,8 @@ from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.models import (
     Activity,
+    ActivityDocument,
+    ActivityDocumentWithdrawal,
     ActivityRevision,
     ActivityRevisionDecision,
     AnnualPTA,
@@ -243,6 +245,31 @@ def projection(
             .order_by(ZeroSpendingDecision.decided_at)
         )
     )
+    documents = list(
+        db.scalars(
+            select(ActivityDocument)
+            .options(
+                load_only(
+                    ActivityDocument.id,
+                    ActivityDocument.display_name,
+                    ActivityDocument.uploaded_by_id,
+                    ActivityDocument.uploaded_at,
+                    raiseload=True,
+                )
+            )
+            .where(ActivityDocument.activity_id == activity.id)
+            .order_by(ActivityDocument.uploaded_at)
+        )
+    )
+    document_ids = {item.id for item in documents}
+    withdrawals = {
+        item.document_id: item
+        for item in db.scalars(
+            select(ActivityDocumentWithdrawal).where(
+                ActivityDocumentWithdrawal.document_id.in_(document_ids)
+            )
+        )
+    }
     execution_actions = {
         "operation.execution_started",
         "operation.execution_recorded",
@@ -285,6 +312,8 @@ def projection(
             *(item.actor_id for item in reversements),
             *(item.submitter_id for item in zero_declarations),
             *(item.actor_id for item in zero_decisions),
+            *(item.uploaded_by_id for item in documents),
+            *(item.withdrawn_by_id for item in withdrawals.values()),
             *(item.actor for item in audits),
         ]
         if value
@@ -312,6 +341,8 @@ def projection(
         "reversements": reversements,
         "zero_declarations": zero_declarations,
         "zero_decisions": zero_decisions,
+        "documents": documents,
+        "document_withdrawals": withdrawals,
         "audits": audits,
         "actors": actors,
         "generated_at": generated_at,
@@ -696,6 +727,38 @@ def render_fiche(data: dict[str, Any]) -> bytes:
 
     section("6. Clôture et pièces justificatives")
     closure_actor = text(actors.get(activity.closed_by_id or "", activity.closed_by_id))
+    documents_by_id = {item.id: item for item in data["documents"]}
+    document_rows: list[tuple[str, str]] = []
+    for document in data["documents"]:
+        withdrawal = data["document_withdrawals"].get(document.id)
+        uploader = text(actors.get(document.uploaded_by_id, document.uploaded_by_id))
+        if withdrawal:
+            withdrawer = text(
+                actors.get(withdrawal.withdrawn_by_id, withdrawal.withdrawn_by_id)
+            )
+            replacement = documents_by_id.get(withdrawal.replacement_document_id)
+            replacement_text = (
+                f" · Remplacée par {text(replacement.display_name)}"
+                if replacement
+                else ""
+            )
+            document_rows.append(
+                (
+                    "Pièce retirée",
+                    f"{text(document.display_name)} · ajoutée le "
+                    f"{day(document.uploaded_at)} par {uploader} · retirée le "
+                    f"{day(withdrawal.withdrawn_at)} par {withdrawer} · Motif : "
+                    f"{text(withdrawal.reason)}{replacement_text}",
+                )
+            )
+        else:
+            document_rows.append(
+                (
+                    "Pièce actuelle",
+                    f"{text(document.display_name)} · ajoutée le "
+                    f"{day(document.uploaded_at)} par {uploader}",
+                )
+            )
     table(
         [
             (
@@ -704,10 +767,9 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 if activity.closed_at
                 else "Activité non clôturée.",
             ),
-            (
-                "Pièces justificatives",
-                "Aucune pièce enregistrée dans MJL. Les pièces restent facultatives "
-                "et seront traitées dans une tranche distincte.",
+            *(
+                document_rows
+                or [("Pièces justificatives", "Aucune pièce enregistrée.")]
             ),
         ]
     )

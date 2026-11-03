@@ -100,7 +100,7 @@ def test_global_history_rejects_invalid_pagination(planning):
     )
     first = planning["validator"].get("/api/v1/audit-events?limit=1").json()
     token = parse_qs(urlsplit(first["next"]).query)["cursor"][0]
-    tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+    tampered = ("A" if token[0] != "A" else "B") + token[1:]
     assert (
         planning["validator"]
         .get(f"/api/v1/audit-events?limit=1&cursor={tampered}")

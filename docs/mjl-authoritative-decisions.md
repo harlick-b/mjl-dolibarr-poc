@@ -19,6 +19,26 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-7B Activity attachment withdrawal authorization (DEC-131)
+
+The user instructed Codex to audit and implement the next slice on 2026-11-03.
+The audit selected the Activity attachment withdrawal and linked-correction rules
+settled in DEC-129. [Plan 43](rebuild/43-pta7b-document-withdrawal-plan.md) is the
+bounded implementation and independent-review contract.
+
+An Agent may withdraw only their own Activity attachment with a reason; a
+Validator may withdraw any attachment and is the only role allowed after exact
+Activity closure. The immutable withdrawal fact preserves metadata and stored
+bytes as internal history while ordinary preview and download are denied. A
+correction is an ordinary later upload optionally linked during withdrawal; it
+must be current, distinct and in the same Activity. Migration `0019_pta7b` adds
+one focused table, the existing document panel presents current and withdrawn
+history, and the Fiche projects metadata without loading file bodies.
+[Status 44](rebuild/44-pta7b-implementation-status.md) records final evidence and
+the mandatory independent correction/re-review cycle. Restoration, generic
+versions/categories, Partner visibility, wider document contexts, production
+storage/scanning/retention and later slices remain deferred.
+
 ## PTA-7A validated zero-spending closure authorization (DEC-130)
 
 The user instructed Codex to review the completed work, audit the next slice and
@@ -82,9 +102,10 @@ business authority for later bounded slices, not implementation authorization.
   production.
 
 Provider/region, production storage/scanning/retention/key custody, real mail,
-official templates and SPD meaning remain external decisions. DEC-130 supersedes
-the former PTA-6D stop boundary only for PTA-7A; none of the other DEC-129
-decisions authorizes another runtime slice.
+official templates and SPD meaning remain external decisions. DEC-130 and
+DEC-131 separately implement only the zero-spending and Activity attachment
+withdrawal rules; none of the other DEC-129 decisions authorizes another runtime
+slice.
 
 ## PTA-6D safe Activity image-preview authorization (DEC-128)
 

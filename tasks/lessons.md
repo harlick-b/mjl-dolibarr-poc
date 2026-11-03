@@ -396,3 +396,8 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   so `<>` does not make a trigger fail closed. Use null-safe comparisons such as
   `IS DISTINCT FROM` for required snapshot values and test both missing and null
   direct writes against the complete valid surrounding snapshot.
+- Metadata-only views over stored documents must explicitly defer or raise on
+  binary columns in every list, report and candidate lookup. Verify the emitted
+  SQL, because response-shape tests do not prove that large file bodies stayed
+  unloaded. When candidates use the shared cursor contract, expose pagination
+  instead of silently limiting valid choices to the first page.

@@ -13,18 +13,22 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from PIL import Image, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 from sqlalchemy import func, select, tuple_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from starlette.concurrency import run_in_threadpool
 
 from app.auth.dto import ErrorResponse
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError, AuthService
-from app.planning.models import Activity, ActivityDocument
-from app.planning.routes import locked_read
+from app.planning.models import (
+    Activity,
+    ActivityDocument,
+    ActivityDocumentWithdrawal,
+)
+from app.planning.routes import MUTATION_HEADERS, locked_read
 from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
 
 router = APIRouter(
@@ -43,6 +47,15 @@ router = APIRouter(
 MAX_BYTES = 20 * 1024 * 1024
 
 
+class WithdrawalOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str
+    withdrawn_by_id: str
+    withdrawn_at: str
+    replacement_document_id: str | None
+    replacement_document_name: str | None
+
+
 class Output(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
@@ -52,6 +65,26 @@ class Output(BaseModel):
     size: int
     uploaded_by_id: str
     uploaded_at: str
+    withdrawal: WithdrawalOutput | None
+    allowed_actions: list[str]
+
+
+class WithdrawalInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=4000)
+    replacement_document_id: str | None = Field(default=None, max_length=36)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def reason_text(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("replacement_document_id")
+    @classmethod
+    def replacement_uuid(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return str(UUID(value))
 
 
 class ListOutput(BaseModel):
@@ -63,7 +96,25 @@ class ListOutput(BaseModel):
     previous: str | None
 
 
-def output(item: ActivityDocument) -> dict[str, Any]:
+def output(
+    item: ActivityDocument,
+    withdrawal: ActivityDocumentWithdrawal | None = None,
+    replacement: ActivityDocument | None = None,
+    *,
+    role: str | None = None,
+    actor_id: str | None = None,
+    activity_state: str | None = None,
+) -> dict[str, Any]:
+    actions: list[str] = []
+    if withdrawal is None and (
+        role == "VALIDATEUR_DEFINITIF"
+        or (
+            role == "AGENT_SAISIE"
+            and actor_id == item.uploaded_by_id
+            and activity_state != "closed"
+        )
+    ):
+        actions.append("withdraw")
     return {
         "id": item.id,
         "activity_id": item.activity_id,
@@ -72,6 +123,18 @@ def output(item: ActivityDocument) -> dict[str, Any]:
         "size": item.byte_size,
         "uploaded_by_id": item.uploaded_by_id,
         "uploaded_at": item.uploaded_at.isoformat(),
+        "withdrawal": {
+            "reason": withdrawal.reason,
+            "withdrawn_by_id": withdrawal.withdrawn_by_id,
+            "withdrawn_at": withdrawal.withdrawn_at.isoformat(),
+            "replacement_document_id": withdrawal.replacement_document_id,
+            "replacement_document_name": replacement.display_name
+            if replacement
+            else None,
+        }
+        if withdrawal
+        else None,
+        "allowed_actions": actions,
     }
 
 
@@ -194,7 +257,7 @@ def store_upload(
             roles={"AGENT_SAISIE", "VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
-        activity(db, activity_id)
+        parent = activity(db, activity_id)
         item = ActivityDocument(
             context_id=CONTEXT,
             activity_id=activity_id,
@@ -224,7 +287,15 @@ def store_upload(
             f"{auth.policy.origin}/api/v1/activities/{activity_id}/documents/"
             f"{item.id}/download"
         )
-        return output(item), location
+        return (
+            output(
+                item,
+                role=actor.role,
+                actor_id=actor.id,
+                activity_state=parent.state,
+            ),
+            location,
+        )
 
 
 def list_args(
@@ -243,7 +314,7 @@ def listing(
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
         actor = principal(db, auth, evidence(request, auth)[0])
-        activity(db, activity_id)
+        parent = activity(db, activity_id)
         limit, token = args
         cursor = Cursor(auth, "activity_documents", f"{actor.id}:{activity_id}", limit)
         marker, direction = cursor.decode(token)
@@ -264,6 +335,18 @@ def listing(
         rows = list(
             db.scalars(
                 select(ActivityDocument)
+                .options(
+                    load_only(
+                        ActivityDocument.id,
+                        ActivityDocument.activity_id,
+                        ActivityDocument.display_name,
+                        ActivityDocument.media_type,
+                        ActivityDocument.byte_size,
+                        ActivityDocument.uploaded_by_id,
+                        ActivityDocument.uploaded_at,
+                        raiseload=True,
+                    )
+                )
                 .where(*conditions)
                 .order_by(*order)
                 .limit(limit + 1)
@@ -281,6 +364,39 @@ def listing(
         rows = rows[:limit]
         if direction == "previous":
             rows.reverse()
+        withdrawal_rows = (
+            list(
+                db.scalars(
+                    select(ActivityDocumentWithdrawal).where(
+                        ActivityDocumentWithdrawal.document_id.in_(
+                            [row.id for row in rows]
+                        )
+                    )
+                )
+            )
+            if rows
+            else []
+        )
+        withdrawals = {row.document_id: row for row in withdrawal_rows}
+        replacement_ids = {
+            row.replacement_document_id
+            for row in withdrawal_rows
+            if row.replacement_document_id
+        }
+        replacements = {
+            row.id: row
+            for row in db.scalars(
+                select(ActivityDocument)
+                .options(
+                    load_only(
+                        ActivityDocument.id,
+                        ActivityDocument.display_name,
+                        raiseload=True,
+                    )
+                )
+                .where(ActivityDocument.id.in_(replacement_ids))
+            )
+        }
 
         def link(row: ActivityDocument, move: str) -> str:
             marker_value = f"{row.uploaded_at.isoformat()}|{row.id}"
@@ -293,7 +409,21 @@ def listing(
         return {
             "object": "list",
             "count": total,
-            "data": [output(row) for row in rows],
+            "data": [
+                output(
+                    row,
+                    withdrawals.get(row.id),
+                    replacements.get(
+                        withdrawals[row.id].replacement_document_id or ""
+                        if row.id in withdrawals
+                        else ""
+                    ),
+                    role=actor.role,
+                    actor_id=actor.id,
+                    activity_state=parent.state,
+                )
+                for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,
@@ -338,6 +468,91 @@ async def upload(
     return result
 
 
+@router.post(
+    "/activities/{activity_id}/documents/{document_id}/withdrawal",
+    response_model=Output,
+    status_code=201,
+    openapi_extra=MUTATION_HEADERS,
+)
+def withdraw(
+    activity_id: str,
+    document_id: str,
+    body: WithdrawalInput,
+    request: Request,
+    response: Response,
+    auth: Auth,
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db,
+            auth,
+            *evidence(request, auth),
+            roles={"AGENT_SAISIE", "VALIDATEUR_DEFINITIF"},
+            mutation=True,
+        )
+        parent = activity(db, activity_id)
+        item = db.get(ActivityDocument, document_id, with_for_update=True)
+        if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
+            raise AuthError(404, "document_not_found")
+        existing = db.get(ActivityDocumentWithdrawal, item.id)
+        if existing:
+            raise AuthError(409, "document_withdrawn")
+        if actor.role == "AGENT_SAISIE" and (
+            item.uploaded_by_id != actor.id or parent.state == "closed"
+        ):
+            raise AuthError(403, "document_withdrawal_forbidden")
+        replacement = None
+        if body.replacement_document_id:
+            replacement = db.get(
+                ActivityDocument,
+                body.replacement_document_id,
+                with_for_update=True,
+            )
+            if (
+                not replacement
+                or replacement.context_id != CONTEXT
+                or replacement.activity_id != activity_id
+            ):
+                raise AuthError(404, "document_replacement_not_found")
+            if (
+                replacement.id == item.id
+                or replacement.uploaded_at <= item.uploaded_at
+                or db.get(ActivityDocumentWithdrawal, replacement.id) is not None
+            ):
+                raise AuthError(409, "document_replacement_ineligible")
+        withdrawal = ActivityDocumentWithdrawal(
+            document_id=item.id,
+            replacement_document_id=replacement.id if replacement else None,
+            reason=body.reason,
+            withdrawn_by_id=actor.id,
+            withdrawn_at=auth.now(db),
+        )
+        db.add(withdrawal)
+        db.flush()
+        auth.audit(
+            db,
+            "document.withdraw",
+            actor.id,
+            item.id,
+            details={
+                "activity_id": activity_id,
+                **({"replacement_document_id": replacement.id} if replacement else {}),
+            },
+        )
+        response.headers["Location"] = (
+            f"{auth.policy.origin}/api/v1/activities/{activity_id}/documents"
+        )
+        return output(
+            item,
+            withdrawal,
+            replacement,
+            role=actor.role,
+            actor_id=actor.id,
+            activity_state=parent.state,
+        )
+
+
 @router.get(
     "/activities/{activity_id}/documents/{document_id}/download",
     response_class=Response,
@@ -353,6 +568,8 @@ def download(
         item = db.get(ActivityDocument, document_id)
         if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
             raise AuthError(404, "document_not_found")
+        if db.get(ActivityDocumentWithdrawal, item.id):
+            raise AuthError(409, "document_withdrawn")
         auth.audit(
             db,
             "document.download",
@@ -389,6 +606,8 @@ def preview(
         item = db.get(ActivityDocument, document_id)
         if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
             raise AuthError(404, "document_not_found")
+        if db.get(ActivityDocumentWithdrawal, item.id):
+            raise AuthError(409, "document_withdrawn")
         if item.media_type not in {"image/jpeg", "image/png"}:
             raise AuthError(422, "document_preview_unsupported")
         auth.audit(

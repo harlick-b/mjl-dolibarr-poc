@@ -11,6 +11,7 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
   let documents = []
   let upload
   let previewed = 0
+  let withdrawal
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
@@ -71,6 +72,29 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
         headers: { 'Cache-Control': 'no-store' },
       })
     }
+    if (
+      path ===
+        '/api/v1/activities/activity-1/documents/document-2/withdrawal' &&
+      request.method() === 'POST'
+    ) {
+      withdrawal = request.postDataJSON()
+      documents = documents.map((document) =>
+        document.id === 'document-2'
+          ? {
+              ...document,
+              withdrawal: {
+                reason: withdrawal.reason,
+                withdrawn_by_id: 'agent',
+                withdrawn_at: '2027-01-02T11:00:00Z',
+                replacement_document_id: withdrawal.replacement_document_id,
+                replacement_document_name: 'preuve.png',
+              },
+              allowed_actions: [],
+            }
+          : document,
+      )
+      return route.fulfill({ status: 201, json: documents[1] })
+    }
     if (path === '/api/v1/activities/activity-1/documents') {
       if (request.method() === 'POST') {
         upload = {
@@ -88,6 +112,8 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
             size: upload.body.length,
             uploaded_by_id: 'agent',
             uploaded_at: '2027-01-02T10:00:00Z',
+            withdrawal: null,
+            allowed_actions: ['withdraw'],
           },
           {
             id: 'document-2',
@@ -97,6 +123,8 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
             size: 3,
             uploaded_by_id: 'agent',
             uploaded_at: '2027-01-02T09:00:00Z',
+            withdrawal: null,
+            allowed_actions: ['withdraw'],
           },
         ]
         return route.fulfill({ status: 201, json: documents[0] })
@@ -145,6 +173,24 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
   await preview.getByRole('button', { name: 'Fermer' }).click()
   const pdfRow = page.getByRole('listitem').filter({ hasText: 'preuve.pdf' })
   await expect(pdfRow.getByRole('button', { name: /Aperçu/ })).toHaveCount(0)
+  await pdfRow.getByRole('button', { name: 'Retirer la pièce' }).click()
+  const withdrawalDialog = page.getByRole('dialog', {
+    name: 'Retirer la pièce',
+  })
+  await withdrawalDialog
+    .getByLabel('Motif du retrait')
+    .fill('Pièce incorrecte.')
+  await withdrawalDialog
+    .getByLabel('Pièce corrigée (facultatif)')
+    .selectOption('document-1')
+  await withdrawalDialog.getByRole('button', { name: 'Retirer' }).click()
+  await expect(pdfRow).toContainText('Pièce retirée')
+  await expect(pdfRow).toContainText('Remplacée par preuve.png')
+  await expect(pdfRow.getByRole('link', { name: 'Télécharger' })).toHaveCount(0)
+  expect(withdrawal).toEqual({
+    reason: 'Pièce incorrecte.',
+    replacement_document_id: 'document-1',
+  })
   expect(upload).toEqual({
     csrf: 'csrf',
     type: 'image/png',
