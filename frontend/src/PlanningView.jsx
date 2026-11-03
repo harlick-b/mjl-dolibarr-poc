@@ -15,6 +15,7 @@ import { strings } from './i18n'
 import { useAPI } from './RestClientProvider'
 import { addThreeMonths, formatPercentage, formatXof } from './planning'
 import { Button } from './components/ui/button'
+import { BusinessForm } from './BusinessForm'
 
 const labels = {
   partners: strings.partners,
@@ -41,6 +42,7 @@ function planningQuery(api, user, key, path, onDenied) {
 }
 
 export function PlanningView({ screen }) {
+  const params = useParams({ strict: false })
   const session = useQuery(sessionQuery)
   const client = useQueryClient()
   const [blocked, setBlocked] = useState(!navigator.onLine)
@@ -97,7 +99,14 @@ export function PlanningView({ screen }) {
   if (session.isError) return <p role="alert">{strings.identityUnavailable}</p>
   if (session.data.user.role === 'ADMIN_PLATEFORME')
     return <p role="alert">{strings.businessRolesOnly}</p>
-  return <Workspace screen={screen} session={session.data} onDenied={deny} />
+  return (
+    <Workspace
+      key={`${screen}:${params.activityId || params.projectId || ''}:${params.year || ''}`}
+      screen={screen}
+      session={session.data}
+      onDenied={deny}
+    />
+  )
 }
 
 function cursorPath(path, token) {
@@ -388,16 +397,17 @@ function Workspace({ screen, session, onDenied }) {
     metrics,
     types,
   ].some((query) => query.isFetching && query.fetchStatus !== 'idle')
-  const submitSimple = (event, path, field) => {
+  const submitSimple = async (event, path, field) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
-    mutation.mutate({ path, body: { [field]: data.get(field) } })
-    event.currentTarget.reset()
+    const form = event.currentTarget
+    await mutation.mutateAsync({ path, body: { [field]: data.get(field) } })
+    form.reset()
   }
   const submitProject = (event) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
-    mutation.mutate({
+    return mutation.mutateAsync({
       path: '/projects',
       body: { name: data.get('name'), partner_id: data.get('partner_id') },
     })
@@ -506,7 +516,7 @@ function Workspace({ screen, session, onDenied }) {
           navigate={navigate}
           pending={mutation.isPending}
           onSubmit={(body) =>
-            mutation.mutate(
+            mutation.mutateAsync(
               { path: `/projects/${projectId}/ptas/${year}/activities`, body },
               {
                 onSuccess: (row) =>
@@ -596,9 +606,9 @@ function ReferenceList({
           label={strings.formatString(strings.addTo, title)}
           opener={opener}
         >
-          <form
-            onSubmit={(event) => {
-              onSubmit(event)
+          <BusinessForm
+            onSubmit={async (event) => {
+              await onSubmit(event)
               setOpen(false)
             }}
           >
@@ -616,7 +626,7 @@ function ReferenceList({
                 {strings.cancel}
               </Button>
             </div>
-          </form>
+          </BusinessForm>
         </Modal>
       )}
       {rows.length ? (
@@ -663,9 +673,9 @@ function Projects({
           label={strings.createProject}
           opener={opener}
         >
-          <form
-            onSubmit={(event) => {
-              onSubmit(event)
+          <BusinessForm
+            onSubmit={async (event) => {
+              await onSubmit(event)
               setOpen(false)
             }}
           >
@@ -698,7 +708,7 @@ function Projects({
               cursorKey="partnerCursor"
               navigate={navigate}
             />
-          </form>
+          </BusinessForm>
         </Modal>
       )}
       <label>
@@ -878,7 +888,9 @@ export function ActivityForm({
   pending,
   initial,
   onSubmit,
+  onCancel,
 }) {
+  const [draftBase] = useState(initial)
   const [start, setStart] = useState(initial?.planned_start || '')
   const [end, setEnd] = useState(initial?.planned_end || '')
   const [endWasEdited, setEndWasEdited] = useState(Boolean(initial))
@@ -902,12 +914,12 @@ export function ActivityForm({
     0n,
   )
   return (
-    <form
+    <BusinessForm
       className="planning-card planning-form"
       onSubmit={(event) => {
         event.preventDefault()
         const data = new FormData(event.currentTarget)
-        onSubmit({
+        return onSubmit({
           name: data.get('name'),
           description: data.get('description'),
           planned_start: start,
@@ -920,7 +932,7 @@ export function ActivityForm({
             allocation: row.allocation,
           })),
           ...(initial
-            ? { expected_version: initial.version }
+            ? { expected_version: draftBase.version }
             : { request_key: requestKey.current }),
         })
       }}
@@ -932,7 +944,7 @@ export function ActivityForm({
           name="name"
           required
           maxLength="200"
-          defaultValue={initial?.name}
+          defaultValue={draftBase?.name}
         />
       </label>
       <label>
@@ -941,7 +953,7 @@ export function ActivityForm({
           name="description"
           required
           maxLength="4000"
-          defaultValue={initial?.description}
+          defaultValue={draftBase?.description}
         />
       </label>
       <div className="planning-grid">
@@ -1039,6 +1051,7 @@ export function ActivityForm({
                 strings.operationRemoveNumber,
                 index + 1,
               )}
+              data-edits-form
               onClick={() =>
                 setOperations(operations.filter((_, i) => i !== index))
               }
@@ -1051,6 +1064,7 @@ export function ActivityForm({
       <Button
         type="button"
         variant="outline"
+        data-edits-form
         onClick={() =>
           setOperations([
             ...operations,
@@ -1069,7 +1083,17 @@ export function ActivityForm({
       <Button type="submit" disabled={pending}>
         <Save size={16} /> {strings.save}
       </Button>
-    </form>
+      {onCancel && (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={onCancel}
+        >
+          {strings.cancelEditing}
+        </Button>
+      )}
+    </BusinessForm>
   )
 }
 
@@ -1130,7 +1154,8 @@ function ActivityDetail({
     item.transfer?.target_year || '',
   )
   const workflowOpener = useRef(null)
-  const [selectedAgentIds, setSelectedAgentIds] = useState(item.agent_ids)
+  const [assignmentDraft, setAssignmentDraft] = useState(null)
+  const selectedAgentIds = assignmentDraft?.ids ?? item.agent_ids
   const canAssign =
     ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(user.role) &&
     item.allowed_actions.includes('assign_agents')
@@ -1144,7 +1169,7 @@ function ActivityDetail({
     const withdrawalCancellation = workflowAction === 'cancel_withdrawal'
     const transfer = workflowAction === 'request_transfer'
     const transferCancellation = workflowAction === 'cancel_transfer'
-    mutation.mutate(
+    return mutation.mutateAsync(
       {
         path: opening
           ? `/activities/${item.id}/amendments`
@@ -1224,8 +1249,9 @@ function ActivityDetail({
         navigate={navigate}
         pending={mutationBlocked}
         initial={item}
+        onCancel={() => setEditing(false)}
         onSubmit={(body) =>
-          mutation.mutate(
+          mutation.mutateAsync(
             { path: `/activities/${item.id}`, method: 'PATCH', body },
             { onSuccess: () => setEditing(false) },
           )
@@ -1627,17 +1653,21 @@ function ActivityDetail({
         )}
       </section>
       {canAssign && (
-        <form
+        <BusinessForm
+          dirty={Boolean(assignmentDraft)}
           onSubmit={(event) => {
             event.preventDefault()
-            mutation.mutate({
-              path: `/activities/${item.id}/assignments`,
-              method: 'PUT',
-              body: {
-                expected_version: item.version,
-                agent_ids: selectedAgentIds,
+            return mutation.mutateAsync(
+              {
+                path: `/activities/${item.id}/assignments`,
+                method: 'PUT',
+                body: {
+                  expected_version: assignmentDraft?.version ?? item.version,
+                  agent_ids: selectedAgentIds,
+                },
               },
-            })
+              { onSuccess: () => setAssignmentDraft(null) },
+            )
           }}
         >
           <fieldset>
@@ -1651,13 +1681,14 @@ function ActivityDetail({
                   value={agent.id}
                   checked={selectedAgentIds.includes(agent.id)}
                   onChange={(event) =>
-                    setSelectedAgentIds((current) =>
-                      event.target.checked
-                        ? [...new Set([...current, agent.id])]
-                        : current.filter(
+                    setAssignmentDraft({
+                      version: assignmentDraft?.version ?? item.version,
+                      ids: event.target.checked
+                        ? [...new Set([...selectedAgentIds, agent.id])]
+                        : selectedAgentIds.filter(
                             (identifier) => identifier !== agent.id,
                           ),
-                    )
+                    })
                   }
                 />{' '}
                 {agent.email}
@@ -1672,7 +1703,17 @@ function ActivityDetail({
           <Button type="submit" disabled={mutationBlocked}>
             {strings.saveAgents}
           </Button>
-        </form>
+          {assignmentDraft && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={mutationBlocked}
+              onClick={() => setAssignmentDraft(null)}
+            >
+              {strings.cancelAssignmentChanges}
+            </Button>
+          )}
+        </BusinessForm>
       )}
       <Modal
         open={Boolean(workflowAction)}
@@ -1680,7 +1721,7 @@ function ActivityDetail({
         label={strings.workflowConfirmation}
         opener={workflowOpener}
       >
-        <form className="review-dialog" onSubmit={submitWorkflow}>
+        <BusinessForm className="review-dialog" onSubmit={submitWorkflow}>
           <h2>{strings.workflowConfirmation}</h2>
           <p>{strings.workflowExactRevision}</p>
           {[
@@ -1791,7 +1832,7 @@ function ActivityDetail({
               {strings.confirm}
             </Button>
           </footer>
-        </form>
+        </BusinessForm>
       </Modal>
     </div>
   )
@@ -1810,6 +1851,14 @@ function ActivityDocuments({
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [uploadUncertain, setUploadUncertain] = useState(false)
+  const active = useRef(true)
+  useEffect(() => {
+    active.current = true
+    return () => {
+      active.current = false
+    }
+  }, [])
   const [withdrawing, setWithdrawing] = useState(null)
   const [replacementCursor, setReplacementCursor] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
@@ -1825,6 +1874,7 @@ function ActivityDocuments({
       user.id,
       ['documents', activityId, cursor],
       cursorPath(`/activities/${activityId}/documents`, cursor),
+      onDenied,
     ),
   )
   const replacementDocuments = useQuery({
@@ -1841,6 +1891,10 @@ function ActivityDocuments({
     ),
     enabled: Boolean(withdrawing),
   })
+  const reconcileUpload = async () => {
+    const result = await documents.refetch()
+    if (active.current && !result.isError) setOpen(false)
+  }
   const upload = useMutation({
     retry: false,
     networkMode: 'always',
@@ -1855,11 +1909,26 @@ function ActivityDocuments({
         },
       }),
     onSuccess: async () => {
+      if (!active.current) return
       await client.invalidateQueries({
         queryKey: ['planning', user.id, 'documents', activityId],
       })
       setOpen(false)
       toast.success(strings.saved)
+    },
+    onError: async (error) => {
+      if (!active.current) return
+      if (error.status === 401 || error.status === 403) {
+        onDenied()
+        return
+      }
+      if (
+        ['network', 'malformed'].includes(error.kind) ||
+        error.status >= 500
+      ) {
+        setUploadUncertain(true)
+        await reconcileUpload()
+      }
     },
   })
   const withdraw = useMutation({
@@ -1936,6 +2005,21 @@ function ActivityDocuments({
     setPreview(null)
   }
   const canUpload = ['AGENT_SAISIE', 'VALIDATEUR_DEFINITIF'].includes(user.role)
+  const uploadNotice = uploadUncertain && (
+    <div role="alert">
+      <p>{strings.uploadUncertain}</p>
+      {documents.isError && (
+        <Button
+          type="button"
+          disabled={documents.isFetching}
+          onClick={reconcileUpload}
+        >
+          {strings.verifyAttachments}
+        </Button>
+      )}
+    </div>
+  )
+
   return (
     <section
       aria-labelledby="activity-documents-title"
@@ -1946,9 +2030,19 @@ function ActivityDocuments({
         {canUpload && (
           <Button
             variant="outline"
-            disabled={blocked || upload.isPending}
-            onClick={(event) => {
+            disabled={
+              blocked ||
+              upload.isPending ||
+              documents.isFetching ||
+              documents.isError
+            }
+            onClick={async (event) => {
               opener.current = event.currentTarget
+              if (cursor)
+                await navigate({
+                  search: (current) => ({ ...current, documentCursor: '' }),
+                })
+              setUploadUncertain(false)
               setOpen(true)
             }}
           >
@@ -1956,6 +2050,7 @@ function ActivityDocuments({
           </Button>
         )}
       </div>
+      {!open && uploadNotice}
       {documents.isPending ? (
         <p role="status">Chargement…</p>
       ) : documents.isError ? (
@@ -2031,15 +2126,23 @@ function ActivityDocuments({
         label={strings.addAttachment}
         opener={opener}
       >
-        <form
+        <BusinessForm
           onSubmit={(event) => {
             event.preventDefault()
             const file =
               event.currentTarget.querySelector('input[type="file"]')
                 ?.files?.[0]
-            if (file?.size > 0) upload.mutate({ file })
+            if (
+              file?.size > 0 &&
+              !uploadUncertain &&
+              !documents.isFetching &&
+              !documents.isError
+            )
+              return upload.mutateAsync({ file })
+            return false
           }}
         >
+          {uploadNotice}
           <label>
             {strings.chooseAttachment}
             <input
@@ -2057,11 +2160,20 @@ function ActivityDocuments({
             >
               {strings.cancel}
             </Button>
-            <Button disabled={blocked || upload.isPending} type="submit">
+            <Button
+              disabled={
+                blocked ||
+                upload.isPending ||
+                uploadUncertain ||
+                documents.isFetching ||
+                documents.isError
+              }
+              type="submit"
+            >
               {strings.add}
             </Button>
           </div>
-        </form>
+        </BusinessForm>
       </Modal>
       <Modal
         open={Boolean(withdrawing)}
@@ -2073,11 +2185,11 @@ function ActivityDocuments({
         opener={withdrawalOpener}
       >
         {withdrawing && (
-          <form
+          <BusinessForm
             onSubmit={(event) => {
               event.preventDefault()
               const values = new FormData(event.currentTarget)
-              withdraw.mutate({
+              return withdraw.mutateAsync({
                 documentId: withdrawing.id,
                 reason: values.get('reason'),
                 replacementDocumentId: values.get('replacement_document_id'),
@@ -2153,7 +2265,7 @@ function ActivityDocuments({
                 {strings.remove}
               </Button>
             </div>
-          </form>
+          </BusinessForm>
         )}
       </Modal>
       <Modal

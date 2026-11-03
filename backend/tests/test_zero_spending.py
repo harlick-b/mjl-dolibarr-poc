@@ -45,6 +45,10 @@ def test_agent_declares_zero_distinct_reviewers_approve_and_agent_closes(plannin
     )
     assert declaration["state"] == "submitted"
     assert declaration["snapshot"]["total"] == "0"
+    planning_detail = (
+        planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
+    )
+    assert "open_amendment" not in planning_detail["allowed_actions"]
 
     prevalidated = post(
         planning["supervisor"],
@@ -205,6 +209,12 @@ def test_return_releases_correction_and_preserves_history(planning):
         },
     )
     assert returned.status_code == 201, returned.text
+    assert (
+        "open_amendment"
+        in planning["agent"]
+        .get(f"/api/v1/activities/{activity['id']}")
+        .json()["allowed_actions"]
+    )
     corrected = patch(
         planning["agent"],
         execution_path(activity, operation),

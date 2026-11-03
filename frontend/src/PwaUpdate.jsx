@@ -1,7 +1,7 @@
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { Button } from '@/components/ui/button'
 
-export function PwaUpdate() {
+export function PwaUpdate({ queryClient }) {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -19,7 +19,16 @@ export function PwaUpdate() {
       <div className="flex flex-wrap gap-3">
         <Button
           onClick={() => {
-            if (document.documentElement.dataset.authBusy !== 'true')
+            const unsaved = [
+              ...document.querySelectorAll('form[data-update-blocked="true"]'),
+            ].some(
+              (form) => !form.closest('dialog') || form.closest('dialog').open,
+            )
+            if (
+              document.documentElement.dataset.authBusy !== 'true' &&
+              !unsaved &&
+              !queryClient?.isMutating()
+            )
               void updateServiceWorker(true)
           }}
         >

@@ -1145,6 +1145,133 @@ test('a failed amendment-history request blocks the workspace with an alert', as
   )
 })
 
+test('an edited Activity retains its draft version after a background refresh', async () => {
+  const submit = vi.fn()
+  const user = userEvent.setup()
+  const initial = {
+    version: 1,
+    name: 'Activité initiale',
+    description: 'Description',
+    planned_start: '2027-01-01',
+    planned_end: '2027-04-01',
+    operations: [
+      {
+        id: 'operation-1',
+        type_id: 'type-1',
+        name: 'Atelier',
+        allocation: '100',
+      },
+    ],
+  }
+  const props = {
+    types: [{ id: 'type-1', label: 'Atelier' }],
+    pending: false,
+    onSubmit: submit,
+  }
+  const { rerender } = render(<ActivityForm {...props} initial={initial} />)
+  await user.type(screen.getByLabelText('Nom', { exact: true }), ' modifiée')
+  rerender(
+    <ActivityForm
+      {...props}
+      initial={{
+        ...initial,
+        version: 2,
+        planned_end: '2027-05-01',
+        operations: [{ ...initial.operations[0], allocation: '200' }],
+      }}
+    />,
+  )
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  expect(submit).toHaveBeenCalledWith(
+    expect.objectContaining({
+      expected_version: 1,
+      name: 'Activité initiale modifiée',
+      allocation: '100',
+      planned_end: '2027-04-01',
+    }),
+  )
+})
+
+test('assignment edits retain their base version and can discard a stale draft', async () => {
+  const user = userEvent.setup()
+  const activity = {
+    id: 'assignment-1',
+    project_id: 'project-1',
+    reference: 'ACT-1',
+    name: 'Coordination',
+    state: 'draft',
+    version: 1,
+    planned_start: '2027-01-01',
+    planned_end: '2027-04-01',
+    allocation: '100',
+    operations: [],
+    agent_ids: [],
+    allowed_actions: ['read', 'assign_agents'],
+  }
+  let assigned
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = String(url)
+      if (options.method === 'PUT') {
+        assigned = JSON.parse(options.body)
+        return new Response(JSON.stringify({ code: 'activity_stale' }), {
+          status: 409,
+        })
+      }
+      let body = {
+        object: 'list',
+        count: 0,
+        data: [],
+        next: null,
+        previous: null,
+      }
+      if (path.includes('/auth/session'))
+        body = {
+          state: 'verified',
+          csrf: 'csrf',
+          user: { id: 'supervisor', role: 'AGENT_VERIFICATEUR' },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        }
+      else if (path.endsWith('/activities/assignment-1')) body = activity
+      else if (path.includes('/assignment-agents'))
+        body = {
+          ...body,
+          count: 1,
+          data: [{ id: 'agent-1', email: 'agent@example.test' }],
+        }
+      return new Response(JSON.stringify(body))
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/activities/assignment-1'] }),
+  )
+  render(<App router={router} />)
+  await user.click(
+    await screen.findByRole('checkbox', { name: 'agent@example.test' }),
+  )
+  await act(async () => {
+    router.options.context.queryClient.setQueryData(
+      ['planning', 'supervisor', 'activity', 'assignment-1'],
+      { ...activity, version: 2 },
+    )
+  })
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer les agents' }),
+  )
+  await waitFor(() =>
+    expect(assigned).toEqual({ expected_version: 1, agent_ids: ['agent-1'] }),
+  )
+  await user.click(
+    screen.getByRole('button', {
+      name: 'Annuler les modifications d’affectation',
+    }),
+  )
+  expect(
+    screen.getByRole('checkbox', { name: 'agent@example.test' }),
+  ).not.toBeChecked()
+})
+
 test('a new Activity keeps its request key across a lost-response retry', async () => {
   const submit = vi.fn()
   const user = userEvent.setup()
@@ -1667,6 +1794,16 @@ test.each(['success', 'failure'])(
             }),
           ),
         )
+      if (path.endsWith('/activities/activity-next'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ...draft,
+              id: 'activity-next',
+              name: 'Activité suivante',
+            }),
+          ),
+        )
       if (path.endsWith('/activities/activity-uncertain/submissions')) {
         submissionCalls += 1
         committed = true
@@ -1704,15 +1841,12 @@ test.each(['success', 'failure'])(
       )
     })
     vi.stubGlobal('fetch', fetch)
-    render(
-      <App
-        router={makeRouter(
-          createMemoryHistory({
-            initialEntries: ['/activities/activity-uncertain'],
-          }),
-        )}
-      />,
+    const router = makeRouter(
+      createMemoryHistory({
+        initialEntries: ['/activities/activity-uncertain'],
+      }),
     )
+    render(<App router={router} />)
     await user.click(
       await screen.findByRole('button', {
         name: 'Soumettre pour prévalidation',
@@ -1762,5 +1896,16 @@ test.each(['success', 'failure'])(
         screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),
       ).not.toBeInTheDocument()
     }
+    await act(async () => {
+      await router.navigate({
+        to: '/activities/$activityId',
+        params: { activityId: 'activity-next' },
+      })
+    })
+    expect(
+      await screen.findByRole('button', {
+        name: 'Soumettre pour prévalidation',
+      }),
+    ).toBeEnabled()
   },
 )

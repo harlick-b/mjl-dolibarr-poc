@@ -5,6 +5,7 @@ import { Helmet } from 'react-helmet-async'
 import { sessionKey, sessionQuery } from './auth'
 import { formatXof } from './planning'
 import { useAPI } from './RestClientProvider'
+import { AccessRecovery } from './AccessRecovery'
 
 const emptyList = { data: [] }
 
@@ -151,6 +152,10 @@ export function PartnerPortalView() {
     return (
       <div className="planning-error" role="alert">
         Votre accès doit être vérifié avant de réafficher ce portefeuille.
+        <AccessRecovery
+          session={session}
+          onVerified={() => setBlocked(false)}
+        />
       </div>
     )
 

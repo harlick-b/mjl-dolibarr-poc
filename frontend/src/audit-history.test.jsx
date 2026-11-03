@@ -160,6 +160,11 @@ test('validator browses the sanitized global history', async () => {
     await screen.findByRole('heading', { name: 'Vérification de l’accès' }),
   ).toBeVisible()
   expect(screen.queryByText('Activité clôturée')).not.toBeInTheDocument()
+  window.dispatchEvent(new Event('online'))
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Vérifier mon accès' }),
+  )
+  expect(await screen.findByText('Activité clôturée')).toBeVisible()
 })
 
 test('ordinary business roles cannot open the global history', async () => {

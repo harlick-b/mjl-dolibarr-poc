@@ -95,6 +95,23 @@ def test_agent_closes_complete_activity_atomically(planning):
     assert replay.status_code == 409
 
 
+@pytest.mark.parametrize("reversement", [True, False])
+def test_closed_activity_financial_detail_has_no_correction_actions(
+    planning, reversement
+):
+    activity, request, version = settled_activity(planning, reversement=reversement)
+    response = post(
+        planning["agent"], close_path(activity), {"expected_version": version}
+    )
+    assert response.status_code == 200, response.text
+    financial = planning["agent"].get(
+        f"/api/v1/activities/{activity['id']}/virement-requests/{request['id']}"
+    )
+    assert financial.status_code == 200, financial.text
+    assert financial.json()["allowed_actions"] == ["read"]
+    assert financial.json()["reversement"]["allowed_actions"] == ["read"]
+
+
 @pytest.mark.parametrize("first", ["activity", "project"])
 def test_activity_and_project_closure_serialize(planning, first):
     activity, _request, version = settled_activity(planning)

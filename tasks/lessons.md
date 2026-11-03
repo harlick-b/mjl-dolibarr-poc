@@ -405,3 +405,8 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   snapshots or every correction revision. Project only exported fields, select
   the latest history row per entity in SQL, and test both the refusal boundary
   and latest-correction semantics.
+
+- Editable fields and their concurrency token must describe the same snapshot.
+  Background Query refresh must not attach a newer version to an older local
+  draft. Preserve both until save or explicit discard, and test refresh during
+  editing (including observation-only changes that do not remount a form).

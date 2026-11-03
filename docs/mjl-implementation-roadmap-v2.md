@@ -23,6 +23,15 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## Focused state-handling corrections
+
+Implemented on 2026-11-03 following the user's state-machine review request.
+Draft concurrency tokens, action eligibility, uncertain-upload reconciliation,
+Activity-local recovery, explicit access revalidation and PWA update deferral
+were corrected within existing workflows. [Contract and evidence 49](rebuild/49-state-handling-improvements.md)
+records focused tests and independent correction/re-review. No migration or
+additional business slice was introduced; production remains deferred.
+
 ## PTA-9A Partner portal foundation boundary (DEC-133)
 
 **PTA_9A_COMPLETE** on 2026-11-03. Admins can invite several synthetic Partner

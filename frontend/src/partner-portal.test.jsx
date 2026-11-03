@@ -119,10 +119,13 @@ test('a Partner sees only the read-only portfolio projection', async () => {
 })
 
 test('offline invalidation removes the Partner portfolio immediately', async () => {
+  let sessionUnavailable = false
   vi.stubGlobal(
     'fetch',
     vi.fn((url) => {
       const path = String(url)
+      if (path.includes('/auth/session') && sessionUnavailable)
+        return Promise.resolve(new Response('{}', { status: 503 }))
       if (path.includes('/auth/session'))
         return Promise.resolve(
           new Response(
@@ -171,6 +174,16 @@ test('offline invalidation removes the Partner portfolio immediately', async () 
       .getQueriesData({ queryKey: ['partner-portal'] })
       .every(([, data]) => data === undefined),
   ).toBe(true)
+  fireEvent(window, new Event('online'))
+  sessionUnavailable = true
+  fireEvent.click(screen.getByRole('button', { name: 'Vérifier mon accès' }))
+  expect(
+    await screen.findByText('Votre identité n’a pas pu être vérifiée.'),
+  ).toBeVisible()
+  expect(screen.queryByText('Bonjour, Donnée privée')).not.toBeInTheDocument()
+  sessionUnavailable = false
+  fireEvent.click(screen.getByRole('button', { name: 'Vérifier mon accès' }))
+  expect(await screen.findByText('Bonjour, Donnée privée')).toBeVisible()
 })
 
 test('a denied portal response masks and purges previously loaded data', async () => {

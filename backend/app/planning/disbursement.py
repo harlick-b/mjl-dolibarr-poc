@@ -137,12 +137,22 @@ def active_request(
     return db.scalar(statement)
 
 
-def assert_disbursement_unfrozen(db: Session, activity_id: str) -> None:
-    if active_request(db, activity_id, lock=True):
-        raise AuthError(409, "disbursement_frozen")
-    from app.planning.zero_spending import assert_zero_spending_unfrozen
+def financial_freeze_reason(
+    db: Session, activity_id: str, *, lock: bool = False
+) -> str | None:
+    if active_request(db, activity_id, lock=lock):
+        return "disbursement_frozen"
+    from app.planning.zero_spending import current_declaration
 
-    assert_zero_spending_unfrozen(db, activity_id)
+    if current_declaration(db, activity_id, lock=lock):
+        return "zero_spending_frozen"
+    return None
+
+
+def assert_disbursement_unfrozen(db: Session, activity_id: str) -> None:
+    reason = financial_freeze_reason(db, activity_id, lock=True)
+    if reason:
+        raise AuthError(409, reason)
 
 
 def decisions(db: Session, request_id: str) -> list[DisbursementDecision]:

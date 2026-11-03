@@ -8,6 +8,6 @@ const router = makeRouter()
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App router={router} />
-    <PwaUpdate />
+    <PwaUpdate queryClient={router.options.context.queryClient} />
   </StrictMode>,
 )

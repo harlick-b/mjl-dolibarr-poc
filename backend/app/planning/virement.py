@@ -278,7 +278,10 @@ def output(
         .limit(1)
     )
     actions = allowed_actions(role, actor_id, financial, rows)
-    if role == "AGENT_SAISIE" and financial.state == "approved":
+    item = get_activity(db, financial.activity_id)
+    project = db.get(Project, item.request_project_id)
+    settlement_allowed = pause_reason(item, project) is None
+    if role == "AGENT_SAISIE" and financial.state == "approved" and settlement_allowed:
         if not confirmation:
             actions.append("declare_confirmation")
         elif not reversement:
@@ -296,7 +299,7 @@ def output(
         if required < 0:
             raise AuthError(409, "financial_insufficiency_unresolved")
         reversement_actions = ["read"]
-        if role == "AGENT_SAISIE" and required > 0:
+        if role == "AGENT_SAISIE" and required > 0 and settlement_allowed:
             reversement_actions.append("correct" if reversement else "declare")
         reversement_output = {
             "required_amount": str(required),

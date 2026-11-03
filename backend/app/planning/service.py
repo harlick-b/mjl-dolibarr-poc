@@ -19,7 +19,6 @@ from app.planning.models import (
     ActivityRevision,
     ActivityRevisionDecision,
     AnnualPTA,
-    DisbursementRequest,
     Operation,
     OperationType,
     Partner,
@@ -319,13 +318,9 @@ def activity_item(
             for action in actions
             if action not in {"request_withdrawal", "request_transfer"}
         ]
-    financial = db.scalar(
-        select(DisbursementRequest.id).where(
-            DisbursementRequest.activity_id == item.id,
-            DisbursementRequest.state != "cancelled",
-        )
-    )
-    if financial is not None:
+    from app.planning.disbursement import financial_freeze_reason
+
+    if financial_freeze_reason(db, item.id):
         actions = [action for action in actions if action != "open_amendment"]
     return {
         "id": item.id,

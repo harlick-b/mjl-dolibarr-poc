@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -55,6 +55,104 @@ function detail({ started = false, completed = false } = {}) {
     ],
   }
 }
+
+test('an observation draft keeps its version across refresh and can be explicitly reset', async () => {
+  const user = userEvent.setup()
+  let current = detail({ started: true, completed: true })
+  const writes = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = String(url)
+      if (options.method === 'PATCH') {
+        writes.push(JSON.parse(options.body))
+        if (writes.length === 1)
+          return new Response(JSON.stringify({ code: 'activity_stale' }), {
+            status: 409,
+          })
+        return new Response(JSON.stringify({ ...current, version: 9 }))
+      }
+      let body = {
+        object: 'list',
+        count: 0,
+        data: [],
+        next: null,
+        previous: null,
+      }
+      if (path.includes('/auth/session'))
+        body = {
+          state: 'verified',
+          csrf: 'csrf',
+          user: { id: 'agent', role: 'AGENT_SAISIE' },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        }
+      else if (path.endsWith('/activities/activity-1/execution')) body = current
+      return new Response(JSON.stringify(body))
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({
+      initialEntries: ['/execution/activities/activity-1'],
+    }),
+  )
+  render(<App router={router} />)
+  await user.type(
+    await screen.findByLabelText('Observation'),
+    ' Précision locale.',
+  )
+  await user.type(
+    screen.getByLabelText('Motif de la correction'),
+    'Préciser le compte rendu.',
+  )
+  current = {
+    ...current,
+    version: 8,
+    operations: [
+      {
+        ...current.operations[0],
+        actual_spent: '110000',
+        execution_completed: false,
+        execution_observation: 'Correction distante.',
+      },
+    ],
+  }
+  await act(async () =>
+    router.options.context.queryClient.setQueryData(
+      ['execution', 'agent', 'activity', 'activity-1'],
+      current,
+    ),
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer', exact: true }),
+  )
+  await waitFor(() =>
+    expect(writes[0]).toEqual(
+      expect.objectContaining({
+        expected_version: 7,
+        execution_observation: 'Session terminée. Précision locale.',
+      }),
+    ),
+  )
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: 'Annuler la saisie' }),
+    ).toBeEnabled(),
+  )
+  await user.click(screen.getByRole('button', { name: 'Annuler la saisie' }))
+  expect(screen.getByLabelText('Observation')).toHaveValue(
+    'Correction distante.',
+  )
+  expect(screen.getByLabelText('Montant dépensé (XOF)')).toHaveValue('110000')
+  expect(screen.getByLabelText('Opération terminée')).not.toBeChecked()
+  await user.type(screen.getByLabelText('Observation'), ' Complément.')
+  await user.type(screen.getByLabelText('Motif de la correction'), 'Compléter.')
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer', exact: true }),
+  )
+  await waitFor(() =>
+    expect(writes[1]).toEqual(expect.objectContaining({ expected_version: 8 })),
+  )
+})
 
 test('Agent confirms eligible Activity closure and sees terminal evidence', async () => {
   const user = userEvent.setup()

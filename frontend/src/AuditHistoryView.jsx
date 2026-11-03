@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { sessionKey, sessionQuery } from './auth'
 import { cursorFrom } from './pagination'
 import { useAPI } from './RestClientProvider'
+import { AccessRecovery } from './AccessRecovery'
 
 const historyRoot = ['audit-history']
 
@@ -57,6 +58,10 @@ export function AuditHistoryView() {
       <section>
         <h1>Vérification de l’accès</h1>
         <p>Reconnectez-vous au service pour consulter l’historique.</p>
+        <AccessRecovery
+          session={session}
+          onVerified={() => setBlocked(false)}
+        />
       </section>
     )
   if (session.isPending) return <p role="status">Vérification de l’accès…</p>

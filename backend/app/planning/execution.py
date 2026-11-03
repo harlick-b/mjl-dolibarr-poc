@@ -419,16 +419,19 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
     today = db.scalar(
         select(text("(clock_timestamp() AT TIME ZONE 'Africa/Porto-Novo')::date"))
     )
-    can_mutate = (
-        role == "AGENT_SAISIE"
-        and reason is None
-        and today is not None
-        and today >= item.planned_start
-    )
+    can_mutate = role == "AGENT_SAISIE" and reason is None
+    can_start = today is not None and today >= item.planned_start
     unavailable_reason = reason
     if unavailable_reason is None and role != "AGENT_SAISIE":
         unavailable_reason = "reviewer_read_only"
-    elif unavailable_reason is None and (today is None or today < item.planned_start):
+    elif (
+        unavailable_reason is None
+        and not can_start
+        and not any(
+            operation.execution_started_at is not None
+            for operation, _fact in operations
+        )
+    ):
         unavailable_reason = "before_planned_start"
     projected: list[dict[str, Any]] = []
     complete = 0
@@ -445,7 +448,8 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
         actions: list[str] = []
         if can_mutate:
             if operation.execution_started_at is None:
-                actions.append("start")
+                if can_start:
+                    actions.append("start")
             else:
                 actions.append("record")
         projected.append(

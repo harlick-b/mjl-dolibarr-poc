@@ -59,6 +59,7 @@ export const strings = new LocalizedStrings({
     accessCheck: 'Accès à vérifier',
     accessCheckPrompt: 'Reconnectez-vous pour consulter la planification.',
     verifyAccess: 'Vérifier mon accès',
+    reconnectRetry: 'Reconnectez-vous au réseau puis réessayez.',
     businessRolesOnly: 'Cet espace est réservé aux rôles métier.',
     operationTypes: 'Types d’opération',
     operationLabel: 'Libellé',
@@ -75,7 +76,9 @@ export const strings = new LocalizedStrings({
     completePlanning: 'Planification complète',
     coordinatedAgents: 'Agents coordonnés',
     saveAgents: 'Enregistrer les agents',
+    cancelAssignmentChanges: 'Annuler les modifications d’affectation',
     modify: 'Modifier',
+    cancelEditing: 'Annuler la modification',
     period: 'Période',
     budget: 'Budget',
     approvedBudget: 'Budget approuvé',
@@ -150,6 +153,10 @@ export const strings = new LocalizedStrings({
     exportPtaCsv: 'Exporter le PTA en CSV',
     exportingPta: 'Génération…',
     ptaExported: 'Export CSV du PTA généré.',
+    uploadUncertain:
+      'Envoi non confirmé. Vérifiez la liste des pièces jointes avant d’ajouter à nouveau le fichier.',
+    verifyAttachments: 'Vérifier les pièces jointes',
+    cancelEntry: 'Annuler la saisie',
   },
 })
 

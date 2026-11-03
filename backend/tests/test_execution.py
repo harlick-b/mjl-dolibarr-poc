@@ -633,7 +633,14 @@ def test_amendment_pause_preserves_execution_and_cancellation_resumes(planning):
     assert recorded.status_code == 200, recorded.text
 
 
-def test_approved_budget_amendment_preserves_execution_and_recording_basis(planning):
+@pytest.mark.parametrize("future_start", [False, True])
+def test_approved_budget_amendment_preserves_execution_and_recording_basis(
+    planning, future_start
+):
+    today = datetime.now(ZoneInfo("Africa/Porto-Novo")).date()
+    tomorrow = today + timedelta(days=1)
+    if future_start and tomorrow.year != today.year:
+        pytest.skip("No future same-year amendment date exists on December 31")
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
     started = patch(
@@ -676,7 +683,9 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(plann
             "expected_version": opened["version"],
             "name": opened["name"],
             "description": opened["description"],
-            "planned_start": opened["planned_start"],
+            "planned_start": tomorrow.isoformat()
+            if future_start
+            else opened["planned_start"],
             "planned_end": opened["planned_end"],
             "allocation": "320000",
             "operations": operations,
@@ -709,6 +718,13 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(plann
         "Dépassement initial justifié."
     )
     assert execution["operations"][0]["approved_allocation"] == "120000"
+    agent_execution = (
+        planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
+    )
+    assert agent_execution["operations"][0]["allowed_actions"] == ["record"]
+    assert agent_execution["operations"][1]["allowed_actions"] == (
+        [] if future_start else ["start"]
+    )
     history = (
         planning["validator"]
         .get(f"/api/v1/activities/{activity['id']}/execution/history")

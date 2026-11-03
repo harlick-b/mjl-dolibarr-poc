@@ -126,11 +126,6 @@ def current_declaration(
     return db.scalar(statement)
 
 
-def assert_zero_spending_unfrozen(db: Session, activity_id: str) -> None:
-    if current_declaration(db, activity_id, lock=True):
-        raise AuthError(409, "zero_spending_frozen")
-
-
 def decisions(db: Session, declaration_id: str) -> list[ZeroSpendingDecision]:
     return list(
         db.scalars(

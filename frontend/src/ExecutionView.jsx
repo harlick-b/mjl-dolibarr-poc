@@ -1,3 +1,5 @@
+import { BusinessForm } from './BusinessForm'
+import { strings } from './i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -459,8 +461,12 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         confirmationHistory.isFetching ||
         reversementHistory.isFetching
       }
-      mutate={(operationId, body) => mutation.mutate({ operationId, body })}
-      mutateFinance={(path, body) => financeMutation.mutate({ path, body })}
+      mutate={(operationId, body) =>
+        mutation.mutateAsync({ operationId, body }).catch(() => false)
+      }
+      mutateFinance={(path, body) =>
+        financeMutation.mutateAsync({ path, body }).catch(() => false)
+      }
       onHistoryPage={(link) =>
         navigate({
           search: (current) => ({
@@ -710,7 +716,7 @@ function ExecutionDetail({
       <div className="execution-list">
         {detail.operations.map((operation) => (
           <OperationCard
-            key={`${operation.id}:${operation.actual_spent}:${operation.execution_completed}`}
+            key={operation.id}
             activity={detail}
             operation={operation}
             pending={pending}
@@ -888,16 +894,19 @@ function ZeroSpendingSection({
             )}
           </div>
           {current.allowed_actions.includes('return') && (
-            <form
+            <BusinessForm
               className="planning-form"
               onSubmit={(event) => {
                 event.preventDefault()
                 const data = new FormData(event.currentTarget)
-                mutate(`/zero-spending-declarations/${current.id}/decisions`, {
-                  expected_version: version,
-                  decision: 'return',
-                  reason: String(data.get('reason') || ''),
-                })
+                return mutate(
+                  `/zero-spending-declarations/${current.id}/decisions`,
+                  {
+                    expected_version: version,
+                    decision: 'return',
+                    reason: String(data.get('reason') || ''),
+                  },
+                )
               }}
             >
               <label>
@@ -911,7 +920,7 @@ function ZeroSpendingSection({
               >
                 Retourner
               </Button>
-            </form>
+            </BusinessForm>
           )}
         </>
       ) : currentIsOnNewerPage ? (
@@ -922,12 +931,12 @@ function ZeroSpendingSection({
           </Button>
         </div>
       ) : role === 'AGENT_SAISIE' ? (
-        <form
+        <BusinessForm
           className="planning-form"
           onSubmit={(event) => {
             event.preventDefault()
             const data = new FormData(event.currentTarget)
-            mutate('/zero-spending-declarations', {
+            return mutate('/zero-spending-declarations', {
               expected_version: detail.version,
               expected_approved_revision_id: detail.approved_revision_id,
               reason: String(data.get('reason') || ''),
@@ -941,7 +950,7 @@ function ZeroSpendingSection({
           <Button type="submit" disabled={pending || !navigator.onLine}>
             Soumettre la déclaration
           </Button>
-        </form>
+        </BusinessForm>
       ) : (
         <p>Aucune déclaration sans dépense n’est en attente.</p>
       )}
@@ -1041,11 +1050,11 @@ function ClosureSection({ detail, pending, mutate }) {
             </ul>
           )}
           {detail.allowed_actions?.includes('close') && (
-            <form
+            <BusinessForm
               className="planning-form"
               onSubmit={(event) => {
                 event.preventDefault()
-                mutate('/closure', { expected_version: detail.version })
+                return mutate('/closure', { expected_version: detail.version })
               }}
             >
               <label>
@@ -1055,7 +1064,7 @@ function ClosureSection({ detail, pending, mutate }) {
               <Button type="submit" disabled={pending || !navigator.onLine}>
                 Clôturer l’activité
               </Button>
-            </form>
+            </BusinessForm>
           )}
         </>
       )}
@@ -1170,7 +1179,7 @@ function DisbursementSection({
           </div>
           {(current.allowed_actions.includes('return') ||
             current.allowed_actions.includes('cancel')) && (
-            <form
+            <BusinessForm
               className="planning-form"
               onSubmit={(event) => {
                 event.preventDefault()
@@ -1178,7 +1187,7 @@ function DisbursementSection({
                 const reason = String(data.get('reason') || '')
                 const cancellation =
                   event.nativeEvent.submitter?.value === 'cancel'
-                mutate(
+                return mutate(
                   `/disbursement-requests/${current.id}/${
                     cancellation ? 'cancellation' : 'decisions'
                   }`,
@@ -1218,7 +1227,7 @@ function DisbursementSection({
                   </Button>
                 )}
               </div>
-            </form>
+            </BusinessForm>
           )}
         </>
       ) : role === 'AGENT_SAISIE' && !historicalPage ? (
@@ -1414,14 +1423,14 @@ function VirementSection({
               )}
               {(current.allowed_actions.includes('declare_confirmation') ||
                 current.allowed_actions.includes('correct_confirmation')) && (
-                <form
+                <BusinessForm
                   key={current.current_confirmation?.revision || 'initial'}
                   className="planning-form"
                   onSubmit={(event) => {
                     event.preventDefault()
                     const data = new FormData(event.currentTarget)
                     const correcting = Boolean(current.current_confirmation)
-                    mutate(
+                    return mutate(
                       `/virement-requests/${current.id}/confirmation${
                         correcting ? '/corrections' : ''
                       }`,
@@ -1468,7 +1477,7 @@ function VirementSection({
                       ? 'Corriger la déclaration'
                       : 'Enregistrer la déclaration'}
                   </Button>
-                </form>
+                </BusinessForm>
               )}
               {confirmationHistory?.data?.length > 0 && (
                 <details>
@@ -1593,7 +1602,7 @@ function VirementSection({
                     current.reversement.allowed_actions.includes(
                       'correct',
                     )) && (
-                    <form
+                    <BusinessForm
                       key={
                         current.reversement.current_declaration?.revision ||
                         'initial'
@@ -1605,7 +1614,7 @@ function VirementSection({
                         const correcting = Boolean(
                           current.reversement.current_declaration,
                         )
-                        mutate(
+                        return mutate(
                           `/virement-requests/${current.id}/reversement${
                             correcting ? '/corrections' : ''
                           }`,
@@ -1667,7 +1676,7 @@ function VirementSection({
                           ? 'Corriger le reversement'
                           : 'Enregistrer le reversement'}
                       </Button>
-                    </form>
+                    </BusinessForm>
                   )}
                   {reversementHistory?.data?.length > 0 && (
                     <details>
@@ -1729,7 +1738,7 @@ function VirementSection({
           )}
           {(current.allowed_actions.includes('return') ||
             current.allowed_actions.includes('cancel')) && (
-            <form
+            <BusinessForm
               className="planning-form"
               onSubmit={(event) => {
                 event.preventDefault()
@@ -1737,7 +1746,7 @@ function VirementSection({
                 const reason = String(data.get('reason') || '')
                 const cancellation =
                   event.nativeEvent.submitter?.value === 'cancel'
-                mutate(
+                return mutate(
                   `/virement-requests/${current.id}/${
                     cancellation ? 'cancellation' : 'decisions'
                   }`,
@@ -1777,7 +1786,7 @@ function VirementSection({
                   </Button>
                 )}
               </div>
-            </form>
+            </BusinessForm>
           )}
         </>
       ) : role === 'AGENT_SAISIE' && !historicalPage ? (
@@ -1847,6 +1856,15 @@ function VirementSection({
 }
 
 function OperationCard({ activity, operation, pending, mutate }) {
+  const draftBasis = useRef(null)
+  const formRef = useRef(null)
+  useEffect(() => {
+    if (!draftBasis.current) formRef.current?.reset()
+  }, [
+    operation.actual_spent,
+    operation.execution_completed,
+    operation.execution_observation,
+  ])
   const correction =
     operation.actual_spent !== null ||
     operation.execution_observation ||
@@ -1885,16 +1903,28 @@ function OperationCard({ activity, operation, pending, mutate }) {
         <p>Écart avec le montant autorisé : {formatXof(operation.variance)}</p>
       )}
       {operation.allowed_actions.includes('record') && (
-        <form
+        <BusinessForm
+          formRef={formRef}
           className="planning-form"
-          onSubmit={(event) => {
+          onChangeCapture={() => {
+            draftBasis.current ??= {
+              version: activity.version,
+              revision: activity.approved_revision_id,
+            }
+          }}
+          onReset={() => {
+            draftBasis.current = null
+          }}
+          onSubmit={async (event) => {
             event.preventDefault()
-            const data = new FormData(event.currentTarget)
+            const form = event.currentTarget
+            const data = new FormData(form)
             const amount = String(data.get('actual_spent') || '')
             const body = {
               action: 'record',
-              expected_version: activity.version,
-              expected_approved_revision_id: activity.approved_revision_id,
+              expected_version: draftBasis.current?.version ?? activity.version,
+              expected_approved_revision_id:
+                draftBasis.current?.revision ?? activity.approved_revision_id,
               actual_spent: amount || null,
               execution_completed: data.get('execution_completed') === 'on',
               execution_observation: String(
@@ -1903,7 +1933,12 @@ function OperationCard({ activity, operation, pending, mutate }) {
             }
             const reason = String(data.get('correction_reason') || '')
             if (reason) body.correction_reason = reason
-            mutate(operation.id, body)
+            const result = await mutate(operation.id, body)
+            if (result !== false) {
+              draftBasis.current = null
+              form.reset()
+            }
+            return result
           }}
         >
           <div className="planning-grid">
@@ -1947,7 +1982,10 @@ function OperationCard({ activity, operation, pending, mutate }) {
             )}
             Enregistrer
           </Button>
-        </form>
+          <Button type="reset" variant="outline" disabled={pending}>
+            {strings.cancelEntry}
+          </Button>
+        </BusinessForm>
       )}
     </article>
   )
