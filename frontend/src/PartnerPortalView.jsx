@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
 import { sessionKey, sessionQuery } from './auth'
@@ -8,6 +8,39 @@ import { useAPI } from './RestClientProvider'
 import { AccessRecovery } from './AccessRecovery'
 
 const emptyList = { data: [] }
+
+class DownloadGuard {
+  generation = 0
+  controller = null
+
+  begin() {
+    this.controller?.abort()
+    this.controller = new AbortController()
+    return { generation: this.generation, signal: this.controller.signal }
+  }
+
+  current(generation) {
+    return generation === this.generation
+  }
+
+  revoke() {
+    this.generation += 1
+    this.controller?.abort()
+    this.controller = null
+  }
+}
+
+function formatDate(value) {
+  if (!value) return '—'
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return '—'
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(+match[1], +match[2] - 1, +match[3])))
+}
 
 function cursor(link) {
   return link
@@ -60,17 +93,20 @@ export function PartnerPortalView() {
   const permitted =
     session.data?.state === 'verified' && user?.role === 'PARTENAIRE'
   const [blocked, setBlocked] = useState(() => !navigator.onLine)
+  const [downloadGuard] = useState(() => new DownloadGuard())
   const deny = useCallback(
     (status) => {
+      downloadGuard.revoke()
       setBlocked(true)
       void client.cancelQueries({ queryKey: ['partner-portal'] })
       client.removeQueries({ queryKey: ['partner-portal'] })
+      client.getMutationCache().clear()
       if (status === 401) {
         void client.cancelQueries({ queryKey: sessionKey })
         client.removeQueries({ queryKey: sessionKey })
       }
     },
-    [client],
+    [client, downloadGuard],
   )
   const profile = useQuery(
     portalQuery(
@@ -123,13 +159,56 @@ export function PartnerPortalView() {
       permitted && !blocked && Boolean(selectedPta),
     ),
   )
+  const activityRows = activities.data?.data || emptyList.data
+  const selectedActivityId = activityRows.some(
+    (activity) => activity.id === search.activity,
+  )
+    ? search.activity
+    : ''
+  const detail = useQuery(
+    portalQuery(
+      api,
+      [user?.id, 'detail', selectedActivityId],
+      `activities/${selectedActivityId}`,
+      deny,
+      permitted && !blocked && Boolean(selectedActivityId),
+    ),
+  )
+  const fiche = useMutation({
+    retry: false,
+    networkMode: 'always',
+    mutationFn: async (activityId) => {
+      if (!navigator.onLine) throw new TypeError('Offline')
+      const request = downloadGuard.begin()
+      const { blob, filename } = await api.download(
+        `/api/v1/partner-portal/activities/${activityId}/fiche.pdf`,
+        { signal: request.signal },
+      )
+      if (!downloadGuard.current(request.generation))
+        throw new DOMException('Stale authorization', 'AbortError')
+      const href = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = filename
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+      return null
+    },
+    onError: (error) => {
+      if (error?.status === 401 || error?.status === 403) deny(error.status)
+    },
+  })
 
   useEffect(() => {
     if (!permitted) {
+      downloadGuard.revoke()
       void client.cancelQueries({ queryKey: ['partner-portal'] })
       client.removeQueries({ queryKey: ['partner-portal'] })
+      client.getMutationCache().clear()
     }
-  }, [client, permitted])
+  }, [client, downloadGuard, permitted])
   useEffect(() => {
     const clear = () => deny()
     const channel = new BroadcastChannel('mjl-auth')
@@ -142,11 +221,12 @@ export function PartnerPortalView() {
         )
       : undefined
     return () => {
+      downloadGuard.revoke()
       channel.close()
       window.removeEventListener('offline', clear)
       clearTimeout(timer)
     }
-  }, [deny, session.data?.expires_at])
+  }, [deny, downloadGuard, session.data?.expires_at])
 
   if (blocked)
     return (
@@ -183,6 +263,7 @@ export function PartnerPortalView() {
     projects,
     ...(selectedProject ? [ptas] : []),
     ...(selectedPta ? [activities] : []),
+    ...(selectedActivityId ? [detail] : []),
   ]
   const loading = queries.some((query) => query.isPending || query.isFetching)
   const unavailable = queries.some((query) => query.isError)
@@ -232,6 +313,7 @@ export function PartnerPortalView() {
                       void changeSearch({
                         project: event.target.value,
                         pta: '',
+                        activity: '',
                         ptaCursor: '',
                         activityCursor: '',
                       })
@@ -270,6 +352,7 @@ export function PartnerPortalView() {
                   projectCursor,
                   project: '',
                   pta: '',
+                  activity: '',
                   ptaCursor: '',
                   activityCursor: '',
                 })
@@ -295,6 +378,7 @@ export function PartnerPortalView() {
                       onChange={(event) =>
                         void changeSearch({
                           pta: event.target.value,
+                          activity: '',
                           activityCursor: '',
                         })
                       }
@@ -312,7 +396,12 @@ export function PartnerPortalView() {
                 page={ptas.data}
                 label="PTA"
                 change={(ptaCursor) =>
-                  changeSearch({ ptaCursor, pta: '', activityCursor: '' })
+                  changeSearch({
+                    ptaCursor,
+                    pta: '',
+                    activity: '',
+                    activityCursor: '',
+                  })
                 }
               />
               <div className="annual-metrics">
@@ -341,7 +430,7 @@ export function PartnerPortalView() {
               <h3>Activités approuvées</h3>
               {activities.data?.data.length ? (
                 <ul className="planning-list">
-                  {activities.data.data.map((activity) => (
+                  {activityRows.map((activity) => (
                     <li key={activity.id}>
                       <div>
                         <strong>{activity.name}</strong>
@@ -354,6 +443,14 @@ export function PartnerPortalView() {
                         {activity.state === 'closed' ? 'Clôturée' : 'Approuvée'}{' '}
                         · {formatXof(activity.allocation)}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void changeSearch({ activity: activity.id })
+                        }
+                      >
+                        Voir le détail
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -363,12 +460,141 @@ export function PartnerPortalView() {
               <PortalPagination
                 page={activities.data}
                 label="Activités"
-                change={(activityCursor) => changeSearch({ activityCursor })}
+                change={(activityCursor) =>
+                  changeSearch({ activityCursor, activity: '' })
+                }
               />
             </article>
           ) : (
             <article className="planning-card">
               <h2>Aucun PTA disponible</h2>
+            </article>
+          )}
+          {detail.data && (
+            <article className="planning-card" aria-labelledby="partner-detail">
+              <div className="planning-title">
+                <div>
+                  <p className="partner-eyebrow">Activité approuvée</p>
+                  <h2 id="partner-detail">{detail.data.name}</h2>
+                  <p>{detail.data.description}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={fiche.isPending}
+                  onClick={() => fiche.mutate(detail.data.id)}
+                >
+                  {fiche.isPending
+                    ? 'Préparation…'
+                    : 'Télécharger la fiche PDF'}
+                </button>
+              </div>
+              {fiche.isError && (
+                <p className="planning-error" role="alert">
+                  La fiche est momentanément indisponible.
+                </p>
+              )}
+              <dl className="planning-facts">
+                <div>
+                  <dt>Référence</dt>
+                  <dd>{detail.data.reference}</dd>
+                </div>
+                <div>
+                  <dt>Période</dt>
+                  <dd>
+                    Du {formatDate(detail.data.planned_start)} au{' '}
+                    {formatDate(detail.data.planned_end)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Budget approuvé</dt>
+                  <dd>{formatXof(detail.data.allocation)}</dd>
+                </div>
+              </dl>
+              <h3>Opérations approuvées</h3>
+              <ul className="planning-list">
+                {detail.data.operations.map((operation, index) => (
+                  <li key={`${operation.name}-${index}`}>
+                    <div>
+                      <strong>{operation.name}</strong>
+                      <small>{operation.description}</small>
+                    </div>
+                    <span>
+                      {operation.final_spending == null
+                        ? formatXof(operation.allocation)
+                        : `${formatXof(operation.final_spending)} dépensés`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <h3>Décisions finales</h3>
+              <ul className="planning-list">
+                {detail.data.decisions.map((decision) => (
+                  <li key={`${decision.kind}-${decision.revision}`}>
+                    <strong>
+                      {decision.kind === 'initial'
+                        ? 'Planification approuvée'
+                        : decision.kind === 'amendment'
+                          ? 'Modification approuvée'
+                          : 'Transfert annuel approuvé'}
+                    </strong>
+                    <span>
+                      Révision {decision.revision} ·{' '}
+                      {formatDate(decision.decided_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <h3>Résultat financier</h3>
+              {detail.data.finance ? (
+                <dl className="planning-facts">
+                  <div>
+                    <dt>Dépenses finales</dt>
+                    <dd>{formatXof(detail.data.finance.final_spending)}</dd>
+                  </div>
+                  {detail.data.finance.zero_spending && (
+                    <div>
+                      <dt>Parcours validé</dt>
+                      <dd>Dépense nulle validée</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Virement confirmé</dt>
+                    <dd>
+                      {detail.data.finance.confirmed_transfer_amount == null
+                        ? 'Aucun virement requis'
+                        : `${formatXof(
+                            detail.data.finance.confirmed_transfer_amount,
+                          )} · ${formatDate(
+                            detail.data.finance.confirmed_transfer_date,
+                          )}`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Surplus à reverser</dt>
+                    <dd>
+                      {formatXof(detail.data.finance.reversement_required)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Surplus reversé</dt>
+                    <dd>
+                      {detail.data.finance.reversement_amount == null
+                        ? 'Aucun reversement requis'
+                        : `${formatXof(
+                            detail.data.finance.reversement_amount,
+                          )} · ${formatDate(
+                            detail.data.finance.reversement_date,
+                          )}`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Clôture</dt>
+                    <dd>{formatDate(detail.data.finance.closed_at)}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p>Le résultat financier sera disponible après la clôture.</p>
+              )}
             </article>
           )}
         </>

@@ -388,6 +388,12 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   element URL when the workspace owns offline and authorization-loss behavior.
   Abort stale requests, reject late authorization generations, revoke object URLs
   and reset mutation data so sensitive bytes are not retained after close.
+- A protected-download race oracle must trigger the same authorization-denial
+  path as production. An offline event does not prove that a concurrent query
+  401/403 revokes bytes synchronously before a late response creates an object URL.
+- Returning a FastAPI `Response` with a runtime media type does not define that
+  content in OpenAPI. Declare the route response class and assert both the binary
+  success content and cookie security alternatives in the generated contract.
 - A deferred hypothetical exception is not a product requirement. Before asking
   the user to design an exception workflow, establish that the real business
   process can produce that case; otherwise preserve the exact bounded rule and

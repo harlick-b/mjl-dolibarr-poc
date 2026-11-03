@@ -72,6 +72,61 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           },
         ]),
       })
+    if (path === '/api/v1/partner-portal/activities/activity-1')
+      return route.fulfill({
+        json: {
+          id: 'activity-1',
+          reference: 'ACT-001',
+          name: 'Campagne de santé',
+          description: 'Consultations communautaires approuvées.',
+          planned_start: '2027-01-10',
+          planned_end: '2027-03-10',
+          allocation: '120000',
+          state: 'closed',
+          approved_revision: 1,
+          context: {
+            partner: 'Partenaire Démo',
+            project_reference: 'PRJ-2027-001',
+            project: 'Projet Santé',
+            year: 2027,
+          },
+          operations: [
+            {
+              name: 'Consultations',
+              description: 'Trois journées réalisées.',
+              allocation: '120000',
+              final_spending: '90000',
+            },
+          ],
+          decisions: [
+            {
+              kind: 'initial',
+              revision: 1,
+              decided_at: '2027-01-05T10:00:00Z',
+            },
+          ],
+          finance: {
+            approved_allocation: '120000',
+            final_spending: '90000',
+            zero_spending: false,
+            confirmed_transfer_amount: '90000',
+            confirmed_transfer_date: '2027-03-11',
+            reversement_required: '30000',
+            reversement_amount: '30000',
+            reversement_date: '2027-03-12',
+            closed_at: '2027-03-13T10:00:00Z',
+          },
+        },
+      })
+    if (path === '/api/v1/partner-portal/activities/activity-1/fiche.pdf')
+      return route.fulfill({
+        body: Buffer.from('%PDF-1.4 synthetic'),
+        contentType: 'application/pdf',
+        headers: {
+          'Content-Disposition':
+            'attachment; filename="fiche-partenaire-ACT-001.pdf"',
+        },
+      })
     return route.fulfill({ status: 404, json: {} })
   })
 
@@ -84,12 +139,28 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   await expect(
     page.getByText('Espace Partenaire · Lecture seule'),
   ).toBeVisible()
-  await expect(page.getByRole('button')).toHaveCount(0)
   await expect(page.getByText(/export/i)).toHaveCount(0)
+  await page.getByRole('button', { name: 'Voir le détail' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Campagne de santé', exact: true }),
+  ).toBeVisible()
+  await expect(page.getByText('Trois journées réalisées.')).toBeVisible()
+  await expect(page.getByText(/30.000 XOF/).first()).toBeVisible()
+  await expect(page.getByText(/pièce jointe/i)).toHaveCount(0)
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Télécharger la fiche PDF' }).click()
+  await expect((await download).suggestedFilename()).toBe(
+    'fiche-partenaire-ACT-001.pdf',
+  )
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(
     page.getByRole('navigation', { name: 'Espace Partenaire' }),
   ).toBeVisible()
   await expect(page.getByText('1 activité clôturée sur 2')).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Campagne de santé', exact: true }),
+  ).toBeVisible()
+  await expect(page.getByText('Résultat financier')).toBeVisible()
+  await expect(page.getByText(/13 mars 2027/)).toBeVisible()
 })

@@ -4,17 +4,29 @@ from typing import Annotated, Any, Literal
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
 from app.auth.models import User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
-from app.planning.models import Activity, ActivityRevision, AnnualPTA, Partner, Project
+from app.partner_fiche import render_partner_fiche
+from app.planning.models import (
+    Activity,
+    ActivityRevision,
+    ActivityRevisionDecision,
+    AnnualPTA,
+    Operation,
+    Partner,
+    Project,
+    ReversementDeclaration,
+    VirementConfirmation,
+    ZeroSpendingDeclaration,
+)
 from app.planning.routes import annual_metrics_data, cutoff_value, locked_read
 from app.planning.service import CONTEXT, Cursor, page_rows
 
@@ -36,6 +48,10 @@ router = APIRouter(
         for status in (401, 403, 404, 409, 422, 429, 503)
     },
 )
+
+
+class PDFResponse(Response):
+    media_type = "application/pdf"
 
 
 class Output(BaseModel):
@@ -88,6 +104,46 @@ class ActivityItem(Output):
     approved_revision: int
 
 
+class ActivityContext(Output):
+    partner: str
+    project_reference: str
+    project: str
+    year: int
+
+
+class OperationItem(Output):
+    name: str
+    description: str
+    allocation: str
+    final_spending: str | None
+
+
+class FinalDecision(Output):
+    kind: Literal["initial", "amendment", "transfer"]
+    revision: int
+    decided_at: str
+
+
+class CompletedFinance(Output):
+    approved_allocation: str
+    final_spending: str
+    zero_spending: bool
+    confirmed_transfer_amount: str | None
+    confirmed_transfer_date: str | None
+    reversement_required: str
+    reversement_amount: str | None
+    reversement_date: str | None
+    closed_at: str
+
+
+class ActivityDetail(ActivityItem):
+    description: str
+    context: ActivityContext
+    operations: list[OperationItem]
+    decisions: list[FinalDecision]
+    finance: CompletedFinance | None
+
+
 class ListOutput[Item](Output):
     object: Literal["list"]
     count: int
@@ -126,6 +182,170 @@ def visible_pta(pta_id: Any) -> Any:
         )
         .exists()
     )
+
+
+def visible_activity(
+    db: Session, partner: Partner, activity_id: str
+) -> tuple[Activity, AnnualPTA, Project]:
+    activity = db.get(Activity, activity_id)
+    pta = db.get(AnnualPTA, activity.pta_id) if activity else None
+    project = db.get(Project, pta.project_id) if pta else None
+    if (
+        not activity
+        or activity.context_id != CONTEXT
+        or not activity.approved_revision_id
+        or activity.state == "withdrawn"
+        or not pta
+        or pta.context_id != CONTEXT
+        or not project
+        or project.context_id != CONTEXT
+        or project.partner_id != partner.id
+    ):
+        raise AuthError(404, "portal_resource_not_found")
+    return activity, pta, project
+
+
+def decision_kind(revision: ActivityRevision) -> str:
+    if isinstance(revision.snapshot.get("transfer"), dict):
+        return "transfer"
+    return "initial" if revision.revision_number == 1 else "amendment"
+
+
+def activity_detail_data(
+    db: Session,
+    partner: Partner,
+    activity: Activity,
+    pta: AnnualPTA,
+    project: Project,
+) -> dict[str, Any]:
+    revision = db.get(ActivityRevision, activity.approved_revision_id)
+    if not revision or revision.activity_id != activity.id:
+        raise AuthError(409, "portal_projection_unavailable")
+    snapshot = revision.snapshot
+    snapshot_operations = snapshot.get("operations")
+    if not isinstance(snapshot_operations, list):
+        raise AuthError(409, "portal_projection_unavailable")
+    operation_ids = {
+        str(row.get("id"))
+        for row in snapshot_operations
+        if isinstance(row, dict) and row.get("id")
+    }
+    current_operations = {
+        row.id: row
+        for row in db.scalars(
+            select(Operation).where(
+                Operation.activity_id == activity.id, Operation.id.in_(operation_ids)
+            )
+        )
+    }
+    operations = []
+    for row in snapshot_operations:
+        if not isinstance(row, dict):
+            raise AuthError(409, "portal_projection_unavailable")
+        current = current_operations.get(str(row.get("id")))
+        operations.append(
+            {
+                "name": str(row.get("name") or ""),
+                "description": str(row.get("description") or ""),
+                "allocation": str(row.get("allocation") or "0"),
+                "final_spending": (
+                    str(current.actual_spent)
+                    if activity.state == "closed"
+                    and current
+                    and current.actual_spent is not None
+                    else None
+                ),
+            }
+        )
+    decision_rows = list(
+        db.execute(
+            select(ActivityRevisionDecision, ActivityRevision)
+            .join(
+                ActivityRevision,
+                ActivityRevision.id == ActivityRevisionDecision.revision_id,
+            )
+            .where(
+                ActivityRevisionDecision.activity_id == activity.id,
+                ActivityRevisionDecision.stage == "validator",
+                ActivityRevisionDecision.outcome == "approved",
+            )
+            .order_by(ActivityRevisionDecision.decided_at)
+        )
+    )
+    decisions = [
+        {
+            "kind": decision_kind(item_revision),
+            "revision": item_revision.revision_number,
+            "decided_at": decision.decided_at.isoformat(),
+        }
+        for decision, item_revision in decision_rows
+    ]
+    finance = None
+    if activity.state == "closed":
+        spending = db.scalar(
+            select(func.sum(Operation.actual_spent)).where(
+                Operation.activity_id == activity.id, Operation.id.in_(operation_ids)
+            )
+        )
+        if spending is None or activity.closed_at is None:
+            raise AuthError(409, "portal_projection_unavailable")
+        zero = db.scalar(
+            select(ZeroSpendingDeclaration.id).where(
+                ZeroSpendingDeclaration.activity_id == activity.id,
+                ZeroSpendingDeclaration.state == "approved",
+            )
+        )
+        confirmation = db.scalar(
+            select(VirementConfirmation)
+            .where(VirementConfirmation.activity_id == activity.id)
+            .order_by(VirementConfirmation.revision.desc())
+            .limit(1)
+        )
+        reversement = db.scalar(
+            select(ReversementDeclaration)
+            .where(ReversementDeclaration.activity_id == activity.id)
+            .order_by(ReversementDeclaration.revision.desc())
+            .limit(1)
+        )
+        allocation = int(str(snapshot.get("allocation")))
+        required = 0 if zero else max(0, allocation - int(spending))
+        finance = {
+            "approved_allocation": str(allocation),
+            "final_spending": str(spending),
+            "zero_spending": bool(zero),
+            "confirmed_transfer_amount": (
+                str(confirmation.amount) if confirmation else None
+            ),
+            "confirmed_transfer_date": (
+                confirmation.transfer_date.isoformat() if confirmation else None
+            ),
+            "reversement_required": str(required),
+            "reversement_amount": str(reversement.amount) if reversement else None,
+            "reversement_date": (
+                reversement.return_date.isoformat() if reversement else None
+            ),
+            "closed_at": activity.closed_at.isoformat(),
+        }
+    return {
+        "id": activity.id,
+        "reference": activity.reference,
+        "name": str(snapshot.get("name") or ""),
+        "description": str(snapshot.get("description") or ""),
+        "planned_start": str(snapshot.get("planned_start") or ""),
+        "planned_end": str(snapshot.get("planned_end") or ""),
+        "allocation": str(snapshot.get("allocation") or "0"),
+        "state": "closed" if activity.state == "closed" else "approved",
+        "approved_revision": revision.revision_number,
+        "context": {
+            "partner": partner.name,
+            "project_reference": project.reference,
+            "project": project.name,
+            "year": pta.year,
+        },
+        "operations": operations,
+        "decisions": decisions,
+        "finance": finance,
+    }
 
 
 def scoped_page(
@@ -347,3 +567,40 @@ def activities(
             "next": next_link,
             "previous": previous_link,
         }
+
+
+@router.get("/activities/{activity_id}", response_model=ActivityDetail)
+def activity_detail(activity_id: str, request: Request, auth: Auth) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_read(db)
+        _actor, partner = partner_principal(db, auth, request)
+        activity, pta, project = visible_activity(db, partner, activity_id)
+        return activity_detail_data(db, partner, activity, pta, project)
+
+
+@router.get("/activities/{activity_id}/fiche.pdf", response_class=PDFResponse)
+def activity_fiche(activity_id: str, request: Request, auth: Auth) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        locked_read(db)
+        actor, partner = partner_principal(db, auth, request)
+        activity, pta, project = visible_activity(db, partner, activity_id)
+        generated_at = auth.now(db)
+        detail = activity_detail_data(db, partner, activity, pta, project)
+        document = render_partner_fiche(detail, generated_at.isoformat())
+        auth.audit(
+            db,
+            "activity.fiche_generated",
+            actor.id,
+            activity.id,
+            details={"role": actor.role, "version": activity.version},
+        )
+        reference = activity.reference
+    return PDFResponse(
+        content=document,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="fiche-partenaire-{reference}.pdf"'
+            ),
+            "Content-Length": str(len(document)),
+        },
+    )

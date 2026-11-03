@@ -1,20 +1,41 @@
 # ruff: noqa: F401, F811
 from contextlib import ExitStack
+from io import BytesIO
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from pypdf import PdfReader
 from sqlalchemy import select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 from test_access import PASSWORD, activate, headers
 from test_amendments import edit_amendment, open_amendment
+from test_annual_export import approve_zero_and_close
+from test_closure import close_path, settled_activity
 from test_planning import admin, ordered_advisory_race, plan, planning, post, references
 from test_recovery import NEW_PASSWORD, enable_recovery, recovery_proof, request
+from test_reversement import reversement_path
 from test_transfers import approve_transfer, request_transfer
 from test_withdrawals import request_withdrawal
 
 from app.auth.models import Audit, User
+from app.planning.models import Activity, AnnualPTA, Project
+
+
+def pdf_text(response):
+    return "\n".join(
+        page.extract_text() or "" for page in PdfReader(BytesIO(response.content)).pages
+    )
+
+
+def activity_partner(auth, activity_id):
+    with Session(auth.engine) as db:
+        activity = db.get(Activity, activity_id)
+        pta = db.get(AnnualPTA, activity.pta_id) if activity else None
+        project = db.get(Project, pta.project_id) if pta else None
+        assert project
+        return project.partner_id
 
 
 def approve_in_project(clients, project, operation_type, *, name="Activité portail"):
@@ -129,6 +150,20 @@ def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
         assert (
             planning["admin"].get("/api/v1/partner-portal/profile").status_code == 403
         )
+        contract = partner.get("/openapi.json").json()
+        paths = contract["paths"]
+        assert "get" in paths["/api/v1/partner-portal/activities/{activity_id}"]
+        fiche_operation = paths[
+            "/api/v1/partner-portal/activities/{activity_id}/fiche.pdf"
+        ]["get"]
+        assert "application/pdf" in fiche_operation["responses"]["200"]["content"]
+        schemes = contract["components"]["securitySchemes"]
+        assert schemes["LocalSession"]["name"] == "mjl_local"
+        assert schemes["SecureSession"]["name"] == "__Host-mjl"
+        assert {tuple(entry) for entry in fiche_operation["security"]} == {
+            ("LocalSession",),
+            ("SecureSession",),
+        }
         assert (
             partner.get("/api/v1/partner-portal/projects?limit=101").status_code == 422
         )
@@ -179,6 +214,58 @@ def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
         assert "Contenu candidat interne" not in activities.text
         assert "Brouillon interne" not in activities.text
         assert foreign["id"] not in {item["id"] for item in activities.json()["data"]}
+
+        detail = partner.get(f"/api/v1/partner-portal/activities/{activity['id']}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["finance"] is None
+        assert detail.json()["decisions"] == [
+            {
+                "kind": "initial",
+                "revision": 1,
+                "decided_at": detail.json()["decisions"][0]["decided_at"],
+            }
+        ]
+        assert set(detail.json()["decisions"][0]) == {
+            "kind",
+            "revision",
+            "decided_at",
+        }
+        assert "Contenu candidat interne" not in detail.text
+        assert "actor" not in detail.text
+        assert "reason" not in detail.text
+        assert (
+            partner.get(
+                f"/api/v1/partner-portal/activities/{foreign['id']}"
+            ).status_code
+            == 404
+        )
+        assert (
+            partner.get(
+                f"/api/v1/partner-portal/activities/{foreign['id']}/fiche.pdf"
+            ).status_code
+            == 404
+        )
+        assert (
+            partner.get(f"/api/v1/partner-portal/activities/{draft['id']}").status_code
+            == 404
+        )
+
+        fiche = partner.get(
+            f"/api/v1/partner-portal/activities/{activity['id']}/fiche.pdf"
+        )
+        assert fiche.status_code == 200, fiche.text
+        assert fiche.headers["content-type"] == "application/pdf"
+        assert fiche.headers["cache-control"] == "no-store"
+        content = pdf_text(fiche)
+        assert "FICHE PARTENAIRE" in content
+        assert activity["name"] in content
+        for hidden in (
+            "Contenu candidat interne",
+            "Pièces justificatives",
+            "Journal des événements",
+            "@example.test",
+        ):
+            assert hidden not in content
 
         first_page = partner.get(
             f"/api/v1/partner-portal/ptas/{pta['id']}/activities?limit=1"
@@ -244,7 +331,8 @@ def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
 
 
 def test_partner_invitation_binding_constraints_and_deactivation(planning, auth_env):
-    partner_row, _operation_type, _project = references(planning)
+    partner_row, operation_type, project = references(planning)
+    activity = approve_in_project(planning, project, operation_type)
     partner_options = planning["admin"].get("/api/v1/partners?limit=100")
     assert partner_options.status_code == 200, partner_options.text
     assert partner_row["id"] in {item["id"] for item in partner_options.json()["data"]}
@@ -335,30 +423,26 @@ def test_partner_invitation_binding_constraints_and_deactivation(planning, auth_
             json={"expected_version": account["version"], "role": "AGENT_SAISIE"},
         )
         assert role_change.status_code == 409, role_change.text
-        assert (
-            partner.post(
-                "/api/v1/auth/logout", headers=headers(partner), json={}
-            ).status_code
-            == 204
-        )
         login_headers = headers(partner)
-        deactivated, denied_login = ordered_advisory_race(
+        deactivated, denied_detail = ordered_advisory_race(
             planning["auth"],
             lambda: planning["admin"].patch(
                 f"/api/v1/access/users/{first_invitation['user_id']}",
                 headers=headers(planning["admin"]),
                 json={"expected_version": account["version"], "deactivate": True},
             ),
-            lambda: partner.post(
-                "/api/v1/auth/login",
-                headers=login_headers,
-                json={"email": "partner-one@example.test", "password": PASSWORD},
-            ),
+            lambda: partner.get(f"/api/v1/partner-portal/activities/{activity['id']}"),
         )
         assert deactivated.status_code == 200, deactivated.text
-        assert denied_login.status_code == 401, denied_login.text
+        assert denied_detail.status_code == 401, denied_detail.text
         assert deactivated.json()["state"] == "inactive"
         assert deactivated.json()["partner_id"] == partner_row["id"]
+        denied_login = partner.post(
+            "/api/v1/auth/login",
+            headers=login_headers,
+            json={"email": "partner-one@example.test", "password": PASSWORD},
+        )
+        assert denied_login.status_code == 401, denied_login.text
         assert partner.get("/api/v1/partner-portal/profile").status_code == 401
         with Session(planning["auth"].engine) as db:
             audit = db.scalar(
@@ -427,6 +511,125 @@ def test_partner_projection_follows_effective_withdrawal_and_transfer(
         ).json()
         assert [row["id"] for row in destination_rows["data"]] == [moved["id"]]
         assert destination_rows["data"][0]["planned_start"] == "2028-02-01"
+
+
+def test_partner_closed_finance_uses_latest_definitive_facts(planning, auth_env):
+    activity, request_row, version = settled_activity(planning)
+    corrected = post(
+        planning["agent2"],
+        reversement_path(activity, request_row) + "/corrections",
+        {
+            "expected_version": version,
+            "return_date": "2026-10-29",
+            "note": "NOTE INTERNE PARTENAIRE MASQUÉE",
+            "reason": "MOTIF INTERNE PARTENAIRE MASQUÉ",
+        },
+    )
+    assert corrected.status_code == 201, corrected.text
+    closed = post(
+        planning["agent"],
+        close_path(activity),
+        {"expected_version": corrected.json()["activity_version"]},
+    )
+    assert closed.status_code == 200, closed.text
+    partner_id = activity_partner(planning["auth"], activity["id"])
+
+    with ExitStack() as stack:
+        portal, _identity, _invitation = invite_partner(
+            planning,
+            auth_env,
+            stack,
+            partner_id,
+            "finance-partner@example.test",
+        )
+        detail = portal.get(f"/api/v1/partner-portal/activities/{activity['id']}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["finance"] == {
+            "approved_allocation": "300000",
+            "final_spending": "200000",
+            "zero_spending": False,
+            "confirmed_transfer_amount": "200000",
+            "confirmed_transfer_date": "2026-10-27",
+            "reversement_required": "100000",
+            "reversement_amount": "100000",
+            "reversement_date": "2026-10-29",
+            "closed_at": closed.json()["closure"]["closed_at"],
+        }
+        assert "NOTE INTERNE" not in detail.text
+        assert "MOTIF INTERNE" not in detail.text
+
+        fiche = portal.get(
+            f"/api/v1/partner-portal/activities/{activity['id']}/fiche.pdf"
+        )
+        content = pdf_text(fiche)
+        for expected in (
+            "FICHE PARTENAIRE",
+            "300 000 F CFA",
+            "200 000 F CFA",
+            "100 000 F CFA",
+            "29/10/2026",
+        ):
+            assert expected in content
+        assert "NOTE INTERNE" not in content
+        assert "MOTIF INTERNE" not in content
+        with Session(planning["auth"].engine) as db:
+            audit = db.scalar(
+                select(Audit)
+                .where(
+                    Audit.action == "activity.fiche_generated",
+                    Audit.actor == _invitation["user_id"],
+                    Audit.target == activity["id"],
+                )
+                .order_by(Audit.id.desc())
+            )
+            assert audit and audit.details == {
+                "role": "PARTENAIRE",
+                "version": closed.json()["version"],
+            }
+
+
+def test_partner_zero_spending_result_and_fiche_audit_rollback(planning, auth_env):
+    closed = approve_zero_and_close(planning)
+    partner_id = activity_partner(planning["auth"], closed["id"])
+    with ExitStack() as stack:
+        portal, _identity, _invitation = invite_partner(
+            planning,
+            auth_env,
+            stack,
+            partner_id,
+            "zero-partner@example.test",
+        )
+        detail = portal.get(f"/api/v1/partner-portal/activities/{closed['id']}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["finance"] == {
+            "approved_allocation": "300000",
+            "final_spending": "0",
+            "zero_spending": True,
+            "confirmed_transfer_amount": None,
+            "confirmed_transfer_date": None,
+            "reversement_required": "0",
+            "reversement_amount": None,
+            "reversement_date": None,
+            "closed_at": closed["closure"]["closed_at"],
+        }
+
+        def reject(_connection, _cursor, statement, parameters, _context, _many):
+            if (
+                "INSERT INTO auth_audit" in statement
+                and "activity.fiche_generated" in str(parameters)
+            ):
+                raise OperationalError(statement, parameters, Exception("synthetic"))
+
+        from sqlalchemy import event
+
+        event.listen(planning["auth"].engine, "before_cursor_execute", reject)
+        try:
+            failed = portal.get(
+                f"/api/v1/partner-portal/activities/{closed['id']}/fiche.pdf"
+            )
+        finally:
+            event.remove(planning["auth"].engine, "before_cursor_execute", reject)
+        assert failed.status_code == 503
 
 
 def test_partner_recovery_preserves_permanent_binding(planning, auth_env):

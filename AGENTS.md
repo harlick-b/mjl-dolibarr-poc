@@ -22,7 +22,7 @@ The authority/business/API disposition register is
 `docs/rebuild/01-authority-and-business-baseline.md`.
 The current implementation boundary and evidence are in
 `docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
-router. Foundation, A1–A3 and the synthetic PTA slices through PTA-9A are
+router. Foundation, A1–A3 and the synthetic PTA slices through PTA-9B are
 complete. DEC-121 governs current whole-PTA physical and financial
 metrics. DEC-122 adds the regenerable French Activity Fiche PDF from approved
 planning, execution, settlement and chronology facts. DEC-123 completes Project
@@ -61,11 +61,14 @@ PTA-8A. DEC-133 adds Admin-invited, permanently Partner-bound synthetic
 identities and a separate read-only approved-portfolio portal. Migration
 `0020_pta9a` adds one nullable binding and exclusive constraints with no new
 table. Stop after PTA-9A.
+DEC-134 adds Partner-scoped approved Activity detail, successful final decisions,
+definitive closed finance and one sanitized Partner Fiche PDF. It adds two GET
+responsibilities with no migration or table. Stop after PTA-9B.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 insufficiency implementation, historical metrics,
 PDF/XLSX annual and global audit exports,
 PDF preview and document restoration/general versioning,
-Partner final-decision/Fiche/completed-finance detail, exports and attachment visibility,
+Partner exports and attachment visibility,
 production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later
 slices, general A4 and production remain deferred.

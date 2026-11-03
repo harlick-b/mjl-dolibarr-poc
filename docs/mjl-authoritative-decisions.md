@@ -30,6 +30,21 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-9B Partner detail authorization and completion (DEC-134)
+
+The user authorized PTA-9B on 2026-11-03. [Plan
+50](rebuild/50-pta9b-partner-details-plan.md) is the bounded contract. A Partner
+may open its currently visible approved Activities, see sanitized successful
+Validator approvals and definitive closed financial results, and download a
+sanitized Partner Fiche generated from the same allowlisted facts. No actor,
+reason, candidate, attachment, internal audit or unfinished financial fact is
+shared. This slice adds no migration or table and does not decide Partner
+attachment visibility.
+
+PTA-9B completed on 2026-11-03. [Status
+51](rebuild/51-pta9b-implementation-status.md) records the PostgreSQL/API,
+OpenAPI, React, Chromium and mandatory independent correction/re-review evidence.
+
 ## PTA-9A Partner portal foundation authorization (DEC-133)
 
 The user instructed Codex to audit and implement the next slice, then supplied

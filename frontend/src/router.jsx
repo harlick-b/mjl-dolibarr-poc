@@ -377,6 +377,7 @@ export function makeRouter(history) {
     validateSearch: (search) => ({
       project: String(search.project || '').slice(0, 36),
       pta: String(search.pta || '').slice(0, 36),
+      activity: String(search.activity || '').slice(0, 36),
       projectCursor: String(search.projectCursor || '').slice(0, 512),
       ptaCursor: String(search.ptaCursor || '').slice(0, 512),
       activityCursor: String(search.activityCursor || '').slice(0, 512),

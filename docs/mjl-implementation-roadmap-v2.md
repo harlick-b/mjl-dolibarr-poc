@@ -32,6 +32,20 @@ were corrected within existing workflows. [Contract and evidence 49](rebuild/49-
 records focused tests and independent correction/re-review. No migration or
 additional business slice was introduced; production remains deferred.
 
+## PTA-9B Partner portal detail boundary (DEC-134)
+
+**PTA_9B_COMPLETE** on 2026-11-03. A bound synthetic Partner user can open one
+of its currently visible approved Activities, see the approved planning facts,
+successful Validator approvals and definitive financial result after closure,
+and download a sanitized French Partner Fiche built from the same allowlist.
+
+[Plan 50](rebuild/50-pta9b-partner-details-plan.md) defines the bounded contract;
+[status 51](rebuild/51-pta9b-implementation-status.md) records PostgreSQL/API,
+OpenAPI, React, Chromium and mandatory independent correction/re-review evidence.
+Two GET responsibilities were added with no migration, table, stored artifact or
+general report layer. Attachments, Partner exports, internal review facts, real
+identities and production remain deferred.
+
 ## PTA-9A Partner portal foundation boundary (DEC-133)
 
 **PTA_9A_COMPLETE** on 2026-11-03. Admins can invite several synthetic Partner
@@ -699,7 +713,7 @@ not another externally authored execution prompt. Stop after the authorized slic
 | 4. Annual metrics and Fiche | Current whole-PTA metrics, the regenerable per-Activity French Fiche PDF and the current-PTA CSV are implemented. Historical as-of reconstruction remains separate. | DEC-121/status 26, DEC-122/status 28 and DEC-132/status 46 define the bounded outputs. File references activate only with slice 6. |
 | 5. Administrative relance | Implemented: focused 21-day dispatcher, durable recipient/channel outcomes, sidebar notification centre and one synthetic email attempt per cycle. Browser push, real mail and production scheduling remain separate. | DEC-124/status 32 record due/reschedule/closure/deduplication, delivery, pagination, online-only UI and independent-review evidence. No generic notification platform. |
 | 6. Guarded optional documents | Activity upload/list/download/image preview plus reasoned withdrawal and optional linked correction are implemented. Generic contexts/categories/version engines remain excluded; optional external-virement/reversement evidence requires a later real need. | Existing guarded Activity routes, DEC-125/128/131 and their status evidence. Partner files remain hidden until their visibility decision; production storage/scanning/retention remains external. |
-| 7. Partner portal | Foundation implemented: several individually invited read-only identities may share one permanent Partner binding and see only that Partner's Projects/PTAs, current metrics and effective approved Activity baselines. Drafts, candidates, internal facts, audit, administration and files are hidden. | DEC-133/status 48 cover the foundation. Final-decision detail, Fiches, completed-finance detail, exports and attachment visibility remain later bounded slices; real mail/OTP acceptance and production remain gates. |
+| 7. Partner portal | Foundation and Activity detail implemented: several individually invited read-only identities may share one permanent Partner binding and see only that Partner's Projects/PTAs, current metrics, effective approved Activity baselines, sanitized final decisions, definitive closed finance and Partner Fiches. Drafts, candidates, internal facts, audit, administration and files are hidden. | DEC-133/status 48 and DEC-134/status 51 cover the implemented portal. Exports and attachment visibility remain later bounded slices; real mail/OTP acceptance and production remain gates. |
 
 Each slice covers its schema/command/API/consumer/test changes as one coherent
 behavioral change. Backend work can proceed without screen layouts, but no
