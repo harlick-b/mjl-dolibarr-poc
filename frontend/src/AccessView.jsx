@@ -155,6 +155,29 @@ function listQuery(api, principal, kind, filters, onDenied) {
   }
 }
 
+async function partnerOptions(api, signal) {
+  const data = []
+  let path = '/api/v1/partners?limit=100'
+  const seen = new Set()
+  while (path) {
+    if (seen.has(path)) throw new Error('Pagination des Partenaires invalide.')
+    seen.add(path)
+    const page = await api.request(path, { signal })
+    if (!Array.isArray(page.data))
+      throw new Error('Liste des Partenaires invalide.')
+    data.push(...page.data.filter((partner) => partner.active))
+    if (!page.next) break
+    const next = new URL(page.next, window.location.origin)
+    if (
+      next.origin !== window.location.origin ||
+      next.pathname !== '/api/v1/partners'
+    )
+      throw new Error('Pagination des Partenaires invalide.')
+    path = `${next.pathname}${next.search}`
+  }
+  return data
+}
+
 function Accounts({ session, onDenied, checking }) {
   const { api } = useAPI()
   const client = useQueryClient()
@@ -222,6 +245,22 @@ function Accounts({ session, onDenied, checking }) {
   const invitations = useQuery(
     listQuery(api, session.user.id, 'invitations', invitationFilters, denied),
   )
+  const partners = useQuery({
+    queryKey: ['access', session.user.id, 'partners'],
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+    networkMode: 'always',
+    enabled: dialog?.kind === 'invite',
+    queryFn: async ({ signal }) => {
+      try {
+        return await partnerOptions(api, signal)
+      } catch (error) {
+        if ([401, 403].includes(error.status)) denied(error.status)
+        throw error
+      }
+    },
+  })
   const changeSearch = (values) =>
     navigate({ to: '/access/users', search: { ...search, ...values } })
   async function submit(event) {
@@ -234,9 +273,16 @@ function Accounts({ session, onDenied, checking }) {
       : dialog.kind === 'invite'
         ? 'invitations'
         : `invitations/${dialog.item.id}/${dialog.kind}`
+    const role = data.get('role')
     const body =
       dialog.kind === 'invite'
-        ? { email: data.get('email'), role: data.get('role') }
+        ? {
+            email: data.get('email'),
+            role,
+            ...(role === 'PARTENAIRE'
+              ? { partner_id: data.get('partner_id') }
+              : {}),
+          }
         : {
             expected_version: dialog.item.version,
             ...(dialog.kind === 'role' ? { role: data.get('role') } : {}),
@@ -405,15 +451,19 @@ function Accounts({ session, onDenied, checking }) {
                         u.role !== 'ADMIN_PLATEFORME' &&
                         u.id !== session.user.id ? (
                           <div className="access-actions">
-                            <button
-                              type="button"
-                              disabled={mutation.isPending || users.isFetching}
-                              onClick={() =>
-                                setDialog({ kind: 'role', item: u })
-                              }
-                            >
-                              Modifier le rôle
-                            </button>
+                            {u.role !== 'PARTENAIRE' && (
+                              <button
+                                type="button"
+                                disabled={
+                                  mutation.isPending || users.isFetching
+                                }
+                                onClick={() =>
+                                  setDialog({ kind: 'role', item: u })
+                                }
+                              >
+                                Modifier le rôle
+                              </button>
+                            )}
                             <button
                               type="button"
                               disabled={mutation.isPending || users.isFetching}
@@ -539,6 +589,7 @@ function Accounts({ session, onDenied, checking }) {
           {dialog && (
             <AccessDialog
               dialog={dialog}
+              partners={partners}
               pending={mutation.isPending}
               checking={checking}
               close={() => setDialog(null)}
@@ -589,8 +640,9 @@ function Pagination({ query, page, change, label }) {
     </nav>
   )
 }
-function AccessDialog({ dialog, pending, checking, close, submit }) {
+function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
   const ref = useRef(null)
+  const [inviteRole, setInviteRole] = useState('AGENT_SAISIE')
   useEffect(() => {
     const node = ref.current
     const trigger = document.activeElement
@@ -668,7 +720,11 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
             </label>
             <label>
               Rôle
-              <select name="role" defaultValue="AGENT_SAISIE">
+              <select
+                name="role"
+                value={inviteRole}
+                onChange={(event) => setInviteRole(event.target.value)}
+              >
                 {Object.entries(roleLabels)
                   .filter(([r]) => r !== 'ADMIN_PLATEFORME')
                   .map(([r, l]) => (
@@ -678,6 +734,28 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
                   ))}
               </select>
             </label>
+            {inviteRole === 'PARTENAIRE' && (
+              <label>
+                Partenaire
+                <select
+                  name="partner_id"
+                  required
+                  disabled={partners.isPending}
+                >
+                  <option value="">Sélectionner un Partenaire</option>
+                  {partners.data?.map((partner) => (
+                    <option key={partner.id} value={partner.id}>
+                      {partner.name}
+                    </option>
+                  ))}
+                </select>
+                {partners.isError && (
+                  <small role="alert">
+                    Liste des Partenaires indisponible.
+                  </small>
+                )}
+              </label>
+            )}
           </div>
         ) : dialog.kind === 'role' ? (
           <div className="access-dialog-fields">
@@ -686,7 +764,10 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
               Nouveau rôle
               <select name="role" defaultValue={dialog.item.role}>
                 {Object.entries(roleLabels)
-                  .filter(([role]) => role !== 'ADMIN_PLATEFORME')
+                  .filter(
+                    ([role]) =>
+                      !['ADMIN_PLATEFORME', 'PARTENAIRE'].includes(role),
+                  )
                   .map(([role, label]) => (
                     <option key={role} value={role}>
                       {label}

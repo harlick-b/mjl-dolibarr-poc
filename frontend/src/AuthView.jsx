@@ -412,6 +412,11 @@ export function AuthView() {
             Gérer les utilisateurs
           </Link>
         )}
+        {session.data.user.role === 'PARTENAIRE' && (
+          <Link to="/partner" className="auth-secondary">
+            Accéder à mon espace Partenaire
+          </Link>
+        )}
         <form onSubmit={(e) => submit(e, 'logout', {}, '/login')}>
           <button className="auth-primary" disabled={disabled}>
             Se déconnecter

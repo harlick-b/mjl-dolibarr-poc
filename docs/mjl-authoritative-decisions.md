@@ -30,6 +30,27 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-9A Partner portal foundation authorization (DEC-133)
+
+The user instructed Codex to audit and implement the next slice, then supplied
+the Partner portal visual references on 2026-11-03. [Plan
+47](rebuild/47-pta9a-partner-portal-foundation-plan.md) is the bounded contract.
+
+An Admin may invite several synthetic `PARTENAIRE` identities for one active
+Partner. Each identity remains permanently bound to that Partner, uses the
+existing password and OTP journey, and may be deactivated individually. The
+separate read-only portal projects only that Partner's Projects, annual PTAs,
+current whole-PTA metrics and effective approved Activity baselines. Drafts,
+candidate revisions, internal identities and assignments, comments, evidence,
+audit, administration, exports, Fiches and detailed settlement remain hidden.
+Migration `0020_pta9a` adds the role and exclusive Partner binding without a new
+table. [Status 48](rebuild/48-pta9a-implementation-status.md) owns final evidence
+and the mandatory independent correction/re-review result.
+
+Partner final-decision detail, Fiches, completed financial detail, exports,
+attachment visibility, Partner-entity lifecycle, real accounts and production
+remain separately deferred.
+
 ## PTA-8A current-PTA CSV authorization (DEC-132)
 
 The user instructed Codex to audit and implement the next slice on 2026-11-03.

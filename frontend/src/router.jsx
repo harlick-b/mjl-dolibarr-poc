@@ -8,6 +8,7 @@ import { ExecutionView } from './ExecutionView'
 import { PlanningView } from './PlanningView'
 import { NotificationView } from './NotificationView'
 import { AuditHistoryView } from './AuditHistoryView'
+import { PartnerPortalView } from './PartnerPortalView'
 import { healthQuery } from './health'
 import {
   MutationCache,
@@ -65,6 +66,32 @@ function WorkspaceShell() {
       session.data?.user?.role === 'AGENT_SAISIE',
     gcTime: 0,
   })
+  if (session.data?.user?.role === 'PARTENAIRE')
+    return (
+      <div className="workspace-shell">
+        <aside className="workspace-sidebar partner-sidebar">
+          <Link
+            to="/partner"
+            className="workspace-brand"
+            aria-label="MJL — espace Partenaire"
+          >
+            <img src="/icon-192.png" alt="" width="36" height="36" /> MJL
+          </Link>
+          <p>Espace Partenaire · Lecture seule</p>
+          <nav aria-label="Espace Partenaire">
+            <Link to="/partner" activeProps={{ 'aria-current': 'page' }}>
+              <House aria-hidden="true" size={19} /> Vue d’ensemble
+            </Link>
+            <Link to="/identity">
+              <FolderKanban aria-hidden="true" size={19} /> Mon compte
+            </Link>
+          </nav>
+        </aside>
+        <main className="workspace-main">
+          <Outlet />
+        </main>
+      </div>
+    )
   return (
     <div className="workspace-shell">
       <aside className="workspace-sidebar">
@@ -120,6 +147,7 @@ function Shell() {
   )
     return <Outlet />
   if (
+    path === '/partner' ||
     path === '/notifications' ||
     path === '/history' ||
     path.startsWith('/projects') ||
@@ -305,6 +333,7 @@ export function makeRouter(history) {
         'AGENT_SAISIE',
         'AGENT_VERIFICATEUR',
         'VALIDATEUR_DEFINITIF',
+        'PARTENAIRE',
       ].includes(search.role)
         ? search.role
         : '',
@@ -337,6 +366,26 @@ export function makeRouter(history) {
         await context.queryClient.fetchQuery(sessionQuery)
       } catch {
         /* View distinguishes denied and unavailable. */
+      }
+    },
+  })
+  const partnerPortal = createRoute({
+    getParentRoute: () => root,
+    path: '/partner',
+    component: PartnerPortalView,
+    gcTime: 0,
+    validateSearch: (search) => ({
+      project: String(search.project || '').slice(0, 36),
+      pta: String(search.pta || '').slice(0, 36),
+      projectCursor: String(search.projectCursor || '').slice(0, 512),
+      ptaCursor: String(search.ptaCursor || '').slice(0, 512),
+      activityCursor: String(search.activityCursor || '').slice(0, 512),
+    }),
+    loader: async ({ context }) => {
+      try {
+        await context.queryClient.fetchQuery(sessionQuery)
+      } catch {
+        /* The protected view owns denial and unavailable states. */
       }
     },
   })
@@ -440,6 +489,7 @@ export function makeRouter(history) {
       health,
       ...authRoutes,
       access,
+      partnerPortal,
       ...planningRoutes,
       ...executionRoutes,
       notifications,

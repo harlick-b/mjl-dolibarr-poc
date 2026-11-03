@@ -88,6 +88,27 @@
   max-width: 1120px;
   padding: 48px;
 }
+.partner-sidebar > p {
+  margin: -12px 12px 24px;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+}
+.partner-eyebrow {
+  margin: 0 0 6px;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.partner-readonly {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: #fff;
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+}
 .notification-badge {
   margin-left: auto;
   min-width: 24px;
@@ -98,6 +119,7 @@
   font-size: 12px;
   text-align: center;
 }
+
 .notification-list {
   display: grid;
   list-style: none;
@@ -903,4 +925,18 @@
   .access-main table {
     min-width: 540px;
   }
+}
+
+.partner-portal .planning-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+.partner-portal .planning-list div {
+  display: grid;
+  gap: 4px;
+}
+.partner-portal .planning-list small,
+.partner-portal .planning-list span {
+  color: var(--color-muted-foreground);
 }

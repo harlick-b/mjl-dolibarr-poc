@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { App, makeRouter } from './router'
@@ -217,6 +224,14 @@ test('ordinary active rows expose lifecycle actions but Admin and inactive rows 
       state: 'inactive',
       version: 3,
     },
+    {
+      id: 'partner-user',
+      email: 'partner@example.test',
+      role: 'PARTENAIRE',
+      state: 'active',
+      version: 1,
+      partner_id: 'partner-1',
+    },
   ]
   vi.stubGlobal(
     'fetch',
@@ -228,7 +243,7 @@ test('ordinary active rows expose lifecycle actions but Admin and inactive rows 
               ? session()
               : {
                   items: url.includes('/users?') ? items : [],
-                  total: url.includes('/users?') ? 3 : 0,
+                  total: url.includes('/users?') ? 4 : 0,
                 },
           ),
         ),
@@ -237,12 +252,150 @@ test('ordinary active rows expose lifecycle actions but Admin and inactive rows 
   )
   mount()
   expect(
-    await screen.findByRole('button', { name: 'Modifier le rôle' }),
-  ).toBeVisible()
-  expect(screen.getAllByRole('button', { name: 'Désactiver' })).toHaveLength(1)
+    await screen.findAllByRole('button', { name: 'Modifier le rôle' }),
+  ).toHaveLength(1)
+  expect(screen.getAllByRole('button', { name: 'Désactiver' })).toHaveLength(2)
   expect(
     screen.queryByRole('button', { name: /réactiver|réinviter/i }),
   ).not.toBeInTheDocument()
+})
+
+test('Admin binds a Partner invitation to the selected Partner', async () => {
+  let invitationBody
+  const fetch = vi.fn((url, options = {}) => {
+    if (options.method === 'POST') {
+      invitationBody = JSON.parse(options.body)
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: 'invitation',
+            user_id: 'partner-user',
+            email: invitationBody.email,
+            role: invitationBody.role,
+            partner_id: invitationBody.partner_id,
+            state: 'delivered',
+            delivery_status: 'delivered',
+            version: 1,
+          }),
+        ),
+      )
+    }
+    if (String(url).includes('/auth/'))
+      return Promise.resolve(new Response(JSON.stringify(session())))
+    if (String(url).includes('/partners?'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            String(url).includes('cursor=second')
+              ? {
+                  object: 'list',
+                  count: 1,
+                  data: [
+                    {
+                      id: 'partner-1',
+                      name: 'Partenaire Démo',
+                      active: true,
+                    },
+                  ],
+                  next: null,
+                  previous: `${window.location.origin}/api/v1/partners?limit=100`,
+                }
+              : {
+                  object: 'list',
+                  count: 1,
+                  data: [{ id: 'partner-0', name: 'Premier', active: true }],
+                  next: `${window.location.origin}/api/v1/partners?limit=100&cursor=second`,
+                  previous: null,
+                },
+          ),
+        ),
+      )
+    return Promise.resolve(
+      new Response(JSON.stringify({ items: [], total: 0, page: 1, size: 20 })),
+    )
+  })
+  vi.stubGlobal('fetch', fetch)
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  mount()
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
+  )
+  const dialog = screen.getByRole('dialog')
+  fireEvent.change(within(dialog).getByLabelText('Rôle'), {
+    target: { value: 'PARTENAIRE' },
+  })
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.some(([url]) => String(url).includes('/partners?')),
+    ).toBe(true),
+  )
+  expect(await screen.findByText('Partenaire Démo')).toBeVisible()
+  fireEvent.change(within(dialog).getByLabelText('Adresse e-mail'), {
+    target: { value: 'portal@example.test' },
+  })
+  fireEvent.change(within(dialog).getByLabelText('Partenaire'), {
+    target: { value: 'partner-1' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Envoyer l’invitation' }))
+  await waitFor(() =>
+    expect(invitationBody).toEqual({
+      email: 'portal@example.test',
+      role: 'PARTENAIRE',
+      partner_id: 'partner-1',
+    }),
+  )
+})
+
+test('Partner option authorization loss clears the Admin workspace', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/'))
+        return Promise.resolve(new Response(JSON.stringify(session())))
+      if (path.includes('/partners?'))
+        return Promise.resolve(new Response('{}', { status: 403 }))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ items: [], total: 0, page: 1, size: 20 }),
+        ),
+      )
+    }),
+  )
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  try {
+    const router = mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
+    )
+    fireEvent.change(
+      screen.getByRole('dialog').querySelector('[name="role"]'),
+      {
+        target: { value: 'PARTENAIRE' },
+      },
+    )
+    expect(
+      await screen.findByRole('heading', { name: 'Accès à vérifier' }),
+    ).toBeVisible()
+    expect(
+      router.options.context.queryClient.getQueriesData({
+        queryKey: ['access'],
+      }),
+    ).toEqual([])
+  } finally {
+    delete HTMLDialogElement.prototype.showModal
+    delete HTMLDialogElement.prototype.close
+  }
 })
 
 test('late lifecycle completion after offline invalidation cannot restore protected queries', async () => {

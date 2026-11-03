@@ -252,7 +252,15 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
         "/api/v1/access/users?email=pending&role=AGENT_VERIFICATEUR&size=1"
     ).json()
     assert result["total"] == 1 and len(result["items"]) == 1
-    assert set(result["items"][0]) == {"id", "email", "role", "state", "version"}
+    assert set(result["items"][0]) == {
+        "id",
+        "email",
+        "role",
+        "state",
+        "version",
+        "partner_id",
+    }
+    assert result["items"][0]["partner_id"] is None
     invitation = admin.get(path + "?email=pending").json()["items"][0]
     assert set(invitation) == {
         "id",
@@ -263,7 +271,9 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
         "delivery_status",
         "expires_at",
         "version",
+        "partner_id",
     }
+    assert invitation["partner_id"] is None
     assert admin.get("/api/v1/access/users?email=%25").json()["total"] == 0
     original = admin.get(path + "?email=admin").json()["items"][0]
     for action in ["resend", "revoke"]:

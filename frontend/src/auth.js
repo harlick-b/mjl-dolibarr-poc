@@ -22,4 +22,5 @@ export const roleLabels = {
   AGENT_SAISIE: 'Agent de saisie',
   AGENT_VERIFICATEUR: 'Agent superviseur et prévalidateur',
   VALIDATEUR_DEFINITIF: 'Validateur définitif',
+  PARTENAIRE: 'Partenaire',
 }

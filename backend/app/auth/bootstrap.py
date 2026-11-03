@@ -5,6 +5,7 @@ import os
 
 from sqlalchemy.exc import SQLAlchemyError
 
+import app.planning.models  # noqa: F401
 from app.auth.policy import load_policy
 from app.auth.service import AuthError, AuthService
 from app.config import database_url

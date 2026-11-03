@@ -16,7 +16,13 @@ class User(Base):
     __table_args__ = (
         CheckConstraint(
             "role IN ('ADMIN_PLATEFORME','AGENT_SAISIE',"
-            "'AGENT_VERIFICATEUR','VALIDATEUR_DEFINITIF')"
+            "'AGENT_VERIFICATEUR','VALIDATEUR_DEFINITIF','PARTENAIRE')",
+            name="auth_user_role_check",
+        ),
+        CheckConstraint(
+            "(role='PARTENAIRE' AND partner_id IS NOT NULL) OR "
+            "(role<>'PARTENAIRE' AND partner_id IS NULL)",
+            name="auth_user_partner_binding",
         ),
         CheckConstraint("state IN ('pending','active','inactive')"),
         CheckConstraint("state = 'pending' OR password_hash IS NOT NULL"),
@@ -31,6 +37,7 @@ class User(Base):
     state: Mapped[str] = mapped_column(String(16), default="pending")
     password_hash: Mapped[str | None] = mapped_column(String(255))
     version: Mapped[int] = mapped_column(default=1)
+    partner_id: Mapped[str | None] = mapped_column(ForeignKey("pta_partner.id"))
 
 
 class Invitation(Base):

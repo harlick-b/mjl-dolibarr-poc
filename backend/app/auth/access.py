@@ -5,11 +5,11 @@ from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import APIKeyCookie
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.auth.dto import BusinessRole, ErrorResponse, Identity, Role
+from app.auth.dto import BusinessRole, ErrorResponse, Identity, InvitableRole, Role
 from app.auth.models import Audit, Invitation, User
 from app.auth.policy import synthetic_email
 from app.auth.routes import Auth, Input, evidence
@@ -74,6 +74,7 @@ class InvitationItem(Input):
     delivery_status: Literal["delivered", "failed", "unconfirmed"]
     expires_at: datetime
     version: int
+    partner_id: str | None = None
 
 
 class Users(Input):
@@ -92,12 +93,19 @@ class Invitations(Input):
 
 class Invite(Input):
     email: str = Field(max_length=254)
-    role: BusinessRole
+    role: InvitableRole
+    partner_id: str | None = Field(default=None, max_length=36)
 
     @field_validator("email")
     @classmethod
     def normalized_email(cls, value: str) -> str:
         return synthetic_email(value)
+
+    @model_validator(mode="after")
+    def binding_matches_role(self) -> "Invite":
+        if (self.role == "PARTENAIRE") != (self.partner_id is not None):
+            raise ValueError("Partner binding must match role")
+        return self
 
 
 class Version(Input):
@@ -135,6 +143,7 @@ def invitation_item(db: Session, user: User, invitation: Invitation) -> Invitati
         ),
         expires_at=invitation.expires_at,
         version=invitation.version,
+        partner_id=user.partner_id,
         delivery_status="delivered"
         if outcome == "sent"
         else "failed"
@@ -183,6 +192,7 @@ def users(
                     id=u.id,
                     email=u.email,
                     role=cast(Role, u.role),
+                    partner_id=u.partner_id,
                     state=cast(Literal["pending", "active", "inactive"], u.state),
                     version=u.version,
                 )
@@ -231,9 +241,17 @@ def invite(body: Invite, request: Request, auth: Auth) -> InvitationItem:
     with Session(auth.engine) as db, db.begin():
         db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
         actor = admin(db, auth, request)
+        if body.partner_id:
+            from app.planning.models import Partner
+
+            partner = db.get(Partner, body.partner_id, with_for_update=True)
+            if not partner or partner.context_id != "MJL":
+                raise AuthError(404, "partner_not_found")
+            if not partner.active:
+                raise AuthError(409, "partner_inactive")
         if db.scalar(select(User.id).where(User.email == body.email)):
             raise AuthError(409, "account_exists")
-        user = User(email=body.email, role=body.role)
+        user = User(email=body.email, role=body.role, partner_id=body.partner_id)
         db.add(user)
         db.flush()
         invitation = Invitation(user_id=user.id)
@@ -343,8 +361,10 @@ class Deactivation(Version):
     response_model=UserItem,
     openapi_extra=MUTATION_HEADERS,
     description=(
-        "Restricted synthetic ordinary active accounts only. Exactly one role change "
-        "or deactivation. 409 for stale/ineligible state or eligibility_unverified. "
+        "Restricted synthetic active accounts only. Exactly one ordinary internal "
+        "role change or one ordinary/Partner deactivation; Partner role changes and "
+        "rebinding are forbidden. 409 for stale/ineligible state or "
+        "eligibility_unverified. "
         "Requires the exact operator-verified PTA schema and rejects current "
         "assignments."
     ),
@@ -360,6 +380,8 @@ def lifecycle(
             raise AuthError(404, "account_not_found")
         if user.id == actor.id or user.role == "ADMIN_PLATEFORME":
             raise AuthError(403, "admin_target_forbidden")
+        if isinstance(body, RoleChange) and user.role == "PARTENAIRE":
+            raise AuthError(409, "account_ineligible")
         auth.lifecycle_eligible(db, user.id)
         if user.state != "active":
             raise AuthError(409, "account_ineligible")
@@ -410,4 +432,5 @@ def lifecycle(
             role=cast(Role, user.role),
             state=cast(Literal["pending", "active", "inactive"], user.state),
             version=user.version,
+            partner_id=user.partner_id,
         )

@@ -105,7 +105,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0019_pta7b"]:
+        if revisions != ["0020_pta9a"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -166,6 +166,8 @@ class AuthService:
             "zero_spending_prevalidation_same_declaration",
             "document_withdrawal_reason",
             "document_withdrawal_not_self",
+            "auth_user_partner_binding",
+            "auth_user_partner_immutable",
         }
         found = set(
             db.scalars(
@@ -175,6 +177,9 @@ class AuthService:
                 UNION
                 SELECT indexname FROM pg_catalog.pg_indexes
                 WHERE indexname = ANY(:names)
+                UNION
+                SELECT tgname FROM pg_catalog.pg_trigger
+                WHERE tgname = ANY(:names) AND NOT tgisinternal
                 """),
                 {"names": list(required_constraints)},
             )
@@ -242,7 +247,8 @@ class AuthService:
                      'pta_preserve_activity_document')
                      OR p.proname IN ('pta_preserve_zero_spending',
                        'pta_validate_zero_spending_state',
-                       'pta_validate_activity_document_withdrawal')
+                       'pta_validate_activity_document_withdrawal',
+                       'auth_preserve_partner_binding')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -251,7 +257,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "c9d7a2e6b5b036c2bbe2fcdbb64b5fdb7eaaeeb98feaaea72d205f62609b9dd7"
+            "5e556766e799caa02d3fb077938c6c6a948615a46b64f72affcc77b8d3eefa5d"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -357,6 +363,7 @@ class AuthService:
                 "as_of",
                 "replacement_document_id",
                 "pta_id",
+                "partner_id",
             }
             if set(details) - allowed or any(
                 type(v) not in (str, int) for v in details.values()
@@ -1480,6 +1487,7 @@ class AuthService:
             "invitation_id": invitation.id,
             "generation": invitation.generation,
             "role": user.role,
+            **({"partner_id": user.partner_id} if user.partner_id else {}),
             "user_state": user.state,
             "user_version": user.version,
             "before_state": previous,
@@ -1506,6 +1514,7 @@ class AuthService:
         return bool(
             facts
             and facts.get("role") == user.role
+            and facts.get("partner_id") == user.partner_id
             and facts.get("user_version") == user.version
             and facts.get("user_state") == user.state
         )
@@ -1927,7 +1936,8 @@ class AuthService:
 
     def user_proof(self, user: User) -> str:
         return self.keyed(
-            f"{user.id}:{user.version}:{user.state}:{user.role}:{user.password_hash}"
+            f"{user.id}:{user.version}:{user.state}:{user.role}:"
+            f"{user.partner_id or ''}:{user.password_hash}"
         )
 
     def csrf_token(self, context_id: str) -> str:
@@ -1993,7 +2003,12 @@ class AuthService:
         if context.state == "verified":
             user = db.get(User, context.user_id)
             assert user
-            result["user"] = {"id": user.id, "email": user.email, "role": user.role}
+            result["user"] = {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role,
+                "partner_id": user.partner_id,
+            }
             result["expires_at"] = min(
                 context.expires_at, context.last_activity + timedelta(seconds=86400)
             ).isoformat()

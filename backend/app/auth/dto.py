@@ -11,8 +11,15 @@ class ErrorResponse(BaseModel):
 
 
 BusinessRole = Literal["AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"]
+InvitableRole = Literal[
+    "AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF", "PARTENAIRE"
+]
 Role = Literal[
-    "ADMIN_PLATEFORME", "AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"
+    "ADMIN_PLATEFORME",
+    "AGENT_SAISIE",
+    "AGENT_VERIFICATEUR",
+    "VALIDATEUR_DEFINITIF",
+    "PARTENAIRE",
 ]
 
 
@@ -20,6 +27,7 @@ class Identity(BaseModel):
     id: str
     email: str
     role: Role
+    partner_id: str | None = None
 
 
 class Anonymous(BaseModel):

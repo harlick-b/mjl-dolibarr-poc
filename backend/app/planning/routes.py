@@ -681,7 +681,17 @@ def partners(
     args: Annotated[tuple[int, str | None], Depends(list_args)],
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
-        actor = principal(db, auth, evidence(request, auth)[0])
+        actor = principal(
+            db,
+            auth,
+            evidence(request, auth)[0],
+            roles={
+                "ADMIN_PLATEFORME",
+                "AGENT_SAISIE",
+                "AGENT_VERIFICATEUR",
+                "VALIDATEUR_DEFINITIF",
+            },
+        )
         return list_rows(
             db,
             auth,
