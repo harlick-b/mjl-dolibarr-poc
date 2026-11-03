@@ -140,6 +140,9 @@ def active_request(
 def assert_disbursement_unfrozen(db: Session, activity_id: str) -> None:
     if active_request(db, activity_id, lock=True):
         raise AuthError(409, "disbursement_frozen")
+    from app.planning.zero_spending import assert_zero_spending_unfrozen
+
+    assert_zero_spending_unfrozen(db, activity_id)
 
 
 def decisions(db: Session, request_id: str) -> list[DisbursementDecision]:
@@ -182,7 +185,7 @@ def excluded_reviewers(db: Session, item: Activity, submitter_id: str) -> set[st
 
 
 def verified_financial_basis(
-    db: Session, item: Activity, *, lock: bool = True
+    db: Session, item: Activity, *, lock: bool = True, allow_zero: bool = False
 ) -> tuple[int, list[dict[str, object]], set[str]]:
     revision, approved = approved_operations(db, item, lock=lock)
     operation_statement = (
@@ -224,7 +227,7 @@ def verified_financial_basis(
     ]
     total = sum(cast(int, row.actual_spent) for row, _ in approved)
     allocation = int(cast(str, revision.snapshot["allocation"]))
-    if total <= 0 or total > allocation:
+    if total < 0 or total > allocation or (total == 0 and not allow_zero):
         raise AuthError(409, "spending_ineligible")
 
     events = list(

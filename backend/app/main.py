@@ -28,6 +28,7 @@ from app.planning.reversement import router as reversement_router
 from app.planning.routes import router as planning_router
 from app.planning.virement import router as virement_router
 from app.planning.virement_confirmation import router as virement_confirmation_router
+from app.planning.zero_spending import router as zero_spending_router
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
@@ -56,6 +57,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(reversement_router)
     app.include_router(reminders_router)
     app.include_router(documents_router)
+    app.include_router(zero_spending_router)
     app.include_router(audit_history_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:

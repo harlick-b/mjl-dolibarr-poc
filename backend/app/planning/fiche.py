@@ -42,6 +42,8 @@ from app.planning.models import (
     VirementConfirmation,
     VirementDecision,
     VirementRequest,
+    ZeroSpendingDecision,
+    ZeroSpendingDeclaration,
 )
 from app.planning.routes import get_activity, locked_read
 from app.planning.service import principal
@@ -121,7 +123,14 @@ ACTIVITY_ACTION_LABELS = {
     "activity.transfer_cancel": "Annulation du transfert",
     "activity.closed": "Activité clôturée",
 }
-AUDIT_ACTION_LABELS = {**ACTIVITY_ACTION_LABELS, **EXECUTION_ACTION_LABELS}
+AUDIT_ACTION_LABELS = {
+    **ACTIVITY_ACTION_LABELS,
+    **EXECUTION_ACTION_LABELS,
+    "zero_spending.submit": "Déclaration sans dépense soumise",
+    "zero_spending.prevalidated": "Dépense nulle prévalidée",
+    "zero_spending.returned": "Déclaration sans dépense retournée",
+    "zero_spending.approved": "Dépense nulle validée",
+}
 
 
 def text(value: object | None) -> str:
@@ -220,10 +229,28 @@ def projection(
     reversements = rows(
         db, ReversementDeclaration, activity.id, ReversementDeclaration.recorded_at
     )
+    zero_declarations = rows(
+        db,
+        ZeroSpendingDeclaration,
+        activity.id,
+        ZeroSpendingDeclaration.submitted_at,
+    )
+    zero_ids = {item.id for item in zero_declarations}
+    zero_decisions = list(
+        db.scalars(
+            select(ZeroSpendingDecision)
+            .where(ZeroSpendingDecision.declaration_id.in_(zero_ids))
+            .order_by(ZeroSpendingDecision.decided_at)
+        )
+    )
     execution_actions = {
         "operation.execution_started",
         "operation.execution_recorded",
         "operation.execution_corrected",
+        "zero_spending.submit",
+        "zero_spending.prevalidated",
+        "zero_spending.returned",
+        "zero_spending.approved",
     }
     audits = list(
         db.scalars(
@@ -256,6 +283,8 @@ def projection(
             *(item.actor_id for item in virement_decisions),
             *(item.actor_id for item in confirmations),
             *(item.actor_id for item in reversements),
+            *(item.submitter_id for item in zero_declarations),
+            *(item.actor_id for item in zero_decisions),
             *(item.actor for item in audits),
         ]
         if value
@@ -281,6 +310,8 @@ def projection(
         "virement_decisions": virement_decisions,
         "confirmations": confirmations,
         "reversements": reversements,
+        "zero_declarations": zero_declarations,
+        "zero_decisions": zero_decisions,
         "audits": audits,
         "actors": actors,
         "generated_at": generated_at,
@@ -504,6 +535,28 @@ def render_fiche(data: dict[str, Any]) -> bytes:
 
     section("4. Autorisations financières")
     financial: list[tuple[str, str]] = []
+    for declaration in data["zero_declarations"]:
+        state = STATE_LABELS.get(declaration.state, text(declaration.state))
+        submitter = text(actors.get(declaration.submitter_id, declaration.submitter_id))
+        financial.append(
+            (
+                "Déclaration sans dépense",
+                f"{state} · soumise le {day(declaration.submitted_at)} par "
+                f"{submitter} · Motif : {text(declaration.reason)}",
+            )
+        )
+    for decision in data["zero_decisions"]:
+        outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
+        decision_actor = text(actors.get(decision.actor_id, decision.actor_id))
+        role = text(ROLE_LABELS.get(decision.actor_role, decision.actor_role))
+        reason = f" · Motif : {text(decision.reason)}" if decision.reason else ""
+        financial.append(
+            (
+                "Décision sans dépense",
+                f"{outcome} · {role} · {decision_actor} · "
+                f"{day(decision.decided_at)}{reason}",
+            )
+        )
     for request in data["disbursements"]:
         state = STATE_LABELS.get(request.state, text(request.state))
         submitter = text(actors.get(request.submitter_id, request.submitter_id))

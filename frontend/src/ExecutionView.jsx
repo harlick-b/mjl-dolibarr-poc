@@ -150,6 +150,23 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     ),
     enabled: screen === 'detail' && Boolean(params.activityId),
   })
+  const zeroSpending = useQuery({
+    ...executionQuery(
+      api,
+      session.user.id,
+      ['zero-spending', params.activityId, search.zeroSpendingCursor],
+      cursorPath(
+        `/activities/${params.activityId}/zero-spending-declarations`,
+        search.zeroSpendingCursor,
+      ),
+      onDenied,
+    ),
+    enabled:
+      screen === 'detail' &&
+      Boolean(params.activityId) &&
+      detail.data?.works_completed &&
+      detail.data?.spending_total === '0',
+  })
   const selectedFinance = useQuery({
     ...executionQuery(
       api,
@@ -383,6 +400,10 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           detail,
           history,
           finance,
+          ...(detail.data?.works_completed &&
+          detail.data?.spending_total === '0'
+            ? [zeroSpending]
+            : []),
           virements,
           ...(search.financeRequest ? [selectedFinance] : []),
           ...(virementRequestId ? [selectedVirement] : []),
@@ -414,6 +435,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       detail={detail.data}
       history={history.data}
       finance={finance.data}
+      zeroSpending={zeroSpending.data}
       selectedFinance={selectedFinance.data}
       virements={virements.data}
       selectedVirement={selectedVirement.data}
@@ -430,6 +452,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         detail.isFetching ||
         history.isFetching ||
         finance.isFetching ||
+        zeroSpending.isFetching ||
         selectedFinance.isFetching ||
         virements.isFetching ||
         selectedVirement.isFetching ||
@@ -463,6 +486,17 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       onFinanceSelect={(requestId) =>
         navigate({
           search: (current) => ({ ...current, financeRequest: requestId }),
+        })
+      }
+      onZeroSpendingPage={(link) =>
+        navigate({
+          search: (current) => ({
+            ...current,
+            zeroSpendingCursor: cursorFrom(
+              link,
+              `/activities/${params.activityId}/zero-spending-declarations`,
+            ),
+          }),
         })
       }
       onVirementPage={(link) =>
@@ -579,6 +613,7 @@ function ExecutionDetail({
   detail,
   history,
   finance,
+  zeroSpending,
   selectedFinance,
   virements,
   selectedVirement,
@@ -595,6 +630,7 @@ function ExecutionDetail({
   onHistoryPage,
   onFinancePage,
   onFinanceSelect,
+  onZeroSpendingPage,
   onVirementPage,
   onVirementSelect,
   onConfirmationPage,
@@ -611,6 +647,7 @@ function ExecutionDetail({
     reviewer_read_only: 'votre rôle permet uniquement la consultation',
     before_planned_start: 'la date de début planifiée n’est pas atteinte',
     disbursement_frozen: 'une autorisation de décaissement est en cours',
+    zero_spending_frozen: 'une déclaration sans dépense est en cours',
   }
   const historyLabels = {
     'operation.execution_started': 'Opération démarrée',
@@ -681,33 +718,47 @@ function ExecutionDetail({
           />
         ))}
       </div>
-      <DisbursementSection
-        detail={detail}
-        result={finance}
-        selected={selectedFinance}
-        role={role}
-        historicalPage={financeHistoryPage}
-        pending={pending}
-        mutate={mutateFinance}
-        onPage={onFinancePage}
-        onSelect={onFinanceSelect}
-      />
-      <VirementSection
-        detail={detail}
-        result={virements}
-        selected={selectedVirement}
-        confirmationHistory={confirmationHistory}
-        reversementHistory={reversementHistory}
-        selectedBySearch={virementSelectedBySearch}
-        role={role}
-        historicalPage={virementHistoryPage}
-        pending={pending}
-        mutate={mutateFinance}
-        onPage={onVirementPage}
-        onSelect={onVirementSelect}
-        onConfirmationPage={onConfirmationPage}
-        onReversementPage={onReversementPage}
-      />
+      {detail.works_completed && detail.spending_total === '0' && (
+        <ZeroSpendingSection
+          detail={detail}
+          result={zeroSpending}
+          role={role}
+          pending={pending}
+          mutate={mutateFinance}
+          onPage={onZeroSpendingPage}
+        />
+      )}
+      {detail.spending_total !== '0' && (
+        <>
+          <DisbursementSection
+            detail={detail}
+            result={finance}
+            selected={selectedFinance}
+            role={role}
+            historicalPage={financeHistoryPage}
+            pending={pending}
+            mutate={mutateFinance}
+            onPage={onFinancePage}
+            onSelect={onFinanceSelect}
+          />
+          <VirementSection
+            detail={detail}
+            result={virements}
+            selected={selectedVirement}
+            confirmationHistory={confirmationHistory}
+            reversementHistory={reversementHistory}
+            selectedBySearch={virementSelectedBySearch}
+            role={role}
+            historicalPage={virementHistoryPage}
+            pending={pending}
+            mutate={mutateFinance}
+            onPage={onVirementPage}
+            onSelect={onVirementSelect}
+            onConfirmationPage={onConfirmationPage}
+            onReversementPage={onReversementPage}
+          />
+        </>
+      )}
       <ClosureSection
         detail={detail}
         pending={pending}
@@ -757,6 +808,182 @@ function ExecutionDetail({
   )
 }
 
+function ZeroSpendingSection({
+  detail,
+  result,
+  role,
+  pending,
+  mutate,
+  onPage,
+}) {
+  const declarations = result?.data || []
+  const current = declarations.find((row) => row.state !== 'returned')
+  const currentIsOnNewerPage =
+    !current &&
+    Boolean(result?.previous) &&
+    detail.mutation_unavailable_reason === 'zero_spending_frozen'
+  const stateLabels = {
+    submitted: 'Soumise au Superviseur',
+    prevalidated: 'Prévalidée, en attente du Validateur',
+    returned: 'Retournée pour correction',
+    approved: 'Validée',
+  }
+  const version = current?.activity_version || detail.version
+  return (
+    <section className="planning-card" aria-labelledby="zero-spending-title">
+      <div className="planning-title">
+        <div>
+          <p className="eyebrow">Clôture sans dépense</p>
+          <h2 id="zero-spending-title">Déclaration de dépense nulle</h2>
+        </div>
+        {current && <strong>{stateLabels[current.state]}</strong>}
+      </div>
+      <p>
+        Confirmez pourquoi toutes les Opérations ont été réalisées sans dépense.
+        Cette déclaration remplace le parcours de décaissement uniquement après
+        la validation du Superviseur et du Validateur.
+      </p>
+      {current ? (
+        <>
+          <p className="review-progress">Motif : {current.reason}</p>
+          <ol className="review-timeline">
+            {current.decisions.map((decision) => (
+              <li key={decision.id}>
+                <strong>
+                  {decision.stage === 'supervisor'
+                    ? 'Superviseur'
+                    : 'Validateur'}{' '}
+                  · {stateLabels[decision.outcome] || decision.outcome}
+                </strong>
+                {decision.reason && <p>{decision.reason}</p>}
+              </li>
+            ))}
+          </ol>
+          <div className="planning-actions">
+            {current.allowed_actions.includes('prevalidate') && (
+              <Button
+                disabled={pending || !navigator.onLine}
+                onClick={() =>
+                  mutate(
+                    `/zero-spending-declarations/${current.id}/decisions`,
+                    { expected_version: version, decision: 'prevalidate' },
+                  )
+                }
+              >
+                <ShieldCheck size={16} /> Prévalider
+              </Button>
+            )}
+            {current.allowed_actions.includes('approve') && (
+              <Button
+                disabled={pending || !navigator.onLine}
+                onClick={() =>
+                  mutate(
+                    `/zero-spending-declarations/${current.id}/decisions`,
+                    { expected_version: version, decision: 'approve' },
+                  )
+                }
+              >
+                <ShieldCheck size={16} /> Valider
+              </Button>
+            )}
+          </div>
+          {current.allowed_actions.includes('return') && (
+            <form
+              className="planning-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                const data = new FormData(event.currentTarget)
+                mutate(`/zero-spending-declarations/${current.id}/decisions`, {
+                  expected_version: version,
+                  decision: 'return',
+                  reason: String(data.get('reason') || ''),
+                })
+              }}
+            >
+              <label>
+                Motif du retour
+                <textarea name="reason" required maxLength="4000" />
+              </label>
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={pending || !navigator.onLine}
+              >
+                Retourner
+              </Button>
+            </form>
+          )}
+        </>
+      ) : currentIsOnNewerPage ? (
+        <div className="planning-actions">
+          <p>La déclaration en cours se trouve sur une page plus récente.</p>
+          <Button variant="outline" onClick={() => onPage(null)}>
+            Revenir à la déclaration en cours
+          </Button>
+        </div>
+      ) : role === 'AGENT_SAISIE' ? (
+        <form
+          className="planning-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const data = new FormData(event.currentTarget)
+            mutate('/zero-spending-declarations', {
+              expected_version: detail.version,
+              expected_approved_revision_id: detail.approved_revision_id,
+              reason: String(data.get('reason') || ''),
+            })
+          }}
+        >
+          <label>
+            Motif de l’absence de dépense
+            <textarea name="reason" required maxLength="4000" />
+          </label>
+          <Button type="submit" disabled={pending || !navigator.onLine}>
+            Soumettre la déclaration
+          </Button>
+        </form>
+      ) : (
+        <p>Aucune déclaration sans dépense n’est en attente.</p>
+      )}
+      {declarations.some((row) => row.state === 'returned') && (
+        <details>
+          <summary>Déclarations retournées</summary>
+          <ol className="review-timeline">
+            {declarations
+              .filter((row) => row.state === 'returned')
+              .map((row) => (
+                <li key={row.id}>
+                  {stateLabels[row.state]} · {row.reason}
+                </li>
+              ))}
+          </ol>
+        </details>
+      )}
+      {(result?.previous || result?.next) && (
+        <nav
+          className="planning-actions"
+          aria-label="Pagination des déclarations sans dépense"
+        >
+          <Button
+            variant="outline"
+            disabled={!result.previous}
+            onClick={() => onPage(result.previous)}
+          >
+            Précédent
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!result.next}
+            onClick={() => onPage(result.next)}
+          >
+            Suivant
+          </Button>
+        </nav>
+      )}
+    </section>
+  )
+}
+
 function ClosureSection({ detail, pending, mutate }) {
   const blockerLabels = {
     planning_not_approved:
@@ -773,6 +1000,8 @@ function ClosureSection({ detail, pending, mutate }) {
     reversement_not_settled: 'Le reversement exact doit être enregistré.',
     financial_insufficiency_unresolved:
       'Les dépenses dépassent le montant approuvé.',
+    zero_spending_not_approved:
+      'La déclaration sans dépense doit être validée.',
   }
   const blockers = detail.closure_blockers || []
   return (
@@ -801,8 +1030,8 @@ function ClosureSection({ detail, pending, mutate }) {
       ) : (
         <>
           <p>
-            La clôture confirme que les travaux, le virement et le reversement
-            éventuel sont terminés.
+            La clôture confirme que les travaux et le règlement applicable sont
+            terminés.
           </p>
           {blockers.length > 0 && (
             <ul>

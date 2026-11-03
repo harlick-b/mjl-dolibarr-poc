@@ -24,6 +24,7 @@ from app.planning.models import (
     ReversementDeclaration,
     VirementConfirmation,
     VirementRequest,
+    ZeroSpendingDeclaration,
 )
 from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
 from app.planning.service import CONTEXT, Cursor, locked_mutation, page_rows, principal
@@ -293,11 +294,27 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
     try:
         from app.planning.disbursement import verified_financial_basis
 
-        spent, _operation_facts, _authors = verified_financial_basis(
-            db, item, lock=lock
+        spent, operation_facts, _authors = verified_financial_basis(
+            db, item, lock=lock, allow_zero=True
         )
     except AuthError as error:
         blockers.append(error.code)
+        return list(dict.fromkeys(blockers))
+    if spent == 0:
+        zero_statement = select(ZeroSpendingDeclaration).where(
+            ZeroSpendingDeclaration.activity_id == item.id,
+            ZeroSpendingDeclaration.state == "approved",
+            ZeroSpendingDeclaration.approved_revision_id == item.approved_revision_id,
+        )
+        if lock:
+            zero_statement = zero_statement.with_for_update()
+        zero_declaration = db.scalar(zero_statement)
+        if (
+            zero_declaration is None
+            or zero_declaration.snapshot.get("total") != "0"
+            or zero_declaration.snapshot.get("operations") != operation_facts
+        ):
+            blockers.append("zero_spending_not_approved")
         return list(dict.fromkeys(blockers))
     source_statement = select(DisbursementRequest).where(
         DisbursementRequest.activity_id == item.id,
@@ -367,6 +384,12 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
             DisbursementRequest.state != "cancelled",
         )
     )
+    zero_declaration = db.scalar(
+        select(ZeroSpendingDeclaration).where(
+            ZeroSpendingDeclaration.activity_id == item.id,
+            ZeroSpendingDeclaration.state != "returned",
+        )
+    )
     approved_disbursement = db.scalar(
         select(DisbursementRequest).where(
             DisbursementRequest.activity_id == item.id,
@@ -391,6 +414,8 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
     )
     if reason is None and financial is not None:
         reason = "disbursement_frozen"
+    if reason is None and zero_declaration is not None:
+        reason = "zero_spending_frozen"
     today = db.scalar(
         select(text("(clock_timestamp() AT TIME ZONE 'Africa/Porto-Novo')::date"))
     )

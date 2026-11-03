@@ -150,6 +150,10 @@ ACTION_LABELS = {
     "virement.submit": "Demande de virement soumise",
     "virement_confirmation.corrected": "Confirmation de virement corrigée",
     "virement_confirmation.declared": "Virement externe confirmé",
+    "zero_spending.approved": "Dépense nulle validée",
+    "zero_spending.prevalidated": "Dépense nulle prévalidée",
+    "zero_spending.returned": "Déclaration sans dépense retournée",
+    "zero_spending.submit": "Déclaration sans dépense soumise",
 }
 
 

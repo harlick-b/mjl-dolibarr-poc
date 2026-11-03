@@ -392,3 +392,7 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   the user to design an exception workflow, establish that the real business
   process can produce that case; otherwise preserve the exact bounded rule and
   remove the invented branch from active planning.
+- PostgreSQL JSON extraction returns SQL `NULL` for missing and JSON-null facts,
+  so `<>` does not make a trigger fail closed. Use null-safe comparisons such as
+  `IS DISTINCT FROM` for required snapshot values and test both missing and null
+  direct writes against the complete valid surrounding snapshot.

@@ -1,5 +1,135 @@
 import { expect, test } from '@playwright/test'
 
+test('PTA-7A Agent submits the zero-spending path without payment controls', async ({
+  page,
+}) => {
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  let declarations = empty
+  let mutations = 0
+  const detail = {
+    id: 'activity-zero',
+    pta_id: 'pta-1',
+    project_id: 'project-1',
+    reference: 'ACT-000100',
+    name: 'Activité réalisée sans dépense',
+    planned_start: '2026-10-01',
+    planned_end: '2026-10-30',
+    approved_allocation: '100000',
+    approved_revision_id: '11111111-1111-4111-8111-111111111111',
+    version: 7,
+    state: 'approved',
+    closure: null,
+    closure_blockers: ['zero_spending_not_approved'],
+    execution_paused: false,
+    pause_reason: null,
+    mutation_unavailable_reason: null,
+    completed_operations: 1,
+    operation_count: 1,
+    works_completed: true,
+    spending_total: '0',
+    virement_context: {
+      disbursement_request_id: null,
+      amount: null,
+      current_request_id: null,
+      current_state: null,
+      can_submit: false,
+      unavailable_reason: 'disbursement_required',
+    },
+    allowed_actions: ['read'],
+    operations: [
+      {
+        id: 'operation-1',
+        type_id: 'type-1',
+        type_label: 'Formation',
+        name: 'Réaliser la formation',
+        approved_allocation: '100000',
+        position: 1,
+        execution_started_at: '2026-10-01T09:00:00Z',
+        execution_completed: true,
+        actual_spent: '0',
+        execution_observation: 'Moyens propres utilisés.',
+        variance: '-100000',
+        allowed_actions: ['record'],
+      },
+    ],
+  }
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v1/auth/session')
+      return route.fulfill({
+        json: {
+          state: 'verified',
+          csrf: 'csrf',
+          user: { id: 'agent', role: 'AGENT_SAISIE' },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        },
+      })
+    if (
+      path.endsWith('/zero-spending-declarations') &&
+      request.method() === 'POST'
+    ) {
+      mutations += 1
+      const body = request.postDataJSON()
+      declarations = {
+        ...empty,
+        count: 1,
+        data: [
+          {
+            id: 'zero-1',
+            activity_id: detail.id,
+            approved_revision_id: detail.approved_revision_id,
+            snapshot: { total: '0', operations: [] },
+            reason: body.reason,
+            state: 'submitted',
+            submitter_id: 'agent',
+            submitted_at: '2026-11-03T10:00:00Z',
+            decisions: [],
+            allowed_actions: ['read'],
+          },
+        ],
+      }
+      return route.fulfill({
+        json: { ...declarations.data[0], activity_version: 8 },
+      })
+    }
+    if (path.endsWith('/zero-spending-declarations'))
+      return route.fulfill({ json: declarations })
+    if (path.endsWith('/activities/activity-zero/execution'))
+      return route.fulfill({ json: detail })
+    if (
+      path.endsWith('/execution/history') ||
+      path.endsWith('/disbursement-requests') ||
+      path.endsWith('/virement-requests')
+    )
+      return route.fulfill({ json: empty })
+    return route.fulfill({ status: 404, json: {} })
+  })
+  await page.goto('/execution/activities/activity-zero')
+  await expect(
+    page.getByRole('heading', { name: 'Déclaration de dépense nulle' }),
+  ).toBeVisible()
+  await expect(page.getByText('Autorisation de décaissement')).toHaveCount(0)
+  await page.getByLabel('Motif de l’absence de dépense').fill('Moyens propres.')
+  await page.context().setOffline(true)
+  await expect(
+    page.getByRole('heading', { name: 'Vérification de l’accès' }),
+  ).toBeVisible()
+  expect(mutations).toBe(0)
+  await page.context().setOffline(false)
+  await page.reload()
+  await page.getByLabel('Motif de l’absence de dépense').fill('Moyens propres.')
+  await page.getByRole('button', { name: 'Soumettre la déclaration' }).click()
+  await expect(page.getByText('Motif : Moyens propres.')).toBeVisible()
+  expect(mutations).toBe(1)
+})
+
 test('PTA-3F eligible Agent closes and keeps terminal evidence', async ({
   page,
 }) => {

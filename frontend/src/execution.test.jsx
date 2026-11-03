@@ -139,6 +139,365 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
   )
 })
 
+test('Agent submits a zero-spending declaration without financial requests', async () => {
+  const user = userEvent.setup()
+  const current = {
+    ...detail({ started: true, completed: true }),
+    spending_total: '0',
+    closure_blockers: ['zero_spending_not_approved'],
+    operations: [
+      {
+        ...detail({ started: true, completed: true }).operations[0],
+        actual_spent: '0',
+        variance: '-100000',
+      },
+    ],
+  }
+  let declarations = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  const emptyList = { ...declarations }
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (
+      path.endsWith('/zero-spending-declarations') &&
+      options.method === 'POST'
+    ) {
+      const body = JSON.parse(options.body)
+      declarations = {
+        ...declarations,
+        count: 1,
+        data: [
+          {
+            id: 'zero-1',
+            activity_id: current.id,
+            approved_revision_id: current.approved_revision_id,
+            snapshot: { total: '0', operations: [] },
+            reason: body.reason,
+            state: 'submitted',
+            submitter_id: 'agent',
+            submitted_at: '2026-11-03T10:00:00Z',
+            decisions: [],
+            allowed_actions: ['read'],
+          },
+        ],
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ ...declarations.data[0], activity_version: 8 }),
+        ),
+      )
+    }
+    if (path.endsWith('/zero-spending-declarations'))
+      return Promise.resolve(new Response(JSON.stringify(declarations)))
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(new Response(JSON.stringify(current)))
+    if (
+      path.endsWith('/execution/history') ||
+      path.endsWith('/disbursement-requests') ||
+      path.endsWith('/virement-requests')
+    )
+      return Promise.resolve(new Response(JSON.stringify(emptyList)))
+    return Promise.resolve(new Response('{}', { status: 404 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+  expect(
+    await screen.findByRole('heading', {
+      name: 'Déclaration de dépense nulle',
+    }),
+  ).toBeVisible()
+  expect(screen.queryByText('Autorisation de décaissement')).toBeNull()
+  expect(screen.queryByText('Autorisation de virement')).toBeNull()
+  await user.type(
+    screen.getByLabelText('Motif de l’absence de dépense'),
+    'Les moyens propres ont suffi.',
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Soumettre la déclaration' }),
+  )
+  expect(
+    await screen.findByText('Motif : Les moyens propres ont suffi.'),
+  ).toBeVisible()
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/zero-spending-declarations',
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        expected_version: 7,
+        expected_approved_revision_id: current.approved_revision_id,
+        reason: 'Les moyens propres ont suffi.',
+      }),
+    }),
+  )
+})
+
+test.each([
+  [
+    'AGENT_VERIFICATEUR',
+    'submitted',
+    'prevalidate',
+    'Prévalider',
+    'Prévalidée, en attente du Validateur',
+  ],
+  ['VALIDATEUR_DEFINITIF', 'prevalidated', 'approve', 'Valider', 'Validée'],
+])(
+  '%s performs the projected zero-spending review action',
+  async (role, initialState, decision, buttonLabel, finalLabel) => {
+    const user = userEvent.setup()
+    const current = {
+      ...detail({ started: true, completed: true }),
+      spending_total: '0',
+      mutation_unavailable_reason: 'zero_spending_frozen',
+      closure_blockers: ['zero_spending_not_approved'],
+    }
+    let declaration = {
+      id: 'zero-1',
+      activity_id: current.id,
+      approved_revision_id: current.approved_revision_id,
+      snapshot: { total: '0', operations: [] },
+      reason: 'Les moyens propres ont suffi.',
+      state: initialState,
+      submitter_id: 'agent',
+      submitted_at: '2026-11-03T10:00:00Z',
+      decisions:
+        initialState === 'prevalidated'
+          ? [
+              {
+                id: 'decision-1',
+                stage: 'supervisor',
+                outcome: 'prevalidated',
+                actor_id: 'supervisor',
+                actor_role: 'AGENT_VERIFICATEUR',
+                decided_at: '2026-11-03T11:00:00Z',
+                reason: null,
+                prevalidation_decision_id: null,
+              },
+            ]
+          : [],
+      allowed_actions: [decision, 'return'],
+      activity_version: 7,
+    }
+    const emptyList = {
+      object: 'list',
+      count: 0,
+      data: [],
+      next: null,
+      previous: null,
+    }
+    const fetch = vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: { id: 'reviewer', role },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      if (path.endsWith('/zero-spending-declarations/zero-1/decisions')) {
+        declaration = {
+          ...declaration,
+          state: decision === 'approve' ? 'approved' : 'prevalidated',
+          allowed_actions: ['read'],
+          activity_version: 8,
+        }
+        if (decision === 'approve') {
+          current.closure_blockers = []
+          current.allowed_actions = ['read', 'close']
+        }
+        return Promise.resolve(new Response(JSON.stringify(declaration)))
+      }
+      if (path.endsWith('/zero-spending-declarations'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 1,
+              data: [declaration],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return Promise.resolve(new Response(JSON.stringify(current)))
+      if (
+        path.endsWith('/execution/history') ||
+        path.endsWith('/disbursement-requests') ||
+        path.endsWith('/virement-requests')
+      )
+        return Promise.resolve(new Response(JSON.stringify(emptyList)))
+      return Promise.resolve(new Response('{}', { status: 404 }))
+    })
+    vi.stubGlobal('fetch', fetch)
+    render(
+      <App
+        router={makeRouter(
+          createMemoryHistory({
+            initialEntries: ['/execution/activities/activity-1'],
+          }),
+        )}
+      />,
+    )
+    if (decision === 'prevalidate') {
+      expect(await screen.findByLabelText('Motif du retour')).toBeVisible()
+    }
+    await user.click(await screen.findByRole('button', { name: buttonLabel }))
+    expect(await screen.findByText(finalLabel)).toBeVisible()
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity-1/zero-spending-declarations/zero-1/decisions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ expected_version: 7, decision }),
+      }),
+    )
+    if (decision === 'approve') {
+      expect(
+        await screen.findByRole('button', { name: 'Clôturer l’activité' }),
+      ).toBeVisible()
+    }
+  },
+)
+
+test('historical zero-spending page points to the active declaration', async () => {
+  const user = userEvent.setup()
+  const current = {
+    ...detail({ started: true, completed: true }),
+    spending_total: '0',
+    mutation_unavailable_reason: 'zero_spending_frozen',
+    closure_blockers: ['zero_spending_not_approved'],
+  }
+  const active = {
+    id: 'zero-current',
+    activity_id: current.id,
+    approved_revision_id: current.approved_revision_id,
+    snapshot: { total: '0', operations: [] },
+    reason: 'Déclaration active.',
+    state: 'submitted',
+    submitter_id: 'agent',
+    submitted_at: '2026-11-03T12:00:00Z',
+    decisions: [],
+    allowed_actions: ['read'],
+    activity_version: 8,
+  }
+  const returned = {
+    ...active,
+    id: 'zero-returned',
+    reason: 'Ancienne déclaration.',
+    state: 'returned',
+  }
+  const emptyList = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  const fetch = vi.fn((url) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (path.includes('/zero-spending-declarations?cursor=older'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 2,
+            data: [returned],
+            next: null,
+            previous:
+              '/api/v1/activities/activity-1/zero-spending-declarations?cursor=newer',
+          }),
+        ),
+      )
+    if (path.endsWith('/zero-spending-declarations'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 2,
+            data: [active],
+            next: '/api/v1/activities/activity-1/zero-spending-declarations?cursor=older',
+            previous: null,
+          }),
+        ),
+      )
+    if (path.endsWith('/activities/activity-1/execution'))
+      return Promise.resolve(new Response(JSON.stringify(current)))
+    if (
+      path.endsWith('/execution/history') ||
+      path.endsWith('/disbursement-requests') ||
+      path.endsWith('/virement-requests')
+    )
+      return Promise.resolve(new Response(JSON.stringify(emptyList)))
+    return Promise.resolve(new Response('{}', { status: 404 }))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: [
+            '/execution/activities/activity-1?zeroSpendingCursor=older',
+          ],
+        }),
+      )}
+    />,
+  )
+  expect(
+    await screen.findByText(
+      'La déclaration en cours se trouve sur une page plus récente.',
+    ),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Soumettre la déclaration' }),
+  ).toBeNull()
+  await user.click(screen.getByText('Déclarations retournées'))
+  expect(
+    screen.getByText('Retournée pour correction · Ancienne déclaration.'),
+  ).toBeVisible()
+  await user.click(
+    screen.getByRole('button', { name: 'Revenir à la déclaration en cours' }),
+  )
+  expect(await screen.findByText('Motif : Déclaration active.')).toBeVisible()
+})
+
 test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
   '%s sees closed evidence without closure controls',
   async (role) => {

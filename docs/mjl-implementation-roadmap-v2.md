@@ -12,6 +12,22 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-7A validated zero-spending closure boundary (DEC-130)
+
+**PTA_7A_COMPLETE** on 2026-11-03. An Agent can close an approved Activity
+whose approved Operations are all complete with explicit zero spending after one
+reasoned declaration, one eligible Supervisor prevalidation and one distinct
+eligible Validator approval. The zero path bypasses the positive financial chain
+without creating fictitious requests or movements.
+
+[Plan 41](rebuild/41-pta7a-zero-spending-implementation-plan.md) defines the
+bounded contract; [status 42](rebuild/42-pta7a-implementation-status.md) records
+the PostgreSQL/API, UI, browser and independent correction/re-review evidence.
+Migration `0018_pta7a` adds two focused tables and the existing execution screen
+hosts the workflow. Positive spending remains unchanged. Insufficiency,
+reopening, Partner access, real accounts, production and later slices remain
+deferred.
+
 ## PTA-6D safe Activity image-preview boundary (DEC-128)
 
 **PTA_6D_COMPLETE** on 2026-11-02. Authorized internal business users can open
@@ -260,15 +276,13 @@ Future planning follows `AGENTS.md`; no external implementation prompt is needed
 | Planning fixtures migrate a fresh database and invite/authenticate several accounts per case; the recorded full backend run took 28m49s. | Run focused checks during iteration, broad checks when required or justified, and affected checks after fixes. Measure setup cost before optimizing; retain isolation and integrated auth/migration coverage. This review did not prove redundant historical runs or measure their setup share. |
 | Restricting tables moved complexity into Activity purpose combinations, JSON history and predecessor SQL rewriting. | Judge future designs by total complexity and invariants, not table count alone. Existing slice limits remain binding; no replacement schema is proposed here. |
 
-The approved business sequence below remains the roadmap. Prepare the next
-execution slice locally from the approved brief and actual code, without asking
-the user to write an implementation prompt. Scope it to recording completed work
-and explicit final spending per Operation, plus safe interaction with planning
-changes and account eligibility. Financial approvals/declarations/closure follow
-as separate coherent increments; do not reopen the approved basic workflow.
-Before implementation, resolve only decisions that block the selected increment.
-DEC-129 settles the zero-spending validation path and confirms there is no
-current partial/different reversement case or discrepancy workflow to design.
+The approved business sequence below remains the roadmap. Positive-spending
+execution, settlement and closure plus the validated zero-spending closure path
+are complete in bounded synthetic slices. Prepare any later slice locally from
+the approved brief and actual code without asking the user to write an
+implementation prompt. Before implementation, resolve only decisions that block
+that selected increment. DEC-129 confirms there is no current partial/different
+reversement case or discrepancy workflow to design.
 The [gap analysis](mjl-current-vs-target-gap-analysis.md) retains only genuinely
 open later branches.
 The realization inspiration already exists under `docs/inspiration/realisations`;
@@ -614,7 +628,7 @@ not another externally authored execution prompt. Stop after the authorized slic
 | --- | --- | --- |
 | 1. PTA planning foundation | Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Agent coordination assignments managed by Supervisor/Validator. Reconcile schema, commands, route/token guards and reads together. | Project closure and PTA creation are settled by DEC-089/090. DEC-104–106 settle the trusted singleton context, defer reviewer assignments/actions and define date clamping. Disposable API/DB tests cover context/parent forgery, Project/first-PTA creation races, unassigned Agent access and forbidden bypass. Existing screen changes need inspiration check before implementation. |
 | 2. Approved amendments and annual transfer | Implemented for synthetic planning-only Activities: immutable approved/candidate content, fresh two-stage review, amendments, withdrawal and forward annual transfer. | DEC-110/112/114 settle pause, withdrawal and annual history. Execution integration must preserve those decisions and replace temporary eligibility with actual obligations checks. |
-| 3. Realization and administrative settlement | Implemented for the positive-spending path through direct Activity closure. The approved zero-spending declaration and insufficiency authorization remain unimplemented. Reversement is one exact unsplit surplus; no discrepancy branch is planned without a real case. | PTA-3A–3F status records contain focused and regression evidence. No bank execution. |
+| 3. Realization and administrative settlement | Implemented for the positive-spending path through direct Activity closure and for validated zero-spending closure. Insufficiency remains unimplemented. Reversement is one exact unsplit surplus; no discrepancy branch is planned without a real case. | PTA-3A–3F and PTA-7A status records contain focused and regression evidence. No bank execution. |
 | 4. Annual metrics and Fiche | Current whole-PTA metrics and the regenerable per-Activity French Fiche PDF are implemented. A current-PTA CSV is approved as the first annual export; historical as-of reconstruction remains separate. | DEC-121/status 26, DEC-122/status 28 and DEC-129 define the bounded outputs. File references activate only with slice 6. |
 | 5. Administrative relance | Implemented: focused 21-day dispatcher, durable recipient/channel outcomes, sidebar notification centre and one synthetic email attempt per cycle. Browser push, real mail and production scheduling remain separate. | DEC-124/status 32 record due/reschedule/closure/deduplication, delivery, pagination, online-only UI and independent-review evidence. No generic notification platform. |
 | 6. Guarded optional documents | Activity upload/list/download/image preview are implemented. Reasoned withdrawal and linked correction are approved but unimplemented. Generic contexts/categories/version engines remain excluded; optional external-virement/reversement evidence requires a later real need. | Existing guarded Activity routes and DEC-129. Partner files remain hidden until their visibility decision; production storage/scanning/retention remains external. |

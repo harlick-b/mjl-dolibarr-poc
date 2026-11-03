@@ -385,6 +385,10 @@ export function makeRouter(history) {
         cursor: String(search.cursor || '').slice(0, 512),
         historyCursor: String(search.historyCursor || '').slice(0, 512),
         financeCursor: String(search.financeCursor || '').slice(0, 512),
+        zeroSpendingCursor: String(search.zeroSpendingCursor || '').slice(
+          0,
+          512,
+        ),
         financeRequest: String(search.financeRequest || '').slice(0, 36),
         virementCursor: String(search.virementCursor || '').slice(0, 512),
         virementRequest: String(search.virementRequest || '').slice(0, 36),

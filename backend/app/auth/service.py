@@ -95,6 +95,8 @@ class AuthService:
                 "pta_reversement_declaration",
                 "pta_activity_reminder",
                 "pta_activity_document",
+                "pta_zero_spending_declaration",
+                "pta_zero_spending_decision",
             )
         }
         if relations != expected:
@@ -102,7 +104,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0017_pta6a"]:
+        if revisions != ["0018_pta7a"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -152,6 +154,15 @@ class AuthService:
             "reversement_declaration_revision_positive",
             "reversement_declaration_amount_positive",
             "reversement_declaration_correction_reason",
+            "zero_spending_state_allowed",
+            "zero_spending_reason_required",
+            "zero_spending_snapshot_bounded",
+            "zero_spending_one_current_per_activity",
+            "zero_spending_decision_stage",
+            "zero_spending_decision_role_allowed",
+            "zero_spending_decision_reason",
+            "zero_spending_prevalidation_reference",
+            "zero_spending_prevalidation_same_declaration",
         }
         found = set(
             db.scalars(
@@ -226,6 +237,8 @@ class AuthService:
                      'pta_validate_activity_closure',
                      'pta_reject_closed_financial_change',
                      'pta_preserve_activity_document')
+                     OR p.proname IN ('pta_preserve_zero_spending',
+                       'pta_validate_zero_spending_state')
                 ) manifest ORDER BY kind,object,name
                 """),
                 {"tables": table_names},
@@ -234,7 +247,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "6c7494f38cb3b34c8cd94ce4c21b3768cbaabf62cf156a937d9970bf5258c718"
+            "86ef09efcda66764e70b5680e464a3583e49150edb00e8e158d206c3689d2e77"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -550,6 +563,39 @@ class AuthService:
                 or not str(business["amount"]).isdecimal()
                 or business.get("before_state") not in states
                 or business.get("after_state") not in states - {None}
+            ):
+                raise ValueError("Invalid business audit facts")
+            db.add(
+                Audit(
+                    business=business,
+                    occurred_at=self.now(db),
+                    action=action,
+                    actor=actor,
+                    target=target,
+                    outcome="ok",
+                    request_id=request_id.get() or str(uuid4()),
+                )
+            )
+            db.flush()
+            return
+        if action.startswith("zero_spending."):
+            zero_required = {
+                "context_id",
+                "activity_id",
+                "declaration_id",
+                "approved_revision_id",
+                "before_state",
+                "after_state",
+            }
+            zero_states = {None, "submitted", "prevalidated", "returned", "approved"}
+            if (
+                set(business) != zero_required
+                or business.get("context_id") != "MJL"
+                or business.get("declaration_id") != target
+                or not isinstance(business.get("activity_id"), str)
+                or not isinstance(business.get("approved_revision_id"), str)
+                or business.get("before_state") not in zero_states
+                or business.get("after_state") not in zero_states - {None}
             ):
                 raise ValueError("Invalid business audit facts")
             db.add(

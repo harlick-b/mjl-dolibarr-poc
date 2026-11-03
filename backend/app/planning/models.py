@@ -565,6 +565,111 @@ class DisbursementRequest(Base):
     cancellation_reason: Mapped[str | None] = mapped_column(String(4000))
 
 
+class ZeroSpendingDeclaration(Base):
+    __tablename__ = "pta_zero_spending_declaration"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        ForeignKeyConstraint(
+            ["activity_id", "approved_revision_id"],
+            ["pta_activity_revision.activity_id", "pta_activity_revision.id"],
+        ),
+        UniqueConstraint("activity_id", "id", name="zero_spending_declaration_scope"),
+        CheckConstraint(
+            "state IN ('submitted','prevalidated','returned','approved')",
+            name="zero_spending_state_allowed",
+        ),
+        CheckConstraint(
+            "length(btrim(reason)) BETWEEN 1 AND 4000",
+            name="zero_spending_reason_required",
+        ),
+        CheckConstraint(
+            "octet_length(snapshot::text) <= 1048576",
+            name="zero_spending_snapshot_bounded",
+        ),
+        Index(
+            "zero_spending_one_current_per_activity",
+            "activity_id",
+            unique=True,
+            postgresql_where=text("state <> 'returned'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    approved_revision_id: Mapped[str] = mapped_column(String(36))
+    snapshot: Mapped[dict[str, object]] = mapped_column(JSONB)
+    reason: Mapped[str] = mapped_column(String(4000))
+    submitter_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    state: Mapped[str] = mapped_column(String(16), default="submitted")
+
+
+class ZeroSpendingDecision(Base):
+    __tablename__ = "pta_zero_spending_decision"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["activity_id", "declaration_id"],
+            [
+                "pta_zero_spending_declaration.activity_id",
+                "pta_zero_spending_declaration.id",
+            ],
+        ),
+        ForeignKeyConstraint(
+            ["declaration_id", "prevalidation_decision_id"],
+            [
+                "pta_zero_spending_decision.declaration_id",
+                "pta_zero_spending_decision.id",
+            ],
+            use_alter=True,
+        ),
+        UniqueConstraint("declaration_id", "id", name="zero_spending_decision_scope"),
+        UniqueConstraint(
+            "declaration_id", "stage", name="zero_spending_decision_stage"
+        ),
+        CheckConstraint(
+            "stage IN ('supervisor','validator')",
+            name="zero_spending_decision_stage_allowed",
+        ),
+        CheckConstraint(
+            "outcome IN ('prevalidated','approved','returned')",
+            name="zero_spending_decision_outcome_allowed",
+        ),
+        CheckConstraint(
+            "(stage='supervisor' AND outcome IN ('prevalidated','returned') AND "
+            "actor_role='AGENT_VERIFICATEUR') OR "
+            "(stage='validator' AND outcome IN ('approved','returned') AND "
+            "actor_role='VALIDATEUR_DEFINITIF')",
+            name="zero_spending_decision_role_allowed",
+        ),
+        CheckConstraint(
+            "(outcome='returned' AND reason IS NOT NULL AND "
+            "length(btrim(reason)) BETWEEN 1 AND 4000) OR "
+            "(outcome<>'returned' AND reason IS NULL)",
+            name="zero_spending_decision_reason",
+        ),
+        CheckConstraint(
+            "(stage='validator' AND outcome='approved' AND "
+            "prevalidation_decision_id IS NOT NULL) OR "
+            "(NOT (stage='validator' AND outcome='approved') AND "
+            "prevalidation_decision_id IS NULL)",
+            name="zero_spending_prevalidation_reference",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    activity_id: Mapped[str] = mapped_column(String(36))
+    declaration_id: Mapped[str] = mapped_column(String(36))
+    stage: Mapped[str] = mapped_column(String(16))
+    outcome: Mapped[str] = mapped_column(String(16))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    actor_role: Mapped[str] = mapped_column(String(32))
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reason: Mapped[str | None] = mapped_column(String(4000))
+    prevalidation_decision_id: Mapped[str | None] = mapped_column(String(36))
+
+
 class DisbursementDecision(Base):
     __tablename__ = "pta_disbursement_decision"
     __table_args__ = (

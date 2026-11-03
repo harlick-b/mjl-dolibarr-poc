@@ -500,7 +500,7 @@ def test_reversement_schema_guard_and_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0017_pta6a"
+                "0018_pta7a"
             )
     finally:
         engine.dispose()
@@ -732,7 +732,7 @@ def test_exact_pta3d_predecessor_upgrades_without_rewriting_facts(
         assert fingerprints(candidate) == before
         with candidate.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0017_pta6a"
+                "0018_pta7a"
             )
             assert (
                 db.scalar(text("SELECT count(*) FROM pta_reversement_declaration")) == 0

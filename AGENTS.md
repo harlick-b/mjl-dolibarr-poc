@@ -22,7 +22,7 @@ The authority/business/API disposition register is
 `docs/rebuild/01-authority-and-business-baseline.md`.
 The current implementation boundary and evidence are in
 `docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
-router. Foundation, A1–A3 and the synthetic PTA slices through PTA-6D are
+router. Foundation, A1–A3 and the synthetic PTA slices through PTA-7A are
 complete. DEC-121 governs current whole-PTA physical and financial
 metrics. DEC-122 adds the regenerable French Activity Fiche PDF from approved
 planning, execution, settlement and chronology facts. DEC-123 completes Project
@@ -50,9 +50,11 @@ DEC-129 settles the intended PC1/PC2 product policy, exact unsplit reversement,
 validated zero-spending path, limited Activity-document scope, Partner portal
 projection, no-reopening rule and first annual CSV boundary. External
 RSSI/mail/hosting acceptance remains pending; use synthetic identities, isolated
-databases and test mail only. Stop after PTA-6D.
+databases and test mail only. DEC-130 implements the validated zero-spending
+closure path with migration `0018_pta7a`, two focused tables and the existing
+execution workspace. Stop after PTA-7A.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
-insufficiency implementation, zero-spending implementation, historical metrics,
+insufficiency implementation, historical metrics,
 the approved current-PTA CSV, PDF/XLSX global audit exports,
 PDF preview and approved document replacement/withdrawal,
 Partner portal implementation and Partner attachment visibility,
