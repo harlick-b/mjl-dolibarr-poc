@@ -23,6 +23,20 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## Direct correction after financial return (DEC-135)
+
+Implemented on 2026-11-03. A returned décaissement or virement request now allows
+correction and fresh submission without Agent cancellation. Original facts and
+return reasons remain in history; both approvals must be obtained again.
+Approved décaissement amounts remain protected after a virement return.
+
+Migration `0021_financial_returns` adjusts existing indexes and transition guards;
+no table or state is added. [Contract and evidence 52](rebuild/52-financial-return-simplification.md)
+records 80 financial regression checks, the focused review correction, 21 React
+checks, seven Chromium journeys, schema compatibility and completed independent
+correction/re-review. Activity-state merging and further slices remain outside
+this change. Production remains deferred.
+
 ## Focused state-handling corrections
 
 Implemented on 2026-11-03 following the user's state-machine review request.
@@ -45,6 +59,10 @@ OpenAPI, React, Chromium and mandatory independent correction/re-review evidence
 Two GET responsibilities were added with no migration, table, stored artifact or
 general report layer. Attachments, Partner exports, internal review facts, real
 identities and production remain deferred.
+
+A focused PDF correction now supports long multiline descriptions and wrapped
+Operation names. Nine focused renderer/Partner tests pass, including direct
+withdrawal/transfer detail and PDF checks; status 51 records independent re-review.
 
 ## PTA-9A Partner portal foundation boundary (DEC-133)
 

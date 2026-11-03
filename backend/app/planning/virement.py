@@ -162,7 +162,7 @@ def active_request(
 ) -> VirementRequest | None:
     statement = select(VirementRequest).where(
         VirementRequest.activity_id == activity_id,
-        VirementRequest.state != "cancelled",
+        VirementRequest.state.not_in(("returned", "cancelled")),
     )
     if lock:
         statement = statement.with_for_update()
@@ -244,7 +244,6 @@ def allowed_actions(
     if role == "AGENT_SAISIE" and financial.state in {
         "submitted",
         "prevalidated",
-        "returned",
     }:
         result.append("cancel")
     if actor_id in set(financial.excluded_reviewer_ids):
@@ -552,7 +551,7 @@ def cancel(
             raise AuthError(409, "activity_stale")
         financial = exact_request(db, item.id, request_id, lock=True)
         source = verified_source(db, item, financial.disbursement_request_id, lock=True)
-        if financial.state not in {"submitted", "prevalidated", "returned"}:
+        if financial.state not in {"submitted", "prevalidated"}:
             raise AuthError(409, "cancellation_ineligible")
         before = financial.state
         now = auth.now(db)

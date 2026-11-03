@@ -359,15 +359,17 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
       ])
       if (
-        variables.path.endsWith('/cancellation') &&
-        variables.path.startsWith('/disbursement-requests')
+        variables.path === '/disbursement-requests' ||
+        (variables.path.endsWith('/cancellation') &&
+          variables.path.startsWith('/disbursement-requests'))
       )
         await navigate({
           search: (current) => ({ ...current, financeRequest: '' }),
         })
       if (
-        variables.path.endsWith('/cancellation') &&
-        variables.path.startsWith('/virement-requests')
+        variables.path === '/virement-requests' ||
+        (variables.path.endsWith('/cancellation') &&
+          variables.path.startsWith('/virement-requests'))
       )
         await navigate({
           search: (current) => ({ ...current, virementRequest: '' }),
@@ -734,7 +736,7 @@ function ExecutionDetail({
           onPage={onZeroSpendingPage}
         />
       )}
-      {detail.spending_total !== '0' && (
+      {(detail.spending_total !== '0' || finance?.count > 0) && (
         <>
           <DisbursementSection
             detail={detail}
@@ -747,22 +749,24 @@ function ExecutionDetail({
             onPage={onFinancePage}
             onSelect={onFinanceSelect}
           />
-          <VirementSection
-            detail={detail}
-            result={virements}
-            selected={selectedVirement}
-            confirmationHistory={confirmationHistory}
-            reversementHistory={reversementHistory}
-            selectedBySearch={virementSelectedBySearch}
-            role={role}
-            historicalPage={virementHistoryPage}
-            pending={pending}
-            mutate={mutateFinance}
-            onPage={onVirementPage}
-            onSelect={onVirementSelect}
-            onConfirmationPage={onConfirmationPage}
-            onReversementPage={onReversementPage}
-          />
+          {detail.spending_total !== '0' && (
+            <VirementSection
+              detail={detail}
+              result={virements}
+              selected={selectedVirement}
+              confirmationHistory={confirmationHistory}
+              reversementHistory={reversementHistory}
+              selectedBySearch={virementSelectedBySearch}
+              role={role}
+              historicalPage={virementHistoryPage}
+              pending={pending}
+              mutate={mutateFinance}
+              onPage={onVirementPage}
+              onSelect={onVirementSelect}
+              onConfirmationPage={onConfirmationPage}
+              onReversementPage={onReversementPage}
+            />
+          )}
         </>
       )}
       <ClosureSection
@@ -1084,8 +1088,13 @@ function DisbursementSection({
   onSelect,
 }) {
   const requests = result?.data || []
-  const active = requests.find((request) => request.state !== 'cancelled')
-  const current = selected || active
+  const active = requests.find(
+    (request) => !['returned', 'cancelled'].includes(request.state),
+  )
+  const current =
+    selected ||
+    active ||
+    (!historicalPage && requests[0]?.state === 'returned' ? requests[0] : null)
   const stateLabels = {
     submitted: 'Soumise au Superviseur',
     prevalidated: 'Prévalidée, en attente du Validateur',
@@ -1097,7 +1106,8 @@ function DisbursementSection({
     role === 'AGENT_SAISIE' &&
     !historicalPage &&
     !active &&
-    !selected &&
+    (!selected || ['returned', 'cancelled'].includes(selected.state)) &&
+    !detail.mutation_unavailable_reason &&
     detail.works_completed &&
     Number(detail.spending_total) > 0
   const version = current?.activity_version || detail.version
@@ -1117,15 +1127,14 @@ function DisbursementSection({
       {current ? (
         <>
           <p className="review-progress">
-            Montant soumis : <strong>{formatXof(current.amount)}</strong>. Les
-            {current.state === 'cancelled'
-              ? ' dépenses et les modifications ont été libérées à l’annulation de cette demande.'
-              : ' dépenses et les modifications de planification restent figées '}
-            {current.state === 'approved'
-              ? 'définitivement pour cette première version.'
+            Montant soumis : <strong>{formatXof(current.amount)}</strong>.{' '}
+            {current.state === 'returned'
+              ? strings.disbursementReturned
               : current.state === 'cancelled'
-                ? ''
-                : 'tant que cette demande n’est pas annulée.'}
+                ? strings.financialCancelled
+                : current.state === 'approved'
+                  ? strings.disbursementApproved
+                  : strings.disbursementPending}
           </p>
           {selected && (
             <Button
@@ -1230,22 +1239,26 @@ function DisbursementSection({
             </BusinessForm>
           )}
         </>
-      ) : role === 'AGENT_SAISIE' && !historicalPage ? (
-        <Button
-          disabled={!canSubmit || pending || !navigator.onLine}
-          onClick={() =>
-            mutate('/disbursement-requests', {
-              expected_version: detail.version,
-              expected_approved_revision_id: detail.approved_revision_id,
-            })
-          }
-        >
-          <CircleDollarSign size={16} /> Soumettre{' '}
-          {formatXof(detail.spending_total)}
-        </Button>
-      ) : (
-        <p>Consultez l’état et l’historique de l’autorisation.</p>
-      )}
+      ) : null}
+      {(!current || ['returned', 'cancelled'].includes(current.state)) &&
+        (role === 'AGENT_SAISIE' &&
+        !historicalPage &&
+        detail.spending_total !== '0' ? (
+          <Button
+            disabled={!canSubmit || pending || !navigator.onLine}
+            onClick={() =>
+              mutate('/disbursement-requests', {
+                expected_version: detail.version,
+                expected_approved_revision_id: detail.approved_revision_id,
+              })
+            }
+          >
+            <CircleDollarSign size={16} /> Soumettre{' '}
+            {formatXof(detail.spending_total)}
+          </Button>
+        ) : (
+          <p>Consultez l’état et l’historique de l’autorisation.</p>
+        ))}
       {requests.length > 0 && (
         <details>
           <summary>Historique des demandes ({result.count})</summary>
@@ -1309,7 +1322,13 @@ function VirementSection({
   onReversementPage,
 }) {
   const requests = result?.data || []
-  const current = selected
+  const current =
+    selected ||
+    (!historicalPage &&
+    !detail.virement_context.current_request_id &&
+    requests[0]?.state === 'returned'
+      ? requests[0]
+      : null)
   const context = detail.virement_context
   const stateLabels = {
     submitted: 'Soumise au Superviseur',
@@ -1332,6 +1351,7 @@ function VirementSection({
         Cette autorisation porte sur le montant de décaissement déjà approuvé.
         Elle ne confirme pas qu’un virement externe a été effectué.
       </p>
+      {current?.state === 'returned' && <p>{strings.virementReturned}</p>}
       {current ? (
         <>
           <p className="review-progress">
@@ -1789,26 +1809,29 @@ function VirementSection({
             </BusinessForm>
           )}
         </>
-      ) : role === 'AGENT_SAISIE' && !historicalPage ? (
-        <Button
-          disabled={!context.can_submit || pending || !navigator.onLine}
-          onClick={() =>
-            mutate('/virement-requests', {
-              expected_version: detail.version,
-              expected_disbursement_request_id: context.disbursement_request_id,
-            })
-          }
-        >
-          <CircleDollarSign size={16} /> Demander le virement de{' '}
-          {context.amount ? formatXof(context.amount) : '—'}
-        </Button>
-      ) : (
-        <p>
-          {context.unavailable_reason === 'disbursement_required'
-            ? 'L’autorisation de décaissement doit être approuvée auparavant.'
-            : 'Consultez l’état et l’historique de l’autorisation.'}
-        </p>
-      )}
+      ) : null}
+      {(!current || ['returned', 'cancelled'].includes(current.state)) &&
+        (role === 'AGENT_SAISIE' && !historicalPage ? (
+          <Button
+            disabled={!context.can_submit || pending || !navigator.onLine}
+            onClick={() =>
+              mutate('/virement-requests', {
+                expected_version: detail.version,
+                expected_disbursement_request_id:
+                  context.disbursement_request_id,
+              })
+            }
+          >
+            <CircleDollarSign size={16} /> Demander le virement de{' '}
+            {context.amount ? formatXof(context.amount) : '—'}
+          </Button>
+        ) : (
+          <p>
+            {context.unavailable_reason === 'disbursement_required'
+              ? 'L’autorisation de décaissement doit être approuvée auparavant.'
+              : 'Consultez l’état et l’historique de l’autorisation.'}
+          </p>
+        ))}
       {requests.length > 0 && (
         <details>
           <summary>Historique des demandes ({result.count})</summary>

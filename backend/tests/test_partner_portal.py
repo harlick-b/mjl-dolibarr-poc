@@ -512,6 +512,28 @@ def test_partner_projection_follows_effective_withdrawal_and_transfer(
         assert [row["id"] for row in destination_rows["data"]] == [moved["id"]]
         assert destination_rows["data"][0]["planned_start"] == "2028-02-01"
 
+        for suffix in ("", "/fiche.pdf"):
+            denied = portal.get(
+                f"/api/v1/partner-portal/activities/{withdrawn['id']}{suffix}"
+            )
+            assert denied.status_code == 404, denied.text
+
+        detail = portal.get(f"/api/v1/partner-portal/activities/{moved['id']}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["context"]["year"] == 2028
+        assert detail.json()["planned_start"] == "2028-02-01"
+        assert detail.json()["planned_end"] == "2028-08-31"
+        assert [decision["kind"] for decision in detail.json()["decisions"]] == [
+            "initial",
+            "transfer",
+        ]
+        fiche = portal.get(f"/api/v1/partner-portal/activities/{moved['id']}/fiche.pdf")
+        assert fiche.status_code == 200, fiche.text
+        content = pdf_text(fiche)
+        assert "2028" in content
+        assert "01/02/2028 au 31/08/2028" in content
+        assert "Transfert annuel approuvé" in content
+
 
 def test_partner_closed_finance_uses_latest_definitive_facts(planning, auth_env):
     activity, request_row, version = settled_activity(planning)

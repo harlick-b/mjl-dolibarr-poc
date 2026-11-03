@@ -85,6 +85,14 @@ Reasoned review decision requiring an Agent to change and resubmit
 the Activity.
 _Avoid_: Silent return to draft, reviewer editing
 
+**Retour d'une demande financière**:
+Reasoned Supervisor or Validator decision ending a décaissement or virement
+request. The Agent can correct eligible information and submit a fresh request
+without cancelling the returned one. Both approvals must be obtained again;
+the previous request and reason remain in history. A returned virement does not
+permit changing an already approved décaissement amount.
+_Avoid_: Extra cancellation before correction, inherited approval, erased history
+
 **Abandon d’Activité**:
 Reasoned disposition of an unsubmitted draft by an Agent, distinct from formal
 withdrawal of an Activity with administrative history.

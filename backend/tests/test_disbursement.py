@@ -133,7 +133,8 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     )
 
 
-def test_cancellation_releases_execution_for_correction_and_fresh_request(planning):
+@pytest.mark.parametrize("release", ["cancel", "supervisor", "validator"])
+def test_cancellation_or_return_releases_execution_for_fresh_request(planning, release):
     activity = finish_activity(planning)
     submitted = post(
         planning["agent"],
@@ -159,12 +160,23 @@ def test_cancellation_releases_execution_for_correction_and_fresh_request(planni
     )
     assert frozen.status_code == 409
 
+    version = submitted["activity_version"]
+    if release == "validator":
+        prevalidated = post(
+            planning["supervisor"],
+            f"{collection(activity)}/{submitted['id']}/decisions",
+            {"expected_version": version, "decision": "prevalidate"},
+        )
+        assert prevalidated.status_code == 201
+        version = prevalidated.json()["activity_version"]
     cancelled = post(
-        planning["agent2"],
-        f"{collection(activity)}/{submitted['id']}/cancellation",
+        planning["agent2" if release == "cancel" else release],
+        f"{collection(activity)}/{submitted['id']}/"
+        + ("cancellation" if release == "cancel" else "decisions"),
         {
-            "expected_version": submitted["activity_version"],
+            "expected_version": version,
             "reason": "Montant à corriger.",
+            **({} if release == "cancel" else {"decision": "return"}),
         },
     )
     assert cancelled.status_code == 201, cancelled.text
@@ -173,6 +185,11 @@ def test_cancellation_releases_execution_for_correction_and_fresh_request(planni
     )
     assert released["mutation_unavailable_reason"] is None
     assert released["operations"][0]["allowed_actions"] == ["record"]
+    if release != "cancel":
+        old = planning["agent"].get(f"{collection(activity)}/{submitted['id']}").json()
+        assert old["state"] == "returned"
+        assert old["allowed_actions"] == ["read"]
+        assert old["decisions"][-1]["reason"] == "Montant à corriger."
     corrected = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -358,7 +375,7 @@ def test_return_requires_reason_and_approved_request_is_final(planning):
         planning["agent"]
         .get(f"/api/v1/activities/{activity['id']}/execution")
         .json()["mutation_unavailable_reason"]
-        == "disbursement_frozen"
+        is None
     )
     cancelled = post(
         planning["agent"],
@@ -368,12 +385,12 @@ def test_return_requires_reason_and_approved_request_is_final(planning):
             "reason": "Correction avant une nouvelle soumission.",
         },
     )
-    assert cancelled.status_code == 201, cancelled.text
+    assert cancelled.status_code == 409, cancelled.text
     fresh = post(
         planning["agent"],
         collection(activity),
         {
-            "expected_version": cancelled.json()["activity_version"],
+            "expected_version": returned.json()["activity_version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
         },
     ).json()
@@ -688,7 +705,7 @@ def test_financial_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0019_pta7b"
+                "0021_financial_returns"
             )
     finally:
         engine.dispose()

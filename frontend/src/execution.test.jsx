@@ -759,6 +759,138 @@ test('Agent starts and records an Operation without offline replay', async () =>
   )
 })
 
+test.each(['disbursement', 'virement', 'zero-spending'])(
+  'returned history stays readable and permits eligible submission: %s',
+  async (flow) => {
+    const kind = flow === 'zero-spending' ? 'disbursement' : flow
+    const user = userEvent.setup()
+    const current = detail({ started: true, completed: true })
+    if (flow === 'zero-spending') current.spending_total = '0'
+    const source = 'source-1'
+    const returned = {
+      id: 'returned-1',
+      state: 'returned',
+      amount: '100000',
+      activity_version: current.version,
+      allowed_actions: ['read'],
+      cancellation: null,
+      decisions: [
+        {
+          id: 'decision-1',
+          stage: 'supervisor',
+          outcome: 'returned',
+          reason: 'Vérifier le dossier.',
+        },
+      ],
+    }
+    const requests = [returned]
+    if (kind === 'virement')
+      current.virement_context = {
+        disbursement_request_id: source,
+        amount: '100000',
+        current_request_id: null,
+        current_state: null,
+        can_submit: true,
+        unavailable_reason: null,
+      }
+    const writes = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url, options = {}) => {
+        const path = String(url).split('?')[0]
+        let body = {
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }
+        if (path.includes('/auth/session'))
+          body = {
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }
+        else if (path.endsWith('/execution')) body = current
+        else if (
+          path.endsWith(`/${kind}-requests`) &&
+          options.method === 'POST'
+        ) {
+          writes.push({ path, body: JSON.parse(options.body) })
+          const fresh = {
+            ...returned,
+            id: 'fresh-1',
+            state: 'submitted',
+            decisions: [],
+            allowed_actions: ['read', 'cancel'],
+          }
+          requests.unshift(fresh)
+          if (kind === 'virement')
+            current.virement_context = {
+              ...current.virement_context,
+              current_request_id: fresh.id,
+              can_submit: false,
+            }
+          body = fresh
+        } else if (path.endsWith(`/${kind}-requests`))
+          body = { ...body, count: requests.length, data: requests }
+        else if (path.endsWith(`/${kind}-requests/returned-1`)) body = returned
+        else if (path.endsWith(`/${kind}-requests/fresh-1`)) body = requests[0]
+        return new Response(JSON.stringify(body))
+      }),
+    )
+    const search = kind === 'virement' ? 'virementRequest' : 'financeRequest'
+    render(
+      <App
+        router={makeRouter(
+          createMemoryHistory({
+            initialEntries: [
+              `/execution/activities/activity-1?${search}=returned-1`,
+            ],
+          }),
+        )}
+      />,
+    )
+    expect(await screen.findByText('Vérifier le dossier.')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Annuler la demande' }),
+    ).not.toBeInTheDocument()
+    if (flow === 'zero-spending') {
+      expect(
+        screen.getByRole('heading', { name: 'Déclaration de dépense nulle' }),
+      ).toBeVisible()
+      expect(
+        screen.queryByRole('button', { name: /Soumettre 0/ }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('heading', { name: 'Autorisation de virement' }),
+      ).not.toBeInTheDocument()
+      expect(writes).toHaveLength(0)
+      return
+    }
+    await user.click(
+      screen.getByRole('button', {
+        name: kind === 'virement' ? /Demander le virement de/ : /Soumettre 100/,
+      }),
+    )
+    await waitFor(() => expect(writes).toHaveLength(1))
+    expect(writes[0].body).toEqual(
+      kind === 'virement'
+        ? {
+            expected_version: current.version,
+            expected_disbursement_request_id: source,
+          }
+        : {
+            expected_version: current.version,
+            expected_approved_revision_id: current.approved_revision_id,
+          },
+    )
+    expect(requests[1]).toBe(returned)
+    expect(returned.state).toBe('returned')
+  },
+)
+
 test('Agent submits finalized spending for disbursement authorization', async () => {
   const user = userEvent.setup()
   let requests = []

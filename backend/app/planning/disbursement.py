@@ -130,7 +130,7 @@ def active_request(
 ) -> DisbursementRequest | None:
     statement = select(DisbursementRequest).where(
         DisbursementRequest.activity_id == activity_id,
-        DisbursementRequest.state != "cancelled",
+        DisbursementRequest.state.not_in(("returned", "cancelled")),
     )
     if lock:
         statement = statement.with_for_update()
@@ -422,7 +422,6 @@ def allowed_actions(
     if role == "AGENT_SAISIE" and request.state in {
         "submitted",
         "prevalidated",
-        "returned",
     }:
         result.append("cancel")
     if actor_id in excluded:
@@ -670,7 +669,7 @@ def cancel(
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         financial = exact_request(db, item.id, request_id, lock=True)
-        if financial.state not in {"submitted", "prevalidated", "returned"}:
+        if financial.state not in {"submitted", "prevalidated"}:
             raise AuthError(409, "cancellation_ineligible")
         before = financial.state
         now = auth.now(db)

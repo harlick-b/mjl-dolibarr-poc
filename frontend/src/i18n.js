@@ -157,6 +157,16 @@ export const strings = new LocalizedStrings({
       'Envoi non confirmé. Vérifiez la liste des pièces jointes avant d’ajouter à nouveau le fichier.',
     verifyAttachments: 'Vérifier les pièces jointes',
     cancelEntry: 'Annuler la saisie',
+    disbursementReturned:
+      'Ce retour vous permet de corriger les informations sans annuler la demande. Toute nouvelle demande devra obtenir les deux validations.',
+    financialCancelled:
+      'Cette demande a été annulée. Son historique est conservé.',
+    disbursementApproved:
+      'Cette autorisation est définitive. Les dépenses et le budget restent figés.',
+    disbursementPending:
+      'Les dépenses et le budget restent figés pendant l’examen de cette demande. Un retour ou une annulation permet de les corriger selon les règles applicables.',
+    virementReturned:
+      'Demande retournée. Vous pouvez soumettre une nouvelle demande sans annuler celle-ci. Les deux validations seront demandées à nouveau ; le montant de décaissement déjà approuvé reste inchangé.',
   },
 })
 

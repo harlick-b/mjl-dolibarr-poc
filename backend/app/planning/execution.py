@@ -318,11 +318,11 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
         return list(dict.fromkeys(blockers))
     source_statement = select(DisbursementRequest).where(
         DisbursementRequest.activity_id == item.id,
-        DisbursementRequest.state != "cancelled",
+        DisbursementRequest.state.not_in(("returned", "cancelled")),
     )
     virement_statement = select(VirementRequest).where(
         VirementRequest.activity_id == item.id,
-        VirementRequest.state != "cancelled",
+        VirementRequest.state.not_in(("returned", "cancelled")),
     )
     if lock:
         source_statement = source_statement.with_for_update()
@@ -381,7 +381,7 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
     financial = db.scalar(
         select(DisbursementRequest).where(
             DisbursementRequest.activity_id == item.id,
-            DisbursementRequest.state != "cancelled",
+            DisbursementRequest.state.not_in(("returned", "cancelled")),
         )
     )
     zero_declaration = db.scalar(
@@ -399,7 +399,7 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
     current_virement = db.scalar(
         select(VirementRequest).where(
             VirementRequest.activity_id == item.id,
-            VirementRequest.state != "cancelled",
+            VirementRequest.state.not_in(("returned", "cancelled")),
         )
     )
     current_confirmation = (

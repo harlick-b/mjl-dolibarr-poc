@@ -88,6 +88,7 @@ def render_partner_fiche(detail: dict[str, Any], generated_at: str) -> bytes:
                 for label, value in rows
             ],
             colWidths=[50 * mm, 120 * mm],
+            splitInRow=1,
         )
         table.setStyle(
             TableStyle(
@@ -132,16 +133,23 @@ def render_partner_fiche(detail: dict[str, Any], generated_at: str) -> bytes:
             ("Révision approuvée", f"N° {detail['approved_revision']}"),
         ]
     )
-    operation_rows = [("Opération", "Prévu", "Dépense finale")]
+    operation_rows: list[tuple[Any, str, str]] = [
+        ("Opération", "Prévu", "Dépense finale")
+    ]
     operation_rows.extend(
         (
-            safe(row["name"]),
+            Paragraph(safe(row["name"]), small),
             xof(row["allocation"]),
             xof(row["final_spending"]),
         )
         for row in detail["operations"]
     )
-    operation_table = Table(operation_rows, colWidths=[100 * mm, 35 * mm, 35 * mm])
+    operation_table = Table(
+        operation_rows,
+        colWidths=[100 * mm, 35 * mm, 35 * mm],
+        splitInRow=1,
+        repeatRows=1,
+    )
     operation_table.setStyle(
         TableStyle(
             [

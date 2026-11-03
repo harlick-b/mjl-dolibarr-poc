@@ -105,7 +105,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0020_pta9a"]:
+        if revisions != ["0021_financial_returns"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -257,7 +257,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "5e556766e799caa02d3fb077938c6c6a948615a46b64f72affcc77b8d3eefa5d"
+            "8bc157e7c05ad4ba1ac6f53b2c3bc49be493d251a0de082c54c099799f47eaed"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:

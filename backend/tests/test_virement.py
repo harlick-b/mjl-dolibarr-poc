@@ -516,7 +516,7 @@ def test_confirmation_evidence_refuses_destructive_downgrade(planning, auth_env)
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0019_pta7b"
+                "0021_financial_returns"
             )
     finally:
         engine.dispose()
@@ -591,27 +591,26 @@ def test_virement_preserves_a_large_exact_xof_total(planning):
     assert submitted.json()["amount"] == "9000000000"
 
 
-def test_return_cancellation_and_fresh_request_keep_disbursement_frozen(planning):
+@pytest.mark.parametrize("reviewer", ["supervisor", "validator"])
+def test_return_and_direct_fresh_request_keep_disbursement_frozen(planning, reviewer):
     activity, source, request = submit_virement(planning)
+    version = request["activity_version"]
+    if reviewer == "validator":
+        version = post(
+            planning["supervisor"],
+            f"{virement_collection(activity)}/{request['id']}/decisions",
+            {"expected_version": version, "decision": "prevalidate"},
+        ).json()["activity_version"]
     returned = post(
-        planning["supervisor"],
+        planning[reviewer],
         f"{virement_collection(activity)}/{request['id']}/decisions",
         {
-            "expected_version": request["activity_version"],
+            "expected_version": version,
             "decision": "return",
             "reason": "Préciser la demande.",
         },
     )
     assert returned.status_code == 201, returned.text
-    cancelled = post(
-        planning["agent2"],
-        f"{virement_collection(activity)}/{request['id']}/cancellation",
-        {
-            "expected_version": returned.json()["activity_version"],
-            "reason": "Soumettre une nouvelle demande.",
-        },
-    )
-    assert cancelled.status_code == 201, cancelled.text
     execution = planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution")
     assert execution.status_code == 200
     assert execution.json()["mutation_unavailable_reason"] == "disbursement_frozen"
@@ -628,7 +627,7 @@ def test_return_cancellation_and_fresh_request_keep_disbursement_frozen(planning
         planning["agent2"],
         virement_collection(activity),
         {
-            "expected_version": cancelled.json()["activity_version"],
+            "expected_version": returned.json()["activity_version"],
             "expected_disbursement_request_id": source["id"],
         },
     )
@@ -1131,19 +1130,11 @@ def test_reason_rules_validator_return_and_approved_request_is_final(planning):
     )
     assert returned.status_code == 201, returned.text
     assert returned.json()["state"] == "returned"
-    cancelled = post(
-        planning["agent"],
-        f"{path}/cancellation",
-        {
-            "expected_version": returned.json()["activity_version"],
-            "reason": "Préparer une nouvelle demande.",
-        },
-    ).json()
     fresh = post(
         planning["agent"],
         virement_collection(activity),
         {
-            "expected_version": cancelled["activity_version"],
+            "expected_version": returned.json()["activity_version"],
             "expected_disbursement_request_id": request["disbursement_request_id"],
         },
     ).json()
@@ -1418,7 +1409,7 @@ def test_virement_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0019_pta7b"
+                "0021_financial_returns"
             )
     finally:
         engine.dispose()

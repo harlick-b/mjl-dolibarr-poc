@@ -53,3 +53,37 @@ direct cross-Partner PDF denial, focused state/mobile coverage and synchronous
 download revocation with an exact late-response query-denial oracle. The same
 reviewers re-inspected the corrected candidate without modifying it and passed
 the final engineering and product/security gates.
+
+## Focused PDF corrections (2026-11-03)
+
+A subsequent review reproduced two valid-input defects: multiline descriptions
+could exceed one unsplittable row, and Operation names were escaped plain strings
+that neither wrapped nor displayed special characters correctly. The correction
+allows rows to split and uses Paragraph cells for names, retaining the existing
+layout. No API, authorization, schema or frontend behavior changed.
+
+Verification candidate: commit `3ab6e75` plus only `app/partner_fiche.py`,
+`tests/test_partner_fiche.py` and `tests/test_partner_portal.py` under `backend/`.
+The isolated candidate was byte-compared with these worktree files; concurrent
+financial-return changes were excluded. Source SHA-256 for the renderer:
+`9c6e5a0a10ed15ef2a0c17175cdcc58370fe96b3ad780d5b23400928c01e5266`.
+
+- Both new renderer regressions failed before their corresponding fixes and
+  passed afterward. They preserve all 189 description lines across pages and
+  verify a wrapped 200-character name plus literal `&` and angle brackets.
+- In the existing `mjl-pta9b-backend` image with the candidate mounted read-only
+  and fresh disposable PostgreSQL 16, `python -m pytest -p no:cacheprovider -q
+  tests/test_partner_fiche.py tests/test_partner_portal.py` passed **9 tests**
+  in 79.76 seconds. The database container was removed afterward. The extended
+  API test directly verifies withdrawn detail/PDF 404 responses and transferred
+  detail/PDF destination dates and final approval label; the earlier list-only
+  assertions did not establish this new-route coverage.
+- Ruff check and format check for all three files, mypy for the renderer, and
+  `git diff --check` passed. The first host API attempt failed during setup due
+  to missing Python `_ctypes`; it is not counted as verification.
+- The same independent engineering and specification reviewers re-reviewed the
+  fixes, independently passed both renderer tests, and accepted the focused
+  PostgreSQL evidence. No outstanding finding in this correction scope.
+
+Browser/build suites were not rerun: no frontend code or download contract was
+changed. Synthetic verification remains distinct from production acceptance.

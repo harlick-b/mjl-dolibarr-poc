@@ -571,7 +571,7 @@ class DisbursementRequest(Base):
             "disbursement_one_open_per_activity",
             "activity_id",
             unique=True,
-            postgresql_where=text("state <> 'cancelled'"),
+            postgresql_where=text("state NOT IN ('returned', 'cancelled')"),
         ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
@@ -781,7 +781,7 @@ class VirementRequest(Base):
             "virement_one_open_per_activity",
             "activity_id",
             unique=True,
-            postgresql_where=text("state <> 'cancelled'"),
+            postgresql_where=text("state NOT IN ('returned', 'cancelled')"),
         ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)

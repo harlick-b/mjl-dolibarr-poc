@@ -3,6 +3,13 @@
 Canonical repository instructions. The user's latest explicit request takes
 precedence over recorded decisions, plans, tests and skill procedures.
 
+## Communication
+
+When the user asks to explain a concept, always explain it in layman's terms.
+Use familiar words and a concrete example where helpful. Explain what it means
+for the person using the app before introducing technical details; define any
+technical term that is necessary.
+
 ## Authority and scope
 
 Read `docs/mjl-authoritative-decisions.md` first, then only the canonical sources
@@ -64,6 +71,11 @@ table. Stop after PTA-9A.
 DEC-134 adds Partner-scoped approved Activity detail, successful final decisions,
 definitive closed finance and one sanitized Partner Fiche PDF. It adds two GET
 responsibilities with no migration or table. Stop after PTA-9B.
+DEC-135 simplifies financial returns: returning a request permits correction and
+fresh submission without cancellation. Preserve history and fresh approvals;
+an approved décaissement stays frozen after a virement return. Migration
+`0021_financial_returns` changes existing indexes/guards, adding no state/table.
+Keep user-visible states few and tied to business actions, not manual selectors.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 insufficiency implementation, historical metrics,
 PDF/XLSX annual and global audit exports,

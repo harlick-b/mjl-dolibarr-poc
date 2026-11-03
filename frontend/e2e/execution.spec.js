@@ -552,7 +552,8 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   let request = null
   let requestNumber = 0
   let virement = null
-  let cancelledVirement = null
+  let returnedVirement = null
+  let returnedDisbursement = null
   let virementNumber = 0
   let confirmations = []
   let confirmationMutationCount = 0
@@ -562,7 +563,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     if (!request) return []
     if (
       role === 'AGENT_SAISIE' &&
-      !['approved', 'cancelled'].includes(request.state)
+      ['submitted', 'prevalidated'].includes(request.state)
     )
       return ['read', 'cancel']
     if (role === 'AGENT_VERIFICATEUR' && request.state === 'submitted')
@@ -579,7 +580,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     if (!virement) return []
     if (
       role === 'AGENT_SAISIE' &&
-      !['approved', 'cancelled'].includes(virement.state)
+      ['submitted', 'prevalidated'].includes(virement.state)
     )
       return ['read', 'cancel']
     if (role === 'AGENT_VERIFICATEUR' && virement.state === 'submitted')
@@ -641,6 +642,8 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
         },
       })
     if (path.endsWith('/virement-requests') && incoming.method() === 'POST') {
+      if (virement?.state === 'returned')
+        returnedVirement = structuredClone(virementResult())
       version += 1
       virementNumber += 1
       virement = {
@@ -844,7 +847,6 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
       version += 1
       virement.state = 'cancelled'
       virement.cancellation = { reason: incoming.postDataJSON().reason }
-      cancelledVirement = structuredClone(virementResult())
       return route.fulfill({ status: 201, json: virementResult() })
     }
     if (
@@ -854,11 +856,11 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     )
       return route.fulfill({ json: virementResult() })
     if (
-      cancelledVirement &&
-      path.endsWith(`/virement-requests/${cancelledVirement.id}`) &&
+      returnedVirement &&
+      path.endsWith(`/virement-requests/${returnedVirement.id}`) &&
       incoming.method() === 'GET'
     )
-      return route.fulfill({ json: cancelledVirement })
+      return route.fulfill({ json: returnedVirement })
     if (path.endsWith('/virement-requests')) {
       const historical = new URL(incoming.url()).searchParams.has('cursor')
       return route.fulfill({
@@ -866,18 +868,18 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
           object: 'list',
           count: virementNumber,
           data: historical
-            ? cancelledVirement
-              ? [cancelledVirement]
+            ? returnedVirement
+              ? [returnedVirement]
               : []
             : virement
               ? [virementResult()]
               : [],
           next:
-            !historical && cancelledVirement
+            !historical && returnedVirement
               ? '/api/v1/activities/activity-1/virement-requests?cursor=older'
               : null,
           previous:
-            historical && cancelledVirement
+            historical && returnedVirement
               ? '/api/v1/activities/activity-1/virement-requests?cursor=newer'
               : null,
         },
@@ -887,6 +889,8 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
       path.endsWith('/disbursement-requests') &&
       incoming.method() === 'POST'
     ) {
+      if (request?.state === 'returned')
+        returnedDisbursement = structuredClone(financial())
       version += 1
       requestNumber += 1
       request = {
@@ -945,16 +949,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
         json: {
           object: 'list',
           count: 2,
-          data: [
-            {
-              ...financial(),
-              id: 'request-cancelled-history',
-              state: 'cancelled',
-              cancellation: { reason: 'Correction historique.' },
-              decisions: [],
-              allowed_actions: ['read'],
-            },
-          ],
+          data: returnedDisbursement ? [returnedDisbursement] : [],
           next: null,
           previous:
             'http://127.0.0.1:4173/api/v1/activities/activity-1/disbursement-requests?cursor=newer',
@@ -998,17 +993,19 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
               request?.state === 'approved' ? request.id : null,
             amount: request?.state === 'approved' ? request.amount : null,
             current_request_id:
-              virement && virement.state !== 'cancelled' ? virement.id : null,
+              virement && !['returned', 'cancelled'].includes(virement.state)
+                ? virement.id
+                : null,
             current_state:
-              virement && virement.state !== 'cancelled'
+              virement && !['returned', 'cancelled'].includes(virement.state)
                 ? virement.state
                 : null,
             can_submit:
               role === 'AGENT_SAISIE' &&
               request?.state === 'approved' &&
-              (!virement || virement.state === 'cancelled'),
+              (!virement || ['returned', 'cancelled'].includes(virement.state)),
             unavailable_reason:
-              virement && virement.state !== 'cancelled'
+              virement && !['returned', 'cancelled'].includes(virement.state)
                 ? 'virement_exists'
                 : request?.state === 'approved'
                   ? role === 'AGENT_SAISIE'
@@ -1053,9 +1050,10 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
 
   role = 'AGENT_SAISIE'
   await page.reload()
-  await page.getByLabel('Motif obligatoire').fill('Correction de la saisie.')
-  await page.getByRole('button', { name: 'Annuler la demande' }).click()
-  await expect(page.getByText('Annulée').first()).toBeVisible()
+  await expect(page.getByText(/Préciser la dépense/)).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Annuler la demande' }),
+  ).toHaveCount(0)
   await page.getByRole('button', { name: /Soumettre.*100.*000 XOF/ }).click()
   await expect(page.getByText('Soumise au Superviseur').first()).toBeVisible()
 
@@ -1076,7 +1074,9 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     .click()
   await expect(page).toHaveURL(/financeCursor=older/)
   await page.getByText('Historique des demandes (2)').click()
-  await expect(page.getByText('Annulée').first()).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /Retournée pour correction/ }),
+  ).toBeVisible()
 
   role = 'AGENT_SAISIE'
   await page.reload()
@@ -1102,12 +1102,10 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
 
   role = 'AGENT_SAISIE'
   await page.reload()
-  await virementSection
-    .getByLabel('Motif obligatoire')
-    .fill('Nouvelle demande de virement.')
-  await virementSection
-    .getByRole('button', { name: 'Annuler la demande' })
-    .click()
+  await expect(virementSection.getByText(/Compléter le dossier/)).toBeVisible()
+  await expect(
+    virementSection.getByRole('button', { name: 'Annuler la demande' }),
+  ).toHaveCount(0)
   await virementSection
     .getByRole('button', { name: /Demander le virement de.*100.*000 XOF/ })
     .click()
@@ -1278,21 +1276,21 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   await expect(page).toHaveURL(/virementCursor=older/)
   await virementSection.getByText('Historique des demandes (2)').click()
   await virementSection
-    .getByRole('button', { name: /Annulée.*100.*000 XOF/ })
+    .getByRole('button', { name: /Retournée pour correction.*100.*000 XOF/ })
     .click()
   await expect(page).toHaveURL(
-    new RegExp(`virementRequest=${cancelledVirement.id}`),
+    new RegExp(`virementRequest=${returnedVirement.id}`),
   )
   await page.goBack()
   await expect(page).toHaveURL(/virementCursor=older/)
   await expect(page).not.toHaveURL(
-    new RegExp(`virementRequest=${cancelledVirement.id}`),
+    new RegExp(`virementRequest=${returnedVirement.id}`),
   )
   await page.goBack()
   await expect(page).not.toHaveURL(/virementCursor=older/)
   await page.goForward()
   await page.goForward()
   await expect(page).toHaveURL(
-    new RegExp(`virementRequest=${cancelledVirement.id}`),
+    new RegExp(`virementRequest=${returnedVirement.id}`),
   )
 })

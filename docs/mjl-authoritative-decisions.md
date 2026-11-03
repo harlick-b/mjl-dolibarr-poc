@@ -30,6 +30,23 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## Financial returns allow direct resubmission (DEC-135)
+
+On 2026-11-03 the user approved the simpler financial correction path: a
+Supervisor or Validator return ends that request and permits correction and a
+fresh request without an intermediate Agent cancellation. Preserve the returned
+request, immutable submitted facts, reviewer identity and reason. Every new
+décaissement or virement request needs a fresh Supervisor then distinct Validator
+approval. Cancellation remains an Agent action for abandoning a pending request.
+
+A returned décaissement no longer freezes execution/planning by itself. A
+returned virement does not unlock its already approved décaissement or change
+approved amounts. Existing formal budget revision and approved-finance guards
+remain. Status follows these business actions; no manual status selector or new
+state is introduced. [Contract 52](rebuild/52-financial-return-simplification.md)
+bounds implementation and independent review. Activity-state merging, general
+reopening and late approved-finance correction remain outside this change.
+
 ## PTA-9B Partner detail authorization and completion (DEC-134)
 
 The user authorized PTA-9B on 2026-11-03. [Plan
