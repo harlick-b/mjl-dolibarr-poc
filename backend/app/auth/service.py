@@ -356,6 +356,7 @@ class AuthService:
                 "sha256",
                 "as_of",
                 "replacement_document_id",
+                "pta_id",
             }
             if set(details) - allowed or any(
                 type(v) not in (str, int) for v in details.values()

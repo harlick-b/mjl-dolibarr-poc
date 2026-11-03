@@ -125,15 +125,18 @@ function Workspace({ screen, session, onDenied }) {
   const [workflowReconciliation, setWorkflowReconciliation] = useState(null)
   const authGeneration = useRef(0)
   const mutationController = useRef(null)
+  const exportController = useRef(null)
   const denyWorkspace = useCallback(() => {
     authGeneration.current += 1
     mutationController.current?.abort()
+    exportController.current?.abort()
     onDenied()
   }, [onDenied])
   useEffect(
     () => () => {
       authGeneration.current += 1
       mutationController.current?.abort()
+      exportController.current?.abort()
     },
     [],
   )
@@ -188,6 +191,45 @@ function Workspace({ screen, session, onDenied }) {
           : []),
       ])
       toast.success(strings.saved)
+    },
+  })
+  const annualExport = useMutation({
+    retry: false,
+    networkMode: 'always',
+    meta: { localError: true },
+    mutationFn: async (ptaId) => {
+      const generation = authGeneration.current
+      const controller = new AbortController()
+      exportController.current = controller
+      const { blob, filename } = await api.download(
+        `/api/v1/ptas/${ptaId}/exports`,
+        {
+          method: 'POST',
+          csrf: session.csrf,
+          body: { format: 'csv' },
+          signal: controller.signal,
+        },
+      )
+      if (generation !== authGeneration.current)
+        throw new DOMException('Stale authorization', 'AbortError')
+      const href = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = filename
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+    },
+    onError: (problem) => {
+      if (problem.name === 'AbortError') return
+      if (problem.status === 401 || problem.status === 403) denyWorkspace()
+      setError(problem.message)
+    },
+    onSuccess: async () => {
+      setError('')
+      await client.invalidateQueries({ queryKey: ['audit-history'] })
+      toast.success(strings.ptaExported)
     },
   })
   const partners = useQuery(
@@ -453,6 +495,8 @@ function Workspace({ screen, session, onDenied }) {
           metrics={metrics.data}
           result={list.data}
           navigate={navigate}
+          exportPending={annualExport.isPending}
+          onExport={() => annualExport.mutate(context.data?.pta?.id)}
         />
       )}
       {screen === 'activityNew' && (
@@ -697,7 +741,7 @@ function Projects({
   )
 }
 
-function PTA({ context, metrics, result, navigate }) {
+function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
   if (!context) return <p role="status">Chargement…</p>
   const activities = result?.data || []
   return (
@@ -707,18 +751,30 @@ function PTA({ context, metrics, result, navigate }) {
           <h2>{context.project.name}</h2>
           <p>Exercice {context.year}</p>
         </div>
-        {context.allowed_actions.includes('create_activity') && (
-          <Link
-            className="planning-button"
-            to="/projects/$projectId/ptas/$year/activities/new"
-            params={{
-              projectId: context.project.id,
-              year: String(context.year),
-            }}
-          >
-            <Plus size={16} /> {strings.newActivity}
-          </Link>
-        )}
+        <div className="planning-actions">
+          {context.pta && (
+            <Button
+              variant="outline"
+              disabled={exportPending}
+              onClick={onExport}
+            >
+              <Download size={16} />
+              {exportPending ? strings.exportingPta : strings.exportPtaCsv}
+            </Button>
+          )}
+          {context.allowed_actions.includes('create_activity') && (
+            <Link
+              className="planning-button"
+              to="/projects/$projectId/ptas/$year/activities/new"
+              params={{
+                projectId: context.project.id,
+                year: String(context.year),
+              }}
+            >
+              <Plus size={16} /> {strings.newActivity}
+            </Link>
+          )}
+        </div>
         {context.pta && (
           <Link
             className="planning-button"

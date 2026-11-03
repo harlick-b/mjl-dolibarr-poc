@@ -125,7 +125,13 @@ def ordered_advisory_race(auth, first, second):
 
     def hold(_conn, _cursor, statement, _parameters, _context, _many):
         nonlocal claimed
-        if "pg_advisory_xact_lock(1843201)" not in statement:
+        if not any(
+            lock in statement
+            for lock in (
+                "pg_advisory_xact_lock(1843201)",
+                "pg_advisory_xact_lock_shared(1843201)",
+            )
+        ):
             return
         with claim_lock:
             if claimed:

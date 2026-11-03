@@ -81,6 +81,7 @@ ACTION_LABELS = {
     "account_deactivate": "Compte désactivé",
     "account_role_change": "Rôle du compte modifié",
     "audit.export": "Historique exporté",
+    "pta.export": "PTA exporté",
     "activity.amendment_cancel": "Modification annulée",
     "activity.amendment_open": "Modification ouverte",
     "activity.approve": "Activité approuvée",

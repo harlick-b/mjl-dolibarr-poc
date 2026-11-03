@@ -12,6 +12,22 @@ Completed phase plans and reports are kept in Git history rather than as active
 documents. The decision register preserves provenance; the gap analysis owns
 unresolved weaknesses and unapproved recommendations.
 
+## PTA-8A current-PTA CSV boundary (DEC-132)
+
+**PTA_8A_COMPLETE** on 2026-11-03. Internal business roles can download the
+selected current PTA as a French, formula-safe CSV containing approved Activity
+baselines, exact annual metrics and definitive closed-Activity financial facts.
+The complete export follows approved withdrawal/transfer placement and remains
+independent of Activity-list pagination.
+
+[Plan 45](rebuild/45-pta8a-current-pta-csv-plan.md) defines the bounded contract;
+[status 46](rebuild/46-pta8a-implementation-status.md) records PostgreSQL/API,
+frontend, browser and mandatory independent correction/re-review evidence. One
+POST responsibility and one existing-screen action were added with no migration,
+table, storage, job or report framework. Historical reconstruction, official
+PDF/XLSX annual reports, Partner exports, real accounts and production remain
+deferred.
+
 ## PTA-7B Activity attachment withdrawal boundary (DEC-131)
 
 **PTA_7B_COMPLETE** on 2026-11-03. An Agent can withdraw only their own
@@ -634,9 +650,10 @@ objects/installers, existing PHP class paths and old test runners are historical
 references only; each new-stack slice receives separate implementation approval.
 
 The business rules in `mjl_codex_authoritative_pta_change_brief.md` are approved.
-Planning, realization/settlement and the current metric portion of row 4 are
-implemented in the bounded synthetic environment. The remaining row 4 outputs
-and rows 5–7 remain proposed work requiring separate authorization. Derive
+Planning, realization/settlement, current metrics, the Activity Fiche, the first
+annual CSV, reminders and guarded Activity documents are implemented in the
+bounded synthetic environment. Remaining reporting, Partner access and other
+later work require separate authorization. Derive
 their concrete plans locally; keep one current contract and concise evidence,
 not another externally authored execution prompt. Stop after the authorized slice.
 
@@ -645,9 +662,9 @@ not another externally authored execution prompt. Stop after the authorized slic
 | 1. PTA planning foundation | Project lifecycle + at-most-one-active guard and closure denial for unfinished Activities/financial steps; annual PTA created automatically with the first Agent-planned Activity for that Project/year; PTA-only Activity creation; equal Agent access; Agent coordination assignments managed by Supervisor/Validator. Reconcile schema, commands, route/token guards and reads together. | Project closure and PTA creation are settled by DEC-089/090. DEC-104–106 settle the trusted singleton context, defer reviewer assignments/actions and define date clamping. Disposable API/DB tests cover context/parent forgery, Project/first-PTA creation races, unassigned Agent access and forbidden bypass. Existing screen changes need inspiration check before implementation. |
 | 2. Approved amendments and annual transfer | Implemented for synthetic planning-only Activities: immutable approved/candidate content, fresh two-stage review, amendments, withdrawal and forward annual transfer. | DEC-110/112/114 settle pause, withdrawal and annual history. Execution integration must preserve those decisions and replace temporary eligibility with actual obligations checks. |
 | 3. Realization and administrative settlement | Implemented for the positive-spending path through direct Activity closure and for validated zero-spending closure. Insufficiency remains unimplemented. Reversement is one exact unsplit surplus; no discrepancy branch is planned without a real case. | PTA-3A–3F and PTA-7A status records contain focused and regression evidence. No bank execution. |
-| 4. Annual metrics and Fiche | Current whole-PTA metrics and the regenerable per-Activity French Fiche PDF are implemented. A current-PTA CSV is approved as the first annual export; historical as-of reconstruction remains separate. | DEC-121/status 26, DEC-122/status 28 and DEC-129 define the bounded outputs. File references activate only with slice 6. |
+| 4. Annual metrics and Fiche | Current whole-PTA metrics, the regenerable per-Activity French Fiche PDF and the current-PTA CSV are implemented. Historical as-of reconstruction remains separate. | DEC-121/status 26, DEC-122/status 28 and DEC-132/status 46 define the bounded outputs. File references activate only with slice 6. |
 | 5. Administrative relance | Implemented: focused 21-day dispatcher, durable recipient/channel outcomes, sidebar notification centre and one synthetic email attempt per cycle. Browser push, real mail and production scheduling remain separate. | DEC-124/status 32 record due/reschedule/closure/deduplication, delivery, pagination, online-only UI and independent-review evidence. No generic notification platform. |
-| 6. Guarded optional documents | Activity upload/list/download/image preview are implemented. Reasoned withdrawal and linked correction are approved but unimplemented. Generic contexts/categories/version engines remain excluded; optional external-virement/reversement evidence requires a later real need. | Existing guarded Activity routes and DEC-129. Partner files remain hidden until their visibility decision; production storage/scanning/retention remains external. |
+| 6. Guarded optional documents | Activity upload/list/download/image preview plus reasoned withdrawal and optional linked correction are implemented. Generic contexts/categories/version engines remain excluded; optional external-virement/reversement evidence requires a later real need. | Existing guarded Activity routes, DEC-125/128/131 and their status evidence. Partner files remain hidden until their visibility decision; production storage/scanning/retention remains external. |
 | 7. Partner portal | Several individually invited read-only identities may share one Partner binding and see only that Partner's approved Projects/PTAs, progress, final decisions, Fiches and completed financial results. Drafts, internal comments, global audit and files are hidden. | Product projection is settled by DEC-129; Partner attachment visibility, real mail/OTP acceptance, cross-Partner denial and production authorization remain gates. |
 
 Each slice covers its schema/command/API/consumer/test changes as one coherent

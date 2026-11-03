@@ -19,6 +19,23 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## PTA-8A current-PTA CSV authorization (DEC-132)
+
+The user instructed Codex to audit and implement the next slice on 2026-11-03.
+The audit selected the first annual export settled in DEC-129. [Plan
+45](rebuild/45-pta8a-current-pta-csv-plan.md) is the bounded implementation and
+independent-review contract.
+
+Agents, Supervisors and Validators may generate one current selected-PTA CSV of
+definitively approved Activity baselines, whole-PTA metrics and definitive
+closed-Activity settlement facts. The complete selection is independent of list
+pagination, excludes effective withdrawals and follows approved destination
+placement. It is a bounded, audited, formula-safe synchronous download with no
+migration, stored artifact, background job, historical reconstruction, Partner
+access or generic reporting framework. [Status
+46](rebuild/46-pta8a-implementation-status.md) records final evidence and the
+mandatory independent correction/re-review cycle.
+
 ## PTA-7B Activity attachment withdrawal authorization (DEC-131)
 
 The user instructed Codex to audit and implement the next slice on 2026-11-03.

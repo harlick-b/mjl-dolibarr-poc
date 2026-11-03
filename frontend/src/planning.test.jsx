@@ -44,65 +44,66 @@ test('formats annual rates without capping and preserves zero denominators', () 
   expect(formatPercentage('0', '0')).toBe('Non calculable')
 })
 
-test('the annual plan shows whole-PTA physical and financial metrics', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((url) => {
-      const path = String(url)
-      if (path.includes('/auth/session'))
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              state: 'verified',
-              csrf: 'csrf',
-              user: { id: 'agent', role: 'AGENT_SAISIE' },
-              expires_at: new Date(Date.now() + 60000).toISOString(),
-            }),
-          ),
-        )
-      if (path.endsWith('/projects/project-1/ptas/2027'))
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              project: {
-                id: 'project-1',
-                name: 'Projet métriques',
-                allowed_actions: ['read'],
-              },
-              year: 2027,
-              pta: { id: 'pta-1' },
-              allowed_actions: ['read'],
-              approved_plan: { activity_count: 5, allocation: '9200000' },
-            }),
-          ),
-        )
-      if (path.endsWith('/ptas/pta-1/metrics'))
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              pta_id: 'pta-1',
-              as_of: '2027-10-30T10:00:00Z',
-              physical: { closed_activities: 1, approved_activities: 5 },
-              financial: {
-                closed_spending: '1000000',
-                approved_allocation: '9200000',
-              },
-            }),
-          ),
-        )
+function annualPageFetch(exportReply) {
+  return vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.endsWith('/ptas/pta-1/exports')) return exportReply(options)
+    if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            object: 'list',
-            count: 0,
-            data: [],
-            next: null,
-            previous: null,
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
       )
-    }),
-  )
+    if (path.endsWith('/projects/project-1/ptas/2027'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            project: {
+              id: 'project-1',
+              name: 'Projet métriques',
+              allowed_actions: ['read'],
+            },
+            year: 2027,
+            pta: { id: 'pta-1' },
+            allowed_actions: ['read'],
+            approved_plan: { activity_count: 5, allocation: '9200000' },
+          }),
+        ),
+      )
+    if (path.endsWith('/ptas/pta-1/metrics'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            pta_id: 'pta-1',
+            as_of: '2027-10-30T10:00:00Z',
+            physical: { closed_activities: 1, approved_activities: 5 },
+            financial: {
+              closed_spending: '1000000',
+              approved_allocation: '9200000',
+            },
+          }),
+        ),
+      )
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      ),
+    )
+  })
+}
+
+function renderAnnualPage() {
   render(
     <App
       router={makeRouter(
@@ -112,6 +113,32 @@ test('the annual plan shows whole-PTA physical and financial metrics', async () 
       )}
     />,
   )
+}
+
+test('the annual plan shows whole-PTA physical and financial metrics', async () => {
+  const user = userEvent.setup()
+  const createObjectURL = vi.fn(() => 'blob:pta-export')
+  const revokeObjectURL = vi.fn()
+  const anchorClick = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
+  vi.stubGlobal('URL', {
+    ...URL,
+    createObjectURL,
+    revokeObjectURL,
+  })
+  const fetch = annualPageFetch(() =>
+    Promise.resolve(
+      new Response('csv', {
+        headers: {
+          'Content-Type': 'text/csv',
+          'Content-Disposition': 'attachment; filename="pta-2027-test.csv"',
+        },
+      }),
+    ),
+  )
+  vi.stubGlobal('fetch', fetch)
+  renderAnnualPage()
 
   const metrics = await screen.findByRole('region', {
     name: 'Indicateurs annuels',
@@ -122,6 +149,111 @@ test('the annual plan shows whole-PTA physical and financial metrics', async () 
   expect(within(metrics).getByText('10,9 %')).toBeVisible()
   expect(within(metrics).getByText(/1 activité.*5 approuvée/)).toBeVisible()
   expect(within(metrics).getByText(/1.*000.*000.*9.*200.*000/)).toBeVisible()
+  await user.click(
+    screen.getByRole('button', { name: 'Exporter le PTA en CSV' }),
+  )
+  await waitFor(() => expect(anchorClick).toHaveBeenCalledOnce())
+  const exportCall = fetch.mock.calls.find(([url]) =>
+    String(url).endsWith('/ptas/pta-1/exports'),
+  )
+  expect(exportCall[1]).toEqual(
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ format: 'csv' }),
+      headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),
+    }),
+  )
+  expect(createObjectURL).toHaveBeenCalledOnce()
+  await waitFor(() =>
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:pta-export'),
+  )
+})
+
+test('an offline annual export is neither sent nor replayed', async () => {
+  const user = userEvent.setup()
+  const online = vi.spyOn(window.navigator, 'onLine', 'get')
+  const createObjectURL = vi.fn()
+  let exportSignal
+  vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL: vi.fn() })
+  const fetch = annualPageFetch(
+    (options) =>
+      new Promise((_resolve, reject) => {
+        exportSignal = options.signal
+        options.signal.addEventListener('abort', () =>
+          reject(new DOMException('Aborted', 'AbortError')),
+        )
+      }),
+  )
+  vi.stubGlobal('fetch', fetch)
+  renderAnnualPage()
+  await screen.findByRole('region', { name: 'Indicateurs annuels' })
+
+  online.mockReturnValue(false)
+  await user.click(
+    screen.getByRole('button', { name: 'Exporter le PTA en CSV' }),
+  )
+  await waitFor(() =>
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Connexion indisponible',
+    ),
+  )
+  expect(
+    fetch.mock.calls.filter(([url]) =>
+      String(url).endsWith('/ptas/pta-1/exports'),
+    ),
+  ).toHaveLength(0)
+  expect(createObjectURL).not.toHaveBeenCalled()
+
+  online.mockReturnValue(true)
+  window.dispatchEvent(new Event('online'))
+  await user.click(
+    screen.getByRole('button', { name: 'Exporter le PTA en CSV' }),
+  )
+  await waitFor(() => expect(exportSignal).toBeDefined())
+  online.mockReturnValue(false)
+  window.dispatchEvent(new Event('offline'))
+  expect(
+    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
+  ).toBeVisible()
+  expect(exportSignal.aborted).toBe(true)
+  expect(
+    fetch.mock.calls.filter(([url]) =>
+      String(url).endsWith('/ptas/pta-1/exports'),
+    ),
+  ).toHaveLength(1)
+  expect(createObjectURL).not.toHaveBeenCalled()
+  expect(screen.queryByText('Export CSV téléchargé.')).not.toBeInTheDocument()
+  online.mockReturnValue(true)
+  window.dispatchEvent(new Event('online'))
+  online.mockRestore()
+})
+
+test('an authorization loss during annual export denies the workspace', async () => {
+  const user = userEvent.setup()
+  const createObjectURL = vi.fn()
+  vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL: vi.fn() })
+  const fetch = annualPageFetch(() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ code: 'forbidden' }), { status: 403 }),
+    ),
+  )
+  vi.stubGlobal('fetch', fetch)
+  renderAnnualPage()
+  await screen.findByRole('region', { name: 'Indicateurs annuels' })
+
+  await user.click(
+    screen.getByRole('button', { name: 'Exporter le PTA en CSV' }),
+  )
+  expect(
+    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
+  ).toBeVisible()
+  expect(
+    fetch.mock.calls.filter(([url]) =>
+      String(url).endsWith('/ptas/pta-1/exports'),
+    ),
+  ).toHaveLength(1)
+  expect(createObjectURL).not.toHaveBeenCalled()
+  expect(screen.queryByText('Export CSV téléchargé.')).not.toBeInTheDocument()
 })
 
 test('an eligible Agent confirms submission of the current Activity version', async () => {

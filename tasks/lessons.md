@@ -401,3 +401,7 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   SQL, because response-shape tests do not prove that large file bodies stayed
   unloaded. When candidates use the shared cursor contract, expose pagination
   instead of silently limiting valid choices to the first page.
+- A row-count ceiling does not bound an export if its query loads full large
+  snapshots or every correction revision. Project only exported fields, select
+  the latest history row per entity in SQL, and test both the refusal boundary
+  and latest-correction semantics.

@@ -147,6 +147,9 @@ export const strings = new LocalizedStrings({
     operationRemoveNumber: 'Retirer l’opération {0}',
     closedActivitiesMetric: '{0} activité(s) clôturée(s) sur {1} approuvée(s)',
     closedSpendingMetric: '{0} de dépenses clôturées sur {1}',
+    exportPtaCsv: 'Exporter le PTA en CSV',
+    exportingPta: 'Génération…',
+    ptaExported: 'Export CSV du PTA généré.',
   },
 })
 

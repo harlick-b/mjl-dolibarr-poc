@@ -19,6 +19,7 @@ from app.auth.service import AuthError, AuthService, digest, request_id
 from app.config import database_url as read_database_url
 from app.database import make_engine
 from app.health import router
+from app.planning.annual_export import router as annual_export_router
 from app.planning.disbursement import router as disbursement_router
 from app.planning.documents import router as documents_router
 from app.planning.execution import router as execution_router
@@ -58,6 +59,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(reminders_router)
     app.include_router(documents_router)
     app.include_router(zero_spending_router)
+    app.include_router(annual_export_router)
     app.include_router(audit_history_router)
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:

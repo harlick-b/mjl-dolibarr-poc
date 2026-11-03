@@ -392,6 +392,36 @@ class AnnualMetricsOutput(Input):
     financial: FinancialMetricOutput
 
 
+def annual_metrics_data(
+    db: Session, pta: AnnualPTA, cutoff: datetime
+) -> dict[str, Any]:
+    plan = approved_plan(db, pta.project_id, pta.year, cutoff)
+    realized = db.execute(
+        select(
+            func.count(func.distinct(Activity.id)).label("activity_count"),
+            func.coalesce(func.sum(Operation.actual_spent), 0).label("spending"),
+        )
+        .join(Operation, Operation.activity_id == Activity.id)
+        .where(
+            Activity.pta_id == pta.id,
+            Activity.state == "closed",
+            Operation.removed_at.is_(None),
+        )
+    ).one()
+    return {
+        "pta_id": pta.id,
+        "as_of": plan["as_of"],
+        "physical": {
+            "closed_activities": int(realized.activity_count),
+            "approved_activities": plan["activity_count"],
+        },
+        "financial": {
+            "closed_spending": str(realized.spending),
+            "approved_allocation": plan["allocation"],
+        },
+    }
+
+
 def locked_read(db: Session) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock_shared(1843201)"))
 
@@ -1175,31 +1205,7 @@ def annual_metrics(identifier: str, request: Request, auth: Auth) -> dict[str, A
         if not pta or pta.context_id != CONTEXT:
             raise AuthError(404, "pta_not_found")
         cutoff = cutoff_value(db, None)
-        plan = approved_plan(db, pta.project_id, pta.year, cutoff)
-        realized = db.execute(
-            select(
-                func.count(func.distinct(Activity.id)).label("activity_count"),
-                func.coalesce(func.sum(Operation.actual_spent), 0).label("spending"),
-            )
-            .join(Operation, Operation.activity_id == Activity.id)
-            .where(
-                Activity.pta_id == pta.id,
-                Activity.state == "closed",
-                Operation.removed_at.is_(None),
-            )
-        ).one()
-        return {
-            "pta_id": pta.id,
-            "as_of": plan["as_of"],
-            "physical": {
-                "closed_activities": int(realized.activity_count),
-                "approved_activities": plan["activity_count"],
-            },
-            "financial": {
-                "closed_spending": str(realized.spending),
-                "approved_allocation": plan["allocation"],
-            },
-        }
+        return annual_metrics_data(db, pta, cutoff)
 
 
 @router.get("/ptas/{identifier}/activities", response_model=ListOutput[ActivityOutput])

@@ -47,6 +47,14 @@ test('current annual metrics remain visible on desktop and mobile', async ({
           },
         },
       })
+    if (path === '/api/v1/ptas/pta-1/exports')
+      return route.fulfill({
+        body: '\ufeffIdentifiant export;test',
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="pta-2027-test.csv"',
+        },
+      })
     return route.fulfill({ json: empty })
   })
 
@@ -56,6 +64,12 @@ test('current annual metrics remain visible on desktop and mobile', async ({
   await expect(metrics.getByText('10,9 %')).toBeVisible()
   await expect(metrics).toContainText('1 activité(s) clôturée(s) sur 5')
   await expect(metrics).toContainText('9 200 000 XOF')
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Exporter le PTA en CSV' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('pta-2027-test.csv')
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(metrics.getByText('Exécution physique')).toBeVisible()
