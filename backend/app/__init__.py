@@ -1,0 +1,1 @@
+"""MJL technical foundation application."""

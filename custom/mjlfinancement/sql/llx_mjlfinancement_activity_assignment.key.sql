@@ -1,1 +1,0 @@
--- llx_mjl_activity_assignment_bi, llx_mjl_activity_assignment_bu, and llx_mjl_activity_assignment_bd are installed as driver statements by activity_schema_installer.lib.php.

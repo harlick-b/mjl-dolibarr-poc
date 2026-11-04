@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{{app_name}} — {{email_title}}</title>
+  <style>
+    @media only screen and (max-width: 600px) {
+      .email-wrap { padding: 16px 12px !important; }
+      .email-header { padding: 24px !important; }
+      .email-content { padding: 32px 24px !important; }
+      .email-footer { padding: 0 24px 20px !important; }
+      .email-code { font-size: 32px !important; letter-spacing: 5px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;width:100%;background-color:#f5f7f8;font-family:Inter,Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;color:#f5f7f8;">Votre code pour confirmer votre connexion à {{app_name}}.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;background-color:#f5f7f8;">
+    <tr>
+      <td class="email-wrap" align="center" style="padding:40px 16px;">
+        <!--[if mso]><table role="presentation" width="600" align="center" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;width:100%;border-collapse:separate;border-spacing:0;">
+          <tr>
+            <td class="email-header" style="background-color:#16324f;padding:28px 40px;border-radius:6px 6px 0 0;">
+              <span style="font-family:Inter,Arial,Helvetica,sans-serif;font-weight:700;font-size:22px;line-height:28px;color:#ffffff;">{{app_name}}</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="email-content" style="padding:40px;background-color:#ffffff;border-left:1px solid #c8d0d5;border-right:1px solid #c8d0d5;">
+              <h1 style="font-family:Inter,Arial,Helvetica,sans-serif;font-weight:600;font-size:24px;line-height:32px;color:#202529;margin:0 0 20px;">{{email_title}}</h1>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 28px;">Pour confirmer votre connexion à {{app_name}}, saisissez le code à six chiffres suivant :</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;">
+                <tr>
+                  <td align="center" style="background-color:#f5f7f8;padding:28px 12px;border:1px solid #c8d0d5;border-radius:4px;">
+                    <p class="email-code" style="font-family:'Courier New',Courier,monospace;font-size:36px;font-weight:700;letter-spacing:7px;line-height:44px;color:#16324f;margin:0;">{{otp_code}}</p>
+                    <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;color:#5c6870;margin:12px 0 0;">Valable pendant {{expiration_text}}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:22px;color:#34414a;margin:28px 0 0;">Ce code est personnel et à usage unique. Ne le partagez avec personne.</p>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:22px;color:#5c6870;margin:12px 0 0;">Si vous n’êtes pas à l’origine de cette tentative de connexion, ignorez cet email.</p>
+            </td>
+          </tr>
+          <tr>
+            <td class="email-footer" align="center" style="background-color:#ffffff;padding:0 40px 24px;border:1px solid #c8d0d5;border-top:0;border-radius:0 0 6px 6px;">
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;color:#5c6870;margin:0;padding-top:20px;border-top:1px solid #c8d0d5;">Message automatique envoyé par {{app_name}}. Merci de ne pas y répondre.</p>
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{{ email_title }}
+
+Pour confirmer votre connexion à {{ app_name }}, saisissez ce code à six chiffres :
+
+{{ otp_code }}
+
+Valable pendant {{ expiration_text }}.
+
+Ce code est personnel et à usage unique. Ne le partagez avec personne.
+
+Si vous n’êtes pas à l’origine de cette tentative de connexion, ignorez cet email.
+
+Message automatique envoyé par {{ app_name }}. Merci de ne pas y répondre.

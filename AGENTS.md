@@ -1,265 +1,93 @@
 # Agent Instructions
 
-This is the canonical in-repo instruction layer for AI agents. If another
-AI-facing file conflicts with this file, follow this file.
+The user's latest explicit request takes precedence. Read docs/business-rules.md
+first, then only current guides relevant to the task: docs/engineering.md,
+docs/security.md, docs/design.md and docs/project-status.md. README.md owns setup.
+Requirements govern behavior; code and passing tests are implementation evidence,
+never user acceptance or production readiness. Ask only about unresolved business
+choices, contradictory requirements or missing external inputs.
 
-## Project Overview
+## Communication
 
-MJL Dolibarr is a Dockerized Dolibarr 23.0.2 workspace with MariaDB 11 for
-monitoring externally funded Ministry of Justice and Legislation projects.
-MJL-specific work must stay in the custom module or documented safe supporting
-areas; Dolibarr core files must never be modified.
+When asked to explain a concept, always use layman's terms. Explain the effect
+for the person using the app first, with familiar words and a concrete example;
+define necessary technical terms.
 
-## MJL Documentation Authority
+## Scope and implementation
 
-For MJL work, read `docs/mjl-authoritative-decisions.md` first.
+Implement only the authorized task. A short authorization is sufficient for a
+concrete slice: derive the smallest complete plan from approved rules and actual
+code, implement, verify and stop. No external execution prompt or repeated
+approval for routine fixes. Do not infer permission for the next slice.
 
-The user's latest explicit instruction supersedes every recorded project
-decision, approval, plan, report, test convention, and skill procedure. Update
-the affected repository guidance rather than preserving a conflicting earlier
-decision. An implementation or passing test is evidence only; it does not mean
-the user accepted the feature or application.
+Before edits map each mechanism to a requirement or concrete security/integrity
+risk. Prefer existing seams; remove speculative abstractions. Reassess if scope
+grows and after an hour of active implementation. No generic workflow engine,
+event bus, repository framework, microservices, offline database or mutation queue.
+Describe invariants before prescribing table/endpoint counts. Preserve exact XOF,
+immutable approvals, no-self-validation and server-side role/resource isolation.
 
-Do not follow older POC docs, executed plans, historical prompts, or stale
-N1/N2/DPAF instructions.
+Keep one concise contract per new slice when useful: outcome/exclusions, changed
+API/data/UI seams, decisions/dependencies, focused checks and independent review.
+Extend existing guides when sufficient; do not require separate execution prompts,
+closure/recheck documents or approval for routine technical correction. Link
+settled standards rather than duplicating them. Update project status at completion
+when capabilities or unresolved boundaries change; avoid accumulating spent plans.
 
-Use `docs/mjl-current-app-functional-map.md` only as current-state evidence.
+## Engineering and design
 
-If code conflicts with authoritative decisions, treat the code as
-implementation debt and record it in `docs/mjl-current-vs-target-gap-analysis.md`.
+Use React/Vite JavaScript/JSX, Router/Query, Tailwind/shadcn/Lucide, FastAPI,
+PostgreSQL, SQLAlchemy 2 and Alembic. Router owns navigation, Query server state,
+React temporary forms. Routes validate/authorize; use cases own transactions and
+atomic audit; persistence helpers never commit. Apply the complete engineering
+guide's UI/API/shared-helper contracts for touched pages and APIs, including
+cursor lists (default 60/max 100, invalid 422), RestClient/useAPI, localization,
+Sonner, Helmet and cookie/CSRF protections. Reuse helpers, not copied examples.
 
-If a doc conflicts with authoritative decisions, update, merge, or delete the
-stale doc.
+Read docs/design.md before visual changes. Use approved tokens and applicable
+supplied inspiration; missing inspiration blocks that screen only. Product claims
+in visual examples cannot override business rules. No persistent sample/demo
+data, hard-coded credentials or committed secrets. Tests use minimal disposable
+isolated data with teardown, never a shared tenant. Local real-account Resend use
+is authorized; production, provider/region and external acceptance remain gated.
 
-## Important Directories
+## Verification and independent review
 
-- `custom/mjlfinancement`: MJL custom module, pages, classes, scripts, SQL,
-  CSS, JS, and language files.
-- `docs/`: authority, current-state, deployment, readiness, testing, and
-  decision docs.
-- `docs/design-system/`: active design guidance, current screen inventory, and
-  UI audit docs.
-- `CONTEXT.md`: durable product/domain memory.
-- `DESIGN.md`: durable design memory.
-- `tasks/lessons.md`: reusable lessons from repeated mistakes or durable
-  debugging discoveries.
-- `tests/e2e`: Playwright E2E tests.
-- `data/documents`: local Dolibarr document storage.
+Choose checks for changed behavior and risks; include interactions with adjacent
+workflows. Use focused checks while iterating; broaden when shared changes or
+unresolved risks justify it. After fixes rerun affected checks, not unrelated
+suites. Never waive a mandatory gate or present older evidence as a final run.
+Record tested source/artifact with actual commands/results; bind migration
+compatibility to that candidate. Measure slow setup before optimizing fixtures;
+retain real disposable PostgreSQL for constraints, transactions and concurrency.
 
-## Setup Commands
+Documentation-only work uses status, diff/stat, diff --check, reference checks and
+direct new-file review. Skip runtime suites when no behavior changed and report
+why. Do not run broad benchmarks or production audits without an explicit request.
 
-Confirmed from `README.md` and `docker-compose.yml`:
+Every implementation plan ends with a separate review-only agent that did not
+implement it. The reviewer independently inspects requirements, actual diff,
+surrounding code and evidence, treating explanations/test claims as unverified;
+it must not edit implementation or fix its own findings. Report severity,
+file/line, impact and smallest correction, including verification gaps. The
+implementer fixes accepted findings and returns the candidate to the same reviewer.
+Do not declare completion until blocking findings/gaps are resolved; if no separate
+reviewer is available, report the gate blocked. Review is not acceptance,
+production readiness or authorization for more work.
 
-```bash
-docker compose up -d
-```
+## Skills, memory and Git
 
-Open `http://127.0.0.1:8080/`.
+Prefer repository skills in skills/<name>/SKILL.md; global skills are read-only.
+Route architecture to codebase-design, unclear product choices to grill-with-docs,
+domain changes to domain-modeling, bugs to diagnosing-bugs, behavioral work to tdd,
+exploration to prototype, skill maintenance to writing-great-skills and substantial
+reviews to code-review. Use local design-system-guardian, security-baseline-review
+and confidence-review-loop for their concerns. Procedures cannot expand scope or
+require runtime work for a documentation audit. Do not create per-library skills.
 
-The retained `bootstrap_poc.php` is a non-seeding module activation path. It
-must preserve the empty tenant and the one native technical administrator.
-
-## Development Commands
-
-Needs confirmation. No dedicated dev-server, watch, formatter, or generic
-developer command is confirmed beyond Docker Compose start.
-
-## Test/Lint/Build Commands
-
-Confirmed public verification commands from `package.json`:
-
-```bash
-npm test
-npm run test:unit
-npm run test:verify
-npm run test:e2e
-npm run test:manual-accessibility
-```
-
-Active verification guidance is in `docs/mjl-acceptance-tests.md`.
-
-Choose the smallest focused check that covers the changed behavior. Do not run
-`npm test`, long container suites, performance benchmarks, production-readiness
-audits, complete historical matrices, or repeat an already relevant passing
-check unless the user explicitly requests that run in the current task.
-Historical plans and reports cannot impose a test obligation. Remove tests that
-only preserve obsolete documents, implementation ceremony, or duplicated
-coverage; retain focused checks for current behavior, authorization, security,
-and data integrity.
-
-Container-backed suites use isolated disposable tenants and minimal fixtures.
-Do not restore the removed persistent seed to make tests pass.
-
-Lint command: Needs confirmation. Build command: Needs confirmation.
-
-## Environment/Secrets Rules
-
-- Do not commit real secrets, production credentials, private keys, API tokens,
-  or client-specific confidential values.
-- Credentials in `docker-compose.yml` are local development/test values only.
-- Production email transport, public/base URL, final permissions, and secrets
-  configuration remain Needs confirmation.
-- Never recreate `seed_sample_data.php`, the legacy sample-data library/CSVs,
-  or persistent fixture packages in a shared or production tenant.
-
-## Coding Conventions
-
-- Keep MJL-specific code inside `custom/mjlfinancement`, `docs/`, documented
-  setup scripts, disposable test-fixture locations, tests, SQL/update files, or
-  a documented safe custom theme boundary.
-- If a requirement appears to need Dolibarr core edits, stop and escalate the
-  architecture decision.
-- Prefer native Dolibarr concepts where they fit: third parties, projects,
-  users/groups, permissions, ECM/documents, and export helpers.
-- Preserve French-first UI/content and XOF/FCFA assumptions.
-- Preserve invitation-only access. Only Admin can send invitations for now.
-- Preserve exactly one native technical administrator through the clean local
-  reset; migrate no other existing sample user or business record.
-- Keep persistent sample/demo data absent until all implementation phases are
-  complete. Tests may create minimal records only inside isolated disposable
-  tenants and must remove all test data with tenant teardown.
-- Do not create or expose a public register page.
-- Filter custom queries by the active Dolibarr entity for custom objects,
-  dashboards, alerts, exports, audit lists, document lookups, and workflow
-  lookups.
-- UI hiding is not access control; direct URL and POST guards must remain.
-- Supporting documents must use guarded MJL routes, not raw public ECM links.
-- Preserve workflow rules, audit history, exports, and no-self-validation.
-- Official exports should stay French-labeled, Excel-readable, server-filtered,
-  audited, and stable in filename/format.
-
-## Git/Destructive Action Rules
-
-- Never modify Dolibarr core files.
-- Never revert user changes unless explicitly requested.
-- Do not run destructive git or filesystem operations unless explicitly
-  requested and approved.
-- Keep unrelated dirty worktree changes intact.
-
-## Verification Before Done
-
-- Match verification to the changed surface.
-- Use E2E tests as the primary validation for app UI, auth, dashboards,
-  exports, official outputs, and workflow changes.
-- For schema, workflow, document, or export changes, run the relevant current-purpose
-  verification command listed in `docs/mjl-acceptance-tests.md`.
-- For PHP edits, run appropriate syntax checks if available and report the
-  exact command used.
-- For documentation-only instruction changes, a diff/status check is enough.
-- Always report skipped checks and why.
-- Passing checks establish only the tested behavior. They do not record user
-  acceptance, authorize another phase, or establish production readiness.
-
-## Lean-Execution Checkpoint
-
-- Over-engineering is banned. Delete obsolete implementation, commands,
-  tests, and documents together; a reference from another obsolete file is not
-  a reason to keep either one. Implement only mechanisms required by the
-  current acceptance criteria or a concrete security/data-integrity risk.
-  Prefer an existing project seam or the smallest direct implementation that
-  satisfies the requirement.
-- Apply this checkpoint before the first implementation edit. Map each planned
-  mechanism to a current requirement, remove anything justified only by
-  hypothetical reuse, future flexibility, additional confidence, or an
-  unrequested failure model, and keep that minimal map as the scope boundary.
-- Stop immediately when the implementation introduces machinery outside that
-  map, duplicates an existing mechanism, or grows into its own framework.
-  Delete the speculative work before continuing; prior effort is not a reason
-  to retain it.
-- After each hour of active implementation, stop and reassess whether the work
-  is becoming over-engineered. Time spent waiting for required tests, builds,
-  downloads, or external tools does not count toward the hour.
-- Reassess immediately, without waiting for the hour, when adding an unplanned
-  abstraction, framework, orchestration layer, generalized helper, or test
-  harness.
-- At the checkpoint, map every new mechanism to an explicit requirement or a
-  material security/data-integrity risk, identify the simplest adequate
-  alternative, and remove speculative or duplicate machinery.
-- If simplification requires a product, scope, or architecture decision,
-  present a lean proposal and wait for user approval before continuing that
-  branch of work.
-- Within discretionary implementation choices, this checkpoint takes
-  precedence over instructions that encourage exhaustive hardening or maximal
-  confidence. It must not be used to skip explicit acceptance requirements,
-  essential security/data-integrity controls, or required verification.
-- Before planning, audit the relevant current documentation and remove stale or
-  duplicate obligations from the proposed scope.
-- Check scope before the first edit and whenever new work appears. Put useful
-  optional ideas in `docs/mjl-current-vs-target-gap-analysis.md` as unapproved
-  recommendations instead of implementing them.
-- Completed phases and reset units do not retain separate plans, strategies,
-  execution reports, or validation reports. Preserve concise implementation
-  state in the roadmap, unresolved issues in the gap analysis, and decision
-  history in the decision register. Git history remains the evidence archive.
-- Development is unfinished and nothing is accepted by default. Do not perform
-  production preparation or claim production readiness until the user
-  explicitly requests it.
-
-## Skill Routing
-
-- Global Matt skills are invoked by name. Local project skills are invoked from
-  `skills/<name>/SKILL.md`; read the local `SKILL.md` first.
-- Planning and ambiguity: use Matt `grill-with-docs` when requirements,
-  product behavior, domain language, or architecture decisions are unclear.
-- Domain model changes: use Matt `domain-modeling` when work changes domain
-  terms, business rules, entity relationships, permissions, statuses, workflow
-  states, or glossary vocabulary.
-- Risky plans, architectural uncertainty, or "are you sure?" reviews: use local
-  `confidence-review-loop` at `skills/confidence-review-loop/SKILL.md`.
-- Bugs, failing tests, regressions, performance issues, production errors,
-  inconsistent behavior, or unclear runtime failures: use Matt
-  `diagnosing-bugs`; reproduce the issue or create a feedback loop before fixing.
-- Feature work or bug fixes where behavior can be built in vertical slices: use
-  Matt `tdd`.
-- Architecture, module design, public interfaces, adapters, UI/API/domain/data
-  boundaries, or testability improvements: use Matt `codebase-design`.
-- UI, layout, icons, responsive behavior, accessibility, visual consistency, or
-  `DESIGN.md` compliance: read `DESIGN.md`, active docs under
-  `docs/design-system/`, and use local `design-system-guardian`.
-- UI/state/logic questions that should be answered with throwaway code before
-  production implementation: use Matt `prototype`.
-- Auth, APIs, user data, secrets, public forms, permissions, rate limits, logs,
-  guarded documents, or production-security concerns: use local
-  `security-baseline-review`.
-- Before merge or before presenting a substantial diff as done: use Matt
-  `code-review`.
-- When the current conversation or spec needs to become a structured PRD: use
-  Matt `to-prd`.
-- When a plan or PRD must be broken into vertical, agent-ready issues: use Matt
-  `to-issues`.
-- Before ending a long session, switching agents, or handing work to a fresh
-  context: use Matt `handoff`.
-- When creating or improving reusable skills: use Matt `writing-great-skills`.
-- At the end of meaningful work: evaluate whether `tasks/lessons.md` should be
-  updated.
-- If a named skill is unavailable, perform the equivalent review manually and
-  note that in the final response.
-
-## Subagent Policy
-
-- Use subagents only when explicitly asked or when the task naturally splits
-  into independent audits.
-- Suggested subagent uses: security review, UI/design review,
-  test/verification review, and documentation/context review.
-- Each subagent must return findings, evidence, risk level, and recommended
-  fixes.
-- The main agent must consolidate results before editing.
-
-## Project Memory Routing
-
-- For MJL product/domain decisions, read `docs/mjl-authoritative-decisions.md`
-  first, then `CONTEXT.md`.
-- For current implementation evidence, read
-  `docs/mjl-current-app-functional-map.md`.
-- For UI/design ambiguity, read `DESIGN.md`, `docs/design-system/DESIGN.md`,
-  `docs/design-system/audit/current-screen-inventory.md`, and
-  `docs/design-system/audit/current-ui-audit.md`.
-- Before app UI, auth, email, dashboard, export, official output, or
-  E2E-covered work, confirm required design-system docs and audits exist and
-  have no unresolved decisions blocking the touched surface.
-
-## Lessons/Update Policy
-
-Evaluate `tasks/lessons.md` at the end of meaningful work. Update it only for
-repeated mistakes, user corrections, or durable debugging discoveries. Do not
-add one-off observations or generic advice.
+Use subagents only when explicitly requested or for independent audits. Consolidate
+findings before edits. Evaluate tasks/lessons.md after meaningful work; add only
+repeated corrections or durable discoveries, and read only relevant lessons.
+Preserve unrelated worktree changes and backend/.venv. No destructive Git/filesystem
+operations without authorization, deployment or production configuration changes.
+Stop after the authorized scope.

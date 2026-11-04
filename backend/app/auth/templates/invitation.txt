@@ -1,0 +1,13 @@
+{{ email_title }}
+
+Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
+
+Vous avez été invité(e) à accéder à la plateforme {{ app_name }}. Pour activer votre compte, définissez votre mot de passe avec ce lien :
+
+{{ action_url }}
+
+Ce lien est valable pendant {{ expiration_text }}.
+
+Si vous n’attendiez pas cette invitation, vous pouvez ignorer cet email.
+
+Message automatique envoyé par {{ app_name }}. Merci de ne pas y répondre.
