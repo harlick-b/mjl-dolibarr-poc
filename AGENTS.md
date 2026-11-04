@@ -83,12 +83,13 @@ contract 53 records the synthetic implementation and independent review.
 DEC-137 approves the scope of a Partner-visible selected-PTA CSV and annual
 working reports (Excel, then PDF), confirms that an Agent must obtain budget
 revision approval before an underfunded Activity resumes, and defers past-date
-reconstruction. These are recorded decisions, not implementation authorization.
+reconstruction. The subsequently authorized Partner CSV is implemented in contract
+54 with one scoped POST download, existing audit and no migration or dependency.
+Annual working reports and insufficiency still require their bounded implementation.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 insufficiency implementation, historical metrics,
 PDF/XLSX annual and global audit exports,
 PDF preview and document restoration/general versioning,
-Partner exports,
 production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later
 slices, general A4 and production remain deferred.

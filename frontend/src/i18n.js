@@ -2,6 +2,11 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    partnerPtaCsv: 'Télécharger le récapitulatif CSV',
+    partnerPtaCsvPending: 'Préparation du CSV…',
+    partnerPtaCsvFailed:
+      'Le téléchargement du CSV a échoué. Veuillez réessayer.',
+
     shareWithPartner: 'Partager avec le Partenaire',
     stopPartnerSharing: 'Arrêter le partage',
     sharedWithPartner: 'Partagé avec le Partenaire',

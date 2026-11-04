@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Annotated, Any, Literal
 from urllib.parse import quote, urlencode
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
@@ -15,7 +16,9 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
+from app.partner_export import artifact as partner_csv
 from app.partner_fiche import render_partner_fiche
+from app.planning import annual_export as annual_csv
 from app.planning.models import (
     Activity,
     ActivityDocument,
@@ -30,7 +33,12 @@ from app.planning.models import (
     VirementConfirmation,
     ZeroSpendingDeclaration,
 )
-from app.planning.routes import annual_metrics_data, cutoff_value, locked_read
+from app.planning.routes import (
+    MUTATION_HEADERS,
+    annual_metrics_data,
+    cutoff_value,
+    locked_read,
+)
 from app.planning.service import CONTEXT, Cursor, page_rows
 
 router = APIRouter(
@@ -772,3 +780,71 @@ def shared_document_preview(
     activity_id: str, document_id: str, request: Request, auth: Auth
 ) -> Response:
     return shared_document_bytes(activity_id, document_id, request, auth, inline=True)
+
+
+@router.post(
+    "/ptas/{pta_id}/exports",
+    response_class=Response,
+    openapi_extra=MUTATION_HEADERS,
+    responses={
+        200: {
+            "content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}}
+        }
+    },
+)
+def export_pta(
+    pta_id: str, body: annual_csv.ExportInput, request: Request, auth: Auth
+) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        locked_read(db)
+        auth.guard(db, *evidence(request, auth))
+        actor, partner = partner_principal(db, auth, request)
+        pta = db.get(AnnualPTA, pta_id)
+        project = db.get(Project, pta.project_id) if pta else None
+        if (
+            not pta
+            or pta.context_id != CONTEXT
+            or not project
+            or project.context_id != CONTEXT
+            or project.partner_id != partner.id
+            or not db.scalar(select(visible_pta(pta.id)))
+        ):
+            raise AuthError(404, "portal_resource_not_found")
+        rows = annual_csv.current_rows(db, pta)
+        metrics = annual_metrics_data(db, pta, cutoff_value(db, None))
+        export_id = str(uuid4())
+        content = partner_csv(
+            export_id=export_id,
+            partner_name=partner.name,
+            project_reference=project.reference,
+            project_name=project.name,
+            year=pta.year,
+            metrics=metrics,
+            rows=rows,
+        )
+        auth.audit(
+            db,
+            "pta.export",
+            actor.id,
+            export_id,
+            details={
+                "format": body.format,
+                "role": actor.role,
+                "pta_id": pta.id,
+                "row_count": len(rows),
+                "byte_size": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "as_of": metrics["as_of"],
+            },
+        )
+        filename = f"pta-partenaire-{pta.year}-{export_id}.csv"
+    return Response(
+        content,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(content)),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

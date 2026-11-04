@@ -33,7 +33,7 @@ stop and surface the contradiction.
 ## Reporting scope and budget insufficiency clarification (DEC-137)
 
 On 2026-11-04 the user approved the following scopes and clarified that budget
-insufficiency is a real business case. These decisions do not start implementation.
+insufficiency is a real business case. That initial decision did not start implementation.
 
 - Partner export: one selected year's PTA as CSV, readable in Excel, containing
   only facts already authorized in that Partner's portal: approved Activities,
@@ -56,8 +56,12 @@ insufficiency is a real business case. These decisions do not start implementati
   reopening is authorized. The bounded insufficiency implementation must respect
   these existing controls; late financial exceptions remain separately unresolved.
 
-Partner CSV, annual Excel/PDF working reports and insufficiency remain pending
-implementation. Production and real-account enablement remain deferred.
+The subsequent request authorized planning, implementation and independent review
+of the Partner CSV. [Contract 54](rebuild/54-partner-pta-csv.md) records the bounded
+synthetic implementation: one selected-PTA POST download, explicit public columns,
+existing ownership/session/CSRF checks and audit, no migration or new dependency.
+Annual Excel/PDF working reports and insufficiency remain pending implementation.
+Production and real-account enablement remain deferred.
 
 ## Partner attachment sharing policy (DEC-136)
 

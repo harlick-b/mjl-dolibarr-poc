@@ -16,6 +16,7 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
       return route.fulfill({
         json: {
           state: 'verified',
+          csrf: 'csv-csrf',
           user: {
             id: 'partner-user',
             role: 'PARTENAIRE',
@@ -24,6 +25,19 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           expires_at: new Date(Date.now() + 60_000).toISOString(),
         },
       })
+    if (path === '/api/v1/partner-portal/ptas/pta-1/exports') {
+      expect(route.request().method()).toBe('POST')
+      expect(route.request().headers()['x-csrf-token']).toBe('csv-csrf')
+      expect(route.request().postDataJSON()).toEqual({ format: 'csv' })
+      return route.fulfill({
+        body: '\ufeffNom;Budget\nActivité;120000',
+        contentType: 'text/csv',
+        headers: {
+          'Content-Disposition':
+            'attachment; filename="pta-partenaire-2027.csv"',
+        },
+      })
+    }
     if (path === '/api/v1/partner-portal/profile')
       return route.fulfill({
         json: { id: 'partner-1', name: 'Partenaire Démo' },
@@ -164,7 +178,13 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   await expect(
     page.getByText('Espace Partenaire · Lecture seule'),
   ).toBeVisible()
-  await expect(page.getByText(/export/i)).toHaveCount(0)
+  const csvDownload = page.waitForEvent('download')
+  await page
+    .getByRole('button', { name: 'Télécharger le récapitulatif CSV' })
+    .click()
+  expect((await csvDownload).suggestedFilename()).toBe(
+    'pta-partenaire-2027.csv',
+  )
   await page.getByRole('button', { name: 'Voir le détail' }).click()
   await expect(
     page.getByRole('heading', { name: 'Campagne de santé', exact: true }),
@@ -197,6 +217,11 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   await page.getByRole('button', { name: 'Télécharger', exact: true }).click()
   expect((await attachmentDownload).suggestedFilename()).toBe('photo.png')
   await page.setViewportSize({ width: 390, height: 844 })
+  const mobileCsv = page.waitForEvent('download')
+  await page
+    .getByRole('button', { name: 'Télécharger le récapitulatif CSV' })
+    .click()
+  expect((await mobileCsv).suggestedFilename()).toBe('pta-partenaire-2027.csv')
   await expect(
     page.getByRole('navigation', { name: 'Espace Partenaire' }),
   ).toBeVisible()

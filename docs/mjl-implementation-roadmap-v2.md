@@ -8,10 +8,17 @@ approvals, verdicts, and phase sequencing. Implement only the requested slice,
 check scope before editing, and use focused verification. Production
 preparation remains deferred until explicitly requested.
 
+## Partner selected-PTA CSV (DEC-137)
+
+Implemented in the synthetic environment after the user's plan/implement/review
+request. Partners download one selected PTA's current approved public facts,
+including complete rows beyond screen pagination and definitive closed finance.
+One existing-card button, one scoped POST, transactional export audit; no migration,
+table, dependency or stored artifact. [Contract 54](rebuild/54-partner-pta-csv.md)
+records the six focused gates and independent review/correction evidence.
+
 ## Next approved scopes — not yet implemented (DEC-137)
 
-- Partner CSV: export one selected year's PTA using only already visible portal
-  facts; no internal comments or bundled files.
 - Annual working report: selected-PTA summary and Activity rows, Excel first,
   then PDF with the same figures. No official template is approved.
 - Budget insufficiency: a real case; the Agent requests a formal budget revision

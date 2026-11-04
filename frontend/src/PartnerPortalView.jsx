@@ -4,6 +4,7 @@ import { Navigate, useNavigate, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
 import { sessionKey, sessionQuery } from './auth'
 import { formatXof } from './planning'
+import { strings } from './i18n'
 import { useAPI } from './RestClientProvider'
 import { AccessRecovery } from './AccessRecovery'
 import { PartnerDocuments } from './PartnerDocuments'
@@ -206,6 +207,40 @@ export function PartnerPortalView() {
     },
   })
 
+  const csvExport = useMutation({
+    retry: false,
+    networkMode: 'always',
+    mutationFn: async (ptaId) => {
+      if (!navigator.onLine) throw new TypeError('Offline')
+      const request = downloadGuard.begin()
+      const { blob, filename } = await api.download(
+        `/api/v1/partner-portal/ptas/${ptaId}/exports`,
+        {
+          method: 'POST',
+          csrf: session.data?.csrf,
+          body: { format: 'csv' },
+          signal: request.signal,
+        },
+      )
+      if (!downloadGuard.current(request.generation))
+        throw new DOMException('Stale authorization', 'AbortError')
+      const href = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = filename
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+    },
+    onError: (error) => {
+      if (error?.status === 401 || error?.status === 403) deny(error.status)
+    },
+  })
+  useEffect(() => {
+    return () => downloadGuard.revoke()
+  }, [downloadGuard, selectedProject?.id, selectedPta?.id])
+
   useEffect(() => {
     if (!permitted) {
       downloadGuard.revoke()
@@ -272,8 +307,9 @@ export function PartnerPortalView() {
   ]
   const loading = queries.some((query) => query.isPending || query.isFetching)
   const unavailable = queries.some((query) => query.isError)
-  const changeSearch = (values) =>
-    navigate({
+  const changeSearch = (values) => {
+    downloadGuard.revoke()
+    return navigate({
       to: '/partner',
       search: {
         ...search,
@@ -292,6 +328,7 @@ export function PartnerPortalView() {
         ...values,
       },
     })
+  }
   return (
     <section className="planning-stack partner-portal">
       <Helmet>
@@ -387,6 +424,19 @@ export function PartnerPortalView() {
               <div className="planning-title">
                 <div>
                   <h2>PTA {selectedPta.year}</h2>
+                  <button
+                    type="button"
+                    disabled={csvExport.isPending}
+                    onClick={() => csvExport.mutate(selectedPta.id)}
+                  >
+                    {csvExport.isPending
+                      ? strings.partnerPtaCsvPending
+                      : strings.partnerPtaCsv}
+                  </button>
+                  {csvExport.isError &&
+                    csvExport.error?.name !== 'AbortError' && (
+                      <p role="alert">{strings.partnerPtaCsvFailed}</p>
+                    )}
                   <p>
                     {selectedPta.metrics.physical.closed_activities} activité
                     clôturée sur{' '}
