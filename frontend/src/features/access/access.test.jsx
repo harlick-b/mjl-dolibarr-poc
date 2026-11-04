@@ -42,10 +42,10 @@ test('Admin sees the empty account view and invitation action', async () => {
     />,
   )
   expect(
-    await screen.findByRole('heading', { name: 'Utilisateurs', exact: true }),
+    await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
   ).toBeVisible()
   expect(
-    screen.getByRole('button', { name: 'Inviter un utilisateur' }),
+    screen.getByRole('heading', { name: 'Utilisateurs', exact: true }),
   ).toBeVisible()
   expect(await screen.findByText('Aucun utilisateur.')).toBeVisible()
 })
@@ -128,7 +128,7 @@ test('pending identity redirects to the usable OTP screen', async () => {
   )
   mount()
   expect(
-    await screen.findByRole('heading', { name: 'Vérifiez votre identité' }),
+    await screen.findByRole('heading', { name: 'Vérification' }),
   ).toBeVisible()
   expect(screen.getByLabelText('Code de vérification')).toBeVisible()
 })
@@ -471,4 +471,81 @@ test('late lifecycle completion after offline invalidation cannot restore protec
     delete HTMLDialogElement.prototype.showModal
     delete HTMLDialogElement.prototype.close
   }
+})
+
+test('Admin navigation omits default search values and preserves meaningful filters', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.includes('/auth/')
+              ? session()
+              : { items: [], total: 0, page: 1, size: 20 },
+          ),
+        ),
+      ),
+    ),
+  )
+  const router = mount()
+  await screen.findByRole('heading', { name: 'Utilisateurs', exact: true })
+  await act(() => router.navigate({ to: '/access/users' }))
+  expect(router.state.location.searchStr).toBe('')
+  await act(() =>
+    router.navigate({
+      to: '/access/users',
+      search: { role: 'AGENT_SAISIE', page: 2 },
+    }),
+  )
+  expect(router.state.location.searchStr).toBe('?role=AGENT_SAISIE&page=2')
+  await act(() =>
+    router.navigate({ to: '/access/users', search: { role: '', page: 1 } }),
+  )
+  expect(router.state.location.searchStr).toBe('')
+})
+
+test('users page shows loading during initial access check and retry without exposing identity', async () => {
+  let finish
+  let reads = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) => {
+      if (!url.includes('/auth/'))
+        return Promise.resolve(
+          new Response(JSON.stringify({ items: [], total: 0 })),
+        )
+      reads += 1
+      if (reads === 2)
+        return Promise.resolve(new Response('{}', { status: 503 }))
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    }),
+  )
+  mount()
+  expect(
+    await screen.findByRole('status', { name: 'Chargement des utilisateurs' }),
+  ).toBeVisible()
+  expect(
+    screen.queryByText('Vérification de votre accès…'),
+  ).not.toBeInTheDocument()
+  await act(async () => finish(new Response('{}', { status: 503 })))
+  expect(
+    await screen.findByRole('heading', { name: 'Service indisponible' }),
+  ).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
+  expect(
+    await screen.findByRole('status', { name: 'Chargement des utilisateurs' }),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('heading', { name: 'Service indisponible' }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('link', { name: 'Mon compte' }),
+  ).not.toBeInTheDocument()
+  await act(async () => finish(new Response(JSON.stringify(session()))))
+  expect(
+    await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
+  ).toBeVisible()
 })

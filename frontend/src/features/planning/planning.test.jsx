@@ -1388,8 +1388,9 @@ test('an Agent sees the empty projects workspace', async () => {
       )}
     />,
   )
+  await screen.findByText('Aucun projet.')
   expect(
-    await screen.findByRole('heading', { name: 'Projets', level: 1 }),
+    screen.getByRole('heading', { name: 'Projets', level: 1 }),
   ).toBeVisible()
   expect(screen.getByText('Aucun projet.')).toBeVisible()
   expect(

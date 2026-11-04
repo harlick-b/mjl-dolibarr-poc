@@ -2,15 +2,18 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Link,
+  Navigate,
   useNavigate,
   useRouter,
   useRouterState,
 } from '@tanstack/react-router'
-import { Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react'
-import { sessionKey, sessionQuery, roleLabels } from './auth'
+import { Eye, EyeOff, LoaderCircle } from 'lucide-react'
+import { sessionKey, sessionQuery, roleLabels, workspacePath } from './auth'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { Helmet } from 'react-helmet-async'
 import { strings } from '@/shared/i18n'
+import { OtpInput } from './OtpInput'
+import { AdminSidebar } from '@/features/access/AdminSidebar'
 
 function subscribeOnline(callback) {
   window.addEventListener('online', callback)
@@ -21,7 +24,7 @@ function subscribeOnline(callback) {
   }
 }
 
-function Password({ label, name, value, onChange }) {
+function Password({ label, name, value, onChange, disabled }) {
   const [visible, setVisible] = useState(false)
   return (
     <label>
@@ -29,6 +32,7 @@ function Password({ label, name, value, onChange }) {
       <span className="auth-password">
         <input
           name={name}
+          disabled={disabled}
           value={value}
           onChange={onChange}
           type={visible ? 'text' : 'password'}
@@ -40,6 +44,7 @@ function Password({ label, name, value, onChange }) {
         />
         <button
           type="button"
+          disabled={disabled}
           aria-label={
             visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
           }
@@ -68,7 +73,7 @@ export function AuthView() {
   const [confirmation, setConfirmation] = useState('')
   const [code, setCode] = useState('')
   const [notice, setNotice] = useState('')
-  const [blocked, setBlocked] = useState(false)
+  const [revalidation, setRevalidation] = useState(0)
   const logoutPending = useRef(false)
   const [logoutUnconfirmed, setLogoutUnconfirmed] = useState(false)
   const [requestSent, setRequestSent] = useState(false)
@@ -76,6 +81,7 @@ export function AuthView() {
   const generation = useRef(0)
   const channel = useRef(null)
   const controller = useRef(null)
+  const inFlight = useRef(null)
   const dirty = Boolean(email || password || confirmation || code)
   const mutation = useMutation({
     retry: false,
@@ -89,7 +95,7 @@ export function AuthView() {
 
   useEffect(() => {
     const invalidate = () => {
-      setBlocked(true)
+      setRevalidation((version) => version + 1)
       setPassword('')
       setConfirmation('')
       setCode('')
@@ -100,6 +106,7 @@ export function AuthView() {
         )
       resetMutation()
       generation.current += 1
+      inFlight.current = null
       controller.current?.abort()
       void client.cancelQueries()
       client.clear()
@@ -111,6 +118,7 @@ export function AuthView() {
     window.addEventListener('offline', invalidate)
     return () => {
       generation.current += 1
+      inFlight.current = null
       controller.current?.abort()
       resetMutation()
       client.getMutationCache().clear()
@@ -119,11 +127,25 @@ export function AuthView() {
     }
   }, [client, resetMutation, router])
 
+  const refetchSession = session.refetch
+  useEffect(() => {
+    if (!revalidation || !online || logoutUnconfirmed) return
+    const current = generation.current
+    let cancelled = false
+    void refetchSession().then((fresh) => {
+      if (!cancelled && current === generation.current && !fresh.isError)
+        setRevalidation(0)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [revalidation, online, logoutUnconfirmed, refetchSession])
+
   useEffect(() => {
     if (!expiry) return
     const timer = window.setTimeout(
       () => {
-        setBlocked(true)
+        setRevalidation((version) => version + 1)
         generation.current += 1
         void client.cancelQueries()
         client.clear()
@@ -144,16 +166,18 @@ export function AuthView() {
   }, [dirty, mutation.isPending])
 
   async function submit(event, endpoint, body, destination) {
-    event.preventDefault()
-    if (mutation.isPending) return
+    event?.preventDefault()
+    if (inFlight.current || !online) return
+    if (endpoint === 'otp/verify' && !/^[0-9]{6}$/.test(body.code)) return
     const current = ++generation.current
+    inFlight.current = current
     controller.current = new AbortController()
     let csrf = session.data?.csrf
     setNotice('')
     if (endpoint === 'logout') {
       logoutPending.current = true
       setLogoutUnconfirmed(true)
-      setBlocked(true)
+      setRevalidation((version) => version + 1)
       await client.cancelQueries()
       client.clear()
     }
@@ -199,23 +223,24 @@ export function AuthView() {
       logoutPending.current = false
       setLogoutUnconfirmed(false)
       await session.refetch()
-      setBlocked(false)
+      setRevalidation(0)
       if (destination) await navigate({ to: destination })
       else setNotice('Un nouveau code a été envoyé.')
       await client.invalidateQueries({ queryKey: sessionKey })
     } catch (error) {
       if (current !== generation.current) return
-      if (error.status === 401) {
+      if (error.status === 401 && endpoint !== 'login') {
+        setRevalidation((version) => version + 1)
         await client.cancelQueries()
         client.clear()
       }
-      if (error.status === 401) setBlocked(true)
       setNotice(
         endpoint === 'logout'
           ? 'Déconnexion non confirmée. Reconnectez-vous au réseau puis réessayez.'
           : error.message,
       )
     } finally {
+      if (inFlight.current === current) inFlight.current = null
       for (const pending of client.getMutationCache().getAll()) {
         if (pending.state.variables?.body === body)
           client.getMutationCache().remove(pending)
@@ -233,7 +258,7 @@ export function AuthView() {
     online && !session.isError && !session.isPending
       ? session.data?.state
       : null
-  const verified = !blocked && !session.isFetching && state === 'verified'
+  const verified = !revalidation && !session.isFetching && state === 'verified'
   const disabled = !online || mutation.isPending || !session.data?.csrf
   const criteria = [
     [password.length >= 8, '8 caractères minimum'],
@@ -254,38 +279,49 @@ export function AuthView() {
         {notice && <p role="alert">{notice}</p>}
       </>
     )
-  else if (blocked)
+  else if (logoutUnconfirmed)
     content = (
       <>
-        <h1>Session à vérifier</h1>
-        <p>Votre identité doit être vérifiée à nouveau.</p>
-        <button
-          className="auth-primary"
-          onClick={async () => {
-            const fresh = await session.refetch()
-            if (!fresh.isError) setBlocked(false)
-          }}
-        >
-          Vérifier ma session
-        </button>
-        {logoutUnconfirmed && (
-          <form onSubmit={(e) => submit(e, 'logout', {}, '/login')}>
-            <button className="auth-secondary">Réessayer la déconnexion</button>
-          </form>
-        )}
+        <h1>{strings.logoutHeading}</h1>
+        <form onSubmit={(e) => submit(e, 'logout', {}, '/login')}>
+          <button className="auth-primary" disabled={mutation.isPending}>
+            {strings.retryLogout}
+          </button>
+        </form>
       </>
     )
-  else if (session.isPending)
-    content = <p role="status">Vérification de la session…</p>
+  else if (
+    session.isPending ||
+    (session.isFetching && session.isError) ||
+    (revalidation && !session.isError) ||
+    (state === 'verified' && session.isFetching)
+  )
+    content = (
+      <AuthSkeleton
+        label={path === '/identity' ? strings.accountLoading : strings.loading}
+      />
+    )
   else if (session.isError)
     content = (
       <>
         <h1>Session indisponible</h1>
         <p role="alert">Votre identité n’a pas pu être vérifiée.</p>
-        <button className="auth-primary" onClick={() => session.refetch()}>
+        <button
+          className="auth-primary"
+          onClick={async () => {
+            const fresh = await session.refetch()
+            if (!fresh.isError) setRevalidation(0)
+          }}
+        >
           Réessayer
         </button>
       </>
+    )
+  else if (verified && ['/', '/login', '/verification'].includes(path))
+    return <Navigate to={workspacePath(session.data.user.role)} replace />
+  else if (path === '/' || (path === '/verification' && state !== 'pending'))
+    return (
+      <Navigate to={state === 'pending' ? '/verification' : '/login'} replace />
     )
   else if (path === '/forgot-password')
     content = requestSent ? (
@@ -309,6 +345,7 @@ export function AuthView() {
             {strings.emailLabel}
             <input
               name="recoveryEmail"
+              disabled={mutation.isPending}
               type="email"
               autoComplete="email"
               required
@@ -361,6 +398,7 @@ export function AuthView() {
             <input type="email" value={loader.email} readOnly />
           </label>
           <Password
+            disabled={mutation.isPending}
             label={strings.newPasswordLabel}
             name="password"
             value={password}
@@ -374,6 +412,7 @@ export function AuthView() {
             ))}
           </ul>
           <Password
+            disabled={mutation.isPending}
             label={strings.confirmationLabel}
             name="confirmation"
             value={confirmation}
@@ -398,9 +437,7 @@ export function AuthView() {
   else if (verified)
     content = (
       <>
-        <ShieldCheck size={32} />
-        <h1>Session vérifiée</h1>
-        <p>Vous êtes connecté à l’espace MJL.</p>
+        <h1>{strings.accountHeading}</h1>
         <dl>
           <dt>Adresse e-mail</dt>
           <dd>{session.data.user.email}</dd>
@@ -425,23 +462,14 @@ export function AuthView() {
       </>
     )
   else if (path === '/identity')
-    content = (
-      <>
-        <h1>Connexion requise</h1>
-        <p>Vérifiez votre identité pour accéder à cet espace.</p>
-        <Link to={state === 'pending' ? '/verification' : '/login'}>
-          Continuer la connexion
-        </Link>
-      </>
+    return (
+      <Navigate to={state === 'pending' ? '/verification' : '/login'} replace />
     )
   else if (path === '/invitation')
     content = (
       <>
-        <h1>Définir votre mot de passe</h1>
-        <p>
-          Votre accès a été créé par un administrateur. Choisissez votre mot de
-          passe pour activer votre compte.
-        </p>
+        <h1>{strings.invitationTitle}</h1>
+        <p>{strings.invitationPrompt}</p>
         {!loader?.proof || !loader?.email ? (
           <p role="alert">
             Ce lien est invalide ou a expiré. Contactez votre administrateur.
@@ -457,15 +485,23 @@ export function AuthView() {
               )
             }
           >
-            <label>
-              Adresse e-mail
-              <input type="email" value={loader.email} readOnly />
-            </label>
+            <div className="auth-email-summary">
+              <span>{strings.emailLabel}</span>
+              <strong>{loader.email}</strong>
+            </div>
             <Password
-              label="Mot de passe"
+              disabled={mutation.isPending}
+              label={strings.newPasswordLabel}
               name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+            />
+            <Password
+              disabled={mutation.isPending}
+              label="Confirmer le mot de passe"
+              name="confirmation"
+              value={confirmation}
+              onChange={(e) => setConfirmation(e.target.value)}
             />
             <ul className="auth-criteria">
               {criteria.map(([ok, label]) => (
@@ -474,12 +510,9 @@ export function AuthView() {
                 </li>
               ))}
             </ul>
-            <Password
-              label="Confirmer le mot de passe"
-              name="confirmation"
-              value={confirmation}
-              onChange={(e) => setConfirmation(e.target.value)}
-            />
+            {confirmation && password !== confirmation && (
+              <p role="status">{strings.passwordMismatch}</p>
+            )}
             <button
               className="auth-primary"
               disabled={
@@ -488,59 +521,61 @@ export function AuthView() {
                 password !== confirmation
               }
             >
-              Définir mon mot de passe
+              {strings.invitationSubmit}
             </button>
           </form>
         )}
+        <Link to="/login" className="auth-secondary auth-return">
+          {strings.backToLogin}
+        </Link>
       </>
     )
   else if (state === 'pending')
     content = (
       <>
-        <h1>Vérifiez votre identité</h1>
-        <p>
-          Saisissez le code à six chiffres envoyé à{' '}
-          {session.data.email || 'votre adresse e-mail'}.
+        <h1>{strings.otpHeading}</h1>
+        <p className="auth-otp-intro">
+          {strings.otpPrompt}
+          <strong>{session.data.email || strings.otpEmailFallback}</strong>
         </p>
-        <form onSubmit={(e) => submit(e, 'otp/verify', { code }, '/identity')}>
-          <label>
-            Code de vérification
-            <span className="auth-otp-wrap">
-              <span className="auth-otp-slots" aria-hidden="true">
-                {Array.from({ length: 6 }, (_, i) => (
-                  <span key={i}>{code[i] || ''}</span>
-                ))}
-              </span>
-              <input
-                className="auth-otp"
-                name="otp"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                required
-                value={code}
-                onChange={(e) =>
-                  setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                }
-              />
-            </span>
-          </label>
+        <form onSubmit={(e) => submit(e, 'otp/verify', { code }, '/')}>
+          <OtpInput
+            value={code}
+            onChange={setCode}
+            onComplete={(completed) =>
+              submit(null, 'otp/verify', { code: completed }, '/')
+            }
+            disabled={mutation.isPending}
+          />
           <button
             className="auth-primary"
-            disabled={disabled || code.length !== 6}
+            disabled={disabled || !/^[0-9]{6}$/.test(code)}
           >
-            Vérifier le code
+            {mutation.isPending && (
+              <LoaderCircle
+                className="auth-button-spinner"
+                aria-hidden="true"
+                size={16}
+              />
+            )}
+            {strings.otpSubmit}
           </button>
         </form>
-        <form onSubmit={(e) => submit(e, 'otp/resend', {})}>
+        <form
+          className="auth-otp-resend"
+          onSubmit={(e) => submit(e, 'otp/resend', {})}
+        >
+          <span>{strings.otpNotReceived}</span>
           <button className="auth-secondary" disabled={disabled}>
-            Renvoyer un code
+            {strings.otpResend}
           </button>
         </form>
-        <form onSubmit={(e) => submit(e, 'logout', {}, '/login')}>
+        <form
+          className="auth-otp-cancel"
+          onSubmit={(e) => submit(e, 'logout', {}, '/login')}
+        >
           <button className="auth-secondary" disabled={disabled}>
-            Annuler la connexion
+            {strings.backToLogin}
           </button>
         </form>
       </>
@@ -548,11 +583,7 @@ export function AuthView() {
   else
     content = (
       <>
-        <h1>Connexion à votre espace</h1>
-        <p>
-          Accédez à la plateforme de suivi des projets du Ministère de la
-          Justice et de la Législation.
-        </p>
+        <h1>{strings.loginHeading}</h1>
         <form
           onSubmit={(e) =>
             submit(e, 'login', { email, password }, '/verification')
@@ -562,6 +593,7 @@ export function AuthView() {
             Adresse e-mail
             <input
               name="email"
+              disabled={mutation.isPending}
               type="email"
               autoComplete="username"
               required
@@ -571,67 +603,107 @@ export function AuthView() {
             />
           </label>
           <Password
+            disabled={mutation.isPending}
             label="Mot de passe"
             name="loginPassword"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+          <Link to="/forgot-password" className="auth-forgot">
+            {strings.forgotLink}
+          </Link>
           <button className="auth-primary" disabled={disabled}>
-            Se connecter
+            {strings.loginSubmit}
           </button>
         </form>
-        <Link to="/forgot-password" className="auth-secondary">
-          {strings.forgotLink}
-        </Link>
-        <p className="auth-note">
-          <LockKeyhole size={16} /> Un code de vérification vous sera envoyé par
-          e-mail.
-        </p>
       </>
     )
 
+  const adminUser =
+    path === '/identity' &&
+    verified &&
+    session.data.user.role === 'ADMIN_PLATEFORME'
+      ? session.data.user
+      : null
   return (
-    <div className="auth-layout">
+    <AuthFrame
+      user={adminUser}
+      title={authTitle(path)}
+      busy={mutation.isPending}
+    >
+      {content}
+      {online && notice && <p role="alert">{notice}</p>}
+    </AuthFrame>
+  )
+}
+
+function authTitle(path) {
+  return path === '/forgot-password'
+    ? strings.forgotTitle
+    : path === '/reset-password'
+      ? strings.resetTitle
+      : path === '/invitation'
+        ? strings.invitationTitle
+        : path === '/verification'
+          ? strings.otpHeading
+          : path === '/identity'
+            ? strings.accountHeading
+            : strings.loginHeading
+}
+
+function AuthFrame({ user, title, busy, children }) {
+  return (
+    <div className={user ? 'access-layout' : 'auth-layout'}>
       <Helmet>
-        <title>
-          {path === '/forgot-password'
-            ? strings.forgotTitle
-            : path === '/reset-password'
-              ? strings.resetTitle
-              : 'Espace MJL'}
-        </title>
+        <title>{title}</title>
       </Helmet>
-      <aside className="auth-brand">
-        <img src="/icon-192.png" alt="" width="56" height="56" />
-        <p>
-          MINISTÈRE DE LA JUSTICE
-          <br />
-          ET DE LA LÉGISLATION
-        </p>
-        <div className="auth-brand-message">
-          <h2>
-            Une gestion rigoureuse.
-            <br />
-            Un impact durable.
-          </h2>
-          <p>
-            Plateforme de suivi des projets financés sur ressources extérieures.
-          </p>
-        </div>
-        <span>République du Bénin</span>
-      </aside>
-      <main className="auth-main">
-        <header>
-          <img src="/icon-192.png" alt="" width="40" height="40" />
-          <strong>Espace MJL</strong>
-        </header>
-        <section className="auth-card" aria-busy={mutation.isPending}>
-          {content}
-          {online && notice && <p role="alert">{notice}</p>}
-          {mutation.isPending && <p role="status">Traitement en cours…</p>}
+      {user ? (
+        <AdminSidebar user={user} />
+      ) : (
+        <aside className="auth-brand" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </aside>
+      )}
+      <main className={user ? 'auth-main access-account-main' : 'auth-main'}>
+        {!user && (
+          <header>
+            <img src="/icon-192.png" alt="" width="36" height="36" />
+            <strong>MJL</strong>
+          </header>
+        )}
+        <section className="auth-card" aria-busy={busy}>
+          {children}
         </section>
-        <footer>Accès sécurisé · Sur invitation uniquement</footer>
       </main>
+    </div>
+  )
+}
+
+export function AuthLoading({ path }) {
+  return (
+    <AuthFrame title={authTitle(path)} busy>
+      <AuthSkeleton
+        label={path === '/identity' ? strings.accountLoading : strings.loading}
+      />
+    </AuthFrame>
+  )
+}
+
+function AuthSkeleton({ label = strings.loading }) {
+  return (
+    <div
+      className="auth-skeleton"
+      role="status"
+      aria-label={label}
+      aria-busy="true"
+    >
+      <span className="auth-skeleton-heading" />
+      <span />
+      <span />
+      <span />
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { PageLoading, LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate, useSearch } from '@tanstack/react-router'
@@ -289,8 +290,7 @@ export function PartnerPortalView() {
         Votre identité n’a pas pu être vérifiée.
       </div>
     )
-  if (session.isPending)
-    return <p role="status">Vérification de votre accès…</p>
+  if (session.isPending) return <PartnerLoading />
   if (!permitted)
     return (
       <div className="planning-error">
@@ -342,7 +342,14 @@ export function PartnerPortalView() {
         </div>
         <span className="partner-readonly">Lecture seule</span>
       </header>
-      {loading && <p role="status">Chargement de votre portefeuille…</p>}
+      {loading && (
+        <LoadingPlaceholder
+          label={strings.formatString(strings.pageLoading, {
+            page: strings.partnerTitle,
+          })}
+          variant="detail"
+        />
+      )}
       {unavailable && (
         <div className="planning-error" role="alert">
           Votre portefeuille est momentanément indisponible.
@@ -685,4 +692,8 @@ export function PartnerPortalView() {
       )}
     </section>
   )
+}
+
+export function PartnerLoading() {
+  return <PageLoading title={strings.partnerTitle} variant="detail" />
 }

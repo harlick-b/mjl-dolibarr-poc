@@ -1,23 +1,31 @@
-import { render, screen } from '@testing-library/react'
-import { test, expect } from 'vitest'
+import { waitFor, render, screen } from '@testing-library/react'
+import { test, expect, vi } from 'vitest'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { App, makeRouter } from './router.jsx'
 
-test('renders the neutral MJL shell without business navigation', async () => {
+test('anonymous visitors land directly on login', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ state: 'anonymous', csrf: 'fixture' })),
+      ),
+    ),
+  )
   const router = makeRouter(createMemoryHistory({ initialEntries: ['/'] }))
   render(<App router={router} />)
+  await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
   expect(
-    await screen.findByRole('heading', { name: 'Espace MJL' }),
+    await screen.findByRole('heading', { name: 'Connexion' }),
   ).toBeVisible()
-  expect(screen.getByRole('link', { name: 'État du service' })).toHaveAttribute(
-    'href',
-    '/health',
-  )
+  expect(router.state.location.pathname).toBe('/login')
+  expect(
+    screen.queryByRole('link', { name: 'État du service' }),
+  ).not.toBeInTheDocument()
 })
 
 test('navigates to health and displays loading then the verified result', async () => {
   const { vi } = await import('vitest')
-  const { default: userEvent } = await import('@testing-library/user-event')
   let finish
   vi.stubGlobal(
     'fetch',
@@ -28,11 +36,15 @@ test('navigates to health and displays loading then the verified result', async 
         }),
     ),
   )
-  const router = makeRouter(createMemoryHistory({ initialEntries: ['/'] }))
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/health'] }),
+  )
   render(<App router={router} />)
-  await screen.findByRole('heading', { name: 'Espace MJL' })
-  await userEvent.click(screen.getByRole('link', { name: 'État du service' }))
-  expect(await screen.findByText('Vérification en cours…')).toBeVisible()
+  expect(
+    await screen.findByRole('status', {
+      name: 'Chargement de l’état du service',
+    }),
+  ).toBeVisible()
   finish(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }))
   expect(await screen.findByText('Service disponible')).toBeVisible()
   expect(fetch).toHaveBeenCalledTimes(1)
@@ -83,6 +95,14 @@ test('network failure is unavailable and retry can recover', async () => {
 })
 
 test('unknown routes offer a real return to home', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ state: 'anonymous', csrf: 'fixture' })),
+      ),
+    ),
+  )
   const { default: userEvent } = await import('@testing-library/user-event')
   render(
     <App
@@ -96,6 +116,6 @@ test('unknown routes offer a real return to home', async () => {
     screen.getByRole('link', { name: 'Retour à l’accueil' }),
   )
   expect(
-    await screen.findByRole('heading', { name: 'Espace MJL' }),
+    await screen.findByRole('heading', { name: 'Connexion' }),
   ).toBeVisible()
 })

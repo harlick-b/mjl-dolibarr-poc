@@ -1,3 +1,5 @@
+import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
+import { strings } from '@/shared/i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
@@ -63,7 +65,7 @@ export function NotificationView() {
         </button>
       </section>
     )
-  if (session.isPending) return <p role="status">Vérification de l’accès…</p>
+  if (session.isPending) return <NotificationsLoading />
   if (session.error?.status === 401 || session.data?.state === 'anonymous')
     return <Navigate to="/login" replace />
   if (session.data?.state === 'pending')
@@ -130,8 +132,7 @@ function NotificationWorkspace({ session, onDenied }) {
     },
   })
 
-  if (notifications.isPending)
-    return <p role="status">Chargement des notifications…</p>
+  if (notifications.isPending) return <NotificationsLoading />
   if (notifications.isError)
     return (
       <p role="alert">Les notifications sont momentanément indisponibles.</p>
@@ -143,11 +144,12 @@ function NotificationWorkspace({ session, onDenied }) {
       search: { cursor: cursorFrom(link, '/notifications') },
     })
   return (
-    <section className="planning-stack">
+    <section className="planning-stack" aria-busy={notifications.isFetching}>
       <Helmet>
         <title>Notifications — MJL</title>
       </Helmet>
       <div className="planning-heading">
+        <RefreshIndicator active={notifications.isFetching} />
         <div>
           <p className="eyebrow">Suivi administratif</p>
           <h1>Notifications</h1>
@@ -217,4 +219,8 @@ function NotificationWorkspace({ session, onDenied }) {
       </div>
     </section>
   )
+}
+
+export function NotificationsLoading() {
+  return <PageLoading title={strings.notificationsTitle} />
 }

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
-import { Plus, Users, X } from 'lucide-react'
+import { Plus, SlidersHorizontal, X } from 'lucide-react'
 import { roleLabels, sessionKey, sessionQuery } from '@/features/auth/auth'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { strings } from '@/shared/i18n'
 import { Button } from '@/shared/ui/button'
+import { Helmet } from 'react-helmet-async'
+import { AdminSidebar } from './AdminSidebar'
 
 function subscribe(callback) {
   window.addEventListener('online', callback)
@@ -86,23 +88,24 @@ export function AccessView() {
         <Link to="/login">Connexion</Link>
       </section>
     )
+  if (session.isPending || (session.isFetching && session.isError))
+    return <AccessLoading />
   if (session.error?.status === 401 || session.data?.state === 'anonymous')
     return <Navigate to="/login" replace />
   if (session.data?.state === 'pending')
     return <Navigate to="/verification" replace />
   if (session.isError)
     return (
-      <section className="access-message">
-        <h1>Service indisponible</h1>
-        <p role="alert">Votre identité n’a pas pu être vérifiée.</p>
-        <Button onClick={() => session.refetch()}>Réessayer</Button>
-      </section>
-    )
-  if (session.isPending)
-    return (
-      <p className="access-message" role="status">
-        Vérification de votre accès…
-      </p>
+      <AccessGate>
+        <section className="access-message" role="alert">
+          <h1>Service indisponible</h1>
+          <p>
+            Votre identité n’a pas pu être vérifiée. Réessayez pour accéder aux
+            utilisateurs.
+          </p>
+          <Button onClick={() => session.refetch()}>Réessayer</Button>
+        </section>
+      </AccessGate>
     )
   if (user?.role !== 'ADMIN_PLATEFORME')
     return (
@@ -113,12 +116,57 @@ export function AccessView() {
       </section>
     )
   return (
-    <Accounts
-      key={user.id}
-      session={session.data}
-      checking={session.isFetching}
-      onDenied={() => setBlocked(true)}
-    />
+    <>
+      {session.isFetching && <AccessLoading />}
+      <Accounts
+        key={user.id}
+        session={session.data}
+        checking={session.isFetching}
+        onDenied={() => setBlocked(true)}
+      />
+    </>
+  )
+}
+
+function AccessGate({ children }) {
+  return (
+    <div className="access-layout">
+      <Helmet>
+        <title>{strings.usersTitle}</title>
+      </Helmet>
+      <aside className="access-sidebar" aria-hidden="true">
+        <div className="access-brand">
+          <img src="/icon-192.png" alt="" width="40" height="40" />
+          <span>MJL</span>
+        </div>
+      </aside>
+      <div className="access-workspace">
+        <header>{strings.usersTitle}</header>
+        <main className="access-main">{children}</main>
+      </div>
+    </div>
+  )
+}
+
+export function AccessLoading() {
+  return (
+    <AccessGate>
+      <div role="status" aria-label={strings.usersLoading} aria-busy="true">
+        <div className="access-heading">
+          <h1>{strings.usersTitle}</h1>
+        </div>
+        <div className="access-list-skeleton" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <h2>{strings.invitationsTitle}</h2>
+        <div className="access-list-skeleton" aria-hidden="true">
+          <span />
+          <span />
+        </div>
+      </div>
+    </AccessGate>
   )
 }
 
@@ -252,7 +300,9 @@ function Accounts({ session, onDenied, checking }) {
     staleTime: 0,
     gcTime: 0,
     networkMode: 'always',
-    enabled: dialog?.kind === 'invite',
+    enabled:
+      dialog?.kind === 'invite' ||
+      Boolean(users.data?.items.some((user) => user.role === 'PARTENAIRE')),
     queryFn: async ({ signal }) => {
       try {
         return await partnerOptions(api, signal)
@@ -344,23 +394,12 @@ function Accounts({ session, onDenied, checking }) {
     <div
       className="access-layout"
       inert={checking || undefined}
-      style={{ visibility: checking ? 'hidden' : undefined }}
+      style={{ display: checking ? 'none' : undefined }}
     >
-      <aside className="access-sidebar">
-        <Link to="/identity" className="access-brand">
-          <span className="access-mark">M</span>MJL
-        </Link>
-        <nav aria-label="Administration">
-          <Link to="/access/users" aria-current="page">
-            <Users size={18} />
-            Utilisateurs
-          </Link>
-        </nav>
-        <Link to="/identity" className="access-account">
-          {session.user.email}
-          <small>Admin · Mon compte</small>
-        </Link>
-      </aside>
+      <Helmet>
+        <title>{strings.usersTitle}</title>
+      </Helmet>
+      <AdminSidebar user={session.user} />
       <div className="access-workspace">
         <header>Utilisateurs</header>
         <main className="access-main">
@@ -376,67 +415,82 @@ function Accounts({ session, onDenied, checking }) {
               {notice}
             </p>
           )}
-          <form
-            className="access-filters"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const d = new FormData(e.currentTarget)
-              void changeSearch({
-                email: d.get('email').trim(),
-                role: d.get('role'),
-                state: d.get('state'),
-                page: 1,
-                invitationPage: 1,
-              })
-            }}
+          <details
+            className="access-filter-panel"
+            open={
+              Boolean(search.email || search.role || search.state) || undefined
+            }
           >
-            <label>
-              Rechercher par e-mail
-              <input
-                key={search.email}
-                name="email"
-                type="search"
-                maxLength={254}
-                defaultValue={search.email}
-              />
-            </label>
-            <label>
-              Rôle
-              <select key={search.role} name="role" defaultValue={search.role}>
-                <option value="">Tous les rôles</option>
-                {Object.entries(roleLabels).map(([code, label]) => (
-                  <option key={code} value={code}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              État du compte
-              <select
-                key={search.state}
-                name="state"
-                defaultValue={search.state}
-              >
-                <option value="">Tous les états</option>
-                {['pending', 'active', 'inactive'].map((s) => (
-                  <option key={s} value={s}>
-                    {states[s]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button>Filtrer</Button>
-          </form>
+            <summary>
+              <SlidersHorizontal aria-hidden="true" size={16} />
+              {strings.usersFilters}
+            </summary>
+            <form
+              className="access-filters"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const d = new FormData(e.currentTarget)
+                void changeSearch({
+                  email: d.get('email').trim(),
+                  role: d.get('role'),
+                  state: d.get('state'),
+                  page: 1,
+                  invitationPage: 1,
+                })
+              }}
+            >
+              <label>
+                Rechercher par e-mail
+                <input
+                  key={search.email}
+                  name="email"
+                  type="search"
+                  maxLength={254}
+                  defaultValue={search.email}
+                />
+              </label>
+              <label>
+                Rôle
+                <select
+                  key={search.role}
+                  name="role"
+                  defaultValue={search.role}
+                >
+                  <option value="">Tous les rôles</option>
+                  {Object.entries(roleLabels).map(([code, label]) => (
+                    <option key={code} value={code}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                État du compte
+                <select
+                  key={search.state}
+                  name="state"
+                  defaultValue={search.state}
+                >
+                  <option value="">Tous les états</option>
+                  {['pending', 'active', 'inactive'].map((s) => (
+                    <option key={s} value={s}>
+                      {states[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button>Filtrer</Button>
+            </form>
+          </details>
           <ListState query={users} empty="Aucun utilisateur.">
             <div className="access-table-wrap">
               <table>
                 <caption className="sr-only">Comptes utilisateurs</caption>
                 <thead>
                   <tr>
-                    <th>{strings.accountFullName}</th>
-                    <th>Adresse e-mail</th>
+                    <th>{strings.userName}</th>
                     <th>Rôle</th>
+                    <th>{strings.userScope}</th>
                     <th>État</th>
                     <th>Actions</th>
                   </tr>
@@ -444,11 +498,22 @@ function Accounts({ session, onDenied, checking }) {
                 <tbody>
                   {users.data?.items.map((u) => (
                     <tr key={u.id}>
-                      <td>{u.full_name || '—'}</td>
-                      <td>{u.email}</td>
+                      <td className="access-person">
+                        <strong>{u.full_name || u.email}</strong>
+                        {u.full_name && <small>{u.email}</small>}
+                      </td>
                       <td>{roleLabels[u.role]}</td>
                       <td>
-                        <span className="access-status">{states[u.state]}</span>
+                        {u.role === 'PARTENAIRE'
+                          ? partners.data?.find(
+                              (partner) => partner.id === u.partner_id,
+                            )?.name || strings.partnerScope
+                          : 'MJL'}
+                      </td>
+                      <td>
+                        <span className="access-status" data-state={u.state}>
+                          {states[u.state]}
+                        </span>
                       </td>
                       <td>
                         {u.state === 'active' &&
@@ -524,8 +589,7 @@ function Accounts({ session, onDenied, checking }) {
                 </caption>
                 <thead>
                   <tr>
-                    <th>{strings.accountFullName}</th>
-                    <th>Adresse e-mail</th>
+                    <th>{strings.userName}</th>
                     <th>Rôle</th>
                     <th>État</th>
                     <th>Expiration</th>
@@ -535,8 +599,10 @@ function Accounts({ session, onDenied, checking }) {
                 <tbody>
                   {invitations.data?.items.map((i) => (
                     <tr key={i.id}>
-                      <td>{i.full_name || '—'}</td>
-                      <td>{i.email}</td>
+                      <td className="access-person">
+                        <strong>{i.full_name || i.email}</strong>
+                        {i.full_name && <small>{i.email}</small>}
+                      </td>
                       <td>{roleLabels[i.role]}</td>
                       <td>
                         {states[i.state]}
@@ -610,7 +676,17 @@ function Accounts({ session, onDenied, checking }) {
 
 function ListState({ query, empty, children }) {
   if (query.isPending || query.isFetching)
-    return <p role="status">Chargement…</p>
+    return (
+      <div
+        className="access-list-skeleton"
+        role="status"
+        aria-label={strings.adminListLoading}
+      >
+        <span />
+        <span />
+        <span />
+      </div>
+    )
   if (query.isError)
     return (
       <div role="alert">
@@ -625,7 +701,8 @@ function ListState({ query, empty, children }) {
   )
 }
 function Pagination({ query, page, change, label }) {
-  if (!query.data || query.isError) return null
+  if (!query.data || query.isError || (page === 1 && query.data.total <= 20))
+    return null
   return (
     <nav className="access-pagination" aria-label={`Pagination ${label}`}>
       <button
@@ -673,7 +750,7 @@ function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
       ref={ref}
       className="access-dialog"
       inert={checking || undefined}
-      style={{ visibility: checking ? 'hidden' : undefined }}
+      style={{ display: checking ? 'none' : undefined }}
       aria-labelledby="invitation-title"
       onKeyDown={(event) => {
         if (event.key !== 'Tab') return
@@ -711,103 +788,104 @@ function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
           <X size={20} />
         </button>
       </div>
-      <form onSubmit={submit}>
-        {invite ? (
-          <div className="access-dialog-fields">
-            <label>
-              {strings.accountFullName}
-              <input
-                name="full_name"
-                type="text"
-                maxLength={200}
-                required
-                autoComplete="name"
-              />
-            </label>
-            <label>
-              Adresse e-mail
-              <input
-                name="email"
-                type="email"
-                maxLength={254}
-                required
-                autoComplete="off"
-              />
-            </label>
-            <label>
-              Rôle
-              <select
-                name="role"
-                value={inviteRole}
-                onChange={(event) => setInviteRole(event.target.value)}
-              >
-                {Object.entries(roleLabels)
-                  .filter(([r]) => r !== 'ADMIN_PLATEFORME')
-                  .map(([r, l]) => (
-                    <option key={r} value={r}>
-                      {l}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            {inviteRole === 'PARTENAIRE' && (
+      <form onSubmit={submit} aria-busy={pending}>
+        <fieldset disabled={pending}>
+          {invite ? (
+            <div className="access-dialog-fields">
               <label>
-                Partenaire
-                <select
-                  name="partner_id"
+                {strings.accountFullName}
+                <input
+                  name="full_name"
+                  type="text"
+                  maxLength={200}
                   required
-                  disabled={partners.isPending}
-                >
-                  <option value="">Sélectionner un Partenaire</option>
-                  {partners.data?.map((partner) => (
-                    <option key={partner.id} value={partner.id}>
-                      {partner.name}
-                    </option>
-                  ))}
-                </select>
-                {partners.isError && (
-                  <small role="alert">
-                    Liste des Partenaires indisponible.
-                  </small>
-                )}
+                  autoComplete="name"
+                />
               </label>
-            )}
-          </div>
-        ) : dialog.kind === 'role' ? (
-          <div className="access-dialog-fields">
-            <p>{dialog.item.email}</p>
-            <label>
-              Nouveau rôle
-              <select name="role" defaultValue={dialog.item.role}>
-                {Object.entries(roleLabels)
-                  .filter(
-                    ([role]) =>
-                      !['ADMIN_PLATEFORME', 'PARTENAIRE'].includes(role),
-                  )
-                  .map(([role, label]) => (
-                    <option key={role} value={role}>
-                      {label}
-                    </option>
-                  ))}
-              </select>
-            </label>
+              <label>
+                Adresse e-mail
+                <input
+                  name="email"
+                  type="email"
+                  maxLength={254}
+                  required
+                  autoComplete="off"
+                />
+              </label>
+              <label>
+                Rôle
+                <select
+                  name="role"
+                  value={inviteRole}
+                  onChange={(event) => setInviteRole(event.target.value)}
+                >
+                  {Object.entries(roleLabels)
+                    .filter(([r]) => r !== 'ADMIN_PLATEFORME')
+                    .map(([r, l]) => (
+                      <option key={r} value={r}>
+                        {l}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {inviteRole === 'PARTENAIRE' && (
+                <label>
+                  Partenaire
+                  <select
+                    name="partner_id"
+                    required
+                    disabled={partners.isPending}
+                  >
+                    <option value="">Sélectionner un Partenaire</option>
+                    {partners.data?.map((partner) => (
+                      <option key={partner.id} value={partner.id}>
+                        {partner.name}
+                      </option>
+                    ))}
+                  </select>
+                  {partners.isError && (
+                    <small role="alert">
+                      Liste des Partenaires indisponible.
+                    </small>
+                  )}
+                </label>
+              )}
+            </div>
+          ) : dialog.kind === 'role' ? (
+            <div className="access-dialog-fields">
+              <p>{dialog.item.email}</p>
+              <label>
+                Nouveau rôle
+                <select name="role" defaultValue={dialog.item.role}>
+                  {Object.entries(roleLabels)
+                    .filter(
+                      ([role]) =>
+                        !['ADMIN_PLATEFORME', 'PARTENAIRE'].includes(role),
+                    )
+                    .map(([role, label]) => (
+                      <option key={role} value={role}>
+                        {label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <p>
+                Les sessions actuelles seront invalidées. Une nouvelle connexion
+                sera nécessaire.
+              </p>
+            </div>
+          ) : (
             <p>
-              Les sessions actuelles seront invalidées. Une nouvelle connexion
-              sera nécessaire.
+              {dialog.item.email}
+              <br />
+              {dialog.kind === 'deactivate'
+                ? 'Ce compte ne pourra plus se connecter. Ses sessions actuelles seront invalidées.'
+                : dialog.kind === 'revoke'
+                  ? 'Ce lien ne permettra plus d’activer le compte.'
+                  : 'Le lien précédent ne sera plus utilisable.'}
             </p>
-          </div>
-        ) : (
-          <p>
-            {dialog.item.email}
-            <br />
-            {dialog.kind === 'deactivate'
-              ? 'Ce compte ne pourra plus se connecter. Ses sessions actuelles seront invalidées.'
-              : dialog.kind === 'revoke'
-                ? 'Ce lien ne permettra plus d’activer le compte.'
-                : 'Le lien précédent ne sera plus utilisable.'}
-          </p>
-        )}
-        {pending && <p role="status">Traitement en cours…</p>}
+          )}
+        </fieldset>
         <footer>
           <button type="button" disabled={pending} onClick={close}>
             Annuler

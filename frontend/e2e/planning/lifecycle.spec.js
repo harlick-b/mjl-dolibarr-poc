@@ -36,10 +36,9 @@ async function login(page, email) {
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click()
   await expect(page.getByLabel('Code de vérification')).toBeVisible()
   await page.getByLabel('Code de vérification').fill(mail(email, 'otp'))
-  await page.getByRole('button', { name: 'Vérifier le code' }).click()
-  await expect(
-    page.getByRole('heading', { name: 'Session vérifiée' }),
-  ).toBeVisible()
+  await expect(page).toHaveURL(/\/(access\/users|projects|partner)(\?|$)/)
+  await page.goto('/identity')
+  await expect(page.getByRole('heading', { name: 'Mon compte' })).toBeVisible()
 }
 
 test('L13–L14 restricted lifecycle, conflicts, Query refresh and offline non-replay', async ({
@@ -67,10 +66,12 @@ test('L13–L14 restricted lifecycle, conflicts, Query refresh and offline non-r
   const recipient = await browser.newContext()
   const other = await recipient.newPage()
   await other.goto(mail(lifecycleEmail, 'invitation'))
-  await expect(other.getByLabel('Adresse e-mail')).toHaveValue(lifecycleEmail)
-  await other.getByLabel('Mot de passe', { exact: true }).fill(password)
+  await expect(other.getByText(lifecycleEmail, { exact: true })).toBeVisible()
+  await other.getByLabel('Nouveau mot de passe', { exact: true }).fill(password)
   await other.getByLabel('Confirmer le mot de passe').fill(password)
-  await other.getByRole('button', { name: 'Définir mon mot de passe' }).click()
+  await other
+    .getByRole('button', { name: 'Enregistrer le mot de passe' })
+    .click()
   await login(other, lifecycleEmail)
   await page.reload()
   const row = page
@@ -94,9 +95,7 @@ test('L13–L14 restricted lifecycle, conflicts, Query refresh and offline non-r
     page.getByRole('status').filter({ hasText: 'Rôle inchangé.' }),
   ).toBeVisible()
   await other.reload()
-  await expect(
-    other.getByRole('heading', { name: 'Session vérifiée' }),
-  ).toBeVisible()
+  await expect(other.getByRole('heading', { name: 'Mon compte' })).toBeVisible()
   await row.getByRole('button', { name: 'Modifier le rôle' }).click()
   await page.getByLabel('Nouveau rôle').selectOption('VALIDATEUR_DEFINITIF')
   await page.getByRole('button', { name: 'Confirmer le rôle' }).click()
@@ -112,14 +111,7 @@ test('L13–L14 restricted lifecycle, conflicts, Query refresh and offline non-r
   )
   await other.reload()
   expect((await revoked).status()).toBe(401)
-  await expect(
-    other.getByRole('heading', { name: 'Session indisponible' }),
-  ).toBeVisible()
-  await other.getByRole('button', { name: 'Réessayer' }).click()
-  await other.getByRole('link', { name: 'Continuer la connexion' }).click()
-  await expect(
-    other.getByRole('heading', { name: 'Connexion à votre espace' }),
-  ).toBeVisible()
+  await expect(other.getByRole('heading', { name: 'Connexion' })).toBeVisible()
 
   sql(
     `UPDATE auth_otp SET sent_at=clock_timestamp()-interval '61 seconds' WHERE user_id=(SELECT id FROM auth_user WHERE email='${lifecycleEmail}') AND state='consumed'`,
@@ -198,9 +190,9 @@ test('L13–L14 restricted lifecycle, conflicts, Query refresh and offline non-r
   )
   await other.reload()
   expect((await deactivated).status()).toBe(401)
-  await expect(
-    other.getByRole('heading', { name: 'Session vérifiée' }),
-  ).toHaveCount(0)
+  await expect(other.getByRole('heading', { name: 'Mon compte' })).toHaveCount(
+    0,
+  )
   await expect(
     page.getByRole('button', { name: /réactiver|réinviter/i }),
   ).toHaveCount(0)

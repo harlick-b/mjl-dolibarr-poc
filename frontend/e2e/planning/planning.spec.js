@@ -83,9 +83,11 @@ async function waitForMail(email, kind) {
 async function accept(page, email) {
   clearSharedIpBucket()
   await page.goto(await waitForMail(email, 'invitation'))
-  await page.getByLabel('Mot de passe', { exact: true }).fill(password)
+  await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(password)
   await page.getByLabel('Confirmer le mot de passe').fill(password)
-  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click()
+  await page
+    .getByRole('button', { name: 'Enregistrer le mot de passe' })
+    .click()
   await expect(page).toHaveURL(/\/login$/)
   await page.getByLabel('Adresse e-mail').fill(email)
   await page.getByLabel('Mot de passe', { exact: true }).fill(password)
@@ -93,10 +95,9 @@ async function accept(page, email) {
   await page
     .getByLabel('Code de vérification')
     .fill(await waitForMail(email, 'otp'))
-  await page.getByRole('button', { name: 'Vérifier le code' }).click()
-  await expect(
-    page.getByRole('heading', { name: 'Session vérifiée' }),
-  ).toBeVisible()
+  await expect(page).toHaveURL(/\/(access\/users|projects|partner)(\?|$)/)
+  await page.goto('/identity')
+  await expect(page.getByRole('heading', { name: 'Mon compte' })).toBeVisible()
 }
 
 async function api(page, route, method = 'GET', body) {

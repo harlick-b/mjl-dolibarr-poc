@@ -1,14 +1,27 @@
-import { AccessView } from '@/features/access/AccessView'
-import { AuthView } from '@/features/auth/AuthView'
-import { sessionQuery } from '@/features/auth/auth'
-import { useCallback, useEffect } from 'react'
+import { AdminSidebar } from '@/features/access/AdminSidebar'
+import { AccessLoading, AccessView } from '@/features/access/AccessView'
+import { AuthLoading, AuthView } from '@/features/auth/AuthView'
+import { sessionKey, sessionQuery } from '@/features/auth/auth'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { HealthView } from '@/features/health/HealthView'
-import { ExecutionView } from '@/features/execution/ExecutionView'
-import { PlanningView } from '@/features/planning/PlanningView'
-import { NotificationView } from '@/features/notifications/NotificationView'
-import { AuditHistoryView } from '@/features/audit/AuditHistoryView'
-import { PartnerPortalView } from '@/features/partner-portal/PartnerPortalView'
+import {
+  ExecutionView,
+  ExecutionLoading,
+} from '@/features/execution/ExecutionView'
+import { PlanningView, PlanningLoading } from '@/features/planning/PlanningView'
+import {
+  NotificationView,
+  NotificationsLoading,
+} from '@/features/notifications/NotificationView'
+import {
+  AuditHistoryView,
+  HistoryLoading,
+} from '@/features/audit/AuditHistoryView'
+import {
+  PartnerPortalView,
+  PartnerLoading,
+} from '@/features/partner-portal/PartnerPortalView'
 import { healthQuery } from '@/features/health/health'
 import {
   MutationCache,
@@ -25,6 +38,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  stripSearchParams,
   Link,
   Outlet,
   RouterProvider,
@@ -36,8 +50,11 @@ function WorkspaceShell() {
   const { api } = useAPI()
   const client = useQueryClient()
   const session = useQuery(sessionQuery)
+  const [invalidatedAt, setInvalidatedAt] = useState(0)
   const userId = session.data?.user?.id
   const clear = useCallback(() => {
+    setInvalidatedAt(Date.now())
+    void client.cancelQueries({ queryKey: sessionKey })
     void client.cancelQueries({ queryKey: ['notifications'] })
     client.removeQueries({ queryKey: ['notifications'] })
   }, [client])
@@ -66,6 +83,25 @@ function WorkspaceShell() {
       session.data?.user?.role === 'AGENT_SAISIE',
     gcTime: 0,
   })
+  if (
+    session.data?.state === 'verified' &&
+    session.data?.user?.role === 'ADMIN_PLATEFORME'
+  )
+    return (
+      <div className="access-layout">
+        {!session.isError &&
+        !session.isFetching &&
+        navigator.onLine &&
+        session.dataUpdatedAt > invalidatedAt ? (
+          <AdminSidebar user={session.data.user} />
+        ) : (
+          <aside className="access-sidebar" aria-hidden="true" />
+        )}
+        <main className="workspace-main">
+          <Outlet />
+        </main>
+      </div>
+    )
   if (session.data?.user?.role === 'PARTENAIRE')
     return (
       <div className="workspace-shell">
@@ -136,6 +172,7 @@ function Shell() {
   const path = useRouterState({ select: (state) => state.location.pathname })
   if (
     [
+      '/',
       '/login',
       '/invitation',
       '/verification',
@@ -199,23 +236,6 @@ function Shell() {
   )
 }
 
-function Home() {
-  return (
-    <section className="rounded-card border border-border bg-white p-8">
-      <h1 className="text-2xl font-semibold text-navy">Espace MJL</h1>
-      <p className="mt-4 text-muted-foreground">
-        L’espace de travail est en préparation.
-      </p>
-      <Link to="/login" className="mt-6 mr-6 inline-block underline">
-        Se connecter
-      </Link>
-      <Link to="/health" className="mt-6 inline-block underline">
-        Vérifier la disponibilité du service
-      </Link>
-    </section>
-  )
-}
-
 function NotFound() {
   return (
     <section>
@@ -247,7 +267,7 @@ export function makeRouter(history) {
   const home = createRoute({
     getParentRoute: () => root,
     path: '/',
-    component: Home,
+    component: AuthView,
   })
   const health = createRoute({
     getParentRoute: () => root,
@@ -269,6 +289,9 @@ export function makeRouter(history) {
       getParentRoute: () => root,
       path,
       component: AuthView,
+      pendingComponent: () => <AuthLoading path={path} />,
+      pendingMs: 0,
+      pendingMinMs: 0,
       gcTime: 0,
       loader: async ({ context, abortController }) => {
         if (!['/invitation', '/reset-password'].includes(path)) return null
@@ -325,6 +348,21 @@ export function makeRouter(history) {
     getParentRoute: () => root,
     path: '/access/users',
     component: AccessView,
+    pendingComponent: AccessLoading,
+    pendingMs: 0,
+    pendingMinMs: 0,
+    search: {
+      middlewares: [
+        stripSearchParams({
+          email: '',
+          role: '',
+          state: '',
+          invitationState: '',
+          page: 1,
+          invitationPage: 1,
+        }),
+      ],
+    },
     gcTime: 0,
     validateSearch: (search) => ({
       email: String(search.email || '').slice(0, 254),
@@ -373,6 +411,9 @@ export function makeRouter(history) {
     getParentRoute: () => root,
     path: '/partner',
     component: PartnerPortalView,
+    pendingComponent: PartnerLoading,
+    pendingMs: 0,
+    pendingMinMs: 0,
     gcTime: 0,
     validateSearch: (search) => ({
       project: String(search.project || '').slice(0, 36),
@@ -402,6 +443,9 @@ export function makeRouter(history) {
       getParentRoute: () => root,
       path,
       component: () => <PlanningView screen={screen} />,
+      pendingComponent: () => <PlanningLoading screen={screen} />,
+      pendingMs: 0,
+      pendingMinMs: 0,
       gcTime: 0,
       validateSearch: (search) => ({
         partnerCursor: String(search.partnerCursor || '').slice(0, 512),
@@ -431,6 +475,9 @@ export function makeRouter(history) {
       getParentRoute: () => root,
       path,
       component: () => <ExecutionView screen={screen} />,
+      pendingComponent: () => <ExecutionLoading screen={screen} />,
+      pendingMs: 0,
+      pendingMinMs: 0,
       gcTime: 0,
       validateSearch: (search) => ({
         cursor: String(search.cursor || '').slice(0, 512),
@@ -458,6 +505,9 @@ export function makeRouter(history) {
     getParentRoute: () => root,
     path: '/notifications',
     component: NotificationView,
+    pendingComponent: NotificationsLoading,
+    pendingMs: 0,
+    pendingMinMs: 0,
     gcTime: 0,
     validateSearch: (search) => ({
       cursor: String(search.cursor || '').slice(0, 512),
@@ -474,6 +524,10 @@ export function makeRouter(history) {
     getParentRoute: () => root,
     path: '/history',
     component: AuditHistoryView,
+    pendingComponent: HistoryLoading,
+    pendingMs: 0,
+    pendingMinMs: 0,
+    search: { middlewares: [stripSearchParams({ cursor: '' })] },
     gcTime: 0,
     validateSearch: (search) => ({
       cursor: String(search.cursor || '').slice(0, 512),

@@ -1,3 +1,5 @@
+import { LoadingPlaceholder } from '@/shared/ui/PageLoading'
+import { strings } from '@/shared/i18n'
 import { useSyncExternalStore } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, RefreshCw } from 'lucide-react'
@@ -32,9 +34,13 @@ export function HealthView() {
       <h1 className="flex items-center gap-3 text-2xl font-semibold text-navy">
         <Activity aria-hidden="true" /> État du service
       </h1>
-      <p role="status" aria-live="polite" className="mt-6 font-semibold">
-        {message}
-      </p>
+      {online && (query.isPending || query.isFetching) ? (
+        <LoadingPlaceholder label={strings.healthLoading} variant="form" />
+      ) : (
+        <p role="status" aria-live="polite" className="mt-6 font-semibold">
+          {message}
+        </p>
+      )}
       {online && query.isSuccess && !query.isFetching && (
         <p className="mt-2 text-sm text-muted-foreground">
           Dernière vérification :{' '}

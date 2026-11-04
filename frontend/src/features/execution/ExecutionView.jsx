@@ -1,3 +1,4 @@
+import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { strings } from '@/shared/i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -88,7 +89,7 @@ export function ExecutionView({ screen }) {
         </Button>
       </section>
     )
-  if (session.isPending) return <p role="status">Vérification de l’accès…</p>
+  if (session.isPending) return <ExecutionLoading screen={screen} />
   if (session.error?.status === 401 || session.data?.state === 'anonymous')
     return <Navigate to="/login" replace />
   if (session.data?.state === 'pending')
@@ -441,145 +442,151 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
   if (relevant.some((query) => query.isError))
     return <p role="alert">Les données de réalisation sont indisponibles.</p>
   if (relevant.some((query) => query.isPending))
-    return <p role="status">Chargement des réalisations…</p>
+    return <ExecutionLoading screen={screen} />
   if (screen === 'list')
     return (
-      <ExecutionList
-        result={list.data}
-        onPage={(link) =>
+      <>
+        <RefreshIndicator active={list.isFetching} />
+        <ExecutionList
+          result={list.data}
+          onPage={(link) =>
+            navigate({
+              search: (current) => ({
+                ...current,
+                cursor: cursorFrom(link, `/ptas/${params.ptaId}/execution`),
+              }),
+            })
+          }
+        />
+      </>
+    )
+  return (
+    <>
+      <RefreshIndicator active={relevant.some((query) => query.isFetching)} />
+      <ExecutionDetail
+        detail={detail.data}
+        history={history.data}
+        finance={finance.data}
+        funding={funding.data}
+        onFundingPage={(link) =>
           navigate({
             search: (current) => ({
               ...current,
-              cursor: cursorFrom(link, `/ptas/${params.ptaId}/execution`),
+              fundingCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/funding-requests`,
+              ),
+            }),
+          })
+        }
+        zeroSpending={zeroSpending.data}
+        selectedFinance={selectedFinance.data}
+        virements={virements.data}
+        selectedVirement={selectedVirement.data}
+        confirmationHistory={confirmationHistory.data}
+        reversementHistory={reversementHistory.data}
+        role={session.user.role}
+        financeHistoryPage={Boolean(search.financeCursor)}
+        virementHistoryPage={Boolean(search.virementCursor)}
+        virementSelectedBySearch={Boolean(search.virementRequest)}
+        error={error}
+        pending={
+          mutation.isPending ||
+          financeMutation.isPending ||
+          detail.isFetching ||
+          history.isFetching ||
+          finance.isFetching ||
+          zeroSpending.isFetching ||
+          selectedFinance.isFetching ||
+          virements.isFetching ||
+          selectedVirement.isFetching ||
+          confirmationHistory.isFetching ||
+          reversementHistory.isFetching
+        }
+        mutate={(operationId, body) =>
+          mutation.mutateAsync({ operationId, body }).catch(() => false)
+        }
+        mutateFinance={(path, body) =>
+          financeMutation.mutateAsync({ path, body }).catch(() => false)
+        }
+        onHistoryPage={(link) =>
+          navigate({
+            search: (current) => ({
+              ...current,
+              historyCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/execution/history`,
+              ),
+            }),
+          })
+        }
+        onFinancePage={(link) =>
+          navigate({
+            search: (current) => ({
+              ...current,
+              financeCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/disbursement-requests`,
+              ),
+            }),
+          })
+        }
+        onFinanceSelect={(requestId) =>
+          navigate({
+            search: (current) => ({ ...current, financeRequest: requestId }),
+          })
+        }
+        onZeroSpendingPage={(link) =>
+          navigate({
+            search: (current) => ({
+              ...current,
+              zeroSpendingCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/zero-spending-declarations`,
+              ),
+            }),
+          })
+        }
+        onVirementPage={(link) =>
+          navigate({
+            search: (current) => ({
+              ...current,
+              virementCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/virement-requests`,
+              ),
+            }),
+          })
+        }
+        onVirementSelect={(requestId) =>
+          navigate({
+            search: (current) => ({ ...current, virementRequest: requestId }),
+          })
+        }
+        onConfirmationPage={(link) =>
+          navigate({
+            search: (current) => ({
+              ...current,
+              confirmationCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/virement-requests/${virementRequestId}/confirmation/history`,
+              ),
+            }),
+          })
+        }
+        onReversementPage={(link) =>
+          navigate({
+            search: (current) => ({
+              ...current,
+              reversementCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/virement-requests/${virementRequestId}/reversement/history`,
+              ),
             }),
           })
         }
       />
-    )
-  return (
-    <ExecutionDetail
-      detail={detail.data}
-      history={history.data}
-      finance={finance.data}
-      funding={funding.data}
-      onFundingPage={(link) =>
-        navigate({
-          search: (current) => ({
-            ...current,
-            fundingCursor: cursorFrom(
-              link,
-              `/activities/${params.activityId}/funding-requests`,
-            ),
-          }),
-        })
-      }
-      zeroSpending={zeroSpending.data}
-      selectedFinance={selectedFinance.data}
-      virements={virements.data}
-      selectedVirement={selectedVirement.data}
-      confirmationHistory={confirmationHistory.data}
-      reversementHistory={reversementHistory.data}
-      role={session.user.role}
-      financeHistoryPage={Boolean(search.financeCursor)}
-      virementHistoryPage={Boolean(search.virementCursor)}
-      virementSelectedBySearch={Boolean(search.virementRequest)}
-      error={error}
-      pending={
-        mutation.isPending ||
-        financeMutation.isPending ||
-        detail.isFetching ||
-        history.isFetching ||
-        finance.isFetching ||
-        zeroSpending.isFetching ||
-        selectedFinance.isFetching ||
-        virements.isFetching ||
-        selectedVirement.isFetching ||
-        confirmationHistory.isFetching ||
-        reversementHistory.isFetching
-      }
-      mutate={(operationId, body) =>
-        mutation.mutateAsync({ operationId, body }).catch(() => false)
-      }
-      mutateFinance={(path, body) =>
-        financeMutation.mutateAsync({ path, body }).catch(() => false)
-      }
-      onHistoryPage={(link) =>
-        navigate({
-          search: (current) => ({
-            ...current,
-            historyCursor: cursorFrom(
-              link,
-              `/activities/${params.activityId}/execution/history`,
-            ),
-          }),
-        })
-      }
-      onFinancePage={(link) =>
-        navigate({
-          search: (current) => ({
-            ...current,
-            financeCursor: cursorFrom(
-              link,
-              `/activities/${params.activityId}/disbursement-requests`,
-            ),
-          }),
-        })
-      }
-      onFinanceSelect={(requestId) =>
-        navigate({
-          search: (current) => ({ ...current, financeRequest: requestId }),
-        })
-      }
-      onZeroSpendingPage={(link) =>
-        navigate({
-          search: (current) => ({
-            ...current,
-            zeroSpendingCursor: cursorFrom(
-              link,
-              `/activities/${params.activityId}/zero-spending-declarations`,
-            ),
-          }),
-        })
-      }
-      onVirementPage={(link) =>
-        navigate({
-          search: (current) => ({
-            ...current,
-            virementCursor: cursorFrom(
-              link,
-              `/activities/${params.activityId}/virement-requests`,
-            ),
-          }),
-        })
-      }
-      onVirementSelect={(requestId) =>
-        navigate({
-          search: (current) => ({ ...current, virementRequest: requestId }),
-        })
-      }
-      onConfirmationPage={(link) =>
-        navigate({
-          search: (current) => ({
-            ...current,
-            confirmationCursor: cursorFrom(
-              link,
-              `/activities/${params.activityId}/virement-requests/${virementRequestId}/confirmation/history`,
-            ),
-          }),
-        })
-      }
-      onReversementPage={(link) =>
-        navigate({
-          search: (current) => ({
-            ...current,
-            reversementCursor: cursorFrom(
-              link,
-              `/activities/${params.activityId}/virement-requests/${virementRequestId}/reversement/history`,
-            ),
-          }),
-        })
-      }
-    />
+    </>
   )
 }
 
@@ -2237,5 +2244,18 @@ function FundingRequest({ row, version, enabled, pending, mutate, states }) {
         </p>
       )}
     </article>
+  )
+}
+
+export function ExecutionLoading({ screen }) {
+  return (
+    <PageLoading
+      title={
+        screen === 'list'
+          ? strings.executionTitle
+          : strings.executionDetailTitle
+      }
+      variant={screen === 'list' ? 'table' : 'detail'}
+    />
   )
 }

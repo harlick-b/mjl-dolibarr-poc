@@ -1,3 +1,4 @@
+import { LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Eye } from 'lucide-react'
@@ -124,7 +125,7 @@ export function PartnerDocuments({
     <section aria-label={strings.sharedAttachments}>
       <h3>{strings.sharedAttachments}</h3>
       {documents.isPending ? (
-        <p role="status">Chargement…</p>
+        <LoadingPlaceholder label={strings.documentsLoading} />
       ) : documents.isError ? (
         <p role="alert">{strings.sharedFileUnavailable}</p>
       ) : !page?.data.length ? (
@@ -223,7 +224,10 @@ export function PartnerDocuments({
           <div className="document-preview">
             <h3>{preview.name}</h3>
             {bytes.isPending ? (
-              <p role="status">Chargement de l’aperçu…</p>
+              <LoadingPlaceholder
+                label={strings.previewLoading}
+                variant="preview"
+              />
             ) : previewUrl &&
               !documents.isError &&
               page?.data.some((file) => file.id === preview.id) ? (

@@ -71,6 +71,9 @@ relevant to the current task.
   the UI reactively and deliberately revalidate; `invalidateQueries()` on the
   removed key is insufficient. `mutation.reset()` likewise leaves MutationCache
   variables behind: remove settled credential mutations and clear them on unmount.
+  Repeated invalidation notifications also need a changing revalidation version:
+  an already-true boolean does not restart an Effect after cancelling its pending
+  read. Test a second account-change notification while that read is held.
 
 - A migration cutover rehearsal must run the exact predecessor application
   artifact to create its histories, stop that writer, and then exercise the
@@ -166,3 +169,8 @@ relevant to the current task.
   integer XOF values as exact decimal text, label that convention, and verify the
   saved cell type. Write user-controlled workbook text explicitly as text so names
   cannot become formulas or external links.
+
+- A route loader can delay mounting the page itself, so component-only loading
+  states leave a blank wait. Cover both route and dependent section requests;
+  test staggered responses, and keep forms mounted during pagination/refetch so
+  placeholders do not discard drafts or mistake pending data for an empty list.

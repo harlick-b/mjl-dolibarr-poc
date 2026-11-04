@@ -1,3 +1,5 @@
+import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
+import { strings } from '@/shared/i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
@@ -64,7 +66,7 @@ export function AuditHistoryView() {
         />
       </section>
     )
-  if (session.isPending) return <p role="status">Vérification de l’accès…</p>
+  if (session.isPending) return <HistoryLoading />
   if (session.error?.status === 401 || session.data?.state === 'anonymous')
     return <Navigate to="/login" replace />
   if (session.data?.state === 'pending')
@@ -143,7 +145,7 @@ function History({ session, onDenied }) {
       toast.success('Export CSV généré.')
     },
   })
-  if (result.isPending) return <p role="status">Chargement de l’historique…</p>
+  if (result.isPending) return <HistoryLoading />
   if (result.isError)
     return <p role="alert">L’historique est momentanément indisponible.</p>
   const move = (link) =>
@@ -152,11 +154,12 @@ function History({ session, onDenied }) {
       search: { cursor: cursorFrom(link, '/audit-events') },
     })
   return (
-    <section className="planning-stack">
+    <section className="planning-stack" aria-busy={result.isFetching}>
       <Helmet>
         <title>Historique — MJL</title>
       </Helmet>
       <div className="planning-heading">
+        <RefreshIndicator active={result.isFetching} />
         <div>
           <p className="eyebrow">Traçabilité</p>
           <h1>Historique</h1>
@@ -239,4 +242,8 @@ function History({ session, onDenied }) {
       </div>
     </section>
   )
+}
+
+export function HistoryLoading() {
+  return <PageLoading title={strings.historyTitle} />
 }

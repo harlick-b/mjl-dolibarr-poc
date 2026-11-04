@@ -101,19 +101,15 @@ test('A3 ordinary recovery scrubs proof, resets password and requires fresh OTP'
   await page.getByLabel('Mot de passe', { exact: true }).fill(oldPassword)
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('Vérification refusée')
-  await page.getByRole('button', { name: 'Vérifier ma session' }).click()
-  await expect(
-    page.getByRole('heading', { name: 'Connexion à votre espace' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible()
   await page.getByLabel('Adresse e-mail').fill(email)
   await page.getByLabel('Mot de passe', { exact: true }).fill(newPassword)
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click()
   await expect(page.getByLabel('Code de vérification')).toBeVisible()
   await page.getByLabel('Code de vérification').fill(message('otp'))
-  await page.getByRole('button', { name: 'Vérifier le code' }).click()
-  await expect(
-    page.getByRole('heading', { name: 'Session vérifiée' }),
-  ).toBeVisible()
+  await expect(page).toHaveURL(/\/(access\/users|projects|partner)(\?|$)/)
+  await page.goto('/identity')
+  await expect(page.getByRole('heading', { name: 'Mon compte' })).toBeVisible()
 })
 
 test('A3 recovery stays online-only without reconnect replay', async ({
@@ -131,10 +127,6 @@ test('A3 recovery stays online-only without reconnect replay', async ({
     page.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   await context.setOffline(false)
-  await expect(
-    page.getByRole('heading', { name: 'Session à vérifier' }),
-  ).toBeVisible()
-  await page.getByRole('button', { name: 'Vérifier ma session' }).click()
   await expect(
     page.getByRole('heading', { name: 'Récupérer votre accès' }),
   ).toBeVisible()

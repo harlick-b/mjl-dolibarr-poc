@@ -215,7 +215,7 @@ test('late reset inspection cannot restore proof state after navigation', async 
     ),
   )
   expect(
-    await screen.findByRole('heading', { name: 'Connexion à votre espace' }),
+    await screen.findByRole('heading', { name: 'Connexion' }),
   ).toBeVisible()
   expect(
     screen.queryByDisplayValue('late-private@example.test'),
@@ -268,7 +268,7 @@ test('late reset completion cannot restore state after account navigation', asyn
     finishCompletion(new Response(JSON.stringify({ state: 'password_reset' }))),
   )
   expect(
-    await screen.findByRole('heading', { name: 'Connexion à votre espace' }),
+    await screen.findByRole('heading', { name: 'Connexion' }),
   ).toBeVisible()
   expect(
     screen.queryByText('Votre mot de passe a été réinitialisé.'),
@@ -343,7 +343,7 @@ test('unmount purges a pending credential mutation', async () => {
   ).toHaveLength(0)
 })
 
-test('one logical OTP input accepts pasted code and keyboard submission', async () => {
+test('OTP fields accept a pasted code and keyboard submission', async () => {
   const user = userEvent.setup()
   vi.stubGlobal(
     'fetch',
@@ -371,8 +371,6 @@ test('one logical OTP input accepts pasted code and keyboard submission', async 
   const input = await screen.findByLabelText('Code de vérification')
   await user.click(input)
   await user.paste('123456')
-  expect(input).toHaveValue('123456')
-  await user.keyboard('{Enter}')
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Vérification refusée',
   )
@@ -380,4 +378,105 @@ test('one logical OTP input accepts pasted code and keyboard submission', async 
     '/api/v1/auth/otp/verify',
     expect.objectContaining({ body: JSON.stringify({ code: '123456' }) }),
   )
+})
+
+test('incorrect credentials keep the login form available for correction', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockImplementation((_url, options) =>
+        Promise.resolve(
+          options.method === 'POST'
+            ? new Response('{}', { status: 401 })
+            : new Response(
+                JSON.stringify({ state: 'anonymous', csrf: 'fixture' }),
+              ),
+        ),
+      ),
+  )
+  render(
+    <App
+      router={makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))}
+    />,
+  )
+  await userEvent.type(
+    await screen.findByLabelText('Adresse e-mail'),
+    'person@example.test',
+  )
+  await userEvent.type(screen.getByLabelText('Mot de passe'), 'Incorrect!1')
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Se connecter', exact: true }),
+  )
+  expect(await screen.findByRole('alert')).toBeVisible()
+  expect(screen.getByLabelText('Mot de passe')).toBeVisible()
+  expect(screen.queryByText('Session à vérifier')).not.toBeInTheDocument()
+})
+
+test('login fields are locked while credentials are being submitted', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockImplementation((_url, options) =>
+        options.method === 'POST'
+          ? new Promise(() => {})
+          : Promise.resolve(
+              new Response(
+                JSON.stringify({ state: 'anonymous', csrf: 'fixture' }),
+              ),
+            ),
+      ),
+  )
+  render(
+    <App
+      router={makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))}
+    />,
+  )
+  const email = await screen.findByLabelText('Adresse e-mail')
+  const password = screen.getByLabelText('Mot de passe')
+  await userEvent.type(email, 'person@example.test')
+  await userEvent.type(password, 'Synthetic!93')
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Se connecter', exact: true }),
+  )
+  expect(email).toBeDisabled()
+  expect(password).toBeDisabled()
+})
+
+test('completing OTP automatically submits once without Enter or a click', async () => {
+  const requests = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url, options) => {
+      if (options.method === 'POST') {
+        requests.push({ url, body: JSON.parse(options.body) })
+        return new Promise(() => {})
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'pending',
+            csrf: 'fixture',
+            email: 'p***@example.test',
+          }),
+        ),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/verification'] }),
+      )}
+    />,
+  )
+  await userEvent.click(await screen.findByLabelText('Code de vérification'))
+  await userEvent.keyboard('012345')
+  expect(requests).toEqual([
+    { url: '/api/v1/auth/otp/verify', body: { code: '012345' } },
+  ])
+  await userEvent.keyboard('{Enter}')
+  expect(requests).toHaveLength(1)
+  expect(screen.getByLabelText('Chiffre 6 du code')).toBeDisabled()
 })

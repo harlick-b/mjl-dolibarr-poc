@@ -1,3 +1,8 @@
+import {
+  PageLoading,
+  LoadingPlaceholder,
+  RefreshIndicator,
+} from '@/shared/ui/PageLoading'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -96,7 +101,7 @@ export function PlanningView({ screen }) {
         </Button>
       </section>
     )
-  if (session.isPending) return <p role="status">{strings.checkingAccess}</p>
+  if (session.isPending) return <PlanningLoading screen={screen} />
   if (session.error?.status === 401 || session.data?.state === 'anonymous')
     return <Navigate to="/login" replace />
   if (session.data?.state === 'pending')
@@ -442,6 +447,7 @@ function Workspace({ screen, session, onDenied }) {
         <div>
           <p className="eyebrow">{strings.planningTitle}</p>
           <h1>{labels[screen]}</h1>
+          <RefreshIndicator active={loading} />
         </div>
         <nav aria-label={strings.planningTitle}>
           <Link to="/partners">{strings.partners}</Link>
@@ -516,24 +522,45 @@ function Workspace({ screen, session, onDenied }) {
           }
         />
       )}
+      {screen === 'activityNew' && types.isPending && (
+        <LoadingPlaceholder
+          label={strings.formatString(strings.pageLoading, {
+            page: strings.newActivity,
+          })}
+          variant="form"
+        />
+      )}
       {screen === 'activityNew' && (
-        <ActivityForm
-          types={types.data?.data || []}
-          typeResult={types.data}
-          navigate={navigate}
-          pending={mutation.isPending}
-          onSubmit={(body) =>
-            mutation.mutateAsync(
-              { path: `/projects/${projectId}/ptas/${year}/activities`, body },
-              {
-                onSuccess: (row) =>
-                  navigate({
-                    to: '/activities/$activityId',
-                    params: { activityId: row.id },
-                  }),
-              },
-            )
-          }
+        <div hidden={types.isPending}>
+          <ActivityForm
+            types={types.data?.data || []}
+            typeResult={types.data}
+            navigate={navigate}
+            pending={mutation.isPending}
+            onSubmit={(body) =>
+              mutation.mutateAsync(
+                {
+                  path: `/projects/${projectId}/ptas/${year}/activities`,
+                  body,
+                },
+                {
+                  onSuccess: (row) =>
+                    navigate({
+                      to: '/activities/$activityId',
+                      params: { activityId: row.id },
+                    }),
+                },
+              )
+            }
+          />
+        </div>
+      )}
+      {screen === 'activity' && !activity.data && (
+        <LoadingPlaceholder
+          label={strings.formatString(strings.pageLoading, {
+            page: strings.activityDetail,
+          })}
+          variant="detail"
         />
       )}
       {screen === 'activity' && activity.data && (
@@ -550,6 +577,12 @@ function Workspace({ screen, session, onDenied }) {
           mutation={mutation}
           mutationBlocked={mutation.isPending || reconciliationBlocked}
           revisions={revisions.data}
+          historyLoading={
+            revisions.isFetching ||
+            selectedRevision.isFetching ||
+            selectedAmendment.isFetching ||
+            currentRevision.isFetching
+          }
           selectedRevision={selectedRevision.data}
           selectedAmendment={selectedAmendment.data}
           currentRevision={currentRevision.data}
@@ -612,7 +645,11 @@ function ReferenceList({
           </BusinessForm>
         </Modal>
       )}
-      {rows.length ? (
+      {!result ? (
+        <LoadingPlaceholder
+          label={strings.formatString(strings.pageLoading, { page: title })}
+        />
+      ) : rows.length ? (
         <ul className="planning-list">
           {rows.map((row) => (
             <li key={row.id}>{row[label]}</li>
@@ -664,7 +701,12 @@ function Projects({
           >
             <label>
               {strings.partner}
-              <select name="partner_id" required>
+              <select name="partner_id" required disabled={!partnerResult}>
+                {!partnerResult && (
+                  <option value="" disabled>
+                    {strings.loading}
+                  </option>
+                )}
                 {partners.map((p) => (
                   <option value={p.id} key={p.id}>
                     {p.name}
@@ -677,7 +719,9 @@ function Projects({
               <input name="name" required maxLength="200" />
             </label>
             <div className="planning-actions">
-              <Button type="submit">{strings.create}</Button>
+              <Button type="submit" disabled={!partnerResult}>
+                {strings.create}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -704,7 +748,13 @@ function Projects({
           onChange={(event) => setYear(Number(event.target.value))}
         />
       </label>
-      {rows.length ? (
+      {!result ? (
+        <LoadingPlaceholder
+          label={strings.formatString(strings.pageLoading, {
+            page: strings.projects,
+          })}
+        />
+      ) : rows.length ? (
         <ul className="planning-list">
           {rows.map((row) => (
             <li key={row.id}>
@@ -735,7 +785,15 @@ function Projects({
 }
 
 function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
-  if (!context) return <p role="status">Chargement…</p>
+  if (!context)
+    return (
+      <LoadingPlaceholder
+        label={strings.formatString(strings.pageLoading, {
+          page: strings.annualPlan,
+        })}
+        variant="detail"
+      />
+    )
   const activities = result?.data || []
   return (
     <div className="planning-card">
@@ -798,6 +856,14 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
           </Link>
         )}
       </div>
+      {context.pta && !metrics && (
+        <LoadingPlaceholder
+          label={strings.formatString(strings.pageLoading, {
+            page: strings.annualPlan,
+          })}
+          variant="detail"
+        />
+      )}
       {metrics && (
         <section className="annual-metrics" aria-label="Indicateurs annuels">
           <article>
@@ -834,7 +900,13 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
           </article>
         </section>
       )}
-      {activities.length ? (
+      {context.pta && !result ? (
+        <LoadingPlaceholder
+          label={strings.formatString(strings.pageLoading, {
+            page: strings.annualPlan,
+          })}
+        />
+      ) : activities.length ? (
         <ul className="planning-list">
           {activities.map((row) => (
             <li key={row.id}>
@@ -1146,6 +1218,7 @@ function ActivityDetail({
   mutation,
   mutationBlocked,
   revisions,
+  historyLoading,
   selectedRevision,
   selectedAmendment,
   currentRevision,
@@ -1544,6 +1617,9 @@ function ActivityDetail({
               </li>
             ))}
           </ol>
+        )}
+        {historyLoading && (
+          <LoadingPlaceholder label={strings.historyLoading} />
         )}
         {selectedRevision?.snapshot && (
           <div className="revision-snapshot">
@@ -2086,7 +2162,7 @@ export function ActivityDocuments({
       {!open && uploadNotice}
       {sharing.isError && <p role="alert">{strings.sharingFailed}</p>}
       {documents.isPending ? (
-        <p role="status">Chargement…</p>
+        <LoadingPlaceholder label={strings.documentsLoading} />
       ) : documents.isError ? (
         <p role="alert">Les pièces sont indisponibles.</p>
       ) : !documents.data?.data.length ? (
@@ -2335,7 +2411,10 @@ export function ActivityDocuments({
           <div className="document-preview">
             <h3>{preview.name}</h3>
             {imagePreview.isPending ? (
-              <p role="status">Chargement de l’aperçu…</p>
+              <LoadingPlaceholder
+                label={strings.previewLoading}
+                variant="preview"
+              />
             ) : imagePreview.isError ? (
               <p role="alert">
                 {imagePreview.error?.kind === 'offline'
@@ -2364,5 +2443,20 @@ export function ActivityDocuments({
         )}
       </Modal>
     </section>
+  )
+}
+
+export function PlanningLoading({ screen }) {
+  return (
+    <PageLoading
+      title={labels[screen]}
+      variant={
+        screen === 'activityNew'
+          ? 'form'
+          : ['pta', 'activity'].includes(screen)
+            ? 'detail'
+            : 'table'
+      }
+    />
   )
 }

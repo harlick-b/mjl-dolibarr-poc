@@ -111,9 +111,8 @@ test('validator browses the sanitized global history', async () => {
       router={makeRouter(createMemoryHistory({ initialEntries: ['/history'] }))}
     />,
   )
-  expect(
-    await screen.findByRole('heading', { name: 'Historique' }),
-  ).toBeVisible()
+  await screen.findByText('Activité clôturée')
+  expect(screen.getByRole('heading', { name: 'Historique' })).toBeVisible()
   expect(screen.getByText('Activité clôturée')).toBeVisible()
   expect(screen.getByText('Événement enregistré')).toBeVisible()
   expect(screen.getByText('Résultat enregistré')).toBeVisible()

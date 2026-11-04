@@ -76,9 +76,8 @@ test('the sidebar notification centre marks a reminder read and refreshes its ba
     />,
   )
 
-  expect(
-    await screen.findByRole('heading', { name: 'Notifications' }),
-  ).toBeVisible()
+  await screen.findByText(/ACT-001/)
+  expect(screen.getByRole('heading', { name: 'Notifications' })).toBeVisible()
   expect(await screen.findByText(/ACT-001/)).toBeVisible()
   expect(screen.getByLabelText('1 non lues')).toBeVisible()
   const online = vi.spyOn(window.navigator, 'onLine', 'get')

@@ -15,29 +15,24 @@ function mail(email, kind) {
 }
 async function accept(page, email) {
   await page.goto(mail(email, 'invitation'))
-  await expect(page.getByLabel('Adresse e-mail')).toHaveValue(email)
-  await expect(page.getByLabel('Adresse e-mail')).toHaveAttribute(
-    'readonly',
-    '',
-  )
+  await expect(page.getByText(email, { exact: true })).toBeVisible()
   expect(page.url()).not.toContain('verifier')
-  await page.getByLabel('Mot de passe', { exact: true }).fill(password)
+  await page.getByLabel('Nouveau mot de passe', { exact: true }).fill(password)
   await page.getByLabel('Confirmer le mot de passe').fill(password)
-  await page.getByRole('button', { name: 'Définir mon mot de passe' }).click()
-  await expect(
-    page.getByRole('heading', { name: 'Connexion à votre espace' }),
-  ).toBeVisible()
+  await page
+    .getByRole('button', { name: 'Enregistrer le mot de passe' })
+    .click()
+  await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible()
   await page.getByLabel('Adresse e-mail').fill(email)
   await page.getByLabel('Mot de passe', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click()
   await expect(
-    page.getByRole('heading', { name: 'Vérifiez votre identité' }),
+    page.getByRole('heading', { name: 'Vérification' }),
   ).toBeVisible()
   await page.getByLabel('Code de vérification').fill(mail(email, 'otp'))
-  await page.getByRole('button', { name: 'Vérifier le code' }).click()
-  await expect(
-    page.getByRole('heading', { name: 'Session vérifiée' }),
-  ).toBeVisible()
+  await expect(page).toHaveURL(/\/(access\/users|projects|partner)(\?|$)/)
+  await page.goto('/identity')
+  await expect(page.getByRole('heading', { name: 'Mon compte' })).toBeVisible()
 }
 
 test('C12–C14 Admin invitation journey, focus, denials, cache and online-only behavior', async ({
@@ -201,6 +196,7 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
     fullPage: true,
   })
 
+  await page.getByText('Filtrer les utilisateurs', { exact: true }).click()
   await page.getByLabel('Rechercher par e-mail').fill('absent@example.test')
   await page.getByRole('button', { name: 'Filtrer', exact: true }).click()
   await expect(page.getByText('Aucun utilisateur.')).toBeVisible()
@@ -303,12 +299,13 @@ e.dispose()`,
   await page.getByLabel('Mot de passe', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click()
   await expect(
-    page.getByRole('heading', { name: 'Vérifiez votre identité' }),
+    page.getByRole('heading', { name: 'Vérification' }),
   ).toBeVisible()
   await page
     .getByLabel('Code de vérification')
     .fill(mail('agent-browser@example.test', 'otp'))
-  await page.getByRole('button', { name: 'Vérifier le code' }).click()
+  await expect(page).toHaveURL(/\/(access\/users|projects|partner)(\?|$)/)
+  await page.goto('/identity')
   await expect(
     page.getByText('Agent superviseur et prévalidateur', { exact: true }),
   ).toBeVisible()
