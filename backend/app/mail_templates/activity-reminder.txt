@@ -1,0 +1,13 @@
+{{ email_title }}
+
+Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
+
+Une activité qui vous est assignée arrive à sa date de fin prévue le {{ activity_end_date }}.
+
+Référence : {{ activity_reference }}
+Activité : {{ activity_name }}
+Fin prévue : {{ activity_end_date }}
+
+Nous vous invitons à prendre les dispositions nécessaires avant cette échéance.
+
+Message automatique envoyé par {{ app_name }}. Merci de ne pas y répondre.

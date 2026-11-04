@@ -56,6 +56,11 @@ def test_exact_due_cycle_is_deduplicated_and_recipient_only(planning):
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 9)) == 1
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 10)) == 0
     assert len(reminder_mail(planning)) == 2
+    for message in reminder_mail(planning):
+        assert "29 février 2028" in message["html"]
+        assert "Bonjour Test User," in message["html"]
+        assert "<a " not in message["html"]
+        assert message["provider_id"]
 
     first = planning["agent"].get("/api/v1/notifications")
     second = planning["agent2"].get("/api/v1/notifications")

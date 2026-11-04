@@ -31,7 +31,17 @@ test('T01–T18 real first Admin browser journey, cache isolation and online-onl
   expect(mailbox).toMatch(/^\/tmp\/mjl-a1-mail-/)
   const result = execFileSync(
     'docker',
-    ['exec', container, 'python', '-m', 'app.auth.bootstrap', '--email', email],
+    [
+      'exec',
+      container,
+      'python',
+      '-m',
+      'app.auth.bootstrap',
+      '--email',
+      email,
+      '--name',
+      'Admin Navigateur',
+    ],
     { encoding: 'utf8' },
   )
   expect(result).not.toContain('verifier=')

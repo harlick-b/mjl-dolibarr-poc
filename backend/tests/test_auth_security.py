@@ -31,7 +31,7 @@ def mail(env, kind):
 def journey(auth_env):
     with TestClient(create_app(auth_env.url), base_url="http://localhost") as client:
         auth = client.app.state.auth
-        auth.bootstrap(EMAIL, "test-operator")
+        auth.bootstrap(EMAIL, "First Admin", "test-operator")
         proof = {
             k: v[0]
             for k, v in parse_qs(
@@ -77,7 +77,15 @@ def status(call):
 def test_t01_concurrent_cli_bootstrap(auth_env):
     def run(_):
         return subprocess.run(
-            [sys.executable, "-m", "app.auth.bootstrap", "--email", EMAIL],
+                [
+                    sys.executable,
+                    "-m",
+                    "app.auth.bootstrap",
+                    "--email",
+                    EMAIL,
+                    "--name",
+                    "First Admin",
+                ],
             capture_output=True,
             text=True,
             env=os.environ.copy(),
@@ -95,15 +103,17 @@ def test_t01_failed_delivery_and_reissue(auth_env):
         auth = client.app.state.auth
         original = auth.mail.send
         auth.mail.send = lambda *args: (_ for _ in ()).throw(OSError())
-        assert status(lambda: auth.bootstrap(EMAIL, "operator")) == 503
+        assert status(lambda: auth.bootstrap(EMAIL, "First Admin", "operator")) == 503
         with auth.engine.connect() as db:
             assert db.scalar(text("SELECT state FROM auth_invitation")) == "prepared"
         auth.mail.send = original
-        auth.bootstrap(EMAIL, "operator", reissue=True)
+        auth.bootstrap(EMAIL, "First Admin", "operator", reissue=True)
         assert len(mail(auth_env, "invitation")) == 1
         assert (
             status(
-                lambda: auth.bootstrap("other@example.test", "operator", reissue=True)
+                lambda: auth.bootstrap(
+                    "other@example.test", "Other Admin", "operator", reissue=True
+                )
             )
             == 409
         )
@@ -580,14 +590,14 @@ def test_t15_bootstrap_audit_failure_and_post_delivery_failure(auth_env):
         auth = client.app.state.auth
         break_audit(auth, "bootstrap")
         with pytest.raises(SQLAlchemyError):
-            auth.bootstrap(EMAIL, "operator")
+            auth.bootstrap(EMAIL, "First Admin", "operator")
         with auth.engine.begin() as db:
             assert db.scalar(text("SELECT count(*) FROM auth_user")) == 0
             db.execute(text("DROP TRIGGER fail_audit ON auth_audit"))
             db.execute(text("DROP FUNCTION fail_audit()"))
         break_audit(auth, "invitation_delivery")
         with pytest.raises(SQLAlchemyError):
-            auth.bootstrap(EMAIL, "operator")
+            auth.bootstrap(EMAIL, "First Admin", "operator")
         proof = {
             k: v[0]
             for k, v in parse_qs(

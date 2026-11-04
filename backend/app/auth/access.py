@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dto import BusinessRole, ErrorResponse, Identity, InvitableRole, Role
 from app.auth.models import Audit, Invitation, User
-from app.auth.policy import synthetic_email
+from app.auth.policy import normalize_email, normalize_full_name
 from app.auth.routes import Auth, Input, evidence
 from app.auth.service import AuthError, AuthService
 
@@ -24,7 +24,7 @@ router = APIRouter(
                 name="mjl_local",
                 scheme_name="LocalSession",
                 auto_error=False,
-                description="OTP-verified Admin; isolated loopback HTTP only.",
+                description="OTP-verified Admin; loopback HTTP is local-only.",
             )
         ),
         Depends(
@@ -54,13 +54,14 @@ MUTATION_HEADERS = {
         }
         for name, description in (
             ("X-CSRF-Token", "Token bound to the current A1 session."),
-            ("Origin", "Must exactly match the configured synthetic browser origin."),
+            ("Origin", "Must exactly match the configured browser origin."),
         )
     ]
 }
 
 
 class UserItem(Identity):
+    full_name: str | None
     state: Literal["pending", "active", "inactive"]
     version: int
 
@@ -69,6 +70,7 @@ class InvitationItem(Input):
     id: str
     user_id: str
     email: str
+    full_name: str | None
     role: Role
     state: Literal["prepared", "delivered", "consumed", "revoked"]
     delivery_status: Literal["delivered", "failed", "unconfirmed"]
@@ -93,13 +95,19 @@ class Invitations(Input):
 
 class Invite(Input):
     email: str = Field(max_length=254)
+    full_name: str = Field(max_length=200)
     role: InvitableRole
     partner_id: str | None = Field(default=None, max_length=36)
 
     @field_validator("email")
     @classmethod
     def normalized_email(cls, value: str) -> str:
-        return synthetic_email(value)
+        return normalize_email(value)
+
+    @field_validator("full_name")
+    @classmethod
+    def normalized_full_name(cls, value: str) -> str:
+        return normalize_full_name(value)
 
     @model_validator(mode="after")
     def binding_matches_role(self) -> "Invite":
@@ -137,6 +145,7 @@ def invitation_item(db: Session, user: User, invitation: Invitation) -> Invitati
         id=invitation.id,
         user_id=user.id,
         email=user.email,
+        full_name=user.full_name,
         role=cast(Role, user.role),
         state=cast(
             Literal["prepared", "delivered", "consumed", "revoked"], invitation.state
@@ -191,6 +200,7 @@ def users(
                 UserItem(
                     id=u.id,
                     email=u.email,
+                    full_name=u.full_name,
                     role=cast(Role, u.role),
                     partner_id=u.partner_id,
                     state=cast(Literal["pending", "active", "inactive"], u.state),
@@ -251,7 +261,12 @@ def invite(body: Invite, request: Request, auth: Auth) -> InvitationItem:
                 raise AuthError(409, "partner_inactive")
         if db.scalar(select(User.id).where(User.email == body.email)):
             raise AuthError(409, "account_exists")
-        user = User(email=body.email, role=body.role, partner_id=body.partner_id)
+        user = User(
+            email=body.email,
+            full_name=body.full_name,
+            role=body.role,
+            partner_id=body.partner_id,
+        )
         db.add(user)
         db.flush()
         invitation = Invitation(user_id=user.id)
@@ -361,7 +376,7 @@ class Deactivation(Version):
     response_model=UserItem,
     openapi_extra=MUTATION_HEADERS,
     description=(
-        "Restricted synthetic active accounts only. Exactly one ordinary internal "
+        "Restricted active accounts only. Exactly one ordinary internal "
         "role change or one ordinary/Partner deactivation; Partner role changes and "
         "rebinding are forbidden. 409 for stale/ineligible state or "
         "eligibility_unverified. "
@@ -429,6 +444,7 @@ def lifecycle(
         return UserItem(
             id=user.id,
             email=user.email,
+            full_name=user.full_name,
             role=cast(Role, user.role),
             state=cast(Literal["pending", "active", "inactive"], user.state),
             version=user.version,

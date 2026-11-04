@@ -27,12 +27,16 @@ class User(Base):
         CheckConstraint("state IN ('pending','active','inactive')"),
         CheckConstraint("state = 'pending' OR password_hash IS NOT NULL"),
         CheckConstraint("email = lower(email)"),
-        CheckConstraint("email ~ '^[a-z0-9][a-z0-9._+-]{0,63}@example[.]test$'"),
+        CheckConstraint(
+            "email ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'",
+            name="auth_user_email_format",
+        ),
     )
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid4())
     )
     email: Mapped[str] = mapped_column(String(254), unique=True)
+    full_name: Mapped[str | None] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(32), default="ADMIN_PLATEFORME")
     state: Mapped[str] = mapped_column(String(16), default="pending")
     password_hash: Mapped[str | None] = mapped_column(String(255))

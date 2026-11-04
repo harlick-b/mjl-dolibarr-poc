@@ -56,7 +56,11 @@ def ordinary(admin, auth_env):
         admin.post(
             "/api/v1/access/invitations",
             headers=headers(admin),
-            json={"email": "ordinary@example.test", "role": "AGENT_SAISIE"},
+            json={
+                "email": "ordinary@example.test",
+                "full_name": "Ordinary User",
+                "role": "AGENT_SAISIE",
+            },
         ).status_code
         == 201
     )
@@ -408,7 +412,11 @@ def test_deactivate_invitation_history_and_audit(admin, ordinary, invitation_sta
         admin.post(
             "/api/v1/access/invitations",
             headers=headers(admin),
-            json={"email": item["email"], "role": item["role"]},
+            json={
+                "email": item["email"],
+                "full_name": item["full_name"],
+                "role": item["role"],
+            },
         ).status_code
         == 409
     )

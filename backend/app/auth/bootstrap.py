@@ -1,4 +1,4 @@
-"""Run only through restricted operator access to an isolated A1 environment."""
+"""Provision the first local Admin through restricted operator access."""
 
 import argparse
 import os
@@ -15,6 +15,7 @@ from app.database import make_engine
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--email", required=True)
+    parser.add_argument("--name", required=True)
     parser.add_argument("--reissue", action="store_true")
     args = parser.parse_args()
     url = database_url()
@@ -22,7 +23,7 @@ def main() -> None:
     engine = make_engine(url)
     try:
         AuthService(engine, policy).bootstrap(
-            args.email, f"os-uid:{os.getuid()}", args.reissue
+            args.email, args.name, f"os-uid:{os.getuid()}", args.reissue
         )
     except (AuthError, ValueError, SQLAlchemyError):
         parser.exit(
@@ -30,7 +31,7 @@ def main() -> None:
         )
     finally:
         engine.dispose()
-    print("Synthetic invitation delivered to the private test mailbox.")
+    print("Admin invitation delivered.")
 
 
 if __name__ == "__main__":

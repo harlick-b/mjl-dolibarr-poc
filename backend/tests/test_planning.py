@@ -35,7 +35,7 @@ def invite(admin, auth_env, stack, email, role):
     response = admin.post(
         "/api/v1/access/invitations",
         headers=headers(admin),
-        json={"email": email, "role": role},
+        json={"email": email, "full_name": "Test User", "role": role},
     )
     assert response.status_code == 201, response.text
     client = stack.enter_context(TestClient(admin.app, base_url="http://localhost"))
@@ -2470,7 +2470,7 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, au
             assert contributors == expected
             assert excluded not in contributors
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0019_pta7b"
+                "0023_real_mail_accounts"
             )
     finally:
         engine.dispose()
@@ -2497,7 +2497,7 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0019_pta7b"
+                "0023_real_mail_accounts"
             )
             assert db.scalar(text("SELECT count(*) FROM pta_activity_revision")) == 1
     finally:

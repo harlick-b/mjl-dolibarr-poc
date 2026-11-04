@@ -45,7 +45,11 @@ def ordinary(admin, auth_env):
         admin.post(
             "/api/v1/access/invitations",
             headers=headers(admin),
-            json={"email": email, "role": "AGENT_SAISIE"},
+            json={
+                "email": email,
+                "full_name": "Recovery User",
+                "role": "AGENT_SAISIE",
+            },
         ).status_code
         == 201
     )
@@ -65,7 +69,7 @@ def lifecycle_case(admin, auth_env):
         admin.post(
             "/api/v1/access/invitations",
             headers=headers(admin),
-            json={"email": email, "role": "AGENT_SAISIE"},
+            json={"email": email, "full_name": "Recovery User", "role": "AGENT_SAISIE"},
         ).status_code
         == 201
     )
@@ -209,7 +213,7 @@ def test_a3_migration_preserves_existing_auth_evidence(auth_env):
         with engine.connect() as db:
             assert (
                 db.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0019_pta7b"
+                == "0023_real_mail_accounts"
             )
             for table in (
                 "auth_user",
@@ -232,7 +236,11 @@ def test_request_is_neutral_and_excludes_unknown_and_admin(admin, auth_env):
             admin.post(
                 "/api/v1/access/invitations",
                 headers=headers(admin),
-                json={"email": email, "role": "AGENT_SAISIE"},
+                json={
+                    "email": email,
+                    "full_name": "Recovery User",
+                    "role": "AGENT_SAISIE",
+                },
             ).status_code
             == 201
         )
@@ -277,6 +285,12 @@ def test_valid_recovery_preserves_identity_and_requires_fresh_login(ordinary, au
     client, email, identifier = ordinary
     enable_recovery(client)
     assert request(client, email).status_code == 202
+    recovery_mail = [
+        item
+        for item in messages(auth_env.mailbox)
+        if item["recipient"] == email and item["kind"] == "password_recovery"
+    ][-1]
+    assert "Bonjour Recovery User," in recovery_mail["html"]
     proof = recovery_proof(auth_env.mailbox, email)
     assert client.post(
         "/api/v1/auth/password-reset/inspect",
@@ -290,6 +304,13 @@ def test_valid_recovery_preserves_identity_and_requires_fresh_login(ordinary, au
     )
     assert response.status_code == 200
     assert response.json() == {"state": "password_reset"}
+    notice = [
+        item
+        for item in messages(auth_env.mailbox)
+        if item["recipient"] == email and item["kind"] == "password_reset_notice"
+    ][-1]
+    assert "Bonjour Recovery User," in notice["html"]
+    assert "<a " not in notice["html"]
     assert client.get("/api/v1/auth/session").status_code == 401
     with Session(client.app.state.auth.engine) as db:
         user = db.get(User, identifier)

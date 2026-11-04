@@ -58,20 +58,53 @@ def activate(client, mailbox, email):
 @pytest.fixture
 def admin(auth_env):
     with TestClient(create_app(auth_env.url), base_url="http://localhost") as client:
-        client.app.state.auth.bootstrap("admin@example.test", "test-operator")
+        client.app.state.auth.bootstrap(
+            "admin@example.test", "Admin Test", "test-operator"
+        )
         activate(client, auth_env.mailbox, "admin@example.test")
         yield client
 
 
 def test_admin_invites_and_lists_ordinary_user(admin, auth_env):
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from app.auth.models import Audit
+
     response = admin.post(
         "/api/v1/access/invitations",
         headers=headers(admin),
-        json={"email": "agent@example.test", "role": "AGENT_SAISIE"},
+        json={
+            "email": "agent@example.test",
+            "full_name": "Agent Test",
+            "role": "AGENT_SAISIE",
+        },
     )
     assert response.status_code == 201, response.text
     item = response.json()
     assert item["state"] == "delivered" and item["version"] > 0
+    invitation_mail = [
+        message
+        for message in messages(auth_env.mailbox)
+        if message["recipient"] == "agent@example.test"
+        and message["kind"] == "invitation"
+    ][-1]
+    assert "Bonjour Agent Test," in invitation_mail["html"]
+    assert "Bonjour Agent Test," in invitation_mail["text"]
+    assert invitation_mail["provider_id"]
+    with Session(admin.app.state.auth.engine) as db:
+        delivery_audit = db.scalar(
+            select(Audit)
+            .where(
+                Audit.action == "invitation_delivery",
+                Audit.target == item["user_id"],
+            )
+            .order_by(Audit.id.desc())
+        )
+        assert delivery_audit
+        assert delivery_audit.details["provider_message_id"] == invitation_mail[
+            "provider_id"
+        ]
     users = admin.get("/api/v1/access/users").json()
     assert users["total"] == 2
     assert {u["email"] for u in users["items"]} == {
@@ -88,7 +121,13 @@ def test_resend_revoke_versions_and_late_delivery(admin, auth_env, monkeypatch):
     h = headers(admin)
     path = "/api/v1/access/invitations"
     item = admin.post(
-        path, headers=h, json={"email": "pending@example.test", "role": "AGENT_SAISIE"}
+        path,
+        headers=h,
+        json={
+            "email": "pending@example.test",
+            "full_name": "Pending User",
+            "role": "AGENT_SAISIE",
+        },
     ).json()
     old = proof(auth_env.mailbox, "pending@example.test")
     result = admin.post(
@@ -145,7 +184,7 @@ def test_each_business_role_accepts_and_authenticates_but_cannot_admin(
     invitation = admin.post(
         "/api/v1/access/invitations",
         headers=headers(admin),
-        json={"email": email, "role": role},
+        json={"email": email, "full_name": "Business User", "role": role},
     ).json()
     with TestClient(admin.app, base_url="http://localhost") as recipient:
         h = headers(recipient)
@@ -177,7 +216,11 @@ def assert_denied_endpoints(client, status, identifier="missing"):
         (
             "POST",
             "invitations",
-            {"email": "forbidden@example.test", "role": "AGENT_SAISIE"},
+            {
+                "email": "forbidden@example.test",
+                "full_name": "Forbidden User",
+                "role": "AGENT_SAISIE",
+            },
         ),
         ("POST", f"invitations/{identifier}/resend", {"expected_version": 1}),
         ("POST", f"invitations/{identifier}/revoke", {"expected_version": 1}),
@@ -219,7 +262,11 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
 
     path = "/api/v1/access/invitations"
     h = headers(admin)
-    payload = {"email": "pending@example.test", "role": "AGENT_VERIFICATEUR"}
+    payload = {
+        "email": "pending@example.test",
+        "full_name": "Pending User",
+        "role": "AGENT_VERIFICATEUR",
+    }
     assert (
         admin.post(
             path, json=payload, headers={"Origin": "http://localhost"}
@@ -236,7 +283,7 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
         )
     for invalid in [
         {**payload, "role": "ADMIN_PLATEFORME"},
-        {**payload, "email": "real@example.com"},
+        {**payload, "email": "not-an-email"},
         {**payload, "entity": 2},
     ]:
         assert admin.post(path, json=invalid, headers=h).status_code == 422
@@ -255,6 +302,7 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
     assert set(result["items"][0]) == {
         "id",
         "email",
+        "full_name",
         "role",
         "state",
         "version",
@@ -266,6 +314,7 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
         "id",
         "user_id",
         "email",
+        "full_name",
         "role",
         "state",
         "delivery_status",
@@ -310,7 +359,7 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
     )
     with pytest.raises(Exception) as rejected:
         admin.app.state.auth.bootstrap(
-            "pending@example.test", "test-operator", reissue=True
+            "pending@example.test", "Pending User", "test-operator", reissue=True
         )
     assert str(rejected.value) == "bootstrap_closed"
 
@@ -329,7 +378,11 @@ def test_mail_failure_is_persisted_and_explicit_resend_recovers(
     response = admin.post(
         "/api/v1/access/invitations",
         headers=h,
-        json={"email": "failed@example.test", "role": "AGENT_SAISIE"},
+        json={
+            "email": "failed@example.test",
+            "full_name": "Failed User",
+            "role": "AGENT_SAISIE",
+        },
     )
     assert (
         response.status_code == 503
@@ -372,7 +425,11 @@ def test_duplicate_create_and_late_delivery_revoke_are_serialized(
         send(*args)
 
     monkeypatch.setattr(auth.mail, "send", delayed)
-    payload = {"email": "race@example.test", "role": "AGENT_SAISIE"}
+    payload = {
+        "email": "race@example.test",
+        "full_name": "Race User",
+        "role": "AGENT_SAISIE",
+    }
     with ThreadPoolExecutor(max_workers=2) as pool:
         first = pool.submit(
             admin.post, "/api/v1/access/invitations", headers=h, json=payload
@@ -434,7 +491,11 @@ def test_competing_invitation_actions_have_one_winner(admin, auth_env, pair):
     item = admin.post(
         "/api/v1/access/invitations",
         headers=h,
-        json={"email": "race@example.test", "role": "AGENT_SAISIE"},
+        json={
+            "email": "race@example.test",
+            "full_name": "Race User",
+            "role": "AGENT_SAISIE",
+        },
     ).json()
     saved = proof(auth_env.mailbox, "race@example.test")
     barrier = Barrier(2)
@@ -514,7 +575,11 @@ def test_database_faults_never_claim_success_or_send_before_commit(
         response = admin.post(
             "/api/v1/access/invitations",
             headers=h,
-            json={"email": "fault@example.test", "role": "AGENT_SAISIE"},
+            json={
+                "email": "fault@example.test",
+                "full_name": "Fault User",
+                "role": "AGENT_SAISIE",
+            },
         )
         assert response.status_code == 503
         assert "synthetic" not in response.text
@@ -555,7 +620,11 @@ def test_audit_facts_append_only_and_security_denials(admin, auth_env):
     item = admin.post(
         "/api/v1/access/invitations",
         headers=h,
-        json={"email": "audit@example.test", "role": "AGENT_SAISIE"},
+        json={
+            "email": "audit@example.test",
+            "full_name": "Audit User",
+            "role": "AGENT_SAISIE",
+        },
     ).json()
     saved = proof(auth_env.mailbox, "audit@example.test")
     assert (
@@ -710,7 +779,9 @@ def test_upgrade_existing_a1_pending_proof_requires_deliberate_reissue(auth_env)
             ).status_code
             == 400
         )
-        client.app.state.auth.bootstrap("legacy@example.test", "operator", reissue=True)
+        client.app.state.auth.bootstrap(
+            "legacy@example.test", "Legacy Admin", "operator", reissue=True
+        )
         assert (
             activate(client, auth_env.mailbox, "legacy@example.test")["user"]["role"]
             == "ADMIN_PLATEFORME"
@@ -761,7 +832,11 @@ def test_database_constraints_and_late_superseded_generation(
             admin.post,
             "/api/v1/access/invitations",
             headers=h,
-            json={"email": "generation@example.test", "role": "AGENT_SAISIE"},
+            json={
+                "email": "generation@example.test",
+                "full_name": "Generation User",
+                "role": "AGENT_SAISIE",
+            },
         )
         assert started.wait(10)
         try:

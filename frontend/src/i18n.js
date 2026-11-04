@@ -2,6 +2,7 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    accountFullName: 'Nom complet',
     partnerPtaCsv: 'Télécharger le récapitulatif CSV',
     partnerPtaCsvPending: 'Préparation du CSV…',
     partnerPtaCsvFailed:

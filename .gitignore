@@ -1,6 +1,7 @@
 /.playwright-mcp/
 /ressources/
 /docs/inspiration/
+/docs/mails templates/
 
 # Dedicated React/FastAPI foundation
 /frontend/node_modules/

@@ -19,9 +19,9 @@ mean user acceptance or production readiness.
   implementation evidence.
 - `compose.rebuild.yaml`: isolated local development stack.
 
-The application remains restricted to synthetic identities, isolated databases
-and test mail. Do not seed persistent demo data or use the development setup for
-real accounts or production operations.
+The local application supports invited real email identities and sends system
+mail through Resend. It remains a development environment: do not seed persistent
+demo data or use it for production operations.
 
 ## Local development
 
@@ -30,15 +30,18 @@ Prerequisites: Docker Compose v2, Node 22.12+ (22.x) or 24.x, and Python 3.12 or
 
 ```bash
 cp .env.example .env
-python3 -c "from pathlib import Path; import secrets; p=Path('.env'); p.write_text(p.read_text().replace('REPLACE_WITH_GENERATED_LOCAL_HEX', secrets.token_hex(24))); p.chmod(0o600)"
+python3 -c "from pathlib import Path; import secrets; p=Path('.env'); p.write_text(p.read_text().replace('REPLACE_WITH_GENERATED_LOCAL_HEX', secrets.token_hex(24)).replace('REPLACE_WITH_GENERATED_AUTH_HEX', secrets.token_hex(32))); p.chmod(0o600)"
+# Edit .env and privately set RESEND_API_KEY plus a verified EMAIL_FROM.
 docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev config --quiet
 docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev up -d --build --wait
 docker compose --env-file .env -f compose.rebuild.yaml -p mjl-rebuild-dev exec -T backend alembic upgrade head
 ```
 
-Frontend: <http://127.0.0.1:5173/>. Backend OpenAPI:
+Frontend: <http://localhost:5173/> (match `APP_BASE_URL`). Backend OpenAPI:
 <http://127.0.0.1:8000/docs>. PostgreSQL is reachable only inside the Compose
 network. Migrations do not create users, reference rows or sample business data.
+Provision the first Admin from the backend container with both `--email` and
+`--name`; the invitation is sent through Resend.
 
 Install host development dependencies when needed:
 

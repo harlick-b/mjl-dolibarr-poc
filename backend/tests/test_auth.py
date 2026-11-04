@@ -19,14 +19,14 @@ def test_bootstrap_is_one_time_and_delivers_only_a_pending_invitation(auth_env):
     engine = make_engine(database_url(url))
     auth = AuthService(engine, load_policy(url))
     try:
-        auth.bootstrap("first@example.test", "operator-test")
+        auth.bootstrap("first@example.test", "First Admin", "operator-test")
         assert len(messages(mailbox)) == 1
         assert messages(mailbox)[0]["kind"] == "invitation"
         with engine.connect() as db:
             assert db.scalar(text("SELECT state FROM auth_user")) == "pending"
             assert db.scalar(text("SELECT password_hash FROM auth_user")) is None
         with pytest.raises(AuthError):
-            auth.bootstrap("second@example.test", "operator-test")
+            auth.bootstrap("second@example.test", "Second Admin", "operator-test")
     finally:
         engine.dispose()
 
@@ -46,7 +46,7 @@ def test_invitation_acceptance_is_bound_single_use_and_does_not_create_session(
     engine = make_engine(url)
     auth = AuthService(engine, load_policy(url))
     try:
-        auth.bootstrap("first@example.test", "operator-test")
+        auth.bootstrap("first@example.test", "First Admin", "operator-test")
         proof = parse_qs(urlsplit(messages(mailbox)[0]["value"]).fragment)
         selector, verifier = proof["selector"][0], proof["verifier"][0]
         assert auth.invitation(selector, verifier) == "first@example.test"
@@ -74,7 +74,7 @@ def test_full_http_journey_requires_otp_and_revokes_old_session(auth_env):
     url, mailbox, _ = auth_env
     with TestClient(create_app(url), base_url="http://localhost") as client:
         auth = client.app.state.auth
-        auth.bootstrap("first@example.test", "operator-test")
+        auth.bootstrap("first@example.test", "First Admin", "operator-test")
         proof = {
             k: v[0]
             for k, v in parse_qs(

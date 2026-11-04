@@ -10,9 +10,9 @@ from uuid import uuid4
 from sqlalchemy import Engine, func, select, text
 from sqlalchemy.orm import Session
 
-from app.auth.mail import TestMailbox
+from app.auth.mail import MailRenderer, ResendMailer, TestMailbox
 from app.auth.models import OTP, Abuse, Audit, Context, Invitation, Recovery, User
-from app.auth.policy import Policy, synthetic_email
+from app.auth.policy import Policy, normalize_email, normalize_full_name
 
 request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
 logger = logging.getLogger(__name__)
@@ -29,6 +29,19 @@ def digest(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def duration_label(seconds: int) -> str:
+    if seconds % 86400 == 0:
+        return f"{seconds // 86400} jours"
+    if seconds % 60 == 0:
+        return f"{seconds // 60} minutes"
+    return f"{seconds} secondes"
+
+
+def masked_email(value: str) -> str:
+    local, domain = value.split("@", 1)
+    return f"{local[:1]}***@{domain}"
+
+
 class AuthService:
     def __init__(self, engine: Engine, policy: Policy | None):
         if policy is None:
@@ -39,18 +52,28 @@ class AuthService:
         self.dummy_hash = self.hasher.hash(secrets.token_urlsafe(32))
         self.engine = engine
         self.policy = policy
-        self.mail = TestMailbox(policy.mailbox)
+        if policy.mailbox:
+            self.mail: TestMailbox | ResendMailer = TestMailbox(policy.mailbox)
+        else:
+            assert policy.resend_api_key and policy.email_from
+            self.mail = ResendMailer(
+                policy.resend_api_key, policy.email_from, policy.email_reply_to
+            )
+        self.mail_renderer = MailRenderer()
         self.clock: Callable[[], datetime] | None = None
 
     def environment_verified(
         self, db: Session, *, require_context: bool = True
     ) -> None:
-        """Verify the exact isolated synthetic PTA database."""
+        """Verify the exact schema and configured lifecycle database."""
         if (
             not self.policy.recovery_enabled
             or not self.policy.lifecycle_database
             or self.policy.lifecycle_database != self.engine.url.database
-            or not self.policy.lifecycle_database.startswith("mjl_test_")
+            or (
+                self.policy.fixture == "a1-synthetic-v1"
+                and not self.policy.lifecycle_database.startswith("mjl_test_")
+            )
         ):
             raise AuthError(409, "eligibility_unverified")
         relations = set(
@@ -105,7 +128,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0022_partner_documents"]:
+        if revisions != ["0023_real_mail_accounts"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -258,7 +281,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "d3d8315812daa36f862e798341e6bb44188ce1edbf91c248064173e3780636cd"
+            "bb9cf89779886cc7c79b73e0c44ebc8be0b259fd05111cb11897332bdd4273c9"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -325,6 +348,11 @@ class AuthService:
         assert isinstance(value, datetime)
         return value
 
+    def send_mail(self, recipient: str, kind: str, **context: object) -> str:
+        return self.mail.send(
+            recipient, kind, self.mail_renderer.render(kind, **context)
+        )
+
     def audit(
         self,
         db: Session,
@@ -356,6 +384,7 @@ class AuthService:
                 "agent_id",
                 "planned_end",
                 "email_status",
+                "provider_message_id",
                 "media_type",
                 "format",
                 "row_count",
@@ -1525,8 +1554,21 @@ class AuthService:
     ) -> None:
         link = f"{self.policy.origin}/invitation#selector={selector}&verifier={secret}"
         delivered = True
+        provider_message_id = ""
         try:
-            self.mail.send(email, "invitation", link)
+            with Session(self.engine) as lookup:
+                user_name = lookup.scalar(
+                    select(User.full_name)
+                    .join(Invitation, Invitation.user_id == User.id)
+                    .where(Invitation.id == selector, User.email == email)
+                )
+            provider_message_id = self.send_mail(
+                email,
+                "invitation",
+                recipient_name=user_name,
+                action_url=link,
+                expiration_text=duration_label(self.policy.invitation_seconds),
+            )
         except OSError:
             delivered = False
         with Session(self.engine) as db, db.begin():
@@ -1548,13 +1590,16 @@ class AuthService:
             if delivered:
                 invitation.state = "delivered"
             invitation.version += 1
+            facts = self.invitation_facts(user, invitation, "prepared")
+            if provider_message_id:
+                facts["provider_message_id"] = provider_message_id
             self.audit(
                 db,
                 "invitation_delivery",
                 actor,
                 user.id,
                 "sent" if delivered else "failed",
-                details=self.invitation_facts(user, invitation, "prepared"),
+                details=facts,
             )
         if not delivered:
             raise AuthError(503, "invitation_delivery_failed")
@@ -1566,7 +1611,7 @@ class AuthService:
     def recovery_request_allowed(self, email: str, ip: str) -> tuple[str, bool]:
         self.require_recovery()
         try:
-            normalized = synthetic_email(email)
+            normalized = normalize_email(email)
         except ValueError:
             raise AuthError(422, "input_invalid") from None
         assert self.policy.recovery_ip_window_seconds
@@ -1639,6 +1684,7 @@ class AuthService:
         self, email: str, selector: str, generation: str, secret: str
     ) -> None:
         self.require_recovery()
+        recipient_name = None
         with Session(self.engine) as db, db.begin():
             db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
             self.environment_verified(db)
@@ -1658,13 +1704,19 @@ class AuthService:
                 )
             ):
                 return
+            recipient_name = user.full_name
         delivered = True
+        provider_message_id = ""
         try:
-            self.mail.send(
+            provider_message_id = self.send_mail(
                 email,
                 "password_recovery",
-                f"{self.policy.origin}/reset-password#selector={selector}"
-                f"&verifier={secret}",
+                recipient_name=recipient_name,
+                action_url=(
+                    f"{self.policy.origin}/reset-password#selector={selector}"
+                    f"&verifier={secret}"
+                ),
+                expiration_text=duration_label(self.policy.recovery_seconds or 0),
             )
         except OSError:
             delivered = False
@@ -1699,6 +1751,11 @@ class AuthService:
                     "recovery_id": recovery.id,
                     "generation": recovery.generation,
                     "user_version": user.version,
+                    **(
+                        {"provider_message_id": provider_message_id}
+                        if provider_message_id
+                        else {}
+                    ),
                 },
             )
 
@@ -1794,11 +1851,18 @@ class AuthService:
 
     def notify_recovery(self, user_id: str, email: str) -> None:
         delivered = True
+        provider_message_id = ""
         try:
-            self.mail.send(
+            with Session(self.engine) as db:
+                recipient_name = db.scalar(
+                    select(User.full_name).where(
+                        User.id == user_id, User.email == email
+                    )
+                )
+            provider_message_id = self.send_mail(
                 email,
                 "password_reset_notice",
-                "Votre mot de passe MJL a été réinitialisé.",
+                recipient_name=recipient_name,
             )
         except OSError:
             delivered = False
@@ -1810,12 +1874,18 @@ class AuthService:
                     "anonymous",
                     user_id,
                     "sent" if delivered else "failed",
+                    details={"provider_message_id": provider_message_id}
+                    if provider_message_id
+                    else None,
                 )
         except Exception:
             return
 
-    def bootstrap(self, email: str, operator: str, reissue: bool = False) -> None:
-        email = synthetic_email(email)
+    def bootstrap(
+        self, email: str, full_name: str, operator: str, reissue: bool = False
+    ) -> None:
+        email = normalize_email(email)
+        full_name = normalize_full_name(full_name)
         if not operator or len(operator) > 80:
             raise AuthError(403, "operator_required")
         request_id.set(str(uuid4()))
@@ -1825,7 +1895,9 @@ class AuthService:
             if not reissue:
                 if original or db.scalar(select(User.id).limit(1)):
                     raise AuthError(409, "bootstrap_closed")
-                user: User | None = User(email=email, role="ADMIN_PLATEFORME")
+                user: User | None = User(
+                    email=email, full_name=full_name, role="ADMIN_PLATEFORME"
+                )
                 db.add(user)
                 db.flush()
                 assert user
@@ -1841,6 +1913,7 @@ class AuthService:
                 if (
                     not user
                     or user.email != email
+                    or (user.full_name is not None and user.full_name != full_name)
                     or user.state != "pending"
                     or user.role != "ADMIN_PLATEFORME"
                 ):
@@ -1852,6 +1925,9 @@ class AuthService:
                 )
                 if not invitation or invitation.state in {"consumed", "revoked"}:
                     raise AuthError(409, "bootstrap_closed")
+                if user.full_name is None:
+                    user.full_name = full_name
+                    user.version += 1
                 action = "invitation_reissue"
             assert invitation and user
             delivery = self.prepare_invitation(db, user, invitation, operator, action)
@@ -2000,7 +2076,7 @@ class AuthService:
         if context.state == "pending":
             pending_user = db.get(User, context.user_id)
             assert pending_user
-            result["email"] = pending_user.email[:1] + "***@example.test"
+            result["email"] = masked_email(pending_user.email)
         if context.state == "verified":
             user = db.get(User, context.user_id)
             assert user
@@ -2069,8 +2145,14 @@ class AuthService:
 
     def deliver_otp(self, user_id: str, email: str, generation: str, code: str) -> None:
         delivered = True
+        provider_message_id = ""
         try:
-            self.mail.send(email, "otp", code)
+            provider_message_id = self.send_mail(
+                email,
+                "otp",
+                otp_code=code,
+                expiration_text=duration_label(self.policy.otp_seconds),
+            )
         except OSError:
             delivered = False
         with Session(self.engine) as db, db.begin():
@@ -2079,7 +2161,14 @@ class AuthService:
                 raise AuthError(409, "delivery_superseded")
             otp.state = "delivered" if delivered else "prepared"
             self.audit(
-                db, "otp_delivery", user_id, user_id, "sent" if delivered else "failed"
+                db,
+                "otp_delivery",
+                user_id,
+                user_id,
+                "sent" if delivered else "failed",
+                details={"provider_message_id": provider_message_id}
+                if provider_message_id
+                else None,
             )
         if not delivered:
             raise AuthError(503, "otp_delivery_failed")
@@ -2172,7 +2261,7 @@ class AuthService:
             raise error
         assert delivery
         self.deliver_otp(*delivery)
-        return {"state": "pending", "email": normalized[:1] + "***@example.test"}
+        return {"state": "pending", "email": masked_email(normalized)}
 
     def otp(
         self, secret: str | None, csrf: str | None, code: str | None = None

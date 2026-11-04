@@ -146,6 +146,8 @@ test('V19 planning, correction and final approval browser journey', async ({
     'app.auth.bootstrap',
     '--email',
     'pta-admin@example.test',
+    '--name',
+    'Admin PTA',
   ])
   await accept(page, 'pta-admin@example.test')
   for (const [email, role] of [
@@ -155,6 +157,7 @@ test('V19 planning, correction and final approval browser journey', async ({
   ]) {
     const result = await api(page, '/access/invitations', 'POST', {
       email,
+      full_name: email.split('@')[0],
       role,
     })
     expect(result.status).toBe(201)

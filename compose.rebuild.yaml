@@ -19,6 +19,13 @@ services:
       - "127.0.0.1:${MJL_BACKEND_PORT:-8000}:8000"
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mjl}:${POSTGRES_PASSWORD:?Set a local generated POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mjl_foundation}
+      MJL_AUTH_MODE: ${MJL_AUTH_MODE:-off}
+      MJL_ENVIRONMENT: ${MJL_ENVIRONMENT:-}
+      MJL_AUTH_KEY: ${MJL_AUTH_KEY:-}
+      APP_BASE_URL: ${APP_BASE_URL:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
     depends_on:
       postgres:
         condition: service_healthy

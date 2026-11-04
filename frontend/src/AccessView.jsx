@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus, Users, X } from 'lucide-react'
 import { roleLabels, sessionKey, sessionQuery } from './auth'
 import { useAPI } from './RestClientProvider'
+import { strings } from './i18n'
 import { Button } from './components/ui/button'
 
 function subscribe(callback) {
@@ -278,6 +279,7 @@ function Accounts({ session, onDenied, checking }) {
       dialog.kind === 'invite'
         ? {
             email: data.get('email'),
+            full_name: data.get('full_name'),
             role,
             ...(role === 'PARTENAIRE'
               ? { partner_id: data.get('partner_id') }
@@ -432,6 +434,7 @@ function Accounts({ session, onDenied, checking }) {
                 <caption className="sr-only">Comptes utilisateurs</caption>
                 <thead>
                   <tr>
+                    <th>{strings.accountFullName}</th>
                     <th>Adresse e-mail</th>
                     <th>Rôle</th>
                     <th>État</th>
@@ -441,6 +444,7 @@ function Accounts({ session, onDenied, checking }) {
                 <tbody>
                   {users.data?.items.map((u) => (
                     <tr key={u.id}>
+                      <td>{u.full_name || '—'}</td>
                       <td>{u.email}</td>
                       <td>{roleLabels[u.role]}</td>
                       <td>
@@ -520,6 +524,7 @@ function Accounts({ session, onDenied, checking }) {
                 </caption>
                 <thead>
                   <tr>
+                    <th>{strings.accountFullName}</th>
                     <th>Adresse e-mail</th>
                     <th>Rôle</th>
                     <th>État</th>
@@ -530,6 +535,7 @@ function Accounts({ session, onDenied, checking }) {
                 <tbody>
                   {invitations.data?.items.map((i) => (
                     <tr key={i.id}>
+                      <td>{i.full_name || '—'}</td>
                       <td>{i.email}</td>
                       <td>{roleLabels[i.role]}</td>
                       <td>
@@ -708,6 +714,16 @@ function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
       <form onSubmit={submit}>
         {invite ? (
           <div className="access-dialog-fields">
+            <label>
+              {strings.accountFullName}
+              <input
+                name="full_name"
+                type="text"
+                maxLength={200}
+                required
+                autoComplete="name"
+              />
+            </label>
             <label>
               Adresse e-mail
               <input

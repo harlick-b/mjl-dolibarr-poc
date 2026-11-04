@@ -326,6 +326,9 @@ test('Admin binds a Partner invitation to the selected Partner', async () => {
     await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
   )
   const dialog = screen.getByRole('dialog')
+  fireEvent.change(within(dialog).getByLabelText('Nom complet'), {
+    target: { value: 'John Doe' },
+  })
   fireEvent.change(within(dialog).getByLabelText('Rôle'), {
     target: { value: 'PARTENAIRE' },
   })
@@ -345,6 +348,7 @@ test('Admin binds a Partner invitation to the selected Partner', async () => {
   await waitFor(() =>
     expect(invitationBody).toEqual({
       email: 'portal@example.test',
+      full_name: 'John Doe',
       role: 'PARTENAIRE',
       partner_id: 'partner-1',
     }),

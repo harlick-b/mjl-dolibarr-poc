@@ -8,6 +8,17 @@ approvals, verdicts, and phase sequencing. Implement only the requested slice,
 check scope before editing, and use focused verification. Production
 preparation remains deferred until explicitly requested.
 
+## Local Resend mail and real accounts (DEC-138)
+
+The authorized local-development boundary replaces synthetic-only account
+addresses with validated real email addresses, requires a full name for every new
+invitation and first Admin, and sends the five existing system messages through
+Resend using the approved French HTML and plain-text templates. Migration
+`0023_real_mail_accounts` preserves existing unnamed accounts. [Contract
+57](rebuild/57-local-resend-and-real-accounts.md) owns the implementation and
+verification evidence. Production enablement, automatic scheduling/retry, mail
+queues/webhooks and live email-client acceptance remain deferred.
+
 ## Partner selected-PTA CSV (DEC-137)
 
 Implemented in the synthetic environment after the user's plan/implement/review

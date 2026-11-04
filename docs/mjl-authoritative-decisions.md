@@ -49,6 +49,23 @@ Reuse existing amendments, no-self-validation and frozen settlement safeguards;
 no additional external prompt, banking, automatic funding or reopening is needed.
 Individual Operation variance is not itself Activity-level insufficiency.
 
+## Local Resend mail and real-account authorization (DEC-138)
+
+On 2026-11-04 the user authorized the bounded implementation in [contract
+57](rebuild/57-local-resend-and-real-accounts.md). Real email addresses and
+required full names are enabled for new accounts in local development. The five
+existing system messages use the supplied French HTML designs, plain-text
+alternatives and Resend as the sole runtime provider. Existing unnamed accounts
+remain valid and use the generic greeting. The existing Activity reminder trigger,
+eligibility, deduplication and one-attempt delivery behavior remain unchanged.
+
+Configuration belongs in the ignored root `.env`; committed files contain only
+placeholders. Migration `0023_real_mail_accounts` adds the nullable name and
+replaces the synthetic-only email constraint. No provider selector, disabled-mail
+mode, queue, webhook, automatic retry, scheduler or new business workflow is
+authorized. Production deployment, production account enablement, provider/region
+acceptance and live Gmail/Outlook evidence remain separate gates.
+
 ## Reporting scope and budget insufficiency clarification (DEC-137)
 
 On 2026-11-04 the user approved the following scopes and clarified that budget

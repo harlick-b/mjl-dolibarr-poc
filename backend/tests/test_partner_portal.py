@@ -70,7 +70,12 @@ def invite_partner(clients, auth_env, stack, partner_id, email):
     invitation = clients["admin"].post(
         "/api/v1/access/invitations",
         headers=headers(clients["admin"]),
-        json={"email": email, "role": "PARTENAIRE", "partner_id": partner_id},
+        json={
+            "email": email,
+            "full_name": "Partner User",
+            "role": "PARTENAIRE",
+            "partner_id": partner_id,
+        },
     )
     assert invitation.status_code == 201, invitation.text
     client = stack.enter_context(
@@ -337,9 +342,14 @@ def test_partner_invitation_binding_constraints_and_deactivation(planning, auth_
     assert partner_options.status_code == 200, partner_options.text
     assert partner_row["id"] in {item["id"] for item in partner_options.json()["data"]}
     invalid = [
-        {"email": "missing@example.test", "role": "PARTENAIRE"},
+        {
+            "email": "missing@example.test",
+            "full_name": "Missing Partner",
+            "role": "PARTENAIRE",
+        },
         {
             "email": "unexpected@example.test",
+            "full_name": "Unexpected Partner",
             "role": "AGENT_SAISIE",
             "partner_id": partner_row["id"],
         },
@@ -356,6 +366,7 @@ def test_partner_invitation_binding_constraints_and_deactivation(planning, auth_
         headers=headers(planning["admin"]),
         json={
             "email": "unknown@example.test",
+            "full_name": "Unknown Partner",
             "role": "PARTENAIRE",
             "partner_id": str(uuid4()),
         },
@@ -392,6 +403,7 @@ def test_partner_invitation_binding_constraints_and_deactivation(planning, auth_
             headers=headers(planning["admin"]),
             json={
                 "email": "partner-two@example.test",
+                "full_name": "Partner Two",
                 "role": "PARTENAIRE",
                 "partner_id": partner_row["id"],
             },
@@ -700,6 +712,7 @@ def test_partner_invitation_audit_failure_rolls_back(planning, monkeypatch):
             headers=headers(planning["admin"]),
             json={
                 "email": "partner-rollback@example.test",
+                "full_name": "Partner Rollback",
                 "role": "PARTENAIRE",
                 "partner_id": partner_row["id"],
             },

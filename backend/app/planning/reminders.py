@@ -42,6 +42,25 @@ router = APIRouter(
     },
 )
 
+FRENCH_MONTHS = (
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+)
+
+
+def french_date(value: date) -> str:
+    return f"{value.day} {FRENCH_MONTHS[value.month - 1]} {value.year}"
+
 
 class Input(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -180,6 +199,7 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                 )
             )
             status = "skipped"
+            provider_message_id = ""
             if (
                 recipient is not None
                 and recipient.state == "active"
@@ -194,11 +214,14 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                     status = "skipped"
                 else:
                     try:
-                        message = (
-                            f"{activity.reference} — {name} — échéance "
-                            f"{item.planned_end.isoformat()}"
+                        provider_message_id = auth.send_mail(
+                            recipient.email,
+                            "activity_reminder",
+                            recipient_name=recipient.full_name,
+                            activity_reference=activity.reference,
+                            activity_name=name,
+                            activity_end_date=french_date(item.planned_end),
                         )
-                        auth.mail.send(recipient.email, "activity_reminder", message)
                         status = "delivered"
                     except OSError:
                         status = "failed"
@@ -210,7 +233,14 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                 "system:pta5",
                 item.id,
                 outcome=status,
-                details={"email_status": status},
+                details={
+                    "email_status": status,
+                    **(
+                        {"provider_message_id": provider_message_id}
+                        if provider_message_id
+                        else {}
+                    ),
+                },
             )
             return status
     except Exception:
