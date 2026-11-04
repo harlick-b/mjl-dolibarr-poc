@@ -67,7 +67,7 @@ Unicode full name (maximum 200 characters) for new invitations/first Admin.
 Existing unnamed accounts use a generic greeting. Resend is the sole runtime
 mail provider. The five messages are invitation, login OTP, password recovery,
 password-change notice and Activity reminder. HTML/plain-text sources live in
-backend/app/mail_templates; rendering escapes values and rejects missing fields.
+backend/app/auth/templates; rendering escapes values and rejects missing fields.
 Links retain secrets in fragments; OTP leading zeros are preserved. Password-change
 and reminder notices have no action button. A reminder names its approved end date.
 There is one bounded synchronous attempt, no automatic retry/queue/webhook.

@@ -9,7 +9,10 @@ boundaries; passing development checks is not user acceptance or production read
 ## Repository layout
 
 - `frontend/`: React, TanStack Router/Query, Tailwind and the installable PWA.
-- `backend/app/`: FastAPI routes, use cases and persistence.
+- `backend/app/`: authentication, planning, Partner and audit modules, with shared
+  infrastructure in `core/` and application composition in `main.py`.
+- `frontend/src/`: application setup in `app/`, screens/tests in `features/`,
+  and reused API/UI helpers in `shared/`.
 - `backend/migrations/`: Alembic migrations; current head is `0024_budget_funding`.
 - `backend/tests/` and `frontend/e2e/`: focused backend and browser checks.
 - `docs/`: [engineering](docs/engineering.md), [security](docs/security.md),

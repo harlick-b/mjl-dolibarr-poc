@@ -7,8 +7,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.auth.policy import load_policy
 from app.auth.service import AuthError, AuthService
-from app.config import database_url
-from app.database import make_engine
+from app.core.config import database_url
+from app.core.database import make_engine
 
 
 def main() -> None:

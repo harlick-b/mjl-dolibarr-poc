@@ -10,7 +10,7 @@ accessible shadcn primitives only for real consumers; use Lucide consistently.
 
 Inter is packaged locally through @fontsource, weights 400/500/600/700, with
 Arial, Helvetica, sans-serif fallbacks. Browser rendering does not depend on a
-remote font service. Runtime mapping lives in frontend/src/styles.css; changes
+remote font service. Runtime mapping lives in frontend/src/app/styles.css; changes
 to approved values require explicit user authorization. No generated token file
 or separate design manifest is required.
 

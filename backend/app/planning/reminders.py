@@ -19,8 +19,8 @@ from app.auth.models import User
 from app.auth.policy import load_policy
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError, AuthService
-from app.config import database_url
-from app.database import make_engine
+from app.core.config import database_url
+from app.core.database import make_engine
 from app.planning.models import (
     Activity,
     ActivityAssignment,

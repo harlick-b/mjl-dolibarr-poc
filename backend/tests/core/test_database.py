@@ -1,0 +1,108 @@
+import os
+from pathlib import Path
+
+import pytest
+from alembic import command
+from alembic.config import Config
+from fastapi import Request
+from fastapi.testclient import TestClient
+from sqlalchemy import inspect, text
+from sqlalchemy.orm import Session
+
+from app.core.config import database_url
+from app.core.database import get_session, make_engine
+from app.main import create_app
+
+
+@pytest.fixture
+def isolated_url():
+    value = os.environ.get("TEST_DATABASE_URL")
+    if not value:
+        pytest.fail(
+            "Integration requires TEST_DATABASE_URL for a disposable mjl_test_ database"
+        )
+    url = database_url(value)
+    assert url.database.startswith("mjl_test_"), "Refuse non-test database"
+    return value
+
+
+@pytest.mark.integration
+def test_postgresql_readiness_and_session_rollback(isolated_url):
+    app = create_app(isolated_url)
+    with TestClient(app) as client:
+        # Exercise the actual request dependency's rollback/release, not just Session.
+        dependency = get_session(Request({"type": "http", "app": app}))
+        session = next(dependency)
+        try:
+            session.execute(text("SET LOCAL application_name = 'mjl-uncommitted'"))
+            assert session.scalar(text("SHOW application_name")) == "mjl-uncommitted"
+        finally:
+            dependency.close()
+        assert app.state.engine.pool.checkedout() == 0
+        with Session(app.state.engine) as session:
+            assert session.scalar(text("SHOW application_name")) != "mjl-uncommitted"
+            assert session.scalar(text("SELECT 1")) == 1
+        response = client.get("/api/health/ready")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+        assert response.headers["cache-control"] == "no-store"
+        assert app.state.engine.pool.checkedout() == 0
+
+
+@pytest.mark.integration
+def test_alembic_repeatable_upgrade_to_head(isolated_url, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", isolated_url)
+    root = Path(__file__).resolve().parents[2]
+    config = Config(str(root / "alembic.ini"))
+    command.current(config)
+    command.upgrade(config, "head")
+    command.upgrade(config, "head")
+    command.current(config, check_heads=True)
+    engine = make_engine(database_url(isolated_url))
+    try:
+        with engine.connect() as connection:
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version"))
+                == "0024_budget_funding"
+            )
+            assert set(inspect(connection).get_table_names()) == {
+                "alembic_version",
+                "auth_user",
+                "auth_invitation",
+                "auth_otp",
+                "auth_context",
+                "auth_audit",
+                "auth_abuse",
+                "auth_recovery",
+                "mjl_ownership_context",
+                "pta_partner",
+                "pta_operation_type",
+                "pta_project",
+                "pta_annual",
+                "pta_activity",
+                "pta_operation",
+                "pta_activity_agent_assignment",
+                "pta_activity_contributor",
+                "pta_activity_revision",
+                "pta_activity_revision_decision",
+                "pta_funding_request",
+                "pta_funding_decision",
+                "pta_disbursement_request",
+                "pta_disbursement_decision",
+                "pta_virement_request",
+                "pta_virement_decision",
+                "pta_virement_confirmation",
+                "pta_reversement_declaration",
+                "pta_activity_reminder",
+                "pta_activity_document",
+                "pta_activity_document_withdrawal",
+                "pta_zero_spending_declaration",
+                "pta_zero_spending_decision",
+            }
+            columns = {
+                column["name"]
+                for column in inspect(connection).get_columns("pta_activity")
+            }
+            assert {"transfer_id", "placement_year"} <= columns
+    finally:
+        engine.dispose()

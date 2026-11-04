@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 
 from app.auth.policy import normalize_email
 
-TEMPLATE_DIRECTORY = Path(__file__).resolve().parent.parent / "mail_templates"
+TEMPLATE_DIRECTORY = Path(__file__).resolve().parent / "templates"
 
 MAILS = {
     "invitation": ("invitation", "Invitation à rejoindre MJL"),

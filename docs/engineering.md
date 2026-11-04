@@ -20,6 +20,71 @@ in Context. Components are pure, Hooks ordered, keys stable. Effects synchronize
 external systems with cleanup, not ordinary fetches, prop copies or button actions.
 Use synchronous SQLAlchemy work outside async event loops; isolate each session.
 
+## Source layout
+
+Group files by the feature they implement. Put code in shared folders only when
+several features actually use it. Keep tool configuration at the package root
+where the tool discovers it; directory depth is not an architectural goal.
+
+```text
+backend/
+  app/
+    main.py                 # FastAPI composition and middleware
+    core/                   # Configuration, database and health endpoints
+    auth/                   # Authentication, access administration and mail
+      templates/            # HTML/plain-text mail resources
+    planning/               # PTA, execution, finance, evidence and reports
+    partner_portal/         # Partner routes, CSV and sanitized Fiche
+    audit/                  # Global history and audit export
+  migrations/
+    env.py, script.py.mako   # Alembic environment and revision template
+    versions/               # Ordered revisions with descriptive filenames
+  tests/
+    conftest.py             # Shared disposable database/mail fixtures
+    core/ auth/ planning/ execution/ reports/ audit/ partner_portal/
+  pyproject.toml, alembic.ini, Dockerfile
+
+frontend/
+  src/
+    main.jsx                # Browser entry point
+    app/                    # Router/providers, PWA updates and global styles
+    features/
+      auth/ access/ planning/ execution/
+      notifications/ audit/ partner-portal/ health/
+    shared/
+      api/                  # REST transport and provider
+      ui/                   # Reused controls, forms and modal
+      lib/                  # Display, pagination and class-name helpers
+      i18n.js               # Shared French strings
+    test/setup.js           # Common test environment
+  e2e/                      # Browser journeys grouped by feature
+    app/ auth/ planning/ execution/ reports/ audit/ partner-portal/
+  public/                   # Public PWA assets
+  package.json, vite.config.js, other tool configuration
+```
+
+Feature tests live beside their frontend feature; cross-feature and PWA tests
+live with application composition. Import another folder through the existing
+`@/` alias, and use relative imports within a folder. Shared code does not import
+feature screens. Backend imports use explicit `app.<module>` paths. No forwarding
+modules or barrel re-exports are needed just to preserve former file locations.
+Application/CLI entry points remain `app.main:create_app`, `app.auth.bootstrap`,
+`app.planning.provision` and `app.planning.reminders`.
+
+Backend tests import shared helpers through explicit `tests.<group>` paths;
+the root `conftest.py` supplies disposable fixtures to every group. Run a group
+with `pytest tests/auth` or a browser group with `npm run test:e2e -- e2e/auth`.
+Migration filenames describe their purpose, but their stored revision IDs and
+parent links remain immutable. Keep one ordered `migrations/versions` directory:
+the database upgrade sequence crosses features and must stay easy to follow.
+Keep manifests/lockfiles, Dockerfiles, Alembic, Vite, Playwright, lint/format and
+editor configuration at package roots for normal tool discovery. `index.html`
+is Vite's entry document; `components.json` configures component generation.
+
+This organization changes source locations, not URL routes, business rules or
+database definitions. OpenAPI schema identifiers derived from Python module
+names follow the new module names; request/response shapes remain the same.
+
 ## REST and shared client
 
 FastAPI generates OpenAPI from actual routes; do not maintain a second static
