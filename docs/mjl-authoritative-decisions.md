@@ -30,6 +30,35 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## Reporting scope and budget insufficiency clarification (DEC-137)
+
+On 2026-11-04 the user approved the following scopes and clarified that budget
+insufficiency is a real business case. These decisions do not start implementation.
+
+- Partner export: one selected year's PTA as CSV, readable in Excel, containing
+  only facts already authorized in that Partner's portal: approved Activities,
+  dates, budgets, progress and completed financial results. Exclude internal
+  comments and bundled attachments; preserve permanent Partner isolation.
+- Annual working report: one selected PTA, an overall summary and one row per
+  Activity showing approved budget, progress, final spending and surplus returned
+  where available. Start with Excel, then add a printable PDF using the same
+  figures. Use this proposed content for now; no official template has been
+  supplied or approved, so these are working reports, not official documents.
+  This does not grant Partners access to internal report content.
+- Historical as-of reconstruction is not needed now. Preserve existing change
+  history; do not build past-date snapshot reporting from this approval.
+- When spending requires more than the approved allocation, the Agent must first
+  request a formal budget revision and obtain approval before the affected
+  Activity can continue. Preserve the original approved budget and decision
+  history. Existing DEC-090 amendment approval/pause rules and the approved PTA
+  brief's separate financial authorization before décaissement remain binding.
+  No automatic budget increase, bypass of an approved financial basis, or general
+  reopening is authorized. The bounded insufficiency implementation must respect
+  these existing controls; late financial exceptions remain separately unresolved.
+
+Partner CSV, annual Excel/PDF working reports and insufficiency remain pending
+implementation. Production and real-account enablement remain deferred.
+
 ## Partner attachment sharing policy (DEC-136)
 
 On 2026-11-04 the user approved the following policy, then explicitly authorized

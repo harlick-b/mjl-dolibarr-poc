@@ -8,6 +8,20 @@ approvals, verdicts, and phase sequencing. Implement only the requested slice,
 check scope before editing, and use focused verification. Production
 preparation remains deferred until explicitly requested.
 
+## Next approved scopes — not yet implemented (DEC-137)
+
+- Partner CSV: export one selected year's PTA using only already visible portal
+  facts; no internal comments or bundled files.
+- Annual working report: selected-PTA summary and Activity rows, Excel first,
+  then PDF with the same figures. No official template is approved.
+- Budget insufficiency: a real case; the Agent requests a formal budget revision
+  and obtains approval before the affected Activity resumes. Preserve amendment
+  controls and the separate financial authorization required before décaissement.
+- Past-date reconstruction is not needed now. Existing history remains intact.
+
+DEC-137 records these business decisions; implementation requires its bounded
+plan and authorization. Production preparation remains deferred.
+
 ## Partner attachment sharing (DEC-136)
 
 DEC-136 (2026-11-04) settles explicit Validator-controlled sharing of current

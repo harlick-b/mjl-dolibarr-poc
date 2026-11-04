@@ -80,6 +80,10 @@ DEC-136 settles Validator-controlled sharing of current Activity attachments
 with the owning Partner, private by default and revoked on withdrawal.
 Migration `0022_partner_documents` adds two sharing fields without a new table;
 contract 53 records the synthetic implementation and independent review.
+DEC-137 approves the scope of a Partner-visible selected-PTA CSV and annual
+working reports (Excel, then PDF), confirms that an Agent must obtain budget
+revision approval before an underfunded Activity resumes, and defers past-date
+reconstruction. These are recorded decisions, not implementation authorization.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 insufficiency implementation, historical metrics,
 PDF/XLSX annual and global audit exports,
