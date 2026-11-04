@@ -167,6 +167,7 @@ export const strings = new LocalizedStrings({
     closedSpendingMetric: '{0} de dépenses clôturées sur {1}',
     exportPtaCsv: 'Exporter le PTA en CSV',
     exportPtaExcel: 'Rapport de travail Excel',
+    exportPtaPdf: 'Rapport de travail PDF',
     exportingPta: 'Génération…',
     ptaExported: 'Export du PTA généré.',
     uploadUncertain:

@@ -63,8 +63,11 @@ existing ownership/session/CSRF checks and audit, no migration or new dependency
 The next “go for next” request authorized the internal Excel working report.
 [Contract 55](rebuild/55-annual-excel-working-report.md) records implementation
 through the existing annual export route and current snapshot, one workbook
-library and no schema change. Partner exports remain CSV-only. Printable PDF,
-official templates and insufficiency remain pending implementation.
+library and no schema change. The following “go for next” request authorized the
+printable PDF working report. [Contract 56](rebuild/56-annual-pdf-working-report.md)
+records the same snapshot/columns rendered with the existing PDF library, repeated
+headers and exact amounts. Partner exports remain CSV-only. Official templates
+and insufficiency remain pending implementation.
 Production and real-account enablement remain deferred.
 
 ## Partner attachment sharing policy (DEC-136)

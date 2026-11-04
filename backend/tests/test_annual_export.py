@@ -312,7 +312,7 @@ def test_current_pta_csv_authorization_openapi_and_audit_rollback(planning):
         .post(
             f"/api/v1/ptas/{activity['pta_id']}/exports",
             headers=headers(planning["agent"]),
-            json={"format": "pdf"},
+            json={"format": "ods"},
         )
         .status_code
         == 422

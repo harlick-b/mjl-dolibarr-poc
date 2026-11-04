@@ -86,11 +86,13 @@ revision approval before an underfunded Activity resumes, and defers past-date
 reconstruction. The subsequently authorized Partner CSV is implemented in contract
 54 with one scoped POST download, existing audit and no migration or dependency.
 Contract 55 adds the internal Excel working report through the existing annual
-export endpoint and one XlsxWriter dependency, without schema changes. PDF and
-insufficiency still require their bounded implementation.
+export endpoint and one XlsxWriter dependency, without schema changes. Contract
+56 adds the printable internal PDF from the same facts through existing ReportLab,
+without dependency/schema changes. Insufficiency still requires its bounded
+implementation.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 insufficiency implementation, historical metrics,
-Annual PDF working reports, official annual and global audit PDF/XLSX exports,
+Official annual and global audit PDF/XLSX exports,
 PDF preview and document restoration/general versioning,
 production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later

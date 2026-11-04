@@ -26,10 +26,17 @@ no schema or workflow changes. [Contract 55](rebuild/55-annual-excel-working-rep
 records workbook precision/safety, authorization, regression and independent review
 evidence. It is a working report, not an official template or Partner export.
 
+## Annual printable PDF working report (DEC-137)
+
+Implemented as the third internal annual-export format, sharing Excel's current
+summary and Activity facts. Landscape A4 pages repeat headings, preserve exact
+amounts and wrap long text; the existing PTA card adds one PDF download button.
+No new dependency, migration or stored artifact. [Contract 56](rebuild/56-annual-pdf-working-report.md)
+records layout inspection, focused checks and independent review. Official report
+templates and Partner PDF annual reports remain outside scope.
+
 ## Next approved scopes — not yet implemented (DEC-137)
 
-- Printable annual PDF working report using the same figures as Excel. No
-  official template is approved.
 - Budget insufficiency: a real case; the Agent requests a formal budget revision
   and obtains approval before the affected Activity resumes. Preserve amendment
   controls and the separate financial authorization required before décaissement.

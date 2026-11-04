@@ -60,7 +60,9 @@ test('current annual metrics remain visible on desktop and mobile', async ({
           'Content-Type':
             format === 'csv'
               ? 'text/csv; charset=utf-8'
-              : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              : format === 'pdf'
+                ? 'application/pdf'
+                : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="pta-2027-test.${format}"`,
         },
       })
@@ -84,7 +86,13 @@ test('current annual metrics remain visible on desktop and mobile', async ({
   const excel = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Rapport de travail Excel' }).click()
   expect((await excel).suggestedFilename()).toBe('pta-2027-test.xlsx')
+  const pdf = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Rapport de travail PDF' }).click()
+  expect((await pdf).suggestedFilename()).toBe('pta-2027-test.pdf')
   await page.setViewportSize({ width: 390, height: 844 })
+  const mobilePdf = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Rapport de travail PDF' }).click()
+  expect((await mobilePdf).suggestedFilename()).toBe('pta-2027-test.pdf')
   const mobileExcel = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Rapport de travail Excel' }).click()
   expect((await mobileExcel).suggestedFilename()).toBe('pta-2027-test.xlsx')

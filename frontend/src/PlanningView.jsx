@@ -761,6 +761,16 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
               {strings.exportPtaExcel}
             </Button>
           )}
+          {context.pta && (
+            <Button
+              variant="outline"
+              disabled={exportPending}
+              onClick={() => onExport('pdf')}
+            >
+              <Download size={16} />
+              {strings.exportPtaPdf}
+            </Button>
+          )}
           {context.allowed_actions.includes('create_activity') && (
             <Link
               className="planning-button"

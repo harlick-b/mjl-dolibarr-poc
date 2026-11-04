@@ -122,7 +122,7 @@ def test_excel_authorization_bounds_and_rollback(planning, auth_env, monkeypatch
     assert excel(planning["agent"], "missing").status_code == 404
     assert (
         planning["agent"]
-        .post(path, headers=headers(planning["agent"]), json={"format": "pdf"})
+        .post(path, headers=headers(planning["agent"]), json={"format": "ods"})
         .status_code
         == 422
     )
