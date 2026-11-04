@@ -30,6 +30,25 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## Budget increase and separate funding approval (DEC-139)
+
+On 2026-11-04 the user approved all three proposals in [contract
+58](rebuild/58-budget-increase-readiness.md):
+
+- Authorize the exact extra allocation, bound to the approved budget revision.
+  For 100,000 → 120,000 F CFA, authorize 20,000. Décaissement still uses final
+  actual spending; the Agent cannot substitute an alternative funding amount.
+- Keep the Activity paused until both the budget revision and the separate
+  funding request pass Supervisor prevalidation and distinct Validator approval.
+- Include already-spent cases before financial processing. Preserve truthful
+  spending and earlier history, blocking further work and financial requests
+  until both approvals complete. No late settlement exception is authorized.
+
+The standing “go for next” instruction authorizes this bounded implementation.
+Reuse existing amendments, no-self-validation and frozen settlement safeguards;
+no additional external prompt, banking, automatic funding or reopening is needed.
+Individual Operation variance is not itself Activity-level insufficiency.
+
 ## Reporting scope and budget insufficiency clarification (DEC-137)
 
 On 2026-11-04 the user approved the following scopes and clarified that budget

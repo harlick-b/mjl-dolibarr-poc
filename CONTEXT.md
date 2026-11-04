@@ -138,8 +138,10 @@ of its complete final Operation values. Missing information differs from zero.
 _Avoid_: Approved expense-ledger sum, inferring zero from missing information
 
 **Autorisation financière pour insuffisance budgétaire**:
-Separate Agent request approved by the Superviseur then the Validateur,
-required alongside an approved PTA budget revision before décaissement starts.
+Separate Agent request for the exact extra allocation, bound to its approved
+budget revision and approved by the Superviseur then a distinct Validateur.
+Both approvals are required before work resumes or décaissement starts. Earlier
+spending remains in history when the shortfall is discovered after spending.
 _Avoid_: Décaissement approval, virement approval
 
 **Demande d'autorisation de décaissement**:
