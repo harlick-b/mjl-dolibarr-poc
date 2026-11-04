@@ -6,14 +6,17 @@ import { sessionKey, sessionQuery } from './auth'
 import { formatXof } from './planning'
 import { useAPI } from './RestClientProvider'
 import { AccessRecovery } from './AccessRecovery'
+import { PartnerDocuments } from './PartnerDocuments'
 
 const emptyList = { data: [] }
 
 class DownloadGuard {
   generation = 0
   controller = null
+  urls = new Set()
 
   begin() {
+    this.generation += 1
     this.controller?.abort()
     this.controller = new AbortController()
     return { generation: this.generation, signal: this.controller.signal }
@@ -27,6 +30,8 @@ class DownloadGuard {
     this.generation += 1
     this.controller?.abort()
     this.controller = null
+    for (const url of this.urls) URL.revokeObjectURL(url)
+    this.urls.clear()
   }
 }
 
@@ -268,7 +273,25 @@ export function PartnerPortalView() {
   const loading = queries.some((query) => query.isPending || query.isFetching)
   const unavailable = queries.some((query) => query.isError)
   const changeSearch = (values) =>
-    navigate({ to: '/partner', search: { ...search, ...values } })
+    navigate({
+      to: '/partner',
+      search: {
+        ...search,
+        ...(Object.keys(values).some((key) =>
+          [
+            'activity',
+            'project',
+            'pta',
+            'activityCursor',
+            'ptaCursor',
+            'projectCursor',
+          ].includes(key),
+        )
+          ? { documentCursor: '' }
+          : {}),
+        ...values,
+      },
+    })
   return (
     <section className="planning-stack partner-portal">
       <Helmet>
@@ -544,6 +567,17 @@ export function PartnerPortalView() {
                   </li>
                 ))}
               </ul>
+              <PartnerDocuments
+                key={`${user.id}:${detail.data.id}`}
+                activityId={detail.data.id}
+                userId={user.id}
+                cursor={search.documentCursor}
+                changeCursor={(documentCursor) =>
+                  changeSearch({ documentCursor })
+                }
+                guard={downloadGuard}
+                onDenied={deny}
+              />
               <h3>Résultat financier</h3>
               {detail.data.finance ? (
                 <dl className="planning-facts">

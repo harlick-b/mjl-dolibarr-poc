@@ -416,3 +416,8 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   Background Query refresh must not attach a newer version to an older local
   draft. Preserve both until save or explicit discard, and test refresh during
   editing (including observation-only changes that do not remount a form).
+
+- Resetting a TanStack mutation does not suppress its old hook callbacks. Bind
+  protected-file error cleanup to the request generation so an old failure cannot
+  cancel a newer request. A successful scoped-list refresh that removes the active
+  file must also revoke pending bytes and preview URLs, not merely hide its row.

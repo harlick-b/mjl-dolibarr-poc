@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 from PIL import Image
 from reportlab.pdfgen import canvas
@@ -801,7 +802,7 @@ def test_document_migration_round_trip_when_empty(auth_env):
     command.upgrade(config, "head")
     with create_engine(auth_env.url).connect() as db:
         assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0019_pta7b"
+            ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
         )
         assert db.scalar(text("SELECT to_regclass('pta_activity_document_withdrawal')"))
 
@@ -815,7 +816,8 @@ def test_predecessor_documents_survive_withdrawal_migration(planning, auth_env):
     command.upgrade(config, "head")
     with create_engine(auth_env.url).connect() as db:
         assert (
-            db.scalar(text("SELECT version_num FROM alembic_version")) == "0019_pta7b"
+            db.scalar(text("SELECT version_num FROM alembic_version"))
+            == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
         )
         assert (
             db.scalar(
@@ -841,7 +843,8 @@ def test_used_withdrawal_migration_refuses_destructive_downgrade(planning, auth_
         command.downgrade(Config("alembic.ini"), "0018_pta7a")
     with create_engine(auth_env.url).connect() as db:
         assert (
-            db.scalar(text("SELECT version_num FROM alembic_version")) == "0019_pta7b"
+            db.scalar(text("SELECT version_num FROM alembic_version"))
+            == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
         )
 
 
@@ -852,5 +855,5 @@ def test_used_document_migration_refuses_destructive_downgrade(planning, auth_en
         command.downgrade(Config("alembic.ini"), "0016_pta5")
     with create_engine(auth_env.url).connect() as db:
         assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0019_pta7b"
+            ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
         )

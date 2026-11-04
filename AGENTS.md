@@ -76,11 +76,15 @@ fresh submission without cancellation. Preserve history and fresh approvals;
 an approved décaissement stays frozen after a virement return. Migration
 `0021_financial_returns` changes existing indexes/guards, adding no state/table.
 Keep user-visible states few and tied to business actions, not manual selectors.
+DEC-136 settles Validator-controlled sharing of current Activity attachments
+with the owning Partner, private by default and revoked on withdrawal.
+Migration `0022_partner_documents` adds two sharing fields without a new table;
+contract 53 records the synthetic implementation and independent review.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 insufficiency implementation, historical metrics,
 PDF/XLSX annual and global audit exports,
 PDF preview and document restoration/general versioning,
-Partner exports and attachment visibility,
+Partner exports,
 production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later
 slices, general A4 and production remain deferred.

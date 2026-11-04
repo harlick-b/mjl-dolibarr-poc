@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import re
 from typing import Annotated, Any, Literal
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -17,6 +18,8 @@ from app.auth.service import AuthError
 from app.partner_fiche import render_partner_fiche
 from app.planning.models import (
     Activity,
+    ActivityDocument,
+    ActivityDocumentWithdrawal,
     ActivityRevision,
     ActivityRevisionDecision,
     AnnualPTA,
@@ -604,3 +607,168 @@ def activity_fiche(activity_id: str, request: Request, auth: Auth) -> Response:
             "Content-Length": str(len(document)),
         },
     )
+
+
+class SharedDocument(Output):
+    id: str
+    name: str
+    media_type: str
+    size: int
+
+
+def shared_document_conditions(activity_id: str) -> tuple[Any, ...]:
+    return (
+        ActivityDocument.context_id == CONTEXT,
+        ActivityDocument.activity_id == activity_id,
+        ActivityDocument.partner_shared.is_(True),
+        ~select(ActivityDocumentWithdrawal.document_id)
+        .where(ActivityDocumentWithdrawal.document_id == ActivityDocument.id)
+        .exists(),
+    )
+
+
+@router.get(
+    "/activities/{activity_id}/documents", response_model=ListOutput[SharedDocument]
+)
+def shared_documents(
+    activity_id: str,
+    request: Request,
+    auth: Auth,
+    args: Annotated[tuple[int, str | None], Depends(list_args)],
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_read(db)
+        actor, partner = partner_principal(db, auth, request)
+        visible_activity(db, partner, activity_id)
+        limit, token = args
+        cursor = Cursor(auth, "partner_documents", f"{actor.id}:{activity_id}", limit)
+        marker, direction = cursor.decode(token)
+        conditions = shared_document_conditions(activity_id)
+        page_conditions = list(conditions)
+        if marker:
+            try:
+                marker = str(UUID(marker))
+            except ValueError:
+                raise AuthError(422, "cursor_invalid") from None
+            page_conditions.append(
+                ActivityDocument.id > marker
+                if direction == "next"
+                else ActivityDocument.id < marker
+            )
+        rows = list(
+            db.execute(
+                select(
+                    ActivityDocument.id,
+                    ActivityDocument.display_name.label("name"),
+                    ActivityDocument.media_type,
+                    ActivityDocument.byte_size.label("size"),
+                )
+                .where(*page_conditions)
+                .order_by(
+                    ActivityDocument.id.asc()
+                    if direction == "next"
+                    else ActivityDocument.id.desc()
+                )
+                .limit(limit + 1)
+            )
+        )
+        total = (
+            db.scalar(
+                select(func.count()).select_from(ActivityDocument).where(*conditions)
+            )
+            or 0
+        )
+        more = len(rows) > limit
+        rows = rows[:limit]
+        if direction == "previous":
+            rows.reverse()
+
+        def link(row: Any, move: str) -> str:
+            query = urlencode({"limit": limit, "cursor": cursor.encode(row.id, move)})
+            return (
+                f"{auth.policy.origin}/api/v1/partner-portal/activities/"
+                f"{activity_id}/documents?{query}"
+            )
+
+        return {
+            "object": "list",
+            "count": total,
+            "data": [dict(row._mapping) for row in rows],
+            "next": link(rows[-1], "next")
+            if rows and ((direction == "next" and more) or direction == "previous")
+            else None,
+            "previous": link(rows[0], "previous")
+            if rows
+            and ((direction == "previous" and more) or (direction == "next" and marker))
+            else None,
+        }
+
+
+def shared_document_bytes(
+    activity_id: str,
+    document_id: str,
+    request: Request,
+    auth: Auth,
+    *,
+    inline: bool,
+) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        locked_read(db)
+        actor, partner = partner_principal(db, auth, request)
+        visible_activity(db, partner, activity_id)
+        item = db.scalar(
+            select(ActivityDocument).where(
+                *shared_document_conditions(activity_id),
+                ActivityDocument.id == document_id,
+            )
+        )
+        if not item:
+            raise AuthError(404, "portal_resource_not_found")
+        if inline and item.media_type not in {"image/jpeg", "image/png"}:
+            raise AuthError(422, "document_preview_unsupported")
+        auth.audit(
+            db,
+            "document.preview" if inline else "document.download",
+            actor.id,
+            item.id,
+            details={"activity_id": activity_id, "role": actor.role},
+        )
+        content, media_type, name = item.content, item.media_type, item.display_name
+    fallback = re.sub(r"[^A-Za-z0-9._-]", "_", name) or "document"
+    disposition = "inline" if inline else "attachment"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": (
+                f'{disposition}; filename="{fallback}"; '
+                f"filename*=UTF-8''{quote(name)}"
+            ),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Cross-Origin-Resource-Policy": "same-origin",
+        },
+    )
+
+
+@router.get(
+    "/activities/{activity_id}/documents/{document_id}/download",
+    response_class=Response,
+    responses={200: {"content": {"application/octet-stream": {}}}},
+)
+def shared_document_download(
+    activity_id: str, document_id: str, request: Request, auth: Auth
+) -> Response:
+    return shared_document_bytes(activity_id, document_id, request, auth, inline=False)
+
+
+@router.get(
+    "/activities/{activity_id}/documents/{document_id}/preview",
+    response_class=Response,
+    responses={200: {"content": {"image/png": {}, "image/jpeg": {}}}},
+)
+def shared_document_preview(
+    activity_id: str, document_id: str, request: Request, auth: Auth
+) -> Response:
+    return shared_document_bytes(activity_id, document_id, request, auth, inline=True)

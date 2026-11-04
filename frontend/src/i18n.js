@@ -2,6 +2,16 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    shareWithPartner: 'Partager avec le Partenaire',
+    stopPartnerSharing: 'Arrêter le partage',
+    sharedWithPartner: 'Partagé avec le Partenaire',
+    sharedAttachments: 'Documents partagés',
+    noSharedAttachments: 'Aucun document partagé.',
+    sharingFailed:
+      'Le partage n’a pas été confirmé. Vérifiez la liste avant de réessayer.',
+    sharedFileUnavailable:
+      'Ce document est indisponible ou son partage a été arrêté.',
+
     forgotTitle: 'Mot de passe oublié',
     forgotHeading: 'Récupérer votre accès',
     forgotPrompt: 'Saisissez l’adresse e-mail associée à votre compte.',

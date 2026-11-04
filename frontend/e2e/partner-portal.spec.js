@@ -118,6 +118,31 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           },
         },
       })
+    if (path === '/api/v1/partner-portal/activities/activity-1/documents')
+      return route.fulfill({
+        json: list([
+          {
+            id: 'file-1',
+            name: 'photo.png',
+            media_type: 'image/png',
+            size: 68,
+          },
+        ]),
+      })
+    if (
+      path ===
+        '/api/v1/partner-portal/activities/activity-1/documents/file-1/preview' ||
+      path ===
+        '/api/v1/partner-portal/activities/activity-1/documents/file-1/download'
+    )
+      return route.fulfill({
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aH1kAAAAASUVORK5CYII=',
+          'base64',
+        ),
+        contentType: 'image/png',
+        headers: { 'Content-Disposition': 'attachment; filename="photo.png"' },
+      })
     if (path === '/api/v1/partner-portal/activities/activity-1/fiche.pdf')
       return route.fulfill({
         body: Buffer.from('%PDF-1.4 synthetic'),
@@ -153,6 +178,24 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
     'fiche-partenaire-ACT-001.pdf',
   )
 
+  await expect(
+    page
+      .getByRole('region', { name: 'Documents partagés' })
+      .getByText(/photo\.png/),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Aperçu', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(
+    page.getByRole('img', { name: 'Aperçu de photo.png' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Aperçu', exact: true }),
+  ).toBeFocused()
+  const attachmentDownload = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Télécharger', exact: true }).click()
+  expect((await attachmentDownload).suggestedFilename()).toBe('photo.png')
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(
     page.getByRole('navigation', { name: 'Espace Partenaire' }),
@@ -163,4 +206,10 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   ).toBeVisible()
   await expect(page.getByText('Résultat financier')).toBeVisible()
   await expect(page.getByText(/13 mars 2027/)).toBeVisible()
+  await page.getByRole('button', { name: 'Aperçu', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  const bounds = await dialog.boundingBox()
+  expect(bounds.width).toBeLessThanOrEqual(390)
+  await page.getByRole('button', { name: 'Fermer', exact: true }).click()
 })

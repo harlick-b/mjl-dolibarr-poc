@@ -16,6 +16,7 @@ import { useAPI } from './RestClientProvider'
 import { addThreeMonths, formatPercentage, formatXof } from './planning'
 import { Button } from './components/ui/button'
 import { BusinessForm } from './BusinessForm'
+import { Modal } from './components/BusinessModal'
 
 const labels = {
   partners: strings.partners,
@@ -550,30 +551,6 @@ function Workspace({ screen, session, onDenied }) {
         />
       )}
     </section>
-  )
-}
-
-function Modal({ open, onClose, label, children, opener, className }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    const dialog = ref.current
-    if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
-  }, [open])
-  return (
-    <dialog
-      ref={ref}
-      aria-label={label}
-      className={className}
-      onCancel={onClose}
-      onClose={() => {
-        onClose()
-        opener.current?.focus()
-      }}
-    >
-      {children}
-    </dialog>
   )
 }
 
@@ -1838,7 +1815,7 @@ function ActivityDetail({
   )
 }
 
-function ActivityDocuments({
+export function ActivityDocuments({
   activityId,
   user,
   csrf,
@@ -1965,6 +1942,36 @@ function ActivityDocuments({
       }
     },
   })
+  const sharing = useMutation({
+    retry: false,
+    networkMode: 'always',
+    mutationFn: (document) => {
+      if (!navigator.onLine) throw new TypeError('Offline')
+      return api.request(
+        `/api/v1/activities/${activityId}/documents/${document.id}/sharing`,
+        {
+          method: 'PATCH',
+          csrf,
+          body: {
+            shared: !document.partner_shared,
+            expected_version: document.sharing_version,
+          },
+        },
+      )
+    },
+    onSuccess: async () => {
+      await client.invalidateQueries({
+        queryKey: ['planning', user.id, 'documents', activityId],
+      })
+      toast.success(strings.saved)
+    },
+    onError: async (error) => {
+      if (error.status === 401 || error.status === 403) onDenied()
+      await client.invalidateQueries({
+        queryKey: ['planning', user.id, 'documents', activityId],
+      })
+    },
+  })
   const releasePreview = useCallback(() => {
     previewGeneration.current += 1
     previewController.current?.abort()
@@ -2051,6 +2058,7 @@ function ActivityDocuments({
         )}
       </div>
       {!open && uploadNotice}
+      {sharing.isError && <p role="alert">{strings.sharingFailed}</p>}
       {documents.isPending ? (
         <p role="status">Chargement…</p>
       ) : documents.isError ? (
@@ -2063,6 +2071,9 @@ function ActivityDocuments({
             <li key={document.id}>
               <span>
                 {document.name}
+                {document.partner_shared && (
+                  <small> · {strings.sharedWithPartner}</small>
+                )}
                 <small>
                   {document.withdrawal
                     ? ` · ${strings.withdrawnAttachment} · ${document.withdrawal.reason}`
@@ -2096,6 +2107,23 @@ function ActivityDocuments({
                   >
                     <Download aria-hidden="true" /> {strings.download}
                   </a>
+                )}
+                {(document.allowed_actions?.includes('share') ||
+                  document.allowed_actions?.includes('unshare')) && (
+                  <Button
+                    variant="outline"
+                    disabled={
+                      blocked ||
+                      sharing.isPending ||
+                      documents.isFetching ||
+                      documents.isError
+                    }
+                    onClick={() => sharing.mutate(document)}
+                  >
+                    {document.partner_shared
+                      ? strings.stopPartnerSharing
+                      : strings.shareWithPartner}
+                  </Button>
                 )}
                 {document.allowed_actions?.includes('withdraw') && (
                   <Button

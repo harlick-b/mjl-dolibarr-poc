@@ -30,6 +30,34 @@ conflicting active guidance instead of applying an older rule. If canonical
 documents still contradict each other after applying the latest instruction,
 stop and surface the contradiction.
 
+## Partner attachment sharing policy (DEC-136)
+
+On 2026-11-04 the user approved the following policy, then explicitly authorized
+planning, implementation and adversarial review.
+
+- Every upload is private by default. Only a Validator may explicitly share a
+  current Activity attachment; no additional approval chain is required.
+- Sharing is available once the Activity is approved and currently visible in
+  the Partner portal, including while work is ongoing. All portal users bound
+  to that Activity's Partner may access it; other Partners may not.
+- Partners may see the shared file's name, type and size, download it and preview
+  images. Internal comments, uploader identity and withdrawal reasons remain
+  hidden. Partner users cannot upload, edit or delete attachments.
+- A Validator may stop sharing at any time, including after Activity closure.
+  Withdrawal automatically removes Partner access. A corrected/replacement file
+  remains private until explicitly shared; sharing is never inherited.
+- Stopping sharing prevents subsequent portal access but cannot recall copies
+  already downloaded. Existing Activity visibility and Partner isolation still
+  apply to every shared file.
+
+This supersedes earlier statements that Partner attachment visibility is
+undecided. The synthetic sharing implementation and independent correction/
+re-review evidence are recorded in [contract 53](rebuild/53-partner-attachment-sharing.md).
+Migration `0022_partner_documents` adds two sharing fields to existing attachments
+without adding a table; stored bytes and original metadata remain immutable.
+Partner exports, production storage, scanning/retention and real-account
+enablement remain deferred.
+
 ## Financial returns allow direct resubmission (DEC-135)
 
 On 2026-11-03 the user approved the simpler financial correction path: a
@@ -167,8 +195,7 @@ business authority for later bounded slices, not implementation authorization.
   approved Projects/PTAs, progress, final decisions, Fiches and completed
   financial results. Drafts, internal comments, global audit, access
   administration and other Partners remain hidden. Partner attachment visibility
-  remains undecided, so portal work must hide attachments until separately
-  approved.
+  is now governed by the explicit sharing policy and implementation in DEC-136.
 - Closed Activities and Projects have no general reopening in the first version.
   A future Partner deactivation, if implemented, is permitted only with no active
   Project or unfinished Activity and never removes history.

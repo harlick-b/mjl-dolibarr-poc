@@ -375,6 +375,7 @@ class ActivityReminder(Base):
 class ActivityDocument(Base):
     __tablename__ = "pta_activity_document"
     __table_args__ = (
+        CheckConstraint("sharing_version >= 0", name="document_sharing_version"),
         ForeignKeyConstraint(
             ["context_id", "activity_id"],
             ["pta_activity.context_id", "pta_activity.id"],
@@ -387,6 +388,8 @@ class ActivityDocument(Base):
             name="document_media_type",
         ),
     )
+    partner_shared: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    sharing_version: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     context_id: Mapped[str] = mapped_column(String(3))
     activity_id: Mapped[str] = mapped_column(String(36))

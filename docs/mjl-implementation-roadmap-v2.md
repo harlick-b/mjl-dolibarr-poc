@@ -8,6 +8,18 @@ approvals, verdicts, and phase sequencing. Implement only the requested slice,
 check scope before editing, and use focused verification. Production
 preparation remains deferred until explicitly requested.
 
+## Partner attachment sharing (DEC-136)
+
+DEC-136 (2026-11-04) settles explicit Validator-controlled sharing of current
+attachments on approved, Partner-visible Activities. Files remain private by
+default. The owning Partner's users may see name/type/size, download and preview
+images; internal metadata stays hidden. A Validator can stop sharing even after
+closure; withdrawal removes access and replacements require fresh sharing.
+Implemented in the isolated synthetic environment with migration
+`0022_partner_documents` (two existing-table fields, no new table).
+[Contract 53](rebuild/53-partner-attachment-sharing.md) records focused PostgreSQL,
+React, browser and independent adversarial correction/re-review evidence.
+
 ## Repository cleanup
 
 The legacy Dolibarr/MariaDB POC runtime was retired on 2026-11-03 at the user's
@@ -730,8 +742,8 @@ not another externally authored execution prompt. Stop after the authorized slic
 | 3. Realization and administrative settlement | Implemented for the positive-spending path through direct Activity closure and for validated zero-spending closure. Insufficiency remains unimplemented. Reversement is one exact unsplit surplus; no discrepancy branch is planned without a real case. | PTA-3A–3F and PTA-7A status records contain focused and regression evidence. No bank execution. |
 | 4. Annual metrics and Fiche | Current whole-PTA metrics, the regenerable per-Activity French Fiche PDF and the current-PTA CSV are implemented. Historical as-of reconstruction remains separate. | DEC-121/status 26, DEC-122/status 28 and DEC-132/status 46 define the bounded outputs. File references activate only with slice 6. |
 | 5. Administrative relance | Implemented: focused 21-day dispatcher, durable recipient/channel outcomes, sidebar notification centre and one synthetic email attempt per cycle. Browser push, real mail and production scheduling remain separate. | DEC-124/status 32 record due/reschedule/closure/deduplication, delivery, pagination, online-only UI and independent-review evidence. No generic notification platform. |
-| 6. Guarded optional documents | Activity upload/list/download/image preview plus reasoned withdrawal and optional linked correction are implemented. Generic contexts/categories/version engines remain excluded; optional external-virement/reversement evidence requires a later real need. | Existing guarded Activity routes, DEC-125/128/131 and their status evidence. Partner files remain hidden until their visibility decision; production storage/scanning/retention remains external. |
-| 7. Partner portal | Foundation and Activity detail implemented: several individually invited read-only identities may share one permanent Partner binding and see only that Partner's Projects/PTAs, current metrics, effective approved Activity baselines, sanitized final decisions, definitive closed finance and Partner Fiches. Drafts, candidates, internal facts, audit, administration and files are hidden. | DEC-133/status 48 and DEC-134/status 51 cover the implemented portal. Exports and attachment visibility remain later bounded slices; real mail/OTP acceptance and production remain gates. |
+| 6. Guarded optional documents | Activity upload/list/download/image preview plus reasoned withdrawal and optional linked correction are implemented. Generic contexts/categories/version engines remain excluded; optional external-virement/reversement evidence requires a later real need. | Existing guarded Activity routes, DEC-125/128/131 and their status evidence. DEC-136 adds explicit Validator sharing with the owning Partner; production storage/scanning/retention remains external. |
+| 7. Partner portal | Foundation and Activity detail implemented: several individually invited read-only identities may share one permanent Partner binding and see only that Partner's Projects/PTAs, current metrics, effective approved Activity baselines, sanitized final decisions, definitive closed finance and Partner Fiches. Drafts, candidates, internal facts, audit, administration and unshared files are hidden. | DEC-133/status 48 and DEC-134/status 51 cover the implemented portal. DEC-136 adds shared attachments; Partner exports remain a later bounded slice; real mail/OTP acceptance and production remain gates. |
 
 Each slice covers its schema/command/API/consumer/test changes as one coherent
 behavioral change. Backend work can proceed without screen layouts, but no

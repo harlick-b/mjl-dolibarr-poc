@@ -381,6 +381,7 @@ export function makeRouter(history) {
       projectCursor: String(search.projectCursor || '').slice(0, 512),
       ptaCursor: String(search.ptaCursor || '').slice(0, 512),
       activityCursor: String(search.activityCursor || '').slice(0, 512),
+      documentCursor: String(search.documentCursor || '').slice(0, 512),
     }),
     loader: async ({ context }) => {
       try {

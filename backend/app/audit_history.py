@@ -115,6 +115,8 @@ ACTION_LABELS = {
     "document.download": "Document téléchargé",
     "document.preview": "Document consulté",
     "document.upload": "Document ajouté",
+    "document.share": "Document partagé avec le Partenaire",
+    "document.unshare": "Partage du document arrêté",
     "document.withdraw": "Document retiré",
     "invitation_accept": "Invitation acceptée",
     "invitation_delivery": "Invitation envoyée",

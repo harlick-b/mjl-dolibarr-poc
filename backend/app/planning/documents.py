@@ -27,6 +27,9 @@ from app.planning.models import (
     Activity,
     ActivityDocument,
     ActivityDocumentWithdrawal,
+    AnnualPTA,
+    Partner,
+    Project,
 )
 from app.planning.routes import MUTATION_HEADERS, locked_read
 from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
@@ -66,6 +69,8 @@ class Output(BaseModel):
     uploaded_by_id: str
     uploaded_at: str
     withdrawal: WithdrawalOutput | None
+    partner_shared: bool
+    sharing_version: int
     allowed_actions: list[str]
 
 
@@ -104,6 +109,7 @@ def output(
     role: str | None = None,
     actor_id: str | None = None,
     activity_state: str | None = None,
+    share_eligible: bool = False,
 ) -> dict[str, Any]:
     actions: list[str] = []
     if withdrawal is None and (
@@ -115,7 +121,14 @@ def output(
         )
     ):
         actions.append("withdraw")
+    if role == "VALIDATEUR_DEFINITIF" and withdrawal is None:
+        if item.partner_shared:
+            actions.append("unshare")
+        elif withdrawal is None and share_eligible:
+            actions.append("share")
     return {
+        "partner_shared": item.partner_shared and withdrawal is None,
+        "sharing_version": item.sharing_version,
         "id": item.id,
         "activity_id": item.activity_id,
         "name": item.display_name,
@@ -315,6 +328,7 @@ def listing(
         locked_read(db)
         actor = principal(db, auth, evidence(request, auth)[0])
         parent = activity(db, activity_id)
+        can_share = sharing_eligible(db, parent)
         limit, token = args
         cursor = Cursor(auth, "activity_documents", f"{actor.id}:{activity_id}", limit)
         marker, direction = cursor.decode(token)
@@ -344,6 +358,8 @@ def listing(
                         ActivityDocument.byte_size,
                         ActivityDocument.uploaded_by_id,
                         ActivityDocument.uploaded_at,
+                        ActivityDocument.partner_shared,
+                        ActivityDocument.sharing_version,
                         raiseload=True,
                     )
                 )
@@ -421,6 +437,7 @@ def listing(
                     role=actor.role,
                     actor_id=actor.id,
                     activity_state=parent.state,
+                    share_eligible=can_share,
                 )
                 for row in rows
             ],
@@ -631,3 +648,95 @@ def preview(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+class SharingInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    shared: bool = Field(strict=True)
+    expected_version: int = Field(ge=0, strict=True)
+
+
+class SharingOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    shared: bool
+    version: int
+
+
+def sharing_eligible(db: Session, parent: Activity) -> bool:
+    if not parent.approved_revision_id or parent.state == "withdrawn":
+        return False
+    return bool(
+        db.scalar(
+            select(Partner.id)
+            .join(Project, Project.partner_id == Partner.id)
+            .join(AnnualPTA, AnnualPTA.project_id == Project.id)
+            .where(
+                AnnualPTA.id == parent.pta_id,
+                Partner.active,
+                Partner.context_id == CONTEXT,
+                Project.context_id == CONTEXT,
+                AnnualPTA.context_id == CONTEXT,
+            )
+        )
+    )
+
+
+@router.patch(
+    "/activities/{activity_id}/documents/{document_id}/sharing",
+    response_model=SharingOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def sharing(
+    activity_id: str,
+    document_id: str,
+    body: SharingInput,
+    request: Request,
+    auth: Auth,
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db,
+            auth,
+            *evidence(request, auth),
+            roles={"VALIDATEUR_DEFINITIF"},
+            mutation=True,
+        )
+        parent = activity(db, activity_id)
+        item = db.scalar(
+            select(ActivityDocument)
+            .options(
+                load_only(
+                    ActivityDocument.id,
+                    ActivityDocument.activity_id,
+                    ActivityDocument.context_id,
+                    ActivityDocument.partner_shared,
+                    ActivityDocument.sharing_version,
+                    raiseload=True,
+                )
+            )
+            .where(ActivityDocument.id == document_id)
+            .with_for_update()
+        )
+        if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
+            raise AuthError(404, "document_not_found")
+        if item.sharing_version != body.expected_version:
+            raise AuthError(409, "version_conflict")
+        if body.shared and (
+            not sharing_eligible(db, parent)
+            or db.get(ActivityDocumentWithdrawal, item.id) is not None
+        ):
+            raise AuthError(409, "document_sharing_ineligible")
+        if item.partner_shared == body.shared:
+            raise AuthError(409, "version_conflict")
+        item.partner_shared = body.shared
+        item.sharing_version += 1
+        db.flush()
+        auth.audit(
+            db,
+            "document.share" if body.shared else "document.unshare",
+            actor.id,
+            item.id,
+            details={"activity_id": activity_id, "version": item.sharing_version},
+        )
+        return {"shared": item.partner_shared, "version": item.sharing_version}
