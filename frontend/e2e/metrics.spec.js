@@ -47,14 +47,24 @@ test('current annual metrics remain visible on desktop and mobile', async ({
           },
         },
       })
-    if (path === '/api/v1/ptas/pta-1/exports')
+    if (path === '/api/v1/ptas/pta-1/exports') {
+      const format = route.request().postDataJSON().format
+      expect(route.request().method()).toBe('POST')
+      expect(route.request().headers()['x-csrf-token']).toBe('csrf')
       return route.fulfill({
-        body: '\ufeffIdentifiant export;test',
+        body:
+          format === 'csv'
+            ? '\ufeffIdentifiant export;test'
+            : 'synthetic workbook bytes',
         headers: {
-          'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': 'attachment; filename="pta-2027-test.csv"',
+          'Content-Type':
+            format === 'csv'
+              ? 'text/csv; charset=utf-8'
+              : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="pta-2027-test.${format}"`,
         },
       })
+    }
     return route.fulfill({ json: empty })
   })
 
@@ -71,7 +81,13 @@ test('current annual metrics remain visible on desktop and mobile', async ({
   ])
   expect(download.suggestedFilename()).toBe('pta-2027-test.csv')
 
+  const excel = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Rapport de travail Excel' }).click()
+  expect((await excel).suggestedFilename()).toBe('pta-2027-test.xlsx')
   await page.setViewportSize({ width: 390, height: 844 })
+  const mobileExcel = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Rapport de travail Excel' }).click()
+  expect((await mobileExcel).suggestedFilename()).toBe('pta-2027-test.xlsx')
   await expect(metrics.getByText('Exécution physique')).toBeVisible()
   await expect(metrics.getByText('Exécution financière')).toBeVisible()
 })

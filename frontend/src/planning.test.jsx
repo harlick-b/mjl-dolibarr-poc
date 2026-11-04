@@ -169,6 +169,38 @@ test('the annual plan shows whole-PTA physical and financial metrics', async () 
   )
 })
 
+test('annual Excel uses the selected PTA and protected download', async () => {
+  const anchorClick = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
+  const createObjectURL = vi.fn(() => 'blob:xlsx')
+  vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL: vi.fn() })
+  const fetch = annualPageFetch(() =>
+    Promise.resolve(
+      new Response('xlsx', {
+        headers: {
+          'Content-Type':
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': 'attachment; filename="pta-2027-test.xlsx"',
+        },
+      }),
+    ),
+  )
+  vi.stubGlobal('fetch', fetch)
+  renderAnnualPage()
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Rapport de travail Excel' }),
+  )
+  await waitFor(() => expect(createObjectURL).toHaveBeenCalledOnce())
+  const request = fetch.mock.calls.find(([url]) =>
+    String(url).endsWith('/ptas/pta-1/exports'),
+  )[1]
+  expect(request.method).toBe('POST')
+  expect(JSON.parse(request.body)).toEqual({ format: 'xlsx' })
+  expect(request.headers['X-CSRF-Token']).toBe('csrf')
+  expect(anchorClick.mock.instances.at(-1).download).toBe('pta-2027-test.xlsx')
+})
+
 test('an offline annual export is neither sent nor replayed', async () => {
   const user = userEvent.setup()
   const online = vi.spyOn(window.navigator, 'onLine', 'get')

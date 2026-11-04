@@ -207,7 +207,7 @@ function Workspace({ screen, session, onDenied }) {
     retry: false,
     networkMode: 'always',
     meta: { localError: true },
-    mutationFn: async (ptaId) => {
+    mutationFn: async ({ ptaId, format }) => {
       const generation = authGeneration.current
       const controller = new AbortController()
       exportController.current = controller
@@ -216,7 +216,7 @@ function Workspace({ screen, session, onDenied }) {
         {
           method: 'POST',
           csrf: session.csrf,
-          body: { format: 'csv' },
+          body: { format },
           signal: controller.signal,
         },
       )
@@ -507,7 +507,9 @@ function Workspace({ screen, session, onDenied }) {
           result={list.data}
           navigate={navigate}
           exportPending={annualExport.isPending}
-          onExport={() => annualExport.mutate(context.data?.pta?.id)}
+          onExport={(format) =>
+            annualExport.mutate({ ptaId: context.data?.pta?.id, format })
+          }
         />
       )}
       {screen === 'activityNew' && (
@@ -743,10 +745,20 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
             <Button
               variant="outline"
               disabled={exportPending}
-              onClick={onExport}
+              onClick={() => onExport('csv')}
             >
               <Download size={16} />
               {exportPending ? strings.exportingPta : strings.exportPtaCsv}
+            </Button>
+          )}
+          {context.pta && (
+            <Button
+              variant="outline"
+              disabled={exportPending}
+              onClick={() => onExport('xlsx')}
+            >
+              <Download size={16} />
+              {strings.exportPtaExcel}
             </Button>
           )}
           {context.allowed_actions.includes('create_activity') && (

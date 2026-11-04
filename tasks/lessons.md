@@ -421,3 +421,8 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   protected-file error cleanup to the request generation so an old failure cannot
   cancel a newer request. A successful scoped-list refresh that removes the active
   file must also revoke pending bytes and preview URLs, not merely hide its row.
+
+- Excel numeric cells retain only 15 significant digits reliably. Write larger
+  integer XOF values as exact decimal text, label that convention, and verify the
+  saved cell type. Write user-controlled workbook text explicitly as text so names
+  cannot become formulas or external links.

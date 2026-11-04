@@ -60,7 +60,11 @@ The subsequent request authorized planning, implementation and independent revie
 of the Partner CSV. [Contract 54](rebuild/54-partner-pta-csv.md) records the bounded
 synthetic implementation: one selected-PTA POST download, explicit public columns,
 existing ownership/session/CSRF checks and audit, no migration or new dependency.
-Annual Excel/PDF working reports and insufficiency remain pending implementation.
+The next “go for next” request authorized the internal Excel working report.
+[Contract 55](rebuild/55-annual-excel-working-report.md) records implementation
+through the existing annual export route and current snapshot, one workbook
+library and no schema change. Partner exports remain CSV-only. Printable PDF,
+official templates and insufficiency remain pending implementation.
 Production and real-account enablement remain deferred.
 
 ## Partner attachment sharing policy (DEC-136)

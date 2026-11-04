@@ -17,10 +17,19 @@ One existing-card button, one scoped POST, transactional export audit; no migrat
 table, dependency or stored artifact. [Contract 54](rebuild/54-partner-pta-csv.md)
 records the six focused gates and independent review/correction evidence.
 
+## Annual Excel working report (DEC-137)
+
+Implemented as a second format on the internal annual export endpoint, with
+summary and Activity sheets using the same approved/current facts as CSV. The
+existing PTA card adds one Excel action. XlsxWriter is the only new dependency;
+no schema or workflow changes. [Contract 55](rebuild/55-annual-excel-working-report.md)
+records workbook precision/safety, authorization, regression and independent review
+evidence. It is a working report, not an official template or Partner export.
+
 ## Next approved scopes — not yet implemented (DEC-137)
 
-- Annual working report: selected-PTA summary and Activity rows, Excel first,
-  then PDF with the same figures. No official template is approved.
+- Printable annual PDF working report using the same figures as Excel. No
+  official template is approved.
 - Budget insufficiency: a real case; the Agent requests a formal budget revision
   and obtains approval before the affected Activity resumes. Preserve amendment
   controls and the separate financial authorization required before décaissement.
@@ -123,9 +132,10 @@ independent of Activity-list pagination.
 [status 46](rebuild/46-pta8a-implementation-status.md) records PostgreSQL/API,
 frontend, browser and mandatory independent correction/re-review evidence. One
 POST responsibility and one existing-screen action were added with no migration,
-table, storage, job or report framework. Historical reconstruction, official
-PDF/XLSX annual reports, Partner exports, real accounts and production remain
-deferred.
+table, storage, job or report framework. At PTA-8A completion, annual reports and
+Partner exports were deferred; contracts 54–55 now record Partner CSV and internal
+Excel. Historical reconstruction, official reports, real accounts and production
+remain deferred.
 
 ## PTA-7B Activity attachment withdrawal boundary (DEC-131)
 

@@ -782,6 +782,11 @@ def shared_document_preview(
     return shared_document_bytes(activity_id, document_id, request, auth, inline=True)
 
 
+class PartnerExportInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    format: Literal["csv"]
+
+
 @router.post(
     "/ptas/{pta_id}/exports",
     response_class=Response,
@@ -793,7 +798,7 @@ def shared_document_preview(
     },
 )
 def export_pta(
-    pta_id: str, body: annual_csv.ExportInput, request: Request, auth: Auth
+    pta_id: str, body: PartnerExportInput, request: Request, auth: Auth
 ) -> Response:
     with Session(auth.engine) as db, db.begin():
         locked_read(db)

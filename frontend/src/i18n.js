@@ -166,8 +166,9 @@ export const strings = new LocalizedStrings({
     closedActivitiesMetric: '{0} activité(s) clôturée(s) sur {1} approuvée(s)',
     closedSpendingMetric: '{0} de dépenses clôturées sur {1}',
     exportPtaCsv: 'Exporter le PTA en CSV',
+    exportPtaExcel: 'Rapport de travail Excel',
     exportingPta: 'Génération…',
-    ptaExported: 'Export CSV du PTA généré.',
+    ptaExported: 'Export du PTA généré.',
     uploadUncertain:
       'Envoi non confirmé. Vérifiez la liste des pièces jointes avant d’ajouter à nouveau le fichier.',
     verifyAttachments: 'Vérifier les pièces jointes',

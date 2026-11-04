@@ -12,6 +12,7 @@ dependencies = [
   "pillow>=13,<14",
   "reportlab>=4.4,<5",
   "pypdf>=6,<7",
+  "xlsxwriter>=3.2,<4",
 ]
 
 [dependency-groups]

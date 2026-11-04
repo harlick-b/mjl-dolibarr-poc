@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.auth.dto import ErrorResponse
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
+from app.planning.annual_report import XLSX_MEDIA_TYPE, workbook_artifact
 from app.planning.models import (
     Activity,
     ActivityRevision,
@@ -57,7 +58,7 @@ router = APIRouter(
 
 class ExportInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    format: Literal["csv"]
+    format: Literal["csv", "xlsx"]
 
 
 STATE_LABELS = {
@@ -229,7 +230,7 @@ def current_rows(db: Session, pta: AnnualPTA) -> list[dict[str, Any]]:
     )
 
 
-def artifact(
+def export_metadata(
     *,
     export_id: str,
     generated_at: str,
@@ -239,12 +240,10 @@ def artifact(
     pta: AnnualPTA,
     metrics: dict[str, Any],
     rows: list[dict[str, Any]],
-) -> bytes:
-    output = StringIO(newline="")
-    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+) -> tuple[tuple[str, object], ...]:
     physical = metrics["physical"]
     financial = metrics["financial"]
-    metadata = (
+    return (
         ("Identifiant export", export_id),
         ("Généré par", actor_email),
         ("Date de génération UTC", generated_at),
@@ -269,6 +268,31 @@ def artifact(
                 int(financial["approved_allocation"]),
             ),
         ),
+    )
+
+
+def artifact(
+    *,
+    export_id: str,
+    generated_at: str,
+    actor_email: str,
+    partner: Partner,
+    project: Project,
+    pta: AnnualPTA,
+    metrics: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> bytes:
+    output = StringIO(newline="")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+    metadata = export_metadata(
+        export_id=export_id,
+        generated_at=generated_at,
+        actor_email=actor_email,
+        partner=partner,
+        project=project,
+        pta=pta,
+        metrics=metrics,
+        rows=rows,
     )
     writer.writerows((csv_cell(key), csv_cell(value)) for key, value in metadata)
     writer.writerow(())
@@ -296,14 +320,43 @@ def artifact(
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 
+def excel_artifact(
+    *,
+    export_id: str,
+    generated_at: str,
+    actor_email: str,
+    partner: Partner,
+    project: Project,
+    pta: AnnualPTA,
+    metrics: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> bytes:
+    return workbook_artifact(
+        export_metadata(
+            export_id=export_id,
+            generated_at=generated_at,
+            actor_email=actor_email,
+            partner=partner,
+            project=project,
+            pta=pta,
+            metrics=metrics,
+            rows=rows,
+        ),
+        rows,
+    )
+
+
 @router.post(
     "/ptas/{identifier}/exports",
     response_class=Response,
     openapi_extra=MUTATION_HEADERS,
     responses={
         200: {
-            "description": "Export CSV du PTA courant.",
-            "content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}},
+            "description": "Export CSV ou rapport de travail Excel du PTA courant.",
+            "content": {
+                "text/csv": {"schema": {"type": "string", "format": "binary"}},
+                XLSX_MEDIA_TYPE: {"schema": {"type": "string", "format": "binary"}},
+            },
         }
     },
 )
@@ -333,7 +386,8 @@ def annual_export(
         rows = current_rows(db, pta)
         export_id = str(uuid4())
         generated_at = auth.now(db).isoformat()
-        content = artifact(
+        renderer = artifact if body.format == "csv" else excel_artifact
+        content = renderer(
             export_id=export_id,
             generated_at=generated_at,
             actor_email=actor.email,
@@ -357,10 +411,12 @@ def annual_export(
                 "as_of": metrics["as_of"],
             },
         )
-        filename = f"pta-{pta.year}-{export_id}.csv"
+        filename = f"pta-{pta.year}-{export_id}.{body.format}"
         return Response(
             content,
-            media_type="text/csv; charset=utf-8",
+            media_type="text/csv; charset=utf-8"
+            if body.format == "csv"
+            else XLSX_MEDIA_TYPE,
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "Content-Length": str(len(content)),

@@ -85,10 +85,12 @@ working reports (Excel, then PDF), confirms that an Agent must obtain budget
 revision approval before an underfunded Activity resumes, and defers past-date
 reconstruction. The subsequently authorized Partner CSV is implemented in contract
 54 with one scoped POST download, existing audit and no migration or dependency.
-Annual working reports and insufficiency still require their bounded implementation.
+Contract 55 adds the internal Excel working report through the existing annual
+export endpoint and one XlsxWriter dependency, without schema changes. PDF and
+insufficiency still require their bounded implementation.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
 insufficiency implementation, historical metrics,
-PDF/XLSX annual and global audit exports,
+Annual PDF working reports, official annual and global audit PDF/XLSX exports,
 PDF preview and document restoration/general versioning,
 production document storage/scanning/retention,
 browser push, real mail and production scheduling, banking integration, later
