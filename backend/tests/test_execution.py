@@ -718,6 +718,10 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(
         "Dépassement initial justifié."
     )
     assert execution["operations"][0]["approved_allocation"] == "120000"
+    from test_funding import authorize
+
+    assert execution["pause_reason"] == "funding_required"
+    authorize(planning, activity)
     agent_execution = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
@@ -1199,14 +1203,17 @@ def test_execution_evidence_refuses_destructive_downgrade(planning, auth_env):
         },
     )
     assert response.status_code == 200
+    with planning["auth"].engine.connect() as db:
+        original_head = db.scalar(text("SELECT version_num FROM alembic_version"))
     planning["auth"].engine.dispose()
     with pytest.raises(Exception, match="Refusing destructive PTA-3A downgrade"):
         command.downgrade(Config("alembic.ini"), "0009_pta2b2b")
     engine = create_engine(auth_env.url)
     try:
         with engine.connect() as db:
-            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0023_real_mail_accounts"
+            assert (
+                db.scalar(text("SELECT version_num FROM alembic_version"))
+                == original_head
             )
             assert (
                 db.scalar(

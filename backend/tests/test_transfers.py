@@ -1305,7 +1305,7 @@ def test_used_transfer_database_refuses_destructive_downgrade(planning, auth_env
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0023_real_mail_accounts"
+                "0024_budget_funding"
             )
             assert (
                 db.scalar(

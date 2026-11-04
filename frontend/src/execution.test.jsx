@@ -64,6 +64,34 @@ test('an observation draft keeps its version across refresh and can be explicitl
     'fetch',
     vi.fn(async (url, options = {}) => {
       const path = String(url)
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        )
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        )
       if (options.method === 'PATCH') {
         writes.push(JSON.parse(options.body))
         if (writes.length === 1)
@@ -171,6 +199,20 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
   }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -261,6 +303,20 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   const emptyList = { ...declarations }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -408,6 +464,34 @@ test.each([
     }
     const fetch = vi.fn((url) => {
       const path = String(url)
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        )
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        )
       if (path.includes('/auth/session'))
         return Promise.resolve(
           new Response(
@@ -520,6 +604,20 @@ test('historical zero-spending page points to the active declaration', async () 
   }
   const fetch = vi.fn((url) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -619,6 +717,34 @@ test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
     }
     const fetch = vi.fn((url) => {
       const path = String(url)
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        )
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        )
       if (path.includes('/auth/session'))
         return Promise.resolve(
           new Response(
@@ -662,6 +788,20 @@ test('Agent starts and records an Operation without offline replay', async () =>
   let current = detail()
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -797,7 +937,35 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url, options = {}) => {
-        const path = String(url).split('?')[0]
+        const path = String(url)
+        if (path.includes('/funding-requests'))
+          return new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 0,
+              data: [],
+              next: null,
+              previous: null,
+              pending: [],
+              allowed_actions: [],
+              activity_version: 0,
+              approved_revision_id: null,
+            }),
+          )
+        if (path.includes('/funding-requests'))
+          return new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 0,
+              data: [],
+              next: null,
+              previous: null,
+              pending: [],
+              allowed_actions: [],
+              activity_version: 0,
+              approved_revision_id: null,
+            }),
+          ).split('?')[0]
         let body = {
           object: 'list',
           count: 0,
@@ -896,6 +1064,20 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   let requests = []
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -1053,6 +1235,34 @@ test.each([
       }
     const fetch = vi.fn((url, options = {}) => {
       const path = String(url)
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        )
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        )
       if (path.includes('/auth/session'))
         return Promise.resolve(
           new Response(
@@ -1147,6 +1357,20 @@ test('Agent submits the locked disbursement amount for virement authorization', 
   }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -1292,6 +1516,20 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -1515,6 +1753,20 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -1717,6 +1969,20 @@ test('zero reversement displays settlement without a declaration form', async ()
   }
   vi.stubGlobal('fetch', (url) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -1773,6 +2039,20 @@ test('an uncertain virement submission stays blocked until reconciliation succee
   )
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.includes('/funding-requests'))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+          pending: [],
+          allowed_actions: [],
+          activity_version: 0,
+          approved_revision_id: null,
+        }),
+      )
     if (path.includes('/auth/session'))
       return Promise.resolve(
         new Response(
@@ -1839,4 +2119,241 @@ test('realization cursors reject foreign and malformed links', () => {
   expect(
     cursorFrom('not a valid URL', '/activities/activity-1/virement-requests'),
   ).toBe('')
+})
+
+test.each([
+  ['AGENT_SAISIE', 'submit', 'Demander le financement complémentaire'],
+  ['AGENT_VERIFICATEUR', 'prevalidate', 'Prévalider le complément'],
+  ['VALIDATEUR_DEFINITIF', 'approve', 'Approuver le complément'],
+])(
+  'funding %s uses the exact basis and reconciles execution',
+  async (role, action, label) => {
+    const user = userEvent.setup()
+    let current = {
+      ...detail(),
+      execution_paused: true,
+      pause_reason: 'funding_required',
+      mutation_unavailable_reason: 'funding_required',
+      operations: detail().operations.map((row) => ({
+        ...row,
+        allowed_actions: [],
+      })),
+    }
+    const basis = {
+      base_revision_id: 'old',
+      approved_revision_id: current.approved_revision_id,
+      old_allocation: '100000',
+      new_allocation: '120000',
+      amount: '20000',
+    }
+    const row = {
+      id: 'funding-1',
+      amount: '20000',
+      snapshot: basis,
+      submitted_at: '2026-11-04T09:00:00Z',
+      state: action === 'approve' ? 'prevalidated' : 'submitted',
+      decisions: [],
+      cancellation: null,
+      allowed_actions: ['read', action],
+    }
+    let funding = {
+      object: 'list',
+      count: action === 'submit' ? 0 : 1,
+      data: action === 'submit' ? [] : [row],
+      next: null,
+      previous: null,
+      pending: [basis],
+      allowed_actions: action === 'submit' ? ['submit'] : [],
+      activity_version: current.version,
+      approved_revision_id: current.approved_revision_id,
+    }
+    const writes = []
+    let refreshes = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url, options = {}) => {
+        const path = String(url)
+        if (path.includes('/auth/session'))
+          return new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: { id: 'actor', role },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          )
+        if (options.method === 'POST') {
+          writes.push({ path, body: JSON.parse(options.body) })
+          current = {
+            ...current,
+            version: 6,
+            execution_paused: action !== 'approve',
+            pause_reason: action === 'approve' ? null : 'funding_required',
+          }
+          funding = {
+            ...funding,
+            activity_version: 6,
+            allowed_actions: [],
+            data: [
+              {
+                ...row,
+                state:
+                  action === 'submit'
+                    ? 'submitted'
+                    : action === 'approve'
+                      ? 'approved'
+                      : 'prevalidated',
+                allowed_actions: ['read'],
+              },
+            ],
+            count: 1,
+          }
+          return new Response(JSON.stringify({ ...row, activity_version: 6 }), {
+            status: 201,
+          })
+        }
+        if (path.includes('/funding-requests'))
+          return new Response(JSON.stringify(funding))
+        if (path.endsWith('/execution')) {
+          refreshes++
+          return new Response(JSON.stringify(current))
+        }
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        )
+      }),
+    )
+    render(
+      <App
+        router={makeRouter(
+          createMemoryHistory({
+            initialEntries: ['/execution/activities/activity-1'],
+          }),
+        )}
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: label }))
+    await waitFor(() => expect(writes).toHaveLength(1))
+    expect(writes[0].body.expected_version).toBe(5)
+    expect(writes[0].body).not.toHaveProperty('amount')
+    if (action === 'submit')
+      expect(writes[0].body.expected_approved_revision_id).toBe(
+        current.approved_revision_id,
+      )
+    else expect(writes[0].body.decision).toBe(action)
+    await waitFor(() => expect(refreshes).toBeGreaterThan(1))
+    await act(async () => window.dispatchEvent(new Event('offline')))
+    expect(
+      screen.queryByRole('button', { name: label }),
+    ).not.toBeInTheDocument()
+    expect(writes).toHaveLength(1)
+    await act(async () => window.dispatchEvent(new Event('online')))
+  },
+)
+
+test('a reasoned execution correction refreshes the funding version without releasing the pause', async () => {
+  const user = userEvent.setup()
+  let current = {
+    ...detail({ started: true, completed: true }),
+    execution_paused: true,
+    pause_reason: 'funding_required',
+    mutation_unavailable_reason: 'funding_required',
+  }
+  let fundingReads = 0
+  const writes = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (options.method === 'PATCH') {
+        writes.push(JSON.parse(options.body))
+        current = {
+          ...current,
+          version: 8,
+          operations: current.operations.map((row) => ({
+            ...row,
+            actual_spent: '90000',
+          })),
+        }
+        return new Response(JSON.stringify(current))
+      }
+      if (path.endsWith('/funding-requests')) {
+        fundingReads++
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+            pending: [
+              {
+                old_allocation: '100000',
+                new_allocation: '120000',
+                amount: '20000',
+              },
+            ],
+            allowed_actions: ['submit'],
+            activity_version: current.version,
+            approved_revision_id: current.approved_revision_id,
+          }),
+        )
+      }
+      if (path.endsWith('/execution'))
+        return new Response(JSON.stringify(current))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+  const amount = await screen.findByLabelText('Montant dépensé (XOF)')
+  await user.clear(amount)
+  await user.type(amount, '90000')
+  await user.type(
+    screen.getByLabelText('Motif de la correction'),
+    'Montant rectifié après vérification.',
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer', exact: true }),
+  )
+  await waitFor(() => expect(writes).toHaveLength(1))
+  await waitFor(() => expect(fundingReads).toBeGreaterThan(1))
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', {
+        name: 'Demander le financement complémentaire',
+      }),
+    ).toBeEnabled(),
+  )
+  expect(screen.getByText(/La réalisation est suspendue/)).toBeInTheDocument()
 })

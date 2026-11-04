@@ -213,7 +213,7 @@ def test_a3_migration_preserves_existing_auth_evidence(auth_env):
         with engine.connect() as db:
             assert (
                 db.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0023_real_mail_accounts"
+                == "0024_budget_funding"
             )
             for table in (
                 "auth_user",

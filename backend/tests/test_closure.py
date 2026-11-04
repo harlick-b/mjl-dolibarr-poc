@@ -724,7 +724,7 @@ def test_pta3f_migration_upgrades_clean_predecessor(auth_env, monkeypatch):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0023_real_mail_accounts"
+                "0024_budget_funding"
             )
             columns = {row["name"] for row in inspect(db).get_columns("pta_activity")}
             assert {"closed_at", "closed_by_id"} <= columns
@@ -746,7 +746,7 @@ def test_closure_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0023_real_mail_accounts"
+                "0024_budget_funding"
             )
     finally:
         engine.dispose()

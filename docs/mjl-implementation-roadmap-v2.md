@@ -46,15 +46,16 @@ No new dependency, migration or stored artifact. [Contract 56](rebuild/56-annual
 records layout inspection, focused checks and independent review. Official report
 templates and Partner PDF annual reports remain outside scope.
 
-## Next approved scopes — not yet implemented (DEC-137)
+## Budget increase and separate funding approval (DEC-139)
 
-- Budget insufficiency: a real case; the Agent requests a formal budget revision
-  and obtains approval before the affected Activity resumes. Preserve amendment
-  controls and the separate financial authorization required before décaissement.
-- Past-date reconstruction is not needed now. Existing history remains intact.
-
-DEC-137 records these business decisions; implementation requires its bounded
-plan and authorization. Production preparation remains deferred.
+Implemented and verified in isolated synthetic resources. Positive budget
+increases require their own exact-increment Supervisor/Validator funding approval
+before work or financial requests resume. Truthful spending history and bounded
+corrections remain available; frozen settlement is preserved. Migration
+`0024_budget_funding` adds request/decision evidence after the separate mail/account
+migration. [Contract 58](rebuild/58-budget-increase-readiness.md) records F01–F12,
+focused checks and independent review. The user authorized committing the reviewed mail prerequisite followed by this
+funding slice. Past-date reconstruction and production preparation remain deferred.
 
 ## Partner attachment sharing (DEC-136)
 

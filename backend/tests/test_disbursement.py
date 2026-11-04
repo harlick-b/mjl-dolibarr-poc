@@ -259,7 +259,7 @@ def test_submission_rejects_incomplete_zero_and_overspent_activity(planning):
         ).status_code
         == 409
     )
-    overspent = finish_activity(planning, amounts=(600_000, 600_000))
+    overspent = finish_activity(planning, amounts=(100_000, 600_000))
     assert (
         post(
             planning["agent"],
@@ -518,7 +518,7 @@ def test_historical_overspending_remains_blocked_after_budget_increase(
     assert rejected.json()["code"] == (
         "execution_history_unverified"
         if missing_intermediate_approval
-        else "historical_overspending"
+        else "funding_required"
     )
 
 
@@ -698,14 +698,17 @@ def test_financial_evidence_refuses_destructive_downgrade(planning, auth_env):
         },
     )
     assert response.status_code == 201
+    with planning["auth"].engine.connect() as db:
+        original_head = db.scalar(text("SELECT version_num FROM alembic_version"))
     planning["auth"].engine.dispose()
     with pytest.raises(Exception, match="Refusing destructive PTA-3B downgrade"):
         command.downgrade(Config("alembic.ini"), "0010_pta3a")
     engine = create_engine(auth_env.url)
     try:
         with engine.connect() as db:
-            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0023_real_mail_accounts"
+            assert (
+                db.scalar(text("SELECT version_num FROM alembic_version"))
+                == original_head
             )
     finally:
         engine.dispose()

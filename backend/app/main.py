@@ -25,6 +25,7 @@ from app.planning.disbursement import router as disbursement_router
 from app.planning.documents import router as documents_router
 from app.planning.execution import router as execution_router
 from app.planning.fiche import router as fiche_router
+from app.planning.funding import router as funding_router
 from app.planning.reminders import router as reminders_router
 from app.planning.reversement import router as reversement_router
 from app.planning.routes import router as planning_router
@@ -54,6 +55,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(execution_router)
     app.include_router(fiche_router)
     app.include_router(disbursement_router)
+    app.include_router(funding_router)
     app.include_router(virement_router)
     app.include_router(virement_confirmation_router)
     app.include_router(reversement_router)

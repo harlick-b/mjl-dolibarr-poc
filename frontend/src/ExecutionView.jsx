@@ -139,6 +139,19 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     ),
     enabled: screen === 'detail' && Boolean(params.activityId),
   })
+  const funding = useQuery({
+    ...executionQuery(
+      api,
+      session.user.id,
+      ['funding', params.activityId, search.fundingCursor],
+      cursorPath(
+        `/activities/${params.activityId}/funding-requests`,
+        search.fundingCursor,
+      ),
+      onDenied,
+    ),
+    enabled: screen === 'detail' && Boolean(params.activityId),
+  })
   const finance = useQuery({
     ...executionQuery(
       api,
@@ -307,6 +320,14 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         client.invalidateQueries({
           queryKey: ['execution', session.user.id, 'list'],
         }),
+        client.invalidateQueries({
+          queryKey: [
+            'execution',
+            session.user.id,
+            'funding',
+            params.activityId,
+          ],
+        }),
         client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
       ])
       setError('')
@@ -404,6 +425,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           detail,
           history,
           finance,
+          funding,
           ...(detail.data?.works_completed &&
           detail.data?.spending_total === '0'
             ? [zeroSpending]
@@ -439,6 +461,18 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       detail={detail.data}
       history={history.data}
       finance={finance.data}
+      funding={funding.data}
+      onFundingPage={(link) =>
+        navigate({
+          search: (current) => ({
+            ...current,
+            fundingCursor: cursorFrom(
+              link,
+              `/activities/${params.activityId}/funding-requests`,
+            ),
+          }),
+        })
+      }
       zeroSpending={zeroSpending.data}
       selectedFinance={selectedFinance.data}
       virements={virements.data}
@@ -621,6 +655,8 @@ function ExecutionDetail({
   detail,
   history,
   finance,
+  funding,
+  onFundingPage,
   zeroSpending,
   selectedFinance,
   virements,
@@ -648,6 +684,7 @@ function ExecutionDetail({
     project_inactive: 'le Projet est inactif',
     activity_withdrawn: 'l’Activité a été retirée',
     activity_closed: 'l’Activité est clôturée',
+    funding_required: strings.fundingRequired,
     amendment_pending: 'une modification est en cours',
     withdrawal_pending: 'une demande de retrait est en cours',
     transfer_pending: 'un transfert est en cours',
@@ -769,6 +806,13 @@ function ExecutionDetail({
           )}
         </>
       )}
+      <FundingSection
+        detail={detail}
+        result={funding}
+        pending={pending}
+        mutate={mutateFinance}
+        onPage={onFundingPage}
+      />
       <ClosureSection
         detail={detail}
         pending={pending}
@@ -2009,6 +2053,188 @@ function OperationCard({ activity, operation, pending, mutate }) {
             {strings.cancelEntry}
           </Button>
         </BusinessForm>
+      )}
+    </article>
+  )
+}
+
+function FundingSection({ detail, result, pending, mutate, onPage }) {
+  const basis = result.pending[0]
+  const currentSnapshot = result.activity_version === detail.version
+  const states = {
+    submitted: strings.fundingSubmitted,
+    prevalidated: strings.fundingPrevalidated,
+    approved: strings.fundingApproved,
+    returned: strings.fundingReturned,
+    cancelled: strings.fundingCancelled,
+  }
+  return (
+    <section className="planning-card" aria-labelledby="funding-title">
+      <h2 id="funding-title">{strings.fundingTitle}</h2>
+      <p>{strings.fundingExplanation}</p>
+      {detail.pause_reason === 'funding_required' && (
+        <p>{strings.fundingCorrection}</p>
+      )}
+      {basis && (
+        <p>
+          {strings.fundingOldBudget} : {formatXof(basis.old_allocation)} ·{' '}
+          {strings.fundingNewBudget} : {formatXof(basis.new_allocation)} ·{' '}
+          {strings.fundingIncrement} :{' '}
+          <strong>{formatXof(basis.amount)}</strong>
+        </p>
+      )}
+      {result.allowed_actions.includes('submit') && (
+        <Button
+          disabled={pending || !currentSnapshot}
+          onClick={() =>
+            mutate('/funding-requests', {
+              expected_version: result.activity_version,
+              expected_approved_revision_id: result.approved_revision_id,
+            })
+          }
+        >
+          {strings.fundingSubmit}
+        </Button>
+      )}
+      {!basis && !result.count && <p>{strings.fundingEmpty}</p>}
+      {result.data.map((row) => (
+        <FundingRequest
+          key={`${row.id}:${row.state}`}
+          row={row}
+          version={result.activity_version}
+          enabled={currentSnapshot && detail.state === 'approved'}
+          pending={pending}
+          mutate={mutate}
+          states={states}
+        />
+      ))}
+      {(result.previous || result.next) && (
+        <nav
+          className="planning-actions"
+          aria-label={strings.fundingPagination}
+        >
+          <Button
+            variant="outline"
+            disabled={!result.previous}
+            onClick={() => onPage(result.previous)}
+          >
+            {strings.fundingPrevious}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!result.next}
+            onClick={() => onPage(result.next)}
+          >
+            {strings.fundingNext}
+          </Button>
+        </nav>
+      )}
+    </section>
+  )
+}
+
+function FundingRequest({ row, version, enabled, pending, mutate, states }) {
+  const [reason, setReason] = useState('')
+  const [editVersion, setEditVersion] = useState(version)
+  const disabled = pending || !enabled || editVersion !== version
+  const actions = row.allowed_actions
+  const send = (action) =>
+    mutate(
+      `/funding-requests/${row.id}/${action === 'cancel' ? 'cancellation' : 'decisions'}`,
+      {
+        expected_version: editVersion,
+        ...(action === 'cancel'
+          ? { reason: reason.trim() }
+          : {
+              decision: action,
+              ...(['return'].includes(action) ? { reason: reason.trim() } : {}),
+            }),
+      },
+    )
+  return (
+    <article className="review-progress">
+      <h3>
+        {formatXof(row.amount)} — {states[row.state]}
+      </h3>
+      <p>
+        {strings.fundingBudget} : {formatXof(row.snapshot.old_allocation)} →{' '}
+        {formatXof(row.snapshot.new_allocation)}
+      </p>
+      <time dateTime={row.submitted_at}>{row.submitted_at}</time>
+      <ol className="review-timeline">
+        {row.decisions.map((decision) => (
+          <li key={decision.id}>
+            {decision.stage === 'supervisor'
+              ? strings.fundingSupervisor
+              : strings.fundingValidator}{' '}
+            :{' '}
+            {decision.outcome === 'returned'
+              ? strings.fundingReturnedDecision
+              : decision.outcome === 'approved'
+                ? strings.fundingApprovedDecision
+                : strings.fundingPrevalidatedDecision}
+            <time dateTime={decision.decided_at}> · {decision.decided_at}</time>
+            {decision.reason && <p>{decision.reason}</p>}
+          </li>
+        ))}
+      </ol>
+      {row.cancellation && (
+        <p>
+          {strings.fundingCancellationReason} : {row.cancellation.reason}
+        </p>
+      )}
+      {(actions.includes('cancel') || actions.includes('return')) && (
+        <label>
+          {strings.fundingReason}
+          <textarea
+            maxLength={4000}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            disabled={disabled}
+          />
+        </label>
+      )}
+      {actions.includes('prevalidate') && (
+        <Button disabled={disabled} onClick={() => send('prevalidate')}>
+          {strings.fundingPrevalidate}
+        </Button>
+      )}
+      {actions.includes('approve') && (
+        <Button disabled={disabled} onClick={() => send('approve')}>
+          {strings.fundingApprove}
+        </Button>
+      )}
+      {actions.includes('return') && (
+        <Button
+          variant="outline"
+          disabled={disabled || !reason.trim()}
+          onClick={() => send('return')}
+        >
+          {strings.fundingReturn}
+        </Button>
+      )}
+      {actions.includes('cancel') && (
+        <Button
+          variant="outline"
+          disabled={disabled || !reason.trim()}
+          onClick={() => send('cancel')}
+        >
+          {strings.fundingCancel}
+        </Button>
+      )}
+      {editVersion !== version && (
+        <p>
+          {strings.fundingStale}{' '}
+          <Button
+            variant="outline"
+            onClick={() => {
+              setReason('')
+              setEditVersion(version)
+            }}
+          >
+            {strings.fundingReload}
+          </Button>
+        </p>
       )}
     </article>
   )

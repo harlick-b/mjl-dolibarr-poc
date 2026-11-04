@@ -88,10 +88,13 @@ reconstruction. The subsequently authorized Partner CSV is implemented in contra
 Contract 55 adds the internal Excel working report through the existing annual
 export endpoint and one XlsxWriter dependency, without schema changes. Contract
 56 adds the printable internal PDF from the same facts through existing ReportLab,
-without dependency/schema changes. Insufficiency still requires its bounded
-implementation.
+without dependency/schema changes.
+DEC-139 adds exact-increment funding approval after budget revision, preserving
+truthful spending history and pausing work/finance until separate approvals.
+Contract 58 records implementation, focused evidence and independent review;
+migration `0024_budget_funding` follows the separate mail/account prerequisite.
 Technical Admin recovery, reinvitation, reverse transfer, restoration,
-insufficiency implementation, historical metrics,
+historical metrics,
 Official annual and global audit PDF/XLSX exports,
 PDF preview and document restoration/general versioning,
 production document storage/scanning/retention,

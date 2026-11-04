@@ -197,6 +197,11 @@ def excluded_reviewers(db: Session, item: Activity, submitter_id: str) -> set[st
 def verified_financial_basis(
     db: Session, item: Activity, *, lock: bool = True, allow_zero: bool = False
 ) -> tuple[int, list[dict[str, object]], set[str]]:
+    from app.planning.funding_basis import funding_reason
+
+    reason = funding_reason(db, item)
+    if reason:
+        raise AuthError(409, reason)
     revision, approved = approved_operations(db, item, lock=lock)
     operation_statement = (
         select(Operation).where(Operation.activity_id == item.id).order_by(Operation.id)
@@ -384,16 +389,6 @@ def verified_financial_basis(
             historical_allocation = int(raw_allocation)
             historical_revision_id = approved_revision.id
             revision_operation_allocations = allocation_map
-        if (
-            historical_allocation is not None
-            and sum(
-                int(cast(str, value["actual_spent"]))
-                for value in carried.values()
-                if value["actual_spent"] is not None
-            )
-            > historical_allocation
-        ):
-            raise AuthError(409, "historical_overspending")
     persisted = {row.id: execution_facts(row) for row, _ in approved}
     if (
         audited_revision_ids != approved_revision_ids
@@ -520,7 +515,7 @@ def submit(
         if item.approved_revision_id != body.expected_approved_revision_id:
             raise AuthError(409, "approved_revision_stale")
         project = db.get(Project, item.request_project_id, with_for_update=True)
-        reason = pause_reason(item, project)
+        reason = pause_reason(db, item, project)
         if reason:
             raise AuthError(409, reason)
         if active_request(db, item.id, lock=True):

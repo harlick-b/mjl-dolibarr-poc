@@ -265,7 +265,9 @@ def approved_operations(
     return revision, result
 
 
-def pause_reason(item: Activity, project: Project | None) -> str | None:
+def pause_reason(
+    db: Session, item: Activity, project: Project | None, *, funding: bool = True
+) -> str | None:
     if not project or project.state != "active":
         return "project_inactive"
     if item.state == "withdrawn":
@@ -280,6 +282,10 @@ def pause_reason(item: Activity, project: Project | None) -> str | None:
         return "transfer_pending"
     if item.state != "approved":
         return "activity_not_approved"
+    if funding:
+        from app.planning.funding_basis import funding_reason
+
+        return funding_reason(db, item)
     return None
 
 
@@ -289,7 +295,7 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
         return []
     blockers: list[str] = []
     project = db.get(Project, item.request_project_id, with_for_update=lock)
-    if pause_reason(item, project) is not None:
+    if pause_reason(db, item, project) is not None:
         blockers.append("planning_not_approved")
     try:
         from app.planning.disbursement import verified_financial_basis
@@ -376,7 +382,7 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
 def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
     revision, operations = approved_operations(db, item)
     project = db.get(Project, item.request_project_id)
-    planning_reason = pause_reason(item, project)
+    planning_reason = pause_reason(db, item, project)
     reason = planning_reason
     financial = db.scalar(
         select(DisbursementRequest).where(
@@ -452,6 +458,15 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
                     actions.append("start")
             else:
                 actions.append("record")
+        if (
+            role == "AGENT_SAISIE"
+            and reason == "funding_required"
+            and financial is None
+            and zero_declaration is None
+            and operation.execution_started_at is not None
+            and operation.actual_spent is not None
+        ):
+            actions.append("record")
         projected.append(
             {
                 "id": operation.id,
@@ -729,8 +744,8 @@ def change_execution(
 
         assert_disbursement_unfrozen(db, item.id)
         project = db.get(Project, item.request_project_id, with_for_update=True)
-        reason = pause_reason(item, project)
-        if reason:
+        reason = pause_reason(db, item, project)
+        if reason and reason != "funding_required":
             raise AuthError(409, reason)
         revision, operations = approved_operations(db, item, lock=True)
         approved_ids = {row.id for row, _fact in operations}
@@ -753,6 +768,15 @@ def change_execution(
         if not selected:
             raise AuthError(404, "operation_not_found")
         operation, approved_fact = selected
+        if reason == "funding_required" and not (
+            body.action == "record"
+            and body.correction_reason
+            and operation.actual_spent is not None
+            and body.actual_spent is not None
+            and int(body.actual_spent) <= operation.actual_spent
+            and (not body.execution_completed or operation.execution_completed)
+        ):
+            raise AuthError(409, reason)
         before = execution_facts(operation)
         now = auth.now(db)
         correction_reason = body.correction_reason

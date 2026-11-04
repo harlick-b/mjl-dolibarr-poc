@@ -137,4 +137,113 @@ historical audit evidence, not runtime implementation or test evidence.
 The independent pre-implementation security audit confirmed no remaining business
 contradiction. It identified the forecast/no-execution prerequisite, sequential
 increase/decrease bypass, reasoned-correction history and cancellation safeguards
-now recorded in the sequence above. Runtime implementation remains unverified.
+now recorded in the sequence above. The implementation evidence below supersedes
+that historical unverified status.
+
+
+## Implementation and verification — 2026-11-04
+
+Implemented and verified. The user initially requested leaving changes
+uncommitted, then explicitly authorized committing them. Migration
+`0024_budget_funding` follows `0023_real_mail_accounts`; the prerequisite received
+its own correction/re-review and verification recorded in contract 57. No production database or real mail was used for these
+checks.
+
+The existing workspace now offers exact-increment funding submission, separate
+Supervisor/Validator review, reasoned return/cancellation and immutable history.
+Five REST responsibilities live under `/api/v1/activities/{id}/funding-requests`
+(list, detail, submission, decisions, cancellation). Two focused tables hold the
+request and decision evidence. No dependency, generic workflow infrastructure or
+Activity state was added. Outstanding increases and truthful historical shortages
+keep execution/finance paused; bounded reasoned downward corrections remain
+possible without removing that pause. Frozen settlement remains unchanged.
+
+The tested candidate was isolated at `/tmp/mjl-budget-increase` against the
+captured pre-task `/tmp/mjl-budget-baseline`, then applied as a scoped patch to the
+main workspace. All 27 changed source/test paths matched byte-for-byte after
+integration. SHA-256 of sorted path + NUL + bytes + NUL:
+`52d4839c2ec7758fc87c7f25d240ff245dfceab9805a44d7ff98c63c016acc01`.
+Runtime-only identity (excluding tests and browser fixtures):
+`c5afa2a92cbb5c21a124d70046cfd210cce41ec73c081a036ebc6ef6883600b9`.
+Exact schema fingerprint:
+`2dbb6ca3e2390ad82170906e0a8e863b705ed81a256e5dcce3d629e5e46635b4`.
+
+### Final candidate checks
+
+PostgreSQL checks ran through `/tmp/mjl_budget_check.py` using the candidate's
+locked-dependency `mjl-budget-test:local` image, a fresh disposable PostgreSQL 16
+container/database per invocation, synthetic fixtures and teardown. The wrapper
+runs `python -m pytest -p no:cacheprovider -q` with the arguments below.
+
+- `tests/test_funding.py -x --tb=short`: **20 passed**, 217.82s
+  (`/tmp/mjl-funding-final.log`). Covers F01–F11, including three deterministic
+  lock races, audit/constraint/commit rollback, direct-write constraints, exact
+  increments, repeated revisions, corrections, migration refusal/roundtrip and
+  exact-schema drift refusal.
+- Focused execution/amendment/finance/authentication regressions: **22 passed**,
+  98.00s (`/tmp/mjl-funding-focused-final.log`); exact selection below.
+- `tests/test_database.py tests/test_health.py --tb=short`: **6 passed**, 22.94s
+  (`/tmp/mjl-funding-schema-contract.log`), including final head/table inventory
+  and REST/OpenAPI validation after adjacent head assertions were reconciled.
+- `npm run test:unit -- src/execution.test.jsx`: **25 passed**, 18.81s
+  (`/tmp/mjl-funding-ui-final.log`). Includes funding-query refresh after spending
+  correction and fresh server versions for funding actions.
+- `npx playwright test e2e/funding.spec.js`: **6 passed**, 6.8s
+  (`/tmp/mjl-funding-browser-final.log`), Agent/Supervisor/Validator at desktop and
+  mobile widths. Browser transport is mocked; PostgreSQL tests exercise server
+  authorization and transactions.
+- `npm run lint`, touched-file Prettier checks and `npm run build`: passed.
+  Build retains the existing large-chunk warning. Final lint/build logs are
+  `/tmp/mjl-funding-eslint-final.log` and `/tmp/mjl-funding-build-final.log`.
+- In the locked image, `ruff check app migrations/versions/0024_budget_funding.py
+  tests/test_funding.py tests/test_execution.py tests/test_disbursement.py`,
+  `ruff format --check` on the same paths, and
+  `mypy --cache-dir=/tmp/mypy-cache app`: passed; **42 files formatted, 37 source
+  files typed** (`/tmp/mjl-funding-python-quality-final.log`). Read-only candidate
+  mount and temporary writable Ruff/mypy caches were used.
+- `git apply --check`, post-integration byte comparison and `git diff --check`:
+  passed. F01–F12 have the required focused evidence; no production acceptance
+  or broader historical-suite result is claimed.
+
+Exact focused regression selection (all prefixed `backend/` in the repository):
+
+```text
+tests/test_execution.py::test_execution_evidence_refuses_destructive_downgrade
+tests/test_execution.py::test_approved_budget_amendment_preserves_execution_and_recording_basis
+tests/test_disbursement.py::test_submission_rejects_incomplete_zero_and_overspent_activity
+tests/test_disbursement.py::test_historical_overspending_remains_blocked_after_budget_increase
+tests/test_disbursement.py::test_financial_evidence_refuses_destructive_downgrade
+tests/test_disbursement.py::test_missing_execution_audits_fail_closed
+tests/test_disbursement.py::test_submission_serializes_with_execution_correction_and_amendment
+tests/test_amendments.py::test_m06_m08_amendment_requires_fresh_chain_and_activates_atomically
+tests/test_amendments.py::test_m13_cancellation_restores_approved_content_and_preserves_evidence
+tests/test_zero_spending.py::test_agent_declares_zero_distinct_reviewers_approve_and_agent_closes
+tests/test_virement.py::test_agent_declares_exact_external_transfer_and_corrects_with_history
+tests/test_auth.py::test_full_http_journey_requires_otp_and_revokes_old_session
+tests/test_lifecycle.py::test_guard_rejects_unknown_schema
+```
+
+Earlier broad-suite attempts are **not passes**: one was interrupted after
+outdated budget/head assertions failed. The relevant failures were corrected and
+rerun in the focused selection above. Earlier logs also contain missing host
+XlsxWriter/Jinja2 dependencies and a read-only Ruff cache failure; the final
+locked-image checks supersede those attempts, not their historical record.
+
+### Independent review
+
+Separate engineering and security/specification reviewers inspected the scoped
+diff, surrounding code, contract and evidence without modifying implementation.
+Accepted findings were fixed and returned to the same reviewers: reject migration
+of incompatible frozen financial history; allow bounded truthful corrections
+while retaining the pause; refresh funding Query state after execution changes;
+and localize all new funding copy. Both reviewers then confirmed no remaining
+blocking finding or mandatory verification gap. They independently inspected the
+candidate identities and final command logs; they did not rerun database/browser
+suites. Security also verified the integrated runtime identity and final evidence
+document. This signoff covers funding only, not the separate mail work or
+production readiness.
+
+The lesson review found these fixes covered by the existing server-snapshot and
+focused-verification rules; no new general process or speculative cleanup was
+added. Stop after this funding slice. Settlement exceptions, banking, reopening,
+production enablement and later work remain excluded.

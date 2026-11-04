@@ -198,7 +198,7 @@ def verified_source(
     db: Session, item: Activity, request_id: str, *, lock: bool = False
 ) -> DisbursementRequest:
     project = db.get(Project, item.request_project_id, with_for_update=lock)
-    reason = pause_reason(item, project)
+    reason = pause_reason(db, item, project)
     if reason:
         raise AuthError(409, reason)
     source = source_request(db, item.id, request_id, lock=lock)
@@ -279,7 +279,7 @@ def output(
     actions = allowed_actions(role, actor_id, financial, rows)
     item = get_activity(db, financial.activity_id)
     project = db.get(Project, item.request_project_id)
-    settlement_allowed = pause_reason(item, project) is None
+    settlement_allowed = pause_reason(db, item, project) is None
     if role == "AGENT_SAISIE" and financial.state == "approved" and settlement_allowed:
         if not confirmation:
             actions.append("declare_confirmation")

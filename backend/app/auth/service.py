@@ -110,6 +110,8 @@ class AuthService:
                 "pta_activity_contributor",
                 "pta_activity_revision",
                 "pta_activity_revision_decision",
+                "pta_funding_request",
+                "pta_funding_decision",
                 "pta_disbursement_request",
                 "pta_disbursement_decision",
                 "pta_virement_request",
@@ -128,7 +130,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0023_real_mail_accounts"]:
+        if revisions != ["0024_budget_funding"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -260,6 +262,8 @@ class AuthService:
                      'pta_preserve_activity_request',
                      'pta_preserve_operation_execution',
                      'auth_audit_immutable',
+                     'pta_preserve_funding',
+                     'pta_validate_funding_state',
                      'pta_preserve_disbursement',
                      'pta_validate_disbursement_state',
                      'pta_preserve_virement',
@@ -281,7 +285,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "bb9cf89779886cc7c79b73e0c44ebc8be0b259fd05111cb11897332bdd4273c9"
+            "2dbb6ca3e2390ad82170906e0a8e863b705ed81a256e5dcce3d629e5e46635b4"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -654,7 +658,7 @@ class AuthService:
             )
             db.flush()
             return
-        if action.startswith("disbursement."):
+        if action.startswith(("disbursement.", "funding.")):
             disbursement_required = {
                 "context_id",
                 "activity_id",

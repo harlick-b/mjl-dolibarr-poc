@@ -436,6 +436,7 @@ export function makeRouter(history) {
         cursor: String(search.cursor || '').slice(0, 512),
         historyCursor: String(search.historyCursor || '').slice(0, 512),
         financeCursor: String(search.financeCursor || '').slice(0, 512),
+        fundingCursor: String(search.fundingCursor || '').slice(0, 512),
         zeroSpendingCursor: String(search.zeroSpendingCursor || '').slice(
           0,
           512,

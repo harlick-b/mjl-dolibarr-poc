@@ -231,7 +231,7 @@ def submit(
         if item.approved_revision_id != body.expected_approved_revision_id:
             raise AuthError(409, "approved_revision_stale")
         project = db.get(Project, item.request_project_id, with_for_update=True)
-        reason = pause_reason(item, project)
+        reason = pause_reason(db, item, project)
         if reason:
             raise AuthError(409, reason)
         if current_declaration(db, item.id, lock=True):
