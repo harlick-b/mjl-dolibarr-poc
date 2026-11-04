@@ -1,233 +1,93 @@
 # Agent Instructions
 
-Canonical repository instructions. The user's latest explicit request takes
-precedence over recorded decisions, plans, tests and skill procedures.
+The user's latest explicit request takes precedence. Read docs/business-rules.md
+first, then only current guides relevant to the task: docs/engineering.md,
+docs/security.md, docs/design.md and docs/project-status.md. README.md owns setup.
+Requirements govern behavior; code and passing tests are implementation evidence,
+never user acceptance or production readiness. Ask only about unresolved business
+choices, contradictory requirements or missing external inputs.
 
 ## Communication
 
-When the user asks to explain a concept, always explain it in layman's terms.
-Use familiar words and a concrete example where helpful. Explain what it means
-for the person using the app before introducing technical details; define any
-technical term that is necessary.
+When asked to explain a concept, always use layman's terms. Explain the effect
+for the person using the app first, with familiar words and a concrete example;
+define necessary technical terms.
 
-## Authority and scope
+## Scope and implementation
 
-Read `docs/mjl-authoritative-decisions.md` first, then only the canonical sources
-relevant to the task. The approved PTA brief and DEC-087–090 govern business
-rules. Code and passing tests are implementation evidence, never acceptance.
+Implement only the authorized task. A short authorization is sufficient for a
+concrete slice: derive the smallest complete plan from approved rules and actual
+code, implement, verify and stop. No external execution prompt or repeated
+approval for routine fixes. Do not infer permission for the next slice.
 
-MJL is being rebuilt as a dedicated React/Vite JavaScript/JSX application with
-TanStack Router/Query, Tailwind/shadcn/ui/Lucide, FastAPI REST, PostgreSQL,
-SQLAlchemy 2 and Alembic. The PWA is installable with online-only business
-operations. Docker Compose is the development direction; frontend and backend
-will deploy separately. Provider and region are unapproved.
+Before edits map each mechanism to a requirement or concrete security/integrity
+risk. Prefer existing seams; remove speculative abstractions. Reassess if scope
+grows and after an hour of active implementation. No generic workflow engine,
+event bus, repository framework, microservices, offline database or mutation queue.
+Describe invariants before prescribing table/endpoint counts. Preserve exact XOF,
+immutable approvals, no-self-validation and server-side role/resource isolation.
 
-The proposed technical standard is
-`docs/rebuild/02-target-architecture-and-engineering-standard.md`;
-`docs/rebuild/03-security-compliance-baseline.md` owns security requirements.
-The authority/business/API disposition register is
-`docs/rebuild/01-authority-and-business-baseline.md`.
-The current implementation boundary and evidence are in
-`docs/mjl-implementation-roadmap-v2.md`; decision history belongs to the authority
-router. Foundation, A1–A3 and the synthetic PTA slices through PTA-9B are
-complete. DEC-121 governs current whole-PTA physical and financial
-metrics. DEC-122 adds the regenerable French Activity Fiche PDF from approved
-planning, execution, settlement and chronology facts. DEC-123 completes Project
-closure: a Validator may close an empty Project or one containing only terminal
-`closed` or `withdrawn` Activities; every unfinished Activity remains a blocker.
-PTA-4B and PTA-4C add no migration.
-DEC-124 adds one durable 21-day reminder cycle per assigned Agent and approved
-Activity end date, one synthetic email attempt, recipient-only notification APIs
-and the sidebar notification centre. Migration `0016_pta5` adds one table.
-DEC-125 adds optional append-only PDF/JPEG/PNG evidence to an Activity in the
-isolated synthetic environment. Agents and Validators upload; internal business
-roles list and download through fresh authorization. Migration `0017_pta6a` adds
-one table and three REST responsibilities.
-DEC-126 adds a sanitized, newest-first global audit chronology for Validators
-and Admins. It reuses the append-only audit table, adds one read responsibility
-and one screen, and adds no migration or export.
-DEC-127 adds an audited, exact-snapshot CSV export of that sanitized chronology
-for Validators and Admins. It adds one POST responsibility and one existing-screen
-action with no migration, table, stored artifact, job or reporting framework.
-DEC-128 adds a freshly authorized and audited inline preview for stored JPEG/PNG
-Activity evidence. The existing Activity panel loads protected bytes through the
-shared REST client into a bounded modal. PDF remains download-only. It adds one
-GET responsibility with no migration, table, converter or thumbnail service.
-DEC-129 settles the intended PC1/PC2 product policy, exact unsplit reversement,
-validated zero-spending path, limited Activity-document scope, Partner portal
-projection, no-reopening rule and first annual CSV boundary. External
-RSSI/mail/hosting acceptance remains pending; use synthetic identities, isolated
-databases and test mail only. DEC-130 implements the validated zero-spending
-closure path with migration `0018_pta7a`, two focused tables and the existing
-execution workspace. DEC-131 implements reasoned Activity attachment withdrawal
-and optional linked correction with migration `0019_pta7b`, one focused table and
-the existing Activity panel/Fiche.
-DEC-132 adds one audited current-PTA CSV download for internal business roles,
-with no migration, table, stored artifact, job or reporting framework. Stop after
-PTA-8A. DEC-133 adds Admin-invited, permanently Partner-bound synthetic
-identities and a separate read-only approved-portfolio portal. Migration
-`0020_pta9a` adds one nullable binding and exclusive constraints with no new
-table. Stop after PTA-9A.
-DEC-134 adds Partner-scoped approved Activity detail, successful final decisions,
-definitive closed finance and one sanitized Partner Fiche PDF. It adds two GET
-responsibilities with no migration or table. Stop after PTA-9B.
-DEC-135 simplifies financial returns: returning a request permits correction and
-fresh submission without cancellation. Preserve history and fresh approvals;
-an approved décaissement stays frozen after a virement return. Migration
-`0021_financial_returns` changes existing indexes/guards, adding no state/table.
-Keep user-visible states few and tied to business actions, not manual selectors.
-DEC-136 settles Validator-controlled sharing of current Activity attachments
-with the owning Partner, private by default and revoked on withdrawal.
-Migration `0022_partner_documents` adds two sharing fields without a new table;
-contract 53 records the synthetic implementation and independent review.
-DEC-137 approves the scope of a Partner-visible selected-PTA CSV and annual
-working reports (Excel, then PDF), confirms that an Agent must obtain budget
-revision approval before an underfunded Activity resumes, and defers past-date
-reconstruction. The subsequently authorized Partner CSV is implemented in contract
-54 with one scoped POST download, existing audit and no migration or dependency.
-Contract 55 adds the internal Excel working report through the existing annual
-export endpoint and one XlsxWriter dependency, without schema changes. Contract
-56 adds the printable internal PDF from the same facts through existing ReportLab,
-without dependency/schema changes.
-DEC-139 adds exact-increment funding approval after budget revision, preserving
-truthful spending history and pausing work/finance until separate approvals.
-Contract 58 records implementation, focused evidence and independent review;
-migration `0024_budget_funding` follows the separate mail/account prerequisite.
-Technical Admin recovery, reinvitation, reverse transfer, restoration,
-historical metrics,
-Official annual and global audit PDF/XLSX exports,
-PDF preview and document restoration/general versioning,
-production document storage/scanning/retention,
-browser push, real mail and production scheduling, banking integration, later
-slices, general A4 and production remain deferred.
+Keep one concise contract per new slice when useful: outcome/exclusions, changed
+API/data/UI seams, decisions/dependencies, focused checks and independent review.
+Extend existing guides when sufficient; do not require separate execution prompts,
+closure/recheck documents or approval for routine technical correction. Link
+settled standards rather than duplicating them. Update project status at completion
+when capabilities or unresolved boundaries change; avoid accumulating spent plans.
 
-When the user explicitly authorizes a slice, derive the smallest complete implementation from its authoritative readiness document, implement and verify it, then stop. Do not request a separate detailed implementation prompt unless essential information is missing or contradictory. Do not infer authorization for the next slice.
+## Engineering and design
 
-## Planning with minimal overhead
+Use React/Vite JavaScript/JSX, Router/Query, Tailwind/shadcn/Lucide, FastAPI,
+PostgreSQL, SQLAlchemy 2 and Alembic. Router owns navigation, Query server state,
+React temporary forms. Routes validate/authorize; use cases own transactions and
+atomic audit; persistence helpers never commit. Apply the complete engineering
+guide's UI/API/shared-helper contracts for touched pages and APIs, including
+cursor lists (default 60/max 100, invalid 422), RestClient/useAPI, localization,
+Sonner, Helmet and cookie/CSRF protections. Reuse helpers, not copied examples.
 
-- No externally written implementation prompt is required. Derive the next plan
-  from approved business rules and actual code; ask only about unresolved business
-  choices, contradictory requirements or missing external inputs. A short user
-  authorization is sufficient once the slice is concrete. Keep explicit stop rules.
-- Maintain one concise contract per new slice: user-visible outcome/exclusions,
-  changed API/data/UI seams, genuine decisions/dependencies, checks with expected
-  results, and the mandatory independent review handoff below. Extend an existing
-  readiness document when sufficient; add a separate plan only when it materially
-  helps execution. Link settled standards instead of restating them. Do not require
-  a closure/recheck document or a second authorization for routine technical fixes.
-- Describe invariants before prescribing table/endpoint counts. Prefer existing
-  seams, but justify added representation or abstraction by a current need and
-  total implementation cost. Explicit slice limits remain binding. No generic
-  workflow framework or broad cleanup project follows from a complexity concern.
-- Map checks to changed behavior and risks, reuse existing coverage, and test
-  interactions with adjacent workflows. Run focused checks while iterating; run a
-  broad regression when required or justified by shared changes. After a fix,
-  rerun affected checks, widening only for changed dependencies or unresolved risk.
-  Never waive a mandatory gate or relabel older evidence as a final-candidate run.
-- Record the tested source/artifact and actual command/results together. Keep
-  migration compatibility evidence tied to that candidate. Measure slow setup
-  before optimizing fixtures; retain disposable isolation and real database tests.
-- At completion, update the current roadmap once and link detailed evidence.
-  Mark old authorization/status prose as historical without rewriting its contract.
-  Read only task-relevant lessons; legacy-specific rules are not rebuild mandates.
+Read docs/design.md before visual changes. Use approved tokens and applicable
+supplied inspiration; missing inspiration blocks that screen only. Product claims
+in visual examples cannot override business rules. No persistent sample/demo
+data, hard-coded credentials or committed secrets. Tests use minimal disposable
+isolated data with teardown, never a shared tenant. Local real-account Resend use
+is authorized; production, provider/region and external acceptance remain gated.
 
-## Historical legacy evidence
+## Verification and independent review
 
-The Dolibarr 23.0.2/MariaDB 11 proof of concept was retired on 2026-11-03. Its
-runtime, custom PHP module, local data, root JavaScript test harness and legacy
-Compose file are no longer present. Git history and the frozen legacy documents
-remain historical behavioral evidence only. Do not restore or use legacy
-commands, paths, accounts or architecture as rebuild implementation guidance.
+Choose checks for changed behavior and risks; include interactions with adjacent
+workflows. Use focused checks while iterating; broaden when shared changes or
+unresolved risks justify it. After fixes rerun affected checks, not unrelated
+suites. Never waive a mandatory gate or present older evidence as a final run.
+Record tested source/artifact with actual commands/results; bind migration
+compatibility to that candidate. Measure slow setup before optimizing fixtures;
+retain real disposable PostgreSQL for constraints, transactions and concurrency.
 
-## Engineering and security
+Documentation-only work uses status, diff/stat, diff --check, reference checks and
+direct new-file review. Skip runtime suites when no behavior changed and report
+why. Do not run broad benchmarks or production audits without an explicit request.
 
-- Implement only the authorized slice. Before edits map each mechanism to a
-  current requirement or concrete security/data-integrity risk. Prefer the
-  smallest existing seam; remove speculative abstractions. Reassess immediately
-  if scope grows and after an hour of active implementation.
-- No generic workflow engine, event bus, repository framework, microservices,
-  offline database, mutation queue or speculative infrastructure.
-- Router owns navigation/search; Query owns server state; React state owns
-  temporary UI/forms. Use JavaScript/JSX; TypeScript is not a prerequisite.
-- FastAPI routes validate and authorize; use cases own transactions, current
-  state checks and atomic audit. Persistence helpers never silently commit.
-- Preserve exact XOF, French-first content, immutable approved revisions,
-  no-self-validation and server-side role/resource isolation. Assignments are
-  coordination metadata, not Agent access restrictions. No multi-tenant SaaS
-  assumption or in-app banking/reallocation of unused funds.
-- Access is Admin-invited, email/password plus email OTP, with 24-hour idle and
-  absolute limits, no remembered devices or public registration. Admin has no
-  business mutation; Partner identities are read-only and single-Partner scoped.
-- Keep API/documents/exports authorized on the server. Phase 4 remains separately
-  gated; legacy document routes remain deny-all. Documents are optional evidence.
-- No persistent demo data, hard-coded credentials or committed secrets. Tests
-  use minimal disposable data and teardown; never mutate a shared tenant for tests.
+Every implementation plan ends with a separate review-only agent that did not
+implement it. The reviewer independently inspects requirements, actual diff,
+surrounding code and evidence, treating explanations/test claims as unverified;
+it must not edit implementation or fix its own findings. Report severity,
+file/line, impact and smallest correction, including verification gaps. The
+implementer fixes accepted findings and returns the candidate to the same reviewer.
+Do not declare completion until blocking findings/gaps are resolved; if no separate
+reviewer is available, report the gate blocked. Review is not acceptance,
+production readiness or authorization for more work.
 
-## Design and verification
+## Skills, memory and Git
 
-For every authorized rebuild page and related API implementation, apply the
-approved UI/API standard (DEC-102) in
-`docs/rebuild/02-target-architecture-and-engineering-standard.md`, including its
-shared display/pagination helper contracts. This covers cursor lists (default 60,
-max 100, invalid limits 422), the list envelope, RestClient/Provider/useAPI,
-Query integration, Sonner, localization, Helmet and cookie/CSRF safeguards.
-Verify the applicable rules in the slice's focused checks. Reuse shared helpers;
-do not copy the illustrative snippets without their documented corrections.
-This standing requirement does not authorize new pages or a standalone runtime
-migration; implement only the separately authorized slice.
+Prefer repository skills in skills/<name>/SKILL.md; global skills are read-only.
+Route architecture to codebase-design, unclear product choices to grill-with-docs,
+domain changes to domain-modeling, bugs to diagnosing-bugs, behavioral work to tdd,
+exploration to prototype, skill maintenance to writing-great-skills and substantial
+reviews to code-review. Use local design-system-guardian, security-baseline-review
+and confidence-review-loop for their concerns. Procedures cannot expand scope or
+require runtime work for a documentation audit. Do not create per-library skills.
 
-For touched visual surfaces read `DESIGN.md`, the design-system index and
-relevant approved v3 tokens/inspiration. Their product assertions cannot override
-business authority. Missing inspiration blocks that product screen, not unrelated
-backend work. The foundation shell is a technical smoke surface, not a new design.
-
-Choose the smallest check that verifies the change. Documentation-only work uses
-`git status`, `git diff --stat`, `git diff`, `git diff --check`, plus direct review
-of new files. Report skipped checks and why. Do not run broad historical suites,
-benchmarks or production audits without an explicit request. Future React UI/API
-journeys use focused Playwright; domain rules use Vitest/pytest as appropriate;
-transactions and constraints use disposable PostgreSQL. Never claim acceptance,
-compliance or production readiness from passing development checks.
-
-## Skills and collaboration
-
-Use repository skills from `skills/<name>/SKILL.md`; global skills are read-only.
-Route architecture to `codebase-design`, unclear product decisions to
-`grill-with-docs`, domain changes to `domain-modeling`, bugs to `diagnosing-bugs`,
-behavioral implementation to `tdd`, throwaway exploration to `prototype`, skill
-maintenance to `writing-great-skills`, and substantial reviews to `code-review`.
-Use local `design-system-guardian`, `security-baseline-review` and
-`confidence-review-loop` for their named concerns. Skill procedures cannot expand
-scope, require runtime work for a documentation audit or imply implementation
-approval. Do not create per-library skills.
-
-Use subagents only when explicitly requested or for independent audits. Return
-findings, evidence, risk and focused fixes; consolidate before edits. At the end
-of meaningful work evaluate `tasks/lessons.md`; add only repeated corrections or
-durable discoveries. Legacy-specific lessons remain legacy-specific.
-
-Every implementation plan must end with a mandatory handoff to a separate agent
-that did not implement the changes. That agent leads a review-only phase and must
-not modify implementation files or fix its own findings. It independently inspects
-the governing requirements, actual diff, relevant surrounding code and verification
-evidence, treating implementer explanations and passing-test claims as unverified.
-It reports gaps, bugs, regressions and security weaknesses with severity, file/line
-evidence, impact and the smallest correction, including missing verification.
-
-The implementation agent fixes accepted findings, then returns the candidate to
-the same independent reviewer for focused re-review. Do not declare completion
-until blocking findings and mandatory verification gaps are resolved. If no
-separate reviewer is available, report the review gate as blocked rather than
-substituting self-review. Include this handoff/correction/re-review cycle in every
-future implementation plan. Independent review is not acceptance, production
-readiness or authorization for another slice.
-
-## Git and stopping
-
-Preserve unrelated worktree changes. Do not perform destructive Git/filesystem
-operations without explicit authorization. Preserve remaining historical
-documents unless the user explicitly authorizes another bounded cleanup; Git
-history is the evidence source for documents already retired on 2026-11-03.
-Do not deploy, change production configuration or infer later phase permission.
-A foundation readiness verdict means only that a separate implementation request
-can follow. Stop after the authorized scope.
+Use subagents only when explicitly requested or for independent audits. Consolidate
+findings before edits. Evaluate tasks/lessons.md after meaningful work; add only
+repeated corrections or durable discoveries, and read only relevant lessons.
+Preserve unrelated worktree changes and backend/.venv. No destructive Git/filesystem
+operations without authorization, deployment or production configuration changes.
+Stop after the authorized scope.

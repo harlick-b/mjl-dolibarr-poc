@@ -4,7 +4,7 @@
 @import '@fontsource/inter/latin-700.css';
 @import 'tailwindcss';
 
-/* Approved v3 subset, docs/design-system/approved/v3/design-tokens/tokens.json. */
+/* Approved visual tokens: docs/design.md. */
 @theme {
   --font-sans: 'Inter', arial, helvetica, sans-serif;
   --color-navy: #16324f;

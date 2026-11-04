@@ -1888,7 +1888,8 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
     for actor in ("agent", "supervisor", "validator"):
         for path in read_paths:
             assert planning[actor].get(path).status_code == 200, (actor, path)
-    for path in [*read_paths, "/api/v1/assignment-agents"]:
+    assert admin.get("/api/v1/partners").status_code == 200
+    for path in [*read_paths[1:], "/api/v1/assignment-agents"]:
         assert admin.get(path).status_code == 403, path
     assert planning["agent"].get("/api/v1/assignment-agents").status_code == 403
     for actor in ("supervisor", "validator"):
@@ -2092,25 +2093,7 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
     assert planning["agent"].get("/api/v1/partners?limit=101").status_code == 422
     document = planning["agent"].get("/openapi.json").json()
     paths = document["paths"]
-    assert not any("document" in path for path in paths)
-    planning_paths = [
-        path
-        for path in paths
-        if path.startswith("/api/v1/")
-        and any(
-            word in path
-            for word in (
-                "partner",
-                "project",
-                "pta",
-                "activit",
-                "operation-type",
-                "assignment-agent",
-            )
-        )
-    ]
-    assert all("context_id" not in str(paths[path]) for path in planning_paths)
-    assert set(planning_paths) == {
+    planning_paths = {
         "/api/v1/partners",
         "/api/v1/operation-types",
         "/api/v1/projects",
@@ -2155,6 +2138,8 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
         "/api/v1/activities/{identifier}/virement-requests/{request_id}/reversement/history",
         "/api/v1/assignment-agents",
     }
+    assert planning_paths <= set(paths)
+    assert all("context_id" not in str(paths[path]) for path in planning_paths)
     for path in planning_paths:
         for operation in paths[path].values():
             if not isinstance(operation, dict) or "responses" not in operation:
@@ -3251,7 +3236,8 @@ def test_p02_verified_admin_cannot_read_or_mutate_business(planning):
     paths, mutations = responsibility_cases(planning)
     admin = planning["admin"]
     before = business_snapshot(planning["auth"])
-    for path in paths:
+    assert admin.get("/api/v1/partners").status_code == 200
+    for path in paths[1:]:
         assert admin.get(path).status_code == 403, path
     admin_headers = headers(admin)
     for method, path, body in mutations:

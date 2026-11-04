@@ -177,12 +177,17 @@ def dispatch_due_reminders(auth: AuthService, today: date) -> int:
 
 
 def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
-    """Make the cycle's only mail attempt under the shared lifecycle lock."""
+    """Claim once under the lifecycle lock, then send outside transactions."""
     try:
+        delivery: tuple[str, dict[str, object]] | None = None
         with Session(auth.engine) as db, db.begin():
             locked_mutation(db)
             item = db.get(ActivityReminder, reminder_id, with_for_update=True)
-            if not item or item.email_status != "unconfirmed":
+            if (
+                not item
+                or item.email_status != "unconfirmed"
+                or item.email_completed_at is not None
+            ):
                 return None
             recipient = db.get(User, item.agent_id)
             activity = db.get(Activity, item.activity_id)
@@ -198,8 +203,6 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                     ActivityAssignment.ended_at.is_(None),
                 )
             )
-            status = "skipped"
-            provider_message_id = ""
             if (
                 recipient is not None
                 and recipient.state == "active"
@@ -210,23 +213,48 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                 and assignment is not None
             ):
                 name, planned_end = _snapshot(revision)
-                if planned_end != item.planned_end:
-                    status = "skipped"
-                else:
-                    try:
-                        provider_message_id = auth.send_mail(
-                            recipient.email,
-                            "activity_reminder",
-                            recipient_name=recipient.full_name,
-                            activity_reference=activity.reference,
-                            activity_name=name,
-                            activity_end_date=french_date(item.planned_end),
-                        )
-                        status = "delivered"
-                    except OSError:
-                        status = "failed"
-            item.email_status = status
+                if planned_end == item.planned_end:
+                    delivery = (
+                        recipient.email,
+                        {
+                            "recipient_name": recipient.full_name,
+                            "activity_reference": activity.reference,
+                            "activity_name": name,
+                            "activity_end_date": french_date(item.planned_end),
+                        },
+                    )
             item.email_completed_at = auth.now(db)
+            if delivery is None:
+                item.email_status = "skipped"
+                auth.audit(
+                    db,
+                    "reminder.email_delivery",
+                    "system:pta5",
+                    item.id,
+                    outcome="skipped",
+                    details={"email_status": "skipped"},
+                )
+                return "skipped"
+
+        provider_message_id = ""
+        status = "delivered"
+        try:
+            recipient_email, context = delivery
+            provider_message_id = auth.send_mail(
+                recipient_email, "activity_reminder", **context
+            )
+        except OSError:
+            status = "failed"
+
+        with Session(auth.engine) as db, db.begin():
+            item = db.get(ActivityReminder, reminder_id, with_for_update=True)
+            if (
+                not item
+                or item.email_status != "unconfirmed"
+                or item.email_completed_at is None
+            ):
+                return None
+            item.email_status = status
             auth.audit(
                 db,
                 "reminder.email_delivery",
@@ -242,10 +270,9 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                     ),
                 },
             )
-            return status
+        return status
     except Exception:
-        # A successful external send must never be repeated when persistence
-        # cannot confirm it. The precommitted unconfirmed state is terminal.
+        # The precommitted completion timestamp makes an unknown outcome terminal.
         return None
 
 

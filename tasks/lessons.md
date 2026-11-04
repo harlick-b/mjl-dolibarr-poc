@@ -1,223 +1,30 @@
 # Reusable Lessons
 
-- Over-engineering is banned. Remove obsolete code and its callers together;
-  keep only mechanisms required by current behavior or a concrete safety risk.
-  Use the smallest focused verification, and never treat a passing test as user
-  acceptance or production readiness.
-
-Update this file only after repeated mistakes, user corrections, or durable
-debugging discoveries. Do not add one-off observations or generic advice.
-
-Read only lessons applicable to the current stack and changed behavior. The
-older mixed ledger below includes Dolibarr-only rules; those do not govern React
-or FastAPI. Current rebuild/process lessons are collected at the end.
+Update only after repeated corrections or durable discoveries. Read only lessons
+relevant to the current task.
 
 - Synthetic mailbox filenames are UUIDs and do not encode delivery order. Tests
   that need the latest message must compare the mailbox file set before and after
   the delivery, or select by an explicit delivery identifier.
 
-- Dolibarr core files must not be edited for MJL work; use the custom module,
-  documented setup scripts, documentation, disposable test-fixture locations, or a
-  documented safe theme boundary.
-- Dolibarr's `afterLogin` hook runs after the native session and `USER_LOGIN`
-  event already exist. A mandatory second factor needs a pre-session custom
-  password endpoint, a native login submission guard, and an `updateSession`
-  check for sessions created before the gate was enabled.
-- UI hiding is not access control. Direct URL and direct POST routes must stay
-  guarded server-side.
-- Active Dolibarr entity filtering is mandatory for custom objects, dashboards,
-  exports, audit lists, document lookups, and workflow lookups.
-- No-self-validation is a domain rule and must be enforced outside button
-  visibility.
-- Legacy POC roles, groups, and sample records are not target evidence and must
-  not be mapped into the clean target model.
-- Future-only or internal roadmap features must not appear as available user
-  actions.
-- MJL exports should remain French-labeled, Excel-readable, filtered
-  server-side, and stable in filename/format.
-- A CLI operational script under a web-published custom module needs both a
-  server-level route-family deny and an in-script CLI guard. `NOLOGIN` is not a
-  CLI boundary and can turn operational scripts into anonymous web entrypoints.
-- Validation verdicts must name their evidence boundary. Automated responsive
-  checks cannot stand in for a required signed human keyboard/reflow/real
-  browser-zoom matrix; keep the verdict pending until that evidence exists.
-- Dolibarr `fetchCommon()` object paths may expose `id` while SQL row arrays
-  expose `rowid`; MJL access helpers that accept both objects and arrays should
-  normalize the identifier before object-scope checks.
-- For Apache `ErrorDocument` pages that should use the authenticated Dolibarr
-  session, prefer `NOREDIRECTBYMAINTOLOGIN` over `NOLOGIN`; `NOLOGIN` avoids a
-  login redirect but does not hydrate the session user for MJL shell rendering.
-- An Apache authorization `ErrorDocument` runs as an internal subrequest and
-  can return HTTP 403 while its PHP page fatals after a partial Dolibarr
-  bootstrap. For hard-containment denials, prefer a dependency-free error
-  response and inspect fresh server logs in addition to status/body assertions.
-- Native-boundary checks must probe adjacent Dolibarr route families, not only
-  named blocker routes; `/admin/*`, native `/user/*`, and dormant module routes
-  can render native chrome even when the first blocked routes pass.
 - E2E assertions for dated activities must not assume a fixed fixture remains
   before its deadline. Assert persisted execution controls and workflow state
   separately from the date-sensitive overdue label.
-- HTTP filter normalizers must treat absent and empty default controls
-  consistently. Test the unfiltered route as well as malformed values; a
-  fail-closed parser can otherwise turn every default list request into an
-  empty result without exposing a syntax or runtime error.
-- Polymorphic audit-target resolution needs one entity-matched registry shared
-  by every diagnostic caller. When a new audited object type is introduced,
-  update that registry and prove both a valid anchor and a missing target;
-  duplicated join lists silently misclassify otherwise valid audit rows.
-- Fresh Docker initialization and root-run fixture setup can leave disposable
-  document or ECM subdirectories owned by root with mode `0755`, which blocks
-  upload and test-outbox E2E despite correct application behavior. Normalize
-  web-user ownership only inside verified disposable named volumes or binds,
-  including after case-local root setup; never change shared workspace storage.
-- A fresh Dolibarr Compose container can report `Up` while its installer is
-  still importing tables and has not created the Admin user. Before running
-  `bootstrap_poc.php`, verify installer completion through a read-only Admin
-  user readiness check inside the named disposable database; container state
-  alone is not a sufficient readiness signal.
-- E2E journeys must resolve disposable business fixtures by stable entity/ref keys,
-  not hard-coded row IDs. Auto-increment order on a clean database can map the
-  same ID to a no-self or different-workflow fixture and make a UI assertion
-  fail before the behavior under test is reached.
-- Recovery fields that represent validated option selections must be alias-only:
-  derive them server-side after authorization, never fall back to same-named
-  request fields, and revalidate them against current scoped options before
-  rendering. Cover both valid retention and request-injected aliases.
-- An E2E suite that creates fixtures or changes document ownership must call
-  the disposable Compose verifier before its first mutation. Temporary
-  environment variables in one run are not a boundary for later direct calls.
-- Presentation-copy convergence must include a repository-wide scan of exact
-  E2E labels across every spec before the full disposable rerun. Updating only
-  the feature's primary test file can leave equivalent auth, email, or shell
-  selectors stale and force otherwise avoidable environment rebuilds.
-- A presentation-wide French accent correction must classify every changed
-  string before editing. Accent visible copy and presentation metadata only;
-  never rewrite form keys, DOM/test identifiers, persistence literals, domain
-  error classifiers, audit/ECM values, or historical compatibility mappings.
-- A materially changed approved design package needs a clean next generation,
-  not edits to an immutable snapshot or a wholesale copy. Migrate every useful
-  artifact through a ledger, validate the candidate, update all active
-  pointers, and remove the retired package so typography and token guidance do
-  not remain split across stale authorities.
-- A mounted Apache policy must not assume optional modules are enabled in the
-  Dolibarr image. Validate server startup after every directive change; for a
-  browser referrer boundary, a repository-owned HTML meta policy and per-link
-  `referrerpolicy` can provide defense in depth while the production response
-  header remains an explicit reverse-proxy gate.
-- Role, scope, and account-deactivation changes must persist their access audit
-  inside the same transaction. If audit insertion fails, roll back every
-  authorization mutation and return only a safe user-facing failure.
-- Backup/restore capture and comparison commands must use Bash fail-fast mode
-  with `set -euo pipefail` and isolate directory changes in subshells (or use
-  absolute paths). Apply pipefail inside helper-container shells too. Never
-  print a PASS marker after unchecked `cmp`, `diff`, checksum, or piped capture
-  commands; a changed working directory or successful final pipe stage can
-  otherwise mask failed verification while leaving artifacts untouched.
-- A checksum-approved clean reset must derive deletion predicates from every
-  inventoried row's actual entity and identifier; do not assume custom rows
-  all use the active entity. Keep the mutation transactional so a surviving
-  foreign key fails closed, then prove every table count and file hash rolled
-  back before correcting the plan.
-- Dolibarr module activation can rerun historical update SQL even when the
-  module is already installed. Removing seed scripts is insufficient if an old
-  update file still contains data backfills. Run the non-seeding bootstrap and
-  persistent-absence verifier in sequence, and strip obsolete backfills while
-  retaining required schema/index/constraint operations.
-- Manual targeted Playwright runs must satisfy the same disposable identity
-  contract as the public runner: use an `mjl-test-` Compose project name and
-  set the repository root, base URL, port, Compose files, and isolated output
-  path explicitly. A container starting is not evidence that the disposable
-  guard accepted the run; only test output after global setup is valid.
-- When a reset contract retires an authorization helper or input, renaming it
-  behind a compatibility shim does not remove the dependency. Delete both the
-  definitions and callers, make each retained seam explicitly fail closed, and
-  keep a runtime-wide structural test that rejects replacement-name families.
+
 - Sequential browser submissions do not prove row-lock serialization. For a
   concurrency acceptance gate, use disposable-only deterministic barriers that
-  hold the real native mutation inside its transaction, start the competing
+  hold the real mutation inside its transaction, start the competing
   request while the lock is held, and verify both orderings plus teardown.
-- Direct disposable inserts into native Dolibarr tables must include the exact
-  current mandatory actor/entity fields and cleanup native relationship rows.
-  Prefer native creation paths for journey fixtures; reserve raw poison rows
-  for integrity/visibility cases backed by exact schema knowledge.
-- Dolibarr's `accessforbidden()` can render a denial document without changing
-  an already-successful HTTP status. Public controllers must set status 403
-  explicitly before calling it, and browser tests must assert both the status
-  and denial surface.
-- A route can pass navigation smoke tests while failing after the shell starts
-  because a presentation helper was only transitively available elsewhere.
-  Exercise each newly exposed destination to its primary form/content, and
-  treat PHP fatal-log scans as part of the route gate.
-- Dolibarr may invalidate a deactivated user's session before a custom guard
-  runs and redirect to a 200 login page. Immediate-access-loss tests must prove
-  that no protected workspace rendered and that the response is either an
-  explicit denial or the authenticated session returned to login; status alone
-  is not the security property.
-- Explicitly passing a Playwright file does not override a restrictive
-  `testMatch` allowlist. Every new E2E file must be added to discovery and the
-  focused gate must assert the expected executed-test count before its result
-  is accepted.
-- Dolibarr 23's `activateModule()` returns an array with an `errors` member;
-  comparing that result numerically can report failed activation as success.
-  Treat a non-empty error array as failure, keep native activation idempotent,
-  and force initialization only for the custom module that needs current SQL.
-- Restarting a disposable container clears tmpfs-backed client configuration.
-  Crash/restart tests must reconstruct the hardened credential file from the
-  container's already-scoped disposable secrets before readiness checks; a
-  missing tmpfs file is not a database recovery failure.
-- MariaDB can advance an `AUTO_INCREMENT` counter for a rejected insert. Tests
-  that demand complete before/after database digest equality should give
-  invalid probes explicit non-allocating technical IDs; row-count equality
-  alone misses allocator drift.
-- Independently implemented evidence encoders must share byte-exact framing for
-  nulls and delimiters, and their parity tests need nonempty retained rows with
-  nullable fields. Empty disposable tables can make incompatible encoders
-  appear identical until a shared-shaped backup is restored.
-- Docker `--rm` completion and daemon list visibility are not atomic. Exact-name
-  cleanup needs a bounded convergence window with immediate permission aborts;
-  remove and confirm owner containers before removing their dependent networks
-  or volumes. The test assertion should poll read-only categorical survivor
-  queries while a separate finalizer remains responsible for exact removal.
-- MariaDB `information_schema` ordering follows database collation, while PHP
-  `SORT_STRING` is bytewise. Exact schema detectors must normalize and sort
-  both expected and observed identifier sets in the same runtime before
-  comparing them, and must compare index uniqueness plus ordered columns rather
-  than names alone so same-name weakened indexes cannot pass verification.
-- A resumable DDL matrix cannot claim a distinct checkpoint after a no-op such
-  as `DROP ... IF EXISTS` on an object that never existed. Every injected
-  boundary needs an observable structural effect, and prefix classification
-  must compare full definitions (options, columns, indexes, foreign keys,
-  checks, and triggers), not only object names or counts.
+
 - SQL `CHECK` constraints accept the three-valued result `UNKNOWN`. Whenever a
   nullable operand is mandatory in one branch, require `IS NOT NULL`
   explicitly; a regex or comparison against `NULL` alone does not reject the
   row. Exact-schema tests should exercise the null branch, not only compare the
   stored constraint text.
-- Report size checks must reject excess rows before serializing the complete
-  document. A small PHP array using shared values can expand into a fatal-size
-  JSON string before a later memory check runs; count first and account for
-  bounded serialized chunks, including metadata and headings. Check headroom
-  before derived-record and typed-cell expansion too: even 10,000 small source
-  rows can exhaust PHP memory before the writer preflight is reached.
-- Shared-state test evidence includes the protected repository source digest.
-  Freeze source during these runs (or use an isolated fixed checkout); editing
-  code concurrently invalidates isolation evidence even when the database and
-  document storage remain untouched.
-- A migration gate's browser phase may intentionally run after rollback to a
-  historical predecessor. Match assertions to that exact endpoint and use the
-  returned fixture identifier for navigation; target-mode labels or markup can
-  be stale even when the application and migration behavior are correct.
-
-- For literal multiline report text, the installed `dol_escape_htmltag()`
-  defaults are not lossless: they turn LF into literal backslash-n, and can
-  normalize entities or remove selected tags. Use plain-text HTML escaping
-  before controlled line-break markup, and assert rendered multiline text in
-  the browser as well as exported bytes. This affected both Fiche fields and
-  Operations observations.
 
 - Historical audit text can contain quoted JSON credentials with spaces even
   when the original writer used a key-value sanitizer. Redact complete quoted
-  values before the legacy unquoted rule and before continuation splitting;
+  values before the unquoted rule and before continuation splitting;
   otherwise the first rule can consume only the prefix and expose the rest.
   Exercise actor snapshots as well as reasons/context, including escaped quotes.
 
@@ -226,67 +33,15 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   the fixture event’s captured date rather than its workflow date; otherwise a
   correct filter starts failing the day after the test is written.
 
-- `fputcsv()` can return a positive short byte count while `fflush()` succeeds.
-  Check writes against the complete encoded row length. Fault tests must fail
-  the final row: a later write can otherwise detect the full filesystem and
-  hide the silent-truncation bug in the earlier row.
-
-- The disposable reference factory requires keys unique across Partenaire,
-  Projet and Type collections, and decorates stored labels with a unique suffix.
-  Reusing a key in another collection or asserting an undecorated label prevents
-  later serial acceptance cases from running. Check fixture requests against the
-  factory contract and use the stored label or returned identifier for assertions.
 - Playwright `testMatch` filters explicit CLI file arguments too. When renaming or
   retaining a focused spec, update both the runner path and `testMatch`, then
   check discovery with `playwright test <file> --list --config=playwright.config.js`.
+
 - Playwright exact `getByLabel()` matching can include nested select option text
   even when the control's computed accessible name is just the label. For such
   controls, use `getByRole('combobox', { name: ..., exact: true })`; retain the
   name assertion instead of replacing it with an unrelated CSS selector.
 
-- A retained compatibility suite must prepare or verify the repository's
-  current installed schema before exercising older behavior. Reapplying an
-  obsolete predecessor migration can fail before the compatibility behavior
-  runs, even when that behavior remains valid on the current target.
-- A focused historical runner must not execute an unrelated predecessor
-  verifier before its selected current-purpose tests. Reconcile stale selectors
-  and preflights to the active route/template contract so the named gate proves
-  its declared oracle rather than obsolete setup ceremony.
-- A new aggregate gate should cover only evidence that existing public suites
-  do not already own. Keep established regressions as separate committed-source
-  commands; composing them into the new gate obscures coverage and multiplies
-  runtime without adding evidence.
-- A MariaDB container can answer an early root health probe before its scoped
-  application client is usable. Provision the scoped client first, then wait
-  with that exact client before running restore or verification SQL.
-
-- Select2 emits jQuery change events. Native-only listeners can miss real widget
-  selections even when Playwright `selectOption()` tests pass. Bind dependent
-  controls through jQuery when present and exercise the visible widget in E2E.
-
-- Progressive disclosure must keep the server-rendered fallback semantically honest: render ordinary anchors and usable forms first, then add ARIA tab roles, roving tabindex, hidden panels, and modal-only controls only after JavaScript enhancement. Otherwise no-JavaScript users receive unreachable links or visible inert buttons.
-- Shared action styles that set `display` can override the browser's default
-  `[hidden]` rule. For role-dependent actions inside a component, include a
-  component-scoped `[hidden] { display: none !important; }` rule and verify the
-  restricted role in the browser.
-- A `querySelector()` selector list does not prioritize selectors by their
-  written order; it returns the earliest matching element in DOM order. Scope
-  dialog initial-focus selectors to the form host when header controls appear
-  before the intended field.
-- `createExecutionFixtureSet()` submits and finalizes Activities unless
-  `finalize: false` is set. A finalized fixture therefore needs both an
-  `AGENT_VERIFICATEUR` and a `VALIDATEUR_DEFINITIF`; omitting the Supervisor
-  fails fixture setup before browser assertions begin. Its financial summary
-  must also assert validated authorization wording, not proposal wording.
-- A scoped detail read must prove that exactly one parent is visible before
-  querying its children. Otherwise an absent or unauthorized parent can fail
-  in a child query first and turn the intended authorization-safe 403 into a
-  generic 503.
-
-- Native Dolibarr password throttling counts `USER_LOGIN_FAILED` events, but
-  recording requires `MAIN_LOGEVENTS_USER_LOGIN_FAILED=1`. Verify setup through
-  an actual wrong-password event; enabling the recorder inside the test fixture
-  masks a missing application setting.
 - For OTP recovery, test expiry together with exhausted resends and a fresh
   password login. Testing expiry and resend caps separately missed a permanent
   pending-challenge trap; live challenge counters and active lockouts must still
@@ -304,21 +59,7 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   browser response body after navigation can fail with `Network.getResponseBody`
   even when the save succeeded; the Partner test already demonstrates the stable pattern.
 
-- Planning E2E tests must operate the visible Select2/date controls rather than
-  hidden native inputs. Resolve fixture option labels by their IDs because the
-  disposable fixture adds unique suffixes; use role-based names for controls
-  whose labels include required markers or nested option text.
-
-- No-input fixture calls through `docker compose exec` must explicitly use
-  `--interactive=false`. An empty process input can otherwise leave PHP waiting
-  for stdin EOF. Keep stdin enabled for fixture commands that consume input.
-
-- Report document builders return an internal `{activity_ids, document}` wrapper
-  for export authorization. REST preview adapters must expose only `document`;
-  test every report type through the public response because single-type coverage
-  misses wrapper-shape differences.
-
-## Rebuild and planning lessons
+## Application and planning lessons
 
 - For the approved PTA administrative workflows, do not make external fund
   custody/source-of-funds questions block application design. MJL records the
@@ -349,9 +90,8 @@ or FastAPI. Current rebuild/process lessons are collected at the end.
   physical attribute positions. A drop and re-add can leave internal column slots
   while restoring the same public schema, causing a false provenance rejection.
 
-- Completed slices left authorization prose in plans/readiness files looking
-  current. Add a brief completion pointer and retain the dated contract; do not
-  require another approval because an earlier document says unauthorized.
+- Completed plans should not look like pending authorization. Keep current
+  contracts in purpose-named guides; remove spent instructions and duplicate reports.
 - Repeated external execution prompts duplicated rules already approved in the
   repository. After a concrete slice is authorized, derive implementation locally
   from one current contract; ask about missing business choices, not prompt format.

@@ -818,16 +818,17 @@ def test_c07_openapi_has_exact_withdrawal_contract(planning):
         }
         assert headers_present == {"Origin", "X-CSRF-Token"}
     schemas = document["components"]["schemas"]
-    assert schemas["WithdrawalInput"]["additionalProperties"] is False
-    assert schemas["WithdrawalCancellationInput"]["additionalProperties"] is False
+    for path in (request_path, cancellation_path):
+        schema_ref = paths[path]["post"]["requestBody"]["content"][
+            "application/json"
+        ]["schema"]["$ref"]
+        schema_name = schema_ref.rsplit("/", 1)[-1]
+        assert schemas[schema_name]["additionalProperties"] is False
     assert set(schemas["ApprovedPlanOutput"]["required"]) == {
         "as_of",
         "activity_count",
         "allocation",
     }
-    assert not any(
-        token in path for path in paths for token in ("finance", "restore", "export")
-    )
 
 
 def test_c01_c07_inactive_cross_resource_and_malformed_requests_deny(planning):

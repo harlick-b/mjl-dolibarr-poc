@@ -11,9 +11,11 @@ export default defineConfig({
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
       : {},
   },
-  webServer: {
-    command: 'npm run preview -- --host 127.0.0.1',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: false,
-  },
+  webServer: process.env.MJL_PLAYWRIGHT_NO_SERVER
+    ? undefined
+    : {
+        command: 'npm run preview -- --host 127.0.0.1',
+        url: 'http://127.0.0.1:4173',
+        reuseExistingServer: false,
+      },
 })

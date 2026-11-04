@@ -245,7 +245,7 @@ def test_fiche_renders_withdrawal_submission_reason(planning):
     assert withdrawal_reason in content
 
 
-def test_fiche_renders_execution_corrections_and_financial_cancellation(planning):
+def test_fiche_renders_execution_corrections_and_financial_return(planning):
     activity = approved_execution_activity(planning, allocations=(100_000, 200_000))
     operation = activity["operations"][0]
     started = patch(
@@ -311,23 +311,13 @@ def test_fiche_renders_execution_corrections_and_financial_cancellation(planning
             "decision": "return",
             "reason": return_reason,
         },
-    ).json()
-    cancellation_reason = "Correction avant une nouvelle soumission."
-    cancelled = post(
-        planning["agent"],
-        f"{collection(complete)}/{submitted['id']}/cancellation",
-        {
-            "expected_version": returned["activity_version"],
-            "reason": cancellation_reason,
-        },
     )
-    assert cancelled.status_code == 201, cancelled.text
+    assert returned.status_code == 201, returned.text
     financial_content = pdf_text(planning["agent"].get(fiche_path(complete)))
     financial_content = re.sub(r"\s+", " ", financial_content)
     assert "Retourné" in financial_content
     assert return_reason in financial_content
-    assert "Annulation décaissement" in financial_content
-    assert cancellation_reason in financial_content
+    assert "Annulation décaissement" not in financial_content
 
 
 def test_fiche_splits_valid_maximum_length_description(planning):

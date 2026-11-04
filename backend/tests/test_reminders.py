@@ -342,18 +342,55 @@ def test_unconfirmed_delivery_result_is_never_retried(planning, monkeypatch):
     activity, _ = approved_activity(planning)
     assign(planning, activity, "agent")
     original = planning["auth"].audit
+    calls = 0
+
+    def sent(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_send(*args, **kwargs)
 
     def fail_delivery(db, action, *args, **kwargs):
         if action == "reminder.email_delivery":
             raise RuntimeError("synthetic audit failure")
         return original(db, action, *args, **kwargs)
 
+    original_send = planning["auth"].mail.send
+    monkeypatch.setattr(planning["auth"].mail, "send", sent)
     monkeypatch.setattr(planning["auth"], "audit", fail_delivery)
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 1
     assert len(reminder_mail(planning)) == 1
-    assert dispatch_due_reminders(planning["auth"], date(2028, 2, 9)) == 0
     item = planning["agent"].get("/api/v1/notifications").json()["data"][0]
+    assert deliver_reminder(planning["auth"], item["id"]) is None
+    assert dispatch_due_reminders(planning["auth"], date(2028, 2, 9)) == 0
+    assert calls == 1
     assert item["email_status"] == "unconfirmed"
+
+
+def test_provider_call_does_not_hold_the_global_mutation_lock(planning, monkeypatch):
+    from threading import Event
+
+    activity, _ = approved_activity(planning)
+    assigned, _ids = assign(planning, activity, "agent")
+    entered, release = Event(), Event()
+    original_send = planning["auth"].mail.send
+
+    def delayed(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return original_send(*args, **kwargs)
+
+    monkeypatch.setattr(planning["auth"].mail, "send", delayed)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        dispatched = pool.submit(
+            dispatch_due_reminders, planning["auth"], date(2028, 2, 8)
+        )
+        assert entered.wait(3)
+        changed = pool.submit(assign, planning, assigned, "agent", "agent2")
+        try:
+            assert changed.result(3)[0]["state"] == "approved"
+        finally:
+            release.set()
+        assert dispatched.result(7) == 1
 
 
 def test_assignment_change_serializes_before_dispatch(planning):

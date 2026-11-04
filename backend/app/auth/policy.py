@@ -197,11 +197,6 @@ def normalize_full_name(value: str) -> str:
         raise ValueError("Valid full name required")
     return name
 
-
-# Kept temporarily for callers migrated within this slice.
-synthetic_email = normalize_email
-
-
 def password_valid(value: str, confirmation: str, minimum: int) -> bool:
     return (
         value == confirmation

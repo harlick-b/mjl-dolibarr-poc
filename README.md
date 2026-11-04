@@ -1,22 +1,19 @@
 # MJL dedicated application
 
-MJL is a dedicated React/Vite and FastAPI application backed by PostgreSQL. The
-former Dolibarr proof of concept has been retired; its history remains available
-through Git and the historical documents under `docs/`.
+MJL is a React/Vite and FastAPI application backed by PostgreSQL.
 
-Read [the authority router](docs/mjl-authoritative-decisions.md) before changing
-business behavior. The [implementation roadmap](docs/mjl-implementation-roadmap-v2.md)
-records the current implemented boundary. Passing development checks does not
-mean user acceptance or production readiness.
+Read [business rules](docs/business-rules.md) before changing behavior.
+[Project status](docs/project-status.md) records current capabilities and remaining
+boundaries; passing development checks is not user acceptance or production readiness.
 
 ## Repository layout
 
 - `frontend/`: React, TanStack Router/Query, Tailwind and the installable PWA.
 - `backend/app/`: FastAPI routes, use cases and persistence.
-- `backend/migrations/`: Alembic migrations; current head is `0019_pta7b`.
+- `backend/migrations/`: Alembic migrations; current head is `0024_budget_funding`.
 - `backend/tests/` and `frontend/e2e/`: focused backend and browser checks.
-- `docs/rebuild/`: current architecture, security baseline, slice contracts and
-  implementation evidence.
+- `docs/`: [engineering](docs/engineering.md), [security](docs/security.md),
+  [design](docs/design.md), business rules and project status.
 - `compose.rebuild.yaml`: isolated local development stack.
 
 The local application supports invited real email identities and sends system

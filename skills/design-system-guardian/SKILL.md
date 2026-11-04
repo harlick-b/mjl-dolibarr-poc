@@ -13,11 +13,8 @@ dashboard, export, official-output, and E2E-covered flows.
 ## Read first
 
 - `AGENTS.md`
-- `docs/mjl-authoritative-decisions.md`
-- `DESIGN.md`
-- `docs/design-system/DESIGN.md`
-- `docs/design-system/audit/current-screen-inventory.md`
-- `docs/design-system/audit/current-ui-audit.md`
+- `docs/business-rules.md`
+- `docs/design.md`
 - Applicable supplied `docs/inspiration/` references when screens are affected
 
 ## Workflow
@@ -25,9 +22,9 @@ dashboard, export, official-output, and E2E-covered flows.
 1. Confirm the design-system gate for the touched surface before source changes.
    A documentation audit does not require generating screens or running E2E.
 2. Preserve French-first labels, invitation-only access, and guarded routes.
-3. Use approved v3 tokens for identity and supplied inspiration for composition.
-   Resolve conflicting palettes explicitly; default shadcn styles and legacy PHP
-   widget structure are not the rebuild visual authority. Missing inspiration
+3. Use approved design tokens for identity and supplied inspiration for composition.
+   Resolve conflicting palettes explicitly; default shadcn styles do not redefine
+   the approved visual identity. Missing inspiration
    blocks that product screen only.
 4. Validate responsive behavior, accessibility, and E2E impact.
 
