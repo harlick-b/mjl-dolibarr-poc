@@ -1,9 +1,29 @@
+import { strings } from '@/locales/fr/Router'
+import { strings as common } from '@/locales/fr/common'
+import {
+  SessionProvider,
+  useSessionQuery,
+} from '@/features/auth/SessionProvider'
+import { authorization, workspacePath } from '@/features/auth/authorization'
 import { AdminSidebar } from '@/features/access/AdminSidebar'
-import { AccessLoading, AccessView } from '@/features/access/AccessView'
-import { AuthLoading, AuthView } from '@/features/auth/AuthView'
-import { sessionKey, sessionQuery } from '@/features/auth/auth'
-import { useCallback, useEffect, useState } from 'react'
-import { useRouterState } from '@tanstack/react-router'
+import {
+  AccessGate,
+  AccessLoading,
+  AccessView,
+} from '@/features/access/AccessView'
+import {
+  AccessVerificationState,
+  AuthFrame,
+  AuthLoading,
+  AuthView,
+} from '@/features/auth/AuthView'
+import {
+  AccessProvider,
+  createAccessCoordinator,
+  useAccess,
+} from '@/features/auth/access-verification'
+import { useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { HealthView } from '@/features/health/HealthView'
 import {
   ExecutionView,
@@ -22,13 +42,11 @@ import {
   PartnerPortalView,
   PartnerLoading,
 } from '@/features/partner-portal/PartnerPortalView'
-import { healthQuery } from '@/features/health/health'
 import {
   MutationCache,
   QueryClient,
   QueryClientProvider,
   useQuery,
-  useQueryClient,
 } from '@tanstack/react-query'
 import { HelmetProvider } from 'react-helmet-async'
 import { Toaster, toast } from 'sonner'
@@ -40,40 +58,18 @@ import {
   createRouter,
   stripSearchParams,
   Link,
+  Navigate,
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
 import { Bell, FolderKanban, History, House } from 'lucide-react'
 import { useAPI } from '@/shared/api/RestClientProvider'
+import { FallbackState } from '@/shared/ui/FallbackState'
 
 function WorkspaceShell() {
   const { api } = useAPI()
-  const client = useQueryClient()
-  const session = useQuery(sessionQuery)
-  const [invalidatedAt, setInvalidatedAt] = useState(0)
+  const session = useSessionQuery()
   const userId = session.data?.user?.id
-  const clear = useCallback(() => {
-    setInvalidatedAt(Date.now())
-    void client.cancelQueries({ queryKey: sessionKey })
-    void client.cancelQueries({ queryKey: ['notifications'] })
-    client.removeQueries({ queryKey: ['notifications'] })
-  }, [client])
-  useEffect(() => {
-    const channel = new BroadcastChannel('mjl-auth')
-    channel.onmessage = clear
-    window.addEventListener('offline', clear)
-    const timer = session.data?.expires_at
-      ? setTimeout(
-          clear,
-          Math.max(0, Date.parse(session.data.expires_at) - Date.now()),
-        )
-      : undefined
-    return () => {
-      channel.close()
-      window.removeEventListener('offline', clear)
-      clearTimeout(timer)
-    }
-  }, [clear, session.data?.expires_at])
   const unread = useQuery({
     queryKey: ['notifications', userId, 'unread', '', 1],
     queryFn: ({ signal }) =>
@@ -83,26 +79,16 @@ function WorkspaceShell() {
       session.data?.user?.role === 'AGENT_SAISIE',
     gcTime: 0,
   })
-  if (
-    session.data?.state === 'verified' &&
-    session.data?.user?.role === 'ADMIN_PLATEFORME'
-  )
+  if (authorization(session.data).can('accounts'))
     return (
       <div className="access-layout">
-        {!session.isError &&
-        !session.isFetching &&
-        navigator.onLine &&
-        session.dataUpdatedAt > invalidatedAt ? (
-          <AdminSidebar user={session.data.user} />
-        ) : (
-          <aside className="access-sidebar" aria-hidden="true" />
-        )}
+        <AdminSidebar user={session.data.user} />
         <main className="workspace-main">
           <Outlet />
         </main>
       </div>
     )
-  if (session.data?.user?.role === 'PARTENAIRE')
+  if (authorization(session.data).can('partner'))
     return (
       <div className="workspace-shell">
         <aside className="workspace-sidebar partner-sidebar">
@@ -152,9 +138,7 @@ function WorkspaceShell() {
               </span>
             )}
           </Link>
-          {['ADMIN_PLATEFORME', 'VALIDATEUR_DEFINITIF'].includes(
-            session.data?.user?.role,
-          ) && (
+          {authorization(session.data).can('audit') && (
             <Link to="/history" activeProps={{ 'aria-current': 'page' }}>
               <History aria-hidden="true" size={19} /> Historique
             </Link>
@@ -168,8 +152,119 @@ function WorkspaceShell() {
   )
 }
 
+function ProtectedGate({ children, path }) {
+  const access = useAccess()
+  if (access.status === 'unknown' || access.status === 'checking')
+    return <AccessVerificationState />
+  if (access.status === 'anonymous') return <Navigate to="/login" replace />
+  if (access.status === 'pending')
+    return <Navigate to="/verification" replace />
+  if (access.reason === 'logout') {
+    if (path !== '/identity') return <Navigate to="/identity" replace />
+    return <div data-access-protected="true">{children}</div>
+  }
+  if (access.status !== 'verified')
+    return (
+      <AccessVerificationState
+        failed
+        offline={access.reason === 'offline'}
+        onRetry={() => void access.verify({ manual: true }).catch(() => null)}
+      />
+    )
+  return <div data-access-protected="true">{children}</div>
+}
+
+function RouteFailure() {
+  return (
+    <FallbackState
+      title={strings.unexpectedTitle}
+      action={
+        <button
+          className="planning-button"
+          onClick={() => window.location.reload()}
+          type="button"
+        >
+          {strings.reload}
+        </button>
+      }
+    >
+      <p>{strings.unexpectedMessage}</p>
+    </FallbackState>
+  )
+}
+
+function AuthRouteFailure() {
+  return (
+    <AuthFrame title={strings.unexpectedTitle}>
+      <RouteFailure />
+    </AuthFrame>
+  )
+}
+
+function AccessRouteFailure() {
+  return (
+    <AccessGate>
+      <RouteFailure />
+    </AccessGate>
+  )
+}
+
 function Shell() {
-  const path = useRouterState({ select: (state) => state.location.pathname })
+  const path = useLocation({ select: (location) => location.pathname })
+  const navigate = useNavigate()
+  const access = useAccess()
+  const handledIdentityVersion = useRef(0)
+  useEffect(() => {
+    if (path !== '/health' && access.status === 'unknown')
+      void access.verify().catch(() => null)
+  }, [access, path])
+  useEffect(() => {
+    if (
+      access.status !== 'verified' ||
+      access.identityVersion <= handledIdentityVersion.current
+    )
+      return
+    handledIdentityVersion.current = access.identityVersion
+    const destination = workspacePath(access.session.user.role)
+    if (path !== destination) void navigate({ to: destination, replace: true })
+  }, [access, navigate, path])
+  const protectedPath =
+    path === '/identity' ||
+    path === '/access/users' ||
+    path === '/partner' ||
+    path === '/notifications' ||
+    path === '/history' ||
+    path === '/partners' ||
+    path.startsWith('/projects') ||
+    path.startsWith('/activities') ||
+    path.startsWith('/execution')
+  const knownPath =
+    protectedPath ||
+    [
+      '/',
+      '/health',
+      '/login',
+      '/invitation',
+      '/verification',
+      '/forgot-password',
+      '/reset-password',
+    ].includes(path)
+  if (!knownPath && access.status === 'verified')
+    return (
+      <ProtectedGate path={path}>
+        <WorkspaceShell />
+      </ProtectedGate>
+    )
+  if (
+    path === '/access/users' &&
+    access.status === 'verified' &&
+    access.session.user.role !== 'ADMIN_PLATEFORME'
+  )
+    return (
+      <ProtectedGate path={path}>
+        <WorkspaceShell />
+      </ProtectedGate>
+    )
   if (
     [
       '/',
@@ -181,17 +276,28 @@ function Shell() {
       '/reset-password',
       '/access/users',
     ].includes(path)
-  )
-    return <Outlet />
+  ) {
+    const content = <Outlet />
+    return protectedPath ? (
+      <ProtectedGate path={path}>{content}</ProtectedGate>
+    ) : (
+      content
+    )
+  }
   if (
     path === '/partner' ||
     path === '/notifications' ||
     path === '/history' ||
+    path === '/partners' ||
     path.startsWith('/projects') ||
     path.startsWith('/activities') ||
     path.startsWith('/execution')
   )
-    return <WorkspaceShell />
+    return (
+      <ProtectedGate path={path}>
+        <WorkspaceShell />
+      </ProtectedGate>
+    )
   return (
     <div className="min-h-screen">
       <header className="border-b border-border bg-white">
@@ -237,17 +343,24 @@ function Shell() {
 }
 
 function NotFound() {
+  const access = useAccess()
+  const destination =
+    access.status === 'verified' ? workspacePath(access.session.user.role) : '/'
   return (
-    <section>
-      <h1 className="text-2xl font-semibold">Page introuvable</h1>
-      <Link to="/" className="mt-4 inline-block underline">
-        Retour à l’accueil
-      </Link>
-    </section>
+    <FallbackState
+      title={strings.notFound}
+      action={
+        <Link to={destination} className="planning-button">
+          {common.returnToWorkspace}
+        </Link>
+      }
+    >
+      <p>{strings.notFoundMessage}</p>
+    </FallbackState>
   )
 }
 
-export function makeRouter(history) {
+export function makeRouter(history, componentOverrides = {}) {
   const queryClient = new QueryClient({
     mutationCache: new MutationCache({
       onError: (error, _variables, _context, mutation) => {
@@ -263,19 +376,19 @@ export function makeRouter(history) {
   const root = createRootRoute({
     component: Shell,
     notFoundComponent: NotFound,
+    errorComponent: RouteFailure,
   })
   const home = createRoute({
     getParentRoute: () => root,
     path: '/',
-    component: AuthView,
+    component: componentOverrides.auth || AuthView,
+    errorComponent: AuthRouteFailure,
   })
   const health = createRoute({
     getParentRoute: () => root,
     path: '/health',
     component: HealthView,
-    loader: ({ context }) => {
-      void context.queryClient.prefetchQuery(healthQuery)
-    },
+    errorComponent: RouteFailure,
   })
   const authRoutes = [
     '/login',
@@ -288,7 +401,8 @@ export function makeRouter(history) {
     createRoute({
       getParentRoute: () => root,
       path,
-      component: AuthView,
+      component: componentOverrides.auth || AuthView,
+      errorComponent: AuthRouteFailure,
       pendingComponent: () => <AuthLoading path={path} />,
       pendingMs: 0,
       pendingMinMs: 0,
@@ -309,22 +423,7 @@ export function makeRouter(history) {
           )
         }
         try {
-          const routeSessionQuery = {
-            ...sessionQuery,
-            queryFn: () =>
-              context.api.auth('session', { signal: abortController.signal }),
-          }
-          let session
-          try {
-            session = await context.queryClient.fetchQuery(routeSessionQuery)
-          } catch (error) {
-            if (error.status !== 401) throw error
-            context.queryClient.removeQueries({
-              queryKey: sessionQuery.queryKey,
-              exact: true,
-            })
-            session = await context.queryClient.fetchQuery(routeSessionQuery)
-          }
+          const session = await context.access.verify()
           if (proof) {
             const endpoint =
               path === '/invitation'
@@ -348,6 +447,7 @@ export function makeRouter(history) {
     getParentRoute: () => root,
     path: '/access/users',
     component: AccessView,
+    errorComponent: AccessRouteFailure,
     pendingComponent: AccessLoading,
     pendingMs: 0,
     pendingMinMs: 0,
@@ -399,18 +499,12 @@ export function makeRouter(history) {
           ? Number(search.invitationPage)
           : 1,
     }),
-    loader: async ({ context }) => {
-      try {
-        await context.queryClient.fetchQuery(sessionQuery)
-      } catch {
-        /* View distinguishes denied and unavailable. */
-      }
-    },
   })
   const partnerPortal = createRoute({
     getParentRoute: () => root,
     path: '/partner',
     component: PartnerPortalView,
+    errorComponent: RouteFailure,
     pendingComponent: PartnerLoading,
     pendingMs: 0,
     pendingMinMs: 0,
@@ -424,13 +518,6 @@ export function makeRouter(history) {
       activityCursor: String(search.activityCursor || '').slice(0, 512),
       documentCursor: String(search.documentCursor || '').slice(0, 512),
     }),
-    loader: async ({ context }) => {
-      try {
-        await context.queryClient.fetchQuery(sessionQuery)
-      } catch {
-        /* The protected view owns denial and unavailable states. */
-      }
-    },
   })
   const planningRoutes = [
     ['/partners', 'partners'],
@@ -442,7 +529,10 @@ export function makeRouter(history) {
     createRoute({
       getParentRoute: () => root,
       path,
-      component: () => <PlanningView screen={screen} />,
+      component: componentOverrides.planning
+        ? componentOverrides.planning
+        : () => <PlanningView screen={screen} />,
+      errorComponent: RouteFailure,
       pendingComponent: () => <PlanningLoading screen={screen} />,
       pendingMs: 0,
       pendingMinMs: 0,
@@ -458,13 +548,6 @@ export function makeRouter(history) {
         revision: String(search.revision || '').slice(0, 36),
         amendment: String(search.amendment || '').slice(0, 36),
       }),
-      loader: async ({ context }) => {
-        try {
-          await context.queryClient.fetchQuery(sessionQuery)
-        } catch {
-          /* The protected view handles denial without exposing cached data. */
-        }
-      },
     }),
   )
   const executionRoutes = [
@@ -475,6 +558,7 @@ export function makeRouter(history) {
       getParentRoute: () => root,
       path,
       component: () => <ExecutionView screen={screen} />,
+      errorComponent: RouteFailure,
       pendingComponent: () => <ExecutionLoading screen={screen} />,
       pendingMs: 0,
       pendingMinMs: 0,
@@ -492,19 +576,13 @@ export function makeRouter(history) {
         virementCursor: String(search.virementCursor || '').slice(0, 512),
         virementRequest: String(search.virementRequest || '').slice(0, 36),
       }),
-      loader: async ({ context }) => {
-        try {
-          await context.queryClient.fetchQuery(sessionQuery)
-        } catch {
-          /* The protected view handles denial without exposing cached data. */
-        }
-      },
     }),
   )
   const notifications = createRoute({
     getParentRoute: () => root,
     path: '/notifications',
     component: NotificationView,
+    errorComponent: RouteFailure,
     pendingComponent: NotificationsLoading,
     pendingMs: 0,
     pendingMinMs: 0,
@@ -512,18 +590,12 @@ export function makeRouter(history) {
     validateSearch: (search) => ({
       cursor: String(search.cursor || '').slice(0, 512),
     }),
-    loader: async ({ context }) => {
-      try {
-        await context.queryClient.fetchQuery(sessionQuery)
-      } catch {
-        /* View owns the denied/unavailable presentation. */
-      }
-    },
   })
   const historyRoute = createRoute({
     getParentRoute: () => root,
     path: '/history',
     component: AuditHistoryView,
+    errorComponent: RouteFailure,
     pendingComponent: HistoryLoading,
     pendingMs: 0,
     pendingMinMs: 0,
@@ -532,14 +604,12 @@ export function makeRouter(history) {
     validateSearch: (search) => ({
       cursor: String(search.cursor || '').slice(0, 512),
     }),
-    loader: async ({ context }) => {
-      try {
-        await context.queryClient.fetchQuery(sessionQuery)
-      } catch {
-        /* View owns denial. */
-      }
-    },
   })
+  const accessCoordinator = createAccessCoordinator({
+    queryClient,
+    readSession: ({ signal }) => api.auth('session', { signal }),
+  })
+  api.configureAccess(accessCoordinator)
   return createRouter({
     routeTree: root.addChildren([
       home,
@@ -552,7 +622,7 @@ export function makeRouter(history) {
       notifications,
       historyRoute,
     ]),
-    context: { queryClient, api },
+    context: { queryClient, api, access: accessCoordinator },
     history,
   })
 }
@@ -562,8 +632,12 @@ export function App({ router }) {
     <HelmetProvider>
       <RestClientProvider client={router.options.context.api}>
         <QueryClientProvider client={router.options.context.queryClient}>
-          <RouterProvider router={router} />
-          <Toaster position="top-right" richColors />
+          <AccessProvider coordinator={router.options.context.access}>
+            <SessionProvider>
+              <RouterProvider router={router} />
+              <Toaster position="top-right" richColors />
+            </SessionProvider>
+          </AccessProvider>
         </QueryClientProvider>
       </RestClientProvider>
     </HelmetProvider>

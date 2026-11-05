@@ -44,7 +44,13 @@ function fixture(download) {
         body = {
           state: 'verified',
           csrf: 'csv-csrf',
-          user: { id: 'partner', role: 'PARTENAIRE', partner_id: 'partner-1' },
+          user: {
+            id: 'partner',
+            email: 'user@example.test',
+            role: 'PARTENAIRE',
+            partner_id: 'partner-1',
+          },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
         }
       else if (path.endsWith('/profile')) body = { name: 'Partenaire' }
       else if (path.includes('/projects?'))

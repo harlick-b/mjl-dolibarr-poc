@@ -422,7 +422,7 @@ e.dispose()`,
   )
   await agentContext.setOffline(true)
   await expect(
-    agent.getByRole('heading', { name: 'Accès à vérifier' }),
+    agent.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   await agentContext.setOffline(false)
   expect(writes).toBe(0)

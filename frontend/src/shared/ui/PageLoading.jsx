@@ -1,6 +1,7 @@
 import { LoaderCircle } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/PageLoading'
+import { strings as common } from '@/locales/fr/common'
 
 export function LoadingPlaceholder({ label, variant = 'table' }) {
   return (
@@ -19,19 +20,23 @@ export function LoadingPlaceholder({ label, variant = 'table' }) {
   )
 }
 
-export function PageLoading({ title, variant = 'table' }) {
+export function PageLoading({ title }) {
   return (
-    <section className="planning-stack">
+    <section
+      className="page-loading"
+      role="status"
+      aria-label={strings.formatString(common.pageLoading, { page: title })}
+      aria-busy="true"
+    >
       <Helmet>
         <title>{title} — MJL</title>
       </Helmet>
-      <header className="planning-heading">
-        <h1>{title}</h1>
-      </header>
-      <LoadingPlaceholder
-        label={strings.formatString(strings.pageLoading, { page: title })}
-        variant={variant}
+      <LoaderCircle
+        className="page-loading-spinner"
+        size={22}
+        aria-hidden="true"
       />
+      <p>{common.dataLoading}</p>
     </section>
   )
 }

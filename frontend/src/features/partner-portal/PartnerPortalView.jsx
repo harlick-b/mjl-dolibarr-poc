@@ -1,14 +1,18 @@
+import { useSessionQuery } from '@/features/auth/SessionProvider'
+import { authorization } from '@/features/auth/authorization'
 import { PageLoading, LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Navigate, useNavigate, useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { sessionKey, sessionQuery } from '@/features/auth/auth'
 import { formatXof } from '@/shared/lib/format'
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/PartnerPortalView'
+import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import { AccessRecovery } from '@/features/auth/AccessRecovery'
 import { PartnerDocuments } from './PartnerDocuments'
+import { useProtectedCleanup } from '@/features/auth/access-verification'
+import { RetryableError } from '@/shared/ui/RetryableError'
+import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 
 const emptyList = { data: [] }
 
@@ -73,14 +77,15 @@ function PortalPagination({ page, change, label }) {
 }
 
 function portalQuery(api, key, path, onDenied, enabled = true) {
+  const queryKey = ['partner-portal', ...key]
   return {
-    queryKey: ['partner-portal', ...key],
+    queryKey,
     queryFn: async ({ signal }) => {
       try {
         return await api.request(`/api/v1/partner-portal/${path}`, { signal })
       } catch (error) {
-        if (error?.status === 401 || error?.status === 403)
-          onDenied(error.status)
+        if ([401, 403, 404].includes(error?.status))
+          onDenied(error.status, queryKey)
         throw error
       }
     },
@@ -95,34 +100,23 @@ export function PartnerPortalView() {
   const client = useQueryClient()
   const navigate = useNavigate()
   const search = useSearch({ from: '/partner' })
-  const session = useQuery(sessionQuery)
+  const session = useSessionQuery()
   const user = session.data?.user
-  const permitted =
-    session.data?.state === 'verified' && user?.role === 'PARTENAIRE'
-  const [blocked, setBlocked] = useState(() => !navigator.onLine)
+  const permitted = authorization(session.data).can('partner')
   const [downloadGuard] = useState(() => new DownloadGuard())
+  useProtectedCleanup(() => downloadGuard.revoke())
   const deny = useCallback(
-    (status) => {
+    (status, queryKey) => {
       downloadGuard.revoke()
-      setBlocked(true)
-      void client.cancelQueries({ queryKey: ['partner-portal'] })
-      client.removeQueries({ queryKey: ['partner-portal'] })
-      client.getMutationCache().clear()
-      if (status === 401) {
-        void client.cancelQueries({ queryKey: sessionKey })
-        client.removeQueries({ queryKey: sessionKey })
-      }
+      if (![403, 404].includes(status) || !queryKey) return
+      if (queryKey[2] === 'profile')
+        client.setQueriesData({ queryKey: ['partner-portal', user?.id] }, null)
+      else client.setQueryData(queryKey, null)
     },
-    [client, downloadGuard],
+    [client, downloadGuard, user?.id],
   )
   const profile = useQuery(
-    portalQuery(
-      api,
-      [user?.id, 'profile'],
-      'profile',
-      deny,
-      permitted && !blocked,
-    ),
+    portalQuery(api, [user?.id, 'profile'], 'profile', deny, permitted),
   )
   const projects = useQuery(
     portalQuery(
@@ -133,7 +127,7 @@ export function PartnerPortalView() {
         ...(search.projectCursor ? { cursor: search.projectCursor } : {}),
       })}`,
       deny,
-      permitted && !blocked,
+      permitted,
     ),
   )
   const projectRows = projects.data?.data || emptyList.data
@@ -148,7 +142,7 @@ export function PartnerPortalView() {
         ...(search.ptaCursor ? { cursor: search.ptaCursor } : {}),
       })}`,
       deny,
-      permitted && !blocked && Boolean(selectedProject),
+      permitted && Boolean(selectedProject),
     ),
   )
   const ptaRows = ptas.data?.data || emptyList.data
@@ -163,7 +157,7 @@ export function PartnerPortalView() {
         ...(search.activityCursor ? { cursor: search.activityCursor } : {}),
       })}`,
       deny,
-      permitted && !blocked && Boolean(selectedPta),
+      permitted && Boolean(selectedPta),
     ),
   )
   const activityRows = activities.data?.data || emptyList.data
@@ -178,7 +172,7 @@ export function PartnerPortalView() {
       [user?.id, 'detail', selectedActivityId],
       `activities/${selectedActivityId}`,
       deny,
-      permitted && !blocked && Boolean(selectedActivityId),
+      permitted && Boolean(selectedActivityId),
     ),
   )
   const fiche = useMutation({
@@ -204,7 +198,7 @@ export function PartnerPortalView() {
       return null
     },
     onError: (error) => {
-      if (error?.status === 401 || error?.status === 403) deny(error.status)
+      if (error?.status === 401) deny(error.status)
     },
   })
 
@@ -235,7 +229,7 @@ export function PartnerPortalView() {
       window.setTimeout(() => URL.revokeObjectURL(href), 0)
     },
     onError: (error) => {
-      if (error?.status === 401 || error?.status === 403) deny(error.status)
+      if (error?.status === 401) deny(error.status)
     },
   })
   useEffect(() => {
@@ -250,63 +244,10 @@ export function PartnerPortalView() {
       client.getMutationCache().clear()
     }
   }, [client, downloadGuard, permitted])
-  useEffect(() => {
-    const clear = () => deny()
-    const channel = new BroadcastChannel('mjl-auth')
-    channel.onmessage = clear
-    window.addEventListener('offline', clear)
-    const timer = session.data?.expires_at
-      ? setTimeout(
-          clear,
-          Math.max(0, Date.parse(session.data.expires_at) - Date.now()),
-        )
-      : undefined
-    return () => {
-      downloadGuard.revoke()
-      channel.close()
-      window.removeEventListener('offline', clear)
-      clearTimeout(timer)
-    }
-  }, [deny, downloadGuard, session.data?.expires_at])
-
-  if (blocked)
-    return (
-      <div className="planning-error" role="alert">
-        Votre accès doit être vérifié avant de réafficher ce portefeuille.
-        <AccessRecovery
-          session={session}
-          onVerified={() => setBlocked(false)}
-        />
-      </div>
-    )
-
-  if (session.error?.status === 401 || session.data?.state === 'anonymous')
-    return <Navigate to="/login" replace />
-  if (session.data?.state === 'pending')
-    return <Navigate to="/verification" replace />
-  if (session.isError)
-    return (
-      <div className="planning-error">
-        Votre identité n’a pas pu être vérifiée.
-      </div>
-    )
   if (session.isPending) return <PartnerLoading />
-  if (!permitted)
-    return (
-      <div className="planning-error">
-        Cet espace est réservé aux Partenaires.
-      </div>
-    )
+  if (!permitted) return <AccessDeniedState role={user?.role} />
 
-  const queries = [
-    profile,
-    projects,
-    ...(selectedProject ? [ptas] : []),
-    ...(selectedPta ? [activities] : []),
-    ...(selectedActivityId ? [detail] : []),
-  ]
-  const loading = queries.some((query) => query.isPending || query.isFetching)
-  const unavailable = queries.some((query) => query.isError)
+  const primaryQueries = [profile, projects]
   const changeSearch = (values) => {
     downloadGuard.revoke()
     return navigate({
@@ -329,6 +270,23 @@ export function PartnerPortalView() {
       },
     })
   }
+  if (primaryQueries.some((query) => query.isError))
+    return (
+      <RetryableError
+        page
+        onRetry={() =>
+          void Promise.all(
+            primaryQueries
+              .filter((query) => query.isError)
+              .map((query) => query.refetch()),
+          )
+        }
+      >
+        {strings.portfolioUnavailable}
+      </RetryableError>
+    )
+  if (primaryQueries.some((query) => query.isPending))
+    return <PageLoading title={strings.partnerTitle} />
   return (
     <section className="planning-stack partner-portal">
       <Helmet>
@@ -337,25 +295,17 @@ export function PartnerPortalView() {
       <header className="planning-heading">
         <div>
           <p className="partner-eyebrow">Vue d’ensemble</p>
-          <h1>Bonjour, {profile.data?.name || 'Partenaire'}</h1>
+          <h1>
+            Bonjour,{' '}
+            {!profile.isError && profile.data?.name
+              ? profile.data.name
+              : 'Partenaire'}
+          </h1>
           <p>Suivez vos Projets, PTA et Activités approuvées.</p>
         </div>
         <span className="partner-readonly">Lecture seule</span>
       </header>
-      {loading && (
-        <LoadingPlaceholder
-          label={strings.formatString(strings.pageLoading, {
-            page: strings.partnerTitle,
-          })}
-          variant="detail"
-        />
-      )}
-      {unavailable && (
-        <div className="planning-error" role="alert">
-          Votre portefeuille est momentanément indisponible.
-        </div>
-      )}
-      {!loading && !unavailable && !projectRows.length && (
+      {!projectRows.length && (
         <article className="planning-card">
           <h2>Aucun Projet approuvé</h2>
           <p>
@@ -363,7 +313,7 @@ export function PartnerPortalView() {
           </p>
         </article>
       )}
-      {!loading && !unavailable && projectRows.length > 0 && (
+      {projectRows.length > 0 && (
         <>
           <article className="planning-card">
             <div className="planning-title">
@@ -426,7 +376,17 @@ export function PartnerPortalView() {
               }
             />
           </article>
-          {selectedPta ? (
+          {ptas.isError ? (
+            <RetryableError onRetry={() => void ptas.refetch()}>
+              {strings.ptasUnavailable}
+            </RetryableError>
+          ) : ptas.isPending ? (
+            <LoadingPlaceholder
+              label={strings.formatString(common.pageLoading, {
+                page: strings.ptaLabel,
+              })}
+            />
+          ) : selectedPta ? (
             <article className="planning-card">
               <div className="planning-title">
                 <div>
@@ -474,7 +434,7 @@ export function PartnerPortalView() {
               </div>
               <PortalPagination
                 page={ptas.data}
-                label="PTA"
+                label={strings.ptaLabel}
                 change={(ptaCursor) =>
                   changeSearch({
                     ptaCursor,
@@ -508,7 +468,17 @@ export function PartnerPortalView() {
                 </article>
               </div>
               <h3>Activités approuvées</h3>
-              {activities.data?.data.length ? (
+              {activities.isError ? (
+                <RetryableError onRetry={() => void activities.refetch()}>
+                  {strings.activitiesUnavailable}
+                </RetryableError>
+              ) : activities.isPending ? (
+                <LoadingPlaceholder
+                  label={strings.formatString(common.pageLoading, {
+                    page: strings.activitiesLabel,
+                  })}
+                />
+              ) : activities.data?.data.length ? (
                 <ul className="planning-list">
                   {activityRows.map((activity) => (
                     <li key={activity.id}>
@@ -539,7 +509,7 @@ export function PartnerPortalView() {
               )}
               <PortalPagination
                 page={activities.data}
-                label="Activités"
+                label={strings.activitiesLabel}
                 change={(activityCursor) =>
                   changeSearch({ activityCursor, activity: '' })
                 }
@@ -549,6 +519,19 @@ export function PartnerPortalView() {
             <article className="planning-card">
               <h2>Aucun PTA disponible</h2>
             </article>
+          )}
+          {detail.isError && (
+            <RetryableError onRetry={() => void detail.refetch()}>
+              {strings.detailUnavailable}
+            </RetryableError>
+          )}
+          {detail.isPending && selectedActivityId && (
+            <LoadingPlaceholder
+              label={strings.formatString(common.pageLoading, {
+                page: strings.activityDetailLabel,
+              })}
+              variant="detail"
+            />
           )}
           {detail.data && (
             <article className="planning-card" aria-labelledby="partner-detail">

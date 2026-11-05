@@ -45,6 +45,7 @@ async function fixture(
         csrf: 'synthetic',
         user: {
           id: 'user-1',
+          email: 'person@example.test',
           role,
           partner_id: role === 'PARTENAIRE' ? 'partner-1' : undefined,
         },
@@ -120,7 +121,7 @@ test('uncertain upload from an older page can be reconciled inside the native di
   expect(uploads).toBe(1)
 })
 
-test('Partner access can be verified again after a temporary offline interruption', async ({
+test('Partner access is verified again after a temporary offline interruption', async ({
   page,
   context,
 }) => {
@@ -132,7 +133,6 @@ test('Partner access can be verified again after a temporary offline interruptio
     page.getByText('Bonjour, Partenaire synthétique'),
   ).not.toBeVisible()
   await context.setOffline(false)
-  await page.getByRole('button', { name: 'Vérifier mon accès' }).click()
   await expect(page.getByText('Bonjour, Partenaire synthétique')).toBeVisible()
 })
 

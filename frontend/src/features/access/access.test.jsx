@@ -75,7 +75,18 @@ test('non-Admin sees denial and never requests the account lists', async () => {
   expect(
     await screen.findByRole('heading', { name: 'Accès refusé' }),
   ).toBeVisible()
-  expect(fetch.mock.calls.every(([url]) => url.includes('/auth/'))).toBe(true)
+  expect(
+    screen.getByRole('link', { name: 'Retour à mon espace' }),
+  ).toHaveAttribute('href', '/projects')
+  expect(
+    screen.getByRole('navigation', { name: 'Espace de travail' }),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('navigation', { name: 'Administration' }),
+  ).toBeNull()
+  expect(
+    fetch.mock.calls.some(([url]) => String(url).includes('/api/v1/access/')),
+  ).toBe(false)
 })
 
 test('unavailable identity does not become a logout or privileged view', async () => {
@@ -85,7 +96,9 @@ test('unavailable identity does not become a logout or privileged view', async (
   )
   mount()
   expect(
-    await screen.findByRole('heading', { name: 'Service indisponible' }),
+    await screen.findByRole('heading', {
+      name: 'Impossible de vérifier votre accès',
+    }),
   ).toBeVisible()
   expect(
     screen.queryByRole('button', { name: 'Inviter un utilisateur' }),
@@ -149,7 +162,7 @@ test('offline invalidation cancels lists and ignores late responses', async () =
   await act(async () => {
     window.dispatchEvent(new Event('offline'))
   })
-  await screen.findByRole('heading', { name: 'Accès à vérifier' })
+  await screen.findByRole('heading', { name: 'Connexion indisponible' })
   await act(async () => {
     for (const resolve of pending)
       resolve(
@@ -177,7 +190,7 @@ test('offline invalidation cancels lists and ignores late responses', async () =
   ).toEqual([])
 })
 
-test('a direct API denial removes Admin controls and sensitive query data', async () => {
+test('a direct list denial stays local to the Admin view', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn((url) =>
@@ -189,15 +202,11 @@ test('a direct API denial removes Admin controls and sensitive query data', asyn
     ),
   )
   const router = mount()
+  expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0)
   expect(
-    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
+    screen.getByRole('button', { name: 'Inviter un utilisateur' }),
   ).toBeVisible()
-  expect(
-    screen.queryByRole('button', { name: 'Inviter un utilisateur' }),
-  ).not.toBeInTheDocument()
-  expect(
-    router.options.context.queryClient.getQueriesData({ queryKey: ['access'] }),
-  ).toEqual([])
+  expect(router.options.context.access.getSnapshot().status).toBe('verified')
 })
 
 // Real dialog focus and network behavior are covered by the browser journey.
@@ -326,8 +335,11 @@ test('Admin binds a Partner invitation to the selected Partner', async () => {
     await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
   )
   const dialog = screen.getByRole('dialog')
-  fireEvent.change(within(dialog).getByLabelText('Nom complet'), {
-    target: { value: 'John Doe' },
+  fireEvent.change(within(dialog).getByLabelText('Prénom'), {
+    target: { value: 'John' },
+  })
+  fireEvent.change(within(dialog).getByLabelText('Nom de famille'), {
+    target: { value: 'Doe' },
   })
   fireEvent.change(within(dialog).getByLabelText('Rôle'), {
     target: { value: 'PARTENAIRE' },
@@ -337,6 +349,8 @@ test('Admin binds a Partner invitation to the selected Partner', async () => {
       fetch.mock.calls.some(([url]) => String(url).includes('/partners?')),
     ).toBe(true),
   )
+  await within(dialog).findByRole('option', { name: 'Premier' })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Suivant' }))
   expect(await screen.findByText('Partenaire Démo')).toBeVisible()
   fireEvent.change(within(dialog).getByLabelText('Adresse e-mail'), {
     target: { value: 'portal@example.test' },
@@ -355,7 +369,7 @@ test('Admin binds a Partner invitation to the selected Partner', async () => {
   )
 })
 
-test('Partner option authorization loss clears the Admin workspace', async () => {
+test('Partner option authorization denial stays local to the invitation form', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn((url) => {
@@ -388,14 +402,9 @@ test('Partner option authorization loss clears the Admin workspace', async () =>
         target: { value: 'PARTENAIRE' },
       },
     )
-    expect(
-      await screen.findByRole('heading', { name: 'Accès à vérifier' }),
-    ).toBeVisible()
-    expect(
-      router.options.context.queryClient.getQueriesData({
-        queryKey: ['access'],
-      }),
-    ).toEqual([])
+    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0)
+    expect(router.options.context.access.getSnapshot().status).toBe('verified')
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
   } finally {
     delete HTMLDialogElement.prototype.showModal
     delete HTMLDialogElement.prototype.close
@@ -450,7 +459,7 @@ test('late lifecycle completion after offline invalidation cannot restore protec
       body: JSON.stringify({ expected_version: 2, deactivate: true }),
     })
     await act(async () => window.dispatchEvent(new Event('offline')))
-    await screen.findByRole('heading', { name: 'Accès à vérifier' })
+    await screen.findByRole('heading', { name: 'Connexion indisponible' })
     await act(async () =>
       finish(
         new Response(
@@ -507,7 +516,6 @@ test('Admin navigation omits default search values and preserves meaningful filt
 
 test('users page shows loading during initial access check and retry without exposing identity', async () => {
   let finish
-  let reads = 0
   vi.stubGlobal(
     'fetch',
     vi.fn((url) => {
@@ -515,9 +523,6 @@ test('users page shows loading during initial access check and retry without exp
         return Promise.resolve(
           new Response(JSON.stringify({ items: [], total: 0 })),
         )
-      reads += 1
-      if (reads === 2)
-        return Promise.resolve(new Response('{}', { status: 503 }))
       return new Promise((resolve) => {
         finish = resolve
       })
@@ -525,21 +530,29 @@ test('users page shows loading during initial access check and retry without exp
   )
   mount()
   expect(
-    await screen.findByRole('status', { name: 'Chargement des utilisateurs' }),
+    await screen.findByRole('status', {
+      name: 'Vérification de votre accès',
+    }),
   ).toBeVisible()
   expect(
     screen.queryByText('Vérification de votre accès…'),
   ).not.toBeInTheDocument()
   await act(async () => finish(new Response('{}', { status: 503 })))
   expect(
-    await screen.findByRole('heading', { name: 'Service indisponible' }),
+    await screen.findByRole('heading', {
+      name: 'Impossible de vérifier votre accès',
+    }),
   ).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
   expect(
-    await screen.findByRole('status', { name: 'Chargement des utilisateurs' }),
+    await screen.findByRole('status', {
+      name: 'Vérification de votre accès',
+    }),
   ).toBeVisible()
   expect(
-    screen.queryByRole('heading', { name: 'Service indisponible' }),
+    screen.queryByRole('heading', {
+      name: 'Impossible de vérifier votre accès',
+    }),
   ).not.toBeInTheDocument()
   expect(
     screen.queryByRole('link', { name: 'Mon compte' }),
@@ -548,4 +561,96 @@ test('users page shows loading during initial access check and retry without exp
   expect(
     await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
   ).toBeVisible()
+})
+
+test('Partner invitation choices load only on demand and paginate before submission', async () => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  const fetch = vi.fn(async (url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return new Response(JSON.stringify(session()))
+    if (path.includes('/partners'))
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: path.includes('cursor=second') ? 'p2' : 'p1',
+              name: path.includes('cursor=second')
+                ? 'Second partenaire'
+                : 'Premier partenaire',
+              active: true,
+            },
+          ],
+          count: 2,
+          previous: null,
+          next: path.includes('cursor=second')
+            ? null
+            : `${window.location.origin}/api/v1/partners?cursor=second`,
+        }),
+      )
+    if (options.method === 'POST')
+      return new Response(JSON.stringify({ state: 'delivered' }), {
+        status: 201,
+      })
+    return new Response(
+      JSON.stringify({ items: [], total: 0, page: 1, size: 20 }),
+    )
+  })
+  vi.stubGlobal('fetch', fetch)
+  mount()
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
+  )
+  const dialog = screen.getByRole('dialog')
+  expect(
+    fetch.mock.calls.some(([url]) => String(url).includes('/partners')),
+  ).toBe(false)
+  fireEvent.change(within(dialog).getByLabelText('Rôle'), {
+    target: { value: 'PARTENAIRE' },
+  })
+  expect(
+    within(dialog).getByRole('button', { name: 'Envoyer l’invitation' }),
+  ).toBeDisabled()
+  expect(within(dialog).getByRole('button', { name: 'Annuler' })).toBeEnabled()
+  fireEvent.submit(dialog.querySelector('form'))
+  expect(
+    fetch.mock.calls.some(([, options]) => options.method === 'POST'),
+  ).toBe(false)
+  expect(
+    await within(dialog).findByRole('option', { name: 'Premier partenaire' }),
+  ).toBeVisible()
+  expect(
+    fetch.mock.calls.filter(([url]) => String(url).includes('/partners')),
+  ).toHaveLength(1)
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+  expect(
+    await within(dialog).findByRole('option', { name: 'Second partenaire' }),
+  ).toBeVisible()
+  fireEvent.change(within(dialog).getByLabelText('Partenaire'), {
+    target: { value: 'p2' },
+  })
+  fireEvent.change(within(dialog).getByLabelText('Prénom'), {
+    target: { value: 'Ada' },
+  })
+  fireEvent.change(within(dialog).getByLabelText('Nom de famille'), {
+    target: { value: 'Lovelace' },
+  })
+  fireEvent.change(within(dialog).getByLabelText('Adresse e-mail'), {
+    target: { value: 'ada@example.test' },
+  })
+  fireEvent.submit(dialog.querySelector('form'))
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.find(([, options]) => options.method === 'POST'),
+    ).toBeTruthy(),
+  )
+  const [, options] = fetch.mock.calls.find(
+    ([, options]) => options.method === 'POST',
+  )
+  expect(JSON.parse(options.body).partner_id).toBe('p2')
 })

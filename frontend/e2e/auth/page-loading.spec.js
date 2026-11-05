@@ -50,10 +50,17 @@ for (const [path, title, role] of pages) {
       }
     })
     await page.goto(path)
+    const accessCheck = page.getByRole('status', {
+      name: 'Vérification de votre accès',
+    })
+    await expect(accessCheck).toBeVisible()
+    await expect(accessCheck).toHaveAttribute('aria-busy', 'true')
+    releaseSession()
     const loading = page.getByRole('status', { name: `Chargement : ${title}` })
     await expect(loading).toBeVisible()
+    await expect(loading).toHaveClass(/page-loading/)
+    await expect(page.locator('.loading-placeholder')).toHaveCount(0)
     await expect(loading).toHaveAttribute('aria-busy', 'true')
-    releaseSession()
     await expect.poll(() => dataReads).toBeGreaterThan(0)
     await expect(loading).toBeVisible()
     await expect(
@@ -82,7 +89,7 @@ for (const [path, title, role] of pages) {
 }
 
 for (const path of ['/invitation', '/reset-password']) {
-  test(`${path} shows the auth skeleton during its route loader`, async ({
+  test(`${path} shows the minimal auth loader during its route loader`, async ({
     page,
   }) => {
     await page.route('**/api/v1/auth/session', () => new Promise(() => {}))
@@ -103,7 +110,8 @@ test('PTA waits for its activities after context arrives instead of claiming it 
       body = {
         state: 'verified',
         csrf: 'test',
-        user: { id: 'agent', role: 'AGENT_SAISIE' },
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+        user: { id: 'agent', email: 'user@example.test', role: 'AGENT_SAISIE' },
       }
     if (path === '/api/v1/projects/project/ptas/2026')
       body = {
@@ -151,7 +159,12 @@ test('project draft survives loading the next page of partner choices', async ({
       body = {
         state: 'verified',
         csrf: 'test',
-        user: { id: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+        user: {
+          id: 'validator',
+          email: 'user@example.test',
+          role: 'VALIDATEUR_DEFINITIF',
+        },
       }
     if (url.pathname === '/api/v1/partners') {
       if (url.searchParams.has('cursor'))

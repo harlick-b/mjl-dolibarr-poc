@@ -10,7 +10,11 @@ test('validator reads the global history on desktop and mobile', async ({
         json: {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+          user: {
+            id: 'validator',
+            email: 'user@example.test',
+            role: 'VALIDATEUR_DEFINITIF',
+          },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })

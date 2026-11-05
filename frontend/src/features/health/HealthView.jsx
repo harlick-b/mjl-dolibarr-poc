@@ -1,5 +1,5 @@
 import { LoadingPlaceholder } from '@/shared/ui/PageLoading'
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/HealthView'
 import { useSyncExternalStore } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, RefreshCw } from 'lucide-react'

@@ -1,15 +1,15 @@
-import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
-import { BusinessForm } from '@/shared/ui/BusinessForm'
-import { strings } from '@/shared/i18n'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSessionQuery } from '@/features/auth/SessionProvider'
+import { authorization } from '@/features/auth/authorization'
 import {
-  Link,
-  Navigate,
-  useNavigate,
-  useParams,
-  useSearch,
-} from '@tanstack/react-router'
+  PageLoading,
+  RefreshIndicator,
+  LoadingPlaceholder,
+} from '@/shared/ui/PageLoading'
+import { BusinessForm } from '@/shared/ui/BusinessForm'
+import { strings } from '@/locales/fr/ExecutionView'
+import { useEffect, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
 import {
   CheckCircle2,
@@ -19,11 +19,12 @@ import {
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { sessionKey, sessionQuery } from '@/features/auth/auth'
 import { Button } from '@/shared/ui/button'
 import { formatXof } from '@/shared/lib/format'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
+import { RetryableError } from '@/shared/ui/RetryableError'
+import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 
 function cursorPath(path, cursor) {
   return cursor ? `${path}?cursor=${encodeURIComponent(cursor)}` : path
@@ -32,11 +33,13 @@ function cursorPath(path, cursor) {
 function executionQuery(api, userId, key, path, onDenied) {
   return {
     queryKey: ['execution', userId, ...key],
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal, client, queryKey }) => {
       try {
         return await api.request(`/api/v1${path}`, { signal })
       } catch (error) {
-        if (error.status === 401 || error.status === 403) onDenied()
+        if ([403, 404].includes(error.status))
+          client.setQueryData(queryKey, null)
+        if (error.status === 401) onDenied()
         throw error
       }
     },
@@ -46,62 +49,15 @@ function executionQuery(api, userId, key, path, onDenied) {
 }
 
 export function ExecutionView({ screen }) {
-  const session = useQuery(sessionQuery)
-  const client = useQueryClient()
-  const [blocked, setBlocked] = useState(!navigator.onLine)
-  const deny = useCallback(() => {
-    setBlocked(true)
-    void client.cancelQueries({ queryKey: ['execution'] })
-    client.removeQueries({ queryKey: ['execution'] })
-    client.getMutationCache().clear()
-    client.removeQueries({ queryKey: sessionKey, exact: true })
-  }, [client])
-  useEffect(() => {
-    const clear = () => deny()
-    const channel = new BroadcastChannel('mjl-auth')
-    channel.onmessage = clear
-    window.addEventListener('offline', clear)
-    const timer = session.data?.expires_at
-      ? setTimeout(
-          clear,
-          Math.max(0, Date.parse(session.data.expires_at) - Date.now()),
-        )
-      : undefined
-    return () => {
-      channel.close()
-      window.removeEventListener('offline', clear)
-      clearTimeout(timer)
-    }
-  }, [deny, session.data?.expires_at])
-  if (blocked)
-    return (
-      <section>
-        <h1>Vérification de l’accès</h1>
-        <p>Reconnectez-vous au service pour continuer.</p>
-        <Button
-          disabled={!navigator.onLine}
-          onClick={async () => {
-            await session.refetch()
-            setBlocked(false)
-          }}
-        >
-          Vérifier l’accès
-        </Button>
-      </section>
-    )
+  const session = useSessionQuery()
   if (session.isPending) return <ExecutionLoading screen={screen} />
-  if (session.error?.status === 401 || session.data?.state === 'anonymous')
-    return <Navigate to="/login" replace />
-  if (session.data?.state === 'pending')
-    return <Navigate to="/verification" replace />
-  if (session.isError) return <p role="alert">L’identité est indisponible.</p>
-  if (session.data.user.role === 'ADMIN_PLATEFORME')
-    return <p role="alert">Cet espace est réservé aux rôles métier.</p>
+  if (!authorization(session.data).can('business'))
+    return <AccessDeniedState role={session.data?.user?.role} />
   return (
     <ExecutionWorkspace
       screen={screen}
       session={session.data}
-      onDenied={deny}
+      onDenied={() => {}}
     />
   )
 }
@@ -336,7 +292,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     },
     onError: async (problem) => {
       if (problem.name === 'AbortError') return
-      if (problem.status === 401 || problem.status === 403) onDenied()
+      if (problem.status === 401) onDenied()
       if (
         problem.status === 409 ||
         ['network', 'malformed'].includes(problem.kind)
@@ -405,7 +361,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     },
     onError: async (problem) => {
       if (problem.name === 'AbortError') return
-      if (problem.status === 401 || problem.status === 403) onDenied()
+      if (problem.status === 401) onDenied()
       if (
         problem.status === 409 ||
         ['network', 'malformed'].includes(problem.kind)
@@ -439,14 +395,38 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
             : []),
           ...(selectedVirement.data?.reversement ? [reversementHistory] : []),
         ]
-  if (relevant.some((query) => query.isError))
-    return <p role="alert">Les données de réalisation sont indisponibles.</p>
-  if (relevant.some((query) => query.isPending))
-    return <ExecutionLoading screen={screen} />
+  const failedQueries = relevant.filter((query) => query.isError)
+  const retryFailed = () =>
+    void Promise.all(failedQueries.map((query) => query.refetch()))
+  const primary = screen === 'list' ? list : detail
+  if (
+    primary.isError &&
+    (!primary.data || [403, 404].includes(primary.error?.status))
+  )
+    return (
+      <RetryableError page onRetry={retryFailed}>
+        {strings.unavailableExecution}
+      </RetryableError>
+    )
+  if (primary.isPending) return <ExecutionLoading screen={screen} />
+  const readError = failedQueries.length > 0 && (
+    <RetryableError onRetry={retryFailed}>
+      {strings.unavailableExecution}
+    </RetryableError>
+  )
+  const missingRead = (query) =>
+    query.isError ? (
+      <RetryableError onRetry={() => void query.refetch()}>
+        {strings.unavailableExecution}
+      </RetryableError>
+    ) : (
+      <LoadingPlaceholder label={strings.executionDataLoading} />
+    )
   if (screen === 'list')
     return (
       <>
         <RefreshIndicator active={list.isFetching} />
+        {readError}
         <ExecutionList
           result={list.data}
           onPage={(link) =>
@@ -463,8 +443,16 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
   return (
     <>
       <RefreshIndicator active={relevant.some((query) => query.isFetching)} />
+      {readError}
       <ExecutionDetail
         detail={detail.data}
+        sectionFallbacks={{
+          history: missingRead(history),
+          funding: missingRead(funding),
+          finance: missingRead(finance),
+          virements: missingRead(virements),
+          zeroSpending: missingRead(zeroSpending),
+        }}
         history={history.data}
         finance={finance.data}
         funding={funding.data}
@@ -491,6 +479,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         virementSelectedBySearch={Boolean(search.virementRequest)}
         error={error}
         pending={
+          relevant.some((query) => query.isError || query.isPending) ||
           mutation.isPending ||
           financeMutation.isPending ||
           detail.isFetching ||
@@ -659,6 +648,7 @@ function ExecutionList({ result, onPage }) {
 }
 
 function ExecutionDetail({
+  sectionFallbacks,
   detail,
   history,
   finance,
@@ -772,6 +762,7 @@ function ExecutionDetail({
       </div>
       {detail.works_completed && detail.spending_total === '0' && (
         <ZeroSpendingSection
+          fallback={sectionFallbacks.zeroSpending}
           detail={detail}
           result={zeroSpending}
           role={role}
@@ -783,6 +774,7 @@ function ExecutionDetail({
       {(detail.spending_total !== '0' || finance?.count > 0) && (
         <>
           <DisbursementSection
+            fallback={sectionFallbacks.finance}
             detail={detail}
             result={finance}
             selected={selectedFinance}
@@ -795,6 +787,7 @@ function ExecutionDetail({
           />
           {detail.spending_total !== '0' && (
             <VirementSection
+              fallback={sectionFallbacks.virements}
               detail={detail}
               result={virements}
               selected={selectedVirement}
@@ -814,6 +807,7 @@ function ExecutionDetail({
         </>
       )}
       <FundingSection
+        fallback={sectionFallbacks.funding}
         detail={detail}
         result={funding}
         pending={pending}
@@ -830,7 +824,9 @@ function ExecutionDetail({
         aria-labelledby="execution-history-title"
       >
         <h2 id="execution-history-title">Historique de réalisation</h2>
-        {history.data.length ? (
+        {!history ? (
+          sectionFallbacks.history
+        ) : history.data.length ? (
           <ol className="review-timeline">
             {history.data.map((event) => (
               <li key={event.id}>
@@ -843,7 +839,7 @@ function ExecutionDetail({
         ) : (
           <p>Aucun événement de réalisation.</p>
         )}
-        {(history.previous || history.next) && (
+        {(history?.previous || history?.next) && (
           <nav
             className="planning-actions"
             aria-label="Pagination de l’historique"
@@ -870,6 +866,7 @@ function ExecutionDetail({
 }
 
 function ZeroSpendingSection({
+  fallback,
   detail,
   result,
   role,
@@ -877,7 +874,8 @@ function ZeroSpendingSection({
   mutate,
   onPage,
 }) {
-  const declarations = result?.data || []
+  if (!result) return fallback
+  const declarations = result.data
   const current = declarations.find((row) => row.state !== 'returned')
   const currentIsOnNewerPage =
     !current &&
@@ -1128,6 +1126,7 @@ function ClosureSection({ detail, pending, mutate }) {
 }
 
 function DisbursementSection({
+  fallback,
   detail,
   result,
   selected,
@@ -1138,7 +1137,8 @@ function DisbursementSection({
   onPage,
   onSelect,
 }) {
-  const requests = result?.data || []
+  if (!result) return fallback
+  const requests = result.data
   const active = requests.find(
     (request) => !['returned', 'cancelled'].includes(request.state),
   )
@@ -1357,6 +1357,7 @@ function DisbursementSection({
 }
 
 function VirementSection({
+  fallback,
   detail,
   result,
   selected,
@@ -1372,7 +1373,8 @@ function VirementSection({
   onConfirmationPage,
   onReversementPage,
 }) {
-  const requests = result?.data || []
+  if (!result) return fallback
+  const requests = result.data
   const current =
     selected ||
     (!historicalPage &&
@@ -2065,7 +2067,8 @@ function OperationCard({ activity, operation, pending, mutate }) {
   )
 }
 
-function FundingSection({ detail, result, pending, mutate, onPage }) {
+function FundingSection({ detail, result, pending, mutate, onPage, fallback }) {
+  if (!result) return fallback
   const basis = result.pending[0]
   const currentSnapshot = result.activity_version === detail.version
   const states = {

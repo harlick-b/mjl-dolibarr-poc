@@ -23,10 +23,13 @@ Role = Literal[
 ]
 
 
-class Identity(BaseModel):
+class SessionIdentity(BaseModel):
     id: str
     email: str
     role: Role
+
+
+class Identity(SessionIdentity):
     partner_id: str | None = None
 
 
@@ -44,7 +47,7 @@ class Pending(BaseModel):
 class Verified(BaseModel):
     state: Literal["verified"]
     csrf: str
-    user: Identity
+    user: SessionIdentity
     expires_at: datetime
 
 

@@ -58,7 +58,11 @@ function annualPageFetch(exportReply) {
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -259,9 +263,9 @@ test('an offline annual export is neither sent nor replayed', async () => {
   online.mockReturnValue(false)
   window.dispatchEvent(new Event('offline'))
   expect(
-    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
+    await screen.findByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
-  expect(exportSignal.aborted).toBe(true)
+  await waitFor(() => expect(exportSignal.aborted).toBe(true))
   expect(
     fetch.mock.calls.filter(([url]) =>
       String(url).endsWith('/ptas/pta-1/exports'),
@@ -274,7 +278,7 @@ test('an offline annual export is neither sent nor replayed', async () => {
   online.mockRestore()
 })
 
-test('an authorization loss during annual export denies the workspace', async () => {
+test('a denied annual export does not invalidate the session', async () => {
   const user = userEvent.setup()
   const createObjectURL = vi.fn()
   vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL: vi.fn() })
@@ -290,9 +294,7 @@ test('an authorization loss during annual export denies the workspace', async ()
   await user.click(
     screen.getByRole('button', { name: 'Exporter le PTA en CSV' }),
   )
-  expect(
-    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
-  ).toBeVisible()
+  await waitFor(() => expect(createObjectURL).not.toHaveBeenCalled())
   expect(
     fetch.mock.calls.filter(([url]) =>
       String(url).endsWith('/ptas/pta-1/exports'),
@@ -345,7 +347,11 @@ test('an eligible Agent confirms submission of the current Activity version', as
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -479,7 +485,11 @@ test('an Agent opens and cancels an amendment while the approved version stays v
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -739,8 +749,8 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   router.options.context.queryClient.setQueryData(accessKey, { items: [] })
   render(<App router={router} />)
   expect(
-    await screen.findByRole('link', { name: 'Télécharger la fiche PDF' }),
-  ).toHaveAttribute('href', '/api/v1/activities/activity-1/fiche.pdf')
+    await screen.findByRole('button', { name: 'Télécharger la fiche PDF' }),
+  ).toBeVisible()
   expect(await screen.findByText('Aucune pièce justificative.')).toBeVisible()
   await user.click(screen.getByRole('button', { name: 'Ajouter une pièce' }))
   await user.upload(
@@ -777,11 +787,8 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   )
   const imageRow = (await screen.findByText('preuve.png')).closest('li')
   expect(
-    within(imageRow).getByRole('link', { name: 'Télécharger' }),
-  ).toHaveAttribute(
-    'href',
-    '/api/v1/activities/activity-1/documents/document-1/download',
-  )
+    within(imageRow).getByRole('button', { name: 'Télécharger' }),
+  ).toBeVisible()
   const previewButton = within(imageRow).getByRole('button', {
     name: 'Aperçu de preuve.png',
   })
@@ -806,11 +813,8 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     fetch.mock.calls.filter(([url]) => String(url).endsWith('/preview')),
   ).toHaveLength(1)
   expect(
-    within(preview).getByRole('link', { name: 'Télécharger' }),
-  ).toHaveAttribute(
-    'href',
-    '/api/v1/activities/activity-1/documents/document-1/download',
-  )
+    within(preview).getByRole('button', { name: 'Télécharger' }),
+  ).toBeVisible()
   await user.click(within(preview).getByRole('button', { name: 'Fermer' }))
   expect(preview).not.toBeVisible()
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview')
@@ -964,7 +968,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(await screen.findByText('Demande de retrait en cours')).toBeVisible()
   expect(
     router.options.context.queryClient.getQueryState(accessKey)?.isInvalidated,
-  ).toBe(true)
+  ).toBeUndefined()
   await user.click(
     screen.getByRole('button', { name: 'Annuler la demande de retrait' }),
   )
@@ -1058,9 +1062,10 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       name: 'Aperçu de preuve.png',
     }),
   )
-  expect(
-    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
-  ).toBeVisible()
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Cette pièce n’est plus accessible.',
+  )
+  expect(screen.getByText('Atelier approuvé')).toBeVisible()
 }, 10000)
 
 function amendmentHistoryFetch({ failed = false } = {}) {
@@ -1096,7 +1101,11 @@ function amendmentHistoryFetch({ failed = false } = {}) {
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -1276,7 +1285,11 @@ test('assignment edits retain their base version and can discard a stale draft',
         body = {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: 'supervisor', role: 'AGENT_VERIFICATEUR' },
+          user: {
+            id: 'supervisor',
+            email: 'user@example.test',
+            role: 'AGENT_VERIFICATEUR',
+          },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         }
       else if (path.endsWith('/activities/assignment-1')) body = activity
@@ -1398,30 +1411,40 @@ test('an Agent sees the empty projects workspace', async () => {
   ).not.toBeInTheDocument()
 })
 
-test('the technical Admin cannot see planning records', async () => {
-  const fetch = vi.fn(() =>
-    Promise.resolve(
-      new Response(
-        JSON.stringify({
-          state: 'verified',
-          csrf: 'fixture',
-          user: { id: 'admin', role: 'ADMIN_PLATEFORME' },
-          expires_at: new Date(Date.now() + 60000).toISOString(),
-        }),
+test.each(['ADMIN_PLATEFORME', 'PARTENAIRE'])(
+  '%s cannot see planning records',
+  async (role) => {
+    const fetch = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'fixture',
+            user: {
+              id: 'admin',
+              email: 'user@example.test',
+              role,
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
       ),
-    ),
-  )
-  vi.stubGlobal('fetch', fetch)
-  render(
-    <App
-      router={makeRouter(
-        createMemoryHistory({ initialEntries: ['/projects'] }),
-      )}
-    />,
-  )
-  expect(await screen.findByRole('alert')).toHaveTextContent('rôles métier')
-  expect(fetch.mock.calls.every(([url]) => url.includes('/auth/'))).toBe(true)
-})
+    )
+    vi.stubGlobal('fetch', fetch)
+    render(
+      <App
+        router={makeRouter(
+          createMemoryHistory({ initialEntries: ['/projects'] }),
+        )}
+      />,
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent('Accès refusé')
+    expect(
+      screen.getByRole('link', { name: 'Retour à mon espace' }),
+    ).toBeVisible()
+    expect(fetch.mock.calls.every(([url]) => url.includes('/auth/'))).toBe(true)
+  },
+)
 
 test('Validator creation uses a modal dialog and returns focus on Escape', async () => {
   const user = userEvent.setup()
@@ -1442,7 +1465,11 @@ test('Validator creation uses a modal dialog and returns focus on Escape', async
               ? {
                   state: 'verified',
                   csrf: 'fixture',
-                  user: { id: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+                  user: {
+                    id: 'validator',
+                    email: 'user@example.test',
+                    role: 'VALIDATEUR_DEFINITIF',
+                  },
                   expires_at: new Date(Date.now() + 60000).toISOString(),
                 }
               : {
@@ -1491,7 +1518,11 @@ test('authentication loss aborts an in-flight planning mutation and masks it', a
             JSON.stringify({
               state: 'verified',
               csrf: 'fixture',
-              user: { id: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+              user: {
+                id: 'validator',
+                email: 'user@example.test',
+                role: 'VALIDATEUR_DEFINITIF',
+              },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -1540,7 +1571,7 @@ test('authentication loss aborts an in-flight planning mutation and masks it', a
   await user.click(screen.getByRole('dialog').getElementsByTagName('button')[0])
   window.dispatchEvent(new Event('offline'))
   expect(
-    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
+    await screen.findByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   expect(mutationSignal.aborted).toBe(true)
   expect(
@@ -1570,7 +1601,11 @@ test('a planning mutation invalidates and visibly refreshes the cached list', as
             JSON.stringify({
               state: 'verified',
               csrf: 'fixture',
-              user: { id: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+              user: {
+                id: 'validator',
+                email: 'user@example.test',
+                role: 'VALIDATEUR_DEFINITIF',
+              },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -1650,7 +1685,11 @@ test('a 409 planning mutation refetches server state before another action', asy
             JSON.stringify({
               state: 'verified',
               csrf: 'fixture',
-              user: { id: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+              user: {
+                id: 'validator',
+                email: 'user@example.test',
+                role: 'VALIDATEUR_DEFINITIF',
+              },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -1717,7 +1756,11 @@ test('a delayed planning result cannot repopulate content after access denial', 
             JSON.stringify({
               state: 'verified',
               csrf: 'fixture',
-              user: { id: 'agent', role: 'AGENT_SAISIE' },
+              user: {
+                id: 'agent',
+                email: 'user@example.test',
+                role: 'AGENT_SAISIE',
+              },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -1739,17 +1782,21 @@ test('a delayed planning result cannot repopulate content after access denial', 
       )
     }),
   )
-  render(
-    <App
-      router={makeRouter(
-        createMemoryHistory({ initialEntries: ['/partners'] }),
-      )}
-    />,
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/partners'] }),
   )
+  expect(router.state.location.pathname).toBe('/partners')
+  render(<App router={router} />)
   await partnerRequested
-  window.dispatchEvent(new Event('offline'))
+  await screen.findByRole('status', { name: 'Chargement : Partenaires' })
+  await waitFor(() =>
+    expect(
+      document.querySelector('[data-access-protected]'),
+    ).toBeInTheDocument(),
+  )
+  act(() => router.options.context.access.offline())
   expect(
-    await screen.findByRole('heading', { name: 'Accès à vérifier' }),
+    await screen.findByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   await act(async () => {
     releasePartners(
@@ -1836,7 +1883,11 @@ test.each(['success', 'failure'])(
             JSON.stringify({
               state: 'verified',
               csrf: 'csrf',
-              user: { id: 'agent', role: 'AGENT_SAISIE' },
+              user: {
+                id: 'agent',
+                email: 'user@example.test',
+                role: 'AGENT_SAISIE',
+              },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -1936,12 +1987,14 @@ test.each(['success', 'failure'])(
         screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),
       ).not.toBeInTheDocument()
     } else {
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Les données de planification sont indisponibles.',
-      )
       expect(
-        screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),
-      ).not.toBeInTheDocument()
+        await screen.findByText(
+          'Les données de planification sont indisponibles.',
+        ),
+      ).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
+      ).toBeDisabled()
     }
     await act(async () => {
       await router.navigate({
@@ -1956,3 +2009,160 @@ test.each(['success', 'failure'])(
     ).toBeEnabled()
   },
 )
+
+test('projects load only their list and defer Partner choices until creation opens', async () => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  const fetch = vi.fn(async (url) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return new Response(
+        JSON.stringify({
+          state: 'verified',
+          csrf: 'test',
+          user: {
+            id: 'validator',
+            email: 'validator@example.test',
+            role: 'VALIDATEUR_DEFINITIF',
+          },
+          expires_at: new Date(Date.now() + 3600000).toISOString(),
+        }),
+      )
+    if (path.includes('/projects') || path.includes('/partners'))
+      return new Response(
+        JSON.stringify({ data: [], count: 0, next: null, previous: null }),
+      )
+    return new Response(
+      JSON.stringify({ code: 'unexpected', message: 'Unexpected request' }),
+      { status: 503 },
+    )
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/projects'] }),
+      )}
+    />,
+  )
+  expect(await screen.findByText('Aucun projet.')).toBeVisible()
+  expect(
+    fetch.mock.calls.map(([url]) => new URL(url, 'http://localhost').pathname),
+  ).toEqual(['/api/v1/auth/session', '/api/v1/projects'])
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Créer', exact: true }),
+  )
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.some(([url]) => String(url).includes('/partners')),
+    ).toBe(true),
+  )
+  expect(screen.getByRole('dialog')).toBeVisible()
+})
+
+test('new activity ignores cached PTA data and requests only its operation choices', async () => {
+  const fetch = annualPageFetch()
+  vi.stubGlobal('fetch', fetch)
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/projects/project-1/ptas/2027'] }),
+  )
+  render(<App router={router} />)
+  await screen.findByText('Aucune activité pour cet exercice.')
+  const boundary = fetch.mock.calls.length
+  await act(async () => {
+    await router.navigate({
+      to: '/projects/$projectId/ptas/$year/activities/new',
+      params: { projectId: 'project-1', year: '2027' },
+    })
+  })
+  await screen.findByRole('heading', { name: 'Planification complète' })
+  const newPaths = fetch.mock.calls
+    .slice(boundary)
+    .map(([url]) => new URL(url, 'http://localhost').pathname)
+  expect(newPaths).toContain('/api/v1/operation-types')
+  expect(
+    newPaths.filter(
+      (path) =>
+        path.startsWith('/api/v1/ptas/') ||
+        path.startsWith('/api/v1/projects/'),
+    ),
+  ).toEqual([])
+})
+
+test('unavailable edit choices block saving but still allow cancellation', () => {
+  const cancel = vi.fn()
+  const submit = vi.fn()
+  render(
+    <ActivityForm
+      types={[]}
+      optionsUnavailable
+      onCancel={cancel}
+      onSubmit={submit}
+    />,
+  )
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled()
+  const button = screen.getByRole('button', { name: 'Annuler la modification' })
+  expect(button).toBeEnabled()
+  fireEvent.click(button)
+  expect(cancel).toHaveBeenCalledOnce()
+})
+
+test('a failed background project refresh preserves the open draft and offers local retry', async () => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+  }
+  let failed = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      if (url.endsWith('/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'validator',
+              email: 'validator@example.test',
+              role: 'VALIDATEUR_DEFINITIF',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (url.endsWith('/projects') && failed)
+        return new Response('{}', { status: 503 })
+      return new Response(
+        JSON.stringify({ data: [], count: 0, next: null, previous: null }),
+      )
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/projects'] }),
+  )
+  render(<App router={router} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Créer' }))
+  const input = screen.getByRole('dialog').querySelector('input[name="name"]')
+  await userEvent.type(input, 'Projet en cours de saisie')
+  failed = true
+  await act(async () => {
+    await router.options.context.queryClient.invalidateQueries({
+      queryKey: ['planning', 'validator', 'projects'],
+    })
+  })
+  expect(await screen.findByRole('button', { name: 'Réessayer' })).toBeVisible()
+  expect(screen.getByDisplayValue('Projet en cours de saisie')).toBeVisible()
+  failed = false
+  await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: 'Réessayer' }),
+    ).not.toBeInTheDocument(),
+  )
+  expect(screen.getByDisplayValue('Projet en cours de saisie')).toBeVisible()
+})

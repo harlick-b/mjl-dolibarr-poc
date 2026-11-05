@@ -19,6 +19,7 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           csrf: 'csv-csrf',
           user: {
             id: 'partner-user',
+            email: 'user@example.test',
             role: 'PARTENAIRE',
             partner_id: 'partner-1',
           },

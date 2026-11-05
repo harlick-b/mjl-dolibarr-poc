@@ -81,7 +81,7 @@ for (const width of [1280, 390]) {
             json: {
               state: 'verified',
               csrf: 'csrf',
-              user: { id: 'actor', role },
+              user: { id: 'actor', email: 'actor@example.test', role },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             },
           })

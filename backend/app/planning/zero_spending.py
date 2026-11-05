@@ -87,7 +87,6 @@ class DeclarationOutput(Input):
     id: str
     activity_id: str
     approved_revision_id: str
-    snapshot: dict[str, object]
     reason: str
     state: str
     submitter_id: str
@@ -165,7 +164,6 @@ def output(
         "id": declaration.id,
         "activity_id": declaration.activity_id,
         "approved_revision_id": declaration.approved_revision_id,
-        "snapshot": declaration.snapshot,
         "reason": declaration.reason,
         "state": declaration.state,
         "submitter_id": declaration.submitter_id,

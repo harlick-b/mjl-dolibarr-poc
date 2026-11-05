@@ -37,17 +37,11 @@ def principal(
     *,
     roles: set[str] = BUSINESS_ROLES,
     mutation: bool = False,
+    read_only: bool = False,
 ) -> User:
-    if mutation:
-        context = auth.guard(db, secret, csrf)
-        if context.state != "verified" or not context.user_id:
-            raise AuthError(401, "otp_required")
-        actor = db.get(User, context.user_id)
-        assert actor
-    else:
-        actor = auth.principal(db, secret)
-    if actor.role not in roles:
-        raise AuthError(403, "business_forbidden")
+    actor = auth.principal(
+        db, secret, csrf=csrf, mutation=mutation, read_only=read_only, roles=roles
+    )
     auth.environment_verified(db)
     return actor
 

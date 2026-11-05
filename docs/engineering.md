@@ -55,13 +55,16 @@ frontend/
       api/                  # REST transport and provider
       ui/                   # Reused controls, forms and modal
       lib/                  # Display, pagination and class-name helpers
-      i18n.js               # Shared French strings
+    locales/fr/             # Page/control dictionaries and common labels
     test/setup.js           # Common test environment
   e2e/                      # Browser journeys grouped by feature
     app/ auth/ planning/ execution/ reports/ audit/ partner-portal/
   public/                   # Public PWA assets
   package.json, vite.config.js, other tool configuration
 ```
+
+Page/control translations live in `src/locales/fr/`, named for their consumer;
+`common.js` contains only reused labels. Keep French default/fallback in every dictionary.
 
 Feature tests live beside their frontend feature; cross-feature and PWA tests
 live with application composition. Import another folder through the existing
@@ -84,6 +87,23 @@ is Vite's entry document; `components.json` configures component generation.
 This organization changes source locations, not URL routes, business rules or
 database definitions. OpenAPI schema identifiers derived from Python module
 names follow the new module names; request/response shapes remain the same.
+
+## Hosted development databases
+
+Local Supabase development uses the existing PostgreSQL driver and migrations.
+The database Data API must be disabled: FastAPI owns authorization. In local
+mode, schema verification permits metadata in `auth`, `extensions`, `graphql`,
+`graphql_public`, `realtime`, `storage` and `vault`; it still requires the exact
+MJL public relations, migration head and integrity manifest. `public` must be
+first in the effective explicit search path to prevent provider schemas from
+shadowing application relations. Synthetic test databases retain the strict
+whole-database check. This does not enable production authentication or hosting.
+
+Verify this compatibility with disposable PostgreSQL tests for allowed provider
+metadata, unknown relations, altered MJL definitions and search-path shadowing;
+then check encrypted connectivity and migration/guard results on the configured
+empty development database. A separate reviewer inspects the diff and evidence;
+fix any blocking findings and return them for re-review before completion.
 
 ## REST and shared client
 
@@ -127,7 +147,44 @@ with attached metadata. Request params are local, never mutable shared state.
 Use PATCH for partial updates, PUT only where contracted; no invented IDs or
 unused CRUD methods. Fetch is sufficient; no second parallel transport.
 
+One application access coordinator owns protected readiness. A protected `401` or
+`csrf_invalid` closes the shared gate, clears protected state and starts one
+coalesced session check with a ten-second total deadline. It may make a second
+session request only after the first returns `401` or when a superseding
+authentication-context change arrives within that same cycle; it never replays a
+rejected write. Verified access remounts and reloads the route, anonymous returns to login,
+pending continues to OTP, and verification network/service/malformed failures stay
+blocked behind a deliberate retry. A repeated `401` for the recovered request
+stays blocked until deliberate retry, an authentication-context change or a
+successful read resets that path's recovery latch.
+
+Ordinary network, `5xx` and malformed data-read failures remain in their owning
+view and preserve verified access. Read/download `403` or `404` removes the denied
+resource and dependent previews; mutation `403`, `409`, `422` and `429` remains
+local to the attempted action. Cancellation and responses from an obsolete access
+generation are silent. Unexpected render errors use the root sanitized retry
+fallback and do not imply logout. `visibilitychange`, `pagehide`, expiry, offline
+and cross-tab authentication changes synchronously mask the workspace and purge
+protected queries, mutations, drafts and object URLs; a visible/online return must
+verify before remounting protected routes.
+
 ## Query, forms and feedback
+
+`SessionProvider` shares the actual session `useQuery` result through React context;
+consumers use `useSessionQuery`. Do not copy query data into Context state. Keep
+reference/options queries at the screen or open form that consumes them instead
+of loading catalogs in a global provider. Enable queries by both active screen
+and required identifiers: a disabled observer can still expose cached data.
+Only required active queries participate in page-wide loading/error handling;
+form option failures stay local and do not disable cancellation.
+
+Use `queryClient.invalidateQueries({ queryKey })` after confirmed mutations and
+`setQueryData` only for complete authoritative returned projections. A retry of
+one failed read may call that Query observer's `refetch`; navigation changes the
+normalized query key. Session revalidation is a security transition owned by the
+access coordinator, not a bare session-key invalidation: it must mask and purge
+protected state first. Selected/current views of the same revision share one key.
+
 
 Use Query v5 gcTime/isPending and appropriate placeholderData; never retain another
 principal's data. Choose freshness per resource, especially session/permissions;
@@ -231,3 +288,18 @@ Target explicit disposable projects for tests/resets; no wildcard/shared teardow
 Provider/region, production file storage/scanning/retention, backups and incident
 ownership remain external gates described in security.md. No production changes
 follow from this guide.
+
+### Authorization ownership
+
+The access coordinator owns identity freshness and exposes the derived
+`authorization(session)` view from `features/auth/authorization.js`. Page guards,
+navigation and workspace destinations use this catalog; unverified/unknown roles
+have no page capabilities. Query remains the session cache, with no second mutable
+permission store. These UI capabilities are presentation checks, not authority.
+
+`AuthService.principal` resolves the actor, optional mutation CSRF and required
+roles once inside the caller's transaction. Admin, planning and Partner adapters
+reuse it; planning integrity and Partner binding remain specialized guards. Never
+carry an actor across transactions or external work as authorization evidence.
+Resource state, contributor exclusions and `allowed_actions` stay with their
+server use cases; this page catalog does not replace workflow checks.

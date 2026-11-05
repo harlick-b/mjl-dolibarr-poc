@@ -67,7 +67,11 @@ test('PTA-7A Agent submits the zero-spending path without payment controls', asy
         json: {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: 'agent', role: 'AGENT_SAISIE' },
+          user: {
+            id: 'agent',
+            email: 'user@example.test',
+            role: 'AGENT_SAISIE',
+          },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })
@@ -200,7 +204,11 @@ test('PTA-3F eligible Agent closes and keeps terminal evidence', async ({
         json: {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: role === 'AGENT_SAISIE' ? 'agent' : 'reviewer', role },
+          user: {
+            id: role === 'AGENT_SAISIE' ? 'agent' : 'reviewer',
+            email: 'actor@example.test',
+            role,
+          },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })
@@ -315,7 +323,11 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
         json: {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: 'agent', role: 'AGENT_SAISIE' },
+          user: {
+            id: 'agent',
+            email: 'user@example.test',
+            role: 'AGENT_SAISIE',
+          },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })
@@ -419,7 +431,11 @@ test('reviewer sees pause, resume and paginated history without mutation control
         json: {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: 'reviewer', role: 'AGENT_VERIFICATEUR' },
+          user: {
+            id: 'reviewer',
+            email: 'user@example.test',
+            role: 'AGENT_VERIFICATEUR',
+          },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })
@@ -627,7 +643,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
         json: {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: role, role },
+          user: { id: role, email: 'actor@example.test', role },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })

@@ -1,0 +1,55 @@
+import LocalizedStrings from 'react-localization'
+
+export const strings = new LocalizedStrings({
+  fr: {
+    offlineTitle: 'Connexion indisponible',
+    offlineMessage: 'Vérifiez votre connexion Internet, puis réessayez.',
+    sessionUnavailable: 'Session indisponible',
+    identityUnavailable: 'Votre identité n’a pas pu être vérifiée.',
+    invalidResetTitle: 'Lien de réinitialisation invalide ou expiré',
+    invalidResetMessage:
+      'Ce lien ne permet plus de réinitialiser votre mot de passe.',
+    invalidInvitationTitle: 'Lien d’invitation invalide ou expiré',
+    invalidInvitationMessage:
+      'Ce lien n’est plus utilisable. Contactez votre administrateur pour recevoir une nouvelle invitation.',
+    verificationFailed: 'Impossible de vérifier votre accès',
+    verificationTitle: 'Vérification de votre accès',
+    verificationFailedMessage:
+      'Nous ne pouvons pas confirmer votre accès pour le moment.',
+    verificationMessage: 'Nous vérifions votre session avant de poursuivre.',
+    accountLoading: 'Chargement du compte',
+    loginHeading: 'Connexion',
+    loginSubmit: 'Se connecter',
+    otpHeading: 'Vérification',
+    otpPrompt: 'Saisissez le code envoyé à',
+    otpEmailFallback: 'votre adresse e-mail',
+    otpSubmit: 'Vérifier le code',
+    otpNotReceived: 'Code non reçu ?',
+    otpResend: 'Renvoyer le code',
+    invitationTitle: 'Définir mon mot de passe',
+    invitationPrompt: 'Définissez le mot de passe de votre compte.',
+    invitationSubmit: 'Enregistrer le mot de passe',
+    logoutHeading: 'Déconnexion',
+    retryLogout: 'Réessayer la déconnexion',
+    forgotTitle: 'Mot de passe oublié',
+    forgotHeading: 'Récupérer votre accès',
+    forgotPrompt: 'Saisissez l’adresse e-mail associée à votre compte.',
+    forgotSubmit: 'Envoyer le lien de récupération',
+    forgotLink: 'Mot de passe oublié ?',
+    forgotConfirmation:
+      'Si ce compte peut être récupéré, vous recevrez un lien.',
+    resetTitle: 'Réinitialiser le mot de passe',
+    resetHeading: 'Réinitialiser mon mot de passe',
+    resetPrompt: 'Choisissez un nouveau mot de passe.',
+    resetSubmit: 'Réinitialiser le mot de passe',
+    resetSuccess: 'Votre mot de passe a été réinitialisé.',
+    invalidRecovery: 'Ce lien est invalide ou a expiré.',
+    newRecovery: 'Demander un nouveau lien',
+    emailLabel: 'Adresse e-mail',
+    newPasswordLabel: 'Nouveau mot de passe',
+    confirmationLabel: 'Confirmer le mot de passe',
+    passwordMismatch: 'Les mots de passe ne correspondent pas.',
+    backToLogin: 'Retour à la connexion',
+  },
+})
+strings.setLanguage('fr')

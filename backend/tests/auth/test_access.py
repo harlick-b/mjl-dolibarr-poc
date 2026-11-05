@@ -2,7 +2,9 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
+from app.auth.models import User
 from app.main import create_app
 from tests.auth.test_auth import messages
 
@@ -97,7 +99,8 @@ def test_admin_invites_and_lists_ordinary_user(admin, auth_env):
             select(Audit)
             .where(
                 Audit.action == "invitation_delivery",
-                Audit.target == item["user_id"],
+                Audit.target
+                == select(User.id).where(User.email == item["email"]).scalar_subquery(),
             )
             .order_by(Audit.id.desc())
         )
@@ -201,7 +204,9 @@ def test_each_business_role_accepts_and_authenticates_but_cannot_admin(
             ).status_code
             == 422
         )
-        assert activate(recipient, auth_env.mailbox, email)["user"]["role"] == role
+        identity = activate(recipient, auth_env.mailbox, email)["user"]
+        assert set(identity) == {"id", "email", "role"}
+        assert identity["role"] == role
         assert_denied_endpoints(recipient, 403, invitation["id"])
 
 
@@ -313,7 +318,6 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
     invitation = admin.get(path + "?email=pending").json()["items"][0]
     assert set(invitation) == {
         "id",
-        "user_id",
         "email",
         "full_name",
         "role",
@@ -321,9 +325,7 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
         "delivery_status",
         "expires_at",
         "version",
-        "partner_id",
     }
-    assert invitation["partner_id"] is None
     assert admin.get("/api/v1/access/users?email=%25").json()["total"] == 0
     original = admin.get(path + "?email=admin").json()["items"][0]
     for action in ["resend", "revoke"]:
@@ -652,7 +654,7 @@ def test_audit_facts_append_only_and_security_denials(admin, auth_env):
                     "actor,target,occurred_at,request_id,details FROM "
                     "auth_audit WHERE action='invitation_accept' AND target=:id"
                 ),
-                {"id": item["user_id"]},
+                {"id": db.scalar(select(User.id).where(User.email == item["email"]))},
             )
             .mappings()
             .one()

@@ -172,8 +172,13 @@ def list_args(
 def partner_principal(
     db: Session, auth: Auth, request: Request
 ) -> tuple[User, Partner]:
-    actor = auth.principal(db, evidence(request, auth)[0])
-    if actor.role != "PARTENAIRE" or not actor.partner_id:
+    actor = auth.principal(
+        db,
+        evidence(request, auth)[0],
+        roles={"PARTENAIRE"},
+        forbidden="partner_required",
+    )
+    if not actor.partner_id:
         raise AuthError(403, "partner_required")
     auth.environment_verified(db)
     partner = db.get(Partner, actor.partner_id)

@@ -1,15 +1,17 @@
+import { useSessionQuery } from '@/features/auth/SessionProvider'
+import { authorization } from '@/features/auth/authorization'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
-import { strings } from '@/shared/i18n'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { strings } from '@/locales/fr/AuditHistoryView'
+import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Download } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { toast } from 'sonner'
-import { sessionKey, sessionQuery } from '@/features/auth/auth'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import { AccessRecovery } from '@/features/auth/AccessRecovery'
+import { RetryableError } from '@/shared/ui/RetryableError'
+import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 
 const historyRoot = ['audit-history']
 
@@ -22,63 +24,11 @@ const outcomeLabels = {
 }
 
 export function AuditHistoryView() {
-  const client = useQueryClient()
-  const session = useQuery(sessionQuery)
-  const [blocked, setBlocked] = useState(!navigator.onLine)
-  const deny = useCallback(() => {
-    setBlocked(true)
-    void client.cancelQueries({ queryKey: historyRoot })
-    client.removeQueries({ queryKey: historyRoot })
-    client.getMutationCache().clear()
-    client.removeQueries({ queryKey: sessionKey, exact: true })
-  }, [client])
-  useEffect(() => {
-    const clear = () => deny()
-    const channel = new BroadcastChannel('mjl-auth')
-    channel.onmessage = clear
-    window.addEventListener('offline', clear)
-    const timer = session.data?.expires_at
-      ? setTimeout(
-          clear,
-          Math.max(0, Date.parse(session.data.expires_at) - Date.now()),
-        )
-      : undefined
-    return () => {
-      channel.close()
-      window.removeEventListener('offline', clear)
-      clearTimeout(timer)
-    }
-  }, [deny, session.data?.expires_at])
-  useEffect(() => {
-    if (session.isError || session.data?.state !== 'verified') {
-      void client.cancelQueries({ queryKey: historyRoot })
-      client.removeQueries({ queryKey: historyRoot })
-    }
-  }, [client, session.data?.state, session.isError])
-  if (blocked)
-    return (
-      <section>
-        <h1>Vérification de l’accès</h1>
-        <p>Reconnectez-vous au service pour consulter l’historique.</p>
-        <AccessRecovery
-          session={session}
-          onVerified={() => setBlocked(false)}
-        />
-      </section>
-    )
+  const session = useSessionQuery()
   if (session.isPending) return <HistoryLoading />
-  if (session.error?.status === 401 || session.data?.state === 'anonymous')
-    return <Navigate to="/login" replace />
-  if (session.data?.state === 'pending')
-    return <Navigate to="/verification" replace />
-  if (session.isError) return <p role="alert">L’identité est indisponible.</p>
-  if (
-    !['ADMIN_PLATEFORME', 'VALIDATEUR_DEFINITIF'].includes(
-      session.data.user.role,
-    )
-  )
-    return <p role="alert">Vous n’avez pas accès à l’historique global.</p>
-  return <History session={session.data} onDenied={deny} />
+  if (!authorization(session.data).can('audit'))
+    return <AccessDeniedState role={session.data?.user?.role} />
+  return <History session={session.data} onDenied={() => {}} />
 }
 
 function History({ session, onDenied }) {
@@ -89,7 +39,7 @@ function History({ session, onDenied }) {
   const generation = useRef(0)
   const exportController = useRef(null)
   const cursor = search.cursor || ''
-  const canOpenActivity = session.user.role === 'VALIDATEUR_DEFINITIF'
+  const canOpenActivity = authorization(session).can('business')
   const result = useQuery({
     queryKey: [...historyRoot, session.user.id, cursor, 60],
     queryFn: async ({ signal }) => {
@@ -99,7 +49,7 @@ function History({ session, onDenied }) {
           { signal },
         )
       } catch (error) {
-        if (error.status === 401 || error.status === 403) onDenied()
+        if (error.status === 401) onDenied()
         throw error
       }
     },
@@ -130,7 +80,7 @@ function History({ session, onDenied }) {
       return file
     },
     onError: (error) => {
-      if (error.status === 401 || error.status === 403) onDenied()
+      if (error.status === 401) onDenied()
     },
     onSuccess: async ({ blob, filename }) => {
       const href = URL.createObjectURL(blob)
@@ -142,12 +92,16 @@ function History({ session, onDenied }) {
       anchor.remove()
       window.setTimeout(() => URL.revokeObjectURL(href), 0)
       await client.invalidateQueries({ queryKey: historyRoot })
-      toast.success('Export CSV généré.')
+      toast.success(strings.exported)
     },
   })
   if (result.isPending) return <HistoryLoading />
   if (result.isError)
-    return <p role="alert">L’historique est momentanément indisponible.</p>
+    return (
+      <RetryableError page onRetry={() => void result.refetch()}>
+        {strings.unavailable}
+      </RetryableError>
+    )
   const move = (link) =>
     navigate({
       to: '/history',

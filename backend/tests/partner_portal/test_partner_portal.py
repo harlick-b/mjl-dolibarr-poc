@@ -99,7 +99,8 @@ def invite_partner(clients, auth_env, stack, partner_id, email):
     )
     clients["auth"] = refreshed_auth
     identity = activate(client, auth_env.mailbox, email)
-    return client, identity, invitation.json()
+    # Fixture-only account identifier comes from the verified session.
+    return client, identity, {**invitation.json(), "user_id": identity["user"]["id"]}
 
 
 def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
@@ -152,7 +153,6 @@ def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
             "id": invitation["user_id"],
             "email": "partner@example.test",
             "role": "PARTENAIRE",
-            "partner_id": first_partner["id"],
         }
 
         profile = partner.get("/api/v1/partner-portal/profile")
@@ -421,7 +421,13 @@ def test_partner_invitation_binding_constraints_and_deactivation(planning, auth_
             },
         )
         assert second.status_code == 201, second.text
-        assert second.json()["partner_id"] == partner_row["id"]
+        assert "partner_id" not in second.json()
+        account = (
+            planning["admin"]
+            .get("/api/v1/access/users", params={"email": second.json()["email"]})
+            .json()["items"][0]
+        )
+        assert account["partner_id"] == partner_row["id"]
 
         second_partner, _other_type, _other_project = references(planning)
         with Session(planning["auth"].engine) as db, pytest.raises(IntegrityError):

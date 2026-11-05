@@ -161,10 +161,9 @@ test('L13–L14 restricted lifecycle, conflicts, Query refresh and offline non-r
   })
   await context.setOffline(true)
   await expect(
-    page.getByRole('heading', { name: 'Accès à vérifier' }),
+    page.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   await context.setOffline(false)
-  await page.getByRole('button', { name: 'Vérifier mon accès' }).click()
   await expect(row).toContainText('Actif')
   expect(patches).toBe(0)
   // Unknown outcome: no automatic replay; authoritative reload reveals actual state.

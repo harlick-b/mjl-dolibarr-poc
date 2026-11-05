@@ -159,6 +159,8 @@ relevant to the current task.
   Background Query refresh must not attach a newer version to an older local
   draft. Preserve both until save or explicit discard, and test refresh during
   editing (including observation-only changes that do not remount a form).
+  Preserve cached projections only for temporary failures: a denied refresh must
+  discard its resource data, even when Query still exposes a previous result.
 
 - Resetting a TanStack mutation does not suppress its old hook callbacks. Bind
   protected-file error cleanup to the request generation so an old failure cannot
@@ -174,3 +176,8 @@ relevant to the current task.
   states leave a blank wait. Cover both route and dependent section requests;
   test staggered responses, and keep forms mounted during pagination/refetch so
   placeholders do not discard drafts or mistake pending data for an empty list.
+
+- Reproduce hosted-database UI refresh failures with concurrent reads as well as
+  sequential requests. Exclusive session-row locks can serialize independent
+  page reads until statement timeouts; shared read protection must still retain
+  account-revocation safety, verified with real database race tests.

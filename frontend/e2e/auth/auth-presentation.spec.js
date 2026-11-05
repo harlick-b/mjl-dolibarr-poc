@@ -85,6 +85,38 @@ for (const [role, destination] of [
   })
 }
 
+test('a cross-tab role change moves the user to the matching workspace', async ({
+  page,
+}) => {
+  let role = 'ADMIN_PLATEFORME'
+  await page.route('**/api/v1/**', (route) =>
+    route.fulfill({
+      json: { object: 'list', count: 0, data: [], next: null, previous: null },
+    }),
+  )
+  await page.route('**/api/v1/auth/session', (route) =>
+    route.fulfill({
+      json: {
+        state: 'verified',
+        csrf: 'test',
+        user: { id: 'fixture', role, email: 'person@example.test' },
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+    }),
+  )
+  await page.goto('/access/users')
+  await expect(page).toHaveURL(/\/access\/users$/)
+
+  role = 'PARTENAIRE'
+  await page.evaluate(() => {
+    const channel = new BroadcastChannel('mjl-auth')
+    channel.postMessage({ type: 'changed', source: 'another-tab' })
+    channel.close()
+  })
+
+  await expect(page).toHaveURL((url) => url.pathname === '/partner')
+})
+
 test('login has a quiet loading state and anonymous home redirects', async ({
   page,
 }) => {
@@ -212,7 +244,7 @@ test('password then OTP opens the workspace without an intermediate session scre
   }
   await page.route('**/api/v1/**', (route) =>
     route.fulfill({
-      json: { count: 0, data: [], next: null, previous: null, object: 'list' },
+      json: { items: [], total: 0, page: 1, size: 20 },
     }),
   )
   await page.route('**/api/v1/auth/**', async (route) => {
@@ -344,7 +376,7 @@ test('account revalidation masks stale identity and an interrupted logout stays 
     page.getByText('person@example.test', { exact: true }),
   ).toHaveCount(0)
   await expect(
-    page.getByRole('status', { name: 'Chargement du compte' }),
+    page.getByRole('status', { name: 'Vérification de votre accès' }),
   ).toBeVisible()
   await page.evaluate(() => {
     const channel = new BroadcastChannel('mjl-auth')
@@ -356,8 +388,10 @@ test('account revalidation masks stale identity and an interrupted logout stays 
     page.getByText('person@example.test', { exact: true }),
   ).toBeVisible()
   let logoutCalls = 0
+  const logoutCsrf = []
   await page.route('**/api/v1/auth/logout', async (route) => {
     logoutCalls++
+    logoutCsrf.push(route.request().headers()['x-csrf-token'])
     if (logoutCalls === 1) await route.abort()
     else {
       session = { state: 'anonymous', csrf: 'fresh' }
@@ -377,7 +411,117 @@ test('account revalidation masks stale identity and an interrupted logout stays 
     page.getByRole('button', { name: 'Réessayer la déconnexion' }),
   ).toBeEnabled()
   expect(logoutCalls).toBe(1)
+  expect(
+    await page.evaluate(() => sessionStorage.getItem('mjl.logout-pending')),
+  ).toBe('true')
+  session = { ...verified, csrf: 'rotated-after-remote-login' }
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      const observer = new BroadcastChannel('mjl-auth')
+      observer.onmessage = () => {
+        observer.close()
+        resolve()
+      }
+      const sender = new BroadcastChannel('mjl-auth')
+      sender.postMessage({ type: 'changed', source: 'another-tab' })
+      sender.close()
+    })
+  })
+  expect(
+    await page.evaluate(() => sessionStorage.getItem('mjl.logout-pending')),
+  ).toBe('true')
+  await expect(
+    page.getByText('person@example.test', { exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Réessayer la déconnexion' }),
+  ).toBeEnabled()
   await page.getByRole('button', { name: 'Réessayer la déconnexion' }).click()
   await expect(page).toHaveURL(/\/login$/)
   expect(logoutCalls).toBe(2)
+  expect(logoutCsrf).toEqual(['test', 'rotated-after-remote-login'])
+})
+
+test('login keeps the recovery link close and shows progress inside the CTA', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/auth/session', (route) =>
+    route.fulfill({ json: { state: 'anonymous', csrf: 'test' } }),
+  )
+  await page.route('**/api/v1/auth/login', () => new Promise(() => {}))
+  await page.goto('/login')
+  const password = page.getByLabel('Mot de passe', { exact: true })
+  await password.fill('Synthetic!93')
+  await page.getByLabel('Adresse e-mail').fill('actor@example.test')
+  const fieldBox = await password.boundingBox()
+  const linkBox = await page
+    .getByRole('link', { name: 'Mot de passe oublié ?' })
+    .boundingBox()
+  expect(linkBox.y - (fieldBox.y + fieldBox.height)).toBeLessThanOrEqual(8)
+  const button = page.getByRole('button', { name: 'Se connecter' })
+  await button.click()
+  await expect(button).toBeDisabled()
+  await expect(button).toHaveAttribute('aria-busy', 'true')
+  await expect(button.locator('svg')).toBeVisible()
+  await expect(
+    page.getByText('Traitement en cours', { exact: false }),
+  ).toHaveCount(0)
+})
+
+test('hidden account stays masked across a cross-tab change and revalidates on return', async ({
+  page,
+}) => {
+  let reads = 0
+  await page.route('**/api/v1/auth/session', async (route) => {
+    reads++
+    await route.fulfill({
+      json: {
+        state: 'verified',
+        csrf: 'test',
+        user: {
+          id: 'agent',
+          email: 'hidden@example.test',
+          role: 'AGENT_SAISIE',
+        },
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+    })
+  })
+  await page.goto('/identity')
+  await expect(
+    page.getByText('hidden@example.test', { exact: true }),
+  ).toBeVisible()
+  const before = reads
+  await page.evaluate(async () => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await new Promise((resolve) => {
+      const observer = new BroadcastChannel('mjl-auth')
+      observer.onmessage = () => {
+        observer.close()
+        resolve()
+      }
+      const sender = new BroadcastChannel('mjl-auth')
+      sender.postMessage({ type: 'changed', source: 'another-tab' })
+      sender.close()
+    })
+  })
+  await expect(
+    page.getByText('hidden@example.test', { exact: true }),
+  ).toHaveCount(0)
+  expect(reads).toBe(before)
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect(
+    page.getByText('hidden@example.test', { exact: true }),
+  ).toBeVisible()
+  expect(reads).toBe(before + 1)
 })

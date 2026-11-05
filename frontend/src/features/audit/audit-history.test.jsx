@@ -33,7 +33,11 @@ test('validator browses the sanitized global history', async () => {
             JSON.stringify({
               state: 'verified',
               csrf: 'csrf',
-              user: { id: 'validator', role: 'VALIDATEUR_DEFINITIF' },
+              user: {
+                id: 'validator',
+                email: 'user@example.test',
+                role: 'VALIDATEUR_DEFINITIF',
+              },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -156,13 +160,10 @@ test('validator browses the sanitized global history', async () => {
   )
   window.dispatchEvent(new Event('offline'))
   expect(
-    await screen.findByRole('heading', { name: 'Vérification de l’accès' }),
+    await screen.findByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   expect(screen.queryByText('Activité clôturée')).not.toBeInTheDocument()
   window.dispatchEvent(new Event('online'))
-  await userEvent.click(
-    screen.getByRole('button', { name: 'Vérifier mon accès' }),
-  )
   expect(await screen.findByText('Activité clôturée')).toBeVisible()
 })
 
@@ -175,7 +176,12 @@ test('ordinary business roles cannot open the global history', async () => {
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
       ),
@@ -186,5 +192,8 @@ test('ordinary business roles cannot open the global history', async () => {
       router={makeRouter(createMemoryHistory({ initialEntries: ['/history'] }))}
     />,
   )
-  expect(await screen.findByRole('alert')).toHaveTextContent('pas accès')
+  expect(await screen.findByRole('alert')).toHaveTextContent('Accès refusé')
+  expect(
+    screen.getByRole('link', { name: 'Retour à mon espace' }),
+  ).toBeVisible()
 })

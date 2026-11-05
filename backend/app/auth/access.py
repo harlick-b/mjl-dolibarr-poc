@@ -68,7 +68,6 @@ class UserItem(Identity):
 
 class InvitationItem(Input):
     id: str
-    user_id: str
     email: str
     full_name: str | None
     role: Role
@@ -76,7 +75,6 @@ class InvitationItem(Input):
     delivery_status: Literal["delivered", "failed", "unconfirmed"]
     expires_at: datetime
     version: int
-    partner_id: str | None = None
 
 
 class Users(Input):
@@ -122,12 +120,15 @@ class Version(Input):
 
 def admin(db: Session, auth: AuthService, request: Request) -> User:
     secret, csrf = evidence(request, auth)
-    actor = auth.principal(db, secret)
-    if actor.role != "ADMIN_PLATEFORME":
-        raise AuthError(403, "admin_required")
-    if request.method != "GET":
-        auth.guard(db, secret, csrf)
-    return actor
+    return auth.principal(
+        db,
+        secret,
+        csrf=csrf,
+        mutation=request.method != "GET",
+        read_only=request.method == "GET",
+        roles={"ADMIN_PLATEFORME"},
+        forbidden="admin_required",
+    )
 
 
 def invitation_item(db: Session, user: User, invitation: Invitation) -> InvitationItem:
@@ -143,7 +144,6 @@ def invitation_item(db: Session, user: User, invitation: Invitation) -> Invitati
     )
     return InvitationItem(
         id=invitation.id,
-        user_id=user.id,
         email=user.email,
         full_name=user.full_name,
         role=cast(Role, user.role),
@@ -152,7 +152,6 @@ def invitation_item(db: Session, user: User, invitation: Invitation) -> Invitati
         ),
         expires_at=invitation.expires_at,
         version=invitation.version,
-        partner_id=user.partner_id,
         delivery_status="delivered"
         if outcome == "sent"
         else "failed"
@@ -442,11 +441,11 @@ def lifecycle(
             )
             auth.audit(db, action, actor.id, user.id, details=facts)
         return UserItem(
+            partner_id=user.partner_id,
             id=user.id,
             email=user.email,
             full_name=user.full_name,
             role=cast(Role, user.role),
             state=cast(Literal["pending", "active", "inactive"], user.state),
             version=user.version,
-            partner_id=user.partner_id,
         )

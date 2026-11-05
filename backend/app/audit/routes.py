@@ -292,6 +292,7 @@ def audit_events(
             auth,
             evidence(request, auth)[0],
             roles={"VALIDATEUR_DEFINITIF", "ADMIN_PLATEFORME"},
+            read_only=True,
         )
         limit, token = pagination
         cursor = Cursor(auth, "audit-events", CONTEXT, limit)

@@ -90,10 +90,15 @@ root, the type sizes above are 12, 13, 14, 16, 20, 24 and 32px.
 
 Do not add a standalone loading sentence beneath or beside action buttons.
 Keep the existing disabled and accessible busy states while a request is pending.
-Data loading uses placeholders shaped for each page or section, including route
-loader waits. Distinguish pending data from empty results and service errors.
-Keep editable forms mounted during list refreshes; background reads use a compact
-indicator without replacing drafts.
+Initial access checks use the two-column authentication frame with a restrained
+indicator and keep protected content hidden. Authenticated page navigation keeps
+the verified workspace shell and uses one centered minimal loader, optionally
+labelled “Chargement des données…”. Full-page skeletons, fake cards and fake
+tables are not the default page-loading treatment. Local table, KPI and document
+waits may use a few subtle placeholders when preserving their layout helps.
+Distinguish pending data from empty results and service errors. Keep editable
+forms mounted during list refreshes; background reads use a compact indicator
+without replacing drafts.
 
 Keyboard focus is always visible: blue 2px ring/4px offset, two-color blue/white
 treatment on dark/accent surfaces. Hover applies only to hover-capable devices;

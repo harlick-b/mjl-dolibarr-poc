@@ -199,7 +199,9 @@ def output(
         "state": request.state,
         "submitter_id": request.submitter_id,
         "submitted_at": request.submitted_at.isoformat(),
-        "snapshot": request.snapshot,
+        "snapshot": {
+            key: request.snapshot[key] for key in ("old_allocation", "new_allocation")
+        },
         "cancellation": (
             {
                 "actor_id": request.cancelled_by_id,

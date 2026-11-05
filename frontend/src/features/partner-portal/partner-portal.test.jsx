@@ -38,8 +38,10 @@ test('a Partner sees only the read-only portfolio projection', async () => {
       if (path.includes('/auth/session'))
         body = {
           state: 'verified',
+          csrf: 'fixture',
           user: {
             id: 'partner-user',
+            email: 'user@example.test',
             role: 'PARTENAIRE',
             partner_id: 'partner-1',
           },
@@ -236,9 +238,7 @@ test('a Partner sees only the read-only portfolio projection', async () => {
     }),
   )
   resolveLateDownload()
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'accès doit être vérifié',
-  )
+  expect(await screen.findByRole('alert')).toHaveTextContent('indisponible')
   await waitFor(() => expect(createObjectURL).toHaveBeenCalledOnce())
 })
 
@@ -252,7 +252,12 @@ test('Partner detail distinguishes unfinished and validated-zero finance', async
           new Response(
             JSON.stringify({
               state: 'verified',
-              user: { id: 'partner-user', role: 'PARTENAIRE' },
+              csrf: 'fixture',
+              user: {
+                id: 'partner-user',
+                email: 'user@example.test',
+                role: 'PARTENAIRE',
+              },
               expires_at: new Date(Date.now() + 60_000).toISOString(),
             }),
           ),
@@ -431,8 +436,10 @@ test('offline invalidation removes the Partner portfolio immediately', async () 
           new Response(
             JSON.stringify({
               state: 'verified',
+              csrf: 'fixture',
               user: {
                 id: 'partner-user',
+                email: 'user@example.test',
                 role: 'PARTENAIRE',
                 partner_id: 'partner-1',
               },
@@ -467,26 +474,27 @@ test('offline invalidation removes the Partner portfolio immediately', async () 
   await act(async () => window.dispatchEvent(new Event('offline')))
   expect(screen.queryByText('Bonjour, Donnée privée')).not.toBeInTheDocument()
   expect(await screen.findByRole('alert')).toHaveTextContent(
-    'accès doit être vérifié',
+    'Connexion indisponible',
   )
   expect(
     router.options.context.queryClient
       .getQueriesData({ queryKey: ['partner-portal'] })
       .every(([, data]) => data === undefined),
   ).toBe(true)
-  fireEvent(window, new Event('online'))
   sessionUnavailable = true
-  fireEvent.click(screen.getByRole('button', { name: 'Vérifier mon accès' }))
+  fireEvent(window, new Event('online'))
   expect(
-    await screen.findByText('Votre identité n’a pas pu être vérifiée.'),
+    await screen.findByText(
+      'Nous ne pouvons pas confirmer votre accès pour le moment.',
+    ),
   ).toBeVisible()
   expect(screen.queryByText('Bonjour, Donnée privée')).not.toBeInTheDocument()
   sessionUnavailable = false
-  fireEvent.click(screen.getByRole('button', { name: 'Vérifier mon accès' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
   expect(await screen.findByText('Bonjour, Donnée privée')).toBeVisible()
 })
 
-test('a denied portal response masks and purges previously loaded data', async () => {
+test('a denied portal read removes that view without invalidating the session', async () => {
   let projects = 0
   vi.stubGlobal(
     'fetch',
@@ -497,7 +505,12 @@ test('a denied portal response masks and purges previously loaded data', async (
           new Response(
             JSON.stringify({
               state: 'verified',
-              user: { id: 'partner-user', role: 'PARTENAIRE' },
+              csrf: 'fixture',
+              user: {
+                id: 'partner-user',
+                email: 'user@example.test',
+                role: 'PARTENAIRE',
+              },
               expires_at: new Date(Date.now() + 60_000).toISOString(),
             }),
           ),
@@ -532,14 +545,72 @@ test('a denied portal response masks and purges previously loaded data', async (
   expect(await screen.findByText('Bonjour, Donnée privée')).toBeVisible()
   view.unmount()
   render(<App router={router} />)
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'accès doit être vérifié',
+  expect(await screen.findByRole('alert')).toHaveTextContent('indisponible')
+  expect(screen.queryByText('Bonjour, Donnée privée')).toBeNull()
+})
+
+test('a denied profile refetch removes its identity and dependent projections', async () => {
+  let denyProfile = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'fixture',
+              user: {
+                id: 'partner-user',
+                email: 'partner@example.test',
+                role: 'PARTENAIRE',
+              },
+              expires_at: new Date(Date.now() + 60_000).toISOString(),
+            }),
+          ),
+        )
+      if (path.endsWith('/partner-portal/profile'))
+        return Promise.resolve(
+          denyProfile
+            ? new Response('{}', { status: 403 })
+            : new Response(JSON.stringify({ id: 'p1', name: 'Donnée privée' })),
+        )
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    }),
   )
-  expect(screen.queryByText('Donnée privée')).not.toBeInTheDocument()
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/partner'] }),
+  )
+  render(<App router={router} />)
+  expect(await screen.findByText('Bonjour, Donnée privée')).toBeVisible()
+
+  denyProfile = true
+  await act(async () =>
+    router.options.context.queryClient.invalidateQueries({
+      queryKey: ['partner-portal', 'partner-user', 'profile'],
+    }),
+  )
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('indisponible')
+  expect(screen.queryByText('Bonjour, Donnée privée')).not.toBeInTheDocument()
+  expect(
+    router.options.context.queryClient.getQueryData(['auth', 'session']).state,
+  ).toBe('verified')
   expect(
     router.options.context.queryClient
-      .getQueriesData({ queryKey: ['partner-portal'] })
-      .every(([, data]) => data === undefined),
+      .getQueriesData({ queryKey: ['partner-portal', 'partner-user'] })
+      .every(([, data]) => data === null),
   ).toBe(true)
 })
 
@@ -551,7 +622,12 @@ test('an initially offline portal never requests private portfolio data', async 
         new Response(
           JSON.stringify({
             state: 'verified',
-            user: { id: 'partner-user', role: 'PARTENAIRE' },
+            csrf: 'fixture',
+            user: {
+              id: 'partner-user',
+              email: 'user@example.test',
+              role: 'PARTENAIRE',
+            },
           }),
         ),
       )
@@ -564,7 +640,7 @@ test('an initially offline portal never requests private portfolio data', async 
     />,
   )
   expect(await screen.findByRole('alert')).toHaveTextContent(
-    'accès doit être vérifié',
+    'Connexion indisponible',
   )
   expect(
     fetch.mock.calls.every(
@@ -581,7 +657,13 @@ test('portal pagination follows server cursors through router search', async () 
         new Response(
           JSON.stringify({
             state: 'verified',
-            user: { id: 'partner-user', role: 'PARTENAIRE' },
+            csrf: 'fixture',
+            user: {
+              id: 'partner-user',
+              email: 'user@example.test',
+              role: 'PARTENAIRE',
+            },
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
           }),
         ),
       )

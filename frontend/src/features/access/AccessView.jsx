@@ -1,22 +1,22 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { cursorFrom } from '@/shared/lib/pagination'
+import { RetryableError } from '@/shared/ui/RetryableError'
+import { useSessionQuery } from '@/features/auth/SessionProvider'
+import { authorization, roleLabels } from '@/features/auth/authorization'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus, SlidersHorizontal, X } from 'lucide-react'
-import { roleLabels, sessionKey, sessionQuery } from '@/features/auth/auth'
+import { sessionKey } from '@/features/auth/auth'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/AccessView'
+import { strings as common } from '@/locales/fr/common'
 import { Button } from '@/shared/ui/button'
 import { Helmet } from 'react-helmet-async'
 import { AdminSidebar } from './AdminSidebar'
-
-function subscribe(callback) {
-  window.addEventListener('online', callback)
-  window.addEventListener('offline', callback)
-  return () => {
-    window.removeEventListener('online', callback)
-    window.removeEventListener('offline', callback)
-  }
-}
+import { EmptyState } from '@/shared/ui/FallbackState'
+import { PageLoading } from '@/shared/ui/PageLoading'
+import { useAccess } from '@/features/auth/access-verification'
+import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 
 const states = {
   pending: 'En attente',
@@ -34,114 +34,33 @@ const deliveryLabels = {
 }
 
 export function AccessView() {
-  const client = useQueryClient()
-  const session = useQuery(sessionQuery)
-  const online = useSyncExternalStore(subscribe, () => navigator.onLine)
-  const [blocked, setBlocked] = useState(false)
-  const expiry = session.data?.expires_at
-  const user = session.data?.user
-  useEffect(() => {
-    const clear = () => {
-      setBlocked(true)
-      void client.cancelQueries()
-      client.clear()
-    }
-    const channel = new BroadcastChannel('mjl-auth')
-    channel.onmessage = clear
-    window.addEventListener('offline', clear)
-    const timer = expiry
-      ? setTimeout(clear, Math.max(0, Date.parse(expiry) - Date.now()))
-      : undefined
-    return () => {
-      channel.close()
-      window.removeEventListener('offline', clear)
-      clearTimeout(timer)
-    }
-  }, [client, expiry])
-  useEffect(() => {
-    if (
-      session.isError ||
-      (session.data && user?.role !== 'ADMIN_PLATEFORME')
-    ) {
-      void client.cancelQueries({ queryKey: ['access'] })
-      client.removeQueries({ queryKey: ['access'] })
-    }
-  }, [client, session.isError, session.data, user?.role])
-  if (!online || blocked)
-    return (
-      <section className="access-message">
-        <h1>Accès à vérifier</h1>
-        <p>
-          Une connexion et une identité vérifiée sont nécessaires. Si une action
-          était en cours, son résultat n’est pas confirmé : vérifiez les listes
-          avant de la relancer.
-        </p>
-        <Button
-          disabled={!online}
-          onClick={async () => {
-            await session.refetch()
-            setBlocked(false)
-          }}
-        >
-          Vérifier mon accès
-        </Button>
-        <Link to="/login">Connexion</Link>
-      </section>
-    )
-  if (session.isPending || (session.isFetching && session.isError))
+  const sessionQuery = useSessionQuery()
+  const access = useAccess()
+  const session = access.session ?? sessionQuery.data
+  const user = session?.user
+  if (access.status !== 'verified' || session?.state !== 'verified' || !user)
     return <AccessLoading />
-  if (session.error?.status === 401 || session.data?.state === 'anonymous')
-    return <Navigate to="/login" replace />
-  if (session.data?.state === 'pending')
-    return <Navigate to="/verification" replace />
-  if (session.isError)
-    return (
-      <AccessGate>
-        <section className="access-message" role="alert">
-          <h1>Service indisponible</h1>
-          <p>
-            Votre identité n’a pas pu être vérifiée. Réessayez pour accéder aux
-            utilisateurs.
-          </p>
-          <Button onClick={() => session.refetch()}>Réessayer</Button>
-        </section>
-      </AccessGate>
-    )
-  if (user?.role !== 'ADMIN_PLATEFORME')
-    return (
-      <section className="access-message">
-        <h1>Accès refusé</h1>
-        <p>Cette page est réservée à l’administration.</p>
-        <Link to="/identity">Mon identité</Link>
-      </section>
-    )
-  return (
-    <>
-      {session.isFetching && <AccessLoading />}
-      <Accounts
-        key={user.id}
-        session={session.data}
-        checking={session.isFetching}
-        onDenied={() => setBlocked(true)}
-      />
-    </>
-  )
+  if (!authorization(session).can('accounts'))
+    return <AccessDeniedState role={user.role} />
+  return <Accounts key={user.id} session={session} />
 }
 
-function AccessGate({ children }) {
+export function AccessGate({ children }) {
+  const session = useSessionQuery()
+  const user =
+    !session.isError &&
+    session.data?.state === 'verified' &&
+    session.data.user.role === 'ADMIN_PLATEFORME'
+      ? session.data.user
+      : null
   return (
     <div className="access-layout">
       <Helmet>
-        <title>{strings.usersTitle}</title>
+        <title>{common.usersTitle}</title>
       </Helmet>
-      <aside className="access-sidebar" aria-hidden="true">
-        <div className="access-brand">
-          <img src="/icon-192.png" alt="" width="40" height="40" />
-          <span>MJL</span>
-        </div>
-      </aside>
+      <AdminSidebar user={user} />
       <div className="access-workspace">
-        <header>{strings.usersTitle}</header>
+        <header>{common.usersTitle}</header>
         <main className="access-main">{children}</main>
       </div>
     </div>
@@ -151,21 +70,7 @@ function AccessGate({ children }) {
 export function AccessLoading() {
   return (
     <AccessGate>
-      <div role="status" aria-label={strings.usersLoading} aria-busy="true">
-        <div className="access-heading">
-          <h1>{strings.usersTitle}</h1>
-        </div>
-        <div className="access-list-skeleton" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <h2>{strings.invitationsTitle}</h2>
-        <div className="access-list-skeleton" aria-hidden="true">
-          <span />
-          <span />
-        </div>
-      </div>
+      <PageLoading title={common.usersTitle} />
     </AccessGate>
   )
 }
@@ -197,14 +102,14 @@ function listQuery(api, principal, kind, filters, onDenied) {
           throw new Error('Réponse indisponible. Réessayez.')
         return result
       } catch (error) {
-        if ([401, 403].includes(error.status)) onDenied(error.status)
+        if (error.status === 401) onDenied(error.status)
         throw error
       }
     },
   }
 }
 
-async function partnerOptions(api, signal) {
+async function partnerOptions(api, signal, requiredIds) {
   const data = []
   let path = '/api/v1/partners?limit=100'
   const seen = new Set()
@@ -214,7 +119,11 @@ async function partnerOptions(api, signal) {
     const page = await api.request(path, { signal })
     if (!Array.isArray(page.data))
       throw new Error('Liste des Partenaires invalide.')
-    data.push(...page.data.filter((partner) => partner.active))
+    data.push(
+      ...page.data.filter((partner) => requiredIds.includes(partner.id)),
+    )
+    if (requiredIds.every((id) => data.some((partner) => partner.id === id)))
+      break
     if (!page.next) break
     const next = new URL(page.next, window.location.origin)
     if (
@@ -227,7 +136,7 @@ async function partnerOptions(api, signal) {
   return data
 }
 
-function Accounts({ session, onDenied, checking }) {
+function Accounts({ session, onDenied = () => {}, checking }) {
   const { api } = useAPI()
   const client = useQueryClient()
   const navigate = useNavigate()
@@ -294,20 +203,25 @@ function Accounts({ session, onDenied, checking }) {
   const invitations = useQuery(
     listQuery(api, session.user.id, 'invitations', invitationFilters, denied),
   )
+  const partnerIds = [
+    ...new Set(
+      (users.data?.items || [])
+        .filter((user) => user.role === 'PARTENAIRE')
+        .map((user) => user.partner_id),
+    ),
+  ].sort()
   const partners = useQuery({
-    queryKey: ['access', session.user.id, 'partners'],
+    queryKey: ['access', session.user.id, 'partners', partnerIds],
     retry: false,
     staleTime: 0,
     gcTime: 0,
     networkMode: 'always',
-    enabled:
-      dialog?.kind === 'invite' ||
-      Boolean(users.data?.items.some((user) => user.role === 'PARTENAIRE')),
+    enabled: partnerIds.length > 0,
     queryFn: async ({ signal }) => {
       try {
-        return await partnerOptions(api, signal)
+        return await partnerOptions(api, signal, partnerIds)
       } catch (error) {
-        if ([401, 403].includes(error.status)) denied(error.status)
+        if (error.status === 401) denied(error.status)
         throw error
       }
     },
@@ -318,6 +232,19 @@ function Accounts({ session, onDenied, checking }) {
     event.preventDefault()
     if (mutation.isPending) return
     const data = new FormData(event.currentTarget)
+    if (dialog.kind === 'invite') {
+      const name = `${data.get('first_name').trim()} ${data.get('last_name').trim()}`
+      if (
+        !data.get('first_name').trim() ||
+        !data.get('last_name').trim() ||
+        name.length > 200
+      ) {
+        const input = event.currentTarget.elements.namedItem('last_name')
+        input.setCustomValidity(strings.nameValidation)
+        input.reportValidity()
+        return
+      }
+    }
     const lifecycle = ['role', 'deactivate'].includes(dialog.kind)
     const path = lifecycle
       ? `users/${dialog.item.id}`
@@ -329,7 +256,7 @@ function Accounts({ session, onDenied, checking }) {
       dialog.kind === 'invite'
         ? {
             email: data.get('email'),
-            full_name: data.get('full_name'),
+            full_name: `${data.get('first_name').trim()} ${data.get('last_name').trim()}`,
             role,
             ...(role === 'PARTENAIRE'
               ? { partner_id: data.get('partner_id') }
@@ -364,7 +291,7 @@ function Accounts({ session, onDenied, checking }) {
       setDialog(null)
     } catch (error) {
       if (!alive.current) return
-      if ([401, 403].includes(error.status)) {
+      if (error.status === 401) {
         denied(error.status)
         return
       }
@@ -397,7 +324,7 @@ function Accounts({ session, onDenied, checking }) {
       style={{ display: checking ? 'none' : undefined }}
     >
       <Helmet>
-        <title>{strings.usersTitle}</title>
+        <title>{common.usersTitle}</title>
       </Helmet>
       <AdminSidebar user={session.user} />
       <div className="access-workspace">
@@ -482,7 +409,35 @@ function Accounts({ session, onDenied, checking }) {
               <Button>Filtrer</Button>
             </form>
           </details>
-          <ListState query={users} empty="Aucun utilisateur.">
+          <ListState
+            query={users}
+            empty={
+              search.email || search.role || search.state ? (
+                <EmptyState
+                  action={
+                    <button
+                      className="fallback-secondary"
+                      onClick={() =>
+                        void changeSearch({
+                          email: '',
+                          role: '',
+                          state: '',
+                          page: 1,
+                        })
+                      }
+                      type="button"
+                    >
+                      Effacer les filtres
+                    </button>
+                  }
+                >
+                  <p>{strings.noMatches}</p>
+                </EmptyState>
+              ) : (
+                'Aucun utilisateur.'
+              )
+            }
+          >
             <div className="access-table-wrap">
               <table>
                 <caption className="sr-only">Comptes utilisateurs</caption>
@@ -581,7 +536,33 @@ function Accounts({ session, onDenied, checking }) {
               </select>
             </label>
           </div>
-          <ListState query={invitations} empty="Aucune invitation.">
+          <ListState
+            query={invitations}
+            empty={
+              search.invitationState ? (
+                <EmptyState
+                  action={
+                    <button
+                      className="fallback-secondary"
+                      onClick={() =>
+                        void changeSearch({
+                          invitationState: '',
+                          invitationPage: 1,
+                        })
+                      }
+                      type="button"
+                    >
+                      Effacer les filtres
+                    </button>
+                  }
+                >
+                  <p>{strings.noMatches}</p>
+                </EmptyState>
+              ) : (
+                'Aucune invitation.'
+              )
+            }
+          >
             <div className="access-table-wrap">
               <table>
                 <caption className="sr-only">
@@ -661,7 +642,6 @@ function Accounts({ session, onDenied, checking }) {
           {dialog && (
             <AccessDialog
               dialog={dialog}
-              partners={partners}
               pending={mutation.isPending}
               checking={checking}
               close={() => setDialog(null)}
@@ -689,15 +669,18 @@ function ListState({ query, empty, children }) {
     )
   if (query.isError)
     return (
-      <div role="alert">
-        Liste indisponible.{' '}
-        <button onClick={() => query.refetch()}>Actualiser</button>
-      </div>
+      <section className="access-list-error" role="alert">
+        <h3>{strings.listUnavailable}</h3>
+        <p>{strings.listRetryPrompt}</p>
+        <Button onClick={() => query.refetch()}>{strings.listRetry}</Button>
+      </section>
     )
   return query.data?.items.length ? (
     children
-  ) : (
+  ) : typeof empty === 'string' ? (
     <p className="access-empty">{empty}</p>
+  ) : (
+    empty
   )
 }
 function Pagination({ query, page, change, label }) {
@@ -723,9 +706,29 @@ function Pagination({ query, page, change, label }) {
     </nav>
   )
 }
-function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
+function AccessDialog({ dialog, pending, checking, close, submit }) {
+  const { api } = useAPI()
+  const session = useSessionQuery()
+  const [partnerCursor, setPartnerCursor] = useState('')
   const ref = useRef(null)
   const [inviteRole, setInviteRole] = useState('AGENT_SAISIE')
+  const partners = useQuery({
+    queryKey: [
+      'access',
+      session.data.user.id,
+      'partner-options',
+      partnerCursor,
+    ],
+    queryFn: ({ signal }) =>
+      api.request(
+        `/api/v1/partners?limit=60${partnerCursor ? `&cursor=${encodeURIComponent(partnerCursor)}` : ''}`,
+        { signal },
+      ),
+    enabled: dialog.kind === 'invite' && inviteRole === 'PARTENAIRE',
+    retry: false,
+    gcTime: 0,
+    networkMode: 'always',
+  })
   useEffect(() => {
     const node = ref.current
     const trigger = document.activeElement
@@ -736,6 +739,10 @@ function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
     }
   }, [])
   const invite = dialog.kind === 'invite'
+  const optionsBlocked =
+    invite &&
+    inviteRole === 'PARTENAIRE' &&
+    (partners.isPending || partners.isFetching || partners.isError)
   const title = invite
     ? 'Inviter un utilisateur'
     : dialog.kind === 'role'
@@ -788,18 +795,40 @@ function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
           <X size={20} />
         </button>
       </div>
-      <form onSubmit={submit} aria-busy={pending}>
+      <form
+        onSubmit={(event) => {
+          if (optionsBlocked) event.preventDefault()
+          else submit(event)
+        }}
+        aria-busy={pending}
+      >
         <fieldset disabled={pending}>
           {invite ? (
             <div className="access-dialog-fields">
               <label>
-                {strings.accountFullName}
+                {strings.firstName}
                 <input
-                  name="full_name"
+                  name="first_name"
+                  onInput={(event) =>
+                    event.currentTarget.form.elements
+                      .namedItem('last_name')
+                      .setCustomValidity('')
+                  }
                   type="text"
                   maxLength={200}
                   required
-                  autoComplete="name"
+                  autoComplete="given-name"
+                />
+              </label>
+              <label>
+                {strings.lastName}
+                <input
+                  name="last_name"
+                  onInput={(event) => event.currentTarget.setCustomValidity('')}
+                  type="text"
+                  maxLength={200}
+                  required
+                  autoComplete="family-name"
                 />
               </label>
               <label>
@@ -829,26 +858,54 @@ function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
                 </select>
               </label>
               {inviteRole === 'PARTENAIRE' && (
-                <label>
-                  Partenaire
-                  <select
-                    name="partner_id"
-                    required
-                    disabled={partners.isPending}
-                  >
-                    <option value="">Sélectionner un Partenaire</option>
-                    {partners.data?.map((partner) => (
-                      <option key={partner.id} value={partner.id}>
-                        {partner.name}
-                      </option>
-                    ))}
-                  </select>
+                <div>
+                  <label>
+                    Partenaire
+                    <select
+                      name="partner_id"
+                      required
+                      disabled={partners.isPending}
+                    >
+                      <option value="">{strings.selectPartner}</option>
+                      {partners.data?.data
+                        .filter((partner) => partner.active)
+                        .map((partner) => (
+                          <option key={partner.id} value={partner.id}>
+                            {partner.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
                   {partners.isError && (
-                    <small role="alert">
+                    <RetryableError onRetry={() => void partners.refetch()}>
                       Liste des Partenaires indisponible.
-                    </small>
+                    </RetryableError>
                   )}
-                </label>
+                  <span className="planning-actions">
+                    <Button
+                      type="button"
+                      disabled={!partners.data?.previous || partners.isFetching}
+                      onClick={() =>
+                        setPartnerCursor(
+                          cursorFrom(partners.data.previous, '/partners'),
+                        )
+                      }
+                    >
+                      Précédent
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={!partners.data?.next || partners.isFetching}
+                      onClick={() =>
+                        setPartnerCursor(
+                          cursorFrom(partners.data.next, '/partners'),
+                        )
+                      }
+                    >
+                      Suivant
+                    </Button>
+                  </span>
+                </div>
               )}
             </div>
           ) : dialog.kind === 'role' ? (
@@ -890,7 +947,7 @@ function AccessDialog({ dialog, partners, pending, checking, close, submit }) {
           <button type="button" disabled={pending} onClick={close}>
             Annuler
           </button>
-          <Button disabled={pending}>
+          <Button disabled={pending || optionsBlocked}>
             {invite
               ? 'Envoyer l’invitation'
               : dialog.kind === 'role'

@@ -86,10 +86,8 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(invite).toBeFocused()
   await invite.click()
-  await page
-    .getByRole('dialog')
-    .getByLabel('Nom complet')
-    .fill('Agent Navigateur')
+  await page.getByRole('dialog').getByLabel('Prénom').fill('Agent Navigateur')
+  await page.getByRole('dialog').getByLabel('Nom de famille').fill('Test')
   await page
     .getByRole('dialog')
     .getByLabel('Adresse e-mail')
@@ -150,10 +148,8 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
   ).toBe(403)
   await recipient.close()
   await invite.click()
-  await page
-    .getByRole('dialog')
-    .getByLabel('Nom complet')
-    .fill('Agent Navigateur')
+  await page.getByRole('dialog').getByLabel('Prénom').fill('Agent Navigateur')
+  await page.getByRole('dialog').getByLabel('Nom de famille').fill('Test')
   await page
     .getByRole('dialog')
     .getByLabel('Adresse e-mail')
@@ -164,10 +160,8 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
   ).toBeVisible()
 
   await invite.click()
-  await page
-    .getByRole('dialog')
-    .getByLabel('Nom complet')
-    .fill('Compte Révoqué')
+  await page.getByRole('dialog').getByLabel('Prénom').fill('Compte Révoqué')
+  await page.getByRole('dialog').getByLabel('Nom de famille').fill('Test')
   await page
     .getByRole('dialog')
     .getByLabel('Adresse e-mail')
@@ -212,7 +206,8 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
     }),
   )
   await invite.click()
-  await page.getByRole('dialog').getByLabel('Nom complet').fill('Échec Envoi')
+  await page.getByRole('dialog').getByLabel('Prénom').fill('Échec Envoi')
+  await page.getByRole('dialog').getByLabel('Nom de famille').fill('Test')
   await page
     .getByRole('dialog')
     .getByLabel('Adresse e-mail')
@@ -230,10 +225,8 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
     return route.abort('connectionreset')
   })
   await invite.click()
-  await page
-    .getByRole('dialog')
-    .getByLabel('Nom complet')
-    .fill('Résultat Inconnu')
+  await page.getByRole('dialog').getByLabel('Prénom').fill('Résultat Inconnu')
+  await page.getByRole('dialog').getByLabel('Nom de famille').fill('Test')
   await page
     .getByRole('dialog')
     .getByLabel('Adresse e-mail')
@@ -245,11 +238,10 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
   expect(mutations).toBe(1)
   await context.setOffline(true)
   await expect(
-    page.getByRole('heading', { name: 'Accès à vérifier' }),
+    page.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   await expect(page.getByRole('table')).toHaveCount(0)
   await context.setOffline(false)
-  await page.getByRole('button', { name: 'Vérifier mon accès' }).click()
   await expect(
     page.getByRole('heading', { name: 'Utilisateurs', exact: true }),
   ).toBeVisible()
@@ -274,9 +266,7 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
   const second = await context.newPage()
   await second.goto('/identity')
   await second.getByRole('button', { name: 'Se déconnecter' }).click()
-  await expect(
-    page.getByRole('heading', { name: 'Accès à vérifier' }),
-  ).toBeVisible()
+  await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByRole('table')).toHaveCount(0)
   expect((await page.request.get('/api/v1/access/users')).status()).toBe(401)
   await second.close()

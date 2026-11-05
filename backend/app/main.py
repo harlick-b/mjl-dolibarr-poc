@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -65,6 +66,23 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(annual_export_router)
     app.include_router(audit_history_router)
     app.include_router(partner_portal_router)
+
+    def log_database_failure(error: SQLAlchemyError) -> None:
+        # Do not log exception text, SQL, parameters, cookies or connection URLs.
+        logging.getLogger(__name__).warning(
+            "Database request failed: type=%s sqlstate=%s relation=%s request_id=%s",
+            type(error).__name__,
+            getattr(getattr(error, "orig", None), "sqlstate", None),
+            next(
+                (
+                    name
+                    for name in ("auth_context", "auth_abuse", "auth_user")
+                    if name in (getattr(error, "statement", None) or "")
+                ),
+                "other",
+            ),
+            request_id.get(),
+        )
 
     def failure(request: Request, status: int, code: str) -> JSONResponse:
         response = JSONResponse(
@@ -137,7 +155,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
                         if allowed or recovery_request
                         else failure(request, 429, "endpoint_limited")
                     )
-                except SQLAlchemyError:
+                except SQLAlchemyError as error:
+                    log_database_failure(error)
                     response = failure(request, 503, "service_unavailable")
                 response.headers["Cache-Control"] = "no-store"
                 response.headers["Referrer-Policy"] = "no-referrer"
@@ -181,7 +200,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
                         context.id if context else None,
                         error.code,
                     )
-            except SQLAlchemyError:
+            except SQLAlchemyError as database_error:
+                log_database_failure(database_error)
                 return failure(request, 503, "service_unavailable")
         return failure(request, error.status, error.code)
 
@@ -191,6 +211,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
 
     @app.exception_handler(SQLAlchemyError)
     def database_failure(request: Request, error: SQLAlchemyError) -> JSONResponse:
+        log_database_failure(error)
         return failure(request, 503, "service_unavailable")
 
     return app

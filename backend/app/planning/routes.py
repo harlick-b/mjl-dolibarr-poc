@@ -315,6 +315,13 @@ class TransferOutput(Input):
     current_revision_id: str
 
 
+class ActivityListItem(Input):
+    id: str
+    reference: str
+    name: str
+    allocation: str
+
+
 class ActivityOutput(Input):
     id: str
     pta_id: str
@@ -1218,7 +1225,9 @@ def annual_metrics(identifier: str, request: Request, auth: Auth) -> dict[str, A
         return annual_metrics_data(db, pta, cutoff)
 
 
-@router.get("/ptas/{identifier}/activities", response_model=ListOutput[ActivityOutput])
+@router.get(
+    "/ptas/{identifier}/activities", response_model=ListOutput[ActivityListItem]
+)
 def activities(
     identifier: str,
     request: Request,
@@ -1227,7 +1236,7 @@ def activities(
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
-        actor = principal(db, auth, evidence(request, auth)[0])
+        principal(db, auth, evidence(request, auth)[0])
         pta = db.get(AnnualPTA, identifier)
         if not pta or pta.context_id != CONTEXT:
             raise AuthError(404, "pta_not_found")
@@ -1276,7 +1285,15 @@ def activities(
         return {
             "object": "list",
             "count": total,
-            "data": [activity_item(db, row, actor.role, actor.id) for row in rows],
+            "data": [
+                {
+                    "id": row.id,
+                    "reference": row.reference,
+                    "name": row.name,
+                    "allocation": str(row.allocation),
+                }
+                for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

@@ -117,7 +117,13 @@ function portalFixture(binary) {
     if (path.includes('/auth/session'))
       return reply({
         state: 'verified',
-        user: { id: 'reader', role: 'PARTENAIRE', partner_id: 'partner' },
+        csrf: 'csrf',
+        user: {
+          id: 'reader',
+          email: 'user@example.test',
+          role: 'PARTENAIRE',
+          partner_id: 'partner',
+        },
         expires_at: new Date(Date.now() + 60000).toISOString(),
       })
     if (path.endsWith('/profile'))
@@ -364,7 +370,9 @@ test('fresh authorization denial discards pending shared-file bytes', async () =
       queryKey: ['partner-portal', 'reader', 'documents'],
     }),
   )
-  expect(await screen.findByText(/Votre accès doit être vérifié/)).toBeVisible()
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Ce document est indisponible ou son partage a été arrêté.',
+  )
   await act(async () =>
     resolveDownload(
       new Response('late', { headers: { 'Content-Type': 'image/png' } }),

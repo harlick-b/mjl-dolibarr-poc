@@ -480,3 +480,76 @@ test('completing OTP automatically submits once without Enter or a click', async
   expect(requests).toHaveLength(1)
   expect(screen.getByLabelText('Chiffre 6 du code')).toBeDisabled()
 })
+
+test('login shows progress inside its button while submitting', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((_url, options) =>
+      options?.method === 'POST'
+        ? new Promise(() => {})
+        : Promise.resolve(
+            new Response(
+              JSON.stringify({ state: 'anonymous', csrf: 'fixture' }),
+            ),
+          ),
+    ),
+  )
+  render(
+    <App
+      router={makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))}
+    />,
+  )
+  await userEvent.type(
+    await screen.findByLabelText('Adresse e-mail'),
+    'actor@example.test',
+  )
+  await userEvent.type(screen.getByLabelText('Mot de passe'), 'Synthetic!93')
+  const button = screen.getByRole('button', { name: 'Se connecter' })
+  await userEvent.click(button)
+  await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'))
+  expect(button.querySelector('svg')).not.toBeNull()
+  expect(button).toBeDisabled()
+})
+
+test('a valid reset proof survives an offline and online transition', async () => {
+  window.history.replaceState(
+    {},
+    '',
+    '/reset-password#selector=fixture-selector&verifier=fixture-verifier',
+  )
+  const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async (url) =>
+        new Response(
+          JSON.stringify(
+            url.endsWith('/session')
+              ? { state: 'anonymous', csrf: 'fixture' }
+              : { email: 'ordinary@example.test' },
+          ),
+        ),
+    ),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/reset-password'] }),
+      )}
+    />,
+  )
+  expect(await screen.findByDisplayValue('ordinary@example.test')).toBeVisible()
+  expect(window.location.hash).toBe('')
+  await act(async () => {
+    online.mockReturnValue(false)
+    window.dispatchEvent(new Event('offline'))
+  })
+  await act(async () => {
+    online.mockReturnValue(true)
+    window.dispatchEvent(new Event('online'))
+  })
+  expect(await screen.findByDisplayValue('ordinary@example.test')).toBeVisible()
+  expect(
+    screen.queryByText('Lien de réinitialisation invalide ou expiré'),
+  ).not.toBeInTheDocument()
+})

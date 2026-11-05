@@ -84,6 +84,7 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     )
     assert submitted.status_code == 201, submitted.text
     request = submitted.json()
+    assert "snapshot" not in request
     assert request["amount"] == "300000"
     assert request["state"] == "submitted"
     assert request["allowed_actions"] == ["read", "cancel"]

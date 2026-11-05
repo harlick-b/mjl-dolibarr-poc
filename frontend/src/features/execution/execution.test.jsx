@@ -111,7 +111,11 @@ test('an observation draft keeps its version across refresh and can be explicitl
         body = {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: 'agent', role: 'AGENT_SAISIE' },
+          user: {
+            id: 'agent',
+            email: 'user@example.test',
+            role: 'AGENT_SAISIE',
+          },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         }
       else if (path.endsWith('/activities/activity-1/execution')) body = current
@@ -219,7 +223,11 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -323,7 +331,11 @@ test('Agent submits a zero-spending declaration without financial requests', asy
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -498,7 +510,7 @@ test.each([
             JSON.stringify({
               state: 'verified',
               csrf: 'csrf',
-              user: { id: 'reviewer', role },
+              user: { id: 'reviewer', email: 'reviewer@example.test', role },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -624,7 +636,11 @@ test('historical zero-spending page points to the active declaration', async () 
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -751,7 +767,7 @@ test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
             JSON.stringify({
               state: 'verified',
               csrf: 'csrf',
-              user: { id: 'reviewer', role },
+              user: { id: 'reviewer', email: 'reviewer@example.test', role },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -808,7 +824,11 @@ test('Agent starts and records an Operation without offline replay', async () =>
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -977,7 +997,11 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
           body = {
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }
         else if (path.endsWith('/execution')) body = current
@@ -1084,7 +1108,11 @@ test('Agent submits finalized spending for disbursement authorization', async ()
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -1269,7 +1297,11 @@ test.each([
             JSON.stringify({
               state: 'verified',
               csrf: 'csrf',
-              user: { id: 'agent', role: 'AGENT_SAISIE' },
+              user: {
+                id: 'agent',
+                email: 'user@example.test',
+                role: 'AGENT_SAISIE',
+              },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           ),
@@ -1332,7 +1364,9 @@ test.each([
     await user.click(await screen.findByRole('button', { name: buttonName }))
     await waitFor(() => expect(mutationSignal).toBeDefined())
     window.dispatchEvent(new Event('offline'))
-    expect(await screen.findByText(/Reconnectez-vous/)).toBeVisible()
+    expect(
+      await screen.findByRole('heading', { name: 'Connexion indisponible' }),
+    ).toBeVisible()
     await waitFor(() => expect(mutationSignal.aborted).toBe(true))
     expect(
       router.options.context.queryClient.getMutationCache().getAll(),
@@ -1377,7 +1411,11 @@ test('Agent submits the locked disbursement amount for virement authorization', 
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -1536,7 +1574,11 @@ test('Agent declares the fixed approved virement amount without retyping it', as
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -1773,7 +1815,11 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -1989,7 +2035,11 @@ test('zero reversement displays settlement without a declaration form', async ()
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -2059,7 +2109,11 @@ test('an uncertain virement submission stays blocked until reconciliation succee
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
@@ -2178,7 +2232,7 @@ test.each([
             JSON.stringify({
               state: 'verified',
               csrf: 'csrf',
-              user: { id: 'actor', role },
+              user: { id: 'actor', email: 'actor@example.test', role },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           )
@@ -2276,7 +2330,11 @@ test('a reasoned execution correction refreshes the funding version without rele
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         )
@@ -2357,3 +2415,94 @@ test('a reasoned execution correction refreshes the funding version without rele
   )
   expect(screen.getByText(/La réalisation est suspendue/)).toBeInTheDocument()
 })
+
+test.each([503, 403, 404])(
+  'background history failure %s preserves the draft and discards only denied data',
+  async (status) => {
+    let failed = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        if (url.endsWith('/session'))
+          return new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: {
+                id: 'agent',
+                email: 'agent@example.test',
+                role: 'AGENT_SAISIE',
+              },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          )
+        if (url.endsWith('/execution'))
+          return new Response(
+            JSON.stringify(detail({ started: true, completed: true })),
+          )
+        if (url.endsWith('/execution/history')) {
+          if (failed) return new Response('{}', { status })
+          return new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: 'event',
+                  action: 'record',
+                  occurred_at: '2026-10-28T10:00:00Z',
+                  correction_reason: 'Justification protégée',
+                },
+              ],
+              count: 1,
+              next: null,
+              previous: null,
+            }),
+          )
+        }
+        return new Response(
+          JSON.stringify({
+            data: [],
+            count: 0,
+            next: null,
+            previous: null,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 7,
+          }),
+        )
+      }),
+    )
+    const router = makeRouter(
+      createMemoryHistory({
+        initialEntries: ['/execution/activities/activity-1'],
+      }),
+    )
+    render(<App router={router} />)
+    await userEvent.type(
+      await screen.findByLabelText('Observation'),
+      ' Brouillon local',
+    )
+    expect(await screen.findByText('Justification protégée')).toBeVisible()
+    failed = true
+    await act(async () => {
+      await router.options.context.queryClient.invalidateQueries({
+        queryKey: ['execution', 'agent', 'history'],
+      })
+    })
+    await screen.findAllByText('Les données de réalisation sont indisponibles.')
+    expect(screen.getByLabelText('Observation')).toHaveValue(
+      'Session terminée. Brouillon local',
+    )
+    if (status === 503)
+      expect(screen.getByText('Justification protégée')).toBeVisible()
+    else {
+      expect(
+        screen.queryByText('Justification protégée'),
+      ).not.toBeInTheDocument()
+      expect(
+        router.options.context.queryClient
+          .getQueriesData({ queryKey: ['execution', 'agent', 'history'] })
+          .every(([, data]) => !data),
+      ).toBe(true)
+    }
+  },
+)

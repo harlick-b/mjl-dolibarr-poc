@@ -16,7 +16,12 @@ test('the sidebar notification centre marks a reminder read and refreshes its ba
           JSON.stringify({
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
         ),
       )

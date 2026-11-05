@@ -1,79 +1,26 @@
+import { useSessionQuery } from '@/features/auth/SessionProvider'
+import { authorization } from '@/features/auth/authorization'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
-import { strings } from '@/shared/i18n'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { strings } from '@/locales/fr/NotificationView'
+import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Bell, Check } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { toast } from 'sonner'
-import { sessionKey, sessionQuery } from '@/features/auth/auth'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
+import { RetryableError } from '@/shared/ui/RetryableError'
+import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 
 const notificationRoot = ['notifications']
 
 export function NotificationView() {
-  const client = useQueryClient()
-  const session = useQuery(sessionQuery)
-  const [blocked, setBlocked] = useState(!navigator.onLine)
-  const deny = useCallback(() => {
-    setBlocked(true)
-    void client.cancelQueries({ queryKey: notificationRoot })
-    client.removeQueries({ queryKey: notificationRoot })
-    client.getMutationCache().clear()
-    client.removeQueries({ queryKey: sessionKey, exact: true })
-  }, [client])
-  useEffect(() => {
-    const clear = () => deny()
-    const channel = new BroadcastChannel('mjl-auth')
-    channel.onmessage = clear
-    window.addEventListener('offline', clear)
-    const timer = session.data?.expires_at
-      ? setTimeout(
-          clear,
-          Math.max(0, Date.parse(session.data.expires_at) - Date.now()),
-        )
-      : undefined
-    return () => {
-      channel.close()
-      window.removeEventListener('offline', clear)
-      clearTimeout(timer)
-    }
-  }, [deny, session.data?.expires_at])
-  useEffect(() => {
-    if (session.isError || session.data?.state !== 'verified') {
-      void client.cancelQueries({ queryKey: notificationRoot })
-      client.removeQueries({ queryKey: notificationRoot })
-    }
-  }, [client, session.data?.state, session.isError])
-
-  if (blocked)
-    return (
-      <section>
-        <h1>Vérification de l’accès</h1>
-        <p>Reconnectez-vous au service pour consulter vos notifications.</p>
-        <button
-          className="planning-button"
-          disabled={!navigator.onLine}
-          onClick={async () => {
-            await session.refetch()
-            setBlocked(false)
-          }}
-          type="button"
-        >
-          Vérifier l’accès
-        </button>
-      </section>
-    )
+  const session = useSessionQuery()
   if (session.isPending) return <NotificationsLoading />
-  if (session.error?.status === 401 || session.data?.state === 'anonymous')
-    return <Navigate to="/login" replace />
-  if (session.data?.state === 'pending')
-    return <Navigate to="/verification" replace />
-  if (session.isError) return <p role="alert">L’identité est indisponible.</p>
-  if (session.data.user.role === 'ADMIN_PLATEFORME')
-    return <p role="alert">Cet espace est réservé aux rôles métier.</p>
-  return <NotificationWorkspace session={session.data} onDenied={deny} />
+  if (!authorization(session.data).can('notifications'))
+    return <AccessDeniedState role={session.data?.user?.role} />
+  return <NotificationWorkspace session={session.data} onDenied={() => {}} />
 }
 
 function NotificationWorkspace({ session, onDenied }) {
@@ -91,7 +38,7 @@ function NotificationWorkspace({ session, onDenied }) {
       try {
         return await api.request(`/api/v1${path}`, { signal })
       } catch (error) {
-        if (error.status === 401 || error.status === 403) onDenied()
+        if (error.status === 401) onDenied()
         throw error
       }
     },
@@ -122,20 +69,22 @@ function NotificationWorkspace({ session, onDenied }) {
       return result
     },
     onError: (error) => {
-      if (error.status === 401 || error.status === 403) onDenied()
+      if (error.status === 401) onDenied()
     },
     onSuccess: async () => {
       await client.invalidateQueries({
         queryKey: [...notificationRoot, session.user.id],
       })
-      toast.success('Notification marquée comme lue.')
+      toast.success(strings.markedRead)
     },
   })
 
   if (notifications.isPending) return <NotificationsLoading />
   if (notifications.isError)
     return (
-      <p role="alert">Les notifications sont momentanément indisponibles.</p>
+      <RetryableError page onRetry={() => void notifications.refetch()}>
+        {strings.unavailable}
+      </RetryableError>
     )
 
   const move = (link) =>

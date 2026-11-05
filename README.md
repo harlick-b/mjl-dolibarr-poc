@@ -12,7 +12,7 @@ features and remaining limits.
 
 ## Run locally
 
-You need Docker with Compose v2. For host-side development, use Node **22.12+
+For the local container stack, use Docker with Compose v2. For host-side development, use Node **22.12+
 within 22.x, or 24.x**, and Python **3.12 or 3.13** with **uv 0.9.26**.
 
 Run these commands from the repository root:
@@ -71,6 +71,37 @@ Install dependencies for local editors and development tools:
 npm --prefix frontend ci
 (cd backend && uv sync --frozen --python 3.13)
 ```
+
+### Use Supabase for the development database
+
+Disable the Supabase Data API, then set `DATABASE_URL` in your private `.env`
+to the Direct connection URL (or Session pooler when IPv6 is unavailable).
+Use the `postgresql+psycopg://` prefix, URL-encode the password, and include
+`?sslmode=require` for encryption. Keep the local authentication and Resend
+settings. This enables local development, not production hosting.
+
+Run from the repository root in Bash:
+
+```bash
+set -a
+source .env
+set +a
+cd backend
+uv run alembic upgrade head
+uv run python -m app.planning.provision --reason 'Initialize local development'
+uv run uvicorn app.main:create_app --factory --reload --host 127.0.0.1 --port 8000 --no-proxy-headers
+```
+
+Provisioning creates the single MJL ownership record, not sample business data.
+In a second terminal, run `npm --prefix frontend run dev` from the repository
+root. The Docker stack is not needed for this mode; stop its frontend/backend
+first if they already use ports 5173/8000. For the first Admin invitation, load
+`.env` in another terminal and run `uv run python -m app.auth.bootstrap --email
+'you@example.com' --name 'Your Name'` from `backend/`.
+
+Keep integration tests on a separate disposable local PostgreSQL database.
+
+### Develop with the local Docker stack
 
 For frontend hot reload, keep the backend running and replace the containerized
 frontend with Vite on your host:

@@ -113,9 +113,79 @@ test('unknown routes offer a real return to home', async () => {
     await screen.findByRole('heading', { name: 'Page introuvable' }),
   ).toBeVisible()
   await userEvent.click(
-    screen.getByRole('link', { name: 'Retour à l’accueil' }),
+    screen.getByRole('link', { name: 'Retour à mon espace' }),
   )
   expect(
     await screen.findByRole('heading', { name: 'Connexion' }),
   ).toBeVisible()
+})
+
+function ThrowingRoute() {
+  throw new Error('private framework diagnostic')
+}
+
+test('an authentication route failure retains the authentication frame', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ state: 'anonymous', csrf: 'fixture' })),
+      ),
+    ),
+  )
+  const { container } = render(
+    <App
+      router={makeRouter(createMemoryHistory({ initialEntries: ['/login'] }), {
+        auth: ThrowingRoute,
+      })}
+    />,
+  )
+
+  expect(
+    await screen.findByRole('heading', { name: 'Une erreur est survenue' }),
+  ).toBeVisible()
+  expect(container.querySelector('.auth-layout')).toBeInTheDocument()
+  expect(container.querySelector('.auth-brand')).toBeInTheDocument()
+  expect(screen.queryByText('private framework diagnostic')).toBeNull()
+})
+
+test('a protected route failure retains the verified workspace frame', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'fixture',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+          }),
+        ),
+      ),
+    ),
+  )
+  const { container } = render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/projects'] }),
+        { planning: ThrowingRoute },
+      )}
+    />,
+  )
+
+  expect(
+    await screen.findByRole('heading', { name: 'Une erreur est survenue' }),
+  ).toBeVisible()
+  expect(container.querySelector('.workspace-shell')).toBeInTheDocument()
+  expect(
+    screen.getByRole('navigation', { name: 'Espace de travail' }),
+  ).toBeVisible()
+  expect(screen.queryByText('private framework diagnostic')).toBeNull()
 })

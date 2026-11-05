@@ -17,7 +17,7 @@ export function formatXof(value) {
   const amount = typeof value === 'bigint' ? value : BigInt(value || 0)
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(amount)} XOF`
 }
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/format'
 
 export function formatPercentage(numerator, denominator) {
   const total = BigInt(denominator)

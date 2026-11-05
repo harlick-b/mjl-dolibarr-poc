@@ -101,7 +101,6 @@ class RequestOutput(Input):
     state: str
     submitter_id: str
     submitted_at: str
-    snapshot: dict[str, object]
     cancellation: CancellationOutput | None
     decisions: list[DecisionOutput]
     allowed_actions: list[str]
@@ -442,7 +441,6 @@ def output(
         "state": request.state,
         "submitter_id": request.submitter_id,
         "submitted_at": request.submitted_at.isoformat(),
-        "snapshot": request.snapshot,
         "cancellation": (
             {
                 "actor_id": request.cancelled_by_id,

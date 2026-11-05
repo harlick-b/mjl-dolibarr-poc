@@ -62,7 +62,11 @@ test.each(['success', 'failure'])(
           body = {
             state: 'verified',
             csrf: 'csrf',
-            user: { id: 'agent', role: 'AGENT_SAISIE' },
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }
         else if (path.endsWith('/activities/activity-upload')) body = activity

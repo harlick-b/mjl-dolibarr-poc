@@ -86,10 +86,9 @@ test('Admin lands on a clean URL and filters remain shareable with browser histo
       url.searchParams.get('email') === 'absent@example.test',
   )
   await expect(
-    page.getByText('Aucun utilisateur.', { exact: true }),
+    page.getByRole('heading', { name: 'Aucun résultat' }),
   ).toBeVisible()
-  await page.getByLabel('Rechercher par e-mail').fill('')
-  await page.getByRole('button', { name: 'Filtrer', exact: true }).click()
+  await page.getByRole('button', { name: 'Effacer les filtres' }).click()
   await expect(page).toHaveURL('http://127.0.0.1:4173/access/users')
   await page.goBack()
   await expect(page.getByLabel('Rechercher par e-mail')).toHaveValue(
@@ -138,7 +137,7 @@ test('Admin account and history retain the same navigation and invitation dialog
   await page
     .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
     .click()
-  await expect(page.getByRole('dialog').getByLabel('Nom complet')).toBeVisible()
+  await expect(page.getByRole('dialog').getByLabel('Prénom')).toBeVisible()
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -155,6 +154,26 @@ test('Admin history masks the sidebar identity on offline and cross-tab invalida
   context,
 }) => {
   await adminFixture(page)
+  let hold = false
+  let release
+  await page.route('**/api/v1/auth/session', async (route) => {
+    if (hold)
+      await new Promise((resolve) => {
+        release = resolve
+      })
+    await route.fulfill({
+      json: {
+        state: 'verified',
+        csrf: 'test',
+        user: {
+          id: 'admin',
+          email: 'admin@example.test',
+          role: 'ADMIN_PLATEFORME',
+        },
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+    })
+  })
   await page.goto('/history')
   await expect(
     page.getByRole('link', { name: 'Mon compte', exact: true }),
@@ -164,12 +183,10 @@ test('Admin history masks the sidebar identity on offline and cross-tab invalida
     page.getByRole('link', { name: 'Mon compte', exact: true }),
   ).toHaveCount(0)
   await context.setOffline(false)
-  await page
-    .getByRole('button', { name: 'Vérifier mon accès', exact: true })
-    .click()
   await expect(
     page.getByRole('link', { name: 'Mon compte', exact: true }),
   ).toBeVisible()
+  hold = true
   await page.evaluate(() => {
     const channel = new BroadcastChannel('mjl-auth')
     channel.postMessage('changed')
@@ -178,6 +195,10 @@ test('Admin history masks the sidebar identity on offline and cross-tab invalida
   await expect(
     page.getByRole('link', { name: 'Mon compte', exact: true }),
   ).toHaveCount(0)
+  release()
+  await expect(
+    page.getByRole('link', { name: 'Mon compte', exact: true }),
+  ).toBeVisible()
 })
 
 test('users loading covers the route wait and failed-session retry', async ({
@@ -212,20 +233,24 @@ test('users loading covers the route wait and failed-session retry', async ({
   })
   await page.goto('/access/users')
   await expect(
-    page.getByRole('status', { name: 'Chargement des utilisateurs' }),
+    page.getByRole('status', { name: 'Vérification de votre accès' }),
   ).toBeVisible()
   await page.screenshot({ path: '/tmp/mjl-users-loading.png' })
   respond()
   await expect(
-    page.getByRole('heading', { name: 'Service indisponible' }),
+    page.getByRole('heading', {
+      name: 'Impossible de vérifier votre accès',
+    }),
   ).toBeVisible()
   retrying = true
   await page.getByRole('button', { name: 'Réessayer' }).click()
   await expect(
-    page.getByRole('status', { name: 'Chargement des utilisateurs' }),
+    page.getByRole('status', { name: 'Vérification de votre accès' }),
   ).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'Service indisponible' }),
+    page.getByRole('heading', {
+      name: 'Impossible de vérifier votre accès',
+    }),
   ).toHaveCount(0)
   await expect(
     page.getByRole('link', { name: 'Mon compte', exact: true }),
@@ -236,7 +261,9 @@ test('users loading covers the route wait and failed-session retry', async ({
   ).toBeVisible()
 })
 
-test('history shows a page skeleton while its data loads', async ({ page }) => {
+test('history shows the minimal page loader while its data loads', async ({
+  page,
+}) => {
   await adminFixture(page)
   let finish
   await page.route('**/api/v1/audit-events*', async (route) => {
@@ -253,12 +280,12 @@ test('history shows a page skeleton while its data loads', async ({ page }) => {
   ).toBeVisible()
   await expect(
     page.getByRole('heading', { name: 'Historique', exact: true }),
-  ).toBeVisible()
+  ).toHaveCount(0)
   finish()
   await expect(page.getByText('Aucun événement enregistré.')).toBeVisible()
 })
 
-test('account hides identity and shows form placeholders during its session check', async ({
+test('account hides identity behind access verification during its session check', async ({
   page,
 }) => {
   await adminFixture(page)
@@ -276,12 +303,13 @@ test('account hides identity and shows form placeholders during its session chec
           email: 'admin@example.test',
           role: 'ADMIN_PLATEFORME',
         },
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
       },
     })
   })
   await page.goto('/identity')
   await expect(
-    page.getByRole('status', { name: 'Chargement du compte' }),
+    page.getByRole('status', { name: 'Vérification de votre accès' }),
   ).toBeVisible()
   await expect(
     page.getByText('admin@example.test', { exact: true }),
@@ -292,7 +320,7 @@ test('account hides identity and shows form placeholders during its session chec
   ).toBeVisible()
 })
 
-test('an invitation draft survives background session loading', async ({
+test('hiding a protected tab clears an invitation draft before revalidation', async ({
   page,
 }) => {
   await adminFixture(page)
@@ -300,10 +328,7 @@ test('an invitation draft survives background session loading', async ({
   await page
     .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
     .click()
-  await page
-    .getByRole('dialog')
-    .getByLabel('Nom complet')
-    .fill('Brouillon conservé')
+  await page.getByRole('dialog').getByLabel('Prénom').fill('Brouillon conservé')
   let finish
   await page.route('**/api/v1/auth/session', async (route) => {
     await new Promise((resolve) => {
@@ -318,27 +343,54 @@ test('an invitation draft survives background session loading', async ({
           email: 'admin@example.test',
           role: 'ADMIN_PLATEFORME',
         },
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
       },
     })
   })
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      value: 'hidden',
-    })
-    window.dispatchEvent(new Event('visibilitychange'))
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      value: 'visible',
-    })
-    window.dispatchEvent(new Event('visibilitychange'))
-  })
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')))
+  await page.evaluate(() => window.dispatchEvent(new Event('pageshow')))
   await expect(
-    page.getByRole('status', { name: 'Chargement des utilisateurs' }),
+    page.getByRole('status', { name: 'Vérification de votre accès' }),
   ).toBeVisible()
   await expect(page.getByRole('dialog')).not.toBeVisible()
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Administration' })
+      .getByRole('link', { name: 'Historique' }),
+  ).toHaveCount(0)
   finish()
-  await expect(page.getByRole('dialog').getByLabel('Nom complet')).toHaveValue(
-    'Brouillon conservé',
-  )
+  await page
+    .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
+    .click()
+  await expect(page.getByRole('dialog').getByLabel('Prénom')).toHaveValue('')
+})
+
+test('correcting the first name clears combined-name validation', async ({
+  page,
+}) => {
+  await adminFixture(page)
+  let sent
+  await page.route('**/api/v1/access/invitations', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    sent = route.request().postDataJSON()
+    await route.fulfill({ status: 201, json: { id: 'invitation', version: 1 } })
+  })
+  await page.goto('/access/users')
+  await page
+    .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
+    .click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Prénom', { exact: true }).fill('   ')
+  await dialog.getByLabel('Nom de famille', { exact: true }).fill('Martin')
+  await dialog.getByLabel('Adresse e-mail').fill('new@example.test')
+  await dialog.getByRole('button', { name: 'Envoyer l’invitation' }).click()
+  expect(sent).toBeUndefined()
+  expect(
+    await dialog
+      .getByLabel('Nom de famille')
+      .evaluate((node) => node.validity.customError),
+  ).toBe(true)
+  await dialog.getByLabel('Prénom', { exact: true }).fill('Anne')
+  await dialog.getByRole('button', { name: 'Envoyer l’invitation' }).click()
+  await expect.poll(() => sent?.full_name).toBe('Anne Martin')
 })

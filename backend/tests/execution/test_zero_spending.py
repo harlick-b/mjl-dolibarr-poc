@@ -46,11 +46,11 @@ def test_agent_declares_zero_distinct_reviewers_approve_and_agent_closes(plannin
     )
     assert submitted.status_code == 201, submitted.text
     declaration = submitted.json()
+    assert "snapshot" not in declaration
     assert submitted.headers["location"].endswith(
         f"/activities/{activity['id']}/zero-spending-declarations/{declaration['id']}"
     )
     assert declaration["state"] == "submitted"
-    assert declaration["snapshot"]["total"] == "0"
     planning_detail = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
     )

@@ -73,6 +73,7 @@ def test_forecast_increase_requires_separate_exact_funding(planning):
     )
     assert submitted.status_code == 201, submitted.text
     request = submitted.json()
+    assert set(request["snapshot"]) == {"old_allocation", "new_allocation"}
     assert request["amount"] == "20000"
     for role, decision in [("supervisor", "prevalidate"), ("validator", "approve")]:
         approved = post(

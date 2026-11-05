@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/shared/ui/button'
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/AccessRecovery'
+import { strings as common } from '@/locales/fr/common'
 
 export function AccessRecovery({ session, onVerified }) {
   const [checking, setChecking] = useState(false)
@@ -19,10 +20,10 @@ export function AccessRecovery({ session, onVerified }) {
           const result = await session.refetch()
           setChecking(false)
           if (!result.isError && navigator.onLine) onVerified()
-          else setError(strings.identityUnavailable)
+          else setError(common.identityUnavailable)
         }}
       >
-        {checking ? strings.checkingAccess : strings.verifyAccess}
+        {checking ? strings.checkingAccess : common.verifyAccess}
       </Button>
       {error && <p role="alert">{error}</p>}
     </>

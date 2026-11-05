@@ -5,7 +5,8 @@ import { Download, Eye } from 'lucide-react'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { Button } from '@/shared/ui/button'
 import { Modal } from '@/shared/ui/BusinessModal'
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/PartnerDocuments'
+import { strings as common } from '@/locales/fr/common'
 import { cursorFrom } from '@/shared/lib/pagination'
 
 export function PartnerDocuments({
@@ -125,7 +126,7 @@ export function PartnerDocuments({
     <section aria-label={strings.sharedAttachments}>
       <h3>{strings.sharedAttachments}</h3>
       {documents.isPending ? (
-        <LoadingPlaceholder label={strings.documentsLoading} />
+        <LoadingPlaceholder label={common.documentsLoading} />
       ) : documents.isError ? (
         <p role="alert">{strings.sharedFileUnavailable}</p>
       ) : !page?.data.length ? (
@@ -160,7 +161,7 @@ export function PartnerDocuments({
                     }}
                   >
                     <Eye aria-hidden="true" />
-                    {strings.preview}
+                    {common.preview}
                   </Button>
                 )}
                 <Button
@@ -176,7 +177,7 @@ export function PartnerDocuments({
                   }}
                 >
                   <Download aria-hidden="true" />
-                  {strings.download}
+                  {common.download}
                 </Button>
               </div>
             </li>
@@ -198,7 +199,7 @@ export function PartnerDocuments({
               changeCursor(previousCursor)
             }}
           >
-            {strings.previous}
+            {common.previous}
           </Button>
           <Button
             disabled={!nextCursor || documents.isFetching}
@@ -207,16 +208,14 @@ export function PartnerDocuments({
               changeCursor(nextCursor)
             }}
           >
-            {strings.next}
+            {common.next}
           </Button>
         </nav>
       )}
       <Modal
         open={Boolean(preview)}
         onClose={close}
-        label={
-          preview ? `${strings.preview} — ${preview.name}` : strings.preview
-        }
+        label={preview ? `${common.preview} — ${preview.name}` : common.preview}
         opener={opener}
         className="document-preview-dialog"
       >
@@ -225,7 +224,7 @@ export function PartnerDocuments({
             <h3>{preview.name}</h3>
             {bytes.isPending ? (
               <LoadingPlaceholder
-                label={strings.previewLoading}
+                label={common.previewLoading}
                 variant="preview"
               />
             ) : previewUrl &&
@@ -233,14 +232,14 @@ export function PartnerDocuments({
               page?.data.some((file) => file.id === preview.id) ? (
               <img
                 src={previewUrl}
-                alt={`${strings.preview} de ${preview.name}`}
+                alt={`${common.preview} de ${preview.name}`}
               />
             ) : (
               <p role="alert">{strings.sharedFileUnavailable}</p>
             )}
             <div className="modal-actions">
               <Button variant="outline" onClick={close}>
-                {strings.dismiss}
+                {common.dismiss}
               </Button>
             </div>
           </div>

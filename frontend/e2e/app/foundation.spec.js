@@ -53,7 +53,7 @@ test('real frontend/backend proxy, routes, responsive shell and design tokens', 
   await expect(
     page.getByRole('heading', { name: 'Page introuvable' }),
   ).toBeVisible()
-  await page.getByRole('link', { name: 'Retour à l’accueil' }).click()
+  await page.getByRole('link', { name: 'Retour à mon espace' }).click()
   await expect(page.getByRole('heading', { name: 'Espace MJL' })).toBeVisible()
   expect(errors).toEqual([])
 })

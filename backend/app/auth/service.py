@@ -76,6 +76,25 @@ class AuthService:
             )
         ):
             raise AuthError(409, "eligibility_unverified")
+        # Hosted local development may share a database with provider metadata.
+        # MJL still owns the complete public schema; unknown schemas fail closed.
+        provider_schemas = (
+            {
+                "auth",
+                "extensions",
+                "graphql",
+                "graphql_public",
+                "realtime",
+                "storage",
+                "vault",
+            }
+            if self.policy.fixture == "local-v1"
+            else set()
+        )
+        if provider_schemas:
+            search_path = db.scalar(text("SELECT current_schemas(false)"))
+            if not search_path or search_path[0] != "public":
+                raise AuthError(409, "eligibility_unverified")
         relations = set(
             db.execute(
                 text("""
@@ -125,6 +144,7 @@ class AuthService:
                 "pta_zero_spending_decision",
             )
         }
+        relations = {row for row in relations if row[0] not in provider_schemas}
         if relations != expected:
             raise AuthError(409, "eligibility_unverified")
         revisions = list(
@@ -2042,8 +2062,13 @@ class AuthService:
         db.add(context)
         return context, secret
 
-    def context(self, db: Session, secret: str | None) -> Context:
-        context = db.get(Context, digest(secret or ""), with_for_update=True)
+    def context(
+        self, db: Session, secret: str | None, *, read_only: bool = False
+    ) -> Context:
+        # Concurrent page reads share identity protection; lifecycle writes still
+        # need an exclusive lock and cannot revoke midway through a response.
+        lock = {"read": True} if read_only else True
+        context = db.get(Context, digest(secret or ""), with_for_update=lock)
         now = self.now(db)
         if (
             not context
@@ -2053,7 +2078,7 @@ class AuthService:
         ):
             raise AuthError(401, "session_expired")
         if context.user_id:
-            user = db.get(User, context.user_id, with_for_update=True)
+            user = db.get(User, context.user_id, with_for_update=lock)
             if (
                 not user
                 or user.state != "active"
@@ -2064,12 +2089,28 @@ class AuthService:
                 raise AuthError(401, "session_expired")
         return context
 
-    def principal(self, db: Session, secret: str | None) -> User:
-        context = self.context(db, secret)
+    def principal(
+        self,
+        db: Session,
+        secret: str | None,
+        *,
+        read_only: bool = False,
+        mutation: bool = False,
+        csrf: str | None = None,
+        roles: set[str] | None = None,
+        forbidden: str = "business_forbidden",
+    ) -> User:
+        # Resolve the current actor once, within the caller's transaction.
+        # Never reuse this result across transactions or external I/O.
+        context = self.context(db, secret, read_only=read_only and not mutation)
         if context.state != "verified" or not context.user_id:
             raise AuthError(401, "otp_required")
         user = db.get(User, context.user_id)
         assert user
+        if roles is not None and user.role not in roles:
+            raise AuthError(403, forbidden)
+        if mutation and not secrets.compare_digest(context.csrf, digest(csrf or "")):
+            raise AuthError(403, "csrf_invalid")
         return user
 
     def projection(self, db: Session, context: Context) -> dict[str, object]:
@@ -2088,7 +2129,6 @@ class AuthService:
                 "id": user.id,
                 "email": user.email,
                 "role": user.role,
-                "partner_id": user.partner_id,
             }
             result["expires_at"] = min(
                 context.expires_at, context.last_activity + timedelta(seconds=86400)
@@ -2098,7 +2138,7 @@ class AuthService:
     def session(self, secret: str | None) -> tuple[dict[str, object], str | None]:
         with Session(self.engine) as db, db.begin():
             if secret:
-                context = self.context(db, secret)
+                context = self.context(db, secret, read_only=True)
                 cookie = None
             else:
                 context, cookie = self.new_context(db)

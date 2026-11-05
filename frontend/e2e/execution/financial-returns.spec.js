@@ -72,7 +72,11 @@ for (const kind of ['disbursement', 'virement']) {
         body = {
           state: 'verified',
           csrf: 'synthetic',
-          user: { id: 'agent', role: 'AGENT_SAISIE' },
+          user: {
+            id: 'agent',
+            email: 'user@example.test',
+            role: 'AGENT_SAISIE',
+          },
           expires_at: new Date(Date.now() + 600000).toISOString(),
         }
       else if (path.endsWith('/execution')) body = detail

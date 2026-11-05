@@ -1,0 +1,56 @@
+import LocalizedStrings from 'react-localization'
+
+export const strings = new LocalizedStrings({
+  fr: {
+    unavailableExecution: 'Les données de réalisation sont indisponibles.',
+    executionDataLoading: 'Chargement des données de réalisation…',
+    executionTitle: 'Réalisations',
+    executionDetailTitle: 'Détail de la réalisation',
+    fundingCorrection:
+      'Pendant la suspension, seule une correction motivée du montant déjà saisi, sans l’augmenter, est possible. Elle ne lève pas la suspension.',
+    fundingTitle: 'Financement complémentaire',
+    fundingExplanation:
+      'La révision du budget et cette autorisation distincte sont nécessaires avant de poursuivre les travaux. Le décaissement reste fondé sur les dépenses finales.',
+    fundingSubmit: 'Demander le financement complémentaire',
+    fundingEmpty: 'Aucun financement complémentaire demandé.',
+    fundingPagination: 'Pagination des financements complémentaires',
+    fundingPrevalidate: 'Prévalider le complément',
+    fundingApprove: 'Approuver le complément',
+    fundingReturn: 'Retourner le complément',
+    fundingCancel: 'Annuler la demande de complément',
+    fundingReload: 'Recharger la demande',
+    fundingStale: 'Les données ont changé.',
+    fundingOldBudget: 'Budget précédent',
+    fundingNewBudget: 'Budget révisé',
+    fundingIncrement: 'Complément',
+    fundingReason: 'Motif',
+    fundingCancellationReason: 'Motif d’annulation',
+    fundingBudget: 'Budget',
+    fundingPrevious: 'Précédent',
+    fundingNext: 'Suivant',
+    fundingSupervisor: 'Superviseur',
+    fundingValidator: 'Validateur',
+    fundingSubmitted: 'À prévalider',
+    fundingPrevalidated: 'À valider',
+    fundingApproved: 'Approuvé',
+    fundingReturned: 'Retourné en correction',
+    fundingCancelled: 'Annulé',
+    fundingReturnedDecision: 'retour en correction',
+    fundingApprovedDecision: 'approbation',
+    fundingPrevalidatedDecision: 'prévalidation',
+    fundingRequired:
+      'la révision budgétaire et son financement complémentaire doivent être approuvés',
+    cancelEntry: 'Annuler la saisie',
+    disbursementReturned:
+      'Ce retour vous permet de corriger les informations sans annuler la demande. Toute nouvelle demande devra obtenir les deux validations.',
+    financialCancelled:
+      'Cette demande a été annulée. Son historique est conservé.',
+    disbursementApproved:
+      'Cette autorisation est définitive. Les dépenses et le budget restent figés.',
+    disbursementPending:
+      'Les dépenses et le budget restent figés pendant l’examen de cette demande. Un retour ou une annulation permet de les corriger selon les règles applicables.',
+    virementReturned:
+      'Demande retournée. Vous pouvez soumettre une nouvelle demande sans annuler celle-ci. Les deux validations seront demandées à nouveau ; le montant de décaissement déjà approuvé reste inchangé.',
+  },
+})
+strings.setLanguage('fr')

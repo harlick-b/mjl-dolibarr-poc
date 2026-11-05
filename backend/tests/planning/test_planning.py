@@ -1874,6 +1874,9 @@ def test_p09_p10_invalid_planning_rolls_back(planning, change):
 
 def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
     partner, operation_type, project, activity, _ = create_activity(planning)
+    page = planning["agent"].get(f"/api/v1/ptas/{activity['pta_id']}/activities").json()
+    assert len(page["data"]) == 1
+    assert set(page["data"][0]) == {"id", "reference", "name", "allocation"}
     admin = planning["admin"]
     read_paths = [
         "/api/v1/partners",

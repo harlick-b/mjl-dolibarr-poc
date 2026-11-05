@@ -17,7 +17,11 @@ test('current annual metrics remain visible on desktop and mobile', async ({
         json: {
           state: 'verified',
           csrf: 'csrf',
-          user: { id: 'agent', role: 'AGENT_SAISIE' },
+          user: {
+            id: 'agent',
+            email: 'user@example.test',
+            role: 'AGENT_SAISIE',
+          },
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })

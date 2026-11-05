@@ -17,6 +17,59 @@ from tests.auth.test_access import admin as admin_fixture
 admin = admin_fixture
 
 
+def test_local_database_allows_provider_metadata_but_keeps_mjl_guards(admin):
+    auth = admin.app.state.auth
+    auth.policy = auth.policy.model_copy(
+        update={"fixture": "local-v1", "lifecycle_database": auth.engine.url.database}
+    )
+    with Session(auth.engine) as db, db.begin():
+        db.execute(text("CREATE SCHEMA auth"))
+        db.execute(text("CREATE TABLE auth.users (id integer)"))
+        db.execute(text("CREATE SCHEMA storage"))
+        db.execute(text("CREATE TABLE storage.objects (id integer)"))
+    auth.provision_context("test-operator", "Hosted local development database")
+    with Session(auth.engine) as db, db.begin():
+        auth.lifecycle_eligible(db)
+        db.execute(text("CREATE TABLE public.unexpected (id integer)"))
+        with pytest.raises(AuthError, match="eligibility_unverified"):
+            auth.lifecycle_eligible(db)
+
+
+@pytest.mark.parametrize(
+    "ddl",
+    [
+        "CREATE SCHEMA unknown; CREATE TABLE unknown.obligation (id integer)",
+        "CREATE SCHEMA auth; CREATE TABLE auth.auth_user (id integer); "
+        "SET LOCAL search_path = auth, public",
+        "ALTER TABLE public.auth_abuse RENAME TO missing",
+        "ALTER TABLE public.auth_user ADD COLUMN unchecked text",
+    ],
+)
+def test_local_provider_support_rejects_schema_drift_and_shadowing(admin, ddl):
+    auth = admin.app.state.auth
+    auth.policy = auth.policy.model_copy(
+        update={"fixture": "local-v1", "lifecycle_database": auth.engine.url.database}
+    )
+    auth.provision_context("test-operator", "Hosted local development database")
+    with Session(auth.engine) as db, db.begin():
+        db.execute(text(ddl))
+        with pytest.raises(AuthError, match="eligibility_unverified"):
+            auth.lifecycle_eligible(db)
+
+
+def test_synthetic_database_still_rejects_provider_relations(admin):
+    auth = admin.app.state.auth
+    auth.policy = auth.policy.model_copy(
+        update={"lifecycle_database": auth.engine.url.database}
+    )
+    auth.provision_context("test-operator", "Synthetic database remains isolated")
+    with Session(auth.engine) as db, db.begin():
+        db.execute(text("CREATE SCHEMA auth"))
+        db.execute(text("CREATE TABLE auth.users (id integer)"))
+        with pytest.raises(AuthError, match="eligibility_unverified"):
+            auth.lifecycle_eligible(db)
+
+
 def test_login_takes_advisory_before_any_row_lock(admin):
     auth = admin.app.state.auth
     seen = []
@@ -571,7 +624,10 @@ def test_authentication_lifecycle_serializes(
     def observe(conn, cursor, statement, parameters, context, many):
         if entered.is_set() and (
             "pg_advisory_xact_lock" in statement
-            or ("auth_user" in statement and "FOR UPDATE" in statement)
+            or (
+                "auth_user" in statement
+                and ("FOR UPDATE" in statement or "FOR SHARE" in statement)
+            )
         ):
             attempted.set()
 
@@ -583,7 +639,7 @@ def test_authentication_lifecycle_serializes(
             and auth_path == "session"
             and not paused
             and "auth_user" in statement
-            and "FOR UPDATE" in statement
+            and ("FOR UPDATE" in statement or "FOR SHARE" in statement)
         ):
             paused = True
             entered.set()
@@ -777,3 +833,28 @@ def test_late_otp_delivery_never_restores_authority(
     for supplied in (code, None):
         with pytest.raises(AuthError, match="session_expired"):
             auth.otp(secret, csrf, supplied)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/auth/session",
+        "/api/v1/access/users?page=1&size=20",
+        "/api/v1/access/invitations?page=1&size=20",
+        "/api/v1/audit-events",
+    ],
+)
+def test_page_reads_can_overlap_same_session(admin, path):
+    from app.auth.models import Context
+    from app.auth.service import digest
+
+    enable(admin)
+    auth = admin.app.state.auth
+    secret = admin.cookies.get(auth.policy.cookie_name)
+    # An already-running read protects the identity while building its response.
+    # Another page read must share that protection rather than time out behind it.
+    with Session(auth.engine) as db, db.begin():
+        context = db.get(Context, digest(secret), with_for_update={"read": True})
+        db.get(User, context.user_id, with_for_update={"read": True})
+        response = admin.get(path)
+        assert response.status_code == 200, response.json()

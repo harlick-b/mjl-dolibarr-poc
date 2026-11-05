@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/OtpInput'
 
 export function OtpInput({ value, onChange, onComplete, disabled }) {
   const inputs = useRef([])

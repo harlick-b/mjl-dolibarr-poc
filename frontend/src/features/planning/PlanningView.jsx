@@ -1,3 +1,5 @@
+import { useSessionQuery } from '@/features/auth/SessionProvider'
+import { authorization } from '@/features/auth/authorization'
 import {
   PageLoading,
   LoadingPlaceholder,
@@ -5,18 +7,12 @@ import {
 } from '@/shared/ui/PageLoading'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Link,
-  Navigate,
-  useNavigate,
-  useParams,
-  useSearch,
-} from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
 import { Download, Eye, Plus, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import { sessionKey, sessionQuery } from '@/features/auth/auth'
-import { strings } from '@/shared/i18n'
+import { strings } from '@/locales/fr/PlanningView'
+import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import {
   addThreeMonths,
@@ -26,6 +22,9 @@ import {
 import { Button } from '@/shared/ui/button'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
+import { useProtectedCleanup } from '@/features/auth/access-verification'
+import { RetryableError } from '@/shared/ui/RetryableError'
+import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 
 const labels = {
   partners: strings.partners,
@@ -35,14 +34,72 @@ const labels = {
   activity: strings.activityDetail,
 }
 
+function ProtectedDownload({ path, children, className, onDenied, scope }) {
+  const { api } = useAPI()
+  const controller = useRef(null)
+  useEffect(() => () => controller.current?.abort(), [])
+  const download = useMutation({
+    retry: false,
+    networkMode: 'always',
+    mutationFn: async () => {
+      const scopeSignal = scope?.current.signal
+      controller.current = new AbortController()
+      const current = controller.current
+      const abort = () => current.abort()
+      if (scopeSignal?.aborted) abort()
+      scopeSignal?.addEventListener('abort', abort, { once: true })
+      try {
+        const result = await api.download(path, { signal: current.signal })
+        if (current.signal.aborted)
+          throw new DOMException('Cancelled download', 'AbortError')
+        return { ...result, deliverySignal: current.signal, scopeSignal }
+      } finally {
+        scopeSignal?.removeEventListener('abort', abort)
+      }
+    },
+    onError: (error) => {
+      if ([403, 404].includes(error.status)) onDenied?.()
+    },
+    onSuccess: ({
+      blob,
+      filename,
+      deliverySignal,
+      scopeSignal: requestScope,
+    }) => {
+      if (deliverySignal.aborted || requestScope?.aborted) return
+      const href = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = filename
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+    },
+  })
+  return (
+    <Button
+      className={className}
+      disabled={download.isPending}
+      onClick={() => download.mutate()}
+      type="button"
+      variant="outline"
+    >
+      {children}
+    </Button>
+  )
+}
+
 function planningQuery(api, user, key, path, onDenied) {
   return {
     queryKey: ['planning', user, ...key],
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal, client, queryKey }) => {
       try {
         return await api.request(`/api/v1${path}`, { signal })
       } catch (error) {
-        if (error.status === 401 || error.status === 403) onDenied?.()
+        if ([403, 404].includes(error.status))
+          client.setQueryData(queryKey, null)
+        if (error.status === 401) onDenied?.()
         throw error
       }
     },
@@ -53,68 +110,16 @@ function planningQuery(api, user, key, path, onDenied) {
 
 export function PlanningView({ screen }) {
   const params = useParams({ strict: false })
-  const session = useQuery(sessionQuery)
-  const client = useQueryClient()
-  const [blocked, setBlocked] = useState(!navigator.onLine)
-  const expiry = session.data?.expires_at
-  const deny = useCallback(() => {
-    setBlocked(true)
-    void client.cancelQueries({ queryKey: ['planning'] })
-    client.removeQueries({ queryKey: ['planning'] })
-    client.removeQueries({ queryKey: sessionKey, exact: true })
-  }, [client])
-  useEffect(() => {
-    const clear = () => {
-      deny()
-    }
-    const channel = new BroadcastChannel('mjl-auth')
-    channel.onmessage = clear
-    window.addEventListener('offline', clear)
-    const timer = expiry
-      ? setTimeout(clear, Math.max(0, Date.parse(expiry) - Date.now()))
-      : undefined
-    return () => {
-      channel.close()
-      window.removeEventListener('offline', clear)
-      clearTimeout(timer)
-    }
-  }, [client, deny, expiry])
-  useEffect(() => {
-    if (session.isError || session.data?.state !== 'verified') {
-      void client.cancelQueries({ queryKey: ['planning'] })
-      client.removeQueries({ queryKey: ['planning'] })
-    }
-  }, [client, session.data?.state, session.isError])
-  if (blocked)
-    return (
-      <section>
-        <h1>{strings.accessCheck}</h1>
-        <p>{strings.accessCheckPrompt}</p>
-        <Button
-          disabled={!navigator.onLine}
-          onClick={async () => {
-            await session.refetch()
-            setBlocked(false)
-          }}
-        >
-          {strings.verifyAccess}
-        </Button>
-      </section>
-    )
+  const session = useSessionQuery()
   if (session.isPending) return <PlanningLoading screen={screen} />
-  if (session.error?.status === 401 || session.data?.state === 'anonymous')
-    return <Navigate to="/login" replace />
-  if (session.data?.state === 'pending')
-    return <Navigate to="/verification" replace />
-  if (session.isError) return <p role="alert">{strings.identityUnavailable}</p>
-  if (session.data.user.role === 'ADMIN_PLATEFORME')
-    return <p role="alert">{strings.businessRolesOnly}</p>
+  if (!authorization(session.data).can('business'))
+    return <AccessDeniedState role={session.data?.user?.role} />
   return (
     <Workspace
       key={`${screen}:${params.activityId || params.projectId || ''}:${params.year || ''}`}
       screen={screen}
       session={session.data}
-      onDenied={deny}
+      onDenied={() => {}}
     />
   )
 }
@@ -179,7 +184,7 @@ function Workspace({ screen, session, onDenied }) {
     },
     onError: async (problem, variables) => {
       if (problem.name === 'AbortError') return
-      if (problem.status === 401 || problem.status === 403) denyWorkspace()
+      if (problem.status === 401) denyWorkspace()
       const uncertain =
         problem.status === 409 ||
         ['network', 'malformed'].includes(problem.kind)
@@ -242,7 +247,7 @@ function Workspace({ screen, session, onDenied }) {
     },
     onError: (problem) => {
       if (problem.name === 'AbortError') return
-      if (problem.status === 401 || problem.status === 403) denyWorkspace()
+      if (problem.status === 401) denyWorkspace()
       setError(problem.message)
     },
     onSuccess: async () => {
@@ -251,24 +256,26 @@ function Workspace({ screen, session, onDenied }) {
       toast.success(strings.ptaExported)
     },
   })
-  const partners = useQuery(
-    planningQuery(
+  const partners = useQuery({
+    ...planningQuery(
       api,
       user.id,
       ['partners', search.partnerCursor],
       cursorPath('/partners', search.partnerCursor),
       onDenied,
     ),
-  )
-  const projects = useQuery(
-    planningQuery(
+    enabled: screen === 'partners',
+  })
+  const projects = useQuery({
+    ...planningQuery(
       api,
       user.id,
       ['projects', search.projectCursor],
       cursorPath('/projects', search.projectCursor),
       onDenied,
     ),
-  )
+    enabled: screen === 'projects',
+  })
   const projectId = params.projectId
   const year = Number(params.year)
   const context = useQuery({
@@ -279,7 +286,7 @@ function Workspace({ screen, session, onDenied }) {
       `/projects/${projectId}/ptas/${year}`,
       onDenied,
     ),
-    enabled: Boolean(projectId && year),
+    enabled: screen === 'pta' && Boolean(projectId && year),
   })
   const activity = useQuery({
     ...planningQuery(
@@ -329,7 +336,7 @@ function Workspace({ screen, session, onDenied }) {
       api,
       user.id,
       [
-        'activity-current-revision',
+        'activity-revision',
         params.activityId,
         activity.data?.current_revision_id,
       ],
@@ -363,7 +370,7 @@ function Workspace({ screen, session, onDenied }) {
       ),
       onDenied,
     ),
-    enabled: Boolean(context.data?.pta?.id),
+    enabled: screen === 'pta' && Boolean(context.data?.pta?.id),
   })
   const metrics = useQuery({
     ...planningQuery(
@@ -373,40 +380,45 @@ function Workspace({ screen, session, onDenied }) {
       `/ptas/${context.data?.pta?.id}/metrics`,
       onDenied,
     ),
-    enabled: Boolean(context.data?.pta?.id),
+    enabled: screen === 'pta' && Boolean(context.data?.pta?.id),
   })
-  const agents = useQuery({
+  const types = useQuery({
     ...planningQuery(
-      api,
-      user.id,
-      ['agents', search.agentCursor],
-      cursorPath('/assignment-agents', search.agentCursor),
-      onDenied,
-    ),
-    enabled: ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(user.role),
-  })
-  const types = useQuery(
-    planningQuery(
       api,
       user.id,
       ['operation-types', search.typeCursor],
       cursorPath('/operation-types', search.typeCursor),
       onDenied,
     ),
+    enabled: screen === 'partners' || screen === 'activityNew',
+  })
+  const planningQueries =
+    screen === 'partners'
+      ? [partners, types]
+      : screen === 'projects'
+        ? [projects]
+        : screen === 'pta'
+          ? [context, ...(context.data?.pta?.id ? [list, metrics] : [])]
+          : screen === 'activityNew'
+            ? [types]
+            : [
+                activity,
+                revisions,
+                ...(search.revision ? [selectedRevision] : []),
+                ...(search.amendment ? [selectedAmendment] : []),
+                ...(activity.data?.current_revision_id
+                  ? [currentRevision]
+                  : []),
+              ]
+  const loading = planningQueries.some(
+    (query) => query.isFetching && query.fetchStatus !== 'idle',
   )
-  const loading = [
-    partners,
-    projects,
-    context,
-    activity,
-    revisions,
-    selectedRevision,
-    selectedAmendment,
-    currentRevision,
-    list,
-    metrics,
-    types,
-  ].some((query) => query.isFetching && query.fetchStatus !== 'idle')
+  const primaryPending =
+    (screen === 'partners' && (partners.isPending || types.isPending)) ||
+    (screen === 'projects' && projects.isPending) ||
+    (screen === 'pta' && context.isPending) ||
+    (screen === 'activityNew' && types.isPending) ||
+    (screen === 'activity' && activity.isPending)
   const submitSimple = async (event, path, field) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -422,22 +434,32 @@ function Workspace({ screen, session, onDenied }) {
       body: { name: data.get('name'), partner_id: data.get('partner_id') },
     })
   }
+  const failedQueries = planningQueries.filter((query) => query.isError)
+  const retryFailed = () =>
+    void Promise.all(failedQueries.map((query) => query.refetch()))
+  const primaryQueries =
+    screen === 'partners'
+      ? [partners, types]
+      : screen === 'projects'
+        ? [projects]
+        : screen === 'pta'
+          ? [context]
+          : screen === 'activityNew'
+            ? [types]
+            : [activity]
   if (
-    [
-      partners,
-      projects,
-      context,
-      activity,
-      revisions,
-      selectedRevision,
-      selectedAmendment,
-      currentRevision,
-      list,
-      metrics,
-      types,
-    ].some((query) => query.isError)
+    primaryQueries.some(
+      (query) =>
+        query.isError &&
+        (!query.data || [403, 404].includes(query.error?.status)),
+    )
   )
-    return <p role="alert">{strings.unavailablePlanning}</p>
+    return (
+      <RetryableError page onRetry={retryFailed}>
+        {strings.unavailablePlanning}
+      </RetryableError>
+    )
+  if (primaryPending) return <PageLoading title={labels[screen]} />
   return (
     <section className="planning-stack" aria-busy={loading}>
       <Helmet>
@@ -454,6 +476,11 @@ function Workspace({ screen, session, onDenied }) {
           <Link to="/projects">{strings.projects}</Link>
         </nav>
       </header>
+      {failedQueries.length > 0 && (
+        <RetryableError onRetry={retryFailed}>
+          {strings.unavailablePlanning}
+        </RetryableError>
+      )}
       {error && (
         <p role="alert" className="planning-error">
           {error}
@@ -491,8 +518,6 @@ function Workspace({ screen, session, onDenied }) {
       {screen === 'projects' && (
         <Projects
           result={projects.data}
-          partnerResult={partners.data}
-          partners={partners.data?.data}
           canCreate={user.role === 'VALIDATEUR_DEFINITIF'}
           onSubmit={submitProject}
           navigate={navigate}
@@ -524,7 +549,7 @@ function Workspace({ screen, session, onDenied }) {
       )}
       {screen === 'activityNew' && types.isPending && (
         <LoadingPlaceholder
-          label={strings.formatString(strings.pageLoading, {
+          label={strings.formatString(common.pageLoading, {
             page: strings.newActivity,
           })}
           variant="form"
@@ -557,7 +582,7 @@ function Workspace({ screen, session, onDenied }) {
       )}
       {screen === 'activity' && !activity.data && (
         <LoadingPlaceholder
-          label={strings.formatString(strings.pageLoading, {
+          label={strings.formatString(common.pageLoading, {
             page: strings.activityDetail,
           })}
           variant="detail"
@@ -569,10 +594,6 @@ function Workspace({ screen, session, onDenied }) {
           user={user}
           csrf={session.csrf}
           documentCursor={search.documentCursor}
-          agents={agents.data?.data || []}
-          agentResult={agents.data}
-          types={types.data?.data || []}
-          typeResult={types.data}
           navigate={navigate}
           mutation={mutation}
           mutationBlocked={mutation.isPending || reconciliationBlocked}
@@ -647,7 +668,7 @@ function ReferenceList({
       )}
       {!result ? (
         <LoadingPlaceholder
-          label={strings.formatString(strings.pageLoading, { page: title })}
+          label={strings.formatString(common.pageLoading, { page: title })}
         />
       ) : rows.length ? (
         <ul className="planning-list">
@@ -663,16 +684,23 @@ function ReferenceList({
   )
 }
 
-function Projects({
-  result,
-  partnerResult,
-  partners = [],
-  canCreate,
-  onSubmit,
-  onClose,
-  navigate,
-}) {
+function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
   const [open, setOpen] = useState(false)
+  const { api } = useAPI()
+  const session = useSessionQuery()
+  const search = useSearch({ strict: false })
+  const partnerChoices = useQuery({
+    ...planningQuery(
+      api,
+      session.data.user.id,
+      ['partners', search.partnerCursor],
+      cursorPath('/partners', search.partnerCursor),
+      () => {},
+    ),
+    enabled: open && canCreate,
+  })
+  const partnerResult = partnerChoices.data
+  const partners = partnerResult?.data || []
   const opener = useRef(null)
   const [year, setYear] = useState(new Date().getFullYear())
   const rows = result?.data || []
@@ -699,12 +727,17 @@ function Projects({
               setOpen(false)
             }}
           >
+            {partnerChoices.isError && (
+              <RetryableError onRetry={() => void partnerChoices.refetch()}>
+                {strings.unavailablePlanning}
+              </RetryableError>
+            )}
             <label>
               {strings.partner}
               <select name="partner_id" required disabled={!partnerResult}>
                 {!partnerResult && (
                   <option value="" disabled>
-                    {strings.loading}
+                    {common.loading}
                   </option>
                 )}
                 {partners.map((p) => (
@@ -750,7 +783,7 @@ function Projects({
       </label>
       {!result ? (
         <LoadingPlaceholder
-          label={strings.formatString(strings.pageLoading, {
+          label={strings.formatString(common.pageLoading, {
             page: strings.projects,
           })}
         />
@@ -788,7 +821,7 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
   if (!context)
     return (
       <LoadingPlaceholder
-        label={strings.formatString(strings.pageLoading, {
+        label={strings.formatString(common.pageLoading, {
           page: strings.annualPlan,
         })}
         variant="detail"
@@ -858,7 +891,7 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
       </div>
       {context.pta && !metrics && (
         <LoadingPlaceholder
-          label={strings.formatString(strings.pageLoading, {
+          label={strings.formatString(common.pageLoading, {
             page: strings.annualPlan,
           })}
           variant="detail"
@@ -902,7 +935,7 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
       )}
       {context.pta && !result ? (
         <LoadingPlaceholder
-          label={strings.formatString(strings.pageLoading, {
+          label={strings.formatString(common.pageLoading, {
             page: strings.annualPlan,
           })}
         />
@@ -942,7 +975,7 @@ function Pager({ result, cursorKey, navigate }) {
         disabled={!result.previous}
         onClick={() => move(result.previous)}
       >
-        {strings.previous}
+        {common.previous}
       </Button>
       <Button
         type="button"
@@ -950,7 +983,7 @@ function Pager({ result, cursorKey, navigate }) {
         disabled={!result.next}
         onClick={() => move(result.next)}
       >
-        {strings.next}
+        {common.next}
       </Button>
     </nav>
   )
@@ -961,6 +994,7 @@ export function ActivityForm({
   typeResult,
   navigate,
   pending,
+  optionsUnavailable = false,
   initial,
   onSubmit,
   onCancel,
@@ -993,6 +1027,7 @@ export function ActivityForm({
       className="planning-card planning-form"
       onSubmit={(event) => {
         event.preventDefault()
+        if (pending || optionsUnavailable) return
         const data = new FormData(event.currentTarget)
         return onSubmit({
           name: data.get('name'),
@@ -1155,7 +1190,7 @@ export function ActivityForm({
       <p>
         <strong>Total : {formatXof(total)}</strong>
       </p>
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || optionsUnavailable}>
         <Save size={16} /> {strings.save}
       </Button>
       {onCancel && (
@@ -1210,10 +1245,6 @@ function ActivityDetail({
   user,
   csrf,
   documentCursor,
-  agents,
-  agentResult,
-  types,
-  typeResult,
   navigate,
   mutation,
   mutationBlocked,
@@ -1235,6 +1266,32 @@ function ActivityDetail({
   const canAssign =
     ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(user.role) &&
     item.allowed_actions.includes('assign_agents')
+  const { api } = useAPI()
+  const search = useSearch({ strict: false })
+  const agentChoices = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['agents', search.agentCursor],
+      cursorPath('/assignment-agents', search.agentCursor),
+      onDenied,
+    ),
+    enabled: canAssign && !editing,
+  })
+  const typeChoices = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['operation-types', search.typeCursor],
+      cursorPath('/operation-types', search.typeCursor),
+      onDenied,
+    ),
+    enabled: editing,
+  })
+  const agents = agentChoices.data?.data || []
+  const agentResult = agentChoices.data
+  const types = typeChoices.data?.data || []
+  const typeResult = typeChoices.data
   const submitWorkflow = (event) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -1319,20 +1376,30 @@ function ActivityDetail({
   }
   if (editing)
     return (
-      <ActivityForm
-        types={types}
-        typeResult={typeResult}
-        navigate={navigate}
-        pending={mutationBlocked}
-        initial={item}
-        onCancel={() => setEditing(false)}
-        onSubmit={(body) =>
-          mutation.mutateAsync(
-            { path: `/activities/${item.id}`, method: 'PATCH', body },
-            { onSuccess: () => setEditing(false) },
-          )
-        }
-      />
+      <>
+        {typeChoices.isError && (
+          <RetryableError onRetry={() => void typeChoices.refetch()}>
+            {strings.unavailablePlanning}
+          </RetryableError>
+        )}
+        <ActivityForm
+          types={types}
+          typeResult={typeResult}
+          navigate={navigate}
+          pending={mutationBlocked}
+          optionsUnavailable={
+            typeChoices.isFetching || !typeResult || typeChoices.isError
+          }
+          initial={item}
+          onCancel={() => setEditing(false)}
+          onSubmit={(body) =>
+            mutation.mutateAsync(
+              { path: `/activities/${item.id}`, method: 'PATCH', body },
+              { onSuccess: () => setEditing(false) },
+            )
+          }
+        />
+      </>
     )
   return (
     <div className="planning-card">
@@ -1343,12 +1410,10 @@ function ActivityDetail({
         </div>
         <div className="planning-actions">
           {item.approved_revision_id && (
-            <Button asChild variant="outline">
-              <a href={`/api/v1/activities/${item.id}/fiche.pdf`} download>
-                <Download aria-hidden="true" />
-                {strings.downloadActivityFiche}
-              </a>
-            </Button>
+            <ProtectedDownload path={`/api/v1/activities/${item.id}/fiche.pdf`}>
+              <Download aria-hidden="true" />
+              {strings.downloadActivityFiche}
+            </ProtectedDownload>
           )}
           {item.allowed_actions.includes('edit') && (
             <Button disabled={mutationBlocked} onClick={() => setEditing(true)}>
@@ -1751,6 +1816,17 @@ function ActivityDetail({
         >
           <fieldset>
             <legend>{strings.coordinatedAgents}</legend>
+            {agentChoices.isError && (
+              <RetryableError onRetry={() => void agentChoices.refetch()}>
+                {strings.unavailablePlanning}
+              </RetryableError>
+            )}
+            {agentChoices.isPending && (
+              <LoadingPlaceholder
+                label={strings.coordinatedAgents}
+                variant="form"
+              />
+            )}
             {agents.map((agent) => (
               <label key={agent.id}>
                 <input
@@ -1779,7 +1855,15 @@ function ActivityDetail({
             cursorKey="agentCursor"
             navigate={navigate}
           />
-          <Button type="submit" disabled={mutationBlocked}>
+          <Button
+            type="submit"
+            disabled={
+              mutationBlocked ||
+              !agentResult ||
+              agentChoices.isFetching ||
+              agentChoices.isError
+            }
+          >
             {strings.saveAgents}
           </Button>
           {assignmentDraft && (
@@ -1930,6 +2014,7 @@ export function ActivityDocuments({
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [deniedDocuments, setDeniedDocuments] = useState([])
   const [uploadUncertain, setUploadUncertain] = useState(false)
   const active = useRef(true)
   useEffect(() => {
@@ -1947,15 +2032,37 @@ export function ActivityDocuments({
   const previewController = useRef(null)
   const previewGeneration = useRef(0)
   const previewUrlRef = useRef('')
-  const documents = useQuery(
-    planningQuery(
-      api,
-      user.id,
-      ['documents', activityId, cursor],
-      cursorPath(`/activities/${activityId}/documents`, cursor),
-      onDenied,
-    ),
+  const deliveryScope = useRef(new AbortController())
+  const documentsOptions = planningQuery(
+    api,
+    user.id,
+    ['documents', activityId, cursor],
+    cursorPath(`/activities/${activityId}/documents`, cursor),
+    onDenied,
   )
+  const documents = useQuery({
+    ...documentsOptions,
+    queryFn: async (context) => {
+      try {
+        return await documentsOptions.queryFn(context)
+      } catch (error) {
+        if ([403, 404].includes(error.status)) {
+          client.setQueriesData(
+            {
+              queryKey: ['planning', user.id, 'documents', activityId],
+            },
+            () => ({ data: [], count: 0, next: null, previous: null }),
+          )
+          deliveryScope.current.abort()
+          deliveryScope.current = new AbortController()
+          closePreview()
+          setWithdrawing(null)
+          setOpen(false)
+        }
+        throw error
+      }
+    },
+  })
   const replacementDocuments = useQuery({
     ...planningQuery(
       api,
@@ -1997,7 +2104,7 @@ export function ActivityDocuments({
     },
     onError: async (error) => {
       if (!active.current) return
-      if (error.status === 401 || error.status === 403) {
+      if (error.status === 401) {
         onDenied()
         return
       }
@@ -2034,7 +2141,7 @@ export function ActivityDocuments({
       toast.success(strings.saved)
     },
     onError: async (error) => {
-      if (error.status === 401 || error.status === 403) onDenied()
+      if (error.status === 401) onDenied()
       if (error.status === 409) {
         await client.invalidateQueries({
           queryKey: ['planning', user.id, 'documents', activityId],
@@ -2068,7 +2175,7 @@ export function ActivityDocuments({
       toast.success(strings.saved)
     },
     onError: async (error) => {
-      if (error.status === 401 || error.status === 403) onDenied()
+      if (error.status === 401) onDenied()
       await client.invalidateQueries({
         queryKey: ['planning', user.id, 'documents', activityId],
       })
@@ -2082,6 +2189,7 @@ export function ActivityDocuments({
     previewUrlRef.current = ''
     setPreviewUrl('')
   }, [])
+  useProtectedCleanup(releasePreview)
   useEffect(() => releasePreview, [releasePreview])
   const imagePreview = useMutation({
     retry: false,
@@ -2098,20 +2206,41 @@ export function ActivityDocuments({
         throw new DOMException('Stale authorization', 'AbortError')
       return result.blob
     },
-    onSuccess: (blob) => {
+    onSuccess: (blob, { generation }) => {
+      if (generation !== previewGeneration.current) return
       const url = URL.createObjectURL(blob)
       previewUrlRef.current = url
       setPreviewUrl(url)
     },
-    onError: (error) => {
+    onError: (error, { document, generation }) => {
+      if (generation !== previewGeneration.current) return
       if (error.name === 'AbortError') return
-      if (error.status === 401 || error.status === 403) onDenied()
+      if (error.status === 401) onDenied()
+      if ([403, 404].includes(error.status)) void denyDocument(document.id)
     },
   })
   const closePreview = () => {
     releasePreview()
     imagePreview.reset()
     setPreview(null)
+  }
+  const denyDocument = async (id) => {
+    if (preview?.id === id) closePreview()
+    setDeniedDocuments((ids) => [...ids, id])
+    const queryKey = ['planning', user.id, 'documents', activityId]
+    await client.cancelQueries({ queryKey })
+    // Discard revoked projections; this does not predict a business mutation.
+    client.setQueriesData(
+      { queryKey },
+      (page) =>
+        page && {
+          ...page,
+          data: page.data.filter((document) => document.id !== id),
+          count:
+            page.count -
+            Number(page.data.some((document) => document.id === id)),
+        },
+    )
   }
   const canUpload = ['AGENT_SAISIE', 'VALIDATEUR_DEFINITIF'].includes(user.role)
   const uploadNotice = uploadUncertain && (
@@ -2160,89 +2289,97 @@ export function ActivityDocuments({
         )}
       </div>
       {!open && uploadNotice}
+      {deniedDocuments.length > 0 && (
+        <p role="alert">{strings.documentUnavailable}</p>
+      )}
       {sharing.isError && <p role="alert">{strings.sharingFailed}</p>}
       {documents.isPending ? (
-        <LoadingPlaceholder label={strings.documentsLoading} />
+        <LoadingPlaceholder label={common.documentsLoading} />
       ) : documents.isError ? (
         <p role="alert">Les pièces sont indisponibles.</p>
       ) : !documents.data?.data.length ? (
         <p>{strings.noAttachment}</p>
       ) : (
         <ul className="planning-list">
-          {documents.data.data.map((document) => (
-            <li key={document.id}>
-              <span>
-                {document.name}
-                {document.partner_shared && (
-                  <small> · {strings.sharedWithPartner}</small>
-                )}
-                <small>
-                  {document.withdrawal
-                    ? ` · ${strings.withdrawnAttachment} · ${document.withdrawal.reason}`
-                    : ` · ${strings.currentAttachment}`}
-                  {document.withdrawal?.replacement_document_name &&
-                    ` · ${strings.replacedBy} ${document.withdrawal.replacement_document_name}`}
-                </small>
-              </span>
-              <div className="planning-actions">
-                {!document.withdrawal &&
-                  ['image/jpeg', 'image/png'].includes(document.media_type) && (
-                    <Button
-                      aria-label={`${strings.preview} de ${document.name}`}
-                      variant="outline"
-                      onClick={(event) => {
-                        previewOpener.current = event.currentTarget
-                        releasePreview()
-                        imagePreview.reset()
-                        setPreview(document)
-                        const generation = previewGeneration.current
-                        imagePreview.mutate({ document, generation })
-                      }}
+          {documents.data.data
+            .filter((document) => !deniedDocuments.includes(document.id))
+            .map((document) => (
+              <li key={document.id}>
+                <span>
+                  {document.name}
+                  {document.partner_shared && (
+                    <small> · {strings.sharedWithPartner}</small>
+                  )}
+                  <small>
+                    {document.withdrawal
+                      ? ` · ${strings.withdrawnAttachment} · ${document.withdrawal.reason}`
+                      : ` · ${strings.currentAttachment}`}
+                    {document.withdrawal?.replacement_document_name &&
+                      ` · ${strings.replacedBy} ${document.withdrawal.replacement_document_name}`}
+                  </small>
+                </span>
+                <div className="planning-actions">
+                  {!document.withdrawal &&
+                    ['image/jpeg', 'image/png'].includes(
+                      document.media_type,
+                    ) && (
+                      <Button
+                        aria-label={`${common.preview} de ${document.name}`}
+                        variant="outline"
+                        onClick={(event) => {
+                          previewOpener.current = event.currentTarget
+                          releasePreview()
+                          imagePreview.reset()
+                          setPreview(document)
+                          const generation = previewGeneration.current
+                          imagePreview.mutate({ document, generation })
+                        }}
+                      >
+                        <Eye aria-hidden="true" /> {common.preview}
+                      </Button>
+                    )}
+                  {!document.withdrawal && (
+                    <ProtectedDownload
+                      path={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
+                      onDenied={() => void denyDocument(document.id)}
+                      scope={deliveryScope}
                     >
-                      <Eye aria-hidden="true" /> {strings.preview}
+                      <Download aria-hidden="true" /> {common.download}
+                    </ProtectedDownload>
+                  )}
+                  {(document.allowed_actions?.includes('share') ||
+                    document.allowed_actions?.includes('unshare')) && (
+                    <Button
+                      variant="outline"
+                      disabled={
+                        blocked ||
+                        sharing.isPending ||
+                        documents.isFetching ||
+                        documents.isError
+                      }
+                      onClick={() => sharing.mutate(document)}
+                    >
+                      {document.partner_shared
+                        ? strings.stopPartnerSharing
+                        : strings.shareWithPartner}
                     </Button>
                   )}
-                {!document.withdrawal && (
-                  <a
-                    href={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
-                    download
-                  >
-                    <Download aria-hidden="true" /> {strings.download}
-                  </a>
-                )}
-                {(document.allowed_actions?.includes('share') ||
-                  document.allowed_actions?.includes('unshare')) && (
-                  <Button
-                    variant="outline"
-                    disabled={
-                      blocked ||
-                      sharing.isPending ||
-                      documents.isFetching ||
-                      documents.isError
-                    }
-                    onClick={() => sharing.mutate(document)}
-                  >
-                    {document.partner_shared
-                      ? strings.stopPartnerSharing
-                      : strings.shareWithPartner}
-                  </Button>
-                )}
-                {document.allowed_actions?.includes('withdraw') && (
-                  <Button
-                    variant="outline"
-                    disabled={blocked || withdraw.isPending}
-                    onClick={(event) => {
-                      withdrawalOpener.current = event.currentTarget
-                      setReplacementCursor('')
-                      setWithdrawing(document)
-                    }}
-                  >
-                    {strings.withdrawAttachment}
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
+                  {document.allowed_actions?.includes('withdraw') && (
+                    <Button
+                      variant="outline"
+                      disabled={blocked || withdraw.isPending}
+                      onClick={(event) => {
+                        withdrawalOpener.current = event.currentTarget
+                        setReplacementCursor('')
+                        setWithdrawing(document)
+                      }}
+                    >
+                      {strings.withdrawAttachment}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
         </ul>
       )}
       <Pager
@@ -2365,7 +2502,7 @@ export function ActivityDocuments({
                   )
                 }
               >
-                {strings.previous}
+                {common.previous}
               </Button>
               <Button
                 type="button"
@@ -2377,7 +2514,7 @@ export function ActivityDocuments({
                   )
                 }
               >
-                {strings.next}
+                {common.next}
               </Button>
             </div>
             <div className="modal-actions">
@@ -2401,9 +2538,7 @@ export function ActivityDocuments({
       <Modal
         open={Boolean(preview)}
         onClose={closePreview}
-        label={
-          preview ? `${strings.preview} — ${preview.name}` : strings.preview
-        }
+        label={preview ? `${common.preview} — ${preview.name}` : common.preview}
         opener={previewOpener}
         className="document-preview-dialog"
       >
@@ -2412,7 +2547,7 @@ export function ActivityDocuments({
             <h3>{preview.name}</h3>
             {imagePreview.isPending ? (
               <LoadingPlaceholder
-                label={strings.previewLoading}
+                label={common.previewLoading}
                 variant="preview"
               />
             ) : imagePreview.isError ? (
@@ -2424,20 +2559,21 @@ export function ActivityDocuments({
             ) : previewUrl ? (
               <img
                 src={previewUrl}
-                alt={`${strings.preview} de ${preview.name}`}
+                alt={`${common.preview} de ${preview.name}`}
               />
             ) : null}
             <div className="modal-actions">
               <Button type="button" variant="outline" onClick={closePreview}>
-                {strings.dismiss}
+                {common.dismiss}
               </Button>
-              <a
+              <ProtectedDownload
                 className="planning-button"
-                href={`/api/v1/activities/${activityId}/documents/${preview.id}/download`}
-                download
+                path={`/api/v1/activities/${activityId}/documents/${preview.id}/download`}
+                onDenied={() => void denyDocument(preview.id)}
+                scope={deliveryScope}
               >
-                <Download aria-hidden="true" /> {strings.download}
-              </a>
+                <Download aria-hidden="true" /> {common.download}
+              </ProtectedDownload>
             </div>
           </div>
         )}
