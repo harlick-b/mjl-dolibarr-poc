@@ -205,7 +205,8 @@ def test_each_business_role_accepts_and_authenticates_but_cannot_admin(
             == 422
         )
         identity = activate(recipient, auth_env.mailbox, email)["user"]
-        assert set(identity) == {"id", "email", "role"}
+        assert set(identity) == {"id", "email", "role", "full_name"}
+        assert identity["full_name"] == "Business User"
         assert identity["role"] == role
         assert_denied_endpoints(recipient, 403, invitation["id"])
 

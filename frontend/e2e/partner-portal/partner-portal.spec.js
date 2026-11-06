@@ -179,6 +179,10 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   await expect(
     page.getByText('Espace Partenaire · Lecture seule'),
   ).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-tailwind-partner-desktop.png',
+    fullPage: true,
+  })
   const csvDownload = page.waitForEvent('download')
   await page
     .getByRole('button', { name: 'Télécharger le récapitulatif CSV' })
@@ -235,6 +239,10 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   await page.getByRole('button', { name: 'Aperçu', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-tailwind-partner-preview-mobile.png',
+    fullPage: true,
+  })
   const bounds = await dialog.boundingBox()
   expect(bounds.width).toBeLessThanOrEqual(390)
   await page.getByRole('button', { name: 'Fermer', exact: true }).click()

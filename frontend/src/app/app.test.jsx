@@ -145,8 +145,10 @@ test('an authentication route failure retains the authentication frame', async (
   expect(
     await screen.findByRole('heading', { name: 'Une erreur est survenue' }),
   ).toBeVisible()
-  expect(container.querySelector('.auth-layout')).toBeInTheDocument()
-  expect(container.querySelector('.auth-brand')).toBeInTheDocument()
+  expect(
+    container.querySelector('[data-ui~="auth-layout"]'),
+  ).toBeInTheDocument()
+  expect(container.querySelector('[data-ui~="auth-brand"]')).toBeInTheDocument()
   expect(screen.queryByText('private framework diagnostic')).toBeNull()
 })
 
@@ -174,7 +176,7 @@ test('a protected route failure retains the verified workspace frame', async () 
   const { container } = render(
     <App
       router={makeRouter(
-        createMemoryHistory({ initialEntries: ['/projects'] }),
+        createMemoryHistory({ initialEntries: ['/activities/fixture'] }),
         { planning: ThrowingRoute },
       )}
     />,
@@ -183,9 +185,126 @@ test('a protected route failure retains the verified workspace frame', async () 
   expect(
     await screen.findByRole('heading', { name: 'Une erreur est survenue' }),
   ).toBeVisible()
-  expect(container.querySelector('.workspace-shell')).toBeInTheDocument()
+  expect(
+    container.querySelector('[data-ui~="workspace-shell"]'),
+  ).toBeInTheDocument()
   expect(
     screen.getByRole('navigation', { name: 'Espace de travail' }),
   ).toBeVisible()
   expect(screen.queryByText('private framework diagnostic')).toBeNull()
+})
+
+test('Agent login and OTP reach the default Dashboard without a refresh', async () => {
+  const { default: userEvent } = await import('@testing-library/user-event')
+  let state = 'anonymous'
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) state = 'pending'
+      if (url.endsWith('/auth/otp/verify')) state = 'verified'
+      if (url.endsWith('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state,
+            csrf: 'fixture',
+            email: 'a***@example.test',
+            ...(state === 'verified'
+              ? {
+                  user: {
+                    id: 'fresh-login-agent',
+                    role: 'AGENT_SAISIE',
+                    email: 'agent@example.test',
+                  },
+                  expires_at: new Date(Date.now() + 3600000).toISOString(),
+                }
+              : {}),
+          }),
+        )
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      )
+    }),
+  )
+  const router = makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))
+  render(<App router={router} />)
+  await userEvent.type(
+    await screen.findByLabelText('Adresse e-mail'),
+    'agent@example.test',
+  )
+  await userEvent.type(
+    screen.getByLabelText('Mot de passe', { exact: true }),
+    'ValidPass1!',
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Se connecter' }))
+  await userEvent.type(
+    await screen.findByLabelText('Code de vérification', { exact: true }),
+    '123456',
+  )
+  await waitFor(() => expect(router.state.location.pathname).toBe('/dashboard'))
+  expect(
+    await screen.findByRole('heading', { name: 'Tableau de bord', level: 1 }),
+  ).toBeVisible()
+  expect(screen.queryByText('Accès refusé')).not.toBeInTheDocument()
+})
+
+test('workspace navigation omits empty parameters while retaining selected filters', async () => {
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/health'] }),
+  )
+  const link = router.buildLocation({
+    to: '/projects',
+    search: { projectCursor: '', revision: 'selected' },
+  })
+  expect(link.href).toBe('/projects?revision=selected')
+})
+
+test('sidebar account opens a menu without changing the current page', async () => {
+  const { default: userEvent } = await import('@testing-library/user-event')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async (input) =>
+        new Response(
+          JSON.stringify(
+            String(input).endsWith('/auth/session')
+              ? {
+                  state: 'verified',
+                  csrf: 'fixture',
+                  user: {
+                    id: 'menu-admin',
+                    role: 'ADMIN_PLATEFORME',
+                    email: 'admin@example.test',
+                  },
+                  expires_at: new Date(Date.now() + 3600000).toISOString(),
+                }
+              : {
+                  object: 'list',
+                  data: [],
+                  count: 0,
+                  next: null,
+                  previous: null,
+                },
+          ),
+        ),
+    ),
+  )
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/access/users'] }),
+  )
+  render(<App router={router} />)
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Mon compte' }),
+  )
+  expect(await screen.findByRole('menu', { name: 'Mon compte' })).toBeVisible()
+  expect(screen.getByRole('menuitem', { name: 'Se déconnecter' })).toBeVisible()
+  expect(router.state.location.pathname).toBe('/access/users')
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })

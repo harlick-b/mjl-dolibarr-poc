@@ -1,3 +1,4 @@
+import { businessActionClassName } from '@/shared/ui/button-variants'
 import { Link } from '@tanstack/react-router'
 import { workspacePath } from './authorization'
 import { FallbackState } from '@/shared/ui/FallbackState'
@@ -8,7 +9,7 @@ export function AccessDeniedState({ role }) {
     <FallbackState
       title={strings.accessDenied}
       action={
-        <Link to={workspacePath(role)} className="planning-button">
+        <Link to={workspacePath(role)} className={businessActionClassName}>
           {strings.returnToWorkspace}
         </Link>
       }

@@ -58,6 +58,11 @@ test('Admin lands on a clean URL and filters remain shareable with browser histo
 }) => {
   await adminFixture(page)
   await page.goto('/')
+  await expect(page).toHaveURL('http://127.0.0.1:4173/dashboard')
+  await page
+    .locator('aside')
+    .getByRole('link', { name: 'Utilisateurs', exact: true })
+    .click()
   await expect(page).toHaveURL('http://127.0.0.1:4173/access/users')
   await expect(
     page.getByRole('table', { name: 'Comptes utilisateurs' }),
@@ -109,7 +114,8 @@ test('Admin account and history retain the same navigation and invitation dialog
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.screenshot({ path: '/tmp/mjl-admin-invite.png', fullPage: true })
   await page.getByRole('button', { name: 'Fermer', exact: true }).click()
-  await page.getByRole('link', { name: 'Mon compte', exact: true }).click()
+  await page.getByRole('button', { name: 'Mon compte', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Mon profil', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Mon compte', exact: true }),
   ).toBeVisible()
@@ -176,15 +182,15 @@ test('Admin history masks the sidebar identity on offline and cross-tab invalida
   })
   await page.goto('/history')
   await expect(
-    page.getByRole('link', { name: 'Mon compte', exact: true }),
+    page.getByRole('button', { name: 'Mon compte', exact: true }),
   ).toBeVisible()
   await context.setOffline(true)
   await expect(
-    page.getByRole('link', { name: 'Mon compte', exact: true }),
+    page.getByRole('button', { name: 'Mon compte', exact: true }),
   ).toHaveCount(0)
   await context.setOffline(false)
   await expect(
-    page.getByRole('link', { name: 'Mon compte', exact: true }),
+    page.getByRole('button', { name: 'Mon compte', exact: true }),
   ).toBeVisible()
   hold = true
   await page.evaluate(() => {
@@ -193,11 +199,12 @@ test('Admin history masks the sidebar identity on offline and cross-tab invalida
     channel.close()
   })
   await expect(
-    page.getByRole('link', { name: 'Mon compte', exact: true }),
+    page.getByRole('button', { name: 'Mon compte', exact: true }),
   ).toHaveCount(0)
+  await expect.poll(() => typeof release).toBe('function')
   release()
   await expect(
-    page.getByRole('link', { name: 'Mon compte', exact: true }),
+    page.getByRole('button', { name: 'Mon compte', exact: true }),
   ).toBeVisible()
 })
 
@@ -253,7 +260,7 @@ test('users loading covers the route wait and failed-session retry', async ({
     }),
   ).toHaveCount(0)
   await expect(
-    page.getByRole('link', { name: 'Mon compte', exact: true }),
+    page.getByRole('button', { name: 'Mon compte', exact: true }),
   ).toHaveCount(0)
   respond()
   await expect(

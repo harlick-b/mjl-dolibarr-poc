@@ -1,11 +1,23 @@
+import { ReminderMenu } from '@/features/notifications/ReminderMenu'
+import { WorkspaceOverview } from '@/features/dashboard/WorkspaceOverview'
+import {
+  LogoutProvider,
+  LogoutScreen,
+  useLogout,
+} from '@/features/auth/LogoutProvider'
+import { loginDestination, rememberPage } from '@/features/auth/navigation'
+import { businessActionClassName } from '@/shared/ui/button-variants'
+import { WorkspaceMain, WorkspaceFrame } from '@/shared/ui/layout'
 import { strings } from '@/locales/fr/Router'
 import { strings as common } from '@/locales/fr/common'
+import { SessionProvider } from '@/features/auth/SessionProvider'
 import {
-  SessionProvider,
-  useSessionQuery,
-} from '@/features/auth/SessionProvider'
-import { authorization, workspacePath } from '@/features/auth/authorization'
-import { AdminSidebar } from '@/features/access/AdminSidebar'
+  authorization,
+  workspacePath,
+  pageForPath,
+} from '@/features/auth/authorization'
+import { ApplicationSidebar } from '@/features/auth/ApplicationSidebar'
+import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 import {
   AccessGate,
   AccessLoading,
@@ -46,7 +58,6 @@ import {
   MutationCache,
   QueryClient,
   QueryClientProvider,
-  useQuery,
 } from '@tanstack/react-query'
 import { HelmetProvider } from 'react-helmet-async'
 import { Toaster, toast } from 'sonner'
@@ -62,107 +73,41 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
-import { Bell, FolderKanban, History, House } from 'lucide-react'
-import { useAPI } from '@/shared/api/RestClientProvider'
 import { FallbackState } from '@/shared/ui/FallbackState'
 
 function WorkspaceShell() {
-  const { api } = useAPI()
-  const session = useSessionQuery()
-  const userId = session.data?.user?.id
-  const unread = useQuery({
-    queryKey: ['notifications', userId, 'unread', '', 1],
-    queryFn: ({ signal }) =>
-      api.request('/api/v1/notifications?state=unread&limit=1', { signal }),
-    enabled:
-      session.data?.state === 'verified' &&
-      session.data?.user?.role === 'AGENT_SAISIE',
-    gcTime: 0,
-  })
-  if (authorization(session.data).can('accounts'))
-    return (
-      <div className="access-layout">
-        <AdminSidebar user={session.data.user} />
-        <main className="workspace-main">
-          <Outlet />
-        </main>
-      </div>
-    )
-  if (authorization(session.data).can('partner'))
-    return (
-      <div className="workspace-shell">
-        <aside className="workspace-sidebar partner-sidebar">
-          <Link
-            to="/partner"
-            className="workspace-brand"
-            aria-label="MJL — espace Partenaire"
-          >
-            <img src="/icon-192.png" alt="" width="36" height="36" /> MJL
-          </Link>
-          <p>Espace Partenaire · Lecture seule</p>
-          <nav aria-label="Espace Partenaire">
-            <Link to="/partner" activeProps={{ 'aria-current': 'page' }}>
-              <House aria-hidden="true" size={19} /> Vue d’ensemble
-            </Link>
-            <Link to="/identity">
-              <FolderKanban aria-hidden="true" size={19} /> Mon compte
-            </Link>
-          </nav>
-        </aside>
-        <main className="workspace-main">
-          <Outlet />
-        </main>
-      </div>
-    )
+  const access = useAccess()
+  const identity = access.session
+  const path = useLocation({ select: (location) => location.pathname })
+  const page = pageForPath(path)
+  const policy = authorization(identity)
   return (
-    <div className="workspace-shell">
-      <aside className="workspace-sidebar">
-        <Link to="/" className="workspace-brand" aria-label="MJL — accueil">
-          <img src="/icon-192.png" alt="" width="36" height="36" /> MJL
-        </Link>
-        <nav aria-label="Espace de travail">
-          <Link to="/" activeProps={{ 'aria-current': 'page' }}>
-            <House aria-hidden="true" size={19} /> Accueil
-          </Link>
-          <Link to="/projects" activeProps={{ 'aria-current': 'page' }}>
-            <FolderKanban aria-hidden="true" size={19} /> Planification
-          </Link>
-          <Link to="/notifications" activeProps={{ 'aria-current': 'page' }}>
-            <Bell aria-hidden="true" size={19} /> Notifications
-            {unread.data?.count > 0 && (
-              <span
-                className="notification-badge"
-                aria-label={`${unread.data.count} non lues`}
-              >
-                {unread.data.count}
-              </span>
-            )}
-          </Link>
-          {authorization(session.data).can('audit') && (
-            <Link to="/history" activeProps={{ 'aria-current': 'page' }}>
-              <History aria-hidden="true" size={19} /> Historique
-            </Link>
+    <WorkspaceFrame>
+      <ApplicationSidebar user={identity?.user} />
+      <div className="min-w-0">
+        <header className="flex justify-between gap-4 min-h-16 items-center border-b border-border bg-white px-6 text-[0.8125rem] text-muted-foreground">
+          {page?.label || 'MJL'}
+          <ReminderMenu />
+        </header>
+        <WorkspaceMain>
+          {page && !policy.canVisit(path) ? (
+            <AccessDeniedState role={policy.role} />
+          ) : (
+            <Outlet />
           )}
-        </nav>
-      </aside>
-      <main className="workspace-main">
-        <Outlet />
-      </main>
-    </div>
+        </WorkspaceMain>
+      </div>
+    </WorkspaceFrame>
   )
 }
 
-function ProtectedGate({ children, path }) {
+function ProtectedGate({ children }) {
   const access = useAccess()
   if (access.status === 'unknown' || access.status === 'checking')
     return <AccessVerificationState />
   if (access.status === 'anonymous') return <Navigate to="/login" replace />
   if (access.status === 'pending')
     return <Navigate to="/verification" replace />
-  if (access.reason === 'logout') {
-    if (path !== '/identity') return <Navigate to="/identity" replace />
-    return <div data-access-protected="true">{children}</div>
-  }
   if (access.status !== 'verified')
     return (
       <AccessVerificationState
@@ -180,7 +125,7 @@ function RouteFailure() {
       title={strings.unexpectedTitle}
       action={
         <button
-          className="planning-button"
+          className={businessActionClassName}
           onClick={() => window.location.reload()}
           type="button"
         >
@@ -213,7 +158,11 @@ function Shell() {
   const path = useLocation({ select: (location) => location.pathname })
   const navigate = useNavigate()
   const access = useAccess()
+  const logout = useLogout()
   const handledIdentityVersion = useRef(0)
+  useEffect(() => {
+    if (access.status === 'verified') rememberPage(access.session, path)
+  }, [access.status, access.session, path])
   useEffect(() => {
     if (path !== '/health' && access.status === 'unknown')
       void access.verify().catch(() => null)
@@ -225,13 +174,19 @@ function Shell() {
     )
       return
     handledIdentityVersion.current = access.identityVersion
-    const destination = workspacePath(access.session.user.role)
+    const destination = loginDestination(access.session)
     if (path !== destination) void navigate({ to: destination, replace: true })
   }, [access, navigate, path])
+  if (logout.busy || logout.error || access.reason === 'logout')
+    return <LogoutScreen />
   const protectedPath =
+    Boolean(pageForPath(path)) ||
     path === '/identity' ||
     path === '/access/users' ||
-    path === '/partner' ||
+    path === '/dashboard' ||
+    path === '/planning' ||
+    path === '/execution' ||
+    path.startsWith('/partner') ||
     path === '/notifications' ||
     path === '/history' ||
     path === '/partners' ||
@@ -285,7 +240,10 @@ function Shell() {
     )
   }
   if (
-    path === '/partner' ||
+    path === '/dashboard' ||
+    path === '/planning' ||
+    path === '/execution' ||
+    path.startsWith('/partner') ||
     path === '/notifications' ||
     path === '/history' ||
     path === '/partners' ||
@@ -350,7 +308,7 @@ function NotFound() {
     <FallbackState
       title={strings.notFound}
       action={
-        <Link to={destination} className="planning-button">
+        <Link to={destination} className={businessActionClassName}>
           {common.returnToWorkspace}
         </Link>
       }
@@ -375,6 +333,16 @@ export function makeRouter(history, componentOverrides = {}) {
   })
   const root = createRootRoute({
     component: Shell,
+    search: {
+      middlewares: [
+        ({ search, next }) =>
+          Object.fromEntries(
+            Object.entries(next(search)).filter(
+              ([, value]) => value !== '' && value != null,
+            ),
+          ),
+      ],
+    },
     notFoundComponent: NotFound,
     errorComponent: RouteFailure,
   })
@@ -384,6 +352,25 @@ export function makeRouter(history, componentOverrides = {}) {
     component: componentOverrides.auth || AuthView,
     errorComponent: AuthRouteFailure,
   })
+  const overviewRoutes = ['dashboard', 'planning', 'execution'].map((screen) =>
+    createRoute({
+      getParentRoute: () => root,
+      path: `/${screen}`,
+      validateSearch: (search) => ({
+        project: String(search.project || '').slice(0, 36),
+        pta: String(search.pta || '').slice(0, 36),
+        projectCursor: String(search.projectCursor || '').slice(0, 512),
+        ptaCursor: String(search.ptaCursor || '').slice(0, 512),
+        ...(Number.isInteger(Number(search.year)) &&
+        Number(search.year) >= 2000 &&
+        Number(search.year) <= 2200
+          ? { year: Number(search.year) }
+          : {}),
+      }),
+      component: () => <WorkspaceOverview screen={screen} />,
+      errorComponent: RouteFailure,
+    }),
+  )
   const health = createRoute({
     getParentRoute: () => root,
     path: '/health',
@@ -407,40 +394,43 @@ export function makeRouter(history, componentOverrides = {}) {
       pendingMs: 0,
       pendingMinMs: 0,
       gcTime: 0,
-      loader: async ({ context, abortController }) => {
-        if (!['/invitation', '/reset-password'].includes(path)) return null
-        let proof
-        if (window.location.hash) {
-          const fragment = new URLSearchParams(window.location.hash.slice(1))
-          proof = {
-            selector: fragment.get('selector') || '',
-            verifier: fragment.get('verifier') || '',
+      loader: ['/invitation', '/reset-password'].includes(path)
+        ? async ({ context, abortController }) => {
+            let proof
+            if (window.location.hash) {
+              const fragment = new URLSearchParams(
+                window.location.hash.slice(1),
+              )
+              proof = {
+                selector: fragment.get('selector') || '',
+                verifier: fragment.get('verifier') || '',
+              }
+              window.history.replaceState(
+                window.history.state,
+                '',
+                window.location.pathname,
+              )
+            }
+            try {
+              const session = await context.access.verify()
+              if (proof) {
+                const endpoint =
+                  path === '/invitation'
+                    ? 'invitations/inspect'
+                    : 'password-reset/inspect'
+                const invited = await context.api.auth(endpoint, {
+                  csrf: session.csrf,
+                  body: proof,
+                  signal: abortController.signal,
+                })
+                return { proof, email: invited.email }
+              }
+            } catch {
+              /* The view offers a deliberate retry or an invalid-link message. */
+            }
+            return null
           }
-          window.history.replaceState(
-            window.history.state,
-            '',
-            window.location.pathname,
-          )
-        }
-        try {
-          const session = await context.access.verify()
-          if (proof) {
-            const endpoint =
-              path === '/invitation'
-                ? 'invitations/inspect'
-                : 'password-reset/inspect'
-            const invited = await context.api.auth(endpoint, {
-              csrf: session.csrf,
-              body: proof,
-              signal: abortController.signal,
-            })
-            return { proof, email: invited.email }
-          }
-        } catch {
-          /* The view offers a deliberate retry or an invalid-link message. */
-        }
-        return null
-      },
+        : undefined,
     }),
   )
   const access = createRoute({
@@ -504,6 +494,25 @@ export function makeRouter(history, componentOverrides = {}) {
     getParentRoute: () => root,
     path: '/partner',
     component: PartnerPortalView,
+    errorComponent: RouteFailure,
+    pendingComponent: PartnerLoading,
+    pendingMs: 0,
+    pendingMinMs: 0,
+    gcTime: 0,
+    validateSearch: (search) => ({
+      project: String(search.project || '').slice(0, 36),
+      pta: String(search.pta || '').slice(0, 36),
+      activity: String(search.activity || '').slice(0, 36),
+      projectCursor: String(search.projectCursor || '').slice(0, 512),
+      ptaCursor: String(search.ptaCursor || '').slice(0, 512),
+      activityCursor: String(search.activityCursor || '').slice(0, 512),
+      documentCursor: String(search.documentCursor || '').slice(0, 512),
+    }),
+  })
+  const partnerExports = createRoute({
+    getParentRoute: () => root,
+    path: '/partner/exports',
+    component: () => <PartnerPortalView screen="exports" />,
     errorComponent: RouteFailure,
     pendingComponent: PartnerLoading,
     pendingMs: 0,
@@ -614,9 +623,11 @@ export function makeRouter(history, componentOverrides = {}) {
     routeTree: root.addChildren([
       home,
       health,
+      ...overviewRoutes,
       ...authRoutes,
       access,
       partnerPortal,
+      partnerExports,
       ...planningRoutes,
       ...executionRoutes,
       notifications,
@@ -633,10 +644,12 @@ export function App({ router }) {
       <RestClientProvider client={router.options.context.api}>
         <QueryClientProvider client={router.options.context.queryClient}>
           <AccessProvider coordinator={router.options.context.access}>
-            <SessionProvider>
-              <RouterProvider router={router} />
-              <Toaster position="top-right" richColors />
-            </SessionProvider>
+            <LogoutProvider>
+              <SessionProvider>
+                <RouterProvider router={router} />
+                <Toaster position="top-right" richColors />
+              </SessionProvider>
+            </LogoutProvider>
           </AccessProvider>
         </QueryClientProvider>
       </RestClientProvider>

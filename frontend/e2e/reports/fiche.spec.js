@@ -76,11 +76,13 @@ test('an approved Activity exposes its guarded Fiche download on mobile', async 
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/activities/activity-1')
-  const action = page.getByRole('link', {
+  const action = page.getByRole('button', {
     name: 'Télécharger la fiche PDF',
   })
   await expect(action).toBeVisible()
-  await expect(action).toHaveAttribute('download', '')
+  const download = page.waitForEvent('download')
+  await action.click()
+  expect((await download).suggestedFilename()).toBe('fiche-ACT-000001.pdf')
   const binary = await page.evaluate(async () => {
     const response = await fetch('/api/v1/activities/activity-1/fiche.pdf')
     return {

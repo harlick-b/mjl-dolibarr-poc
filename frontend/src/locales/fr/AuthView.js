@@ -30,6 +30,8 @@ export const strings = new LocalizedStrings({
     invitationPrompt: 'Définissez le mot de passe de votre compte.',
     invitationSubmit: 'Enregistrer le mot de passe',
     logoutHeading: 'Déconnexion',
+    logoutUnconfirmed:
+      'Déconnexion non confirmée. Réessayez lorsque la connexion est disponible.',
     retryLogout: 'Réessayer la déconnexion',
     forgotTitle: 'Mot de passe oublié',
     forgotHeading: 'Récupérer votre accès',

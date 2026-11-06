@@ -1,9 +1,12 @@
+import { EmptyContent } from '@/shared/ui/EmptyContent'
+import { Button } from '@/shared/ui/button'
+import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
 import { PageLoading, LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
 import { formatXof } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/PartnerPortalView'
@@ -62,7 +65,10 @@ function cursor(link) {
 function PortalPagination({ page, change, label }) {
   if (!page?.next && !page?.previous) return null
   return (
-    <nav className="access-pagination" aria-label={`Pagination ${label}`}>
+    <nav
+      className="[&_button]:min-h-11 [&_button]:text-primary [&_button]:underline flex justify-end flex-wrap items-center gap-4 mt-3 mr-0 mb-10 ml-0 text-[0.8125rem]"
+      aria-label={`Pagination ${label}`}
+    >
       <button
         disabled={!page.previous}
         onClick={() => change(cursor(page.previous))}
@@ -95,11 +101,11 @@ function portalQuery(api, key, path, onDenied, enabled = true) {
   }
 }
 
-export function PartnerPortalView() {
+export function PartnerPortalView({ screen = 'projects' }) {
   const { api } = useAPI()
   const client = useQueryClient()
   const navigate = useNavigate()
-  const search = useSearch({ from: '/partner' })
+  const search = useSearch({ strict: false })
   const session = useSessionQuery()
   const user = session.data?.user
   const permitted = authorization(session.data).can('partner')
@@ -157,7 +163,7 @@ export function PartnerPortalView() {
         ...(search.activityCursor ? { cursor: search.activityCursor } : {}),
       })}`,
       deny,
-      permitted && Boolean(selectedPta),
+      permitted && Boolean(selectedPta) && screen !== 'exports',
     ),
   )
   const activityRows = activities.data?.data || emptyList.data
@@ -172,7 +178,7 @@ export function PartnerPortalView() {
       [user?.id, 'detail', selectedActivityId],
       `activities/${selectedActivityId}`,
       deny,
-      permitted && Boolean(selectedActivityId),
+      permitted && Boolean(selectedActivityId) && screen !== 'exports',
     ),
   )
   const fiche = useMutation({
@@ -251,7 +257,7 @@ export function PartnerPortalView() {
   const changeSearch = (values) => {
     downloadGuard.revoke()
     return navigate({
-      to: '/partner',
+      to: screen === 'exports' ? '/partner/exports' : '/partner',
       search: {
         ...search,
         ...(Object.keys(values).some((key) =>
@@ -287,14 +293,144 @@ export function PartnerPortalView() {
     )
   if (primaryQueries.some((query) => query.isPending))
     return <PageLoading title={strings.partnerTitle} />
+  if (screen === 'exports')
+    return (
+      <section className="grid gap-6">
+        <Helmet>
+          <title>{strings.exportsTitle} — MJL</title>
+        </Helmet>
+        <h1 className="text-2xl font-semibold text-navy">
+          {strings.exportsTitle}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {profile.data?.name} · {strings.approvedData}
+        </p>
+        {!selectedProject ? (
+          <Panel className="p-0">
+            <EmptyContent kind="projects" />
+          </Panel>
+        ) : (
+          <>
+            <Panel className="border-0 bg-transparent p-0 flex flex-wrap gap-4">
+              <label className="w-full max-w-120">
+                {strings.projectLabel}
+                <select
+                  value={selectedProject.id}
+                  onChange={(event) =>
+                    void changeSearch({
+                      project: event.target.value,
+                      pta: '',
+                      ptaCursor: '',
+                    })
+                  }
+                >
+                  {projectRows.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedPta && (
+                <label>
+                  {strings.ptaLabel}
+                  <select
+                    value={selectedPta.id}
+                    onChange={(event) =>
+                      void changeSearch({ pta: event.target.value })
+                    }
+                  >
+                    {ptaRows.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.year}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </Panel>
+            <PortalPagination
+              page={projects.data}
+              label={strings.projectLabel}
+              change={(projectCursor) =>
+                changeSearch({
+                  projectCursor,
+                  project: '',
+                  pta: '',
+                  ptaCursor: '',
+                })
+              }
+            />
+            {ptas.isPending ? (
+              <PageLoading title={strings.exportsTitle} className="min-h-45" />
+            ) : ptas.isError ? (
+              <RetryableError onRetry={() => void ptas.refetch()}>
+                {strings.ptasUnavailable}
+              </RetryableError>
+            ) : selectedPta ? (
+              <Panel className="p-0 gap-0">
+                <h2 className="border-b border-border p-5">
+                  {strings.ptaLabel} {selectedPta.year}
+                </h2>
+                <div className="grid gap-4 p-5">
+                  <p className="text-sm">
+                    {selectedPta.metrics.physical.approved_activities}{' '}
+                    {strings.approvedActivities} · {selectedProject.name}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={csvExport.isPending}
+                      aria-busy={csvExport.isPending}
+                      onClick={() => csvExport.mutate(selectedPta.id)}
+                    >
+                      {csvExport.isPending
+                        ? strings.partnerPtaCsvPending
+                        : strings.partnerPtaCsv}
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link
+                        to="/partner"
+                        search={{
+                          project: selectedProject.id,
+                          pta: selectedPta.id,
+                        }}
+                      >
+                        {strings.consultFiches}
+                      </Link>
+                    </Button>
+                  </div>
+                  {csvExport.isError && (
+                    <p role="alert">{strings.partnerPtaCsvFailed}</p>
+                  )}
+                </div>
+              </Panel>
+            ) : (
+              <Panel className="p-0">
+                <EmptyContent kind="ptas" />
+              </Panel>
+            )}
+            <PortalPagination
+              page={ptas.data}
+              label={strings.ptaLabel}
+              change={(ptaCursor) => changeSearch({ ptaCursor, pta: '' })}
+            />
+          </>
+        )}
+      </section>
+    )
   return (
-    <section className="planning-stack partner-portal">
+    <section className="grid gap-6 [&_[data-ui~='planning-list']_li]:flex [&_[data-ui~='planning-list']_li]:justify-between [&_[data-ui~='planning-list']_li]:gap-6 [&_[data-ui~='planning-list']_div]:grid [&_[data-ui~='planning-list']_div]:gap-1 [&_[data-ui~='planning-list']_small]:text-muted-foreground [&_[data-ui~='planning-list']_span]:text-muted-foreground">
       <Helmet>
         <title>Espace Partenaire · MJL</title>
       </Helmet>
-      <header className="planning-heading">
+      <header
+        className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
+        data-ui="planning-heading"
+      >
         <div>
-          <p className="partner-eyebrow">Vue d’ensemble</p>
+          <p className="mt-0 mr-0 mb-[6px] ml-0 text-primary text-[0.8125rem] font-semibold uppercase tracking-[0.04em]">
+            Vue d’ensemble
+          </p>
           <h1>
             Bonjour,{' '}
             {!profile.isError && profile.data?.name
@@ -303,20 +439,19 @@ export function PartnerPortalView() {
           </h1>
           <p>Suivez vos Projets, PTA et Activités approuvées.</p>
         </div>
-        <span className="partner-readonly">Lecture seule</span>
+        <span className="border border-border rounded-full py-[7px] px-3 bg-white text-muted-foreground text-[0.8125rem]">
+          Lecture seule
+        </span>
       </header>
       {!projectRows.length && (
-        <article className="planning-card">
-          <h2>Aucun Projet approuvé</h2>
-          <p>
-            Votre portefeuille apparaîtra ici dès qu’un Projet sera disponible.
-          </p>
-        </article>
+        <Panel as="article">
+          <EmptyContent kind="projects" />
+        </Panel>
       )}
       {projectRows.length > 0 && (
         <>
-          <article className="planning-card">
-            <div className="planning-title">
+          <Panel as="article">
+            <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
               <div>
                 <h2>Mes Projets</h2>
                 <p>{projectRows.length} Projet(s) dans votre portefeuille</p>
@@ -345,7 +480,7 @@ export function PartnerPortalView() {
                 </label>
               )}
             </div>
-            <dl className="planning-facts">
+            <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
               <div>
                 <dt>Référence</dt>
                 <dd>{selectedProject.reference}</dd>
@@ -375,7 +510,7 @@ export function PartnerPortalView() {
                 })
               }
             />
-          </article>
+          </Panel>
           {ptas.isError ? (
             <RetryableError onRetry={() => void ptas.refetch()}>
               {strings.ptasUnavailable}
@@ -387,8 +522,8 @@ export function PartnerPortalView() {
               })}
             />
           ) : selectedPta ? (
-            <article className="planning-card">
-              <div className="planning-title">
+            <Panel as="article">
+              <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
                 <div>
                   <h2>PTA {selectedPta.year}</h2>
                   <button
@@ -444,7 +579,7 @@ export function PartnerPortalView() {
                   })
                 }
               />
-              <div className="annual-metrics">
+              <div className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_280px),_1fr))] gap-6 [&_article]:border [&_article]:border-border [&_article]:rounded-panel [&_article]:p-6 [&_h3]:m-0 [&_h3]:text-navy [&_h3]:text-[15px] [&_h3]:font-semibold [&_strong]:block [&_strong]:mt-3 [&_strong]:text-navy [&_strong]:text-[2rem] [&_strong]:leading-[1.2] [&_p]:mt-3 [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-muted-foreground [&_p]:text-sm">
                 <article>
                   <h3>Avancement physique</h3>
                   <strong>
@@ -479,7 +614,10 @@ export function PartnerPortalView() {
                   })}
                 />
               ) : activities.data?.data.length ? (
-                <ul className="planning-list">
+                <ul
+                  className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+                  data-ui="planning-list"
+                >
                   {activityRows.map((activity) => (
                     <li key={activity.id}>
                       <div>
@@ -505,7 +643,7 @@ export function PartnerPortalView() {
                   ))}
                 </ul>
               ) : (
-                <p>Aucune Activité approuvée pour ce PTA.</p>
+                <EmptyContent kind="execution" large />
               )}
               <PortalPagination
                 page={activities.data}
@@ -514,11 +652,11 @@ export function PartnerPortalView() {
                   changeSearch({ activityCursor, activity: '' })
                 }
               />
-            </article>
+            </Panel>
           ) : (
-            <article className="planning-card">
+            <Panel as="article">
               <h2>Aucun PTA disponible</h2>
-            </article>
+            </Panel>
           )}
           {detail.isError && (
             <RetryableError onRetry={() => void detail.refetch()}>
@@ -534,10 +672,12 @@ export function PartnerPortalView() {
             />
           )}
           {detail.data && (
-            <article className="planning-card" aria-labelledby="partner-detail">
-              <div className="planning-title">
+            <Panel as="article" aria-labelledby="partner-detail">
+              <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
                 <div>
-                  <p className="partner-eyebrow">Activité approuvée</p>
+                  <p className="mt-0 mr-0 mb-[6px] ml-0 text-primary text-[0.8125rem] font-semibold uppercase tracking-[0.04em]">
+                    Activité approuvée
+                  </p>
                   <h2 id="partner-detail">{detail.data.name}</h2>
                   <p>{detail.data.description}</p>
                 </div>
@@ -552,11 +692,14 @@ export function PartnerPortalView() {
                 </button>
               </div>
               {fiche.isError && (
-                <p className="planning-error" role="alert">
+                <p
+                  className="border-l-4 border-l-danger p-3 bg-white"
+                  role="alert"
+                >
                   La fiche est momentanément indisponible.
                 </p>
               )}
-              <dl className="planning-facts">
+              <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
                 <div>
                   <dt>Référence</dt>
                   <dd>{detail.data.reference}</dd>
@@ -574,7 +717,10 @@ export function PartnerPortalView() {
                 </div>
               </dl>
               <h3>Opérations approuvées</h3>
-              <ul className="planning-list">
+              <ul
+                className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+                data-ui="planning-list"
+              >
                 {detail.data.operations.map((operation, index) => (
                   <li key={`${operation.name}-${index}`}>
                     <div>
@@ -590,7 +736,10 @@ export function PartnerPortalView() {
                 ))}
               </ul>
               <h3>Décisions finales</h3>
-              <ul className="planning-list">
+              <ul
+                className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+                data-ui="planning-list"
+              >
                 {detail.data.decisions.map((decision) => (
                   <li key={`${decision.kind}-${decision.revision}`}>
                     <strong>
@@ -620,7 +769,7 @@ export function PartnerPortalView() {
               />
               <h3>Résultat financier</h3>
               {detail.data.finance ? (
-                <dl className="planning-facts">
+                <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
                   <div>
                     <dt>Dépenses finales</dt>
                     <dd>{formatXof(detail.data.finance.final_spending)}</dd>
@@ -669,7 +818,7 @@ export function PartnerPortalView() {
               ) : (
                 <p>Le résultat financier sera disponible après la clôture.</p>
               )}
-            </article>
+            </Panel>
           )}
         </>
       )}

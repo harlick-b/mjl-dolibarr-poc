@@ -197,10 +197,9 @@ test('V19 planning, correction and final approval browser journey', async ({
     '/partners?partnerCursor=loading-oracle',
   )
   await loadingStarted
-  await expect(loadingPage.locator('section.planning-stack')).toHaveAttribute(
-    'aria-busy',
-    'true',
-  )
+  await expect(
+    loadingPage.locator('section[data-ui~="planning-stack"]'),
+  ).toHaveAttribute('aria-busy', 'true')
   await expect(loadingPage.getByText('Partenaire navigateur')).toHaveCount(0)
   releaseLoading()
   await loadingNavigation

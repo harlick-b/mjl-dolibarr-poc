@@ -15,7 +15,7 @@ test('page loading uses the minimal loader without page-shaped placeholders', ()
   expect(
     screen.getByRole('status', { name: 'Chargement : Projets' }),
   ).toHaveTextContent('Chargement des données…')
-  expect(container.querySelector('.loading-placeholder')).toBeNull()
+  expect(container.querySelector('[data-ui~="loading-placeholder"]')).toBeNull()
 })
 
 test('a local read failure stays in its section and retries deliberately', async () => {

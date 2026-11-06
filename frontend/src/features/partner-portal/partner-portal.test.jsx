@@ -200,11 +200,14 @@ test('a Partner sees only the read-only portfolio projection', async () => {
   const navigation = screen.getByRole('navigation', {
     name: 'Espace Partenaire',
   })
-  expect(within(navigation).getAllByRole('link')).toHaveLength(2)
+  expect(within(navigation).getAllByRole('link')).toHaveLength(3)
+  expect(screen.getByRole('button', { name: 'Mon compte' })).toBeVisible()
   expect(await screen.findByText('Projet Santé')).toBeVisible()
   expect(await screen.findByText('Campagne de santé')).toBeVisible()
   expect(screen.getByText('1 activité clôturée sur 2')).toBeVisible()
-  expect(screen.queryByText(/export/i)).not.toBeInTheDocument()
+  expect(
+    within(navigation).getByRole('link', { name: 'Exports' }),
+  ).toHaveAttribute('href', '/partner/exports')
   expect(screen.queryByText(/pièce jointe/i)).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Voir le détail' }))
   expect(

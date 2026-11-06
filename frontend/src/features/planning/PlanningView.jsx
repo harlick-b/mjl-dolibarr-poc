@@ -1,3 +1,6 @@
+import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
+import { businessActionClassName } from '@/shared/ui/button-variants'
+import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
 import {
@@ -461,28 +464,47 @@ function Workspace({ screen, session, onDenied }) {
     )
   if (primaryPending) return <PageLoading title={labels[screen]} />
   return (
-    <section className="planning-stack" aria-busy={loading}>
+    <section
+      data-ui="planning-stack"
+      className="grid gap-6"
+      aria-busy={loading}
+    >
       <Helmet>
         <title>{labels[screen]} — MJL</title>
       </Helmet>
-      <header className="planning-heading">
-        <div>
-          <p className="eyebrow">{strings.planningTitle}</p>
-          <h1>{labels[screen]}</h1>
-          <RefreshIndicator active={loading} />
-        </div>
-        <nav aria-label={strings.planningTitle}>
-          <Link to="/partners">{strings.partners}</Link>
-          <Link to="/projects">{strings.projects}</Link>
-        </nav>
-      </header>
+      {!['projects', 'partners'].includes(screen) && (
+        <>
+          {' '}
+          <header
+            className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-2xl [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
+            data-ui="planning-heading"
+          >
+            <div>
+              <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+                {strings.planningTitle}
+              </p>
+              <h1>{labels[screen]}</h1>
+              <RefreshIndicator active={loading} />
+            </div>
+            <nav aria-label={strings.planningTitle}>
+              <Link to="/planning">{strings.annualPlan}</Link>
+              {user.role === 'VALIDATEUR_DEFINITIF' && (
+                <Link to="/partners">{strings.partners}</Link>
+              )}
+              {user.role === 'VALIDATEUR_DEFINITIF' && (
+                <Link to="/projects">{strings.projects}</Link>
+              )}
+            </nav>
+          </header>
+        </>
+      )}
       {failedQueries.length > 0 && (
         <RetryableError onRetry={retryFailed}>
           {strings.unavailablePlanning}
         </RetryableError>
       )}
       {error && (
-        <p role="alert" className="planning-error">
+        <p role="alert" className="border-l-4 border-l-danger p-3 bg-white">
           {error}
         </p>
       )}
@@ -627,9 +649,13 @@ function ReferenceList({
   const opener = useRef(null)
   const rows = result?.data || []
   return (
-    <div className="planning-card">
-      <div className="planning-title">
-        <h2>{title}</h2>
+    <Panel as="div" className="border-0 bg-transparent p-0">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
+        {title === strings.partners ? (
+          <h1 className="text-2xl font-semibold text-navy">{title}</h1>
+        ) : (
+          <h2>{title}</h2>
+        )}
         {onSubmit && (
           <Button ref={opener} type="button" onClick={() => setOpen(true)}>
             <Plus size={16} /> {strings.add}
@@ -653,7 +679,7 @@ function ReferenceList({
               {inputLabel}
               <input name={label} required maxLength="200" />
             </label>
-            <div className="planning-actions">
+            <div className="flex gap-2 items-end flex-wrap">
               <Button type="submit">{strings.add}</Button>
               <Button
                 type="button"
@@ -671,16 +697,24 @@ function ReferenceList({
           label={strings.formatString(common.pageLoading, { page: title })}
         />
       ) : rows.length ? (
-        <ul className="planning-list">
+        <ul
+          className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+          data-ui="planning-list"
+        >
           {rows.map((row) => (
             <li key={row.id}>{row[label]}</li>
           ))}
         </ul>
+      ) : title === strings.partners ? (
+        <EmptyTable
+          kind="partners"
+          columns={['partner', 'projectsColumn', 'state', 'actionsColumn']}
+        />
       ) : (
-        <p>{strings.noItem}</p>
+        <EmptyContent kind="operationTypes" />
       )}
       <Pager result={result} cursorKey={cursorKey} navigate={navigate} />
-    </div>
+    </Panel>
   )
 }
 
@@ -705,9 +739,9 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
   const [year, setYear] = useState(new Date().getFullYear())
   const rows = result?.data || []
   return (
-    <div className="planning-card">
-      <div className="planning-title">
-        <h2>{strings.projects}</h2>
+    <Panel as="div" className="border-0 bg-transparent p-0">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
+        <h1 className="text-2xl font-semibold text-navy">{strings.projects}</h1>
         {canCreate && (
           <Button ref={opener} type="button" onClick={() => setOpen(true)}>
             <Plus size={16} /> {strings.create}
@@ -751,7 +785,7 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
               {strings.name}
               <input name="name" required maxLength="200" />
             </label>
-            <div className="planning-actions">
+            <div className="flex gap-2 items-end flex-wrap">
               <Button type="submit" disabled={!partnerResult}>
                 {strings.create}
               </Button>
@@ -771,16 +805,18 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
           </BusinessForm>
         </Modal>
       )}
-      <label>
-        {strings.year}
-        <input
-          type="number"
-          min="2000"
-          max="2200"
-          value={year}
-          onChange={(event) => setYear(Number(event.target.value))}
-        />
-      </label>
+      {rows.length > 0 && (
+        <label className="max-w-40">
+          {strings.year}
+          <input
+            type="number"
+            min="2000"
+            max="2200"
+            value={year}
+            onChange={(event) => setYear(Number(event.target.value))}
+          />
+        </label>
+      )}
       {!result ? (
         <LoadingPlaceholder
           label={strings.formatString(common.pageLoading, {
@@ -788,32 +824,72 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
           })}
         />
       ) : rows.length ? (
-        <ul className="planning-list">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <strong>{row.reference}</strong> — {row.name}
-              <Link
-                to="/projects/$projectId/ptas/$year"
-                params={{
-                  projectId: row.id,
-                  year: String(year),
-                }}
-              >
-                {strings.openAnnualPlan}
-              </Link>
-              {row.allowed_actions.includes('close') && (
-                <Button variant="outline" onClick={() => onClose(row)}>
-                  {strings.close}
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-panel border border-border bg-white">
+          <table className="w-full text-left text-sm" data-ui="planning-list">
+            <thead className="border-b border-border bg-background text-muted-foreground">
+              <tr>
+                <th className="p-4 font-medium">{strings.projects}</th>
+                <th className="p-4 font-medium">{strings.state}</th>
+                <th className="p-4 font-medium">{strings.actions}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-border last:border-0"
+                >
+                  <td className="p-4">
+                    <strong className="block font-medium text-navy">
+                      {row.name}
+                    </strong>
+                    <span className="text-xs text-muted-foreground">
+                      {row.reference}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span
+                      className={
+                        row.state === 'active'
+                          ? 'rounded-card bg-success-badge px-2 py-1 text-xs text-success'
+                          : 'rounded-card bg-disabled px-2 py-1 text-xs text-muted-foreground'
+                      }
+                    >
+                      {row.state === 'active'
+                        ? strings.activeProject
+                        : strings.closedProject}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex flex-wrap gap-2">
+                      <Button asChild variant="outline">
+                        <Link
+                          to="/projects/$projectId/ptas/$year"
+                          params={{ projectId: row.id, year: String(year) }}
+                        >
+                          {strings.openAnnualPlan}
+                        </Link>
+                      </Button>
+                      {row.allowed_actions.includes('close') && (
+                        <Button variant="outline" onClick={() => onClose(row)}>
+                          {strings.close}
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <p>{strings.noProject}</p>
+        <EmptyTable
+          kind="projects"
+          columns={['project', 'partner', 'state', 'actionsColumn']}
+        />
       )}
       <Pager result={result} cursorKey="projectCursor" navigate={navigate} />
-    </div>
+    </Panel>
   )
 }
 
@@ -829,13 +905,13 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
     )
   const activities = result?.data || []
   return (
-    <div className="planning-card">
-      <div className="planning-title">
+    <Panel as="div">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
           <h2>{context.project.name}</h2>
           <p>Exercice {context.year}</p>
         </div>
-        <div className="planning-actions">
+        <div className="flex gap-2 items-end flex-wrap">
           {context.pta && (
             <Button
               variant="outline"
@@ -868,7 +944,7 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
           )}
           {context.allowed_actions.includes('create_activity') && (
             <Link
-              className="planning-button"
+              className={businessActionClassName}
               to="/projects/$projectId/ptas/$year/activities/new"
               params={{
                 projectId: context.project.id,
@@ -881,7 +957,7 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
         </div>
         {context.pta && (
           <Link
-            className="planning-button"
+            className={businessActionClassName}
             to="/execution/$ptaId"
             params={{ ptaId: context.pta.id }}
           >
@@ -898,7 +974,10 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
         />
       )}
       {metrics && (
-        <section className="annual-metrics" aria-label="Indicateurs annuels">
+        <section
+          className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_280px),_1fr))] gap-6 [&_article]:border [&_article]:border-border [&_article]:rounded-panel [&_article]:p-6 [&_h3]:m-0 [&_h3]:text-navy [&_h3]:text-[15px] [&_h3]:font-semibold [&_strong]:block [&_strong]:mt-3 [&_strong]:text-navy [&_strong]:text-[2rem] [&_strong]:leading-[1.2] [&_p]:mt-3 [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-muted-foreground [&_p]:text-sm"
+          aria-label="Indicateurs annuels"
+        >
           <article>
             <h3>{strings.physicalExecution}</h3>
             <strong>
@@ -940,7 +1019,10 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
           })}
         />
       ) : activities.length ? (
-        <ul className="planning-list">
+        <ul
+          className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+          data-ui="planning-list"
+        >
           {activities.map((row) => (
             <li key={row.id}>
               <Link
@@ -954,10 +1036,15 @@ function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
           ))}
         </ul>
       ) : (
-        <p>{strings.noActivity}</p>
+        <div className="overflow-hidden rounded-panel border border-border bg-white">
+          <p className="border-b border-border px-5 py-4 text-[0.8125rem]">
+            {strings.zeroActivities}
+          </p>
+          <EmptyContent kind="activities" large />
+        </div>
       )}
       <Pager result={result} cursorKey="activityCursor" navigate={navigate} />
-    </div>
+    </Panel>
   )
 }
 
@@ -968,7 +1055,7 @@ function Pager({ result, cursorKey, navigate }) {
       search: (current) => ({ ...current, [cursorKey]: cursorFrom(link) }),
     })
   return (
-    <nav className="planning-actions" aria-label="Pagination">
+    <nav className="flex gap-2 items-end flex-wrap" aria-label="Pagination">
       <Button
         type="button"
         variant="outline"
@@ -1023,8 +1110,9 @@ export function ActivityForm({
     0n,
   )
   return (
-    <BusinessForm
-      className="planning-card planning-form"
+    <Panel
+      as={BusinessForm}
+      className="[&_>_label]:w-full"
       onSubmit={(event) => {
         event.preventDefault()
         if (pending || optionsUnavailable) return
@@ -1066,7 +1154,7 @@ export function ActivityForm({
           defaultValue={draftBase?.description}
         />
       </label>
-      <div className="planning-grid">
+      <div className="flex gap-3 items-end flex-wrap">
         <label>
           {strings.start}
           <input
@@ -1095,7 +1183,10 @@ export function ActivityForm({
       <fieldset>
         <legend>{strings.operations}</legend>
         {operations.map((row, index) => (
-          <div className="operation-row" key={row.id || index}>
+          <div
+            className="flex gap-3 items-end flex-wrap max-[641px]:[&_>_*]:w-full"
+            key={row.id || index}
+          >
             <select
               aria-label={strings.formatString(
                 strings.operationTypeNumber,
@@ -1203,19 +1294,22 @@ export function ActivityForm({
           {strings.cancelEditing}
         </Button>
       )}
-    </BusinessForm>
+    </Panel>
   )
 }
 
 function PlanningVersion({ title, value }) {
   return (
-    <section className="planning-version" aria-label={title}>
+    <section
+      className="p-4 border border-border rounded-panel bg-white"
+      aria-label={title}
+    >
       <h3>{title}</h3>
       <p>
         <strong>{value.name}</strong>
       </p>
       <p>{value.description}</p>
-      <dl className="planning-facts">
+      <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
         <div>
           <dt>{strings.period}</dt>
           <dd>
@@ -1227,7 +1321,10 @@ function PlanningVersion({ title, value }) {
           <dd>{formatXof(value.allocation)}</dd>
         </div>
       </dl>
-      <ul className="planning-list">
+      <ul
+        className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+        data-ui="planning-list"
+      >
         {value.operations.map((operation) => (
           <li key={operation.id}>
             {operation.type_label ? `${operation.type_label} — ` : ''}
@@ -1402,13 +1499,15 @@ function ActivityDetail({
       </>
     )
   return (
-    <div className="planning-card">
-      <div className="planning-title">
+    <Panel as="div">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
-          <p className="eyebrow">{item.reference}</p>
+          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+            {item.reference}
+          </p>
           <h2>{item.name}</h2>
         </div>
-        <div className="planning-actions">
+        <div className="flex gap-2 items-end flex-wrap">
           {item.approved_revision_id && (
             <ProtectedDownload path={`/api/v1/activities/${item.id}/fiche.pdf`}>
               <Download aria-hidden="true" />
@@ -1519,7 +1618,7 @@ function ActivityDetail({
         </div>
       </div>
       {item.execution_paused && (
-        <div className="planning-error" role="status">
+        <div className="border-l-4 border-l-danger p-3 bg-white" role="status">
           <strong>
             {item.transfer
               ? strings.transferPending
@@ -1542,7 +1641,7 @@ function ActivityDetail({
         </div>
       )}
       {item.amendment && item.approved && item.candidate && (
-        <div className="planning-version-grid">
+        <div className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_18rem),_1fr))] gap-4 my-5">
           <PlanningVersion
             title={strings.approvedVersion}
             value={item.approved}
@@ -1553,7 +1652,10 @@ function ActivityDetail({
           />
         </div>
       )}
-      <div className="review-progress" aria-label={strings.reviewProgress}>
+      <div
+        className="border-l-4 border-l-primary bg-background py-3 px-4"
+        aria-label={strings.reviewProgress}
+      >
         <strong>{strings.status}: </strong>
         {strings[item.state] || item.state}
         {item.current_revision_id && currentRevision?.revision_number && (
@@ -1561,7 +1663,7 @@ function ActivityDetail({
         )}
       </div>
       {item.correction && (
-        <div className="planning-error" role="status">
+        <div className="border-l-4 border-l-danger p-3 bg-white" role="status">
           <strong>{strings.returned}</strong>
           <p>{item.correction.reason}</p>
           {item.correction.requested_amount && (
@@ -1573,7 +1675,7 @@ function ActivityDetail({
         </div>
       )}
       <p>{item.description}</p>
-      <dl className="planning-facts">
+      <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
         <div>
           <dt>{strings.period}</dt>
           <dd>
@@ -1603,7 +1705,10 @@ function ActivityDetail({
         {strings.openCurrentAnnualPlan}
       </Link>
       <h3>{strings.operations}</h3>
-      <ul className="planning-list">
+      <ul
+        className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+        data-ui="planning-list"
+      >
         {item.operations.map((row) => (
           <li key={row.id}>
             {row.name}
@@ -1620,12 +1725,15 @@ function ActivityDetail({
         blocked={mutationBlocked}
         onDenied={onDenied}
       />
-      <section aria-labelledby="activity-history-title">
+      <section
+        aria-labelledby="activity-history-title"
+        className="rounded-panel border border-border bg-white [&>h3]:border-b [&>h3]:border-border [&>h3]:p-5 [&>h3]:font-semibold"
+      >
         <h3 id="activity-history-title">{strings.revisionHistory}</h3>
         {!revisions?.data?.length ? (
-          <p>{strings.noRevision}</p>
+          <EmptyContent kind="revisions" />
         ) : (
-          <ol className="review-timeline">
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {revisions.data.map((entry) => (
               <li key={entry.id}>
                 {!entry.kind || entry.kind === 'revision' ? (
@@ -1687,7 +1795,7 @@ function ActivityDetail({
           <LoadingPlaceholder label={strings.historyLoading} />
         )}
         {selectedRevision?.snapshot && (
-          <div className="revision-snapshot">
+          <div className="border border-border rounded-card mt-4 p-4">
             <h4>Révision {selectedRevision.revision_number}</h4>
             <p>
               {selectedRevision.snapshot.partner.name} ·{' '}
@@ -1762,7 +1870,7 @@ function ActivityDetail({
           </div>
         )}
         {selectedAmendment && (
-          <div className="revision-snapshot">
+          <div className="border border-border rounded-card mt-4 p-4">
             <h4>
               {selectedAmendment.status === 'cancelled'
                 ? 'Modification annulée'
@@ -1884,7 +1992,10 @@ function ActivityDetail({
         label={strings.workflowConfirmation}
         opener={workflowOpener}
       >
-        <BusinessForm className="review-dialog" onSubmit={submitWorkflow}>
+        <BusinessForm
+          className="grid gap-4 min-w-[min(520px,_calc(100vw_-_40px))] p-6 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2"
+          onSubmit={submitWorkflow}
+        >
           <h2>{strings.workflowConfirmation}</h2>
           <p>{strings.workflowExactRevision}</p>
           {[
@@ -1922,7 +2033,7 @@ function ActivityDetail({
               </label>
               {workflowAction === 'request_transfer' && (
                 <>
-                  <div className="planning-facts">
+                  <div className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
                     <div>
                       <strong>{strings.sourceAnnualPlan}</strong>{' '}
                       {item.placement_year}
@@ -1937,7 +2048,10 @@ function ActivityDetail({
                     </div>
                   </div>
                   <p>{strings.unchangedOperations}</p>
-                  <ul className="planning-list">
+                  <ul
+                    className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+                    data-ui="planning-list"
+                  >
                     {item.operations.map((operation) => (
                       <li key={operation.id}>
                         {operation.name}
@@ -1945,7 +2059,7 @@ function ActivityDetail({
                       </li>
                     ))}
                   </ul>
-                  <div className="planning-version-grid">
+                  <div className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_18rem),_1fr))] gap-4 my-5">
                     <label>
                       {strings.targetStart}
                       <input
@@ -1997,7 +2111,7 @@ function ActivityDetail({
           </footer>
         </BusinessForm>
       </Modal>
-    </div>
+    </Panel>
   )
 }
 
@@ -2259,11 +2373,11 @@ export function ActivityDocuments({
   )
 
   return (
-    <section
+    <Panel
       aria-labelledby="activity-documents-title"
-      className="planning-card"
+      className="p-0 gap-0 [&>div:first-child]:border-b [&>div:first-child]:border-border [&>div:first-child]:p-5"
     >
-      <div className="planning-title">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <h3 id="activity-documents-title">{strings.attachments}</h3>
         {canUpload && (
           <Button
@@ -2298,9 +2412,12 @@ export function ActivityDocuments({
       ) : documents.isError ? (
         <p role="alert">Les pièces sont indisponibles.</p>
       ) : !documents.data?.data.length ? (
-        <p>{strings.noAttachment}</p>
+        <EmptyContent kind="documents" />
       ) : (
-        <ul className="planning-list">
+        <ul
+          className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+          data-ui="planning-list"
+        >
           {documents.data.data
             .filter((document) => !deniedDocuments.includes(document.id))
             .map((document) => (
@@ -2318,7 +2435,7 @@ export function ActivityDocuments({
                       ` · ${strings.replacedBy} ${document.withdrawal.replacement_document_name}`}
                   </small>
                 </span>
-                <div className="planning-actions">
+                <div className="flex gap-2 items-end flex-wrap">
                   {!document.withdrawal &&
                     ['image/jpeg', 'image/png'].includes(
                       document.media_type,
@@ -2419,7 +2536,7 @@ export function ActivityDocuments({
               required
             />
           </label>
-          <div className="modal-actions">
+          <div data-ui="modal-actions">
             <Button
               type="button"
               variant="outline"
@@ -2489,7 +2606,7 @@ export function ActivityDocuments({
               </select>
             </label>
             <div
-              className="modal-actions"
+              data-ui="modal-actions"
               aria-label="Pages des pièces corrigées"
             >
               <Button
@@ -2517,7 +2634,7 @@ export function ActivityDocuments({
                 {common.next}
               </Button>
             </div>
-            <div className="modal-actions">
+            <div data-ui="modal-actions">
               <Button
                 type="button"
                 variant="outline"
@@ -2540,10 +2657,10 @@ export function ActivityDocuments({
         onClose={closePreview}
         label={preview ? `${common.preview} — ${preview.name}` : common.preview}
         opener={previewOpener}
-        className="document-preview-dialog"
+        className="w-[min(900px,_calc(100vw_-_32px))] max-w-none border border-border rounded-panel p-0 [&::backdrop]:bg-[rgb(15_23_42_/_62%)]"
       >
         {preview && (
-          <div className="document-preview">
+          <div className="grid gap-4 p-6 [&_img]:w-full [&_img]:max-h-[65vh] [&_img]:object-contain [&_img]:border [&_img]:border-border [&_img]:bg-background [&_[data-ui~='modal-actions']]:justify-end">
             <h3>{preview.name}</h3>
             {imagePreview.isPending ? (
               <LoadingPlaceholder
@@ -2562,12 +2679,12 @@ export function ActivityDocuments({
                 alt={`${common.preview} de ${preview.name}`}
               />
             ) : null}
-            <div className="modal-actions">
+            <div data-ui="modal-actions">
               <Button type="button" variant="outline" onClick={closePreview}>
                 {common.dismiss}
               </Button>
               <ProtectedDownload
-                className="planning-button"
+                className={businessActionClassName}
                 path={`/api/v1/activities/${activityId}/documents/${preview.id}/download`}
                 onDenied={() => void denyDocument(preview.id)}
                 scope={deliveryScope}
@@ -2578,7 +2695,7 @@ export function ActivityDocuments({
           </div>
         )}
       </Modal>
-    </section>
+    </Panel>
   )
 }
 

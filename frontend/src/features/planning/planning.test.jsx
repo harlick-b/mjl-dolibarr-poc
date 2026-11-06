@@ -751,7 +751,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     await screen.findByRole('button', { name: 'Télécharger la fiche PDF' }),
   ).toBeVisible()
-  expect(await screen.findByText('Aucune pièce justificative.')).toBeVisible()
+  expect(await screen.findByText('Aucune pièce justificative')).toBeVisible()
   await user.click(screen.getByRole('button', { name: 'Ajouter une pièce' }))
   await user.upload(
     screen.getByLabelText('Choisir un fichier PDF, JPEG ou PNG'),
@@ -1364,7 +1364,7 @@ test('a new Activity keeps its request key across a lost-response retry', async 
   )
 })
 
-test('an Agent sees the empty projects workspace', async () => {
+test('an Agent sees the empty planning workspace', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn((url) =>
@@ -1397,15 +1397,15 @@ test('an Agent sees the empty projects workspace', async () => {
   render(
     <App
       router={makeRouter(
-        createMemoryHistory({ initialEntries: ['/projects'] }),
+        createMemoryHistory({ initialEntries: ['/planning'] }),
       )}
     />,
   )
-  await screen.findByText('Aucun projet.')
+  await screen.findByText('Aucun PTA')
   expect(
-    screen.getByRole('heading', { name: 'Projets', level: 1 }),
+    screen.getByRole('heading', { name: 'Prévisions (PTA)', level: 1 }),
   ).toBeVisible()
-  expect(screen.getByText('Aucun projet.')).toBeVisible()
+  expect(screen.getByText('Aucun PTA')).toBeVisible()
   expect(
     screen.queryByRole('button', { name: 'Créer' }),
   ).not.toBeInTheDocument()
@@ -1493,9 +1493,11 @@ test('Validator creation uses a modal dialog and returns focus on Escape', async
   )
   const heading = await screen.findByRole('heading', {
     name: 'Partenaires',
-    level: 2,
+    level: 1,
   })
-  const opener = within(heading.closest('.planning-card')).getByRole('button', {
+  const opener = within(
+    heading.closest('[data-ui~="planning-card"]'),
+  ).getByRole('button', {
     name: 'Ajouter',
   })
   await user.click(opener)
@@ -1654,10 +1656,10 @@ test('a planning mutation invalidates and visibly refreshes the cached list', as
   )
   const heading = await screen.findByRole('heading', {
     name: 'Partenaires',
-    level: 2,
+    level: 1,
   })
   expect(requestUrls.join('|')).toContain('/api/v1/partners')
-  const card = heading.closest('.planning-card')
+  const card = heading.closest('[data-ui~="planning-card"]')
   await user.click(within(card).getByRole('button', { name: 'Ajouter' }))
   const dialog = within(card).getByRole('dialog')
   await user.type(within(dialog).getByLabelText('Nom'), 'Partenaire actualisé')
@@ -1727,9 +1729,9 @@ test('a 409 planning mutation refetches server state before another action', asy
   )
   const heading = await screen.findByRole('heading', {
     name: 'Partenaires',
-    level: 2,
+    level: 1,
   })
-  const card = heading.closest('.planning-card')
+  const card = heading.closest('[data-ui~="planning-card"]')
   await user.click(within(card).getByRole('button', { name: 'Ajouter' }))
   const dialog = within(card).getByRole('dialog')
   await user.type(within(dialog).getByLabelText('Nom'), 'Conflit')
@@ -1759,7 +1761,7 @@ test('a delayed planning result cannot repopulate content after access denial', 
               user: {
                 id: 'agent',
                 email: 'user@example.test',
-                role: 'AGENT_SAISIE',
+                role: 'VALIDATEUR_DEFINITIF',
               },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
@@ -2049,7 +2051,7 @@ test('projects load only their list and defer Partner choices until creation ope
       )}
     />,
   )
-  expect(await screen.findByText('Aucun projet.')).toBeVisible()
+  expect(await screen.findByText('Aucun projet')).toBeVisible()
   expect(
     fetch.mock.calls.map(([url]) => new URL(url, 'http://localhost').pathname),
   ).toEqual(['/api/v1/auth/session', '/api/v1/projects'])
@@ -2071,7 +2073,7 @@ test('new activity ignores cached PTA data and requests only its operation choic
     createMemoryHistory({ initialEntries: ['/projects/project-1/ptas/2027'] }),
   )
   render(<App router={router} />)
-  await screen.findByText('Aucune activité pour cet exercice.')
+  await screen.findByText('Ce PTA ne contient pas encore d’activité.')
   const boundary = fetch.mock.calls.length
   await act(async () => {
     await router.navigate({

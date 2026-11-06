@@ -303,3 +303,40 @@ reuse it; planning integrity and Partner binding remain specialized guards. Neve
 carry an actor across transactions or external work as authorization evidence.
 Resource state, contributor exclusions and `allowed_actions` stay with their
 server use cases; this page catalog does not replace workflow checks.
+
+### Auth navigation and session observation
+
+Keep the session Query observer attached across authentication changes. Clear its
+value to `null` while access is masked; removing the observed disabled query can
+leave consumers attached to a discarded cache entry. Purge protected queries and
+mutation variables before publishing the newly verified session.
+
+`authorization.js` owns the page catalog (paths, owning detail routes, capability,
+label and icon) and role workspace defaults. `ApplicationSidebar` and direct route
+guards derive from that same catalog. Dashboard is currently the default for all
+known roles; changing a role’s default does not require changing its sidebar.
+`navigation.js` selects a permitted
+last page for that user/role, otherwise that default. It retains resource paths in
+memory only and persists only allowlisted top-level destinations in sessionStorage;
+search values, fragments, credentials and form data are never retained. Resource
+access is still checked by the API when returning. Empty search values are stripped
+by the Router root middleware; meaningful filters/cursors remain shareable.
+
+Auth CTAs stay busy through their dependent session check and navigation. Logout
+is coordinated by `LogoutProvider`, outside the protected tree: one page loader
+covers the request and fresh anonymous-session check. Failure keeps access masked
+and offers deliberate retry; it does not silently restore the previous workspace.
+
+Current sidebar page matrix (2026-11-05):
+
+| Role | Pages |
+| --- | --- |
+| Agent / Superviseur | Tableau de bord, Prévisions (PTA), Réalisation |
+| Validateur définitif | Tableau de bord, Prévisions (PTA), Réalisation, Partenaires, Projets, Historique |
+| Admin | Tableau de bord, Utilisateurs, Historique |
+| Partenaire | Tableau de bord, Mes projets, Exports |
+
+Internal reminders open from the header; they are not an extra sidebar page.
+Prévisions retains project/year entry so an Agent can create the first activity
+without access to catalog management. Partner Exports uses the existing scoped
+annual CSV endpoint; it loads profile/projects/PTAs, not activity detail lists.

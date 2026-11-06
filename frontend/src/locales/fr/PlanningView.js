@@ -2,6 +2,11 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    zeroActivities: '0 activité',
+    state: 'État',
+    activeProject: 'Actif',
+    closedProject: 'Clôturé',
+    actions: 'Actions',
     documentUnavailable: 'Cette pièce n’est plus accessible.',
     historyLoading: 'Chargement de l’historique',
     shareWithPartner: 'Partager avec le Partenaire',

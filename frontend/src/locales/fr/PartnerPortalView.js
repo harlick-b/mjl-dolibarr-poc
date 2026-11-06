@@ -2,6 +2,11 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    exportsTitle: 'Exports',
+    approvedData: 'Données approuvées',
+    projectLabel: 'Projet',
+    approvedActivities: 'activités approuvées',
+    consultFiches: 'Consulter les fiches',
     portfolioUnavailable: 'Votre portefeuille est momentanément indisponible.',
     ptasUnavailable: 'Les PTA sont momentanément indisponibles.',
     activitiesUnavailable: 'Les Activités sont momentanément indisponibles.',

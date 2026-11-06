@@ -47,7 +47,7 @@ test('Admin sees the empty account view and invitation action', async () => {
   expect(
     screen.getByRole('heading', { name: 'Utilisateurs', exact: true }),
   ).toBeVisible()
-  expect(await screen.findByText('Aucun utilisateur.')).toBeVisible()
+  expect(await screen.findByText('Aucun utilisateur')).toBeVisible()
 })
 
 function session(role = 'ADMIN_PLATEFORME') {
@@ -77,7 +77,7 @@ test('non-Admin sees denial and never requests the account lists', async () => {
   ).toBeVisible()
   expect(
     screen.getByRole('link', { name: 'Retour à mon espace' }),
-  ).toHaveAttribute('href', '/projects')
+  ).toHaveAttribute('href', '/dashboard')
   expect(
     screen.getByRole('navigation', { name: 'Espace de travail' }),
   ).toBeVisible()

@@ -48,11 +48,11 @@ test('OTP supports paste, corrections and submits the exact six digits', async (
 })
 
 for (const [role, destination] of [
-  ['ADMIN_PLATEFORME', '/access/users'],
-  ['PARTENAIRE', '/partner'],
-  ['AGENT_SAISIE', '/projects'],
-  ['AGENT_VERIFICATEUR', '/projects'],
-  ['VALIDATEUR_DEFINITIF', '/projects'],
+  ['ADMIN_PLATEFORME', '/dashboard'],
+  ['PARTENAIRE', '/dashboard'],
+  ['AGENT_SAISIE', '/dashboard'],
+  ['AGENT_VERIFICATEUR', '/dashboard'],
+  ['VALIDATEUR_DEFINITIF', '/dashboard'],
 ]) {
   test(`verified ${role} goes straight to their workspace`, async ({
     page,
@@ -114,7 +114,7 @@ test('a cross-tab role change moves the user to the matching workspace', async (
     channel.close()
   })
 
-  await expect(page).toHaveURL((url) => url.pathname === '/partner')
+  await expect(page).toHaveURL((url) => url.pathname === '/dashboard')
 })
 
 test('login has a quiet loading state and anonymous home redirects', async ({
@@ -129,7 +129,9 @@ test('login has a quiet loading state and anonymous home redirects', async ({
     await route.fulfill({ json: { state: 'anonymous', csrf: 'test' } })
   })
   await page.goto('/')
-  await expect(page.getByRole('status', { name: 'Chargement…' })).toBeVisible()
+  await expect(
+    page.getByRole('status', { name: 'Chargement : Connexion' }),
+  ).toBeVisible()
   await expect(page.getByText('Vérification de la session…')).toHaveCount(0)
   release()
   await expect(page).toHaveURL(/\/login$/)
@@ -274,9 +276,9 @@ test('password then OTP opens the workspace without an intermediate session scre
     page.getByRole('heading', { name: 'Vérification', exact: true }),
   ).toBeVisible()
   await page.getByLabel('Code de vérification', { exact: true }).fill('012345')
-  await expect(page).toHaveURL((url) => url.pathname === '/access/users')
+  await expect(page).toHaveURL((url) => url.pathname === '/dashboard')
   await expect(
-    page.getByRole('heading', { name: 'Utilisateurs', exact: true }),
+    page.getByRole('heading', { name: 'Tableau de bord', exact: true }),
   ).toBeVisible()
 })
 
@@ -324,6 +326,21 @@ test('OTP fields reflow and retain visible keyboard focus at narrow widths', asy
   await expect(
     page.getByRole('heading', { name: 'Vérification', exact: true }),
   ).toBeVisible()
+  const resendForm = page
+    .getByRole('button', { name: 'Renvoyer le code' })
+    .locator('..')
+  await expect(resendForm).toHaveCSS('display', 'flex')
+  await expect(resendForm).toHaveCSS('gap', '8px')
+  await expect(resendForm).toHaveCSS('margin-top', '16px')
+  await expect(
+    page.getByRole('button', { name: 'Retour à la connexion' }).locator('..'),
+  ).toHaveCSS('margin-top', '0px')
+  const firstDigit = page.getByLabel('Code de vérification', { exact: true })
+  await expect(firstDigit).toHaveCSS('height', '48px')
+  await expect(firstDigit).toHaveCSS('font-size', '24px')
+  await expect(firstDigit).toHaveCSS('padding', '4px')
+  await expect(firstDigit).toHaveCSS('outline-width', '2px')
+  await expect(firstDigit).toHaveCSS('outline-offset', '4px')
   await page.screenshot({ path: '/tmp/mjl-auth-otp-desktop.png' })
   await page.setViewportSize({ width: 320, height: 700 })
   await expect(
@@ -364,7 +381,7 @@ test('account revalidation masks stale identity and an interrupted logout stays 
   })
   await page.goto('/identity')
   await expect(
-    page.getByText('person@example.test', { exact: true }),
+    page.getByRole('main').getByText('person@example.test', { exact: true }),
   ).toBeVisible()
   hold = true
   await page.evaluate(() => {
@@ -385,7 +402,7 @@ test('account revalidation masks stale identity and an interrupted logout stays 
   })
   release()
   await expect(
-    page.getByText('person@example.test', { exact: true }),
+    page.getByRole('main').getByText('person@example.test', { exact: true }),
   ).toBeVisible()
   let logoutCalls = 0
   const logoutCsrf = []
@@ -463,6 +480,12 @@ test('login keeps the recovery link close and shows progress inside the CTA', as
   await expect(button).toBeDisabled()
   await expect(button).toHaveAttribute('aria-busy', 'true')
   await expect(button.locator('svg')).toBeVisible()
+  await expect(button.locator('svg')).toHaveCSS('animation-duration', '1s')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(button.locator('svg')).toHaveCSS('animation-duration', '0s')
+  await page.emulateMedia({ forcedColors: 'active' })
+  await expect(button).toHaveCSS('border-top-width', '1px')
+
   await expect(
     page.getByText('Traitement en cours', { exact: false }),
   ).toHaveCount(0)
@@ -489,7 +512,7 @@ test('hidden account stays masked across a cross-tab change and revalidates on r
   })
   await page.goto('/identity')
   await expect(
-    page.getByText('hidden@example.test', { exact: true }),
+    page.getByRole('main').getByText('hidden@example.test', { exact: true }),
   ).toBeVisible()
   const before = reads
   await page.evaluate(async () => {
@@ -521,7 +544,7 @@ test('hidden account stays masked across a cross-tab change and revalidates on r
     document.dispatchEvent(new Event('visibilitychange'))
   })
   await expect(
-    page.getByText('hidden@example.test', { exact: true }),
+    page.getByRole('main').getByText('hidden@example.test', { exact: true }),
   ).toBeVisible()
   expect(reads).toBe(before + 1)
 })

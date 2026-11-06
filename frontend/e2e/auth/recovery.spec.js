@@ -136,10 +136,16 @@ test('A3 recovery stays online-only without reconnect replay', async ({
 test('A3 invalid recovery link is scrubbed and keyboard reachable', async ({
   page,
 }) => {
+  await page.route('**/api/v1/auth/session', (route) =>
+    route.fulfill({ json: { state: 'anonymous', csrf: 'test' } }),
+  )
+  await page.route('**/api/v1/auth/password-reset/inspect', (route) =>
+    route.fulfill({ status: 400, json: { code: 'invalid_proof' } }),
+  )
   await page.goto('/reset-password#selector=unknown&verifier=unknown')
   await expect(page).toHaveURL(/\/reset-password$/)
   await expect(page.getByRole('alert')).toContainText(
-    'Ce lien est invalide ou a expiré.',
+    'Ce lien ne permet plus de réinitialiser votre mot de passe.',
   )
   await page.keyboard.press('Tab')
   await expect(

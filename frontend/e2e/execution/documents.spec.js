@@ -11,6 +11,7 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
   let documents = []
   let upload
   let previewed = 0
+  let downloaded = 0
   let withdrawal
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
@@ -65,6 +66,16 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
           allowed_actions: ['read'],
         },
       })
+    if (
+      path === '/api/v1/activities/activity-1/documents/document-1/download'
+    ) {
+      downloaded += 1
+      return route.fulfill({
+        body: 'synthetic image bytes',
+        contentType: 'image/png',
+        headers: { 'Content-Disposition': 'attachment; filename="preuve.png"' },
+      })
+    }
     if (path === '/api/v1/activities/activity-1/documents/document-1/preview') {
       previewed += 1
       return route.fulfill({
@@ -156,11 +167,14 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
   await expect(page.getByText('preuve.png')).toBeVisible()
   const imageRow = page.getByRole('listitem').filter({ hasText: 'preuve.png' })
   await expect(
-    imageRow.getByRole('link', { name: 'Télécharger', exact: true }),
-  ).toHaveAttribute(
-    'href',
-    '/api/v1/activities/activity-1/documents/document-1/download',
-  )
+    imageRow.getByRole('button', { name: 'Télécharger', exact: true }),
+  ).toBeEnabled()
+  const download = page.waitForEvent('download')
+  await imageRow
+    .getByRole('button', { name: 'Télécharger', exact: true })
+    .click()
+  expect((await download).suggestedFilename()).toBe('preuve.png')
+  expect(downloaded).toBe(1)
   await imageRow.getByRole('button', { name: 'Aperçu de preuve.png' }).click()
   const preview = page.getByRole('dialog', { name: 'Aperçu — preuve.png' })
   await expect(
@@ -190,7 +204,9 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
   await withdrawalDialog.getByRole('button', { name: 'Retirer' }).click()
   await expect(pdfRow).toContainText('Pièce retirée')
   await expect(pdfRow).toContainText('Remplacée par preuve.png')
-  await expect(pdfRow.getByRole('link', { name: 'Télécharger' })).toHaveCount(0)
+  await expect(pdfRow.getByRole('button', { name: 'Télécharger' })).toHaveCount(
+    0,
+  )
   expect(withdrawal).toEqual({
     reason: 'Pièce incorrecte.',
     replacement_document_id: 'document-1',

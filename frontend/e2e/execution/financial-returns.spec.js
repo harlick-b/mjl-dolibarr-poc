@@ -7,6 +7,8 @@ for (const kind of ['disbursement', 'virement']) {
     await page.setViewportSize({ width: 375, height: 812 })
     const empty = {
       object: 'list',
+      pending: [],
+      allowed_actions: [],
       count: 0,
       data: [],
       next: null,

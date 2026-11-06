@@ -1,3 +1,4 @@
+import { businessActionClassName } from '@/shared/ui/button-variants'
 import { FallbackState } from './FallbackState'
 import { strings } from '@/locales/fr/common'
 
@@ -7,7 +8,11 @@ export function RetryableError({ children, onRetry, page = false }) {
       local={!page}
       title={page ? strings.serviceUnavailable : strings.dataUnavailable}
       action={
-        <button className="planning-button" onClick={onRetry} type="button">
+        <button
+          className={businessActionClassName}
+          onClick={onRetry}
+          type="button"
+        >
           {strings.retry}
         </button>
       }

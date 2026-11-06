@@ -148,3 +148,16 @@ resource authorization, atomic audit, immutable approvals and no-self-validation
 Never parallelize queries on the same SQLAlchemy Session. Partner deep-link
 parallelization is lower priority: explicit IDs may allow it, but default selection
 needs preceding results and parent membership must be checked before display.
+
+### Frontend verification
+
+Verified 5 November 2026 against the current working tree; final Vite artifact
+`index-TH6vcwt3.js`. From `frontend/`: `npm run test:unit -- --maxWorkers=1`
+passed 161 tests; `npm run lint`, `npm run lint:css` and `npm run build` passed.
+The combined auth/Admin/loading browser run passed 38 cases; its invitation case
+passed on an isolated rerun. After the final Partner-options guard correction,
+`npm run test:e2e -- e2e/auth/admin-presentation.spec.js` passed all 8 cases on the
+rebuilt artifact. Earlier timing failures were investigated and rerun without
+changing assertion timeouts. Independent specification and standards reviews
+closed their findings. The build retains its bundle-size warning; these checks
+are development evidence, not production or user acceptance.

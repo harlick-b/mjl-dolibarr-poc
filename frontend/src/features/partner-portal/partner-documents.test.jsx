@@ -331,7 +331,7 @@ test('a list refresh that removes sharing discards pending download bytes', asyn
       queryKey: ['partner-portal', 'reader', 'documents'],
     }),
   )
-  expect(await screen.findByText('Aucun document partagé.')).toBeVisible()
+  expect(await screen.findByText('Aucune pièce partagée')).toBeVisible()
   await act(async () =>
     resolveDownload(
       new Response('late', { headers: { 'Content-Type': 'image/png' } }),

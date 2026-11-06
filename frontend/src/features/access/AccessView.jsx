@@ -1,3 +1,5 @@
+import { EmptyTable } from '@/shared/ui/EmptyContent'
+import { AdminShell, AdminMain } from '@/shared/ui/layout'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
@@ -12,7 +14,7 @@ import { strings } from '@/locales/fr/AccessView'
 import { strings as common } from '@/locales/fr/common'
 import { Button } from '@/shared/ui/button'
 import { Helmet } from 'react-helmet-async'
-import { AdminSidebar } from './AdminSidebar'
+import { ApplicationSidebar } from '@/features/auth/ApplicationSidebar'
 import { EmptyState } from '@/shared/ui/FallbackState'
 import { PageLoading } from '@/shared/ui/PageLoading'
 import { useAccess } from '@/features/auth/access-verification'
@@ -54,16 +56,19 @@ export function AccessGate({ children }) {
       ? session.data.user
       : null
   return (
-    <div className="access-layout">
+    <AdminShell>
       <Helmet>
         <title>{common.usersTitle}</title>
       </Helmet>
-      <AdminSidebar user={user} />
-      <div className="access-workspace">
+      <ApplicationSidebar user={user} />
+      <div
+        className="[&_>_header]:bg-white [&_>_header]:border-b [&_>_header]:border-b-border [&_>_header]:flex [&_>_header]:items-center [&_>_header]:min-h-16 [&_>_header]:py-4 [&_>_header]:px-6 [&_>_header]:text-[0.8125rem] max-[761px]:[&_>_header]:hidden"
+        data-ui="access-workspace"
+      >
         <header>{common.usersTitle}</header>
-        <main className="access-main">{children}</main>
+        <AdminMain>{children}</AdminMain>
       </div>
-    </div>
+    </AdminShell>
   )
 }
 
@@ -318,19 +323,25 @@ function Accounts({ session, onDenied = () => {}, checking }) {
     }
   }
   return (
-    <div
-      className="access-layout"
+    <AdminShell
+      className="data-[checking]:hidden!"
       inert={checking || undefined}
-      style={{ display: checking ? 'none' : undefined }}
+      data-checking={checking || undefined}
     >
       <Helmet>
         <title>{common.usersTitle}</title>
       </Helmet>
-      <AdminSidebar user={session.user} />
-      <div className="access-workspace">
+      <ApplicationSidebar user={session.user} />
+      <div
+        className="[&_>_header]:bg-white [&_>_header]:border-b [&_>_header]:border-b-border [&_>_header]:flex [&_>_header]:items-center [&_>_header]:min-h-16 [&_>_header]:py-4 [&_>_header]:px-6 [&_>_header]:text-[0.8125rem] max-[761px]:[&_>_header]:hidden"
+        data-ui="access-workspace"
+      >
         <header>Utilisateurs</header>
-        <main className="access-main">
-          <div className="access-heading">
+        <AdminMain>
+          <div
+            className="flex flex-wrap items-center justify-between gap-4 mb-6 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold"
+            data-ui="access-heading"
+          >
             <h1>Utilisateurs</h1>
             <Button onClick={() => setDialog({ kind: 'invite' })}>
               <Plus size={18} />
@@ -338,12 +349,15 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             </Button>
           </div>
           {notice && (
-            <p role="status" className="access-notice">
+            <p
+              role="status"
+              className="p-4 border border-border rounded-card bg-white mb-4"
+            >
               {notice}
             </p>
           )}
           <details
-            className="access-filter-panel"
+            className="mb-4 [&_summary]:flex [&_summary]:items-center [&_summary]:gap-2 [&_summary]:w-fit [&_summary]:min-h-10 [&_summary]:cursor-pointer [&_summary]:text-[0.8125rem] [&_summary]:text-primary [&_[data-ui~='access-filters']]:py-4 [&_[data-ui~='access-filters']]:mb-0"
             open={
               Boolean(search.email || search.role || search.state) || undefined
             }
@@ -353,7 +367,8 @@ function Accounts({ session, onDenied = () => {}, checking }) {
               {strings.usersFilters}
             </summary>
             <form
-              className="access-filters"
+              className="flex items-end flex-wrap gap-4 mb-6 max-[761px]:[&_>_label]:w-full"
+              data-ui="access-filters"
               onSubmit={(e) => {
                 e.preventDefault()
                 const d = new FormData(e.currentTarget)
@@ -416,7 +431,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                 <EmptyState
                   action={
                     <button
-                      className="fallback-secondary"
+                      className="min-h-10 border border-border rounded-control py-2 px-4 bg-white text-navy font-medium"
                       onClick={() =>
                         void changeSearch({
                           email: '',
@@ -434,11 +449,14 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                   <p>{strings.noMatches}</p>
                 </EmptyState>
               ) : (
-                'Aucun utilisateur.'
+                <EmptyTable
+                  kind="users"
+                  columns={['name', 'role', 'scope', 'state']}
+                />
               )
             }
           >
-            <div className="access-table-wrap">
+            <div className="border border-border rounded-card overflow-auto bg-white [&_+_[data-ui~='access-heading']]:mt-8">
               <table>
                 <caption className="sr-only">Comptes utilisateurs</caption>
                 <thead>
@@ -453,7 +471,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                 <tbody>
                   {users.data?.items.map((u) => (
                     <tr key={u.id}>
-                      <td className="access-person">
+                      <td className="[&_strong]:font-medium [&_small]:text-xs">
                         <strong>{u.full_name || u.email}</strong>
                         {u.full_name && <small>{u.email}</small>}
                       </td>
@@ -466,7 +484,10 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                           : 'MJL'}
                       </td>
                       <td>
-                        <span className="access-status" data-state={u.state}>
+                        <span
+                          className="inline-flex items-center gap-1 min-h-5 bg-warning-soft text-warning py-1 px-2 rounded-card text-xs [&[data-state='active']]:bg-success-badge [&[data-state='active']]:text-success [&[data-state='inactive']]:bg-disabled [&[data-state='inactive']]:text-muted-foreground"
+                          data-state={u.state}
+                        >
                           {states[u.state]}
                         </span>
                       </td>
@@ -474,7 +495,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                         {u.state === 'active' &&
                         u.role !== 'ADMIN_PLATEFORME' &&
                         u.id !== session.user.id ? (
-                          <div className="access-actions">
+                          <div className="flex flex-wrap gap-3 [&_button]:min-h-11 [&_button]:text-primary [&_button]:underline">
                             {u.role !== 'PARTENAIRE' && (
                               <button
                                 type="button"
@@ -514,7 +535,10 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             change={(page) => changeSearch({ page })}
             label="Comptes"
           />
-          <div className="access-heading">
+          <div
+            className="flex flex-wrap items-center justify-between gap-4 mb-6 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold"
+            data-ui="access-heading"
+          >
             <h2>Invitations</h2>
             <label>
               État de l’invitation
@@ -543,7 +567,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                 <EmptyState
                   action={
                     <button
-                      className="fallback-secondary"
+                      className="min-h-10 border border-border rounded-control py-2 px-4 bg-white text-navy font-medium"
                       onClick={() =>
                         void changeSearch({
                           invitationState: '',
@@ -559,11 +583,14 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                   <p>{strings.noMatches}</p>
                 </EmptyState>
               ) : (
-                'Aucune invitation.'
+                <EmptyTable
+                  kind="invitations"
+                  columns={['name', 'role', 'state']}
+                />
               )
             }
           >
-            <div className="access-table-wrap">
+            <div className="border border-border rounded-card overflow-auto bg-white [&_+_[data-ui~='access-heading']]:mt-8">
               <table>
                 <caption className="sr-only">
                   Invitations des utilisateurs
@@ -580,7 +607,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                 <tbody>
                   {invitations.data?.items.map((i) => (
                     <tr key={i.id}>
-                      <td className="access-person">
+                      <td className="[&_strong]:font-medium [&_small]:text-xs">
                         <strong>{i.full_name || i.email}</strong>
                         {i.full_name && <small>{i.email}</small>}
                       </td>
@@ -599,7 +626,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                       <td>
                         {i.role !== 'ADMIN_PLATEFORME' &&
                         ['prepared', 'delivered'].includes(i.state) ? (
-                          <div className="access-actions">
+                          <div className="flex flex-wrap gap-3 [&_button]:min-h-11 [&_button]:text-primary [&_button]:underline">
                             <button
                               type="button"
                               disabled={
@@ -648,9 +675,9 @@ function Accounts({ session, onDenied = () => {}, checking }) {
               submit={submit}
             />
           )}
-        </main>
+        </AdminMain>
       </div>
-    </div>
+    </AdminShell>
   )
 }
 
@@ -658,7 +685,7 @@ function ListState({ query, empty, children }) {
   if (query.isPending || query.isFetching)
     return (
       <div
-        className="access-list-skeleton"
+        className="grid gap-3 p-4 mb-6 border border-border bg-white rounded-panel [&_span]:block [&_span]:h-10 [&_span]:bg-disabled [&_span]:rounded"
         role="status"
         aria-label={strings.adminListLoading}
       >
@@ -669,7 +696,10 @@ function ListState({ query, empty, children }) {
     )
   if (query.isError)
     return (
-      <section className="access-list-error" role="alert">
+      <section
+        className="p-6 border border-border rounded-panel bg-background grid justify-items-start gap-4 [&_h3]:font-semibold [&_>_p]:text-muted-foreground"
+        role="alert"
+      >
         <h3>{strings.listUnavailable}</h3>
         <p>{strings.listRetryPrompt}</p>
         <Button onClick={() => query.refetch()}>{strings.listRetry}</Button>
@@ -678,7 +708,9 @@ function ListState({ query, empty, children }) {
   return query.data?.items.length ? (
     children
   ) : typeof empty === 'string' ? (
-    <p className="access-empty">{empty}</p>
+    <p className="p-4 border border-border rounded-card bg-white mb-4">
+      {empty}
+    </p>
   ) : (
     empty
   )
@@ -687,7 +719,10 @@ function Pagination({ query, page, change, label }) {
   if (!query.data || query.isError || (page === 1 && query.data.total <= 20))
     return null
   return (
-    <nav className="access-pagination" aria-label={`Pagination ${label}`}>
+    <nav
+      className="[&_button]:min-h-11 [&_button]:text-primary [&_button]:underline flex justify-end flex-wrap items-center gap-4 mt-3 mr-0 mb-10 ml-0 text-[0.8125rem]"
+      aria-label={`Pagination ${label}`}
+    >
       <button
         disabled={page <= 1 || query.isFetching}
         onClick={() => change(page - 1)}
@@ -755,9 +790,9 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
   return (
     <dialog
       ref={ref}
-      className="access-dialog"
+      className="data-[checking]:hidden! [&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_input]:min-h-11 [&_input]:border [&_input]:border-border [&_input]:rounded-control [&_input]:py-2 [&_input]:px-3 [&_input]:bg-white [&_input]:max-w-full [&_select]:min-h-11 [&_select]:border [&_select]:border-border [&_select]:rounded-control [&_select]:py-2 [&_select]:px-3 [&_select]:bg-white [&_select]:max-w-full [&_button]:min-h-11 [&_button:disabled]:opacity-50 [&_button:disabled]:cursor-not-allowed m-auto p-0 w-[min(560px,_calc(100%_-_32px))] border border-border rounded-panel max-h-[calc(100vh_-_32px)] overflow-auto text-foreground [&::backdrop]:bg-overlay [&_>_[data-ui~='access-heading']]:m-0 [&_>_[data-ui~='access-heading']]:py-4 [&_>_[data-ui~='access-heading']]:px-6 [&_>_[data-ui~='access-heading']]:border-b [&_>_[data-ui~='access-heading']]:border-b-border [&_h2]:text-xl [&_h2]:font-semibold [&_fieldset_>_p]:p-6 [&_footer]:flex [&_footer]:justify-end [&_footer]:flex-wrap [&_footer]:items-center [&_footer]:gap-4 [&_footer]:py-4 [&_footer]:px-6 [&_footer]:border-t [&_footer]:border-t-border [&_footer_button[type='button']]:border [&_footer_button[type='button']]:border-strong-border [&_footer_button[type='button']]:py-2 [&_footer_button[type='button']]:px-4 [&_footer_button[type='button']]:rounded-control"
       inert={checking || undefined}
-      style={{ display: checking ? 'none' : undefined }}
+      data-checking={checking || undefined}
       aria-labelledby="invitation-title"
       onKeyDown={(event) => {
         if (event.key !== 'Tab') return
@@ -789,7 +824,10 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
         if (!pending) close()
       }}
     >
-      <div className="access-heading">
+      <div
+        className="flex flex-wrap items-center justify-between gap-4 mb-6 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold"
+        data-ui="access-heading"
+      >
         <h2 id="invitation-title">{title}</h2>
         <button aria-label="Fermer" disabled={pending} onClick={close}>
           <X size={20} />
@@ -804,7 +842,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
       >
         <fieldset disabled={pending}>
           {invite ? (
-            <div className="access-dialog-fields">
+            <div className="grid gap-6 p-6">
               <label>
                 {strings.firstName}
                 <input
@@ -881,7 +919,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
                       Liste des Partenaires indisponible.
                     </RetryableError>
                   )}
-                  <span className="planning-actions">
+                  <span className="flex gap-2 items-end flex-wrap">
                     <Button
                       type="button"
                       disabled={!partners.data?.previous || partners.isFetching}
@@ -909,7 +947,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
               )}
             </div>
           ) : dialog.kind === 'role' ? (
-            <div className="access-dialog-fields">
+            <div className="grid gap-6 p-6">
               <p>{dialog.item.email}</p>
               <label>
                 Nouveau rôle

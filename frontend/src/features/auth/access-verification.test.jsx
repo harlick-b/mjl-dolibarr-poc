@@ -78,7 +78,7 @@ test('a hidden protected tab synchronously purges protected cached data', async 
 
   expect(coordinator.getSnapshot().status).toBe('blocked')
   expect(queryClient.getQueryData(['planning', 'agent-1'])).toBeUndefined()
-  expect(queryClient.getQueryData(['auth', 'session'])).toBeUndefined()
+  expect(queryClient.getQueryData(['auth', 'session'])).toBeNull()
 })
 
 test('page lifecycle events mask data before restoring a resumed tab', async () => {

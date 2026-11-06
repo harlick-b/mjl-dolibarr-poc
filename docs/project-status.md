@@ -20,8 +20,17 @@ own their subjects. [README](../README.md) owns setup and development commands.
 
 - Invited accounts, password/OTP sessions, ordinary lifecycle/recovery and
   permanently Partner-bound identities.
-- Direct entry to login or the existing role workspace (user management for Admin,
-  Partner overview for Partner users, projects for internal business roles).
+- Direct entry to login or Dashboard for every verified role, restoring the last
+  permitted page when available. One frontend page catalog drives sidebar links,
+  direct page guards and remembered destinations. The shared sidebar uses the
+  verified user’s name/initials and contains long identities in its account menu.
+  Internal Dashboard reads only selected project/PTA metrics; Admin and Partner
+  Dashboard show permitted entry links. Separate Prévisions (PTA) and Réalisation
+  entry pages use bounded project/PTA lists. Project and audit lists use tables.
+  Full inspiration parity remains open: the PTA list API does not yet expose
+  partner names, activity/validation summaries or approved budget per row; no
+  summary is inferred from a paginated list. Admin/Partner Dashboard statistics
+  are not implemented.
   Authentication screens follow the supplied references; OTP fields support
   typing, paste, correction and automatic submission on the sixth digit. One
   application-wide access gate masks navigation and protected views during bounded
@@ -66,6 +75,57 @@ own their subjects. [README](../README.md) owns setup and development commands.
 The schema head is 0024_budget_funding. Application code, migrations and focused
 tests are the implementation evidence; do not treat a summary or an old passing
 count as a new verification run.
+
+Application presentation now uses Tailwind utilities for auth, Admin, internal
+and Partner views. The CSS entry contains fonts and approved theme tokens only;
+shared layout/button components own repeated styling. This migration preserves
+the existing loading and access-verification behavior. Human visual acceptance
+remains outstanding.
+
+Sidebar identity now opens a shared keyboard-accessible account menu. Auth CTAs
+remain busy through session verification; logout uses one page loader and deliberate
+failure recovery. The disabled session Query observer is retained when its value
+is cleared, fixing the Agent post-OTP false access denial. Empty URL parameters are
+stripped centrally, password criteria use approved badge tokens, and fallbacks
+are centered within the full content area beside navigation.
+
+Role defaults remain in `authorization.js`; `navigation.js` restores the last
+permitted page per user/role. Detail paths remain in memory during the app session;
+only allowlisted top-level choices survive reload in sessionStorage. Filters,
+fragments and secrets are never stored. API resource checks still apply on return.
+
+Reviewed role/navigation and empty-state candidate: built assets
+`index-DppCh8dO.js` and `index-C5Gd2_xF.css`. This adds `full_name` to the
+verified session projection; it changes no schema. Existing unnamed users retain
+an email-initial fallback. No migration is needed.
+
+The sidebar follows the requested role matrix in engineering.md. Partner Exports
+has its own protected page, and internal reminders open in a dialog. Empty tables
+retain their headers; empty text is centered as explicitly requested. Prévisions
+preserves project/year entry for the first activity even without an existing PTA.
+
+Final verification (commands from `frontend/`, except backend checks):
+
+- `npm run lint`, `npm run lint:css`, `npm run format:check` and `npm run build` passed.
+- `npm run test:unit -- --maxWorkers=1`: 175 passed in 18 files.
+- `npm run test:e2e -- e2e/auth/empty-states.spec.js e2e/auth/role-pages.spec.js e2e/auth/navigation-transitions.spec.js --output=/tmp/mjl-empty-final`:
+  22 passed, no skips. Includes sequential year typing, first-activity entry,
+  scoped Partner export, all five role menus, auth/logout transitions and centered
+  empty states. Screenshots were inspected for the changed empty compositions.
+- Backend `.venv/bin/pytest tests/auth/test_access.py -k each_business_role_accepts -q`:
+  3 passed with a disposable PostgreSQL database and teardown. The test asserts
+  the minimal session projection including name and preserves Admin endpoint
+  denials for all three internal business roles. Ruff passed for the three files.
+- Separate specification and standards reviewers inspected the full changes and
+  cleared functional findings after correction. The standards reviewer separately
+  ran catalog/navigation tests: 11 passed. Final browser evidence also passed.
+
+The existing JavaScript bundle-size warning remains. Fixture-backed browser
+coverage is not live backend/email or human visual/accessibility acceptance.
+Full reference parity remains incomplete: unsupported PTA/execution search filters
+and populated Dashboard attention/financial sections need supporting data contracts.
+PTA summary columns remain limited to available projections. No fictional totals
+or nonfunctional filters were added to imitate those references.
 
 ## Remaining inputs and excluded work
 

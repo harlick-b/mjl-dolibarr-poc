@@ -10,9 +10,19 @@ accessible shadcn primitives only for real consumers; use Lucide consistently.
 
 Inter is packaged locally through @fontsource, weights 400/500/600/700, with
 Arial, Helvetica, sans-serif fallbacks. Browser rendering does not depend on a
-remote font service. Runtime mapping lives in frontend/src/app/styles.css; changes
+remote font service. Runtime mapping lives in frontend/src/app/tailwind.css; changes
 to approved values require explicit user authorization. No generated token file
 or separate design manifest is required.
+
+Use Tailwind utilities for application styling. `tailwind.css` is the build entry:
+it contains only local font imports, the Tailwind import and approved `@theme`
+tokens. Page/component selectors and `@apply` blocks do not belong there. Shared
+panels, workspace frames and buttons live in `frontend/src/shared/ui`; auth form
+defaults live in `AuthCard`. Keep component-specific states on the affected
+control, and use low-specificity defaults where a specialized control (such as
+OTP) needs to override a form default. `data-ui` attributes are structural/test
+hooks, not a second stylesheet. Document-wide focus, coarse-pointer and reduced
+motion defaults use Tailwind variants on the document body.
 
 | Color role                 | Value     |
 | -------------------------- | --------- |
@@ -121,3 +131,25 @@ Focused browser checks should cover keyboard/focus behavior, narrow reflow and
 loading/error/offline states for changed surfaces. Human visual, screen-reader,
 keyboard/reflow and 100%/200% zoom acceptance remain outstanding; passing automated
 checks is not accessibility conformance or user acceptance.
+
+Sidebar identity opens an anchored account menu with explicit profile/workspace
+links and logout. Enter/Space and ArrowDown open and focus the menu; Escape closes
+and restores focus. Password criteria use the success badge text/surface pair
+when met, with a visible check mark. Auth form transitions keep the current CTA
+busy until the next auth context is ready; initial auth loading uses an unboxed
+page indicator. Logout uses one centered page indicator, without protected identity
+or content, then shows the ready login form.
+
+The application sidebar shares one composition across verified roles; its links
+come from the page catalog. Identity uses first/last name initials, falling back
+to an email initial for existing unnamed accounts. Truncate long names in the
+trigger; expose the name/email in the menu with full title text. The popup opens
+below its trigger on narrow screens to remain inside the viewport. PTA entry
+tables and Dashboard metrics use actual bounded API projections; missing summary
+facts must not be replaced with demo values or totals from one list page.
+
+Empty states follow `docs/inspiration/empty/`: retain table headers and section
+borders, center both the empty title and explanation within the content block
+(the explicit user correction overrides left-aligned reference copy). Keep empty,
+filtered-no-results, failed-load and unshared Partner data states distinct. Never
+replace failed reads with zero metrics. Zero-denominator rates remain non-calculable.

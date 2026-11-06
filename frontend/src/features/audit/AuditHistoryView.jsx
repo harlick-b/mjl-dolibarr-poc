@@ -1,3 +1,6 @@
+import { EmptyContent } from '@/shared/ui/EmptyContent'
+import { businessActionClassName } from '@/shared/ui/button-variants'
+import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
@@ -108,19 +111,21 @@ function History({ session, onDenied }) {
       search: { cursor: cursorFrom(link, '/audit-events') },
     })
   return (
-    <section className="planning-stack" aria-busy={result.isFetching}>
+    <section className="grid gap-6" aria-busy={result.isFetching}>
       <Helmet>
         <title>Historique — MJL</title>
       </Helmet>
-      <div className="planning-heading">
+      <div
+        className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-2xl [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
+        data-ui="planning-heading"
+      >
         <RefreshIndicator active={result.isFetching} />
         <div>
-          <p className="eyebrow">Traçabilité</p>
           <h1>Historique</h1>
         </div>
         <button
-          className="planning-button"
-          disabled={download.isPending}
+          className={businessActionClassName}
+          disabled={download.isPending || result.data.count === 0}
           onClick={() => download.mutate()}
           type="button"
         >
@@ -128,72 +133,98 @@ function History({ session, onDenied }) {
           {download.isPending ? 'Génération…' : 'Exporter le CSV'}
         </button>
       </div>
-      <div className="planning-card audit-history-card">
-        <p>
-          <strong>{result.data.count}</strong> événements
-        </p>
+      <Panel as="div" className="overflow-x-auto p-0 gap-0">
+        <div className="flex justify-between border-b border-border p-5 text-[0.8125rem]">
+          <span>
+            {result.data.count} {strings.events}
+          </span>
+          <span className="text-muted-foreground">{strings.newestFirst}</span>
+        </div>
         {result.data.data.length === 0 ? (
-          <p>Aucun événement enregistré.</p>
+          <EmptyContent kind="history" large />
         ) : (
-          <ol className="audit-history-list">
-            {result.data.data.map((item) => (
-              <li key={item.id}>
-                <time dateTime={item.occurred_at}>
-                  {new Intl.DateTimeFormat('fr-FR', {
-                    dateStyle: 'long',
-                    timeStyle: 'short',
-                  }).format(new Date(item.occurred_at))}
-                </time>
-                <div>
-                  <strong>{item.label}</strong>
-                  <small>
-                    {outcomeLabels[item.outcome] || 'Résultat enregistré'}
-                  </small>
-                </div>
-                <div>
-                  {item.activity && canOpenActivity ? (
-                    <Link
-                      to="/activities/$activityId"
-                      params={{ activityId: item.activity.id }}
-                    >
-                      {item.activity.reference} — {item.activity.name}
-                    </Link>
-                  ) : item.activity ? (
-                    <span>
-                      {item.activity.reference} — {item.activity.name}
-                    </span>
-                  ) : (
-                    <span>Événement général</span>
-                  )}
-                </div>
-                <div>
-                  {item.actor ? (
-                    <span>{item.actor.email}</span>
-                  ) : (
-                    <span>Système</span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
+          <table className="w-full text-left text-sm min-w-190 mt-4 mr-0 mb-6 ml-0 p-0 border-t border-t-border list-none [&_th]:bg-background [&_th]:font-medium [&_th]:p-3 [&_td]:p-3 [&_td]:border-b [&_td]:border-border [&_div]:grid [&_div]:gap-1 [&_time]:text-muted-foreground [&_time]:text-[0.82rem] [&_small]:text-muted-foreground [&_small]:text-[0.82rem]">
+            <thead>
+              <tr>
+                <th>{strings.date}</th>
+                <th>{strings.action}</th>
+                <th>{strings.activity}</th>
+                <th>{strings.author}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.data.data.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <time dateTime={item.occurred_at}>
+                      {new Intl.DateTimeFormat('fr-FR', {
+                        dateStyle: 'long',
+                        timeStyle: 'short',
+                      }).format(new Date(item.occurred_at))}
+                    </time>
+                  </td>
+                  <td>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <small>
+                        {outcomeLabels[item.outcome] || 'Résultat enregistré'}
+                      </small>
+                    </div>
+                  </td>
+                  <td>
+                    <div>
+                      {item.activity && canOpenActivity ? (
+                        <Link
+                          to="/activities/$activityId"
+                          params={{ activityId: item.activity.id }}
+                        >
+                          {item.activity.reference} — {item.activity.name}
+                        </Link>
+                      ) : item.activity ? (
+                        <span>
+                          {item.activity.reference} — {item.activity.name}
+                        </span>
+                      ) : (
+                        <span>Événement général</span>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div>
+                      {item.actor ? (
+                        <span>{item.actor.email}</span>
+                      ) : (
+                        <span>Système</span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
-        <nav className="planning-actions" aria-label="Pages de l’historique">
-          <button
-            type="button"
-            disabled={!result.data.previous}
-            onClick={() => move(result.data.previous)}
+        {(result.data.previous || result.data.next) && (
+          <nav
+            className="flex gap-2 items-end flex-wrap"
+            aria-label="Pages de l’historique"
           >
-            Précédent
-          </button>
-          <button
-            type="button"
-            disabled={!result.data.next}
-            onClick={() => move(result.data.next)}
-          >
-            Suivant
-          </button>
-        </nav>
-      </div>
+            <button
+              type="button"
+              disabled={!result.data.previous}
+              onClick={() => move(result.data.previous)}
+            >
+              Précédent
+            </button>
+            <button
+              type="button"
+              disabled={!result.data.next}
+              onClick={() => move(result.data.next)}
+            >
+              Suivant
+            </button>
+          </nav>
+        )}
+      </Panel>
     </section>
   )
 }

@@ -1,3 +1,4 @@
+import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -130,9 +131,12 @@ export function PartnerDocuments({
       ) : documents.isError ? (
         <p role="alert">{strings.sharedFileUnavailable}</p>
       ) : !page?.data.length ? (
-        <p>{strings.noSharedAttachments}</p>
+        <EmptyContent kind="sharedDocuments" />
       ) : (
-        <ul className="planning-list">
+        <ul
+          className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+          data-ui="planning-list"
+        >
           {page.data.map((file) => (
             <li key={file.id}>
               <span>
@@ -142,7 +146,7 @@ export function PartnerDocuments({
                   {new Intl.NumberFormat('fr-FR').format(file.size)} octets
                 </small>
               </span>
-              <div className="planning-actions">
+              <div className="flex gap-2 items-end flex-wrap">
                 {['image/png', 'image/jpeg'].includes(file.media_type) && (
                   <Button
                     variant="outline"
@@ -189,7 +193,7 @@ export function PartnerDocuments({
       )}
       {(page?.next || page?.previous) && (
         <nav
-          className="access-pagination"
+          className="[&_button]:min-h-11 [&_button]:text-primary [&_button]:underline flex justify-end flex-wrap items-center gap-4 mt-3 mr-0 mb-10 ml-0 text-[0.8125rem]"
           aria-label="Pagination des documents partagés"
         >
           <Button
@@ -217,10 +221,10 @@ export function PartnerDocuments({
         onClose={close}
         label={preview ? `${common.preview} — ${preview.name}` : common.preview}
         opener={opener}
-        className="document-preview-dialog"
+        className="w-[min(900px,_calc(100vw_-_32px))] max-w-none border border-border rounded-panel p-0 [&::backdrop]:bg-[rgb(15_23_42_/_62%)]"
       >
         {preview && (
-          <div className="document-preview">
+          <div className="grid gap-4 p-6 [&_img]:w-full [&_img]:max-h-[65vh] [&_img]:object-contain [&_img]:border [&_img]:border-border [&_img]:bg-background [&_[data-ui~='modal-actions']]:justify-end">
             <h3>{preview.name}</h3>
             {bytes.isPending ? (
               <LoadingPlaceholder
@@ -237,7 +241,7 @@ export function PartnerDocuments({
             ) : (
               <p role="alert">{strings.sharedFileUnavailable}</p>
             )}
-            <div className="modal-actions">
+            <div className="modal-actions" data-ui="modal-actions">
               <Button variant="outline" onClick={close}>
                 {common.dismiss}
               </Button>

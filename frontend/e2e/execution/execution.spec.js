@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test'
 
+const emptyCollection = {
+  object: 'list',
+  count: 0,
+  data: [],
+  next: null,
+  previous: null,
+}
+const emptyFunding = { ...emptyCollection, pending: [], allowed_actions: [] }
+
 test('PTA-7A Agent submits the zero-spending path without payment controls', async ({
   page,
 }) => {
@@ -61,7 +70,7 @@ test('PTA-7A Agent submits the zero-spending path without payment controls', asy
   }
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
-    const path = new URL(request.url()).pathname
+    const path = new URL(route.request().url()).pathname
     if (path === '/api/v1/auth/session')
       return route.fulfill({
         json: {
@@ -113,6 +122,14 @@ test('PTA-7A Agent submits the zero-spending path without payment controls', asy
       path.endsWith('/virement-requests')
     )
       return route.fulfill({ json: empty })
+    if (new URL(route.request().url()).pathname.endsWith('/funding-requests'))
+      return route.fulfill({ json: emptyFunding })
+    if (
+      new URL(route.request().url()).pathname.endsWith(
+        '/zero-spending-declarations',
+      )
+    )
+      return route.fulfill({ json: emptyCollection })
     return route.fulfill({ status: 404, json: {} })
   })
   await page.goto('/execution/activities/activity-zero')
@@ -120,10 +137,29 @@ test('PTA-7A Agent submits the zero-spending path without payment controls', asy
     page.getByRole('heading', { name: 'Déclaration de dépense nulle' }),
   ).toBeVisible()
   await expect(page.getByText('Autorisation de décaissement')).toHaveCount(0)
+  await page.screenshot({
+    path: '/tmp/mjl-tailwind-execution-desktop.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByLabel('Motif de l’absence de dépense')).toHaveCSS(
+    'min-height',
+    '110px',
+  )
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true)
+  await page.screenshot({
+    path: '/tmp/mjl-tailwind-execution-mobile.png',
+    fullPage: true,
+  })
+
   await page.getByLabel('Motif de l’absence de dépense').fill('Moyens propres.')
   await page.context().setOffline(true)
   await expect(
-    page.getByRole('heading', { name: 'Vérification de l’accès' }),
+    page.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   expect(mutations).toBe(0)
   await page.context().setOffline(false)
@@ -198,7 +234,7 @@ test('PTA-3F eligible Agent closes and keeps terminal evidence', async ({
   })
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
-    const path = new URL(request.url()).pathname
+    const path = new URL(route.request().url()).pathname
     if (path === '/api/v1/auth/session')
       return route.fulfill({
         json: {
@@ -226,12 +262,20 @@ test('PTA-3F eligible Agent closes and keeps terminal evidence', async ({
       path.endsWith('/virement-requests')
     )
       return route.fulfill({ json: empty })
+    if (new URL(route.request().url()).pathname.endsWith('/funding-requests'))
+      return route.fulfill({ json: emptyFunding })
+    if (
+      new URL(route.request().url()).pathname.endsWith(
+        '/zero-spending-declarations',
+      )
+    )
+      return route.fulfill({ json: emptyCollection })
     return route.fulfill({ status: 404, json: {} })
   })
   await page.goto('/execution/activities/activity-close')
   await page.context().setOffline(true)
   await expect(
-    page.getByRole('heading', { name: 'Vérification de l’accès' }),
+    page.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   expect(closureMutations).toBe(0)
   await page.context().setOffline(false)
@@ -317,7 +361,7 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
   })
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
-    const path = new URL(request.url()).pathname
+    const path = new URL(route.request().url()).pathname
     if (path === '/api/v1/auth/session')
       return route.fulfill({
         json: {
@@ -389,6 +433,14 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
     }
     if (path.endsWith('/activities/activity-1/execution'))
       return route.fulfill({ json: detail() })
+    if (new URL(route.request().url()).pathname.endsWith('/funding-requests'))
+      return route.fulfill({ json: emptyFunding })
+    if (
+      new URL(route.request().url()).pathname.endsWith(
+        '/zero-spending-declarations',
+      )
+    )
+      return route.fulfill({ json: emptyCollection })
     return route.fulfill({ status: 404, json: {} })
   })
   await page.goto('/execution/activities/activity-1')
@@ -412,7 +464,7 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
   expect(mutationCount).toBe(3)
   await page.context().setOffline(true)
   await expect(
-    page.getByRole('heading', { name: 'Vérification de l’accès' }),
+    page.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
   await page.waitForTimeout(100)
   expect(mutationCount).toBe(3)
@@ -539,6 +591,14 @@ test('reviewer sees pause, resume and paginated history without mutation control
           ],
         },
       })
+    if (new URL(route.request().url()).pathname.endsWith('/funding-requests'))
+      return route.fulfill({ json: emptyFunding })
+    if (
+      new URL(route.request().url()).pathname.endsWith(
+        '/zero-spending-declarations',
+      )
+    )
+      return route.fulfill({ json: emptyCollection })
     return route.fulfill({ status: 404, json: {} })
   })
   await page.goto('/execution/activities/activity-1')
@@ -549,13 +609,14 @@ test('reviewer sees pause, resume and paginated history without mutation control
   paused = false
   await page.reload()
   await expect(page.getByText(/uniquement la consultation/)).toBeVisible()
+  await page.route('**/api/v1/auth/session', () => new Promise(() => {}))
   await page.evaluate(() => {
     const channel = new BroadcastChannel('mjl-auth')
     channel.postMessage('revoked')
     channel.close()
   })
   await expect(
-    page.getByRole('heading', { name: 'Vérification de l’accès' }),
+    page.getByRole('heading', { name: 'Vérification de votre accès' }),
   ).toBeVisible()
 })
 
@@ -1049,6 +1110,14 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
           ],
         },
       })
+    if (new URL(route.request().url()).pathname.endsWith('/funding-requests'))
+      return route.fulfill({ json: emptyFunding })
+    if (
+      new URL(route.request().url()).pathname.endsWith(
+        '/zero-spending-declarations',
+      )
+    )
+      return route.fulfill({ json: emptyCollection })
     return route.fulfill({ status: 404, json: {} })
   })
 
@@ -1258,11 +1327,9 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
 
   await page.context().setOffline(true)
   await expect(
-    page.getByRole('heading', { name: 'Vérification de l’accès' }),
+    page.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
-  await expect(
-    page.getByRole('button', { name: 'Vérifier l’accès' }),
-  ).toBeDisabled()
+  await page.getByRole('button', { name: 'Réessayer' }).click()
   expect(confirmationMutationCount).toBe(2)
   expect(reversementMutationCount).toBe(2)
   await page.context().setOffline(false)

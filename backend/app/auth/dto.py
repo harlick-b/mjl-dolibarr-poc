@@ -24,6 +24,7 @@ Role = Literal[
 
 
 class SessionIdentity(BaseModel):
+    full_name: str | None = None
     id: str
     email: str
     role: Role

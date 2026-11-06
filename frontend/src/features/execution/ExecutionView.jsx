@@ -1,3 +1,6 @@
+import { EmptyContent } from '@/shared/ui/EmptyContent'
+import { businessActionClassName } from '@/shared/ui/button-variants'
+import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
 import {
@@ -582,27 +585,34 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
 function ExecutionList({ result, onPage }) {
   const rows = result?.data || []
   return (
-    <section className="planning-stack">
+    <section className="grid gap-6">
       <Helmet>
         <title>Réalisation des activités — MJL</title>
       </Helmet>
-      <header className="planning-heading">
+      <header
+        className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
+        data-ui="planning-heading"
+      >
         <div>
-          <p className="eyebrow">Réalisation d’activités</p>
+          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+            Réalisation d’activités
+          </p>
           <h1>Activités approuvées</h1>
         </div>
       </header>
-      <div className="execution-list">
+      <div className="grid gap-4">
         {rows.length ? (
           rows.map((row) => (
-            <article className="planning-card" key={row.id}>
-              <div className="planning-title">
+            <Panel as="article" key={row.id}>
+              <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
                 <div>
-                  <p className="eyebrow">{row.reference}</p>
+                  <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+                    {row.reference}
+                  </p>
                   <h2>{row.name}</h2>
                 </div>
                 <Link
-                  className="planning-button"
+                  className={businessActionClassName}
                   to="/execution/activities/$activityId"
                   params={{ activityId: row.id }}
                 >
@@ -617,16 +627,23 @@ function ExecutionList({ result, onPage }) {
                   : formatXof(row.spending_total)}
               </p>
               {row.execution_paused && (
-                <p className="planning-error">Réalisation suspendue.</p>
+                <p className="border-l-4 border-l-danger p-3 bg-white">
+                  Réalisation suspendue.
+                </p>
               )}
-            </article>
+            </Panel>
           ))
         ) : (
-          <p>Aucune activité approuvée à réaliser.</p>
+          <Panel className="p-0 gap-0">
+            <p className="border-b border-border px-5 py-4 text-[0.8125rem]">
+              {strings.zeroActivities}
+            </p>
+            <EmptyContent kind="execution" large />
+          </Panel>
         )}
       </div>
       {(result?.previous || result?.next) && (
-        <nav className="planning-actions" aria-label="Pagination">
+        <nav className="flex gap-2 items-end flex-wrap" aria-label="Pagination">
           <Button
             variant="outline"
             disabled={!result.previous}
@@ -697,13 +714,18 @@ function ExecutionDetail({
     'operation.execution_corrected': 'Réalisation corrigée',
   }
   return (
-    <section className="planning-stack">
+    <section className="grid gap-6">
       <Helmet>
         <title>{detail.name} — Réalisation MJL</title>
       </Helmet>
-      <header className="planning-heading">
+      <header
+        className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
+        data-ui="planning-heading"
+      >
         <div>
-          <p className="eyebrow">{detail.reference}</p>
+          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+            {detail.reference}
+          </p>
           <h1>{detail.name}</h1>
         </div>
         <Link to="/execution/$ptaId" params={{ ptaId: detail.pta_id }}>
@@ -711,25 +733,34 @@ function ExecutionDetail({
         </Link>
       </header>
       {error && (
-        <p role="alert" className="planning-error">
+        <p role="alert" className="border-l-4 border-l-danger p-3 bg-white">
           {error}
         </p>
       )}
       {detail.execution_paused && (
-        <p role="status" className="review-progress">
+        <p
+          role="status"
+          className="border-l-4 border-l-primary bg-background py-3 px-4"
+        >
           La réalisation est suspendue :{' '}
           {unavailableLabels[detail.pause_reason] || detail.pause_reason}.
         </p>
       )}
       {!detail.execution_paused && detail.mutation_unavailable_reason && (
-        <p role="status" className="review-progress">
+        <p
+          role="status"
+          className="border-l-4 border-l-primary bg-background py-3 px-4"
+        >
           Modification indisponible :{' '}
           {unavailableLabels[detail.mutation_unavailable_reason] ||
             detail.mutation_unavailable_reason}
           .
         </p>
       )}
-      <dl className="planning-card execution-summary">
+      <Panel
+        as="dl"
+        className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy"
+      >
         <div>
           <dt>Avancement</dt>
           <dd>
@@ -748,8 +779,8 @@ function ExecutionDetail({
           <dt>État des travaux</dt>
           <dd>{detail.works_completed ? 'Travaux terminés' : 'En cours'}</dd>
         </div>
-      </dl>
-      <div className="execution-list">
+      </Panel>
+      <div className="grid gap-4">
         {detail.operations.map((operation) => (
           <OperationCard
             key={operation.id}
@@ -819,15 +850,12 @@ function ExecutionDetail({
         pending={pending}
         mutate={mutateFinance}
       />
-      <section
-        className="planning-card"
-        aria-labelledby="execution-history-title"
-      >
+      <Panel aria-labelledby="execution-history-title">
         <h2 id="execution-history-title">Historique de réalisation</h2>
         {!history ? (
           sectionFallbacks.history
         ) : history.data.length ? (
-          <ol className="review-timeline">
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {history.data.map((event) => (
               <li key={event.id}>
                 <strong>{historyLabels[event.action] || event.action}</strong>{' '}
@@ -837,11 +865,11 @@ function ExecutionDetail({
             ))}
           </ol>
         ) : (
-          <p>Aucun événement de réalisation.</p>
+          <EmptyContent kind="activityHistory" />
         )}
         {(history?.previous || history?.next) && (
           <nav
-            className="planning-actions"
+            className="flex gap-2 items-end flex-wrap"
             aria-label="Pagination de l’historique"
           >
             <Button
@@ -860,7 +888,7 @@ function ExecutionDetail({
             </Button>
           </nav>
         )}
-      </section>
+      </Panel>
     </section>
   )
 }
@@ -889,10 +917,12 @@ function ZeroSpendingSection({
   }
   const version = current?.activity_version || detail.version
   return (
-    <section className="planning-card" aria-labelledby="zero-spending-title">
-      <div className="planning-title">
+    <Panel aria-labelledby="zero-spending-title">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
-          <p className="eyebrow">Clôture sans dépense</p>
+          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+            Clôture sans dépense
+          </p>
           <h2 id="zero-spending-title">Déclaration de dépense nulle</h2>
         </div>
         {current && <strong>{stateLabels[current.state]}</strong>}
@@ -904,8 +934,10 @@ function ZeroSpendingSection({
       </p>
       {current ? (
         <>
-          <p className="review-progress">Motif : {current.reason}</p>
-          <ol className="review-timeline">
+          <p className="border-l-4 border-l-primary bg-background py-3 px-4">
+            Motif : {current.reason}
+          </p>
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {current.decisions.map((decision) => (
               <li key={decision.id}>
                 <strong>
@@ -918,7 +950,7 @@ function ZeroSpendingSection({
               </li>
             ))}
           </ol>
-          <div className="planning-actions">
+          <div className="flex gap-2 items-end flex-wrap">
             {current.allowed_actions.includes('prevalidate') && (
               <Button
                 disabled={pending || !navigator.onLine}
@@ -948,7 +980,7 @@ function ZeroSpendingSection({
           </div>
           {current.allowed_actions.includes('return') && (
             <BusinessForm
-              className="planning-form"
+              className="[&_>_label]:w-full"
               onSubmit={(event) => {
                 event.preventDefault()
                 const data = new FormData(event.currentTarget)
@@ -977,7 +1009,7 @@ function ZeroSpendingSection({
           )}
         </>
       ) : currentIsOnNewerPage ? (
-        <div className="planning-actions">
+        <div className="flex gap-2 items-end flex-wrap">
           <p>La déclaration en cours se trouve sur une page plus récente.</p>
           <Button variant="outline" onClick={() => onPage(null)}>
             Revenir à la déclaration en cours
@@ -985,7 +1017,7 @@ function ZeroSpendingSection({
         </div>
       ) : role === 'AGENT_SAISIE' ? (
         <BusinessForm
-          className="planning-form"
+          className="[&_>_label]:w-full"
           onSubmit={(event) => {
             event.preventDefault()
             const data = new FormData(event.currentTarget)
@@ -1010,7 +1042,7 @@ function ZeroSpendingSection({
       {declarations.some((row) => row.state === 'returned') && (
         <details>
           <summary>Déclarations retournées</summary>
-          <ol className="review-timeline">
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {declarations
               .filter((row) => row.state === 'returned')
               .map((row) => (
@@ -1023,7 +1055,7 @@ function ZeroSpendingSection({
       )}
       {(result?.previous || result?.next) && (
         <nav
-          className="planning-actions"
+          className="flex gap-2 items-end flex-wrap"
           aria-label="Pagination des déclarations sans dépense"
         >
           <Button
@@ -1042,7 +1074,7 @@ function ZeroSpendingSection({
           </Button>
         </nav>
       )}
-    </section>
+    </Panel>
   )
 }
 
@@ -1067,14 +1099,14 @@ function ClosureSection({ detail, pending, mutate }) {
   }
   const blockers = detail.closure_blockers || []
   return (
-    <section className="planning-card" aria-labelledby="closure-title">
+    <Panel aria-labelledby="closure-title">
       <h2 id="closure-title">Clôture de l’activité</h2>
       {detail.closure ? (
         <>
-          <p className="review-progress">
+          <p className="border-l-4 border-l-primary bg-background py-3 px-4">
             <CheckCircle2 size={16} aria-hidden="true" /> Activité clôturée
           </p>
-          <dl className="execution-summary">
+          <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
             <div>
               <dt>Clôturée par</dt>
               <dd>{detail.closure.closed_by_id}</dd>
@@ -1104,7 +1136,7 @@ function ClosureSection({ detail, pending, mutate }) {
           )}
           {detail.allowed_actions?.includes('close') && (
             <BusinessForm
-              className="planning-form"
+              className="[&_>_label]:w-full"
               onSubmit={(event) => {
                 event.preventDefault()
                 return mutate('/closure', { expected_version: detail.version })
@@ -1121,7 +1153,7 @@ function ClosureSection({ detail, pending, mutate }) {
           )}
         </>
       )}
-    </section>
+    </Panel>
   )
 }
 
@@ -1163,10 +1195,12 @@ function DisbursementSection({
     Number(detail.spending_total) > 0
   const version = current?.activity_version || detail.version
   return (
-    <section className="planning-card" aria-labelledby="disbursement-title">
-      <div className="planning-title">
+    <Panel aria-labelledby="disbursement-title">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
-          <p className="eyebrow">Suivi administratif</p>
+          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+            Suivi administratif
+          </p>
           <h2 id="disbursement-title">Autorisation de décaissement</h2>
         </div>
         {current && <strong>{stateLabels[current.state]}</strong>}
@@ -1177,7 +1211,7 @@ function DisbursementSection({
       </p>
       {current ? (
         <>
-          <p className="review-progress">
+          <p className="border-l-4 border-l-primary bg-background py-3 px-4">
             Montant soumis : <strong>{formatXof(current.amount)}</strong>.{' '}
             {current.state === 'returned'
               ? strings.disbursementReturned
@@ -1196,7 +1230,7 @@ function DisbursementSection({
               Fermer le détail
             </Button>
           )}
-          <ol className="review-timeline">
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {current.decisions.map((decision) => (
               <li key={decision.id}>
                 <strong>
@@ -1209,7 +1243,7 @@ function DisbursementSection({
               </li>
             ))}
           </ol>
-          <div className="planning-actions">
+          <div className="flex gap-2 items-end flex-wrap">
             {current.allowed_actions.includes('prevalidate') && (
               <Button
                 disabled={pending || !navigator.onLine}
@@ -1240,7 +1274,7 @@ function DisbursementSection({
           {(current.allowed_actions.includes('return') ||
             current.allowed_actions.includes('cancel')) && (
             <BusinessForm
-              className="planning-form"
+              className="[&_>_label]:w-full"
               onSubmit={(event) => {
                 event.preventDefault()
                 const data = new FormData(event.currentTarget)
@@ -1265,7 +1299,7 @@ function DisbursementSection({
                 Motif obligatoire
                 <textarea name="reason" required maxLength="4000" />
               </label>
-              <div className="planning-actions">
+              <div className="flex gap-2 items-end flex-wrap">
                 {current.allowed_actions.includes('return') && (
                   <Button
                     type="submit"
@@ -1313,7 +1347,7 @@ function DisbursementSection({
       {requests.length > 0 && (
         <details>
           <summary>Historique des demandes ({result.count})</summary>
-          <ol className="review-timeline">
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {requests.map((request) => (
               <li key={request.id}>
                 <Button
@@ -1331,7 +1365,7 @@ function DisbursementSection({
           </ol>
           {(result.previous || result.next) && (
             <nav
-              className="planning-actions"
+              className="flex gap-2 items-end flex-wrap"
               aria-label="Pagination financière"
             >
               <Button
@@ -1352,7 +1386,7 @@ function DisbursementSection({
           )}
         </details>
       )}
-    </section>
+    </Panel>
   )
 }
 
@@ -1392,10 +1426,12 @@ function VirementSection({
   }
   const version = current?.activity_version || detail.version
   return (
-    <section className="planning-card" aria-labelledby="virement-title">
-      <div className="planning-title">
+    <Panel aria-labelledby="virement-title">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
-          <p className="eyebrow">Suivi administratif</p>
+          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+            Suivi administratif
+          </p>
           <h2 id="virement-title">Autorisation de virement</h2>
         </div>
         {current && <strong>{stateLabels[current.state]}</strong>}
@@ -1407,7 +1443,7 @@ function VirementSection({
       {current?.state === 'returned' && <p>{strings.virementReturned}</p>}
       {current ? (
         <>
-          <p className="review-progress">
+          <p className="border-l-4 border-l-primary bg-background py-3 px-4">
             Montant verrouillé : <strong>{formatXof(current.amount)}</strong>.
             L’autorisation de décaissement et les dépenses restent figées, même
             si cette demande est annulée.
@@ -1421,7 +1457,7 @@ function VirementSection({
               Fermer le détail
             </Button>
           )}
-          <ol className="review-timeline">
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {current.decisions.map((decision) => (
               <li key={decision.id}>
                 <strong>
@@ -1434,7 +1470,7 @@ function VirementSection({
               </li>
             ))}
           </ol>
-          <div className="planning-actions">
+          <div className="flex gap-2 items-end flex-wrap">
             {current.allowed_actions.includes('prevalidate') && (
               <Button
                 disabled={pending || !navigator.onLine}
@@ -1463,7 +1499,7 @@ function VirementSection({
             )}
           </div>
           {current.state === 'approved' && (
-            <div className="planning-card">
+            <Panel as="div">
               <h3>Virement externe déclaré</h3>
               <p>
                 MJL enregistre la déclaration de l’Agent sans vérifier le
@@ -1471,7 +1507,7 @@ function VirementSection({
                 <strong>{formatXof(current.amount)}</strong>.
               </p>
               {current.current_confirmation && (
-                <dl className="execution-summary">
+                <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
                   <div>
                     <dt>Date effective</dt>
                     <dd>{current.current_confirmation.transfer_date}</dd>
@@ -1498,7 +1534,7 @@ function VirementSection({
                 current.allowed_actions.includes('correct_confirmation')) && (
                 <BusinessForm
                   key={current.current_confirmation?.revision || 'initial'}
-                  className="planning-form"
+                  className="[&_>_label]:w-full"
                   onSubmit={(event) => {
                     event.preventDefault()
                     const data = new FormData(event.currentTarget)
@@ -1557,7 +1593,7 @@ function VirementSection({
                   <summary>
                     Historique des déclarations ({confirmationHistory.count})
                   </summary>
-                  <ol className="review-timeline">
+                  <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
                     {confirmationHistory.data.map((entry) => (
                       <li key={entry.id}>
                         <strong>
@@ -1580,7 +1616,7 @@ function VirementSection({
                   {(confirmationHistory.previous ||
                     confirmationHistory.next) && (
                     <nav
-                      className="planning-actions"
+                      className="flex gap-2 items-end flex-wrap"
                       aria-label="Pagination des déclarations de virement"
                     >
                       <Button
@@ -1606,10 +1642,7 @@ function VirementSection({
                 </details>
               )}
               {current.reversement && (
-                <section
-                  className="planning-card"
-                  aria-labelledby="reversement-title"
-                >
+                <Panel aria-labelledby="reversement-title">
                   <h3 id="reversement-title">Reversement au Partenaire</h3>
                   <p>
                     Montant autorisé :{' '}
@@ -1617,7 +1650,7 @@ function VirementSection({
                     montant dépensé :{' '}
                     <strong>{formatXof(current.amount)}</strong>.
                   </p>
-                  <dl className="execution-summary">
+                  <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
                     <div>
                       <dt>Montant à reverser</dt>
                       <dd>{formatXof(current.reversement.required_amount)}</dd>
@@ -1628,13 +1661,13 @@ function VirementSection({
                     </div>
                   </dl>
                   {current.reversement.status === 'not_required' && (
-                    <p className="review-progress">
+                    <p className="border-l-4 border-l-primary bg-background py-3 px-4">
                       <CheckCircle2 size={16} aria-hidden="true" /> Aucun
                       reversement requis.
                     </p>
                   )}
                   {current.reversement.current_declaration && (
-                    <dl className="execution-summary">
+                    <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
                       <div>
                         <dt>Date effective du reversement</dt>
                         <dd>
@@ -1680,7 +1713,7 @@ function VirementSection({
                         current.reversement.current_declaration?.revision ||
                         'initial'
                       }
-                      className="planning-form"
+                      className="[&_>_label]:w-full"
                       onSubmit={(event) => {
                         event.preventDefault()
                         const data = new FormData(event.currentTarget)
@@ -1756,7 +1789,7 @@ function VirementSection({
                       <summary>
                         Historique des reversements ({reversementHistory.count})
                       </summary>
-                      <ol className="review-timeline">
+                      <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
                         {reversementHistory.data.map((entry) => (
                           <li key={entry.id}>
                             <strong>
@@ -1780,7 +1813,7 @@ function VirementSection({
                       {(reversementHistory.previous ||
                         reversementHistory.next) && (
                         <nav
-                          className="planning-actions"
+                          className="flex gap-2 items-end flex-wrap"
                           aria-label="Pagination des déclarations de reversement"
                         >
                           <Button
@@ -1805,14 +1838,14 @@ function VirementSection({
                       )}
                     </details>
                   )}
-                </section>
+                </Panel>
               )}
-            </div>
+            </Panel>
           )}
           {(current.allowed_actions.includes('return') ||
             current.allowed_actions.includes('cancel')) && (
             <BusinessForm
-              className="planning-form"
+              className="[&_>_label]:w-full"
               onSubmit={(event) => {
                 event.preventDefault()
                 const data = new FormData(event.currentTarget)
@@ -1837,7 +1870,7 @@ function VirementSection({
                 Motif obligatoire
                 <textarea name="reason" required maxLength="4000" />
               </label>
-              <div className="planning-actions">
+              <div className="flex gap-2 items-end flex-wrap">
                 {current.allowed_actions.includes('return') && (
                   <Button
                     type="submit"
@@ -1888,7 +1921,7 @@ function VirementSection({
       {requests.length > 0 && (
         <details>
           <summary>Historique des demandes ({result.count})</summary>
-          <ol className="review-timeline">
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {requests.map((request) => (
               <li key={request.id}>
                 <Button
@@ -1906,7 +1939,7 @@ function VirementSection({
           </ol>
           {(result.previous || result.next) && (
             <nav
-              className="planning-actions"
+              className="flex gap-2 items-end flex-wrap"
               aria-label="Pagination des virements"
             >
               <Button
@@ -1927,7 +1960,7 @@ function VirementSection({
           )}
         </details>
       )}
-    </section>
+    </Panel>
   )
 }
 
@@ -1946,10 +1979,15 @@ function OperationCard({ activity, operation, pending, mutate }) {
     operation.execution_observation ||
     operation.execution_completed
   return (
-    <article className="planning-card execution-operation">
-      <div className="planning-title">
+    <Panel
+      as="article"
+      className="[&_>_p]:flex [&_>_p]:items-center [&_>_p]:gap-2"
+    >
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
-          <p className="eyebrow">{operation.type_label}</p>
+          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+            {operation.type_label}
+          </p>
           <h2>{operation.name}</h2>
         </div>
         <span>{formatXof(operation.approved_allocation)} autorisés</span>
@@ -1981,7 +2019,7 @@ function OperationCard({ activity, operation, pending, mutate }) {
       {operation.allowed_actions.includes('record') && (
         <BusinessForm
           formRef={formRef}
-          className="planning-form"
+          className="[&_>_label]:w-full"
           onChangeCapture={() => {
             draftBasis.current ??= {
               version: activity.version,
@@ -2017,7 +2055,7 @@ function OperationCard({ activity, operation, pending, mutate }) {
             return result
           }}
         >
-          <div className="planning-grid">
+          <div className="flex gap-3 items-end flex-wrap">
             <label>
               Montant dépensé (XOF)
               <input
@@ -2027,7 +2065,7 @@ function OperationCard({ activity, operation, pending, mutate }) {
                 defaultValue={operation.actual_spent ?? ''}
               />
             </label>
-            <label className="execution-check">
+            <label className="grid-cols-[auto_1fr] items-center min-h-11 [&_input]:min-h-auto [&_input]:w-5 [&_input]:h-5">
               <input
                 name="execution_completed"
                 type="checkbox"
@@ -2063,7 +2101,7 @@ function OperationCard({ activity, operation, pending, mutate }) {
           </Button>
         </BusinessForm>
       )}
-    </article>
+    </Panel>
   )
 }
 
@@ -2079,7 +2117,7 @@ function FundingSection({ detail, result, pending, mutate, onPage, fallback }) {
     cancelled: strings.fundingCancelled,
   }
   return (
-    <section className="planning-card" aria-labelledby="funding-title">
+    <Panel aria-labelledby="funding-title">
       <h2 id="funding-title">{strings.fundingTitle}</h2>
       <p>{strings.fundingExplanation}</p>
       {detail.pause_reason === 'funding_required' && (
@@ -2120,7 +2158,7 @@ function FundingSection({ detail, result, pending, mutate, onPage, fallback }) {
       ))}
       {(result.previous || result.next) && (
         <nav
-          className="planning-actions"
+          className="flex gap-2 items-end flex-wrap"
           aria-label={strings.fundingPagination}
         >
           <Button
@@ -2139,7 +2177,7 @@ function FundingSection({ detail, result, pending, mutate, onPage, fallback }) {
           </Button>
         </nav>
       )}
-    </section>
+    </Panel>
   )
 }
 
@@ -2162,7 +2200,7 @@ function FundingRequest({ row, version, enabled, pending, mutate, states }) {
       },
     )
   return (
-    <article className="review-progress">
+    <article className="border-l-4 border-l-primary bg-background py-3 px-4">
       <h3>
         {formatXof(row.amount)} — {states[row.state]}
       </h3>
@@ -2171,7 +2209,7 @@ function FundingRequest({ row, version, enabled, pending, mutate, states }) {
         {formatXof(row.snapshot.new_allocation)}
       </p>
       <time dateTime={row.submitted_at}>{row.submitted_at}</time>
-      <ol className="review-timeline">
+      <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
         {row.decisions.map((decision) => (
           <li key={decision.id}>
             {decision.stage === 'supervisor'

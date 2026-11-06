@@ -181,3 +181,17 @@ relevant to the current task.
   sequential requests. Exclusive session-row locks can serialize independent
   page reads until statement timeouts; shared read protection must still retain
   account-revocation safety, verified with real database race tests.
+
+- A CSS-to-Tailwind migration must preserve the cascade, not just declarations.
+  Keep shared form/field defaults low-specificity (`:where`) so OTP and other
+  specialized controls can override them. Verify computed sizing, spacing and
+  focus in a real browser; functional form tests alone miss these regressions.
+
+- Do not remove a mounted disabled session Query when clearing authentication
+  state: its observer can remain attached to the discarded entry after OTP.
+  Clear the value while retaining the observer, and test the complete login →
+  OTP → authorized page flow without a reload (not only direct verified entry).
+
+- When narrowing role navigation, verify first-resource creation as well as lists.
+  Removing catalog access must not remove an Agent’s project/year entry for the
+  first PTA activity. Keep temporary year typing local before Router validation.

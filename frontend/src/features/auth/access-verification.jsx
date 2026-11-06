@@ -102,8 +102,7 @@ export function createAccessCoordinator({
     queryClient.removeQueries({
       predicate: (query) => query.queryKey[0] !== 'auth',
     })
-    if (removeSession)
-      queryClient.removeQueries({ queryKey: SESSION_KEY, exact: true })
+    if (removeSession) queryClient.setQueryData(SESSION_KEY, null)
     queryClient.getMutationCache().clear()
     return cancellation
   }

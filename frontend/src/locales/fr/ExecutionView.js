@@ -2,6 +2,7 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    zeroActivities: '0 activité',
     unavailableExecution: 'Les données de réalisation sont indisponibles.',
     executionDataLoading: 'Chargement des données de réalisation…',
     executionTitle: 'Réalisations',

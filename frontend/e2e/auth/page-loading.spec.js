@@ -58,8 +58,10 @@ for (const [path, title, role] of pages) {
     releaseSession()
     const loading = page.getByRole('status', { name: `Chargement : ${title}` })
     await expect(loading).toBeVisible()
-    await expect(loading).toHaveClass(/page-loading/)
-    await expect(page.locator('.loading-placeholder')).toHaveCount(0)
+    await expect(loading).toHaveCSS('display', 'grid')
+    await expect(page.locator('[data-ui~="loading-placeholder"]')).toHaveCount(
+      0,
+    )
     await expect(loading).toHaveAttribute('aria-busy', 'true')
     await expect.poll(() => dataReads).toBeGreaterThan(0)
     await expect(loading).toBeVisible()
@@ -95,7 +97,8 @@ for (const path of ['/invitation', '/reset-password']) {
     await page.route('**/api/v1/auth/session', () => new Promise(() => {}))
     await page.goto(path)
     await expect(page.getByRole('status')).toHaveAttribute('aria-busy', 'true')
-    await expect(page.locator('.auth-card')).toBeVisible()
+    await expect(page.locator('[data-ui~="auth-card"]')).toHaveCount(0)
+    await expect(page.locator('[data-ui="auth-layout"]')).toBeVisible()
   })
 }
 
@@ -187,6 +190,26 @@ test('project draft survives loading the next page of partner choices', async ({
   await page.getByRole('button', { name: 'Créer', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Créer un projet' })
   await dialog.getByLabel('Nom', { exact: true }).fill('Projet en brouillon')
+  await expect(dialog.getByLabel('Nom', { exact: true })).toHaveCSS(
+    'min-height',
+    '44px',
+  )
+  await page.screenshot({
+    path: '/tmp/mjl-tailwind-project-dialog-desktop.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  const bounds = await dialog.boundingBox()
+  expect(bounds.width).toBeLessThanOrEqual(358)
+  expect(bounds.x).toBeGreaterThanOrEqual(16)
+  expect(bounds.y).toBeGreaterThan(16)
+  await expect(dialog).toHaveCSS('border-radius', '8px')
+  await expect(dialog.locator('form')).toHaveCSS('gap', '24px')
+  await page.screenshot({
+    path: '/tmp/mjl-tailwind-project-dialog-mobile.png',
+    fullPage: true,
+  })
+
   await dialog.getByRole('button', { name: 'Suivant', exact: true }).click()
   await expect.poll(() => Boolean(releasePartners)).toBe(true)
   await expect(dialog.getByLabel('Nom', { exact: true })).toHaveValue(

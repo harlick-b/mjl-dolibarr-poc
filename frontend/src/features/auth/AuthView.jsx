@@ -1,3 +1,9 @@
+import { useLogout } from './LogoutProvider'
+import { loginDestination } from './navigation'
+import { PageLoading } from '@/shared/ui/PageLoading'
+import { buttonVariants } from '@/shared/ui/button-variants'
+import { AuthCard } from './AuthCard'
+import { cn } from '@/shared/lib/utils'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import {
   useCallback,
@@ -16,13 +22,13 @@ import {
 } from '@tanstack/react-router'
 import { Eye, EyeOff, LoaderCircle } from 'lucide-react'
 import { sessionKey } from './auth'
-import { roleLabels, workspacePath } from './authorization'
+import { roleLabels } from './authorization'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { Helmet } from 'react-helmet-async'
 import { strings } from '@/locales/fr/AuthView'
 import { strings as common } from '@/locales/fr/common'
 import { OtpInput } from './OtpInput'
-import { AdminSidebar } from '@/features/access/AdminSidebar'
+import { ApplicationSidebar } from './ApplicationSidebar'
 import {
   broadcastAuthenticationChange,
   isLocalAuthenticationChange,
@@ -43,7 +49,7 @@ function Password({ label, name, value, onChange, disabled }) {
   return (
     <label>
       {label}
-      <span className="auth-password">
+      <span className="flex relative [&_input]:pr-12 [&_button]:absolute [&_button]:right-0 [&_button]:top-0 [&_button]:min-h-11 [&_button]:w-11 [&_button]:grid [&_button]:place-items-center [&_button]:text-muted-foreground">
         <input
           name={name}
           disabled={disabled}
@@ -107,9 +113,8 @@ export function AuthView() {
   const [code, setCode] = useState('')
   const [notice, setNotice] = useState('')
   const [revalidation, setRevalidation] = useState(0)
-  const logoutPending = useRef(false)
-  const logoutCsrf = useRef(null)
-  const [logoutUnconfirmed, setLogoutUnconfirmed] = useState(false)
+  const { logout } = useLogout()
+  const [transition, setTransition] = useState(null)
   const [requestSent, setRequestSent] = useState(false)
   const [recoveryDone, setRecoveryDone] = useState(false)
   const generation = useRef(0)
@@ -125,6 +130,7 @@ export function AuthView() {
       api.auth(endpoint, { body, csrf, signal }),
     meta: { localError: true },
   })
+  const busy = Boolean(transition) || mutation.isPending
   const resetMutation = mutation.reset
 
   useEffect(() => {
@@ -134,6 +140,7 @@ export function AuthView() {
     inFlight.current = null
     controller.current?.abort()
     resetMutation()
+    setTransition(null)
     setPassword('')
     setConfirmation('')
     setCode('')
@@ -160,6 +167,7 @@ export function AuthView() {
       inFlight.current = null
       controller.current?.abort()
       resetMutation()
+      setTransition(null)
       setEmail('')
       setPassword('')
       setConfirmation('')
@@ -182,7 +190,7 @@ export function AuthView() {
 
   const refetchSession = session.refetch
   useEffect(() => {
-    if (!revalidation || !online || logoutUnconfirmed) return
+    if (!revalidation || !online) return
     const current = generation.current
     let cancelled = false
     void refetchSession().then((fresh) => {
@@ -192,47 +200,30 @@ export function AuthView() {
     return () => {
       cancelled = true
     }
-  }, [revalidation, online, logoutUnconfirmed, refetchSession])
+  }, [revalidation, online, refetchSession])
 
   useEffect(() => {
-    document.documentElement.dataset.authBusy = String(
-      dirty || mutation.isPending,
-    )
+    document.documentElement.dataset.authBusy = String(dirty || busy)
     return () => {
       delete document.documentElement.dataset.authBusy
     }
-  }, [dirty, mutation.isPending])
+  }, [dirty, busy])
 
   async function submit(event, endpoint, body, destination) {
     event?.preventDefault()
+    if (endpoint === 'logout') {
+      void logout()
+      return
+    }
     if (inFlight.current || !online) return
     if (endpoint === 'otp/verify' && !/^[0-9]{6}$/.test(body.code)) return
     const current = ++generation.current
     inFlight.current = current
     controller.current = new AbortController()
-    const retryingHeldLogout =
-      endpoint === 'logout' && (logoutUnconfirmed || access.reason === 'logout')
-    let csrf =
-      endpoint === 'logout'
-        ? (logoutCsrf.current ?? access.logoutCsrf ?? session.data?.csrf)
-        : session.data?.csrf
+    const csrf = session.data?.csrf
     setNotice('')
-    if (endpoint === 'logout') {
-      if (csrf) logoutCsrf.current = csrf
-      logoutPending.current = true
-      setLogoutUnconfirmed(true)
-      setRevalidation((version) => version + 1)
-      access.holdLogout(csrf)
-      await client.cancelQueries()
-      client.clear()
-    }
+    setTransition({ endpoint, session: session.data })
     try {
-      if (endpoint === 'logout' && (retryingHeldLogout || !csrf)) {
-        const preparedCsrf = await access.prepareLogout()
-        if (current !== generation.current) return
-        csrf = preparedCsrf
-        logoutCsrf.current = csrf
-      }
       await mutation.mutateAsync({
         endpoint,
         body,
@@ -247,40 +238,48 @@ export function AuthView() {
       }
       if (endpoint === 'password-reset/complete') {
         await client.cancelQueries()
-        client.clear()
+        client.removeQueries({
+          predicate: (query) => query.queryKey[0] !== 'auth',
+        })
+        client.getMutationCache().clear()
+        client.setQueryData(sessionKey, null)
         broadcastAuthenticationChange()
         setRecoveryDone(true)
         await router.invalidate()
         return
       }
       await client.cancelQueries()
-      client.clear()
+      client.removeQueries({
+        predicate: (query) => query.queryKey[0] !== 'auth',
+      })
+      client.getMutationCache().clear()
+      client.setQueryData(sessionKey, null)
       setPassword('')
       setConfirmation('')
       setCode('')
       setEmail('')
       broadcastAuthenticationChange()
-      logoutPending.current = false
-      logoutCsrf.current = null
-      setLogoutUnconfirmed(false)
-      access.releaseLogout()
-      await access.verify({ manual: true, reason: 'credentials' })
+      const fresh = await access.verify({ manual: true, reason: 'credentials' })
+      if (current !== generation.current) return
       setRevalidation(0)
-      if (destination) await navigate({ to: destination })
+      if (destination)
+        await navigate({
+          to: destination === '/' ? loginDestination(fresh) : destination,
+          replace: true,
+        })
       else setNotice('Un nouveau code a été envoyé.')
-      await client.invalidateQueries({ queryKey: sessionKey })
     } catch (error) {
       if (current !== generation.current) return
       if (error.status === 401 && endpoint !== 'login') {
         setRevalidation((version) => version + 1)
         await client.cancelQueries()
-        client.clear()
+        client.removeQueries({
+          predicate: (query) => query.queryKey[0] !== 'auth',
+        })
+        client.getMutationCache().clear()
+        client.setQueryData(sessionKey, null)
       }
-      setNotice(
-        endpoint === 'logout'
-          ? 'Déconnexion non confirmée. Reconnectez-vous au réseau puis réessayez.'
-          : error.message,
-      )
+      setNotice(error.message)
     } finally {
       if (inFlight.current === current) inFlight.current = null
       for (const pending of client.getMutationCache().getAll()) {
@@ -289,6 +288,7 @@ export function AuthView() {
       }
       if (current === generation.current) {
         resetMutation()
+        setTransition(null)
         setPassword('')
         setConfirmation('')
         if (endpoint.startsWith('otp/')) setCode('')
@@ -296,12 +296,15 @@ export function AuthView() {
     }
   }
 
+  const displaySession =
+    transition && !session.isError ? transition.session : session.data
   const state =
-    online && !session.isError && !session.isPending
-      ? session.data?.state
+    online && !session.isError && (!session.isPending || transition)
+      ? displaySession?.state
       : null
-  const verified = !revalidation && !session.isFetching && state === 'verified'
-  const disabled = !online || mutation.isPending || !session.data?.csrf
+  const verified =
+    !transition && !revalidation && !session.isFetching && state === 'verified'
+  const disabled = !online || busy || !session.data?.csrf
   const criteria = [
     [password.length >= 8, '8 caractères minimum'],
     [/\p{Lu}/u.test(password), 'Une majuscule'],
@@ -316,7 +319,8 @@ export function AuthView() {
         <h1>{strings.offlineTitle}</h1>
         <p>{strings.offlineMessage}</p>
         <button
-          className="auth-primary"
+          className={buttonVariants({ variant: 'auth' })}
+          data-ui="auth-primary"
           onClick={() => void access.verify({ manual: true }).catch(() => null)}
           type="button"
         >
@@ -325,27 +329,10 @@ export function AuthView() {
         {notice && <p role="alert">{notice}</p>}
       </>
     )
-  else if (logoutUnconfirmed || access.reason === 'logout')
-    content = (
-      <>
-        <h1>{strings.logoutHeading}</h1>
-        <form onSubmit={(e) => submit(e, 'logout', {}, '/login')}>
-          <AuthButton
-            className="auth-primary"
-            disabled={mutation.isPending}
-            busy={
-              mutation.isPending && mutation.variables?.endpoint === 'logout'
-            }
-          >
-            {strings.retryLogout}
-          </AuthButton>
-        </form>
-      </>
-    )
   else if (
-    session.isPending ||
+    (!transition && session.isPending) ||
     (session.isFetching && session.isError) ||
-    (revalidation && !session.isError) ||
+    (revalidation && !session.isError && !transition) ||
     (state === 'verified' && session.isFetching)
   )
     content = (
@@ -362,7 +349,8 @@ export function AuthView() {
         <h1>{strings.sessionUnavailable}</h1>
         <p role="alert">{strings.identityUnavailable}</p>
         <button
-          className="auth-primary"
+          className={buttonVariants({ variant: 'auth' })}
+          data-ui="auth-primary"
           onClick={async () => {
             const fresh = await session.refetch()
             if (!fresh.isError) setRevalidation(0)
@@ -373,7 +361,7 @@ export function AuthView() {
       </>
     )
   else if (verified && ['/', '/login', '/verification'].includes(path))
-    return <Navigate to={workspacePath(session.data.user.role)} replace />
+    return <Navigate to={loginDestination(session.data)} replace />
   else if (path === '/' || (path === '/verification' && state !== 'pending'))
     return (
       <Navigate to={state === 'pending' ? '/verification' : '/login'} replace />
@@ -383,7 +371,10 @@ export function AuthView() {
       <>
         <h1>{strings.forgotHeading}</h1>
         <p role="status">{strings.forgotConfirmation}</p>
-        <Link to="/login" className="auth-secondary">
+        <Link
+          to="/login"
+          className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
+        >
           {strings.backToLogin}
         </Link>
       </>
@@ -400,7 +391,7 @@ export function AuthView() {
             {strings.emailLabel}
             <input
               name="recoveryEmail"
-              disabled={mutation.isPending}
+              disabled={busy}
               type="email"
               autoComplete="email"
               required
@@ -410,17 +401,22 @@ export function AuthView() {
             />
           </label>
           <AuthButton
-            className="auth-primary"
+            className={buttonVariants({ variant: 'auth' })}
+            data-ui="auth-primary"
             disabled={disabled}
             busy={
-              mutation.isPending &&
-              mutation.variables?.endpoint === 'password-reset/requests'
+              busy &&
+              (transition?.endpoint || mutation.variables?.endpoint) ===
+                'password-reset/requests'
             }
           >
             {strings.forgotSubmit}
           </AuthButton>
         </form>
-        <Link to="/login" className="auth-secondary">
+        <Link
+          to="/login"
+          className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
+        >
           {strings.backToLogin}
         </Link>
       </>
@@ -430,7 +426,11 @@ export function AuthView() {
       <>
         <h1>{strings.resetHeading}</h1>
         <p role="status">{strings.resetSuccess}</p>
-        <Link to="/login" className="auth-primary">
+        <Link
+          to="/login"
+          className={buttonVariants({ variant: 'auth' })}
+          data-ui="auth-primary"
+        >
           {strings.backToLogin}
         </Link>
       </>
@@ -438,7 +438,11 @@ export function AuthView() {
       <>
         <h1>{strings.invalidResetTitle}</h1>
         <p role="alert">{strings.invalidResetMessage}</p>
-        <Link to="/forgot-password" className="auth-primary">
+        <Link
+          to="/forgot-password"
+          className={buttonVariants({ variant: 'auth' })}
+          data-ui="auth-primary"
+        >
           {strings.newRecovery}
         </Link>
       </>
@@ -460,13 +464,16 @@ export function AuthView() {
             <input type="email" value={loader.email} readOnly />
           </label>
           <Password
-            disabled={mutation.isPending}
+            disabled={busy}
             label={strings.newPasswordLabel}
             name="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <ul className="auth-criteria" aria-live="polite">
+          <ul
+            className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-success [&_li[data-valid='true']]:bg-success-badge"
+            aria-live="polite"
+          >
             {criteria.map(([ok, label]) => (
               <li key={label} data-valid={ok}>
                 {ok ? '✓' : '○'} {label}
@@ -474,7 +481,7 @@ export function AuthView() {
             ))}
           </ul>
           <Password
-            disabled={mutation.isPending}
+            disabled={busy}
             label={strings.confirmationLabel}
             name="confirmation"
             value={confirmation}
@@ -485,10 +492,12 @@ export function AuthView() {
           )}
           <AuthButton
             busy={
-              mutation.isPending &&
-              mutation.variables?.endpoint === 'password-reset/complete'
+              busy &&
+              (transition?.endpoint || mutation.variables?.endpoint) ===
+                'password-reset/complete'
             }
-            className="auth-primary"
+            className={buttonVariants({ variant: 'auth' })}
+            data-ui="auth-primary"
             disabled={
               disabled ||
               !criteria.every(([ok]) => ok) ||
@@ -511,21 +520,30 @@ export function AuthView() {
           <dd>{roleLabels[session.data.user.role]}</dd>
         </dl>
         {session.data.user.role === 'ADMIN_PLATEFORME' && (
-          <Link to="/access/users" className="auth-secondary">
+          <Link
+            to="/access/users"
+            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
+          >
             Gérer les utilisateurs
           </Link>
         )}
         {session.data.user.role === 'PARTENAIRE' && (
-          <Link to="/partner" className="auth-secondary">
+          <Link
+            to="/partner"
+            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
+          >
             Accéder à mon espace Partenaire
           </Link>
         )}
         <form onSubmit={(e) => submit(e, 'logout', {}, '/login')}>
           <AuthButton
-            className="auth-primary"
+            className={buttonVariants({ variant: 'auth' })}
+            data-ui="auth-primary"
             disabled={disabled}
             busy={
-              mutation.isPending && mutation.variables?.endpoint === 'logout'
+              busy &&
+              (transition?.endpoint || mutation.variables?.endpoint) ===
+                'logout'
             }
           >
             Se déconnecter
@@ -561,25 +579,25 @@ export function AuthView() {
               )
             }
           >
-            <div className="auth-email-summary">
+            <div className="grid gap-1 py-3 px-4 rounded-panel bg-selected wrap-anywhere text-[0.8125rem] leading-5 [&_span]:text-muted-foreground [&_span]:text-xs [&_strong]:font-medium">
               <span>{strings.emailLabel}</span>
               <strong>{loader.email}</strong>
             </div>
             <Password
-              disabled={mutation.isPending}
+              disabled={busy}
               label={strings.newPasswordLabel}
               name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <Password
-              disabled={mutation.isPending}
+              disabled={busy}
               label="Confirmer le mot de passe"
               name="confirmation"
               value={confirmation}
               onChange={(e) => setConfirmation(e.target.value)}
             />
-            <ul className="auth-criteria">
+            <ul className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-success [&_li[data-valid='true']]:bg-success-badge">
               {criteria.map(([ok, label]) => (
                 <li key={label} data-valid={ok}>
                   {ok ? '✓' : '○'} {label}
@@ -591,10 +609,12 @@ export function AuthView() {
             )}
             <AuthButton
               busy={
-                mutation.isPending &&
-                mutation.variables?.endpoint === 'invitations/accept'
+                busy &&
+                (transition?.endpoint || mutation.variables?.endpoint) ===
+                  'invitations/accept'
               }
-              className="auth-primary"
+              className={buttonVariants({ variant: 'auth' })}
+              data-ui="auth-primary"
               disabled={
                 disabled ||
                 !criteria.every(([ok]) => ok) ||
@@ -605,7 +625,10 @@ export function AuthView() {
             </AuthButton>
           </form>
         )}
-        <Link to="/login" className="auth-secondary auth-return">
+        <Link
+          to="/login"
+          className="flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5 mt-4"
+        >
           {strings.backToLogin}
         </Link>
       </>
@@ -614,9 +637,9 @@ export function AuthView() {
     content = (
       <>
         <h1>{strings.otpHeading}</h1>
-        <p className="auth-otp-intro">
+        <p className="[&_strong]:block [&_strong]:mt-2 [&_strong]:text-foreground [&_strong]:font-medium">
           {strings.otpPrompt}
-          <strong>{session.data.email || strings.otpEmailFallback}</strong>
+          <strong>{displaySession.email || strings.otpEmailFallback}</strong>
         </p>
         <form onSubmit={(e) => submit(e, 'otp/verify', { code }, '/')}>
           <OtpInput
@@ -625,44 +648,51 @@ export function AuthView() {
             onComplete={(completed) =>
               submit(null, 'otp/verify', { code: completed }, '/')
             }
-            disabled={mutation.isPending}
+            disabled={busy}
           />
           <AuthButton
-            className="auth-primary"
+            className={buttonVariants({ variant: 'auth' })}
+            data-ui="auth-primary"
             disabled={disabled || !/^[0-9]{6}$/.test(code)}
             busy={
-              mutation.isPending &&
-              mutation.variables?.endpoint === 'otp/verify'
+              busy &&
+              (transition?.endpoint || mutation.variables?.endpoint) ===
+                'otp/verify'
             }
           >
             {strings.otpSubmit}
           </AuthButton>
         </form>
         <form
-          className="auth-otp-resend"
+          className="mt-4 flex items-center justify-center gap-2 text-[0.8125rem] text-muted-foreground"
+
           onSubmit={(e) => submit(e, 'otp/resend', {})}
         >
           <span>{strings.otpNotReceived}</span>
           <AuthButton
-            className="auth-secondary"
+            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
             disabled={disabled}
             busy={
-              mutation.isPending &&
-              mutation.variables?.endpoint === 'otp/resend'
+              busy &&
+              (transition?.endpoint || mutation.variables?.endpoint) ===
+                'otp/resend'
             }
           >
             {strings.otpResend}
           </AuthButton>
         </form>
         <form
-          className="auth-otp-cancel"
+          className="mt-0"
+
           onSubmit={(e) => submit(e, 'logout', {}, '/login')}
         >
           <AuthButton
-            className="auth-secondary"
+            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
             disabled={disabled}
             busy={
-              mutation.isPending && mutation.variables?.endpoint === 'logout'
+              busy &&
+              (transition?.endpoint || mutation.variables?.endpoint) ===
+                'logout'
             }
           >
             {strings.backToLogin}
@@ -683,7 +713,7 @@ export function AuthView() {
             Adresse e-mail
             <input
               name="email"
-              disabled={mutation.isPending}
+              disabled={busy}
               type="email"
               autoComplete="username"
               required
@@ -693,20 +723,25 @@ export function AuthView() {
             />
           </label>
           <Password
-            disabled={mutation.isPending}
+            disabled={busy}
             label="Mot de passe"
             name="loginPassword"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <Link to="/forgot-password" className="auth-forgot">
+          <Link
+            to="/forgot-password"
+            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5 -mt-5 justify-self-end"
+          >
             {strings.forgotLink}
           </Link>
           <AuthButton
-            className="auth-primary"
+            className={buttonVariants({ variant: 'auth' })}
+            data-ui="auth-primary"
             disabled={disabled}
             busy={
-              mutation.isPending && mutation.variables?.endpoint === 'login'
+              busy &&
+              (transition?.endpoint || mutation.variables?.endpoint) === 'login'
             }
           >
             {strings.loginSubmit}
@@ -716,18 +751,12 @@ export function AuthView() {
     )
 
   const adminUser =
-    path === '/identity' &&
-    !revalidation &&
-    state === 'verified' &&
-    session.data.user.role === 'ADMIN_PLATEFORME'
+    path === '/identity' && !revalidation && state === 'verified'
       ? session.data.user
       : null
+  if (session.isPending && !transition) return <AuthLoading path={path} />
   return (
-    <AuthFrame
-      user={adminUser}
-      title={authTitle(path)}
-      busy={mutation.isPending}
-    >
+    <AuthFrame user={adminUser} title={authTitle(path)} busy={busy}>
       {content}
       {online && notice && <p role="alert">{notice}</p>}
     </AuthFrame>
@@ -748,32 +777,62 @@ function authTitle(path) {
             : strings.loginHeading
 }
 
-export function AuthFrame({ user, title, busy, children }) {
+export function AuthFrame({ user, title, busy, children, loading = false }) {
   return (
-    <div className={user ? 'access-layout' : 'auth-layout'}>
+    <div
+      className={
+        user
+          ? 'grid grid-cols-[256px_minmax(0,_1fr)] min-h-screen [&_small]:block [&_small]:text-muted-foreground [&_small]:mt-1 max-[761px]:grid-cols-[minmax(0,_1fr)]'
+          : 'min-h-dvh grid grid-cols-[min(360px,_24%)_minmax(0,_1fr)] max-[761px]:grid-cols-1'
+      }
+      data-ui={user ? 'access-layout' : 'auth-layout'}
+    >
       <Helmet>
         <title>{title}</title>
       </Helmet>
       {user ? (
-        <AdminSidebar user={user} />
+        <ApplicationSidebar user={user} />
       ) : (
-        <aside className="auth-brand" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
+        <aside
+          className="relative overflow-hidden bg-navy max-[761px]:hidden"
+          data-ui="auth-brand"
+          aria-hidden="true"
+        >
+          {[
+            'top-[20%] left-[15%]',
+            'top-[30%] left-[30%]',
+            'top-[40%] left-[45%]',
+            'top-[50%] left-[60%]',
+          ].map((position) => (
+            <span
+              key={position}
+              className={cn(
+                'absolute h-[110%] w-[110%] -rotate-12 rounded-t-[999px] border border-support/25 bg-linear-to-r from-support/20 to-transparent',
+                position,
+              )}
+            />
+          ))}
         </aside>
       )}
-      <main className={user ? 'auth-main access-account-main' : 'auth-main'}>
+      <main
+        className={cn(
+          'grid min-w-0 gap-8 px-8 py-6 max-[761px]:gap-6 max-[761px]:px-4',
+          user ? 'grid-rows-1' : 'grid-rows-[auto_1fr]',
+        )}
+      >
         {!user && (
-          <header>
-            <img src="/icon-192.png" alt="" width="36" height="36" />
+          <header className="flex items-center gap-3 text-2xl leading-8 text-navy">
+            <img
+              className="rounded-control"
+              src="/icon-192.png"
+              alt=""
+              width="36"
+              height="36"
+            />
             <strong>MJL</strong>
           </header>
         )}
-        <section className="auth-card" aria-busy={busy}>
-          {children}
-        </section>
+        {loading ? children : <AuthCard busy={busy}>{children}</AuthCard>}
       </main>
     </div>
   )
@@ -781,10 +840,8 @@ export function AuthFrame({ user, title, busy, children }) {
 
 export function AuthLoading({ path }) {
   return (
-    <AuthFrame title={authTitle(path)} busy>
-      <AuthMinimalLoading
-        label={path === '/identity' ? strings.accountLoading : common.loading}
-      />
+    <AuthFrame title={authTitle(path)} busy loading>
+      <PageLoading title={authTitle(path)} className="min-h-0 h-full" />
     </AuthFrame>
   )
 }
@@ -802,15 +859,15 @@ export function AccessVerificationState({
   return (
     <AuthFrame title={title} busy={!failed}>
       <div
-        className="auth-access-state"
+        className="grid gap-4 [&_p]:m-0 [&_[data-ui~='auth-primary']]:mt-2"
         role={failed ? 'alert' : 'status'}
         aria-label={failed ? undefined : strings.verificationTitle}
         aria-busy={failed ? undefined : 'true'}
       >
-        <div className="auth-access-heading">
+        <div className="flex items-center gap-3">
           {!failed && (
             <LoaderCircle
-              className="page-loading-spinner"
+              className="text-primary animate-spin [animation-duration:0.8s]"
               size={22}
               aria-hidden="true"
             />
@@ -825,7 +882,12 @@ export function AccessVerificationState({
               : strings.verificationMessage}
         </p>
         {failed && (
-          <button className="auth-primary" onClick={onRetry} type="button">
+          <button
+            className={buttonVariants({ variant: 'auth' })}
+            data-ui="auth-primary"
+            onClick={onRetry}
+            type="button"
+          >
             {common.retry}
           </button>
         )}
@@ -837,13 +899,13 @@ export function AccessVerificationState({
 function AuthMinimalLoading({ label = common.loading }) {
   return (
     <div
-      className="auth-minimal-loading"
+      className="min-h-28 grid place-content-center justify-items-center gap-2 text-muted-foreground [&_p]:m-0"
       role="status"
       aria-label={label}
       aria-busy="true"
     >
       <LoaderCircle
-        className="page-loading-spinner"
+        className="text-primary animate-spin [animation-duration:0.8s]"
         size={22}
         aria-hidden="true"
       />
@@ -856,11 +918,7 @@ function AuthButton({ busy, children, ...props }) {
   return (
     <button {...props} aria-busy={busy || undefined}>
       {busy && (
-        <LoaderCircle
-          className="auth-button-spinner"
-          aria-hidden="true"
-          size={16}
-        />
+        <LoaderCircle className="animate-spin" aria-hidden="true" size={16} />
       )}
       {children}
     </button>
