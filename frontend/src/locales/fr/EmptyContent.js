@@ -31,6 +31,10 @@ export const strings = new LocalizedStrings({
       'Aucune activité',
       'Ce PTA ne contient pas encore d’activité.',
     ],
+    executionNoPta: [
+      'Aucune activité',
+      'Aucune activité approuvée n’est disponible pour le moment.',
+    ],
     execution: [
       'Aucune activité',
       'Aucune activité approuvée n’est disponible pour ce PTA.',

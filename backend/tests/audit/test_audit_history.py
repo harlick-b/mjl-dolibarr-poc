@@ -203,3 +203,117 @@ def test_openapi_exposes_only_the_sanitized_history_shape(planning):
         "actor",
         "activity",
     }
+
+
+def test_history_filters_apply_before_pagination_and_bind_cursors(planning):
+    client = planning["validator"]
+    for name in ["Recherche cible A", "Recherche cible B", "Sans rapport"]:
+        assert post(client, "/api/v1/partners", {"name": name}).status_code == 201
+    result = client.get(
+        "/api/v1/audit-events",
+        params={"q": "Recherche cible", "action": "partner.create", "limit": 1},
+    )
+    assert result.status_code == 200, result.text
+    body = result.json()
+    assert body["count"] == 2
+    assert len(body["data"]) == 1
+    assert body["data"][0]["subject"].startswith("Recherche cible")
+    following = client.get(body["next"])
+    assert following.status_code == 200
+    assert following.json()["data"][0]["id"] != body["data"][0]["id"]
+    query = parse_qs(urlsplit(body["next"]).query)
+    query["q"] = ["Sans rapport"]
+    assert (
+        client.get(
+            "/api/v1/audit-events",
+            params={key: value[0] for key, value in query.items()},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.get(
+            "/api/v1/audit-events?date_from=2027-02-01&date_to=2027-01-01"
+        ).status_code
+        == 422
+    )
+    assert client.get("/api/v1/audit-events?action=login").status_code == 422
+
+
+def test_history_project_filters_include_project_and_activity_and_export(planning):
+    from datetime import datetime
+    from uuid import uuid4
+    from zoneinfo import ZoneInfo
+
+    from tests.planning.test_planning import plan
+
+    client = planning["validator"]
+    _partner, operation_type, project = references(planning)
+    created = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            **plan(operation_type),
+            "request_key": str(uuid4()),
+        },
+    )
+    assert created.status_code == 201, created.text
+    activity = created.json()
+    filters = {"project": project["id"]}
+    result = client.get("/api/v1/audit-events", params=filters)
+    assert result.status_code == 200, result.text
+    rows = result.json()["data"]
+    assert {row["action"] for row in rows} == {"project.create", "activity.create"}
+    specific = client.get(
+        "/api/v1/audit-events", params={**filters, "activity": activity["id"]}
+    ).json()
+    assert [row["action"] for row in specific["data"]] == ["activity.create"]
+    today = datetime.now(ZoneInfo("Africa/Porto-Novo")).date().isoformat()
+    dated = client.get(
+        "/api/v1/audit-events", params={**filters, "date_from": today, "date_to": today}
+    ).json()
+    assert {row["id"] for row in dated["data"]} == {row["id"] for row in rows}
+    actors = client.get("/api/v1/audit-events/filter-options?kind=actor").json()["data"]
+    actor = next(row for row in actors if row["id"] == rows[0]["actor"]["id"])
+    assert (
+        client.get(
+            "/api/v1/audit-events", params={**filters, "actor": actor["id"]}
+        ).json()["count"]
+        == 1
+    )
+    exported = client.post(
+        "/api/v1/reports/audit/exports",
+        params=filters,
+        headers=headers(client),
+        json={"format": "csv"},
+    )
+    assert exported.status_code == 200, exported.text
+    assert "Projet créé" in exported.text and "Activité créée" in exported.text
+    assert "Partenaire créé" not in exported.text
+    for kind in ["actor", "activity", "project", "action"]:
+        options = client.get(
+            "/api/v1/audit-events/filter-options", params={"kind": kind, "limit": 1}
+        )
+        assert options.status_code == 200, options.text
+        assert len(options.json()["data"]) == 1
+        if options.json()["next"]:
+            next_page = client.get(options.json()["next"])
+            assert next_page.status_code == 200, next_page.text
+            assert next_page.json()["data"][0]["id"] != options.json()["data"][0]["id"]
+            token = parse_qs(urlsplit(options.json()["next"]).query)["cursor"][0]
+            assert (
+                client.get(
+                    "/api/v1/audit-events/filter-options",
+                    params={
+                        "kind": "project" if kind != "project" else "actor",
+                        "limit": 1,
+                        "cursor": token,
+                    },
+                ).status_code
+                == 422
+            )
+        assert (
+            planning["agent"]
+            .get("/api/v1/audit-events/filter-options", params={"kind": kind})
+            .status_code
+            == 403
+        )

@@ -1369,3 +1369,83 @@ def test_execution_and_actor_deactivation_serialize(planning, first):
         assert second_response.status_code == 401
         with Session(planning["auth"].engine) as db:
             assert db.get(Operation, operation["id"]).execution_started_at is None
+
+
+def test_execution_filters_use_approved_name_and_do_not_change_authorization(planning):
+    activity = approved_execution_activity(planning)
+    client = planning["agent"]
+    path = f"/api/v1/ptas/{activity['pta_id']}/execution"
+    assert (
+        client.get(path, params={"q": activity["name"], "state": "ongoing"}).json()[
+            "count"
+        ]
+        == 1
+    )
+    assert client.get(path, params={"q": "Introuvable"}).json()["count"] == 0
+    assert client.get(path, params={"state": "closed"}).json()["count"] == 0
+    assert client.get(path, params={"state": "invalid"}).status_code == 422
+    assert client.get(path, params={"agent": "invalid"}).status_code == 422
+
+
+def test_execution_filter_ignores_new_unapproved_operations(planning):
+    activity = approved_execution_activity(planning, allocations=[100000])
+    operation = activity["operations"][0]
+    agent = planning["agent"]
+    started = patch(
+        agent,
+        execution_path(activity, operation),
+        {
+            "action": "start",
+            "expected_version": activity["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+        },
+    ).json()
+    recorded = patch(
+        agent,
+        execution_path(activity, operation),
+        {
+            "action": "record",
+            "expected_version": started["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "actual_spent": "100000",
+            "execution_completed": True,
+            "execution_observation": "Terminée.",
+        },
+    )
+    assert recorded.status_code == 200, recorded.text
+    opened = open_amendment(planning, recorded.json())
+    changed = patch(
+        planning["agent2"],
+        f"/api/v1/activities/{activity['id']}",
+        {
+            "expected_version": opened["version"],
+            "name": "Nom non approuvé",
+            "description": opened["description"],
+            "planned_start": opened["planned_start"],
+            "planned_end": opened["planned_end"],
+            "allocation": "110000",
+            "operations": [
+                {
+                    key: operation[key]
+                    for key in ["id", "type_id", "name", "allocation"]
+                },
+                {
+                    "type_id": operation["type_id"],
+                    "name": "Nouvelle opération",
+                    "allocation": "10000",
+                },
+            ],
+        },
+    )
+    assert changed.status_code == 200, changed.text
+    path = f"/api/v1/ptas/{activity['pta_id']}/execution"
+    physical = agent.get(path, params={"state": "physical", "q": activity["name"]})
+    assert physical.status_code == 200, physical.text
+    assert physical.json()["count"] == 1
+    assert agent.get(path, params={"state": "ongoing"}).json()["count"] == 0
+    assert agent.get(path, params={"q": "Nom non approuvé"}).json()["count"] == 0
+    options = agent.get(path + "/agents")
+    assert options.status_code == 200, options.text
+    assert planning["admin"].get(path + "/agents").status_code == 403
+    assert agent.get(path + "/agents?limit=0").status_code == 422
+    assert agent.get(path + "/agents?cursor=invalid").status_code == 422

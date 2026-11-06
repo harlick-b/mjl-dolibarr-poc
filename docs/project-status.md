@@ -6,6 +6,68 @@ for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
 
+## Current UI follow-up boundary
+
+Browser titles use a single string for React 19. Business dialogs share a visible
+heading, close control, separated action footer and backdrop dismissal; Project
+closure uses the same confirmation dialog. Projects preload Partner availability,
+disable creation for an empty catalog, expose read retry and exclude inactive
+Partner choices. Empty messages are centered, with reference table headers and
+History/Réalisation search toolbars retained.
+
+Partners have an optional saved description (maximum 4,000 characters). Migration
+`0026_partner_description` preserves existing Partners with a null description;
+its exact schema is included in the authentication eligibility fingerprint.
+History filters run before pagination and also apply to CSV: search, action,
+author, Activity, Project and inclusive Porto-Novo date range. Réalisation filters
+search approved Activity names/reference, assigned Agent and physical progress
+(in progress/completed/closed). Query keys and signed cursors include filters;
+changing PTA cannot display the previous PTA's rows. Additional financial-stage
+filters shown in the prototype are not implemented by this change.
+
+Operation-category placement is now resolved: Agents de saisie can create a
+category directly alongside an Operation in Activity creation/edit forms. The
+new category is selected without submitting or resetting the Activity draft.
+Partners no longer owns category management. Validator API creation remains
+allowed; Supervisor/Admin/Partner creation remains denied. Errors stay in the
+category dialog; writes retain CSRF, transaction and audit protections.
+
+Empty-state/filter verification before the category follow-up (base `e11c4f4`, bundle
+`index-B5olx9lv.js`, 2026-11-06):
+
+- `npm run test:unit -- src/features/planning/planning.test.jsx
+src/features/planning/document-denial.test.jsx
+src/features/execution/execution.test.jsx
+src/features/audit/audit-history.test.jsx`: 68 passed.
+- `npm run build` followed by `npm run test:e2e --
+e2e/auth/empty-states.spec.js`: 19 passed. Desktop empty-state captures and the
+  mobile Partner modal were inspected; this is not human visual acceptance.
+- Disposable PostgreSQL: `.venv/bin/pytest` with
+  `tests/planning/test_planning.py::test_partner_description_upgrade_preserves_existing_partner`,
+  `tests/planning/test_planning.py::test_partner_optional_description_round_trips`,
+  `tests/audit/test_audit_history.py`, `tests/audit/test_audit_export.py`,
+  `tests/execution/test_execution.py::test_execution_filters_use_approved_name_and_do_not_change_authorization`
+  and `tests/execution/test_execution.py::test_execution_filter_ignores_new_unapproved_operations`:
+  18 passed. The migration test verifies the populated predecessor round-trip and
+  the final authentication schema fingerprint, not only fresh-schema creation.
+- Independent review inspected the final code and test logs; no blocking findings
+  remain for the implemented scope.
+- Changed-file Prettier and Ruff checks, mypy (42 source files), and diff checks
+  passed. ESLint has no errors; the existing auth lifecycle-ref warning and build
+  chunk-size warning remain. Local `/api/v1/auth/session` returned HTTP 200.
+
+Category follow-up verification (2026-11-06, bundle `index-CDXhb2pj.js`):
+`npm run test:unit -- src/features/planning/planning.test.jsx` passed 33 tests.
+Disposable PostgreSQL tests
+`test_agents_create_operation_categories_with_existing_guards` and
+`test_p02_p12_p13_role_matrix_and_coordination_assignment` passed (2 tests),
+including capabilities, role denials and missing CSRF. The focused Agent test
+first failed with 403 before the permission change. The current browser suite
+`npm run test:e2e -- e2e/auth/empty-states.spec.js` passed 20 tests covering category creation,
+error retry, selection, no accidental Activity submission and preserved drafts.
+Build, changed-file Ruff, ESLint (same pre-existing warning), and diff checks pass.
+Independent review inspected the final evidence and found no blocking issues.
+
 ## Implemented
 
 - Session-service outages return to login with a refresh-safe local sign-out hold.
@@ -42,9 +104,9 @@ own their subjects. [README](../README.md) owns setup and development commands.
   Historical events without those facts cannot be retroactively reconstructed.
 - Partners/Projects use reference table layouts and actual project counts/partner
   names. Execution uses approved execution rows, current assigned names, period,
-  progress and administrative stage. Empty messages are centered. Operation-type
-  maintenance remains in a secondary disclosure on Partners, fetched on demand;
-  its failure does not replace the Partners page.
+  progress and administrative stage. Empty messages are centered. Operation-category
+  creation now lives in the Activity form, as described in the current follow-up
+  boundary above.
 
   Current verification: 43 affected disposable-PostgreSQL tests passed across
   auth/profile, access, audit history/CSV and Dashboard reads. Focused follow-ups
@@ -53,10 +115,10 @@ own their subjects. [README](../README.md) owns setup and development commands.
   and secondary-section checks. The earlier 38-case browser run had 34 passes,
   two failures subsequently fixed/rechecked, and two environment-gated recovery
   skips; it was not a complete pass. Final `npm run test:unit -- --maxWorkers=1
-  --reporter=verbose` passed all 179 tests; earlier interrupted broad runs are
+--reporter=verbose` passed all 179 tests; earlier interrupted broad runs are
   superseded by this completed run. `tests/auth/test_auth.py` passed 4 additional
   disposable-PostgreSQL tests. Backend commands use `.venv/bin/python
-  /tmp/mjl-auth-fix-tests.py` with `tests/auth/test_profile.py`,
+/tmp/mjl-auth-fix-tests.py` with `tests/auth/test_profile.py`,
   `tests/auth/test_access.py`, `tests/audit/test_audit_history.py`,
   `tests/audit/test_audit_export.py` and `tests/planning/test_dashboard_reads.py`;
   the helper creates and drops isolated local test databases. Browser commands
@@ -79,9 +141,9 @@ own their subjects. [README](../README.md) owns setup and development commands.
   No account/password data was changed. Personal password/OTP login is unverified.
 
   Focused verification: `npm run test:unit -- src/features/auth/auth.test.jsx
-  src/shared/api/rest-client.test.js --maxWorkers=1` passed 22 tests. `npm run
-  test:e2e -- e2e/auth/navigation-transitions.spec.js e2e/auth/recovery.spec.js
-  --output=/tmp/mjl-auth-fix-browser` passed 7 tests; 2 real-service recovery tests
+src/shared/api/rest-client.test.js --maxWorkers=1` passed 22 tests. `npm run
+test:e2e -- e2e/auth/navigation-transitions.spec.js e2e/auth/recovery.spec.js
+--output=/tmp/mjl-auth-fix-browser` passed 7 tests; 2 real-service recovery tests
   skipped because their isolated backend/mail fixture was not configured.
   `.venv/bin/pytest tests/auth/test_auth.py -q` passed 4 tests using disposable
   PostgreSQL databases, including a full password/OTP journey and error contract.

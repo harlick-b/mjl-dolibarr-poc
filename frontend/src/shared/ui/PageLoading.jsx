@@ -51,7 +51,7 @@ export function PageLoading({ title, className, label = common.dataLoading }) {
       aria-busy="true"
     >
       <Helmet>
-        <title>{title} — MJL</title>
+        <title>{`${title} — MJL`}</title>
       </Helmet>
       <LoaderCircle
         className="text-primary animate-spin [animation-duration:0.8s]"

@@ -1,3 +1,5 @@
+import hashlib
+import json
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID
@@ -6,8 +8,9 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
@@ -643,6 +646,9 @@ def execution_list(
     request: Request,
     auth: Auth,
     args: Annotated[tuple[int, str | None], Depends(list_args)],
+    q: Annotated[str, Query(max_length=200)] = "",
+    state: Literal["", "ongoing", "physical", "closed"] = "",
+    agent: UUID | None = None,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
@@ -650,13 +656,81 @@ def execution_list(
         if not pta or pta.context_id != CONTEXT:
             raise AuthError(404, "pta_not_found")
         limit, token = args
-        cursor = Cursor(auth, "pta-execution", pta.id, limit)
+        filters = {
+            key: value
+            for key, value in {
+                "q": q.strip(),
+                "state": state,
+                "agent": str(agent) if agent else "",
+            }.items()
+            if value
+        }
+        scope = (
+            pta.id
+            + ":"
+            + hashlib.sha256(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        )
+        cursor = Cursor(auth, "pta-execution", scope, limit)
         marker, direction = cursor.decode(token)
         conditions = [
             Activity.pta_id == pta.id,
             Activity.approved_revision_id.is_not(None),
             Activity.state != "withdrawn",
         ]
+        if q.strip():
+            conditions.append(
+                or_(
+                    Activity.reference.icontains(q.strip(), autoescape=True),
+                    select(ActivityRevision.id)
+                    .where(
+                        ActivityRevision.id == Activity.approved_revision_id,
+                        ActivityRevision.snapshot["name"].astext.icontains(
+                            q.strip(), autoescape=True
+                        ),
+                    )
+                    .exists(),
+                )
+            )
+        if state == "closed":
+            conditions.append(Activity.state == "closed")
+        elif state:
+            incomplete = (
+                select(Operation.id)
+                .where(
+                    Operation.activity_id == Activity.id,
+                    Operation.removed_at.is_(None),
+                    Operation.execution_completed.is_(False),
+                    select(ActivityRevision.id)
+                    .where(
+                        ActivityRevision.id == Activity.approved_revision_id,
+                        ActivityRevision.snapshot["operations"].contains(
+                            func.jsonb_build_array(
+                                func.jsonb_build_object("id", Operation.id)
+                            )
+                        ),
+                    )
+                    .correlate(Activity, Operation)
+                    .exists(),
+                )
+                .exists()
+            )
+            conditions.extend(
+                [
+                    Activity.state != "closed",
+                    incomplete if state == "ongoing" else ~incomplete,
+                ]
+            )
+        if agent:
+            conditions.append(
+                select(ActivityAssignment.id)
+                .where(
+                    ActivityAssignment.activity_id == Activity.id,
+                    ActivityAssignment.agent_id == str(agent),
+                    ActivityAssignment.ended_at.is_(None),
+                )
+                .exists()
+            )
+        base_conditions = tuple(conditions)
         if marker:
             try:
                 marker = str(UUID(marker))
@@ -669,11 +743,7 @@ def execution_list(
         rows, total = page_rows(
             db,
             Activity,
-            (
-                Activity.pta_id == pta.id,
-                Activity.approved_revision_id.is_not(None),
-                Activity.state != "withdrawn",
-            ),
+            base_conditions,
             tuple(conditions),
             (order,),
             limit,
@@ -684,7 +754,9 @@ def execution_list(
             rows.reverse()
 
         def link(row: Activity, move: str) -> str:
-            query = urlencode({"limit": limit, "cursor": cursor.encode(row.id, move)})
+            query = urlencode(
+                {**filters, "limit": limit, "cursor": cursor.encode(row.id, move)}
+            )
             return f"{auth.policy.origin}/api/v1/ptas/{pta.id}/execution?{query}"
 
         details = [execution_detail(db, row, actor.role) for row in rows]
@@ -947,6 +1019,81 @@ def execution_history(
             "object": "list",
             "count": total,
             "data": data,
+            "next": link(rows[-1], "next")
+            if rows and ((direction == "next" and more) or direction == "previous")
+            else None,
+            "previous": link(rows[0], "previous")
+            if rows
+            and ((direction == "previous" and more) or (direction == "next" and marker))
+            else None,
+        }
+
+
+class ExecutionAgentOption(Input):
+    id: str
+    label: str
+
+
+@router.get(
+    "/ptas/{identifier}/execution/agents",
+    response_model=ListOutput[ExecutionAgentOption],
+)
+def execution_agents(
+    identifier: str,
+    request: Request,
+    auth: Auth,
+    args: Annotated[tuple[int, str | None], Depends(list_args)],
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        principal(db, auth, evidence(request, auth)[0])
+        pta = db.get(AnnualPTA, identifier)
+        if not pta or pta.context_id != CONTEXT:
+            raise AuthError(404, "pta_not_found")
+        limit, token = args
+        cursor = Cursor(auth, "execution-agents", pta.id, limit)
+        marker, direction = cursor.decode(token)
+        assigned = (
+            select(ActivityAssignment.id)
+            .join(Activity, Activity.id == ActivityAssignment.activity_id)
+            .where(
+                Activity.pta_id == pta.id,
+                Activity.approved_revision_id.is_not(None),
+                Activity.state != "withdrawn",
+                ActivityAssignment.agent_id == User.id,
+                ActivityAssignment.ended_at.is_(None),
+            )
+            .exists()
+        )
+        conditions: list[ColumnElement[bool]] = [assigned]
+        if marker:
+            conditions.append(
+                User.id > marker if direction == "next" else User.id < marker
+            )
+        rows, total = page_rows(
+            db,
+            User,
+            (assigned,),
+            tuple(conditions),
+            (User.id.asc() if direction == "next" else User.id.desc(),),
+            limit,
+        )
+        more = len(rows) > limit
+        rows = rows[:limit]
+        if direction == "previous":
+            rows.reverse()
+
+        def link(row: User, move: str) -> str:
+            return (
+                f"{auth.policy.origin}/api/v1/ptas/{pta.id}/execution/agents?"
+                + urlencode({"limit": limit, "cursor": cursor.encode(row.id, move)})
+            )
+
+        return {
+            "object": "list",
+            "count": total,
+            "data": [
+                {"id": row.id, "label": row.full_name or row.email} for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

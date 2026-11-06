@@ -175,8 +175,9 @@ Password criteria use the selected blue background/primary text when satisfied;
 OTP boxes are centered. Successful invitation activation prefills only the login
 email through navigation state, never the password or URL.
 Partners and Projects retain their reference table/empty-state composition.
-Operation-type maintenance remains available in a collapsed secondary section
-on Partners, loaded only when opened. Execution lists show period, progress,
+Agents create operation categories in the Activity operation form using the shared
+dialog. Saving selects the category without submitting or resetting the Activity
+draft. Category management does not appear on Partners. Execution lists show period, progress,
 current assigned names and administrative stage from server facts.
 
 The workspace has no horizontal navigation/header. Relances sits above sidebar
@@ -186,3 +187,11 @@ auth frame otherwise. Logout links target `/logout`. Session-service failure ret
 to login with an unavailable message and deliberate recovery, never an endless
 verification loop. Invitation HTML and plain text follow the supplied
 `mjl-email-invitation-final.html` wording, including the invited role.
+
+### Shared business dialogs
+
+Use the supplied project dialog structure: visible title and right-hand close
+control, padded body, and a bordered footer with Cancel before the primary action.
+Keep selector pagination in the body, above the action footer. Clicking outside
+the content dismisses dialogs; clicks inside, including Select popups, do not.
+Return focus to the opener. Dismissal does not cancel a write already sent.

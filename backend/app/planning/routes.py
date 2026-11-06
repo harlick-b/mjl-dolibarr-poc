@@ -88,6 +88,15 @@ class NameInput(Input):
         return value.strip() if isinstance(value, str) else value
 
 
+class PartnerInput(NameInput):
+    description: str | None = Field(default=None, max_length=4000)
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalized_description(cls, value: object) -> object:
+        return (value.strip() or None) if isinstance(value, str) else value
+
+
 class TypeInput(Input):
     label: str = Field(min_length=1, max_length=200)
 
@@ -227,6 +236,7 @@ class DecisionInput(Input):
 
 
 class PartnerOutput(Input):
+    description: str | None
     id: str
     name: str
     active: bool
@@ -730,7 +740,7 @@ def partners(
     response_model=PartnerOutput,
     openapi_extra=MUTATION_HEADERS,
 )
-def create_partner(body: NameInput, request: Request, auth: Auth) -> Response:
+def create_partner(body: PartnerInput, request: Request, auth: Auth) -> Response:
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
         actor = principal(
@@ -744,6 +754,7 @@ def create_partner(body: NameInput, request: Request, auth: Auth) -> Response:
         item = Partner(
             context_id=CONTEXT,
             name=clean(body.name, 200),
+            description=body.description,
             active=True,
             creator_id=actor.id,
             created_at=now,
@@ -796,7 +807,7 @@ def create_operation_type(body: TypeInput, request: Request, auth: Auth) -> Resp
             db,
             auth,
             *evidence(request, auth),
-            roles={"VALIDATEUR_DEFINITIF"},
+            roles={"AGENT_SAISIE", "VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
         now = auth.now(db)

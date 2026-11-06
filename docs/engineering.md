@@ -221,7 +221,6 @@ normalized query key. Session revalidation is a security transition owned by the
 access coordinator, not a bare session-key invalidation: it must mask and purge
 protected state first. Selected/current views of the same revision share one key.
 
-
 Use Query v5 gcTime/isPending and appropriate placeholderData; never retain another
 principal's data. Choose freshness per resource, especially session/permissions;
 do not apply global one-hour freshness or 48-hour sensitive retention. Protected
@@ -249,7 +248,8 @@ suppress duplicate expiry/abort feedback. Query errors stay inline, field errors
 beside fields, blocking errors discoverable after toasts vanish. Success follows
 confirmed server success. Use react-localization, French default/fallback, stable
 code translation and named interpolation. HelmetProvider owns localized route
-titles without sensitive metadata. Storage helpers may retain only namespaced
+titles without sensitive metadata. Pass title content as one string (including
+interpolated suffixes); React 19 does not accept multiple title children. Storage helpers may retain only namespaced
 non-sensitive preferences, tolerate bad/unavailable storage and clear owned keys.
 
 ## Shared display and pagination helpers
@@ -365,12 +365,12 @@ and offers deliberate retry; it does not silently restore the previous workspace
 
 Current sidebar page matrix (2026-11-05):
 
-| Role | Pages |
-| --- | --- |
-| Agent / Superviseur | Tableau de bord, Prévisions (PTA), Réalisation |
+| Role                 | Pages                                                                            |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Agent / Superviseur  | Tableau de bord, Prévisions (PTA), Réalisation                                   |
 | Validateur définitif | Tableau de bord, Prévisions (PTA), Réalisation, Partenaires, Projets, Historique |
-| Admin | Tableau de bord, Utilisateurs, Historique |
-| Partenaire | Tableau de bord, Mes projets, Exports |
+| Admin                | Tableau de bord, Utilisateurs, Historique                                        |
+| Partenaire           | Tableau de bord, Mes projets, Exports                                            |
 
 Internal reminders open in a modal from the sidebar; they are not an extra page.
 Prévisions retains project/year entry so an Agent can create the first activity

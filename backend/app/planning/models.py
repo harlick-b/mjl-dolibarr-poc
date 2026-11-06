@@ -41,6 +41,7 @@ class Partner(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     context_id: Mapped[str] = mapped_column(ForeignKey("mjl_ownership_context.id"))
     name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(String(4000), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     creator_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

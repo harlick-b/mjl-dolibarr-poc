@@ -350,6 +350,14 @@ export function makeRouter(history, componentOverrides = {}) {
       getParentRoute: () => root,
       path: `/${screen}`,
       validateSearch: (search) => ({
+        ...(screen === 'execution'
+          ? Object.fromEntries(
+              ['q', 'state', 'agent'].map((key) => [
+                key,
+                String(search[key] || '').slice(0, key === 'q' ? 200 : 36),
+              ]),
+            )
+          : {}),
         project: String(search.project || '').slice(0, 36),
         pta: String(search.pta || '').slice(0, 36),
         projectCursor: String(search.projectCursor || '').slice(0, 512),
@@ -573,6 +581,14 @@ export function makeRouter(history, componentOverrides = {}) {
       pendingMinMs: 0,
       gcTime: 0,
       validateSearch: (search) => ({
+        ...(screen === 'list'
+          ? Object.fromEntries(
+              ['q', 'state', 'agent'].map((key) => [
+                key,
+                String(search[key] || '').slice(0, key === 'q' ? 200 : 36),
+              ]),
+            )
+          : {}),
         cursor: String(search.cursor || '').slice(0, 512),
         historyCursor: String(search.historyCursor || '').slice(0, 512),
         financeCursor: String(search.financeCursor || '').slice(0, 512),
@@ -608,10 +624,37 @@ export function makeRouter(history, componentOverrides = {}) {
     pendingComponent: HistoryLoading,
     pendingMs: 0,
     pendingMinMs: 0,
-    search: { middlewares: [stripSearchParams({ cursor: '' })] },
+    search: {
+      middlewares: [
+        stripSearchParams({
+          cursor: '',
+          q: '',
+          actor: '',
+          activity: '',
+          action: '',
+          project: '',
+          date_from: '',
+          date_to: '',
+        }),
+      ],
+    },
     gcTime: 0,
     validateSearch: (search) => ({
       cursor: String(search.cursor || '').slice(0, 512),
+      ...Object.fromEntries(
+        [
+          'q',
+          'actor',
+          'activity',
+          'action',
+          'project',
+          'date_from',
+          'date_to',
+        ].map((key) => [
+          key,
+          String(search[key] || '').slice(0, key === 'q' ? 200 : 48),
+        ]),
+      ),
     }),
   })
   const accessCoordinator = createAccessCoordinator({

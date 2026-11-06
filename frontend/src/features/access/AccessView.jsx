@@ -1,3 +1,4 @@
+import { outsideDialog } from '@/shared/ui/dialog-events'
 import { Select } from '@/shared/ui/select'
 import { EmptyTable } from '@/shared/ui/EmptyContent'
 import { AdminShell, AdminMain } from '@/shared/ui/layout'
@@ -660,6 +661,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
   const session = useSessionQuery()
   const [partnerCursor, setPartnerCursor] = useState('')
   const ref = useRef(null)
+  const outside = useRef(false)
   const [inviteRole, setInviteRole] = useState('AGENT_SAISIE')
   const partners = useQuery({
     queryKey: [
@@ -707,6 +709,12 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
       className="data-[checking]:hidden! [&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_input]:min-h-11 [&_input]:border [&_input]:border-border [&_input]:rounded-control [&_input]:py-2 [&_input]:px-3 [&_input]:bg-white [&_input]:max-w-full [&_select]:min-h-11 [&_select]:border [&_select]:border-border [&_select]:rounded-control [&_select]:py-2 [&_select]:px-3 [&_select]:bg-white [&_select]:max-w-full [&_button]:min-h-11 [&_button:disabled]:opacity-50 [&_button:disabled]:cursor-not-allowed m-auto p-0 w-[min(560px,_calc(100%_-_32px))] border border-border rounded-panel max-h-[calc(100vh_-_32px)] overflow-auto text-foreground [&::backdrop]:bg-overlay [&_>_[data-ui~='access-heading']]:m-0 [&_>_[data-ui~='access-heading']]:py-4 [&_>_[data-ui~='access-heading']]:px-6 [&_>_[data-ui~='access-heading']]:border-b [&_>_[data-ui~='access-heading']]:border-b-border [&_h2]:text-xl [&_h2]:font-semibold [&_fieldset_>_p]:p-6 [&_footer]:flex [&_footer]:justify-end [&_footer]:flex-wrap [&_footer]:items-center [&_footer]:gap-4 [&_footer]:py-4 [&_footer]:px-6 [&_footer]:border-t [&_footer]:border-t-border [&_footer_button[type='button']]:border [&_footer_button[type='button']]:border-strong-border [&_footer_button[type='button']]:py-2 [&_footer_button[type='button']]:px-4 [&_footer_button[type='button']]:rounded-control"
       inert={checking || undefined}
       data-checking={checking || undefined}
+      onPointerDown={(event) => {
+        outside.current = outsideDialog(event)
+      }}
+      onClick={(event) => {
+        if (outside.current && outsideDialog(event)) close()
+      }}
       aria-labelledby="invitation-title"
       onKeyDown={(event) => {
         if (event.key !== 'Tab') return

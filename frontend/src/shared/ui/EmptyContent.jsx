@@ -6,16 +6,16 @@ export function EmptyContent({ kind, action, large = false }) {
     <div
       data-ui="empty-content"
       className={cn(
-        'grid min-h-38 content-center justify-items-center gap-3 px-5 py-10 text-center',
+        'grid min-h-38 content-center justify-items-center gap-2.5 px-6 py-8 text-center',
         large && 'min-h-54',
       )}
     >
       {title && (
-        <h2 className="w-full text-center! text-base font-medium! text-navy">
+        <h2 className="w-full text-center! text-base font-medium! text-foreground">
           {title}
         </h2>
       )}
-      <p className="max-w-140 text-[0.8125rem] leading-6 text-muted-foreground">
+      <p className="max-w-120 text-[0.8125rem] leading-[1.65] text-muted-foreground">
         {message}
       </p>
       {action && <div className="mt-2">{action}</div>}
@@ -31,7 +31,10 @@ export function EmptyTable({ kind, columns }) {
             {columns.map((column) => (
               <th
                 key={column}
-                className="border-b border-border px-3 py-3 font-medium text-navy"
+                className={cn(
+                  'border-b border-border px-3 py-3 font-medium text-navy',
+                  column === 'budget' && 'text-right',
+                )}
               >
                 {strings[column]}
               </th>

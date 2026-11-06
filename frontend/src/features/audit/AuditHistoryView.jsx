@@ -1,12 +1,20 @@
+import { ListFilters } from '@/shared/ui/ListFilters'
+import { QueryFilterSelect } from '@/shared/ui/QueryFilterSelect'
+import { strings as filtersText } from '@/locales/fr/ListFilters'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
-import { businessActionClassName } from '@/shared/ui/button-variants'
+import { Button } from '@/shared/ui/button'
 import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { strings } from '@/locales/fr/AuditHistoryView'
 import { useEffect, useRef } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Download } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
@@ -42,13 +50,23 @@ function History({ session, onDenied }) {
   const generation = useRef(0)
   const exportController = useRef(null)
   const cursor = search.cursor || ''
+  const filters = Object.fromEntries(
+    ['q', 'action', 'actor', 'activity', 'project', 'date_from', 'date_to']
+      .filter((key) => search[key])
+      .map((key) => [key, search[key]]),
+  )
+  const filterQuery = new URLSearchParams(filters).toString()
+  const changeFilters = (values) =>
+    navigate({ to: '/history', search: { ...search, ...values, cursor: '' } })
+  const resetFilters = () => navigate({ to: '/history', search: {} })
   const canOpenActivity = authorization(session).can('business')
   const result = useQuery({
-    queryKey: [...historyRoot, session.user.id, cursor, 60],
+    placeholderData: keepPreviousData,
+    queryKey: [...historyRoot, session.user.id, cursor, 60, filterQuery],
     queryFn: async ({ signal }) => {
       try {
         return await api.request(
-          `/api/v1/audit-events${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+          `/api/v1/audit-events${filterQuery || cursor ? '?' + new URLSearchParams({ ...filters, ...(cursor ? { cursor } : {}) }) : ''}`,
           { signal },
         )
       } catch (error) {
@@ -71,12 +89,15 @@ function History({ session, onDenied }) {
       const current = generation.current
       const controller = new AbortController()
       exportController.current = controller
-      const file = await api.download('/api/v1/reports/audit/exports', {
-        method: 'POST',
-        csrf: session.csrf,
-        body: { format: 'csv' },
-        signal: controller.signal,
-      })
+      const file = await api.download(
+        `/api/v1/reports/audit/exports${filterQuery ? '?' + filterQuery : ''}`,
+        {
+          method: 'POST',
+          csrf: session.csrf,
+          body: { format: 'csv' },
+          signal: controller.signal,
+        },
+      )
       if (current !== generation.current)
         throw new DOMException('Stale authorization', 'AbortError')
       return file
@@ -102,12 +123,17 @@ function History({ session, onDenied }) {
     return (
       <RetryableError page onRetry={() => void result.refetch()}>
         {strings.unavailable}
+        {filterQuery && (
+          <Button variant="outline" onClick={resetFilters}>
+            {filtersText.reset}
+          </Button>
+        )}
       </RetryableError>
     )
   const move = (link) =>
     navigate({
       to: '/history',
-      search: { cursor: cursorFrom(link, '/audit-events') },
+      search: { ...search, cursor: cursorFrom(link, '/audit-events') },
     })
   return (
     <section className="grid gap-6" aria-busy={result.isFetching}>
@@ -122,25 +148,78 @@ function History({ session, onDenied }) {
         <div>
           <h1>Historique</h1>
         </div>
-        <button
-          className={businessActionClassName}
+        <Button
+          loading={download.isPending}
           disabled={download.isPending || result.data.count === 0}
           onClick={() => download.mutate()}
           type="button"
         >
           <Download aria-hidden="true" size={18} />
-          {download.isPending ? 'Génération…' : 'Exporter le CSV'}
-        </button>
+          Exporter le CSV
+        </Button>
       </div>
       <Panel as="div" className="overflow-x-auto p-0 gap-0">
-        <div className="flex justify-between border-b border-border p-5 text-[0.8125rem]">
+        <ListFilters
+          value={search.q || ''}
+          onSearch={(q) => changeFilters({ q })}
+          label={filtersText.searchHistory}
+          active={Object.keys(filters).some((key) => key !== 'q')}
+          onReset={resetFilters}
+        >
+          {['activity', 'actor', 'action', 'project'].map((kind) => (
+            <QueryFilterSelect
+              key={kind}
+              kind={kind}
+              value={search[kind]}
+              onChange={(value) => changeFilters({ [kind]: value })}
+            />
+          ))}
+          <label>
+            {filtersText.from}
+            <input
+              aria-label="Date de début de période"
+              type="date"
+              value={search.date_from || ''}
+              max={search.date_to || undefined}
+              onChange={(event) =>
+                changeFilters({ date_from: event.target.value })
+              }
+            />
+          </label>
+          <label>
+            {filtersText.to}
+            <input
+              aria-label="Date de fin de période"
+              type="date"
+              value={search.date_to || ''}
+              min={search.date_from || undefined}
+              onChange={(event) =>
+                changeFilters({ date_to: event.target.value })
+              }
+            />
+          </label>
+        </ListFilters>
+        <div className="flex justify-between border-b border-border px-5 py-3.5 text-[0.8125rem]">
           <span>
-            {result.data.count} {strings.events}
+            {result.data.count}{' '}
+            {result.data.count > 1
+              ? strings.eventsPlural
+              : strings.eventsSingular}
           </span>
           <span className="text-muted-foreground">{strings.newestFirst}</span>
         </div>
         {result.data.data.length === 0 ? (
-          <EmptyContent kind="history" large />
+          <EmptyContent
+            kind={filterQuery ? 'search' : 'history'}
+            large
+            action={
+              filterQuery ? (
+                <Button variant="outline" onClick={resetFilters}>
+                  {filtersText.reset}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <table className="w-full text-left text-sm min-w-190 mt-4 mr-0 mb-6 ml-0 p-0 border-t border-t-border list-none [&_th]:bg-background [&_th]:font-medium [&_th]:p-3 [&_td]:p-3 [&_td]:border-b [&_td]:border-border [&_div]:grid [&_div]:gap-1 [&_time]:text-muted-foreground [&_time]:text-[0.82rem] [&_small]:text-muted-foreground [&_small]:text-[0.82rem]">
             <thead>

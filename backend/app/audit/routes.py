@@ -9,9 +9,11 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
+from app.audit.filters import filter_scope, history_conditions, history_filters
 from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
@@ -443,6 +445,7 @@ def audit_events(
     request: Request,
     auth: Auth,
     pagination: Annotated[tuple[int, str | None], Depends(args)],
+    filters: Annotated[dict[str, str], Depends(history_filters)],
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         principal(
@@ -453,9 +456,10 @@ def audit_events(
             read_only=True,
         )
         limit, token = pagination
-        cursor = Cursor(auth, "audit-events", CONTEXT, limit)
+        cursor = Cursor(auth, "audit-events", filter_scope(filters), limit)
         marker, direction = cursor.decode(token)
-        conditions: list[Any] = [Audit.action.in_(BUSINESS_ACTIONS)]
+        base_conditions = history_conditions(filters, ACTION_LABELS, BUSINESS_ACTIONS)
+        conditions: list[Any] = list(base_conditions)
         if marker:
             try:
                 marker_id = int(marker)
@@ -470,7 +474,7 @@ def audit_events(
         rows, total = page_rows(
             db,
             Audit,
-            (Audit.action.in_(BUSINESS_ACTIONS),),
+            tuple(base_conditions),
             tuple(conditions),
             (order,),
             limit,
@@ -482,7 +486,7 @@ def audit_events(
 
         def link(row: Audit, move: str) -> str:
             query = urlencode(
-                {"limit": limit, "cursor": cursor.encode(str(row.id), move)}
+                {**filters, "limit": limit, "cursor": cursor.encode(str(row.id), move)}
             )
             return f"{auth.policy.origin}/api/v1/audit-events?{query}"
 
@@ -510,7 +514,12 @@ def audit_events(
         }
     },
 )
-def audit_export(body: ExportInput, request: Request, auth: Auth) -> Response:
+def audit_export(
+    body: ExportInput,
+    request: Request,
+    auth: Auth,
+    filters: Annotated[dict[str, str], Depends(history_filters)],
+) -> Response:
     with Session(auth.engine) as db, db.begin():
         db.execute(text("SELECT pg_advisory_xact_lock_shared(1843201)"))
         secret, csrf = evidence(request, auth)
@@ -522,25 +531,20 @@ def audit_export(body: ExportInput, request: Request, auth: Auth) -> Response:
             roles={"VALIDATEUR_DEFINITIF", "ADMIN_PLATEFORME"},
             mutation=True,
         )
+        selected = (
+            select(Audit.id)
+            .where(*history_conditions(filters, ACTION_LABELS, BUSINESS_ACTIONS))
+            .order_by(Audit.id)
+            .limit(10001)
+            .subquery()
+        )
         raw_snapshot, raw_event_ids = db.execute(
-            text(
-                """
-                /* audit_export_snapshot */
-                SELECT statement_timestamp(),
-                       COALESCE(
-                         array_agg(selected.id ORDER BY selected.id),
-                         ARRAY[]::bigint[]
-                       )
-                FROM (
-                  SELECT id FROM auth_audit WHERE action = ANY(:actions)
-                  ORDER BY id LIMIT 10001
-                ) AS selected
-                """
-            ),
-            {"actions": list(BUSINESS_ACTIONS)},
+            select(
+                func.statement_timestamp(), func.array_agg(selected.c.id)
+            ).prefix_with("/* audit_export_snapshot */")
         ).one()
         snapshot = cast(datetime, raw_snapshot)
-        event_ids = cast(list[int], raw_event_ids)
+        event_ids = cast(list[int], raw_event_ids or [])
         # The IDs and advertised time come from one statement. Audit rows are
         # append-only; the shared lifecycle lock keeps their User/Activity
         # projections stable while they are materialized below.
@@ -588,3 +592,143 @@ def audit_export(body: ExportInput, request: Request, auth: Auth) -> Response:
                 "Content-Length": str(len(artifact)),
             },
         )
+
+
+class FilterOption(Output):
+    id: str
+    label: str
+
+
+class FilterOptions(Output):
+    object: Literal["list"]
+    count: int
+    data: list[FilterOption]
+    next: str | None
+    previous: str | None
+
+
+@router.get("/audit-events/filter-options", response_model=FilterOptions)
+def audit_filter_options(
+    request: Request,
+    auth: Auth,
+    pagination: Annotated[tuple[int, str | None], Depends(args)],
+    kind: Literal["actor", "activity", "project", "action"],
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        principal(
+            db,
+            auth,
+            evidence(request, auth)[0],
+            roles={"ADMIN_PLATEFORME", "VALIDATEUR_DEFINITIF"},
+            read_only=True,
+        )
+        limit, token = pagination
+        cursor = Cursor(auth, "audit-filter-options", CONTEXT + ":" + kind, limit)
+        marker, direction = cursor.decode(token)
+        if kind == "action":
+            # The business action vocabulary is fixed and bounded, never event payloads.
+            options = [
+                {"id": key, "label": ACTION_LABELS[key]} for key in BUSINESS_ACTIONS
+            ]
+            options.sort(key=lambda row: row["id"])
+            if marker:
+                options = [
+                    row
+                    for row in options
+                    if (
+                        row["id"] > marker
+                        if direction == "next"
+                        else row["id"] < marker
+                    )
+                ]
+            if direction == "previous":
+                options.reverse()
+            total = len(BUSINESS_ACTIONS)
+        else:
+            from app.audit.filters import activity_match
+
+            model: Any = {"actor": User, "activity": Activity, "project": Project}[kind]
+            exists: ColumnElement[bool]
+            if kind == "actor":
+                exists = (
+                    select(Audit.id)
+                    .where(Audit.action.in_(BUSINESS_ACTIONS), Audit.actor == model.id)
+                    .exists()
+                )
+            elif kind == "activity":
+                exists = (
+                    select(Audit.id)
+                    .where(Audit.action.in_(BUSINESS_ACTIONS), activity_match())
+                    .exists()
+                )
+            else:
+                exists = (
+                    select(Audit.id)
+                    .where(Audit.action.in_(BUSINESS_ACTIONS), Audit.target == model.id)
+                    .exists()
+                )
+                activity_exists = (
+                    select(Activity.id)
+                    .where(
+                        Activity.request_project_id == model.id,
+                        select(Audit.id)
+                        .where(Audit.action.in_(BUSINESS_ACTIONS), activity_match())
+                        .exists(),
+                    )
+                    .exists()
+                )
+                exists = exists | activity_exists
+            conditions = [exists]
+            if kind != "actor":
+                conditions.append(model.context_id == CONTEXT)
+            filtered = list(conditions)
+            if marker:
+                filtered.append(
+                    model.id > marker if direction == "next" else model.id < marker
+                )
+            rows, total = page_rows(
+                db,
+                model,
+                tuple(conditions),
+                tuple(filtered),
+                (model.id.asc() if direction == "next" else model.id.desc(),),
+                limit,
+            )
+            options = [
+                {
+                    "id": row.id,
+                    "label": (row.full_name or row.email)
+                    if kind == "actor"
+                    else row.name,
+                }
+                for row in rows
+            ]
+        more = len(options) > limit
+        options = options[:limit]
+        if direction == "previous":
+            options.reverse()
+
+        def link(row: dict[str, str], move: str) -> str:
+            return (
+                f"{auth.policy.origin}/api/v1/audit-events/filter-options?"
+                + urlencode(
+                    {
+                        "kind": kind,
+                        "limit": limit,
+                        "cursor": cursor.encode(row["id"], move),
+                    }
+                )
+            )
+
+        return {
+            "object": "list",
+            "count": total,
+            "data": options,
+            "next": link(options[-1], "next")
+            if options and ((direction == "next" and more) or direction == "previous")
+            else None,
+            "previous": link(options[0], "previous")
+            if options
+            and ((direction == "previous" and more) or (direction == "next" and marker))
+            else None,
+        }

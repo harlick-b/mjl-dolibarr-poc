@@ -31,7 +31,7 @@ export function Select({
         (option) => String(option.props.value) === String(localValue),
       )
         ? localValue
-        : options[0]?.props.value) ??
+        : options.find((option) => !option.props.disabled)?.props.value) ??
       '',
   )
   const empty = options.find((option) => option.props.value === '')

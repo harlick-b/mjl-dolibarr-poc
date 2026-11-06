@@ -150,7 +150,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0025_profile_names"]:
+        if revisions != ["0026_partner_description"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -305,7 +305,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "bf0fc72e9130d5b1e0a76d044ea41ba52836d24b4441339a3e4c0805581cd7e6"
+            "224fbefb4678ce436af2a68a611dab10709e4d690a219d2c489f05624f6ee401"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -1046,7 +1046,7 @@ class AuthService:
             if not isinstance(value, dict):
                 return False
             fields = {
-                "partner": {"id", "name", "active", "allowed_actions"},
+                "partner": {"id", "name", "description", "active", "allowed_actions"},
                 "type": {"id", "label", "active", "allowed_actions"},
                 "project": {
                     "id",
@@ -1092,6 +1092,10 @@ class AuthService:
                 isinstance(action, str) for action in value["allowed_actions"]
             ):
                 return False
+            if shape == "partner" and value.get("description") is not None:
+                description = value["description"]
+                if not isinstance(description, str) or len(description) > 4000:
+                    return False
             if shape in {"partner", "type"}:
                 label = value.get("name" if shape == "partner" else "label")
                 return (

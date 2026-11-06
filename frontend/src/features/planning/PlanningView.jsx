@@ -1,3 +1,4 @@
+import { CategoryCreator } from './CategoryCreator'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
 import { businessActionClassName } from '@/shared/ui/button-variants'
@@ -149,7 +150,6 @@ function Workspace({ screen, session, onDenied }) {
   const navigate = useNavigate()
   const user = session.user
   const [error, setError] = useState('')
-  const [typesOpen, setTypesOpen] = useState(false)
   const [workflowReconciliation, setWorkflowReconciliation] = useState(null)
   const authGeneration = useRef(0)
   const mutationController = useRef(null)
@@ -208,7 +208,7 @@ function Workspace({ screen, session, onDenied }) {
             : []),
         ])
       }
-      setError(problem.message)
+      if (variables.path !== '/operation-types') setError(problem.message)
     },
     onSuccess: async (_result, variables) => {
       setError('')
@@ -394,11 +394,11 @@ function Workspace({ screen, session, onDenied }) {
       cursorPath('/operation-types', search.typeCursor),
       onDenied,
     ),
-    enabled: (screen === 'partners' && typesOpen) || screen === 'activityNew',
+    enabled: screen === 'activityNew',
   })
   const planningQueries =
     screen === 'partners'
-      ? [partners, ...(typesOpen ? [types] : [])]
+      ? [partners]
       : screen === 'projects'
         ? [projects]
         : screen === 'pta'
@@ -427,7 +427,15 @@ function Workspace({ screen, session, onDenied }) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const form = event.currentTarget
-    await mutation.mutateAsync({ path, body: { [field]: data.get(field) } })
+    await mutation.mutateAsync({
+      path,
+      body: {
+        [field]: data.get(field),
+        ...(path === '/partners'
+          ? { description: data.get('description') || null }
+          : {}),
+      },
+    })
     form.reset()
   }
   const submitProject = (event) => {
@@ -471,7 +479,7 @@ function Workspace({ screen, session, onDenied }) {
       aria-busy={loading}
     >
       <Helmet>
-        <title>{labels[screen]} — MJL</title>
+        <title>{`${labels[screen]} — MJL`}</title>
       </Helmet>
       {!['projects', 'partners'].includes(screen) && (
         <>
@@ -523,38 +531,6 @@ function Workspace({ screen, session, onDenied }) {
                 : null
             }
           />
-          <details
-            className="mt-8"
-            open={typesOpen}
-            onToggle={(event) => setTypesOpen(event.currentTarget.open)}
-          >
-            <summary className="cursor-pointer text-sm text-primary">
-              {strings.operationTypes}
-            </summary>
-            {typesOpen && types.isError && (
-              <RetryableError onRetry={() => void types.refetch()}>
-                {strings.unavailablePlanning}
-              </RetryableError>
-            )}
-            {typesOpen && types.isPending && (
-              <PageLoading title={strings.operationTypes} />
-            )}
-            {typesOpen && types.data && (
-              <ReferenceList
-                title={strings.operationTypes}
-                result={types.data}
-                label="label"
-                inputLabel={strings.operationLabel}
-                cursorKey="typeCursor"
-                navigate={navigate}
-                onSubmit={
-                  user.role === 'VALIDATEUR_DEFINITIF'
-                    ? (e) => submitSimple(e, '/operation-types', 'label')
-                    : null
-                }
-              />
-            )}
-          </details>
         </>
       )}
       {screen === 'projects' && (
@@ -563,18 +539,13 @@ function Workspace({ screen, session, onDenied }) {
           canCreate={user.role === 'VALIDATEUR_DEFINITIF'}
           onSubmit={submitProject}
           navigate={navigate}
-          onClose={(row) => {
-            if (
-              window.confirm(
-                strings.formatString(strings.closeProjectPrompt, row.name),
-              )
-            )
-              mutation.mutate({
-                path: `/projects/${row.id}`,
-                method: 'PATCH',
-                body: { expected_version: row.version, action: 'close' },
-              })
-          }}
+          onClose={(row) =>
+            mutation.mutateAsync({
+              path: `/projects/${row.id}`,
+              method: 'PATCH',
+              body: { expected_version: row.version, action: 'close' },
+            })
+          }
         />
       )}
       {screen === 'pta' && (
@@ -600,6 +571,12 @@ function Workspace({ screen, session, onDenied }) {
       {screen === 'activityNew' && (
         <div hidden={types.isPending}>
           <ActivityForm
+            onCreateType={(label) =>
+              mutation.mutateAsync({
+                path: '/operation-types',
+                body: { label },
+              })
+            }
             types={types.data?.data || []}
             typeResult={types.data}
             navigate={navigate}
@@ -669,7 +646,7 @@ function ReferenceList({
   const opener = useRef(null)
   const rows = result?.data || []
   return (
-    <Panel as="div" className="border-0 bg-transparent p-0">
+    <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         {title === strings.partners ? (
           <h1 className="text-2xl font-semibold text-navy">{title}</h1>
@@ -687,7 +664,11 @@ function ReferenceList({
         <Modal
           open={open}
           onClose={() => setOpen(false)}
-          label={strings.formatString(strings.addTo, title)}
+          label={
+            title === strings.partners
+              ? strings.createPartner
+              : strings.formatString(strings.addTo, title)
+          }
           opener={opener}
         >
           <BusinessForm
@@ -700,8 +681,13 @@ function ReferenceList({
               {inputLabel}
               <input name={label} required maxLength="200" />
             </label>
-            <div className="flex gap-2 items-end flex-wrap">
-              <Button type="submit">{strings.add}</Button>
+            {title === strings.partners && (
+              <label>
+                {strings.description}
+                <textarea name="description" maxLength={4000} />
+              </label>
+            )}
+            <div data-ui="modal-actions">
               <Button
                 type="button"
                 variant="outline"
@@ -709,6 +695,7 @@ function ReferenceList({
               >
                 {strings.cancel}
               </Button>
+              <Button type="submit">{strings.save}</Button>
             </div>
           </BusinessForm>
         </Modal>
@@ -740,7 +727,14 @@ function ReferenceList({
                   key={row.id}
                   className="border-b border-border last:border-0"
                 >
-                  <td className="px-3 py-4 font-medium">{row[label]}</td>
+                  <td className="px-3 py-4">
+                    <span className="font-medium">{row[label]}</span>
+                    {row.description && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {row.description}
+                      </p>
+                    )}
+                  </td>
                   {title === strings.partners && (
                     <>
                       <td className="px-3 py-4">{row.project_count ?? '—'}</td>
@@ -774,6 +768,8 @@ function ReferenceList({
 
 function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
   const [open, setOpen] = useState(false)
+  const [closing, setClosing] = useState(null)
+  const closeOpener = useRef(null)
   const { api } = useAPI()
   const session = useSessionQuery()
   const search = useSearch({ strict: false })
@@ -785,7 +781,7 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
       cursorPath('/partners', search.partnerCursor),
       () => {},
     ),
-    enabled: open && canCreate,
+    enabled: canCreate,
   })
   const partnerResult = partnerChoices.data
   const partners = partnerResult?.data || []
@@ -793,15 +789,54 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
   const [year, setYear] = useState(new Date().getFullYear())
   const rows = result?.data || []
   return (
-    <Panel as="div" className="border-0 bg-transparent p-0">
+    <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <h1 className="text-2xl font-semibold text-navy">{strings.projects}</h1>
         {canCreate && (
-          <Button ref={opener} type="button" onClick={() => setOpen(true)}>
+          <Button
+            ref={opener}
+            type="button"
+            disabled={!partners.length}
+            onClick={() => setOpen(true)}
+          >
             <Plus size={16} /> {strings.createProject}
           </Button>
         )}
       </div>
+      {canCreate && partnerChoices.isError && !open && (
+        <RetryableError onRetry={() => void partnerChoices.refetch()}>
+          {strings.unavailablePlanning}
+        </RetryableError>
+      )}
+      {closing && (
+        <Modal
+          open
+          onClose={() => setClosing(null)}
+          label={strings.closeProjectTitle}
+          opener={closeOpener}
+        >
+          <BusinessForm
+            onSubmit={async () => {
+              await onClose(closing)
+              setClosing(null)
+            }}
+          >
+            <p>
+              {strings.formatString(strings.closeProjectPrompt, closing.name)}
+            </p>
+            <div data-ui="modal-actions">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setClosing(null)}
+              >
+                {strings.cancel}
+              </Button>
+              <Button type="submit">{strings.close}</Button>
+            </div>
+          </BusinessForm>
+        </Modal>
+      )}
       {canCreate && (
         <Modal
           open={open}
@@ -821,6 +856,10 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
               </RetryableError>
             )}
             <label>
+              {strings.name}
+              <input name="name" required maxLength="200" />
+            </label>
+            <label>
               {strings.partner}
               <Select name="partner_id" required disabled={!partnerResult}>
                 {!partnerResult && (
@@ -829,20 +868,18 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
                   </option>
                 )}
                 {partners.map((p) => (
-                  <option value={p.id} key={p.id}>
+                  <option value={p.id} key={p.id} disabled={p.active === false}>
                     {p.name}
                   </option>
                 ))}
               </Select>
             </label>
-            <label>
-              {strings.name}
-              <input name="name" required maxLength="200" />
-            </label>
-            <div className="flex gap-2 items-end flex-wrap">
-              <Button type="submit" disabled={!partnerResult}>
-                {strings.create}
-              </Button>
+            <Pager
+              result={partnerResult}
+              cursorKey="partnerCursor"
+              navigate={navigate}
+            />
+            <div data-ui="modal-actions">
               <Button
                 type="button"
                 variant="outline"
@@ -850,12 +887,13 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
               >
                 {strings.cancel}
               </Button>
+              <Button
+                type="submit"
+                disabled={!partners.some((partner) => partner.active !== false)}
+              >
+                {strings.save}
+              </Button>
             </div>
-            <Pager
-              result={partnerResult}
-              cursorKey="partnerCursor"
-              navigate={navigate}
-            />
           </BusinessForm>
         </Modal>
       )}
@@ -927,7 +965,13 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
                         </Link>
                       </Button>
                       {row.allowed_actions.includes('close') && (
-                        <Button variant="outline" onClick={() => onClose(row)}>
+                        <Button
+                          variant="outline"
+                          onClick={(event) => {
+                            closeOpener.current = event.currentTarget
+                            setClosing(row)
+                          }}
+                        >
                           {strings.close}
                         </Button>
                       )}
@@ -1133,6 +1177,7 @@ function Pager({ result, cursorKey, navigate }) {
 }
 
 export function ActivityForm({
+  onCreateType,
   types,
   typeResult,
   navigate,
@@ -1158,7 +1203,7 @@ export function ActivityForm({
     )
       availableTypes.push({
         id: operation.type_id,
-        label: `Type ${operation.type_id}`,
+        label: operation.type_label || `Type ${operation.type_id}`,
       })
   const total = operations.reduce(
     (sum, row) =>
@@ -1265,6 +1310,21 @@ export function ActivityForm({
                 </option>
               ))}
             </Select>
+            {onCreateType && (
+              <CategoryCreator
+                onCreate={onCreateType}
+                disabled={pending || optionsUnavailable}
+                onCreated={(type) =>
+                  setOperations((current) =>
+                    current.map((item, i) =>
+                      i === index
+                        ? { ...item, type_id: type.id, type_label: type.label }
+                        : item,
+                    ),
+                  )
+                }
+              />
+            )}
             <input
               aria-label={strings.formatString(
                 strings.operationNameNumber,
@@ -1536,6 +1596,9 @@ function ActivityDetail({
           </RetryableError>
         )}
         <ActivityForm
+          onCreateType={(label) =>
+            mutation.mutateAsync({ path: '/operation-types', body: { label } })
+          }
           types={types}
           typeResult={typeResult}
           navigate={navigate}
@@ -2052,7 +2115,6 @@ function ActivityDetail({
           className="grid gap-4 min-w-[min(520px,_calc(100vw_-_40px))] p-6 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2"
           onSubmit={submitWorkflow}
         >
-          <h2>{strings.workflowConfirmation}</h2>
           <p>{strings.workflowExactRevision}</p>
           {[
             'return',
@@ -2153,7 +2215,7 @@ function ActivityDetail({
                 )}
             </>
           )}
-          <footer>
+          <footer data-ui="modal-actions">
             <Button
               type="button"
               variant="outline"
@@ -2662,7 +2724,7 @@ export function ActivityDocuments({
               </Select>
             </label>
             <div
-              data-ui="modal-actions"
+              className="flex flex-wrap justify-end gap-3"
               aria-label="Pages des pièces corrigées"
             >
               <Button

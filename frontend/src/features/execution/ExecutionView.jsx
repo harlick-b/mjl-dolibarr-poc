@@ -1,3 +1,7 @@
+import { Select } from '@/shared/ui/select'
+import { ListFilters } from '@/shared/ui/ListFilters'
+import { QueryFilterSelect } from '@/shared/ui/QueryFilterSelect'
+import { strings as filterText } from '@/locales/fr/ListFilters'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
@@ -223,12 +227,21 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       Boolean(virementRequestId) &&
       Boolean(selectedVirement.data?.reversement),
   })
+  const filters = Object.fromEntries(
+    ['q', 'state', 'agent']
+      .filter((key) => search[key])
+      .map((key) => [key, search[key]]),
+  )
+  const listParams = new URLSearchParams({
+    ...filters,
+    ...(search.cursor ? { cursor: search.cursor } : {}),
+  }).toString()
   const list = useQuery({
     ...executionQuery(
       api,
       session.user.id,
-      ['list', params.ptaId, search.cursor],
-      cursorPath(`/ptas/${params.ptaId}/execution`, search.cursor),
+      ['list', params.ptaId, listParams],
+      `/ptas/${params.ptaId}/execution${listParams ? '?' + listParams : ''}`,
       onDenied,
     ),
     enabled: screen === 'list' && Boolean(params.ptaId),
@@ -429,6 +442,11 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         <RefreshIndicator active={list.isFetching} />
         {readError}
         <ExecutionList
+          ptaId={params.ptaId}
+          filters={filters}
+          onFilterChange={(values) =>
+            navigate({ search: { ...search, ...values, cursor: '' } })
+          }
           result={list.data}
           onPage={(link) =>
             navigate({
@@ -580,12 +598,21 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
   )
 }
 
-export function ExecutionList({ result, onPage, embedded = false }) {
+export function ExecutionList({
+  result,
+  onPage,
+  embedded = false,
+  filters = {},
+  onFilterChange,
+  ptaId,
+}) {
+  const reset = () => onFilterChange?.({ q: '', state: '', agent: '' })
+  const filtered = Boolean(filters.q || filters.state || filters.agent)
   const rows = result?.data || []
   return (
     <section className="grid gap-6">
       <Helmet>
-        <title>{strings.listTitle} — MJL</title>
+        <title>{`${strings.listTitle} — MJL`}</title>
       </Helmet>
       {!embedded && (
         <h1 className="text-2xl font-semibold text-navy">
@@ -593,10 +620,48 @@ export function ExecutionList({ result, onPage, embedded = false }) {
         </h1>
       )}
       <div className="overflow-x-auto rounded-card border border-border bg-white">
+        <ListFilters
+          value={filters.q || ''}
+          onSearch={(q) => onFilterChange?.({ q })}
+          label={filterText.searchActivity}
+          active={Boolean(filters.state || filters.agent)}
+          onReset={reset}
+          disabled={!ptaId}
+        >
+          <label>
+            {filterText.state}
+            <Select
+              value={filters.state || ''}
+              onChange={(event) =>
+                onFilterChange?.({ state: event.target.value })
+              }
+            >
+              <option value="">{filterText.all}</option>
+              {['ongoing', 'physical', 'closed'].map((value) => (
+                <option key={value} value={value}>
+                  {filterText[value]}
+                </option>
+              ))}
+            </Select>
+          </label>
+          {ptaId && (
+            <QueryFilterSelect
+              kind="agent"
+              path={`/ptas/${ptaId}/execution/agents`}
+              value={filters.agent}
+              onChange={(agent) => onFilterChange?.({ agent })}
+            />
+          )}
+        </ListFilters>
         <p className="border-b border-border px-5 py-4 text-sm">
-          {strings.formatString(strings.activitiesCount, {
-            count: result?.count ?? rows.length,
-          })}
+          {strings.formatString(
+            (result?.count ?? rows.length) > 1
+              ? strings.activitiesCountPlural
+              : strings.activitiesCount,
+            {
+              count: result?.count ?? rows.length,
+            },
+          )}
         </p>
         <table className="w-full text-left text-sm">
           {rows.length > 0 && (
@@ -676,7 +741,23 @@ export function ExecutionList({ result, onPage, embedded = false }) {
             ) : (
               <tr>
                 <td colSpan={6}>
-                  <EmptyContent kind="execution" large />
+                  <EmptyContent
+                    kind={
+                      filtered
+                        ? 'search'
+                        : ptaId
+                          ? 'execution'
+                          : 'executionNoPta'
+                    }
+                    large
+                    action={
+                      filtered ? (
+                        <Button variant="outline" onClick={reset}>
+                          {filterText.reset}
+                        </Button>
+                      ) : undefined
+                    }
+                  />
                 </td>
               </tr>
             )}
@@ -760,7 +841,7 @@ function ExecutionDetail({
   return (
     <section className="grid gap-6">
       <Helmet>
-        <title>{detail.name} — Réalisation MJL</title>
+        <title>{`${detail.name} — Réalisation MJL`}</title>
       </Helmet>
       <header
         className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"

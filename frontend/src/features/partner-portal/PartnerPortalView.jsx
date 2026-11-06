@@ -297,7 +297,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
     return (
       <section className="grid gap-6">
         <Helmet>
-          <title>{strings.exportsTitle} — MJL</title>
+          <title>{`${strings.exportsTitle} — MJL`}</title>
         </Helmet>
         <h1 className="text-2xl font-semibold text-navy">
           {strings.exportsTitle}

@@ -32,6 +32,10 @@ implementation boundaries; [README](../README.md) owns setup.
 
 ## Design and interaction
 
+- Verify the browser tab title in a real browser. With React 19, concatenate
+  dynamic title text and its suffix into one string; JSX fragments can leave an
+  empty title even when the page renders correctly.
+
 - Compare supplied references against rendered populated pages, empty states,
   dialogs and narrow layouts. Inspect spacing, alignment, typography and controls,
   not just whether the page loads. Explicit user corrections override a reference
@@ -167,3 +171,7 @@ implementation boundaries; [README](../README.md) owns setup.
 - Before launching an existing app, identify its configured database and runtime.
   Compose can override .env and a new project name selects another volume.
   Healthy endpoints alone do not prove that existing accounts are being served.
+
+- A dialog form rendered through a React portal still bubbles submit events to
+  its React parent. Stop propagation when creating a reference from another form,
+  and verify that saving the reference neither submits nor resets the parent draft.

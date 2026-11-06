@@ -802,7 +802,9 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     fetch.mock.calls.filter(([url]) => String(url).endsWith('/preview')),
   ).toHaveLength(0)
-  await user.click(within(preview).getByRole('button', { name: 'Fermer' }))
+  await user.click(
+    within(preview).getAllByRole('button', { name: 'Fermer' })[0],
+  )
   online.mockReturnValue(true)
   await user.click(previewButton)
   preview = screen.getByRole('dialog', { name: 'Aperçu — preuve.png' })
@@ -816,7 +818,9 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     within(preview).getByRole('button', { name: 'Télécharger' }),
   ).toBeVisible()
-  await user.click(within(preview).getByRole('button', { name: 'Fermer' }))
+  await user.click(
+    within(preview).getAllByRole('button', { name: 'Fermer' })[0],
+  )
   expect(preview).not.toBeVisible()
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview')
   await act(async () => {
@@ -1498,7 +1502,7 @@ test('Validator creation uses a modal dialog and returns focus on Escape', async
     name: 'Créer un partenaire',
   })
   await user.click(opener)
-  const dialog = screen.getByRole('dialog', { name: 'Ajouter — Partenaires' })
+  const dialog = screen.getByRole('dialog', { name: 'Créer un partenaire' })
   expect(dialog).toHaveAttribute('open')
   fireEvent(dialog, new Event('cancel', { cancelable: true }))
   expect(dialog).not.toHaveAttribute('open')
@@ -1565,11 +1569,12 @@ test('authentication loss aborts an in-flight planning mutation and masks it', a
     />,
   )
   const opener = await screen.findByRole('button', { name: 'Créer un projet' })
+  await waitFor(() => expect(opener).toBeEnabled())
   await user.click(opener)
   await user.type(screen.getByLabelText('Nom'), 'Projet retardé')
   await user.click(
     within(screen.getByRole('dialog')).getByRole('button', {
-      name: 'Créer',
+      name: 'Enregistrer',
       exact: true,
     }),
   )
@@ -1667,7 +1672,7 @@ test('a planning mutation invalidates and visibly refreshes the cached list', as
   )
   const dialog = within(card).getByRole('dialog')
   await user.type(within(dialog).getByLabelText('Nom'), 'Partenaire actualisé')
-  await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+  await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
   await waitFor(() => expect(partnerReads).toBeGreaterThanOrEqual(2))
   expect(await within(card).findByText('Partenaire actualisé')).toBeVisible()
 })
@@ -1741,7 +1746,7 @@ test('a 409 planning mutation refetches server state before another action', asy
   )
   const dialog = within(card).getByRole('dialog')
   await user.type(within(dialog).getByLabelText('Nom'), 'Conflit')
-  await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+  await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
   await waitFor(() => expect(partnerReads).toBeGreaterThanOrEqual(2))
   expect(screen.getByRole('alert')).toBeVisible()
 })
@@ -2018,7 +2023,7 @@ test.each(['success', 'failure'])(
   },
 )
 
-test('projects load only their list and defer Partner choices until creation opens', async () => {
+test('projects check Partner availability before enabling creation', async () => {
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
   }
@@ -2058,18 +2063,17 @@ test('projects load only their list and defer Partner choices until creation ope
     />,
   )
   expect(await screen.findByText('Aucun projet')).toBeVisible()
-  expect(
-    fetch.mock.calls.map(([url]) => new URL(url, 'http://localhost').pathname),
-  ).toEqual(['/api/v1/auth/session', '/api/v1/projects'])
-  await userEvent.click(
-    screen.getByRole('button', { name: 'Créer un projet', exact: true }),
-  )
   await waitFor(() =>
     expect(
-      fetch.mock.calls.some(([url]) => String(url).includes('/partners')),
-    ).toBe(true),
+      fetch.mock.calls.map(
+        ([url]) => new URL(url, 'http://localhost').pathname,
+      ),
+    ).toContain('/api/v1/partners'),
   )
-  expect(screen.getByRole('dialog')).toBeVisible()
+  expect(
+    screen.getByRole('button', { name: 'Créer un projet', exact: true }),
+  ).toBeDisabled()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
 test('new activity ignores cached PTA data and requests only its operation choices', async () => {
@@ -2141,6 +2145,15 @@ test('a failed background project refresh preserves the open draft and offers lo
               role: 'VALIDATEUR_DEFINITIF',
             },
             expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (url.endsWith('/partners'))
+        return new Response(
+          JSON.stringify({
+            data: [{ id: 'partner', name: 'Partenaire', active: true }],
+            count: 1,
+            next: null,
+            previous: null,
           }),
         )
       if (url.endsWith('/projects') && failed)

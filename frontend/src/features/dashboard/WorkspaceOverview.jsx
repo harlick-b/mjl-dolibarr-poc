@@ -22,7 +22,7 @@ export function WorkspaceOverview({ screen = 'dashboard' }) {
   return (
     <section className="grid gap-6">
       <Helmet>
-        <title>{title} — MJL</title>
+        <title>{`${title} — MJL`}</title>
       </Helmet>
       {!policy.can('accounts') && (
         <h1 className="text-2xl font-semibold text-navy">{title}</h1>
@@ -175,11 +175,28 @@ function BusinessOverview({ screen, user }) {
       api.request(`/api/v1/ptas/${pta.id}/metrics`, { signal }),
     enabled: screen === 'dashboard' && Boolean(pta),
   })
+  const executionFilters = Object.fromEntries(
+    ['q', 'state', 'agent']
+      .filter((key) => search[key])
+      .map((key) => [key, search[key]]),
+  )
+  const executionFilterKey = new URLSearchParams(executionFilters).toString()
   const execution = useQuery({
-    queryKey: ['execution', user.id, 'list', pta?.id, search.cursor || ''],
+    placeholderData: (previous, query) =>
+      query?.queryKey[1] === user.id && query?.queryKey[3] === pta?.id
+        ? previous
+        : undefined,
+    queryKey: [
+      'execution',
+      user.id,
+      'list',
+      pta?.id,
+      search.cursor || '',
+      executionFilterKey,
+    ],
     queryFn: ({ signal }) =>
       api.request(
-        `/api/v1/ptas/${pta.id}/execution${search.cursor ? '?cursor=' + encodeURIComponent(search.cursor) : ''}`,
+        `/api/v1/ptas/${pta.id}/execution${executionFilterKey || search.cursor ? '?' + new URLSearchParams({ ...executionFilters, ...(search.cursor ? { cursor: search.cursor } : {}) }) : ''}`,
         { signal },
       ),
     enabled: screen === 'execution' && Boolean(pta),
@@ -206,7 +223,23 @@ function BusinessOverview({ screen, user }) {
         ]}
       />
     ) : (
-      <ExecutionList embedded result={{ data: [], count: 0 }} />
+      <>
+        <Panel className="flex flex-wrap items-end gap-4 border-0 bg-transparent p-0">
+          <label className="w-full max-w-120">
+            {strings.project}
+            <Select disabled value="">
+              <option value="">{strings.selectProject}</option>
+            </Select>
+          </label>
+          <label>
+            {strings.pta}
+            <Select disabled value="">
+              <option value="">{strings.selectPta}</option>
+            </Select>
+          </label>
+        </Panel>
+        <ExecutionList embedded result={{ data: [], count: 0 }} />
+      </>
     )
   return (
     <>
@@ -231,18 +264,20 @@ function BusinessOverview({ screen, user }) {
             ))}
           </Select>
         </label>
-        {screen === 'execution' && pta && (
+        {screen === 'execution' && (
           <>
             {' '}
             <label className="max-w-40">
               {strings.pta}
               <Select
-                value={pta.id}
+                value={pta?.id || ''}
+                disabled={!pta}
                 onChange={(event) =>
                   change({ pta: event.target.value, cursor: '' })
                 }
               >
-                {ptas.data.data.map((row) => (
+                {!pta && <option value="">{strings.selectPta}</option>}
+                {ptas.data?.data.map((row) => (
                   <option key={row.id} value={row.id}>
                     {row.year}
                   </option>
@@ -337,6 +372,9 @@ function BusinessOverview({ screen, user }) {
                 <ExecutionList
                   embedded
                   result={execution.data}
+                  ptaId={pta.id}
+                  filters={executionFilters}
+                  onFilterChange={(values) => change({ ...values, cursor: '' })}
                   onPage={(link) =>
                     change({
                       cursor: cursorFrom(link, `/ptas/${pta.id}/execution`),

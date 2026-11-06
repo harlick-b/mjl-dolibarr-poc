@@ -1908,7 +1908,13 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
     ]
     for actor in ("agent", "supervisor"):
         for path, body in restricted_reference_writes:
-            assert post(planning[actor], path, body).status_code == 403, (actor, path)
+            expected = (
+                201 if actor == "agent" and path == "/api/v1/operation-types" else 403
+            )
+            assert post(planning[actor], path, body).status_code == expected, (
+                actor,
+                path,
+            )
     for actor in ("supervisor", "validator"):
         assert (
             post(
@@ -3911,3 +3917,76 @@ def test_v12_activity_reads_remain_coherent_while_workflow_mutates(planning, mut
         else coherent_before.json()["version"]
     )
     assert coherent_after.version == before_version + 1
+
+
+def test_partner_optional_description_round_trips(planning):
+    client = planning["validator"]
+    created = post(
+        client,
+        "/api/v1/partners",
+        {
+            "name": "Partenaire avec description",
+            "description": "  Coopération institutionnelle.  ",
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["description"] == "Coopération institutionnelle."
+    listed = client.get("/api/v1/partners").json()["data"]
+    assert (
+        next(row for row in listed if row["id"] == created.json()["id"])["description"]
+        == "Coopération institutionnelle."
+    )
+    assert (
+        post(client, "/api/v1/partners", {"name": "Sans description"}).json()[
+            "description"
+        ]
+        is None
+    )
+    invalid = post(
+        client, "/api/v1/partners", {"name": "Trop long", "description": "x" * 4001}
+    )
+    assert invalid.status_code == 422
+
+
+def test_partner_description_upgrade_preserves_existing_partner(planning):
+    partner, _type, _project = references(planning)
+    config = Config("alembic.ini")
+    command.downgrade(config, "0025_profile_names")
+    command.upgrade(config, "head")
+    with Session(planning["auth"].engine) as db:
+        planning["auth"].environment_verified(db)
+        row = db.get(Partner, partner["id"])
+        assert row.name == partner["name"]
+        assert row.description is None
+        assert row.active is True
+
+
+def test_agents_create_operation_categories_with_existing_guards(planning):
+    for role in ("agent", "validator"):
+        response = post(
+            planning[role], "/api/v1/operation-types", {"label": f"Catégorie {role}"}
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["label"] == f"Catégorie {role}"
+        assert "create" in response.json()["allowed_actions"]
+        assert any(
+            row["id"] == response.json()["id"]
+            for row in planning["agent"].get("/api/v1/operation-types").json()["data"]
+        )
+    for role in ("supervisor", "admin"):
+        assert (
+            post(
+                planning[role], "/api/v1/operation-types", {"label": "Interdit"}
+            ).status_code
+            == 403
+        )
+    assert (
+        planning["agent"]
+        .post("/api/v1/operation-types", json={"label": "Sans CSRF"})
+        .status_code
+        == 403
+    )
+    assert (
+        post(planning["agent"], "/api/v1/operation-types", {"label": " "}).status_code
+        == 422
+    )

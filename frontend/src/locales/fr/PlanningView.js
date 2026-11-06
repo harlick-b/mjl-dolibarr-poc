@@ -125,6 +125,8 @@ export const strings = new LocalizedStrings({
     revisionHistory: 'Historique des révisions',
     noRevision: 'Aucune révision soumise.',
     saved: 'Modifications enregistrées.',
+    createCategory: 'Créer une catégorie',
+    closeProjectTitle: 'Clore le projet',
     closeProjectPrompt: 'Clore le projet {0} ?',
     addTo: 'Ajouter — {0}',
     createProject: 'Créer un projet',

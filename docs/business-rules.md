@@ -10,7 +10,8 @@ business choices; do not invent exception workflows.
 ## Domain and roles
 
 The hierarchy is **Partenaire → Projet → PTA annuel → Activité → Opération**.
-A Partner is the supporting organization. A Project belongs permanently to one
+A Partner is the supporting organization, with a name and an optional saved
+description (up to 4,000 characters). A Project belongs permanently to one
 Partner and may span years. A PTA is its calendar-year planning collection.
 An Activity is a planned body of work; Operations are its planned work units.
 Use these names consistently; Programme is not a generic entity.
@@ -20,13 +21,13 @@ Projects. Past Projects remain consultable. A Project/year PTA is created
 atomically with its first Activity, not through an independent empty-PTA action.
 Activity creation always belongs to a PTA matching its planned start year.
 
-| Role | Allowed work |
-| --- | --- |
-| Agent de saisie | Plan, correct, submit and execute Activities; initiate financial requests, declare external settlement and close eligible Activities. All Agents share state-qualified access across the authorized MJL scope. |
-| Agent superviseur et prévalidateur | Prevalidate or return eligible requests; manage Agent assignments. |
-| Validateur définitif | Final approval/return, Project lifecycle, Agent assignments and authorized evidence administration. |
-| Admin | Invite/manage accounts and consult/export global audit. No business mutation. |
-| Partner user | Read-only portal permanently bound to exactly one Partner. No internal role or scope switching. |
+| Role                               | Allowed work                                                                                                                                                                                                   |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent de saisie                    | Plan, correct, submit and execute Activities; initiate financial requests, declare external settlement and close eligible Activities. All Agents share state-qualified access across the authorized MJL scope. |
+| Agent superviseur et prévalidateur | Prevalidate or return eligible requests; manage Agent assignments.                                                                                                                                             |
+| Validateur définitif               | Final approval/return, Project lifecycle, Agent assignments and authorized evidence administration.                                                                                                            |
+| Admin                              | Invite/manage accounts and consult/export global audit. No business mutation.                                                                                                                                  |
+| Partner user                       | Read-only portal permanently bound to exactly one Partner. No internal role or scope switching.                                                                                                                |
 
 Internal identities have one exclusive role. Assignments coordinate work and
 notifications; they never restrict Agent read/edit access. Backend role, resource,
@@ -75,6 +76,12 @@ Provider acceptance is not proof of inbox receipt. See README for local setup
 and [security](security.md) for external acceptance requirements.
 
 ## Planning and approval
+
+Agents de saisie and final Validators may create operation categories (types).
+Agents create and select categories directly in the Activity's operation form.
+Supervisors, Admins and Partner users cannot create them. Category creation is
+separate from saving the Activity and does not change its approval or contributor
+history; the existing Activity validation rules still apply.
 
 An Activity has one or more Operations with positive allocations whose sum equals
 its allocation. Default end date is start plus three calendar months for every

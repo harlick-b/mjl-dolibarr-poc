@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Clock, X } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { useAccess } from '@/features/auth/access-verification'
 import { Modal } from '@/shared/ui/BusinessModal'
@@ -47,16 +47,6 @@ export function ReminderMenu() {
         label={strings.remindersTitle}
         className="w-[min(760px,calc(100%-32px))] backdrop:backdrop-blur-sm"
       >
-        <header className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-xl font-semibold">{strings.remindersTitle}</h2>
-          <Button
-            variant="ghost"
-            aria-label={strings.close}
-            onClick={() => setOpen(false)}
-          >
-            <X size={18} />
-          </Button>
-        </header>
         {open && <NotificationView embedded onSelect={() => setOpen(false)} />}
       </Modal>
     </>
