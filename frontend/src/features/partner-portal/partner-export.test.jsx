@@ -1,3 +1,4 @@
+import { selectOption } from '@/test/select-option'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -132,9 +133,7 @@ test.each(['navigation', 'offline', 'access loss'])(
     fireEvent.click(await screen.findByRole('button', { name: label }))
     await waitFor(() => expect(requests).toHaveBeenCalledOnce())
     if (change === 'navigation') {
-      fireEvent.change(screen.getByLabelText('Année'), {
-        target: { value: 'pta-1' },
-      })
+      await selectOption(screen.getByLabelText('Année'), '2027')
       await screen.findByRole('heading', { name: 'PTA 2027' })
     } else if (change === 'offline')
       act(() => window.dispatchEvent(new Event('offline')))

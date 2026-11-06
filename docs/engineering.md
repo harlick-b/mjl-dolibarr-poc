@@ -123,7 +123,9 @@ trusted configured origin, preserve filters/order/limit and are null at boundari
 Each page reauthorizes; no frozen multi-page snapshot promise. Official totals
 and exports use complete selections independent of screen pagination.
 
-Errors use {code, message, fields?, request_id}, stable codes and safe French text.
+Errors use {code, message, fields?}, stable codes and safe French text.
+Correlation request IDs stay in internal logs/audit and are not returned in public
+responses. Business request identifiers needed by financial workflows are separate.
 401 requires session, 403 denies action, 404 conceals invisible resources, 409
 rejects stale/conflicting/replayed writes, 422 validates input, 429 limits abuse,
 503 signals temporary failure. Use 201+Location for create, 204 for empty success,
@@ -160,15 +162,46 @@ successful read resets that path's recovery latch.
 
 Ordinary network, `5xx` and malformed data-read failures remain in their owning
 view and preserve verified access. Read/download `403` or `404` removes the denied
-resource and dependent previews; mutation `403`, `409`, `422` and `429` remains
+resource and dependent previews, including retained cached pages and replacement
+candidates in that resource scope. Verify cache redaction, pending-delivery
+cancellation and object-URL revocation as well as visible removal; hiding a row
+alone is insufficient. Mutation `403`, `409`, `422` and `429` remains
 local to the attempted action. Cancellation and responses from an obsolete access
 generation are silent. Unexpected render errors use the root sanitized retry
-fallback and do not imply logout. `visibilitychange`, `pagehide`, expiry, offline
-and cross-tab authentication changes synchronously mask the workspace and purge
-protected queries, mutations, drafts and object URLs; a visible/online return must
-verify before remounting protected routes.
+fallback and do not imply logout. Expiry, offline and cross-tab authentication
+changes mask the workspace and purge protected queries, mutations, drafts and
+object URLs; an online return verifies before remounting protected routes.
+Switching tabs, hiding the page and returning to it do not clear data, discard
+forms or reverify a still-valid session. The 24-hour session boundary remains.
 
 ## Query, forms and feedback
+
+Ordinary page queries use a one-minute freshness window and five-minute in-memory
+retention. Fresh data is reused on navigation; stale data refetches on mount.
+Focus/reconnect do not trigger general page refetches. The access coordinator
+still owns reconnect verification and security purges. Session/proof/blob queries
+retain their specialized lifetime rules. No API cache is persisted to disk.
+Mutations invalidate their affected Query keys. Global mutation errors defer to
+`meta.localError`; the presence of `onError` alone does not mean the form displays
+an error (some callbacks only clean up or reconcile).
+
+Planning reads use shared session/user locks; mutations always take exclusive
+locks, preserving revocation ordering without serializing Dashboard and reminders.
+Self-service `GET/PATCH /auth/profile` returns only personal display fields,
+email and role. Updates accept names and their original snapshot, enforce CSRF,
+compare under an exclusive actor lock and atomically audit. Roles, email, password
+and credential versions are never editable through this endpoint. First/last
+names persist separately; migration does not split existing combined names.
+For those legacy accounts only, the edit form suggests the first word as given
+name and the remaining words as family name. The user can correct both before
+saving; concurrency compares the original nullable database fields.
+
+The users list includes a minimal current invitation summary for pending accounts,
+so the UI has one identity row and one pagination boundary. Consumed invitations
+are not duplicated beside active users. History list and CSV share an explicit
+business/account action allowlist; authentication/security events remain stored
+internally. Public before/after changes come from named safe scalar audit fields,
+never raw audit details. Older events without those facts cannot reconstruct them.
 
 `SessionProvider` shares the actual session `useQuery` result through React context;
 consumers use `useSessionQuery`. Do not copy query data into Context state. Keep

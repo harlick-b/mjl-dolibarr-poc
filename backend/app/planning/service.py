@@ -37,7 +37,7 @@ def principal(
     *,
     roles: set[str] = BUSINESS_ROLES,
     mutation: bool = False,
-    read_only: bool = False,
+    read_only: bool = True,
 ) -> User:
     actor = auth.principal(
         db, secret, csrf=csrf, mutation=mutation, read_only=read_only, roles=roles

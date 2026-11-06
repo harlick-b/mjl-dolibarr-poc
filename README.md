@@ -12,6 +12,12 @@ features and remaining limits.
 
 ## Run locally
 
+For an existing development setup, use the database already configured in `.env`.
+If `DATABASE_URL` points to Supabase, follow **Use Supabase for the development
+database** below. The Compose stack uses its own PostgreSQL volume and does not
+use `.env`'s `DATABASE_URL`; a new Compose project starts with no existing accounts.
+Changing the Compose project name also selects a separate database volume.
+
 For the local container stack, use Docker with Compose v2. For host-side development, use Node **22.12+
 within 22.x, or 24.x**, and Python **3.12 or 3.13** with **uv 0.9.26**.
 

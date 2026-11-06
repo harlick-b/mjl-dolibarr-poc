@@ -231,6 +231,7 @@ class PartnerOutput(Input):
     name: str
     active: bool
     allowed_actions: list[str]
+    project_count: int | None = None
 
 
 class OperationTypeOutput(Input):
@@ -248,6 +249,7 @@ class ProjectOutput(Input):
     state: Literal["active", "closed"]
     version: int
     allowed_actions: list[str]
+    partner_name: str | None = None
 
 
 class OperationOutput(Input):
@@ -699,7 +701,7 @@ def partners(
                 "VALIDATEUR_DEFINITIF",
             },
         )
-        return list_rows(
+        result = list_rows(
             db,
             auth,
             Partner,
@@ -709,6 +711,17 @@ def partners(
             *args,
             where=(Partner.context_id == CONTEXT,),
         )
+        ids = [row["id"] for row in result["data"]]
+        counts = dict(
+            db.execute(
+                select(Project.partner_id, func.count())
+                .where(Project.partner_id.in_(ids), Project.context_id == CONTEXT)
+                .group_by(Project.partner_id)
+            ).all()
+        )
+        for row in result["data"]:
+            row["project_count"] = counts.get(row["id"], 0)
+        return result
 
 
 @router.post(
@@ -817,7 +830,7 @@ def projects(
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
-        return list_rows(
+        result = list_rows(
             db,
             auth,
             Project,
@@ -827,6 +840,17 @@ def projects(
             *args,
             where=(Project.context_id == CONTEXT,),
         )
+        ids = {row["partner_id"] for row in result["data"]}
+        names = dict(
+            db.execute(
+                select(Partner.id, Partner.name).where(
+                    Partner.id.in_(ids), Partner.context_id == CONTEXT
+                )
+            ).all()
+        )
+        for row in result["data"]:
+            row["partner_name"] = names.get(row["partner_id"])
+        return result
 
 
 @router.post(

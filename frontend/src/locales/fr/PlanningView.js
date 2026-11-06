@@ -2,6 +2,7 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    createPartner: 'Créer un partenaire',
     zeroActivities: '0 activité',
     state: 'État',
     activeProject: 'Actif',

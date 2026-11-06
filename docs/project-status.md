@@ -1,12 +1,84 @@
 # Project status
 
-Updated 2026-11-05. MJL is under development; implemented does not mean accepted
+Updated 2026-11-06. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
 
 ## Implemented
+
+- Dashboard/reminder reads now share identity locks instead of contending for an
+  exclusive session lock. Mutations retain exclusive locking. Ordinary page data
+  has one-minute freshness and five-minute in-memory retention; tab hiding/return
+  no longer purges data or forms. Logout, expiry, offline and cross-tab account
+  changes retain their access protections and 24-hour session boundary.
+  Auth fields stay filled while a successful submission waits for navigation.
+  Dashboard empty rates display `0 %`; missing/unconfirmed finance displays `-`.
+- `/profile` replaces `/identity`, with a centered personal-information form.
+  Users can edit first/last names; email/role remain read-only. Migration
+  `0025_profile_names` preserves existing combined names without guessing their
+  split, adds a name-consistency constraint and refuses lossy downgrade. It was
+  tested on disposable PostgreSQL and applied to the configured development DB.
+  Profile updates compare the original snapshot under lock and audit atomically;
+  stale edits offer explicit reload/discard. Legacy combined names prefill editable
+  suggestions without rewriting stored names until the user saves.
+- Admin users and pending invitations share one paginated table, including safe
+  invitation state/delivery/version facts and existing permitted actions. Name and
+  email are stacked. Invite names share a desktop row. Shared shadcn Select and
+  submit-button progress are used by business forms; auth criteria are blue and
+  successful invitation activation prefills only the login email.
+- History and its CSV exclude authentication/security noise while preserving the
+  underlying audit. They expose actor, target and safe recorded before/after facts.
+  Historical events without those facts cannot be retroactively reconstructed.
+- Partners/Projects use reference table layouts and actual project counts/partner
+  names. Execution uses approved execution rows, current assigned names, period,
+  progress and administrative stage. Empty messages are centered. Operation-type
+  maintenance remains in a secondary disclosure on Partners, fetched on demand;
+  its failure does not replace the Partners page.
+
+  Current verification: 43 affected disposable-PostgreSQL tests passed across
+  auth/profile, access, audit history/CSV and Dashboard reads. Focused follow-ups
+  passed execution assignment projection (1) and failed/revoked invitation
+  summaries (2). Browser layout checks passed 19 tests, followed by 11 empty-state
+  and secondary-section checks. The earlier 38-case browser run had 34 passes,
+  two failures subsequently fixed/rechecked, and two environment-gated recovery
+  skips; it was not a complete pass. Final `npm run test:unit -- --maxWorkers=1
+  --reporter=verbose` passed all 179 tests; earlier interrupted broad runs are
+  superseded by this completed run. `tests/auth/test_auth.py` passed 4 additional
+  disposable-PostgreSQL tests. Backend commands use `.venv/bin/python
+  /tmp/mjl-auth-fix-tests.py` with `tests/auth/test_profile.py`,
+  `tests/auth/test_access.py`, `tests/audit/test_audit_history.py`,
+  `tests/audit/test_audit_export.py` and `tests/planning/test_dashboard_reads.py`;
+  the helper creates and drops isolated local test databases. Browser commands
+  use `npx playwright test` with `e2e/auth/admin-presentation.spec.js` and
+  `e2e/auth/empty-states.spec.js`. Final build artifacts are
+  `index-4qAJzd62.js` / `index-CHGs9n2I.css`; the existing bundle-size warning remains.
+  ESLint, Prettier, Stylelint, Ruff, mypy and diff checks passed. Independent review
+  found no remaining blocker after correction. Screenshots cover desktop/mobile profile, Admin pages,
+  Partners, Projects and Execution empty states. No production deployment or human
+  visual acceptance is implied.
+
+- Auth form state is scoped to each route: navigation clears errors, confirmation
+  messages and drafts, with cancellation/generation guards for late responses.
+  Password-reset copy remains neutral about account existence and delivery.
+  Public error responses and OpenAPI omit correlation IDs; internal audit/log
+  correlation remains available. Business request IDs remain part of workflows.
+  The local login outage was a runtime database mismatch: Compose started an
+  empty database while `.env` pointed to the existing hosted development database.
+  The app now runs in the documented host development mode against `.env`.
+  No account/password data was changed. Personal password/OTP login is unverified.
+
+  Focused verification: `npm run test:unit -- src/features/auth/auth.test.jsx
+  src/shared/api/rest-client.test.js --maxWorkers=1` passed 22 tests. `npm run
+  test:e2e -- e2e/auth/navigation-transitions.spec.js e2e/auth/recovery.spec.js
+  --output=/tmp/mjl-auth-fix-browser` passed 7 tests; 2 real-service recovery tests
+  skipped because their isolated backend/mail fixture was not configured.
+  `.venv/bin/pytest tests/auth/test_auth.py -q` passed 4 tests using disposable
+  PostgreSQL databases, including a full password/OTP journey and error contract.
+  ESLint, Prettier, Ruff and build passed (`index-B_GtFBmc.js`); the existing bundle
+  warning remains. Live localhost session/readiness checks passed, and validation
+  errors return only code/message. Independent review found no blocking code issue.
 
 - Page guards, navigation and workspace destinations share a derived UI
   authorization catalog exposed by the existing access context. API adapters
@@ -24,19 +96,21 @@ own their subjects. [README](../README.md) owns setup and development commands.
   permitted page when available. One frontend page catalog drives sidebar links,
   direct page guards and remembered destinations. The shared sidebar uses the
   verified user’s name/initials and contains long identities in its account menu.
-  Internal Dashboard reads only selected project/PTA metrics; Admin and Partner
-  Dashboard show permitted entry links. Separate Prévisions (PTA) and Réalisation
+  Internal Dashboard reads only selected project/PTA metrics; Admin Dashboard
+  shows account totals and management actions, while Partner Dashboard shows
+  permitted entry links. Separate Prévisions (PTA) and Réalisation
   entry pages use bounded project/PTA lists. Project and audit lists use tables.
   Full inspiration parity remains open: the PTA list API does not yet expose
   partner names, activity/validation summaries or approved budget per row; no
-  summary is inferred from a paginated list. Admin/Partner Dashboard statistics
+  summary is inferred from a paginated list. Partner Dashboard statistics
   are not implemented.
   Authentication screens follow the supplied references; OTP fields support
   typing, paste, correction and automatic submission on the sixth digit. One
   application-wide access gate masks navigation and protected views during bounded
-  session revalidation, clears hidden-tab data, guards protected downloads and
-  never replays writes. Cross-tab signals cannot reopen hidden workspaces or
-  cancel an unconfirmed logout. Ordinary read failures preserve drafts; denied
+  session revalidation, guards protected downloads and never replays writes.
+  Switching tabs preserves data and drafts; actual cross-tab authentication changes
+  still reverify access and cannot cancel an unconfirmed logout.
+  Ordinary read failures preserve drafts; denied
   reads discard the affected cached data and previews. Public recovery proofs
   survive connection changes. Admin users, history and
   account pages share the reference navigation; default list URLs omit empty
@@ -72,7 +146,7 @@ own their subjects. [README](../README.md) owns setup and development commands.
   Setup is documented in README; production authentication remains excluded.
 - Installable PWA with online-only business operations and guarded update handling.
 
-The schema head is 0024_budget_funding. Application code, migrations and focused
+The schema head is 0025_profile_names. Application code, migrations and focused
 tests are the implementation evidence; do not treat a summary or an old passing
 count as a new verification run.
 

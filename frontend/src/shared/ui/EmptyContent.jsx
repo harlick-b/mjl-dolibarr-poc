@@ -10,7 +10,11 @@ export function EmptyContent({ kind, action, large = false }) {
         large && 'min-h-54',
       )}
     >
-      {title && <h2 className="text-base font-medium! text-navy">{title}</h2>}
+      {title && (
+        <h2 className="w-full text-center! text-base font-medium! text-navy">
+          {title}
+        </h2>
+      )}
       <p className="max-w-140 text-[0.8125rem] leading-6 text-muted-foreground">
         {message}
       </p>

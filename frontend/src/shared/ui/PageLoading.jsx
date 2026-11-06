@@ -39,7 +39,7 @@ export function LoadingPlaceholder({ label, variant = 'table' }) {
   )
 }
 
-export function PageLoading({ title, className }) {
+export function PageLoading({ title, className, label = common.dataLoading }) {
   return (
     <section
       className={cn(
@@ -58,7 +58,7 @@ export function PageLoading({ title, className }) {
         size={22}
         aria-hidden="true"
       />
-      <p>{common.dataLoading}</p>
+      <p>{label}</p>
     </section>
   )
 }

@@ -60,6 +60,8 @@ def test_csv_export_is_sanitized_formula_safe_and_transactionally_audited(planni
             "Courriel acteur",
             "Référence activité",
             "Nom activité",
+            "Modifications (avant → après)",
+            "Élément concerné",
         ]
     )
     body = records[header + 1 :]
@@ -123,7 +125,7 @@ def test_csv_export_uses_one_exact_event_snapshot(planning):
                     INSERT INTO auth_audit
                       (occurred_at, action, actor, target, outcome, request_id)
                     VALUES
-                      (clock_timestamp(), 'synthetic.after_snapshot', 'system',
+                      (clock_timestamp(), 'project.create', 'system',
                        NULL, 'ok', '00000000-0000-0000-0000-000000009999')
                     RETURNING id
                     """
@@ -150,7 +152,7 @@ def test_csv_export_uses_one_exact_event_snapshot(planning):
     assert str(inserted_ids[0]) not in exported_ids
     with Session(planning["auth"].engine) as db:
         concurrent = db.scalar(
-            select(Audit).where(Audit.action == "synthetic.after_snapshot")
+            select(Audit).where(Audit.id == inserted_ids[0])
         )
         evidence = db.scalar(
             select(Audit)
@@ -219,7 +221,7 @@ def test_csv_export_refuses_more_than_ten_thousand_events(planning):
                 """
                 INSERT INTO auth_audit
                   (occurred_at, action, actor, target, outcome, request_id)
-                SELECT clock_timestamp(), 'synthetic.limit', 'system', NULL, 'ok',
+                SELECT clock_timestamp(), 'project.create', 'system', NULL, 'ok',
                        '00000000-0000-0000-0000-' || lpad(i::text, 12, '0')
                 FROM generate_series(1, 10001) AS i
                 """

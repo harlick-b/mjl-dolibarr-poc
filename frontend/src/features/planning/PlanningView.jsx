@@ -1,3 +1,4 @@
+import { Select } from '@/shared/ui/select'
 import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
 import { businessActionClassName } from '@/shared/ui/button-variants'
 import { Panel } from '@/shared/ui/layout'
@@ -107,7 +108,6 @@ function planningQuery(api, user, key, path, onDenied) {
       }
     },
     retry: false,
-    gcTime: 0,
   }
 }
 
@@ -149,6 +149,7 @@ function Workspace({ screen, session, onDenied }) {
   const navigate = useNavigate()
   const user = session.user
   const [error, setError] = useState('')
+  const [typesOpen, setTypesOpen] = useState(false)
   const [workflowReconciliation, setWorkflowReconciliation] = useState(null)
   const authGeneration = useRef(0)
   const mutationController = useRef(null)
@@ -393,11 +394,11 @@ function Workspace({ screen, session, onDenied }) {
       cursorPath('/operation-types', search.typeCursor),
       onDenied,
     ),
-    enabled: screen === 'partners' || screen === 'activityNew',
+    enabled: (screen === 'partners' && typesOpen) || screen === 'activityNew',
   })
   const planningQueries =
     screen === 'partners'
-      ? [partners, types]
+      ? [partners, ...(typesOpen ? [types] : [])]
       : screen === 'projects'
         ? [projects]
         : screen === 'pta'
@@ -417,7 +418,7 @@ function Workspace({ screen, session, onDenied }) {
     (query) => query.isFetching && query.fetchStatus !== 'idle',
   )
   const primaryPending =
-    (screen === 'partners' && (partners.isPending || types.isPending)) ||
+    (screen === 'partners' && partners.isPending) ||
     (screen === 'projects' && projects.isPending) ||
     (screen === 'pta' && context.isPending) ||
     (screen === 'activityNew' && types.isPending) ||
@@ -442,7 +443,7 @@ function Workspace({ screen, session, onDenied }) {
     void Promise.all(failedQueries.map((query) => query.refetch()))
   const primaryQueries =
     screen === 'partners'
-      ? [partners, types]
+      ? [partners]
       : screen === 'projects'
         ? [projects]
         : screen === 'pta'
@@ -522,19 +523,38 @@ function Workspace({ screen, session, onDenied }) {
                 : null
             }
           />
-          <ReferenceList
-            title={strings.operationTypes}
-            result={types.data}
-            label="label"
-            inputLabel={strings.operationLabel}
-            cursorKey="typeCursor"
-            navigate={navigate}
-            onSubmit={
-              user.role === 'VALIDATEUR_DEFINITIF'
-                ? (e) => submitSimple(e, '/operation-types', 'label')
-                : null
-            }
-          />
+          <details
+            className="mt-8"
+            open={typesOpen}
+            onToggle={(event) => setTypesOpen(event.currentTarget.open)}
+          >
+            <summary className="cursor-pointer text-sm text-primary">
+              {strings.operationTypes}
+            </summary>
+            {typesOpen && types.isError && (
+              <RetryableError onRetry={() => void types.refetch()}>
+                {strings.unavailablePlanning}
+              </RetryableError>
+            )}
+            {typesOpen && types.isPending && (
+              <PageLoading title={strings.operationTypes} />
+            )}
+            {typesOpen && types.data && (
+              <ReferenceList
+                title={strings.operationTypes}
+                result={types.data}
+                label="label"
+                inputLabel={strings.operationLabel}
+                cursorKey="typeCursor"
+                navigate={navigate}
+                onSubmit={
+                  user.role === 'VALIDATEUR_DEFINITIF'
+                    ? (e) => submitSimple(e, '/operation-types', 'label')
+                    : null
+                }
+              />
+            )}
+          </details>
         </>
       )}
       {screen === 'projects' && (
@@ -658,7 +678,8 @@ function ReferenceList({
         )}
         {onSubmit && (
           <Button ref={opener} type="button" onClick={() => setOpen(true)}>
-            <Plus size={16} /> {strings.add}
+            <Plus size={16} />{' '}
+            {title === strings.partners ? strings.createPartner : strings.add}
           </Button>
         )}
       </div>
@@ -697,14 +718,47 @@ function ReferenceList({
           label={strings.formatString(common.pageLoading, { page: title })}
         />
       ) : rows.length ? (
-        <ul
-          className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
-          data-ui="planning-list"
-        >
-          {rows.map((row) => (
-            <li key={row.id}>{row[label]}</li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-card border border-border bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-background border-b border-border">
+              <tr>
+                <th className="px-3 py-3 font-medium">{title}</th>
+                {title === strings.partners && (
+                  <>
+                    <th className="px-3 py-3 font-medium">
+                      {strings.projects}
+                    </th>
+                    <th className="px-3 py-3 font-medium">{strings.state}</th>
+                    <th className="px-3 py-3 font-medium">{strings.actions}</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-border last:border-0"
+                >
+                  <td className="px-3 py-4 font-medium">{row[label]}</td>
+                  {title === strings.partners && (
+                    <>
+                      <td className="px-3 py-4">{row.project_count ?? '—'}</td>
+                      <td className="px-3 py-4">
+                        <span className="rounded-card bg-selected px-2 py-1 text-xs text-primary">
+                          {row.active
+                            ? strings.activeProject
+                            : strings.closedProject}
+                        </span>
+                      </td>
+                      <td className="px-3 py-4">—</td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : title === strings.partners ? (
         <EmptyTable
           kind="partners"
@@ -744,7 +798,7 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
         <h1 className="text-2xl font-semibold text-navy">{strings.projects}</h1>
         {canCreate && (
           <Button ref={opener} type="button" onClick={() => setOpen(true)}>
-            <Plus size={16} /> {strings.create}
+            <Plus size={16} /> {strings.createProject}
           </Button>
         )}
       </div>
@@ -768,7 +822,7 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
             )}
             <label>
               {strings.partner}
-              <select name="partner_id" required disabled={!partnerResult}>
+              <Select name="partner_id" required disabled={!partnerResult}>
                 {!partnerResult && (
                   <option value="" disabled>
                     {common.loading}
@@ -779,7 +833,7 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label>
               {strings.name}
@@ -829,6 +883,7 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
             <thead className="border-b border-border bg-background text-muted-foreground">
               <tr>
                 <th className="p-4 font-medium">{strings.projects}</th>
+                <th className="p-4 font-medium">{strings.partner}</th>
                 <th className="p-4 font-medium">{strings.state}</th>
                 <th className="p-4 font-medium">{strings.actions}</th>
               </tr>
@@ -847,11 +902,12 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
                       {row.reference}
                     </span>
                   </td>
+                  <td className="p-4">{row.partner_name || '—'}</td>
                   <td className="p-4">
                     <span
                       className={
                         row.state === 'active'
-                          ? 'rounded-card bg-success-badge px-2 py-1 text-xs text-success'
+                          ? 'rounded-card bg-selected px-2 py-1 text-xs text-primary'
                           : 'rounded-card bg-disabled px-2 py-1 text-xs text-muted-foreground'
                       }
                     >
@@ -1187,7 +1243,7 @@ export function ActivityForm({
             className="flex gap-3 items-end flex-wrap max-[641px]:[&_>_*]:w-full"
             key={row.id || index}
           >
-            <select
+            <Select
               aria-label={strings.formatString(
                 strings.operationTypeNumber,
                 index + 1,
@@ -1208,7 +1264,7 @@ export function ActivityForm({
                   {type.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <input
               aria-label={strings.formatString(
                 strings.operationNameNumber,
@@ -2589,7 +2645,7 @@ export function ActivityDocuments({
             </label>
             <label>
               {strings.replacementAttachment}
-              <select name="replacement_document_id" defaultValue="">
+              <Select name="replacement_document_id" defaultValue="">
                 <option value="">{strings.noReplacementAttachment}</option>
                 {(replacementDocuments.data?.data || [])
                   .filter(
@@ -2603,7 +2659,7 @@ export function ActivityDocuments({
                       {candidate.name}
                     </option>
                   ))}
-              </select>
+              </Select>
             </label>
             <div
               data-ui="modal-actions"

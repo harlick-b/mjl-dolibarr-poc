@@ -150,7 +150,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0024_budget_funding"]:
+        if revisions != ["0025_profile_names"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -305,7 +305,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "2dbb6ca3e2390ad82170906e0a8e863b705ed81a256e5dcce3d629e5e46635b4"
+            "bf0fc72e9130d5b1e0a76d044ea41ba52836d24b4441339a3e4c0805581cd7e6"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -388,6 +388,8 @@ class AuthService:
     ) -> None:
         if details is not None:
             allowed = {
+                "before_full_name",
+                "full_name",
                 "invitation_id",
                 "generation",
                 "role",
@@ -424,7 +426,9 @@ class AuthService:
             ):
                 raise ValueError("Invalid audit facts")
             if any(
-                isinstance(value, str) and len(value) > (200 if key == "reason" else 64)
+                isinstance(value, str)
+                and len(value)
+                > (200 if key in {"reason", "before_full_name", "full_name"} else 64)
                 for key, value in details.items()
             ):
                 raise ValueError("Invalid audit facts")

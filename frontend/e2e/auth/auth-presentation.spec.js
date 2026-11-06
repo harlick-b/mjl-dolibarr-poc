@@ -230,6 +230,10 @@ test('invitation matches the auth layout, preserves proof handling and validates
   await expect(page.getByLabel('Confirmer le mot de passe')).toBeDisabled()
   releaseSave()
   await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByLabel('Adresse e-mail')).toHaveValue(
+    'invited@example.test',
+  )
+  await expect(page.getByLabel('Mot de passe', { exact: true })).toHaveValue('')
   await expect(
     page.getByRole('heading', { name: 'Connexion', exact: true }),
   ).toBeVisible()
@@ -278,7 +282,7 @@ test('password then OTP opens the workspace without an intermediate session scre
   await page.getByLabel('Code de vérification', { exact: true }).fill('012345')
   await expect(page).toHaveURL((url) => url.pathname === '/dashboard')
   await expect(
-    page.getByRole('heading', { name: 'Tableau de bord', exact: true }),
+    page.getByRole('heading', { name: 'Administration', exact: true }),
   ).toBeVisible()
 })
 
@@ -379,9 +383,9 @@ test('account revalidation masks stale identity and an interrupted logout stays 
     if (hold) await held
     await route.fulfill({ json: session })
   })
-  await page.goto('/identity')
+  await page.goto('/dashboard')
   await expect(
-    page.getByRole('main').getByText('person@example.test', { exact: true }),
+    page.locator('aside').getByText('person@example.test', { exact: true }),
   ).toBeVisible()
   hold = true
   await page.evaluate(() => {
@@ -402,7 +406,7 @@ test('account revalidation masks stale identity and an interrupted logout stays 
   })
   release()
   await expect(
-    page.getByRole('main').getByText('person@example.test', { exact: true }),
+    page.locator('aside').getByText('person@example.test', { exact: true }),
   ).toBeVisible()
   let logoutCalls = 0
   const logoutCsrf = []
@@ -415,8 +419,9 @@ test('account revalidation masks stale identity and an interrupted logout stays 
       await route.fulfill({ status: 204 })
     }
   })
+  await page.getByRole('button', { name: 'Mon compte', exact: true }).click()
   await page
-    .getByRole('button', { name: 'Se déconnecter', exact: true })
+    .getByRole('menuitem', { name: 'Se déconnecter', exact: true })
     .click()
   await expect(
     page.getByText('person@example.test', { exact: true }),
@@ -491,7 +496,7 @@ test('login keeps the recovery link close and shows progress inside the CTA', as
   ).toHaveCount(0)
 })
 
-test('hidden account stays masked across a cross-tab change and revalidates on return', async ({
+test('a real cross-tab authentication change revalidates even while hidden', async ({
   page,
 }) => {
   let reads = 0
@@ -510,9 +515,9 @@ test('hidden account stays masked across a cross-tab change and revalidates on r
       },
     })
   })
-  await page.goto('/identity')
+  await page.goto('/dashboard')
   await expect(
-    page.getByRole('main').getByText('hidden@example.test', { exact: true }),
+    page.locator('aside').getByText('hidden@example.test', { exact: true }),
   ).toBeVisible()
   const before = reads
   await page.evaluate(async () => {
@@ -532,10 +537,7 @@ test('hidden account stays masked across a cross-tab change and revalidates on r
       sender.close()
     })
   })
-  await expect(
-    page.getByText('hidden@example.test', { exact: true }),
-  ).toHaveCount(0)
-  expect(reads).toBe(before)
+  await expect.poll(() => reads).toBe(before + 1)
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
@@ -544,7 +546,7 @@ test('hidden account stays masked across a cross-tab change and revalidates on r
     document.dispatchEvent(new Event('visibilitychange'))
   })
   await expect(
-    page.getByRole('main').getByText('hidden@example.test', { exact: true }),
+    page.locator('aside').getByText('hidden@example.test', { exact: true }),
   ).toBeVisible()
   expect(reads).toBe(before + 1)
 })

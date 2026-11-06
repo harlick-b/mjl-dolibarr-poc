@@ -4,6 +4,42 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { App, makeRouter } from '@/app/router'
 
+test('auth feedback belongs only to the page that submitted it', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url, options) =>
+      options?.method === 'POST'
+        ? new Response(JSON.stringify({ code: 'credentials_invalid' }), {
+            status: 401,
+          })
+        : new Response(JSON.stringify({ state: 'anonymous', csrf: 'fixture' })),
+    ),
+  )
+  const router = makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))
+  render(<App router={router} />)
+  await userEvent.type(
+    await screen.findByLabelText('Adresse e-mail'),
+    'actor@example.test',
+  )
+  await userEvent.type(screen.getByLabelText('Mot de passe'), 'Synthetic!93')
+  await userEvent.click(screen.getByRole('button', { name: 'Se connecter' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Vérification refusée',
+  )
+  await userEvent.click(
+    screen.getByRole('link', { name: 'Mot de passe oublié ?' }),
+  )
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe('/forgot-password'),
+  )
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  await userEvent.click(
+    screen.getByRole('link', { name: 'Retour à la connexion' }),
+  )
+  await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
 test('login is French, keyboard accessible, and reveals password without submitting', async () => {
   vi.stubGlobal(
     'fetch',
@@ -59,12 +95,24 @@ test('recovery request shows only the approved neutral confirmation', async () =
     'unknown@example.test',
   )
   await userEvent.click(
-    screen.getByRole('button', { name: 'Envoyer le lien de récupération' }),
+    screen.getByRole('button', { name: 'Envoyer le lien de réinitialisation' }),
   )
   expect(await screen.findByRole('status')).toHaveTextContent(
-    'Si ce compte peut être récupéré, vous recevrez un lien.',
+    'Votre demande a été prise en compte. Consultez votre messagerie pour les instructions de réinitialisation du mot de passe et pensez à vérifier vos courriers indésirables.',
   )
   expect(document.title).toBe('Mot de passe oublié')
+  await userEvent.click(
+    screen.getByRole('link', { name: 'Retour à la connexion' }),
+  )
+  await userEvent.click(
+    await screen.findByRole('link', { name: 'Mot de passe oublié ?' }),
+  )
+  expect(await screen.findByLabelText('Adresse e-mail')).toHaveValue('')
+  expect(
+    screen.queryByText('Votre demande a été prise en compte.', {
+      exact: false,
+    }),
+  ).not.toBeInTheDocument()
 })
 
 test('reset proof is scrubbed before inspection and success returns to login', async () => {

@@ -1,7 +1,27 @@
 # Reusable Lessons
 
 Update only after repeated corrections or durable discoveries. Read only lessons
-relevant to the current task.
+relevant to the current task. Replace superseded advice instead of appending a
+contradictory correction. Current requirements live in [business rules](../docs/business-rules.md)
+and [engineering](../docs/engineering.md); this file records reusable pitfalls,
+not pending tasks, verification reports or new authorization.
+
+## Scope, review and evidence
+
+- Explain necessary scope growth when it becomes apparent. A fallback UI request
+  can uncover shared authentication or backend dependencies; map those changes to
+  the authorized outcome and leave independent improvements for a separate task.
+  A large final commit should not be the first explanation of that growth.
+- Consolidate independent findings before fixes, including retained data and
+  cross-tab recovery. Return accepted fixes to the same reviewer and call the
+  candidate final only after blocking findings and affected checks are resolved.
+  This reduces repeated last-minute review cycles without waiving re-review.
+- Verification summaries must distinguish full-suite runs, focused reruns,
+  skipped checks and interrupted runs. Record the tested source/artifact and
+  commands; after a fix, identify which affected checks were rerun. A focused
+  passing suite does not turn an abandoned broad run into a passing full suite.
+
+## Test reliability
 
 - Synthetic mailbox filenames are UUIDs and do not encode delivery order. Tests
   that need the latest message must compare the mailbox file set before and after
@@ -57,7 +77,7 @@ relevant to the current task.
 - For REST forms that navigate immediately after saving, assert the mutation
   response status, then wait for the detail URL and read its ID. Reading the old
   browser response body after navigation can fail with `Network.getResponseBody`
-  even when the save succeeded; the Partner test already demonstrates the stable pattern.
+  even when the save succeeded.
 
 ## Application and planning lessons
 
@@ -71,9 +91,15 @@ relevant to the current task.
   the UI reactively and deliberately revalidate; `invalidateQueries()` on the
   removed key is insufficient. `mutation.reset()` likewise leaves MutationCache
   variables behind: remove settled credential mutations and clear them on unmount.
-  Repeated invalidation notifications also need a changing revalidation version:
-  an already-true boolean does not restart an Effect after cancelling its pending
-  read. Test a second account-change notification while that read is held.
+  Test a second account-change notification while verification is held: it must
+  not strand the masked view, publish an obsolete identity or create an unbounded
+  verification loop. Use the existing coordinator's bounded recovery contract,
+  rather than prescribing an extra per-screen Effect or version counter.
+
+- Recovery tests must preserve the conditions that caused the failure. For a
+  failed logout followed by cross-tab session/CSRF rotation, retry on the same
+  mounted page and assert the fresh CSRF header. Reloading first can discard the
+  stale state and make a broken retry pass. Test reload persistence separately.
 
 - A migration cutover rehearsal must run the exact predecessor application
   artifact to create its histories, stop that writer, and then exercise the
@@ -159,8 +185,14 @@ relevant to the current task.
   Background Query refresh must not attach a newer version to an older local
   draft. Preserve both until save or explicit discard, and test refresh during
   editing (including observation-only changes that do not remount a form).
-  Preserve cached projections only for temporary failures: a denied refresh must
-  discard its resource data, even when Query still exposes a previous result.
+
+- Distinguish ordinary read failure, authentication uncertainty and scoped access
+  denial; follow the [engineering failure contract](../docs/engineering.md#rest-and-shared-client)
+  rather than clearing the whole application for every error. Denial checks must
+  inspect retained cache data as well as the DOM, and cover dependent previews,
+  object URLs and pending delivery. Include every cached page and replacement
+  candidate under the denied resource; preserve unrelated data and drafts on
+  temporary service failures. Hiding rows alone does not prove cleanup.
 
 - Resetting a TanStack mutation does not suppress its old hook callbacks. Bind
   protected-file error cleanup to the request generation so an old failure cannot
@@ -195,3 +227,13 @@ relevant to the current task.
 - When narrowing role navigation, verify first-resource creation as well as lists.
   Removing catalog access must not remove an Agent’s project/year entry for the
   first PTA activity. Keep temporary year typing local before Router validation.
+
+- Before launching an existing app, identify its configured database and runtime.
+  Compose can override `.env`'s database URL, and a new project name selects a new
+  volume. Healthy endpoints alone do not prove the app is serving existing accounts.
+
+- Replacing native selects requires real-browser checks for required validation,
+  keyboard selection and FormData, especially inside native dialogs: a popup
+  portaled to the document body can fall behind the dialog's top layer.
+  Keep secondary query errors local to their disclosure instead of allowing a
+  disabled or optional query to replace the whole page.

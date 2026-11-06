@@ -91,7 +91,6 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 "message": "Service indisponible."
                 if status == 503
                 else "Vérification refusée. Vérifiez votre demande et réessayez.",
-                "request_id": request_id.get() or str(uuid4()),
             },
             status_code=status,
         )

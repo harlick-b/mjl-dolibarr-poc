@@ -6,7 +6,7 @@ export const strings = new LocalizedStrings({
     newestFirst: 'Du plus récent au plus ancien',
     date: 'Date',
     action: 'Action',
-    activity: 'Activité',
+    activity: 'Élément concerné',
     author: 'Auteur',
     exported: 'Export CSV généré.',
     unavailable: 'L’historique est momentanément indisponible.',

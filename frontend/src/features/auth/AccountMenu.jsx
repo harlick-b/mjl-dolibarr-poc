@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ChevronUp, UserRound, LogOut, Users, Folder } from 'lucide-react'
+import { ChevronUp, UserRound, LogOut, Folder } from 'lucide-react'
 import { authorization, roleLabels } from './authorization'
 import { useLogout } from './LogoutProvider'
 import { strings } from '@/locales/fr/AccountMenu'
@@ -80,20 +80,10 @@ export function AccountMenu({ user }) {
               {user.email}
             </p>
           </div>
-          <Link role="menuitem" to="/identity" onClick={() => setOpen(false)}>
+          <Link role="menuitem" to="/profile" onClick={() => setOpen(false)}>
             <UserRound size={16} aria-hidden="true" className="mr-2 shrink-0" />
             {strings.profile}
           </Link>
-          {policy.can('accounts') && (
-            <Link
-              role="menuitem"
-              to="/access/users"
-              onClick={() => setOpen(false)}
-            >
-              <Users size={16} aria-hidden="true" className="mr-2 shrink-0" />
-              {strings.users}
-            </Link>
-          )}
           {policy.can('partner') && (
             <Link role="menuitem" to="/partner" onClick={() => setOpen(false)}>
               <Folder size={16} aria-hidden="true" className="mr-2 shrink-0" />

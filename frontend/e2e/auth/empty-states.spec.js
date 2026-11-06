@@ -21,6 +21,30 @@ async function setup(page, role) {
     }),
   )
 }
+test('operation-type failure stays inside its secondary section on Partners', async ({
+  page,
+}) => {
+  await setup(page, 'VALIDATEUR_DEFINITIF')
+  let reads = 0
+  await page.route('**/api/v1/operation-types*', (route) => {
+    reads += 1
+    return route.fulfill({ status: 503, json: { code: 'unavailable' } })
+  })
+  await page.goto('/partners')
+  await expect(
+    page.getByRole('heading', { name: 'Aucun partenaire', exact: true }),
+  ).toBeVisible()
+  expect(reads).toBe(0)
+  await page.locator('summary').click()
+  await expect(
+    page.locator('details').getByRole('button', { name: 'Réessayer' }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Aucun partenaire', exact: true }),
+  ).toBeVisible()
+  await page.locator('summary').click()
+  await expect(page.locator('details')).not.toHaveAttribute('open', '')
+})
 for (const [path, role, title] of [
   ['/projects', 'VALIDATEUR_DEFINITIF', 'Aucun projet'],
   ['/partners', 'VALIDATEUR_DEFINITIF', 'Aucun partenaire'],

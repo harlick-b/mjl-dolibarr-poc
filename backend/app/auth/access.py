@@ -60,10 +60,19 @@ MUTATION_HEADERS = {
 }
 
 
+class InvitationSummary(Input):
+    id: str
+    state: Literal["prepared", "delivered", "revoked"]
+    delivery_status: Literal["delivered", "failed", "unconfirmed"]
+    expires_at: datetime
+    version: int
+
+
 class UserItem(Identity):
     full_name: str | None
     state: Literal["pending", "active", "inactive"]
     version: int
+    invitation: InvitationSummary | None = None
 
 
 class InvitationItem(Input):
@@ -94,6 +103,8 @@ class Invitations(Input):
 class Invite(Input):
     email: str = Field(max_length=254)
     full_name: str = Field(max_length=200)
+    first_name: str | None = Field(default=None, min_length=1, max_length=100)
+    last_name: str | None = Field(default=None, min_length=1, max_length=100)
     role: InvitableRole
     partner_id: str | None = Field(default=None, max_length=36)
 
@@ -109,6 +120,13 @@ class Invite(Input):
 
     @model_validator(mode="after")
     def binding_matches_role(self) -> "Invite":
+        if self.first_name is not None or self.last_name is not None:
+            if not self.first_name or not self.last_name:
+                raise ValueError("Both names are required")
+            self.first_name = normalize_full_name(self.first_name)
+            self.last_name = normalize_full_name(self.last_name)
+            if self.full_name != f"{self.first_name} {self.last_name}":
+                raise ValueError("Names must match")
         if (self.role == "PARTENAIRE") != (self.partner_id is not None):
             raise ValueError("Partner binding must match role")
         return self
@@ -189,10 +207,27 @@ def users(
         if filters.state:
             query = query.where(User.state == filters.state)
         total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
-        rows = db.scalars(
-            query.order_by(User.id)
-            .offset((filters.page - 1) * filters.size)
-            .limit(filters.size)
+        delivery = (
+            select(Audit.outcome)
+            .where(
+                Audit.action == "invitation_delivery",
+                Audit.target == User.id,
+                Audit.details["generation"].astext == Invitation.generation,
+            )
+            .order_by(Audit.id.desc())
+            .limit(1)
+            .correlate(User, Invitation)
+            .scalar_subquery()
+        )
+        rows = cast(
+            list[tuple[User, Invitation | None, str | None]],
+            db.execute(
+                query.add_columns(Invitation, delivery)
+                .outerjoin(Invitation, Invitation.user_id == User.id)
+                .order_by(User.id)
+                .offset((filters.page - 1) * filters.size)
+                .limit(filters.size)
+            ).all(),
         )
         return Users(
             items=[
@@ -204,8 +239,26 @@ def users(
                     partner_id=u.partner_id,
                     state=cast(Literal["pending", "active", "inactive"], u.state),
                     version=u.version,
+                    invitation=InvitationSummary(
+                        id=invitation.id,
+                        state=cast(
+                            Literal["prepared", "delivered", "revoked"],
+                            invitation.state,
+                        ),
+                        expires_at=invitation.expires_at,
+                        version=invitation.version,
+                        delivery_status="delivered"
+                        if outcome == "sent"
+                        else "failed"
+                        if outcome == "failed"
+                        else "unconfirmed",
+                    )
+                    if invitation
+                    and u.state == "pending"
+                    and invitation.state != "consumed"
+                    else None,
                 )
-                for u in rows
+                for u, invitation, outcome in rows
             ],
             total=total,
             page=filters.page,
@@ -263,6 +316,8 @@ def invite(body: Invite, request: Request, auth: Auth) -> InvitationItem:
         user = User(
             email=body.email,
             full_name=body.full_name,
+            first_name=body.first_name,
+            last_name=body.last_name,
             role=body.role,
             partner_id=body.partner_id,
         )

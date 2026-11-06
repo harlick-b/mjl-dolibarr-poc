@@ -16,7 +16,7 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
-from app.planning.models import Activity
+from app.planning.models import Activity, Partner, Project
 from app.planning.service import CONTEXT, Cursor, page_rows, principal
 
 router = APIRouter(
@@ -45,6 +45,13 @@ class Output(BaseModel):
 class ActorOutput(Output):
     id: str
     email: str
+    full_name: str | None
+
+
+class ChangeOutput(Output):
+    field: str
+    before: str | None
+    after: str | None
 
 
 class ActivityOutput(Output):
@@ -61,6 +68,8 @@ class AuditOutput(Output):
     outcome: str
     actor: ActorOutput | None
     activity: ActivityOutput | None
+    changes: list[ChangeOutput]
+    subject: str | None
 
 
 class AuditList(Output):
@@ -127,6 +136,7 @@ ACTION_LABELS = {
     "invitation_delivery": "Invitation envoyée",
     "invitation_inspect": "Invitation consultée",
     "invitation_create": "Invitation créée",
+    "profile_update": "Profil mis à jour",
     "invitation_reissue": "Invitation renouvelée",
     "invitation_revoke": "Invitation révoquée",
     "login": "Connexion demandée",
@@ -166,6 +176,124 @@ ACTION_LABELS = {
 }
 
 
+BUSINESS_ACTIONS = tuple(
+    action
+    for action in ACTION_LABELS
+    if action.startswith(
+        (
+            "activity.",
+            "operation.",
+            "operation_type.",
+            "partner.",
+            "project.",
+            "funding.",
+            "disbursement.",
+            "virement.",
+            "virement_confirmation.",
+            "reversement.",
+            "zero_spending.",
+        )
+    )
+    and action != "activity.fiche_generated"
+) + (
+    "account_deactivate",
+    "account_role_change",
+    "invitation_create",
+    "invitation_reissue",
+    "invitation_revoke",
+    "invitation_accept",
+    "profile_update",
+    "document.upload",
+    "document.share",
+    "document.unshare",
+    "document.withdraw",
+)
+
+# Explicit public field projection: never return raw audit details or proof data.
+CHANGE_FIELDS = {
+    "user_state": "État du compte",
+    "name": "Nom",
+    "full_name": "Nom complet",
+    "first_name": "Prénoms",
+    "last_name": "Nom",
+    "state": "État",
+    "role": "Rôle",
+    "allocation": "Budget (F CFA)",
+    "actual_spent": "Dépenses (F CFA)",
+    "amount": "Montant (F CFA)",
+    "planned_start": "Début prévu",
+    "planned_end": "Fin prévue",
+    "execution_completed": "Réalisation terminée",
+    "execution_started_at": "Début de réalisation",
+    "execution_observation": "Observation",
+    "effective_date": "Date effective",
+    "note": "Note",
+}
+
+
+def public_changes(row: Audit) -> list[dict[str, str | None]]:
+    facts = (
+        row.business if isinstance(row.business, dict) and row.business else row.details
+    )
+    if not isinstance(facts, dict):
+        return []
+    before = facts.get("before") or {}
+    after = facts.get("after") or {}
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return []
+    before, after = dict(before), dict(after)
+    for key, old_key, new_key in (
+        ("state", "before_state", "after_state"),
+        ("user_state", "before_user_state", "user_state"),
+        ("role", "before_role", "role"),
+        ("full_name", "before_full_name", "full_name"),
+    ):
+        if old_key in facts and new_key in facts:
+            before[key], after[key] = facts[old_key], facts[new_key]
+    result = []
+    for key, label in CHANGE_FIELDS.items():
+        old, new = before.get(key), after.get(key)
+        if old != new and all(
+            value is None or isinstance(value, (str, int, bool)) for value in (old, new)
+        ):
+            result.append(
+                {
+                    "field": label,
+                    "before": display_value(old, key),
+                    "after": display_value(new, key),
+                }
+            )
+    return result
+
+
+def display_value(value: object, field: str) -> str | None:
+    if value is None:
+        return None
+    if field not in {"state", "user_state", "role"} and not isinstance(value, bool):
+        return str(value)
+    return {
+        "True": "Oui",
+        "False": "Non",
+        "active": "Actif",
+        "inactive": "Inactif",
+        "pending": "En attente",
+        "submitted": "Soumis",
+        "approved": "Approuvé",
+        "prevalidated": "Prévalidé",
+        "closed": "Clôturé",
+        "draft": "Brouillon",
+        "AGENT_SAISIE": "Agent de saisie",
+        "AGENT_VERIFICATEUR": "Superviseur",
+        "VALIDATEUR_DEFINITIF": "Validateur définitif",
+        "ADMIN_PLATEFORME": "Admin technique",
+        "PARTENAIRE": "Partenaire",
+        "delivered": "Envoyée",
+        "revoked": "Révoquée",
+        "prepared": "En préparation",
+        "consumed": "Acceptée",
+    }.get(str(value), str(value))
+
+
 def args(
     limit: Annotated[int, Query(ge=1, le=100)] = 60, cursor: str | None = None
 ) -> tuple[int, str | None]:
@@ -196,6 +324,20 @@ def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
         item.id: item
         for item in db.scalars(select(Activity).where(Activity.id.in_(activity_ids)))
     }
+    target_ids = {row.target for row in rows if row.target}
+    subjects = {
+        user.id: user.full_name or user.email
+        for user in db.scalars(select(User).where(User.id.in_(target_ids)))
+    }
+    for model in (Project, Partner):
+        subjects.update(
+            {
+                item.id: item.name
+                for item in db.execute(
+                    select(model.id, model.name).where(model.id.in_(target_ids))
+                )
+            }
+        )
     data = []
     for row in rows:
         user = users.get(row.actor)
@@ -207,7 +349,15 @@ def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
                 "action": row.action,
                 "label": ACTION_LABELS.get(row.action, "Événement enregistré"),
                 "outcome": row.outcome,
-                "actor": ({"id": user.id, "email": user.email} if user else None),
+                "actor": (
+                    {"id": user.id, "email": user.email, "full_name": user.full_name}
+                    if user
+                    else None
+                ),
+                "changes": public_changes(row),
+                "subject": activity.name
+                if activity
+                else subjects.get(row.target or ""),
                 "activity": (
                     {
                         "id": activity.id,
@@ -257,6 +407,8 @@ def export_csv(
             "Courriel acteur",
             "Référence activité",
             "Nom activité",
+            "Modifications (avant → après)",
+            "Élément concerné",
         )
     )
     for row in rows:
@@ -274,6 +426,12 @@ def export_csv(
                     actor.get("email"),
                     activity.get("reference"),
                     activity.get("name"),
+                    " ; ".join(
+                        f"{change['field']} : {change['before'] or '—'}"
+                        f" → {change['after'] or '—'}"
+                        for change in row["changes"]
+                    ),
+                    row["subject"],
                 )
             )
         )
@@ -297,7 +455,7 @@ def audit_events(
         limit, token = pagination
         cursor = Cursor(auth, "audit-events", CONTEXT, limit)
         marker, direction = cursor.decode(token)
-        conditions: list[Any] = []
+        conditions: list[Any] = [Audit.action.in_(BUSINESS_ACTIONS)]
         if marker:
             try:
                 marker_id = int(marker)
@@ -309,7 +467,14 @@ def audit_events(
                 Audit.id < marker_id if direction == "next" else Audit.id > marker_id
             )
         order = Audit.id.desc() if direction == "next" else Audit.id.asc()
-        rows, total = page_rows(db, Audit, (), tuple(conditions), (order,), limit)
+        rows, total = page_rows(
+            db,
+            Audit,
+            (Audit.action.in_(BUSINESS_ACTIONS),),
+            tuple(conditions),
+            (order,),
+            limit,
+        )
         more = len(rows) > limit
         rows = rows[:limit]
         if direction == "previous":
@@ -367,10 +532,12 @@ def audit_export(body: ExportInput, request: Request, auth: Auth) -> Response:
                          ARRAY[]::bigint[]
                        )
                 FROM (
-                  SELECT id FROM auth_audit ORDER BY id LIMIT 10001
+                  SELECT id FROM auth_audit WHERE action = ANY(:actions)
+                  ORDER BY id LIMIT 10001
                 ) AS selected
                 """
-            )
+            ),
+            {"actions": list(BUSINESS_ACTIONS)},
         ).one()
         snapshot = cast(datetime, raw_snapshot)
         event_ids = cast(list[int], raw_event_ids)

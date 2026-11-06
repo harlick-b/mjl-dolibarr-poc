@@ -7,7 +7,6 @@ from pydantic import BaseModel
 class ErrorResponse(BaseModel):
     code: str
     message: str
-    request_id: str
 
 
 BusinessRole = Literal["AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"]

@@ -1,3 +1,4 @@
+import { selectOption } from '@/test/select-option'
 import {
   act,
   fireEvent,
@@ -120,7 +121,7 @@ test('malformed or unavailable account responses show retry instead of stale row
   )
   mount()
   const alerts = await screen.findAllByRole('alert')
-  expect(alerts).toHaveLength(2)
+  expect(alerts).toHaveLength(1)
   expect(alerts[0]).toHaveTextContent('Liste indisponible')
 })
 
@@ -158,7 +159,7 @@ test('offline invalidation cancels lists and ignores late responses', async () =
   )
   const router = mount()
   await screen.findByRole('heading', { name: 'Utilisateurs', exact: true })
-  await waitFor(() => expect(pending).toHaveLength(2))
+  await waitFor(() => expect(pending).toHaveLength(1))
   await act(async () => {
     window.dispatchEvent(new Event('offline'))
   })
@@ -341,28 +342,29 @@ test('Admin binds a Partner invitation to the selected Partner', async () => {
   fireEvent.change(within(dialog).getByLabelText('Nom de famille'), {
     target: { value: 'Doe' },
   })
-  fireEvent.change(within(dialog).getByLabelText('Rôle'), {
-    target: { value: 'PARTENAIRE' },
-  })
+  await selectOption(within(dialog).getByLabelText('Rôle'), 'Partenaire')
   await waitFor(() =>
     expect(
       fetch.mock.calls.some(([url]) => String(url).includes('/partners?')),
     ).toBe(true),
   )
-  await within(dialog).findByRole('option', { name: 'Premier' })
+  await within(dialog).findByText('Premier')
   fireEvent.click(within(dialog).getByRole('button', { name: 'Suivant' }))
   expect(await screen.findByText('Partenaire Démo')).toBeVisible()
   fireEvent.change(within(dialog).getByLabelText('Adresse e-mail'), {
     target: { value: 'portal@example.test' },
   })
-  fireEvent.change(within(dialog).getByLabelText('Partenaire'), {
-    target: { value: 'partner-1' },
-  })
+  await selectOption(
+    within(dialog).getByLabelText('Partenaire'),
+    'Partenaire Démo',
+  )
   fireEvent.click(screen.getByRole('button', { name: 'Envoyer l’invitation' }))
   await waitFor(() =>
     expect(invitationBody).toEqual({
       email: 'portal@example.test',
       full_name: 'John Doe',
+      first_name: 'John',
+      last_name: 'Doe',
       role: 'PARTENAIRE',
       partner_id: 'partner-1',
     }),
@@ -396,11 +398,9 @@ test('Partner option authorization denial stays local to the invitation form', a
     fireEvent.click(
       await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
     )
-    fireEvent.change(
-      screen.getByRole('dialog').querySelector('[name="role"]'),
-      {
-        target: { value: 'PARTENAIRE' },
-      },
+    await selectOption(
+      within(screen.getByRole('dialog')).getByLabelText('Rôle'),
+      'Partenaire',
     )
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0)
     expect(router.options.context.access.getSnapshot().status).toBe('verified')
@@ -610,9 +610,7 @@ test('Partner invitation choices load only on demand and paginate before submiss
   expect(
     fetch.mock.calls.some(([url]) => String(url).includes('/partners')),
   ).toBe(false)
-  fireEvent.change(within(dialog).getByLabelText('Rôle'), {
-    target: { value: 'PARTENAIRE' },
-  })
+  await selectOption(within(dialog).getByLabelText('Rôle'), 'Partenaire')
   expect(
     within(dialog).getByRole('button', { name: 'Envoyer l’invitation' }),
   ).toBeDisabled()
@@ -621,19 +619,16 @@ test('Partner invitation choices load only on demand and paginate before submiss
   expect(
     fetch.mock.calls.some(([, options]) => options.method === 'POST'),
   ).toBe(false)
-  expect(
-    await within(dialog).findByRole('option', { name: 'Premier partenaire' }),
-  ).toBeVisible()
+  expect(await within(dialog).findByText('Premier partenaire')).toBeVisible()
   expect(
     fetch.mock.calls.filter(([url]) => String(url).includes('/partners')),
   ).toHaveLength(1)
   fireEvent.click(within(dialog).getByRole('button', { name: 'Suivant' }))
-  expect(
-    await within(dialog).findByRole('option', { name: 'Second partenaire' }),
-  ).toBeVisible()
-  fireEvent.change(within(dialog).getByLabelText('Partenaire'), {
-    target: { value: 'p2' },
-  })
+  expect(await within(dialog).findByText('Second partenaire')).toBeVisible()
+  await selectOption(
+    within(dialog).getByLabelText('Partenaire'),
+    'Second partenaire',
+  )
   fireEvent.change(within(dialog).getByLabelText('Prénom'), {
     target: { value: 'Ada' },
   })

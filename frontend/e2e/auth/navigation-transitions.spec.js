@@ -6,6 +6,47 @@ const user = {
   email: 'agent@example.test',
 }
 
+test('login errors and late responses do not follow navigation to password recovery', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/auth/session', (route) =>
+    route.fulfill({ json: { state: 'anonymous', csrf: 'fixture' } }),
+  )
+  await page.route('**/api/v1/auth/login', (route) =>
+    route.fulfill({ status: 401, json: { code: 'credentials_invalid' } }),
+  )
+  await page.goto('/login')
+  await page.getByLabel('Adresse e-mail').fill('actor@example.test')
+  await page.getByLabel('Mot de passe', { exact: true }).fill('Synthetic!93')
+  await page.getByRole('button', { name: 'Se connecter' }).click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await page.getByRole('link', { name: 'Mot de passe oublié ?' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Mot de passe oublié ?' }),
+  ).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await page.getByRole('link', { name: 'Retour à la connexion' }).click()
+  let release
+  await page.route('**/api/v1/auth/login', async (route) => {
+    await new Promise((resolve) => {
+      release = resolve
+    })
+    await route
+      .fulfill({ status: 401, json: { code: 'credentials_invalid' } })
+      .catch(() => {})
+  })
+  await page.getByLabel('Adresse e-mail').fill('actor@example.test')
+  await page.getByLabel('Mot de passe', { exact: true }).fill('Synthetic!93')
+  await page.getByRole('button', { name: 'Se connecter' }).click()
+  await expect.poll(() => Boolean(release)).toBe(true)
+  await page.getByRole('link', { name: 'Mot de passe oublié ?' }).click()
+  release()
+  await expect(
+    page.getByRole('heading', { name: 'Mot de passe oublié ?' }),
+  ).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('login holds its CTA until OTP context is ready and Agent reaches Dashboard', async ({
   page,
 }) => {
@@ -46,6 +87,10 @@ test('login holds its CTA until OTP context is ready and Agent reaches Dashboard
     page.getByRole('button', { name: 'Se connecter' }),
   ).toHaveAttribute('aria-busy', 'true')
   await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible()
+  await expect(page.getByLabel('Adresse e-mail')).toHaveValue(user.email)
+  await expect(page.getByLabel('Mot de passe', { exact: true })).toHaveValue(
+    'ValidPass1!',
+  )
   release()
   await page.getByLabel('Code de vérification', { exact: true }).fill('012345')
   await expect(
@@ -163,9 +208,7 @@ test('account menu keyboard focus, mobile containment, and denied content center
   await page.screenshot({ path: '/tmp/mjl-account-menu-mobile.png' })
 })
 
-test('password criteria use the approved success badge pair', async ({
-  page,
-}) => {
+test('password criteria use the approved blue badge pair', async ({ page }) => {
   await page.route('**/api/v1/auth/session', (route) =>
     route.fulfill({ json: { state: 'anonymous', csrf: 'fixture' } }),
   )
@@ -177,8 +220,8 @@ test('password criteria use the approved success badge pair', async ({
     .getByLabel('Nouveau mot de passe', { exact: true })
     .fill('ValidPass1!')
   const criterion = page.getByText('✓ 8 caractères minimum', { exact: true })
-  await expect(criterion).toHaveCSS('color', 'rgb(23, 99, 58)')
-  await expect(criterion).toHaveCSS('background-color', 'rgb(202, 250, 206)')
+  await expect(criterion).toHaveCSS('color', 'rgb(22, 79, 122)')
+  await expect(criterion).toHaveCSS('background-color', 'rgb(234, 243, 248)')
   await page.screenshot({ path: '/tmp/mjl-password-criteria.png' })
 })
 

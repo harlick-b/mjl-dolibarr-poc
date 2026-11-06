@@ -15,6 +15,13 @@ class User(Base):
     __tablename__ = "auth_user"
     __table_args__ = (
         CheckConstraint(
+            "(first_name IS NULL AND last_name IS NULL) OR "
+            "(first_name IS NOT NULL AND last_name IS NOT NULL "
+            "AND length(trim(first_name)) > 0 AND length(trim(last_name)) > 0 "
+            "AND full_name IS NOT NULL AND full_name = first_name || ' ' || last_name)",
+            name="auth_user_profile_names",
+        ),
+        CheckConstraint(
             "role IN ('ADMIN_PLATEFORME','AGENT_SAISIE',"
             "'AGENT_VERIFICATEUR','VALIDATEUR_DEFINITIF','PARTENAIRE')",
             name="auth_user_role_check",
@@ -37,6 +44,8 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(String(254), unique=True)
     full_name: Mapped[str | None] = mapped_column(String(200))
+    first_name: Mapped[str | None] = mapped_column(String(100))
+    last_name: Mapped[str | None] = mapped_column(String(100))
     role: Mapped[str] = mapped_column(String(32), default="ADMIN_PLATEFORME")
     state: Mapped[str] = mapped_column(String(16), default="pending")
     password_hash: Mapped[str | None] = mapped_column(String(255))

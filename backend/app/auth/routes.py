@@ -16,6 +16,7 @@ from app.auth.dto import (
     RecoveryRequested,
     Verified,
 )
+from app.auth.profile import Profile, UpdateProfile, profile
 from app.auth.service import AuthError, AuthService, request_id
 
 router = APIRouter(
@@ -103,6 +104,16 @@ def session(request: Request, response: Response, auth: Auth) -> dict[str, objec
     result, secret = auth.session(evidence(request, auth)[0])
     set_cookie(response, auth, secret)
     return result
+
+
+@router.get("/profile", response_model=Profile)
+def read_profile(request: Request, auth: Auth) -> Profile:
+    return profile(auth, evidence(request, auth)[0])
+
+
+@router.patch("/profile", response_model=Profile)
+def update_profile(body: UpdateProfile, request: Request, auth: Auth) -> Profile:
+    return profile(auth, *evidence(request, auth), update=body)
 
 
 @router.post("/invitations/inspect", response_model=Invited)

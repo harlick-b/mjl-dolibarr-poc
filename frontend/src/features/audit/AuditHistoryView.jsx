@@ -56,7 +56,6 @@ function History({ session, onDenied }) {
         throw error
       }
     },
-    gcTime: 0,
   })
   useEffect(
     () => () => {
@@ -169,6 +168,12 @@ function History({ session, onDenied }) {
                       <small>
                         {outcomeLabels[item.outcome] || 'Résultat enregistré'}
                       </small>
+                      {item.changes?.map((change) => (
+                        <small key={change.field}>
+                          {change.field} : {change.before ?? '—'} →{' '}
+                          {change.after ?? '—'}
+                        </small>
+                      ))}
                     </div>
                   </td>
                   <td>
@@ -185,14 +190,21 @@ function History({ session, onDenied }) {
                           {item.activity.reference} — {item.activity.name}
                         </span>
                       ) : (
-                        <span>Événement général</span>
+                        <span>{item.subject || '—'}</span>
                       )}
                     </div>
                   </td>
                   <td>
                     <div>
                       {item.actor ? (
-                        <span>{item.actor.email}</span>
+                        <>
+                          <span>
+                            {item.actor.full_name || item.actor.email}
+                          </span>
+                          {item.actor.full_name && (
+                            <small>{item.actor.email}</small>
+                          )}
+                        </>
                       ) : (
                         <span>Système</span>
                       )}

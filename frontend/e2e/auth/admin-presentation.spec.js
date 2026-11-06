@@ -1,5 +1,64 @@
 import { test, expect } from '@playwright/test'
 
+test('invitation Select supports keyboard, required validation and FormData inside the dialog', async ({
+  page,
+}) => {
+  await adminFixture(page)
+  let sent
+  let finish
+  await page.route('**/api/v1/partners*', (route) =>
+    route.fulfill({
+      json: {
+        data: [{ id: 'partner', name: 'Partenaire test', active: true }],
+        count: 1,
+        next: null,
+        previous: null,
+      },
+    }),
+  )
+  await page.route('**/api/v1/access/invitations', async (route) => {
+    sent = route.request().postDataJSON()
+    await new Promise((resolve) => {
+      finish = resolve
+    })
+    await route.fulfill({ status: 201, json: { id: 'invitation', version: 1 } })
+  })
+  await page.goto('/access/users')
+  await expect(page.getByRole('table')).toHaveCount(1)
+  await page
+    .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
+    .click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Prénom', { exact: true }).fill('Anne')
+  await dialog.getByLabel('Nom de famille').fill('Martin')
+  await dialog.getByLabel('Adresse e-mail').fill('anne@example.test')
+  const first = await dialog.getByLabel('Prénom', { exact: true }).boundingBox()
+  const last = await dialog.getByLabel('Nom de famille').boundingBox()
+  expect(first.y).toBe(last.y)
+  await dialog.getByRole('combobox', { name: 'Rôle', exact: true }).focus()
+  await page.keyboard.press('ArrowDown')
+  await page.getByRole('option', { name: 'Partenaire', exact: true }).click()
+  const submit = dialog.getByRole('button', { name: 'Envoyer l’invitation' })
+  await expect(
+    dialog.getByRole('combobox', { name: 'Partenaire', exact: true }),
+  ).toBeEnabled()
+  await submit.click()
+  expect(sent).toBeUndefined()
+  await dialog
+    .getByRole('combobox', { name: 'Partenaire', exact: true })
+    .click()
+  await page
+    .getByRole('option', { name: 'Partenaire test', exact: true })
+    .click()
+  await submit.click()
+  await expect.poll(() => sent?.partner_id).toBe('partner')
+  expect(sent.role).toBe('PARTENAIRE')
+  await expect(submit).toBeDisabled()
+  await expect(submit.locator('svg')).toBeVisible()
+  finish()
+  await expect(dialog).toHaveCount(0)
+})
+
 async function adminFixture(page) {
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
@@ -20,6 +79,14 @@ async function adminFixture(page) {
           role: 'ADMIN_PLATEFORME',
         },
         expires_at: new Date(Date.now() + 3600000).toISOString(),
+      }
+    if (url.pathname === '/api/v1/auth/profile')
+      body = {
+        full_name: 'Admin Test',
+        first_name: 'Admin',
+        last_name: 'Test',
+        email: 'admin@example.test',
+        role: 'ADMIN_PLATEFORME',
       }
     if (url.pathname === '/api/v1/access/users')
       body = {
@@ -117,7 +184,7 @@ test('Admin account and history retain the same navigation and invitation dialog
   await page.getByRole('button', { name: 'Mon compte', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Mon profil', exact: true }).click()
   await expect(
-    page.getByRole('heading', { name: 'Mon compte', exact: true }),
+    page.getByRole('heading', { name: 'Mon profil', exact: true }),
   ).toBeVisible()
   await expect(
     page.getByRole('navigation', { name: 'Administration' }),
@@ -288,8 +355,11 @@ test('history shows the minimal page loader while its data loads', async ({
   await expect(
     page.getByRole('heading', { name: 'Historique', exact: true }),
   ).toHaveCount(0)
+  await expect.poll(() => typeof finish).toBe('function')
   finish()
-  await expect(page.getByText('Aucun événement enregistré.')).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Aucun événement' }),
+  ).toBeVisible()
 })
 
 test('account hides identity behind access verification during its session check', async ({
@@ -323,11 +393,11 @@ test('account hides identity behind access verification during its session check
   ).toHaveCount(0)
   finish()
   await expect(
-    page.getByRole('heading', { name: 'Mon compte', exact: true }),
+    page.getByRole('heading', { name: 'Mon profil', exact: true }),
   ).toBeVisible()
 })
 
-test('hiding a protected tab clears an invitation draft before revalidation', async ({
+test('hiding a protected tab preserves the invitation draft and sidebar', async ({
   page,
 }) => {
   await adminFixture(page)
@@ -336,40 +406,22 @@ test('hiding a protected tab clears an invitation draft before revalidation', as
     .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
     .click()
   await page.getByRole('dialog').getByLabel('Prénom').fill('Brouillon conservé')
-  let finish
-  await page.route('**/api/v1/auth/session', async (route) => {
-    await new Promise((resolve) => {
-      finish = resolve
-    })
-    await route.fulfill({
-      json: {
-        state: 'verified',
-        csrf: 'test',
-        user: {
-          id: 'admin',
-          email: 'admin@example.test',
-          role: 'ADMIN_PLATEFORME',
-        },
-        expires_at: new Date(Date.now() + 3600000).toISOString(),
-      },
-    })
+  let reads = 0
+  await page.route('**/api/v1/auth/session', (route) => {
+    reads++
+    return route.abort()
   })
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')))
   await page.evaluate(() => window.dispatchEvent(new Event('pageshow')))
-  await expect(
-    page.getByRole('status', { name: 'Vérification de votre accès' }),
-  ).toBeVisible()
-  await expect(page.getByRole('dialog')).not.toBeVisible()
+  await expect(page.getByRole('dialog').getByLabel('Prénom')).toHaveValue(
+    'Brouillon conservé',
+  )
   await expect(
     page
       .getByRole('navigation', { name: 'Administration' })
       .getByRole('link', { name: 'Historique' }),
-  ).toHaveCount(0)
-  finish()
-  await page
-    .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
-    .click()
-  await expect(page.getByRole('dialog').getByLabel('Prénom')).toHaveValue('')
+  ).toBeVisible()
+  expect(reads).toBe(0)
 })
 
 test('correcting the first name clears combined-name validation', async ({

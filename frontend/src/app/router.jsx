@@ -1,5 +1,6 @@
 import { ReminderMenu } from '@/features/notifications/ReminderMenu'
 import { WorkspaceOverview } from '@/features/dashboard/WorkspaceOverview'
+import { ProfileView } from '@/features/auth/ProfileView'
 import {
   LogoutProvider,
   LogoutScreen,
@@ -36,6 +37,7 @@ import {
 } from '@/features/auth/access-verification'
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from '@tanstack/react-router'
+import { redirect } from '@tanstack/react-router'
 import { HealthView } from '@/features/health/HealthView'
 import {
   ExecutionView,
@@ -184,6 +186,7 @@ function Shell() {
     path === '/identity' ||
     path === '/access/users' ||
     path === '/dashboard' ||
+    path === '/profile' ||
     path === '/planning' ||
     path === '/execution' ||
     path.startsWith('/partner') ||
@@ -241,6 +244,7 @@ function Shell() {
   }
   if (
     path === '/dashboard' ||
+    path === '/profile' ||
     path === '/planning' ||
     path === '/execution' ||
     path.startsWith('/partner') ||
@@ -327,7 +331,14 @@ export function makeRouter(history, componentOverrides = {}) {
       },
     }),
     defaultOptions: {
-      queries: { retry: false },
+      queries: {
+        retry: false,
+        staleTime: 60_000,
+        gcTime: 5 * 60_000,
+        refetchOnMount: true,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+      },
       mutations: { retry: false, networkMode: 'always' },
     },
   })
@@ -361,6 +372,7 @@ export function makeRouter(history, componentOverrides = {}) {
         pta: String(search.pta || '').slice(0, 36),
         projectCursor: String(search.projectCursor || '').slice(0, 512),
         ptaCursor: String(search.ptaCursor || '').slice(0, 512),
+        cursor: String(search.cursor || '').slice(0, 512),
         ...(Number.isInteger(Number(search.year)) &&
         Number(search.year) >= 2000 &&
         Number(search.year) <= 2200
@@ -381,7 +393,6 @@ export function makeRouter(history, componentOverrides = {}) {
     '/login',
     '/invitation',
     '/verification',
-    '/identity',
     '/forgot-password',
     '/reset-password',
   ].map((path) =>
@@ -476,6 +487,8 @@ export function makeRouter(history, componentOverrides = {}) {
       ].includes(search.invitationState)
         ? search.invitationState
         : '',
+      invite:
+        search.invite === true || search.invite === 'true' ? true : undefined,
       page:
         Number.isInteger(Number(search.page)) &&
         Number(search.page) > 0 &&
@@ -623,6 +636,19 @@ export function makeRouter(history, componentOverrides = {}) {
     routeTree: root.addChildren([
       home,
       health,
+      createRoute({
+        getParentRoute: () => root,
+        path: '/profile',
+        component: ProfileView,
+        errorComponent: RouteFailure,
+      }),
+      createRoute({
+        getParentRoute: () => root,
+        path: '/identity',
+        beforeLoad: () => {
+          throw redirect({ to: '/profile', replace: true })
+        },
+      }),
       ...overviewRoutes,
       ...authRoutes,
       access,

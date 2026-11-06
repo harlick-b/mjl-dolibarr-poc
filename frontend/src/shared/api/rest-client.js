@@ -1,14 +1,10 @@
 export class ApiError extends Error {
-  constructor(
-    message,
-    { status, code, fields, requestId, kind = 'http', retryAt } = {},
-  ) {
+  constructor(message, { status, code, fields, kind = 'http', retryAt } = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.fields = fields
-    this.requestId = requestId
     this.kind = kind
     this.retryAt = retryAt
   }
@@ -133,7 +129,6 @@ export class RestClient {
           status: response.status,
           code: payload.code,
           fields: payload.fields,
-          requestId: payload.request_id,
           retryAt: Number.isFinite(retryAt) ? retryAt : undefined,
         })
         if (access === 'protected')

@@ -9,7 +9,7 @@ opportunities, not measured latency claims. No broad parallelization was applied
 
 | Priority | Hot path / source | Finding and smallest next change |
 | --- | --- | --- |
-| High | `backend/app/planning/service.py`, principal; `partner_portal/routes.py`, partner_principal | Most business/Partner reads still acquire exclusive identity locks, serializing concurrent requests from one session. Audit individual GETs before opting into shared locks; some reads also record audit events. Preserve revocation protection. |
+| Addressed for planning reads, 6 November | `backend/app/planning/service.py`, principal | Ordinary reads now share session/user locks; `mutation=True` still forces exclusive locks. A deterministic overlapping projects/reminders regression reproduces and fixes the Dashboard lock timeout. Partner-specific and audited-download optimizations remain separate work. |
 | High | `backend/app/planning/execution.py`, execution_list | Builds full execution_detail per activity, then discards fields. This repeats financial reads, operations and closure-history validation. Build a batched list projection; keep full closure validation on mutations. |
 | High | `backend/app/planning/routes.py`, activity history; `planning/service.py`, revision_item | Reads all revisions and decisions, merges history, then cursor-filters in Python. Push the merged page window to PostgreSQL and batch only its decision records. Preserve ordering and authorization. |
 | Medium | `ExecutionView.jsx`, financial mutation success | Waits for execution/planning refreshes before clearing selection. Show confirmed success immediately and refresh affected records concurrently; prevent follow-on actions until authoritative state is ready. |

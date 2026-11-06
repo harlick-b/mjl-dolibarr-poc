@@ -1,3 +1,5 @@
+import { ExecutionList } from '@/features/execution/ExecutionView'
+import { Select } from '@/shared/ui/select'
 import { useState } from 'react'
 import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
@@ -22,9 +24,13 @@ export function WorkspaceOverview({ screen = 'dashboard' }) {
       <Helmet>
         <title>{title} — MJL</title>
       </Helmet>
-      <h1 className="text-2xl font-semibold text-navy">{title}</h1>
+      {!policy.can('accounts') && (
+        <h1 className="text-2xl font-semibold text-navy">{title}</h1>
+      )}
       {policy.can('business') ? (
         <BusinessOverview screen={screen} user={policy.user} />
+      ) : policy.can('accounts') ? (
+        <AdminOverview user={policy.user} />
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
@@ -49,6 +55,79 @@ export function WorkspaceOverview({ screen = 'dashboard' }) {
         </>
       )}
     </section>
+  )
+}
+function AdminOverview({ user }) {
+  const { api } = useAPI()
+  const counts = useQuery({
+    queryKey: ['access', user.id, 'dashboard'],
+    queryFn: async ({ signal }) => {
+      const [active, pending] = await Promise.all(
+        ['active', 'pending'].map((state) =>
+          api.request(`/api/v1/access/users?state=${state}&page=1&size=1`, {
+            signal,
+          }),
+        ),
+      )
+      return { active: active.total, pending: pending.total }
+    },
+  })
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold text-navy">
+          {strings.administration}
+        </h1>
+        <Button asChild>
+          <Link to="/access/users" search={{ invite: true }}>
+            {strings.invite}
+          </Link>
+        </Button>
+      </div>
+      {counts.isPending ? (
+        <PageLoading title={strings.administration} />
+      ) : counts.isError ? (
+        <RetryableError onRetry={() => counts.refetch()}>
+          {strings.unavailable}
+        </RetryableError>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Panel className="p-0 gap-0 flex flex-col [&>h2]:border-b [&>h2]:border-border [&>h2]:px-5 [&>h2]:py-4 [&>strong]:px-5 [&>strong]:pt-5 [&>p]:px-5 [&>p]:py-4 [&>a]:mx-5 [&>a]:mb-5 [&>a]:mt-auto [&>a]:self-start">
+            <h2>{strings.accountsTitle}</h2>
+            <strong className="text-3xl text-navy">{counts.data.active}</strong>
+            <p className="text-sm text-muted-foreground">
+              {strings.activeAccounts}
+            </p>
+            <Button variant="outline" asChild>
+              <Link to="/access/users">{strings.manageUsers}</Link>
+            </Button>
+          </Panel>
+          <Panel className="p-0 gap-0 flex flex-col [&>h2]:border-b [&>h2]:border-border [&>h2]:px-5 [&>h2]:py-4 [&>strong]:px-5 [&>strong]:pt-5 [&>p]:px-5 [&>p]:py-4 [&>a]:mx-5 [&>a]:mb-5 [&>a]:mt-auto [&>a]:self-start">
+            <h2>{strings.invitations}</h2>
+            <strong className="text-3xl text-navy">
+              {counts.data.pending}
+            </strong>
+            <p className="text-sm text-muted-foreground">
+              {strings.pendingAccounts}
+            </p>
+            <Button variant="outline" asChild>
+              <Link to="/access/users" search={{ state: 'pending' }}>
+                {strings.viewAccounts}
+              </Link>
+            </Button>
+          </Panel>
+          <Panel className="p-0 gap-0 flex flex-col [&>h2]:border-b [&>h2]:border-border [&>h2]:px-5 [&>h2]:py-4 [&>strong]:px-5 [&>strong]:pt-5 [&>p]:px-5 [&>p]:py-4 [&>a]:mx-5 [&>a]:mb-5 [&>a]:mt-auto [&>a]:self-start">
+            <h2>{strings.traceability}</h2>
+            <p className="text-sm text-muted-foreground">
+              {strings.auditDescription}
+            </p>
+            <Button className="self-end" variant="outline" asChild>
+              <Link to="/history">{strings.viewHistory}</Link>
+            </Button>
+          </Panel>
+        </div>
+      )}
+    </>
   )
 }
 function BusinessOverview({ screen, user }) {
@@ -96,6 +175,15 @@ function BusinessOverview({ screen, user }) {
       api.request(`/api/v1/ptas/${pta.id}/metrics`, { signal }),
     enabled: screen === 'dashboard' && Boolean(pta),
   })
+  const execution = useQuery({
+    queryKey: ['execution', user.id, 'list', pta?.id, search.cursor || ''],
+    queryFn: ({ signal }) =>
+      api.request(
+        `/api/v1/ptas/${pta.id}/execution${search.cursor ? '?cursor=' + encodeURIComponent(search.cursor) : ''}`,
+        { signal },
+      ),
+    enabled: screen === 'execution' && Boolean(pta),
+  })
   if (projects.isPending) return <PageLoading title={strings[screen]} />
   if (projects.isError)
     return (
@@ -118,21 +206,22 @@ function BusinessOverview({ screen, user }) {
         ]}
       />
     ) : (
-      <Panel className="p-0">
-        <EmptyContent
-          kind={screen === 'execution' ? 'execution' : 'projects'}
-        />
-      </Panel>
+      <ExecutionList embedded result={{ data: [], count: 0 }} />
     )
   return (
     <>
-      <Panel className="gap-4 border-0 bg-transparent p-0">
-        <label className="max-w-lg">
+      <Panel className="flex flex-wrap items-end gap-4 border-0 bg-transparent p-0">
+        <label className="w-full max-w-120">
           {strings.project}
-          <select
+          <Select
             value={project.id}
             onChange={(event) => {
-              change({ project: event.target.value, ptaCursor: '', pta: '' })
+              change({
+                project: event.target.value,
+                ptaCursor: '',
+                pta: '',
+                cursor: '',
+              })
             }}
           >
             {projects.data.data.map((row) => (
@@ -140,8 +229,31 @@ function BusinessOverview({ screen, user }) {
                 {row.reference} — {row.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
+        {screen === 'execution' && pta && (
+          <>
+            {' '}
+            <label className="max-w-40">
+              {strings.pta}
+              <Select
+                value={pta.id}
+                onChange={(event) =>
+                  change({ pta: event.target.value, cursor: '' })
+                }
+              >
+                {ptas.data.data.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.year}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <p className="pb-3 text-sm text-primary">
+              {project.partner_name || ''}
+            </p>
+          </>
+        )}
         <CursorButtons
           result={projects.data}
           busy={projects.isFetching}
@@ -197,6 +309,8 @@ function BusinessOverview({ screen, user }) {
       ) : !pta ? (
         screen === 'dashboard' ? (
           <EmptyDashboard />
+        ) : screen === 'execution' ? (
+          <ExecutionList embedded result={{ data: [], count: 0 }} />
         ) : (
           <EmptyTable
             kind="ptas"
@@ -211,12 +325,32 @@ function BusinessOverview({ screen, user }) {
         )
       ) : (
         <>
-          {screen === 'dashboard' ? (
+          {screen === 'execution' ? (
+            <>
+              {execution.isPending ? (
+                <PageLoading title={strings.execution} />
+              ) : execution.isError ? (
+                <RetryableError onRetry={() => execution.refetch()}>
+                  {strings.unavailable}
+                </RetryableError>
+              ) : (
+                <ExecutionList
+                  embedded
+                  result={execution.data}
+                  onPage={(link) =>
+                    change({
+                      cursor: cursorFrom(link, `/ptas/${pta.id}/execution`),
+                    })
+                  }
+                />
+              )}
+            </>
+          ) : screen === 'dashboard' ? (
             <>
               <Panel>
                 <label className="max-w-xs">
                   {strings.pta}
-                  <select
+                  <Select
                     value={pta.id}
                     onChange={(event) => change({ pta: event.target.value })}
                   >
@@ -225,7 +359,7 @@ function BusinessOverview({ screen, user }) {
                         {row.year}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               </Panel>
               {metrics.isPending ? (
@@ -241,7 +375,7 @@ function BusinessOverview({ screen, user }) {
                 >
                   <Metric
                     title={strings.physical}
-                    rate={formatPercentage(
+                    rate={dashboardPercentage(
                       metrics.data.physical.closed_activities,
                       metrics.data.physical.approved_activities,
                     )}
@@ -250,7 +384,7 @@ function BusinessOverview({ screen, user }) {
                   />
                   <Metric
                     title={strings.financial}
-                    rate={formatPercentage(
+                    rate={dashboardPercentage(
                       metrics.data.financial.closed_spending,
                       metrics.data.financial.approved_allocation,
                     )}
@@ -336,6 +470,10 @@ function Metric({ title, rate, basis, value }) {
     </Panel>
   )
 }
+
+function dashboardPercentage(value, total) {
+  return String(total) === '0' ? '0 %' : formatPercentage(value, total)
+}
 function CursorButtons({ result, path, onMove, busy }) {
   if (!result?.previous && !result?.next) return null
   return (
@@ -364,12 +502,12 @@ function EmptyDashboard() {
       <div className="grid gap-6 md:grid-cols-2">
         <Metric
           title={strings.physical}
-          rate={formatPercentage(0, 0)}
+          rate="0 %"
           basis={strings.emptyPhysical}
         />
         <Metric
           title={strings.financial}
-          rate={formatPercentage(0, 0)}
+          rate="0 %"
           basis={strings.emptyFinancial}
         />
       </div>

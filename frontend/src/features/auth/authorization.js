@@ -105,11 +105,11 @@ const pages = [
   },
   {
     id: 'identity',
-    path: '/identity',
+    path: '/profile',
     capability: 'identity',
     icon: 'identity',
     hidden: true,
-    matches: /^\/identity$/,
+    matches: /^\/(?:profile|identity)$/,
   },
 ]
 export const roleLabels = Object.fromEntries(

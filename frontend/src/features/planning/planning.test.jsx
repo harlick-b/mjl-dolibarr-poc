@@ -1,3 +1,4 @@
+import { selectOption } from '@/test/select-option'
 import {
   act,
   fireEvent,
@@ -855,11 +856,10 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   await user.click(
     within(withdrawalDialog).getByRole('button', { name: 'Suivant' }),
   )
-  await within(withdrawalDialog).findByRole('option', { name: 'preuve.png' })
-  await user.selectOptions(
+  await user.click(
     within(withdrawalDialog).getByLabelText('Pièce corrigée (facultatif)'),
-    'document-1',
   )
+  await user.click(await screen.findByRole('option', { name: 'preuve.png' }))
   online.mockReturnValue(false)
   await user.click(
     within(withdrawalDialog).getByRole('button', { name: 'Retirer' }),
@@ -1350,10 +1350,7 @@ test('a new Activity keeps its request key across a lost-response retry', async 
   await user.clear(screen.getByLabelText('Début'))
   await user.type(screen.getByLabelText('Début'), '2027-02-28')
   expect(screen.getByLabelText('Fin')).toHaveValue('2027-05-15')
-  await user.selectOptions(
-    screen.getByLabelText('Type d’opération 1'),
-    'type-1',
-  )
+  await selectOption(screen.getByLabelText('Type d’opération 1'), 'Atelier')
   await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
   await user.type(screen.getByLabelText('Budget de l’opération 1'), '10')
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
@@ -1407,7 +1404,7 @@ test('an Agent sees the empty planning workspace', async () => {
   ).toBeVisible()
   expect(screen.getByText('Aucun PTA')).toBeVisible()
   expect(
-    screen.queryByRole('button', { name: 'Créer' }),
+    screen.queryByRole('button', { name: 'Créer un projet' }),
   ).not.toBeInTheDocument()
 })
 
@@ -1498,7 +1495,7 @@ test('Validator creation uses a modal dialog and returns focus on Escape', async
   const opener = within(
     heading.closest('[data-ui~="planning-card"]'),
   ).getByRole('button', {
-    name: 'Ajouter',
+    name: 'Créer un partenaire',
   })
   await user.click(opener)
   const dialog = screen.getByRole('dialog', { name: 'Ajouter — Partenaires' })
@@ -1567,10 +1564,15 @@ test('authentication loss aborts an in-flight planning mutation and masks it', a
       )}
     />,
   )
-  const opener = await screen.findByRole('button', { name: 'Créer' })
+  const opener = await screen.findByRole('button', { name: 'Créer un projet' })
   await user.click(opener)
   await user.type(screen.getByLabelText('Nom'), 'Projet retardé')
-  await user.click(screen.getByRole('dialog').getElementsByTagName('button')[0])
+  await user.click(
+    within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Créer',
+      exact: true,
+    }),
+  )
   window.dispatchEvent(new Event('offline'))
   expect(
     await screen.findByRole('heading', { name: 'Connexion indisponible' }),
@@ -1660,7 +1662,9 @@ test('a planning mutation invalidates and visibly refreshes the cached list', as
   })
   expect(requestUrls.join('|')).toContain('/api/v1/partners')
   const card = heading.closest('[data-ui~="planning-card"]')
-  await user.click(within(card).getByRole('button', { name: 'Ajouter' }))
+  await user.click(
+    within(card).getByRole('button', { name: 'Créer un partenaire' }),
+  )
   const dialog = within(card).getByRole('dialog')
   await user.type(within(dialog).getByLabelText('Nom'), 'Partenaire actualisé')
   await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
@@ -1732,7 +1736,9 @@ test('a 409 planning mutation refetches server state before another action', asy
     level: 1,
   })
   const card = heading.closest('[data-ui~="planning-card"]')
-  await user.click(within(card).getByRole('button', { name: 'Ajouter' }))
+  await user.click(
+    within(card).getByRole('button', { name: 'Créer un partenaire' }),
+  )
   const dialog = within(card).getByRole('dialog')
   await user.type(within(dialog).getByLabelText('Nom'), 'Conflit')
   await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
@@ -2056,7 +2062,7 @@ test('projects load only their list and defer Partner choices until creation ope
     fetch.mock.calls.map(([url]) => new URL(url, 'http://localhost').pathname),
   ).toEqual(['/api/v1/auth/session', '/api/v1/projects'])
   await userEvent.click(
-    screen.getByRole('button', { name: 'Créer', exact: true }),
+    screen.getByRole('button', { name: 'Créer un projet', exact: true }),
   )
   await waitFor(() =>
     expect(
@@ -2148,7 +2154,9 @@ test('a failed background project refresh preserves the open draft and offers lo
     createMemoryHistory({ initialEntries: ['/projects'] }),
   )
   render(<App router={router} />)
-  await userEvent.click(await screen.findByRole('button', { name: 'Créer' }))
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Créer un projet' }),
+  )
   const input = screen.getByRole('dialog').querySelector('input[name="name"]')
   await userEvent.type(input, 'Projet en cours de saisie')
   failed = true

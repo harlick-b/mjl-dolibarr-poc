@@ -115,6 +115,22 @@ def test_admin_invites_and_lists_ordinary_user(admin, auth_env):
         "admin@example.test",
         "agent@example.test",
     }
+    pending = next(u for u in users["items"] if u["email"] == "agent@example.test")
+    assert pending["invitation"]["id"] == item["id"]
+    assert pending["invitation"]["delivery_status"] == "delivered"
+    assert set(pending["invitation"]) == {
+        "id",
+        "state",
+        "delivery_status",
+        "expires_at",
+        "version",
+    }
+    assert (
+        next(u for u in users["items"] if u["email"] == "admin@example.test")[
+            "invitation"
+        ]
+        is None
+    )
     with TestClient(admin.app, base_url="http://localhost") as recipient:
         identity = activate(recipient, auth_env.mailbox, "agent@example.test")
         assert identity["user"]["role"] == "AGENT_SAISIE"
@@ -160,6 +176,10 @@ def test_resend_revoke_versions_and_late_delivery(admin, auth_env, monkeypatch):
         json={"expected_version": renewed["version"]},
     )
     assert response.status_code == 200 and response.json()["state"] == "revoked"
+    users = admin.get("/api/v1/access/users?email=pending").json()
+    assert users["total"] == 1
+    assert users["items"][0]["invitation"]["state"] == "revoked"
+    assert users["items"][0]["invitation"]["version"] == response.json()["version"]
     assert (
         admin.post(
             f"{path}/{item['id']}/revoke",
@@ -307,6 +327,7 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
     ).json()
     assert result["total"] == 1 and len(result["items"]) == 1
     assert set(result["items"][0]) == {
+        "invitation",
         "id",
         "email",
         "full_name",
@@ -394,6 +415,9 @@ def test_mail_failure_is_persisted_and_explicit_resend_recovers(
     )
     item = admin.get("/api/v1/access/invitations?email=failed").json()["items"][0]
     assert item["state"] == "prepared" and item["delivery_status"] == "failed"
+    users = admin.get("/api/v1/access/users?email=failed").json()
+    assert users["total"] == 1
+    assert users["items"][0]["invitation"]["delivery_status"] == "failed"
     monkeypatch.setattr(auth.mail, "send", send)
     assert (
         admin.post(

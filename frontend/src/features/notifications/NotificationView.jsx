@@ -53,7 +53,6 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
         throw error
       }
     },
-    gcTime: 0,
   })
   useEffect(
     () => () => {

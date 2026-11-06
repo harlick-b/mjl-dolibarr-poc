@@ -17,6 +17,16 @@ export function formatXof(value) {
   const amount = typeof value === 'bigint' ? value : BigInt(value || 0)
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(amount)} XOF`
 }
+
+export function formatDate(value) {
+  if (!value) return '—'
+  const date = new Date(`${value}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'long',
+    timeZone: 'UTC',
+  }).format(date)
+}
 import { strings } from '@/locales/fr/format'
 
 export function formatPercentage(numerator, denominator) {

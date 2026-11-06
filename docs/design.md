@@ -149,7 +149,27 @@ tables and Dashboard metrics use actual bounded API projections; missing summary
 facts must not be replaced with demo values or totals from one list page.
 
 Empty states follow `docs/inspiration/empty/`: retain table headers and section
-borders, center both the empty title and explanation within the content block
+borders except Execution, whose empty reference shows only the count and message.
+Center both the empty title and explanation within the content block
 (the explicit user correction overrides left-aligned reference copy). Keep empty,
 filtered-no-results, failed-load and unshared Partner data states distinct. Never
-replace failed reads with zero metrics. Zero-denominator rates remain non-calculable.
+replace failed reads with zero metrics. The Dashboard displays `0 %` for empty
+denominators and `-` for missing/unconfirmed finance; API facts remain exact.
+
+`/profile` replaces `/identity` (legacy links redirect). Center the 720px personal
+information form within the workspace content, with initials/name/role above it,
+two name inputs, read-only email/role and a save action. The supplied profile
+screenshot governs composition; omit prototype-only demo/scenario controls.
+Admin Dashboard follows the prototype Administration overview: account summary,
+pending accounts and audit cards. Users and pending invitations share one table:
+name with email underneath, role, attachment, state and permitted row actions.
+Filters are opt-in. Invite given/family names share a row on desktop and stack
+on mobile. Shared shadcn Select popups stay inside native dialogs; submit buttons
+retain an inline spinner through submission and the required refresh.
+Password criteria use the selected blue background/primary text when satisfied;
+OTP boxes are centered. Successful invitation activation prefills only the login
+email through navigation state, never the password or URL.
+Partners and Projects retain their reference table/empty-state composition.
+Operation-type maintenance remains available in a collapsed secondary section
+on Partners, loaded only when opened. Execution lists show period, progress,
+current assigned names and administrative stage from server facts.

@@ -3,7 +3,8 @@ from urllib.parse import parse_qs, urlsplit
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.models import User
+from app.audit.routes import public_changes
+from app.auth.models import Audit, User
 from tests.auth.test_access import admin as admin_fixture
 from tests.auth.test_access import headers
 from tests.planning.test_planning import planning as planning_fixture
@@ -11,6 +12,54 @@ from tests.planning.test_planning import post, references
 
 planning = planning_fixture
 admin = admin_fixture
+
+
+def test_changes_project_existing_safe_shapes_and_never_raw_secrets():
+    row = Audit(
+        action="operation.execution_recorded",
+        business={
+            "before": {
+                "actual_spent": None,
+                "execution_completed": False,
+                "password": "old",
+            },
+            "after": {
+                "actual_spent": "9007199254740993",
+                "execution_completed": True,
+                "password": "new",
+            },
+        },
+    )
+    changes = public_changes(row)
+    assert {
+        "field": "Dépenses (F CFA)",
+        "before": None,
+        "after": "9007199254740993",
+    } in changes
+    assert {"field": "Réalisation terminée", "before": "Non", "after": "Oui"} in changes
+    assert len(changes) == 2
+    row.business = {}
+    row.details = {
+        "before_role": "AGENT_SAISIE",
+        "role": "AGENT_VERIFICATEUR",
+        "generation": "secret",
+    }
+    assert public_changes(row) == [
+        {"field": "Rôle", "before": "Agent de saisie", "after": "Superviseur"}
+    ]
+    row.business = {"before_state": "submitted", "after_state": "approved"}
+    assert public_changes(row) == [
+        {"field": "État", "before": "Soumis", "after": "Approuvé"}
+    ]
+    row.business = {
+        "before_state": "delivered",
+        "after_state": "revoked",
+        "before_user_state": "pending",
+        "user_state": "pending",
+    }
+    assert public_changes(row) == [
+        {"field": "État", "before": "Envoyée", "after": "Révoquée"}
+    ]
 
 
 def test_global_history_is_bounded_newest_first_and_activity_aware(planning):
@@ -47,6 +96,10 @@ def test_global_history_is_bounded_newest_first_and_activity_aware(planning):
     assert all(
         "details" not in row and "business" not in row for row in payload["data"]
     )
+    all_rows = planning["validator"].get("/api/v1/audit-events").json()["data"]
+    assert not {"login", "otp_verify", "access_denied", "logout"} & {
+        row["action"] for row in all_rows
+    }
     activity = next(
         row for row in payload["data"] if row["action"] == "activity.create"
     )
@@ -56,8 +109,13 @@ def test_global_history_is_bounded_newest_first_and_activity_aware(planning):
         "name": "Historique synthétique",
     }
     assert activity["actor"]["email"] == "agent@example.test"
-    assert set(activity["actor"]) == {"id", "email"}
+    assert set(activity["actor"]) == {"id", "email", "full_name"}
     assert activity["label"] == "Activité créée"
+    assert {
+        "field": "Nom",
+        "before": None,
+        "after": "Historique synthétique",
+    } in activity["changes"]
 
     with Session(planning["auth"].engine) as db, db.begin():
         agent = db.scalar(select(User).where(User.email == "agent@example.test"))
@@ -70,6 +128,7 @@ def test_global_history_is_bounded_newest_first_and_activity_aware(planning):
     assert historical_actor == {
         "id": activity["actor"]["id"],
         "email": "agent@example.test",
+        "full_name": activity["actor"]["full_name"],
     }
 
     following = planning["validator"].get(page.json()["next"])
@@ -136,6 +195,8 @@ def test_openapi_exposes_only_the_sanitized_history_shape(planning):
     assert set(item["properties"]) == {
         "id",
         "occurred_at",
+        "changes",
+        "subject",
         "action",
         "label",
         "outcome",

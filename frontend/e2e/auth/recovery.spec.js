@@ -44,14 +44,16 @@ test('A3 ordinary recovery scrubs proof, resets password and requires fresh OTP'
 
   await page.goto('/forgot-password')
   await expect(
-    page.getByRole('heading', { name: 'Récupérer votre accès' }),
+    page.getByRole('heading', { name: 'Mot de passe oublié ?' }),
   ).toBeVisible()
   await page.getByLabel('Adresse e-mail').fill(email)
   await page
-    .getByRole('button', { name: 'Envoyer le lien de récupération' })
+    .getByRole('button', { name: 'Envoyer le lien de réinitialisation' })
     .click()
   await expect(
-    page.getByText('Si ce compte peut être récupéré, vous recevrez un lien.'),
+    page.getByText(
+      'Votre demande a été prise en compte. Consultez votre messagerie pour les instructions de réinitialisation du mot de passe et pensez à vérifier vos courriers indésirables.',
+    ),
   ).toBeVisible()
 
   await expect
@@ -128,7 +130,7 @@ test('A3 recovery stays online-only without reconnect replay', async ({
   ).toBeVisible()
   await context.setOffline(false)
   await expect(
-    page.getByRole('heading', { name: 'Récupérer votre accès' }),
+    page.getByRole('heading', { name: 'Mot de passe oublié ?' }),
   ).toBeVisible()
   expect(posts).toBe(0)
 })

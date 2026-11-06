@@ -1,3 +1,4 @@
+import { Select } from '@/shared/ui/select'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Button } from '@/shared/ui/button'
 import { Panel } from '@/shared/ui/layout'
@@ -97,7 +98,6 @@ function portalQuery(api, key, path, onDenied, enabled = true) {
     },
     enabled,
     retry: false,
-    gcTime: 0,
   }
 }
 
@@ -314,7 +314,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
             <Panel className="border-0 bg-transparent p-0 flex flex-wrap gap-4">
               <label className="w-full max-w-120">
                 {strings.projectLabel}
-                <select
+                <Select
                   value={selectedProject.id}
                   onChange={(event) =>
                     void changeSearch({
@@ -329,12 +329,12 @@ export function PartnerPortalView({ screen = 'projects' }) {
                       {row.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               {selectedPta && (
                 <label>
                   {strings.ptaLabel}
-                  <select
+                  <Select
                     value={selectedPta.id}
                     onChange={(event) =>
                       void changeSearch({ pta: event.target.value })
@@ -345,7 +345,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                         {row.year}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               )}
             </Panel>
@@ -459,7 +459,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
               {projectRows.length > 1 && (
                 <label>
                   Projet affiché
-                  <select
+                  <Select
                     value={selectedProject.id}
                     onChange={(event) => {
                       void changeSearch({
@@ -476,7 +476,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                         {project.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               )}
             </div>
@@ -548,7 +548,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                 {ptaRows.length > 1 && (
                   <label>
                     Année
-                    <select
+                    <Select
                       value={selectedPta.id}
                       onChange={(event) =>
                         void changeSearch({
@@ -563,7 +563,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                           {pta.year}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 )}
               </div>

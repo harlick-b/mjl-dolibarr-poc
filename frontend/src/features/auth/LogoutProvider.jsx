@@ -67,7 +67,11 @@ export function LogoutScreen() {
       data-ui="logout-screen"
     >
       {busy ? (
-        <PageLoading title={strings.logoutHeading} className="min-h-0" />
+        <PageLoading
+          title={strings.logoutHeading}
+          label={strings.logoutHeading}
+          className="min-h-0"
+        />
       ) : (
         <FallbackState
           title={strings.logoutHeading}

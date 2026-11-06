@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FormSubmitContext } from './form-submit-context'
 
 // A form owns its unsaved input until its own command succeeds or it is closed.
 export function BusinessForm({
@@ -41,9 +42,11 @@ export function BusinessForm({
         }
       }}
     >
-      <fieldset className="contents" disabled={saving}>
-        {children}
-      </fieldset>
+      <FormSubmitContext.Provider value={saving}>
+        <fieldset className="contents" disabled={saving}>
+          {children}
+        </fieldset>
+      </FormSubmitContext.Provider>
     </form>
   )
 }

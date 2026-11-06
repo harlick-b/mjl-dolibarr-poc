@@ -10,7 +10,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
-from app.auth.models import Audit
+from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.models import (
@@ -188,6 +188,7 @@ class ExecutionListItem(Input):
     operation_count: int
     works_completed: bool
     spending_total: str | None
+    agents: list[str]
 
 
 class ExecutionHistoryItem(Input):
@@ -687,6 +688,19 @@ def execution_list(
             return f"{auth.policy.origin}/api/v1/ptas/{pta.id}/execution?{query}"
 
         details = [execution_detail(db, row, actor.role) for row in rows]
+        agents: dict[str, list[str]] = {}
+        for activity_id, full_name in db.execute(
+            select(ActivityAssignment.activity_id, User.full_name)
+            .join(User, User.id == ActivityAssignment.agent_id)
+            .where(
+                ActivityAssignment.activity_id.in_([row.id for row in rows]),
+                ActivityAssignment.ended_at.is_(None),
+            )
+            .order_by(User.full_name, User.id)
+        ):
+            agents.setdefault(activity_id, []).append(full_name or "Agent")
+        for detail in details:
+            detail["agents"] = agents.get(detail["id"], [])
         fields = set(ExecutionListItem.model_fields)
         return {
             "object": "list",

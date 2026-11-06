@@ -136,10 +136,6 @@ export function createAccessCoordinator({
       return Promise.reject(
         new ApiError('Déconnexion à confirmer.', { kind: 'logout_pending' }),
       )
-    if (document.visibilityState === 'hidden') {
-      mask('hidden')
-      return Promise.resolve(null)
-    }
     if (!navigator.onLine) {
       mask('offline')
       return Promise.reject(
@@ -280,6 +276,19 @@ export function createAccessCoordinator({
 
   return {
     getSnapshot: () => snapshot,
+    updateDisplayName(userId, fullName) {
+      if (
+        snapshot.status !== 'verified' ||
+        snapshot.session?.user.id !== userId
+      )
+        return
+      const session = {
+        ...snapshot.session,
+        user: { ...snapshot.session.user, full_name: fullName },
+      }
+      queryClient.setQueryData(SESSION_KEY, session)
+      publish({ session })
+    },
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -351,16 +360,11 @@ export function createAccessCoordinator({
         recoveryConsumed = false
       }
     },
-    hide() {
-      if (['unknown', 'verified', 'checking'].includes(snapshot.status))
-        mask('hidden')
-    },
     show() {
       const canResume = () =>
         snapshot.status === 'blocked' &&
-        ['hidden', 'offline'].includes(snapshot.reason) &&
-        navigator.onLine &&
-        document.visibilityState !== 'hidden'
+        snapshot.reason === 'offline' &&
+        navigator.onLine
       if (!canResume()) return Promise.resolve(snapshot.session)
       const resume = () =>
         canResume()
@@ -370,12 +374,6 @@ export function createAccessCoordinator({
     },
     changed() {
       if (logoutHeld) return Promise.resolve(null)
-      if (document.visibilityState === 'hidden') {
-        recoveryConsumed = false
-        authenticationChanged = false
-        mask('hidden')
-        return Promise.resolve(null)
-      }
       const now = Date.now()
       if (now - lastAuthenticationChange < 500) return Promise.resolve(null)
       lastAuthenticationChange = now
@@ -409,28 +407,15 @@ const AccessContext = createContext(null)
 export function AccessProvider({ coordinator, children }) {
   useEffect(() => {
     const channel = new BroadcastChannel('mjl-auth')
-    const hidden = () => {
-      if (document.visibilityState === 'hidden') coordinator.hide()
-      else void coordinator.show()
-    }
-    const pageHide = () => coordinator.hide()
-    const pageShow = () => void coordinator.show()
     const offline = () => coordinator.offline()
     const online = () => void coordinator.show()
     channel.onmessage = (event) => {
       if (!isLocalAuthenticationChange(event)) void coordinator.changed()
     }
-    document.addEventListener('visibilitychange', hidden)
-    window.addEventListener('pagehide', pageHide)
-    window.addEventListener('pageshow', pageShow)
     window.addEventListener('offline', offline)
     window.addEventListener('online', online)
-    hidden()
     return () => {
       channel.close()
-      document.removeEventListener('visibilitychange', hidden)
-      window.removeEventListener('pagehide', pageHide)
-      window.removeEventListener('pageshow', pageShow)
       window.removeEventListener('offline', offline)
       window.removeEventListener('online', online)
     }
@@ -455,6 +440,7 @@ export function useAccess() {
     ...state,
     ...authorization(state.session),
     verify: coordinator.verify,
+    updateDisplayName: coordinator.updateDisplayName,
     holdLogout: coordinator.holdLogout,
     releaseLogout: coordinator.releaseLogout,
     prepareLogout: coordinator.prepareLogout,

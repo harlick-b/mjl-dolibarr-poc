@@ -547,6 +547,9 @@ test('a denied portal read removes that view without invalidating the session', 
   const view = render(<App router={router} />)
   expect(await screen.findByText('Bonjour, Donnée privée')).toBeVisible()
   view.unmount()
+  await router.options.context.queryClient.invalidateQueries({
+    queryKey: ['partner-portal'],
+  })
   render(<App router={router} />)
   expect(await screen.findByRole('alert')).toHaveTextContent('indisponible')
   expect(screen.queryByText('Bonjour, Donnée privée')).toBeNull()
@@ -728,23 +731,33 @@ test('portal pagination follows server cursors through router search', async () 
   expect(screen.getByRole('button', { name: 'Précédent' })).toBeEnabled()
 })
 
-test('a verified Partner can enter the portal from the identity screen', async () => {
+test('a verified Partner can enter the portal from the profile sidebar', async () => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() =>
+    vi.fn((url) =>
       Promise.resolve(
         new Response(
-          JSON.stringify({
-            state: 'verified',
-            csrf: 'csrf',
-            user: {
-              id: 'partner-user',
-              email: 'partner@example.test',
-              role: 'PARTENAIRE',
-              partner_id: 'partner-1',
-            },
-            expires_at: new Date(Date.now() + 60_000).toISOString(),
-          }),
+          JSON.stringify(
+            String(url).endsWith('/auth/profile')
+              ? {
+                  full_name: 'Partner Test',
+                  first_name: 'Partner',
+                  last_name: 'Test',
+                  email: 'partner@example.test',
+                  role: 'PARTENAIRE',
+                }
+              : {
+                  state: 'verified',
+                  csrf: 'csrf',
+                  user: {
+                    id: 'partner-user',
+                    email: 'partner@example.test',
+                    role: 'PARTENAIRE',
+                    partner_id: 'partner-1',
+                  },
+                  expires_at: new Date(Date.now() + 60_000).toISOString(),
+                },
+          ),
         ),
       ),
     ),
@@ -758,7 +771,7 @@ test('a verified Partner can enter the portal from the identity screen', async (
   )
   expect(
     await screen.findByRole('link', {
-      name: 'Accéder à mon espace Partenaire',
+      name: 'Mes projets',
     }),
   ).toHaveAttribute('href', '/partner')
 })

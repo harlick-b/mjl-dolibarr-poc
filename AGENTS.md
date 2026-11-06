@@ -22,8 +22,10 @@ approval for routine fixes. Do not infer permission for the next slice.
 
 Before edits map each mechanism to a requirement or concrete security/integrity
 risk. Prefer existing seams; remove speculative abstractions. Reassess if scope
-grows and after an hour of active implementation. No generic workflow engine,
-event bus, repository framework, microservices, offline database or mutation queue.
+grows and after an hour of active implementation. Explain necessary scope growth
+when discovered; separate independent improvements from the authorized slice.
+No generic workflow engine, event bus, repository framework, microservices,
+offline database or mutation queue.
 Describe invariants before prescribing table/endpoint counts. Preserve exact XOF,
 immutable approvals, no-self-validation and server-side role/resource isolation.
 
@@ -58,7 +60,9 @@ workflows. Use focused checks while iterating; broaden when shared changes or
 unresolved risks justify it. After fixes rerun affected checks, not unrelated
 suites. Never waive a mandatory gate or present older evidence as a final run.
 Record tested source/artifact with actual commands/results; bind migration
-compatibility to that candidate. Measure slow setup before optimizing fixtures;
+compatibility to that candidate. Distinguish full runs from focused reruns and
+report skips or interrupted runs explicitly; a later focused pass does not make
+an unfinished broad suite pass. Measure slow setup before optimizing fixtures;
 retain real disposable PostgreSQL for constraints, transactions and concurrency.
 
 Documentation-only work uses status, diff/stat, diff --check, reference checks and

@@ -22,7 +22,6 @@ import {
 } from '@tanstack/react-router'
 import { Eye, EyeOff, LoaderCircle } from 'lucide-react'
 import { sessionKey } from './auth'
-import { roleLabels } from './authorization'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { Helmet } from 'react-helmet-async'
 import { strings } from '@/locales/fr/AuthView'
@@ -79,6 +78,10 @@ function Password({ label, name, value, onChange, disabled }) {
 
 export function AuthView() {
   const path = useRouterState({ select: (state) => state.location.pathname })
+  return <AuthPage key={path} path={path} />
+}
+
+function AuthPage({ path }) {
   const loader = useRouterState({
     select: (state) => state.matches.at(-1)?.loaderData,
   })
@@ -107,7 +110,12 @@ export function AuthView() {
     error: access.status === 'blocked' ? access.reason : sessionResult.error,
     refetch: refetchAccess,
   }
-  const [email, setEmail] = useState('')
+  const loginEmail = useRouterState({
+    select: (state) => state.location.state.loginEmail,
+  })
+  const [email, setEmail] = useState(() =>
+    path === '/login' && typeof loginEmail === 'string' ? loginEmail : '',
+  )
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [code, setCode] = useState('')
@@ -120,7 +128,6 @@ export function AuthView() {
   const generation = useRef(0)
   const controller = useRef(null)
   const inFlight = useRef(null)
-  const previousPath = useRef(path)
   const dirty = Boolean(email || password || confirmation || code)
   const mutation = useMutation({
     mutationKey: ['auth', 'form'],
@@ -132,19 +139,6 @@ export function AuthView() {
   })
   const busy = Boolean(transition) || mutation.isPending
   const resetMutation = mutation.reset
-
-  useEffect(() => {
-    if (previousPath.current === path) return
-    previousPath.current = path
-    generation.current += 1
-    inFlight.current = null
-    controller.current?.abort()
-    resetMutation()
-    setTransition(null)
-    setPassword('')
-    setConfirmation('')
-    setCode('')
-  }, [path, resetMutation])
 
   useEffect(
     () => () => {
@@ -254,10 +248,6 @@ export function AuthView() {
       })
       client.getMutationCache().clear()
       client.setQueryData(sessionKey, null)
-      setPassword('')
-      setConfirmation('')
-      setCode('')
-      setEmail('')
       broadcastAuthenticationChange()
       const fresh = await access.verify({ manual: true, reason: 'credentials' })
       if (current !== generation.current) return
@@ -266,6 +256,9 @@ export function AuthView() {
         await navigate({
           to: destination === '/' ? loginDestination(fresh) : destination,
           replace: true,
+          ...(endpoint === 'invitations/accept'
+            ? { state: { loginEmail: loader.email } }
+            : {}),
         })
       else setNotice('Un nouveau code a été envoyé.')
     } catch (error) {
@@ -471,7 +464,7 @@ export function AuthView() {
             onChange={(event) => setPassword(event.target.value)}
           />
           <ul
-            className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-success [&_li[data-valid='true']]:bg-success-badge"
+            className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-primary [&_li[data-valid='true']]:bg-selected"
             aria-live="polite"
           >
             {criteria.map(([ok, label]) => (
@@ -509,52 +502,8 @@ export function AuthView() {
         </form>
       </>
     )
-  else if (verified)
-    content = (
-      <>
-        <h1>{common.accountHeading}</h1>
-        <dl>
-          <dt>Adresse e-mail</dt>
-          <dd>{session.data.user.email}</dd>
-          <dt>Rôle</dt>
-          <dd>{roleLabels[session.data.user.role]}</dd>
-        </dl>
-        {session.data.user.role === 'ADMIN_PLATEFORME' && (
-          <Link
-            to="/access/users"
-            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
-          >
-            Gérer les utilisateurs
-          </Link>
-        )}
-        {session.data.user.role === 'PARTENAIRE' && (
-          <Link
-            to="/partner"
-            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
-          >
-            Accéder à mon espace Partenaire
-          </Link>
-        )}
-        <form onSubmit={(e) => submit(e, 'logout', {}, '/login')}>
-          <AuthButton
-            className={buttonVariants({ variant: 'auth' })}
-            data-ui="auth-primary"
-            disabled={disabled}
-            busy={
-              busy &&
-              (transition?.endpoint || mutation.variables?.endpoint) ===
-                'logout'
-            }
-          >
-            Se déconnecter
-          </AuthButton>
-        </form>
-      </>
-    )
-  else if (path === '/identity')
-    return (
-      <Navigate to={state === 'pending' ? '/verification' : '/login'} replace />
-    )
+  else if (verified && path === '/invitation')
+    return <Navigate to={loginDestination(session.data)} replace />
   else if (path === '/invitation')
     content = (
       <>
@@ -597,7 +546,7 @@ export function AuthView() {
               value={confirmation}
               onChange={(e) => setConfirmation(e.target.value)}
             />
-            <ul className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-success [&_li[data-valid='true']]:bg-success-badge">
+            <ul className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-primary [&_li[data-valid='true']]:bg-selected">
               {criteria.map(([ok, label]) => (
                 <li key={label} data-valid={ok}>
                   {ok ? '✓' : '○'} {label}
@@ -750,13 +699,9 @@ export function AuthView() {
       </>
     )
 
-  const adminUser =
-    path === '/identity' && !revalidation && state === 'verified'
-      ? session.data.user
-      : null
   if (session.isPending && !transition) return <AuthLoading path={path} />
   return (
-    <AuthFrame user={adminUser} title={authTitle(path)} busy={busy}>
+    <AuthFrame title={authTitle(path)} busy={busy}>
       {content}
       {online && notice && <p role="alert">{notice}</p>}
     </AuthFrame>

@@ -65,7 +65,7 @@ test('ordinary service failure remains local to the request', async () => {
   expect(coordinator.getSnapshot().status).toBe('verified')
 })
 
-test('a hidden protected tab synchronously purges protected cached data', async () => {
+test('changing tabs preserves verified access and cached data', async () => {
   const queryClient = new QueryClient()
   const coordinator = createAccessCoordinator({
     queryClient,
@@ -74,14 +74,20 @@ test('a hidden protected tab synchronously purges protected cached data', async 
   await coordinator.verify({ manual: true })
   queryClient.setQueryData(['planning', 'agent-1'], { secret: 'protected' })
 
-  coordinator.hide()
-
-  expect(coordinator.getSnapshot().status).toBe('blocked')
-  expect(queryClient.getQueryData(['planning', 'agent-1'])).toBeUndefined()
-  expect(queryClient.getQueryData(['auth', 'session'])).toBeNull()
+  render(
+    <AccessProvider coordinator={coordinator}>
+      <AccessStatus />
+    </AccessProvider>,
+  )
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+  act(() => document.dispatchEvent(new Event('visibilitychange')))
+  expect(coordinator.getSnapshot().status).toBe('verified')
+  expect(queryClient.getQueryData(['planning', 'agent-1'])).toEqual({
+    secret: 'protected',
+  })
 })
 
-test('page lifecycle events mask data before restoring a resumed tab', async () => {
+test('page lifecycle events do not discard data or refetch a valid session', async () => {
   const queryClient = new QueryClient()
   const readSession = vi.fn().mockResolvedValue(verifiedSession())
   const coordinator = createAccessCoordinator({ queryClient, readSession })
@@ -94,12 +100,14 @@ test('page lifecycle events mask data before restoring a resumed tab', async () 
   )
 
   act(() => window.dispatchEvent(new Event('pagehide')))
-  expect(screen.getByText('blocked')).toBeVisible()
-  expect(queryClient.getQueryData(['planning', 'agent-1'])).toBeUndefined()
+  expect(screen.getByText('verified')).toBeVisible()
+  expect(queryClient.getQueryData(['planning', 'agent-1'])).toEqual({
+    secret: 'protected',
+  })
 
   await act(async () => window.dispatchEvent(new Event('pageshow')))
   expect(await screen.findByText('verified')).toBeVisible()
-  expect(readSession).toHaveBeenCalledTimes(2)
+  expect(readSession).toHaveBeenCalledTimes(1)
 })
 
 test('online return resumes an access check after offline masking', async () => {
@@ -118,7 +126,7 @@ test('online return resumes an access check after offline masking', async () => 
   expect(readSession).toHaveBeenCalledTimes(2)
 })
 
-test('a resumed tab starts a fresh check after cancelling an older cycle', async () => {
+test('reconnecting starts a fresh check after cancelling an older cycle', async () => {
   const readSession = vi
     .fn()
     .mockImplementationOnce(
@@ -139,7 +147,7 @@ test('a resumed tab starts a fresh check after cancelling an older cycle', async
   const first = coordinator.verify().catch(() => null)
   await vi.waitFor(() => expect(readSession).toHaveBeenCalledOnce())
 
-  coordinator.hide()
+  coordinator.offline()
   await expect(coordinator.show()).resolves.not.toThrow()
   await first
 
@@ -373,7 +381,7 @@ test('a repeated denial after successful recovery stays blocked without a loop',
   expect(readSession).toHaveBeenCalledTimes(2)
 })
 
-test('authentication changes stay masked while hidden and verify on return', async () => {
+test('cross-tab authentication changes still reverify when this tab is hidden', async () => {
   const readSession = vi.fn().mockResolvedValue(verifiedSession())
   const coordinator = createAccessCoordinator({
     queryClient: new QueryClient(),
@@ -381,16 +389,10 @@ test('authentication changes stay masked while hidden and verify on return', asy
   })
   await coordinator.verify()
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
-  coordinator.hide()
   await coordinator.changed()
   expect(coordinator.getSnapshot()).toMatchObject({
-    status: 'blocked',
-    session: null,
+    status: 'verified',
   })
-  expect(readSession).toHaveBeenCalledOnce()
-  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
-  await coordinator.show()
-  expect(coordinator.getSnapshot().status).toBe('verified')
   expect(readSession).toHaveBeenCalledTimes(2)
   coordinator.dispose()
 })

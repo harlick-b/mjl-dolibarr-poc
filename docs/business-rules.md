@@ -210,8 +210,11 @@ Admin has no general inbox. Browser push and production scheduling are deferred.
 Whole-current-PTA metrics use approved baselines, independent of screen filters
 or pagination. Physical rate = closed Activities / approved planned Activities.
 Financial rate = final spending of closed Activities / approved PTA allocation.
-Expose exact supporting facts; zero denominator is non-calculable, with no silent
-100% cap. Effective withdrawal is excluded; approved transfer uses its destination.
+Expose exact supporting facts; zero denominator is mathematically non-calculable,
+with no silent 100% cap. Dashboard presentation displays `0 %` for an empty
+denominator and `-` for missing/unconfirmed finance, per the user’s explicit
+display instruction; underlying facts and export semantics remain unchanged.
+Effective withdrawal is excluded; approved transfer uses its destination.
 
 Internal Fiche PDF regenerates approved planning, Operations, execution,
 settlement, chronology, document references and generation date; it remains

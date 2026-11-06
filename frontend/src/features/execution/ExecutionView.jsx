@@ -1,5 +1,4 @@
 import { EmptyContent } from '@/shared/ui/EmptyContent'
-import { businessActionClassName } from '@/shared/ui/button-variants'
 import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
@@ -23,7 +22,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
-import { formatXof } from '@/shared/lib/format'
+import { formatXof, formatDate } from '@/shared/lib/format'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
@@ -47,7 +46,6 @@ function executionQuery(api, userId, key, path, onDenied) {
       }
     },
     retry: false,
-    gcTime: 0,
   }
 }
 
@@ -582,81 +580,127 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
   )
 }
 
-function ExecutionList({ result, onPage }) {
+export function ExecutionList({ result, onPage, embedded = false }) {
   const rows = result?.data || []
   return (
     <section className="grid gap-6">
       <Helmet>
-        <title>Réalisation des activités — MJL</title>
+        <title>{strings.listTitle} — MJL</title>
       </Helmet>
-      <header
-        className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
-        data-ui="planning-heading"
-      >
-        <div>
-          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-            Réalisation d’activités
-          </p>
-          <h1>Activités approuvées</h1>
-        </div>
-      </header>
-      <div className="grid gap-4">
-        {rows.length ? (
-          rows.map((row) => (
-            <Panel as="article" key={row.id}>
-              <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-                <div>
-                  <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-                    {row.reference}
-                  </p>
-                  <h2>{row.name}</h2>
-                </div>
-                <Link
-                  className={businessActionClassName}
-                  to="/execution/activities/$activityId"
-                  params={{ activityId: row.id }}
+      {!embedded && (
+        <h1 className="text-2xl font-semibold text-navy">
+          {strings.listTitle}
+        </h1>
+      )}
+      <div className="overflow-x-auto rounded-card border border-border bg-white">
+        <p className="border-b border-border px-5 py-4 text-sm">
+          {strings.formatString(strings.activitiesCount, {
+            count: result?.count ?? rows.length,
+          })}
+        </p>
+        <table className="w-full text-left text-sm">
+          {rows.length > 0 && (
+            <thead className="bg-background border-b border-border">
+              <tr>
+                {strings.listColumns.map((label) => (
+                  <th key={label} className="px-3 py-3 font-medium">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          )}
+          <tbody>
+            {rows.length ? (
+              rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-border last:border-0"
                 >
-                  Ouvrir
-                </Link>
-              </div>
-              <p>
-                {row.completed_operations}/{row.operation_count} Opérations
-                terminées ·{' '}
-                {row.spending_total === null
-                  ? 'Dépenses incomplètes'
-                  : formatXof(row.spending_total)}
-              </p>
-              {row.execution_paused && (
-                <p className="border-l-4 border-l-danger p-3 bg-white">
-                  Réalisation suspendue.
-                </p>
-              )}
-            </Panel>
-          ))
-        ) : (
-          <Panel className="p-0 gap-0">
-            <p className="border-b border-border px-5 py-4 text-[0.8125rem]">
-              {strings.zeroActivities}
-            </p>
-            <EmptyContent kind="execution" large />
-          </Panel>
-        )}
+                  <td className="px-3 py-4">
+                    <Link
+                      className="font-medium text-primary"
+                      to="/execution/activities/$activityId"
+                      params={{ activityId: row.id }}
+                    >
+                      {row.name}
+                    </Link>
+                    <small className="block mt-1 text-muted-foreground">
+                      {row.reference}
+                    </small>
+                  </td>
+                  <td className="px-3 py-4">
+                    {formatDate(row.planned_start)}
+                    <small className="block mt-1 text-muted-foreground">
+                      {formatDate(row.planned_end)}
+                    </small>
+                  </td>
+                  <td className="px-3 py-4">
+                    {row.works_completed
+                      ? strings.completedLabel
+                      : strings.ongoingLabel}
+                    <small className="block mt-1 text-muted-foreground">
+                      {row.spending_total === null
+                        ? '—'
+                        : formatXof(row.spending_total)}{' '}
+                      · {row.completed_operations}/{row.operation_count}{' '}
+                      {strings.operationsCount}
+                    </small>
+                  </td>
+                  <td className="px-3 py-4">{row.agents?.join(', ') || '—'}</td>
+                  <td className="px-3 py-4">
+                    <span
+                      className={
+                        row.closure
+                          ? 'rounded-card bg-success-badge text-success px-2 py-1 text-xs'
+                          : row.works_completed || row.execution_paused
+                            ? 'rounded-card bg-warning-soft text-warning px-2 py-1 text-xs'
+                            : 'rounded-card bg-selected text-primary px-2 py-1 text-xs'
+                      }
+                    >
+                      {executionStage(row)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-4">
+                    <Button asChild variant="outline">
+                      <Link
+                        to="/execution/activities/$activityId"
+                        params={{ activityId: row.id }}
+                      >
+                        {strings.followUp}
+                      </Link>
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6}>
+                  <EmptyContent kind="execution" large />
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
       {(result?.previous || result?.next) && (
-        <nav className="flex gap-2 items-end flex-wrap" aria-label="Pagination">
+        <nav
+          className="flex gap-2 items-end flex-wrap"
+          aria-label={strings.listPagination}
+        >
           <Button
             variant="outline"
             disabled={!result.previous}
             onClick={() => onPage(result.previous)}
           >
-            Précédent
+            {strings.previousPage}
           </Button>
           <Button
             variant="outline"
             disabled={!result.next}
             onClick={() => onPage(result.next)}
           >
-            Suivant
+            {strings.nextPage}
           </Button>
         </nav>
       )}
@@ -2299,4 +2343,21 @@ export function ExecutionLoading({ screen }) {
       variant={screen === 'list' ? 'table' : 'detail'}
     />
   )
+}
+
+function executionStage(row) {
+  if (row.closure) return strings.closedLabel
+  if (
+    row.pause_reason === 'funding_required' ||
+    row.closure_blockers?.includes('financial_insufficiency_unresolved')
+  )
+    return strings.fundingStage
+  if (row.execution_paused) return strings.pausedLabel
+  if (row.closure_blockers?.includes('reversement_not_settled'))
+    return strings.returnStage
+  if (row.works_completed)
+    return row.closure_blockers?.length
+      ? strings.financialStage
+      : strings.readyToClose
+  return strings.ongoingStage
 }

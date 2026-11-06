@@ -66,7 +66,7 @@ export function AdminMain({ as: Component = 'main', className, ...props }) {
     <Component
       data-ui="access-main"
       className={cn(
-        'p-8 max-w-360 m-auto',
+        'p-8 w-full min-w-0 max-w-360 m-auto',
         '[&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem]',
         '[&_input]:min-h-11 [&_input]:border [&_input]:border-border [&_input]:rounded-control [&_input]:py-2 [&_input]:px-3 [&_input]:bg-white [&_input]:max-w-full',
         '[&_select]:min-h-11 [&_select]:border [&_select]:border-border [&_select]:rounded-control [&_select]:py-2 [&_select]:px-3 [&_select]:bg-white [&_select]:max-w-full',

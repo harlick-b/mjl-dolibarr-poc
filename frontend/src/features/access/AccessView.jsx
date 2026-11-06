@@ -1,3 +1,4 @@
+import { Select } from '@/shared/ui/select'
 import { EmptyTable } from '@/shared/ui/EmptyContent'
 import { AdminShell, AdminMain } from '@/shared/ui/layout'
 import { cursorFrom } from '@/shared/lib/pagination'
@@ -7,7 +8,7 @@ import { authorization, roleLabels } from '@/features/auth/authorization'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Plus, SlidersHorizontal, X } from 'lucide-react'
+import { Plus, SlidersHorizontal, X, LoaderCircle } from 'lucide-react'
 import { sessionKey } from '@/features/auth/auth'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { strings } from '@/locales/fr/AccessView'
@@ -84,8 +85,6 @@ function listQuery(api, principal, kind, filters, onDenied) {
   return {
     queryKey: ['access', principal, kind, filters],
     retry: false,
-    staleTime: 0,
-    gcTime: 0,
     networkMode: 'always',
     queryFn: async ({ signal }) => {
       try {
@@ -146,8 +145,14 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   const client = useQueryClient()
   const navigate = useNavigate()
   const search = useSearch({ from: '/access/users' })
-  const [dialog, setDialog] = useState(null)
+  const [dialog, setDialog] = useState(
+    search.invite ? { kind: 'invite' } : null,
+  )
+  const [filtersOpen, setFiltersOpen] = useState(
+    Boolean(search.email || search.role || search.state),
+  )
   const [notice, setNotice] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const alive = useRef(true)
   const controller = useRef(null)
   const mutation = useMutation({
@@ -169,9 +174,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
       alive.current = false
       controller.current?.abort()
       reset()
-      client.getMutationCache().clear()
-      void client.cancelQueries({ queryKey: ['access'] })
-      client.removeQueries({ queryKey: ['access'] })
     }
   }, [client, reset])
   useEffect(() => {
@@ -196,17 +198,8 @@ function Accounts({ session, onDenied = () => {}, checking }) {
     ...(search.role ? { role: search.role } : {}),
     ...(search.state ? { state: search.state } : {}),
   }
-  const invitationFilters = {
-    page: search.invitationPage,
-    size: 20,
-    ...(search.email ? { email: search.email } : {}),
-    ...(search.invitationState ? { state: search.invitationState } : {}),
-  }
   const users = useQuery(
     listQuery(api, session.user.id, 'users', userFilters, denied),
-  )
-  const invitations = useQuery(
-    listQuery(api, session.user.id, 'invitations', invitationFilters, denied),
   )
   const partnerIds = [
     ...new Set(
@@ -218,8 +211,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   const partners = useQuery({
     queryKey: ['access', session.user.id, 'partners', partnerIds],
     retry: false,
-    staleTime: 0,
-    gcTime: 0,
     networkMode: 'always',
     enabled: partnerIds.length > 0,
     queryFn: async ({ signal }) => {
@@ -235,7 +226,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
     navigate({ to: '/access/users', search: { ...search, ...values } })
   async function submit(event) {
     event.preventDefault()
-    if (mutation.isPending) return
+    if (submitting) return
     const data = new FormData(event.currentTarget)
     if (dialog.kind === 'invite') {
       const name = `${data.get('first_name').trim()} ${data.get('last_name').trim()}`
@@ -262,6 +253,8 @@ function Accounts({ session, onDenied = () => {}, checking }) {
         ? {
             email: data.get('email'),
             full_name: `${data.get('first_name').trim()} ${data.get('last_name').trim()}`,
+            first_name: data.get('first_name').trim(),
+            last_name: data.get('last_name').trim(),
             role,
             ...(role === 'PARTENAIRE'
               ? { partner_id: data.get('partner_id') }
@@ -273,6 +266,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             ...(dialog.kind === 'deactivate' ? { deactivate: true } : {}),
           }
     setNotice('')
+    setSubmitting(true)
     controller.current = new AbortController()
     try {
       const result = await mutation.mutateAsync({
@@ -293,14 +287,12 @@ function Accounts({ session, onDenied = () => {}, checking }) {
               ? 'Invitation révoquée.'
               : 'Invitation envoyée.',
       )
-      setDialog(null)
     } catch (error) {
       if (!alive.current) return
       if (error.status === 401) {
         denied(error.status)
         return
       }
-      setDialog(null)
       setNotice(
         error.code === 'eligibility_unverified'
           ? 'Modification indisponible : l’éligibilité de ce compte ne peut pas être vérifiée.'
@@ -317,8 +309,11 @@ function Accounts({ session, onDenied = () => {}, checking }) {
         await client.invalidateQueries({
           queryKey: ['access', session.user.id],
         })
-        reset()
-        client.getMutationCache().clear()
+        if (alive.current) {
+          setSubmitting(false)
+          setDialog(null)
+          reset()
+        }
       }
     }
   }
@@ -343,10 +338,20 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             data-ui="access-heading"
           >
             <h1>Utilisateurs</h1>
-            <Button onClick={() => setDialog({ kind: 'invite' })}>
-              <Plus size={18} />
-              Inviter un utilisateur
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen(!filtersOpen)}
+              >
+                <SlidersHorizontal aria-hidden="true" size={16} />
+                <span className="sr-only">{strings.usersFilters}</span>
+              </Button>
+              <Button onClick={() => setDialog({ kind: 'invite' })}>
+                <Plus size={18} />
+                Inviter un utilisateur
+              </Button>
+            </div>
           </div>
           {notice && (
             <p
@@ -356,74 +361,67 @@ function Accounts({ session, onDenied = () => {}, checking }) {
               {notice}
             </p>
           )}
-          <details
-            className="mb-4 [&_summary]:flex [&_summary]:items-center [&_summary]:gap-2 [&_summary]:w-fit [&_summary]:min-h-10 [&_summary]:cursor-pointer [&_summary]:text-[0.8125rem] [&_summary]:text-primary [&_[data-ui~='access-filters']]:py-4 [&_[data-ui~='access-filters']]:mb-0"
-            open={
-              Boolean(search.email || search.role || search.state) || undefined
-            }
-          >
-            <summary>
-              <SlidersHorizontal aria-hidden="true" size={16} />
-              {strings.usersFilters}
-            </summary>
-            <form
-              className="flex items-end flex-wrap gap-4 mb-6 max-[761px]:[&_>_label]:w-full"
-              data-ui="access-filters"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const d = new FormData(e.currentTarget)
-                void changeSearch({
-                  email: d.get('email').trim(),
-                  role: d.get('role'),
-                  state: d.get('state'),
-                  page: 1,
-                  invitationPage: 1,
-                })
-              }}
-            >
-              <label>
-                Rechercher par e-mail
-                <input
-                  key={search.email}
-                  name="email"
-                  type="search"
-                  maxLength={254}
-                  defaultValue={search.email}
-                />
-              </label>
-              <label>
-                Rôle
-                <select
-                  key={search.role}
-                  name="role"
-                  defaultValue={search.role}
-                >
-                  <option value="">Tous les rôles</option>
-                  {Object.entries(roleLabels).map(([code, label]) => (
-                    <option key={code} value={code}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                État du compte
-                <select
-                  key={search.state}
-                  name="state"
-                  defaultValue={search.state}
-                >
-                  <option value="">Tous les états</option>
-                  {['pending', 'active', 'inactive'].map((s) => (
-                    <option key={s} value={s}>
-                      {states[s]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button>Filtrer</Button>
-            </form>
-          </details>
+          {filtersOpen && (
+            <div>
+              <form
+                className="flex items-end flex-wrap gap-4 mb-6 max-[761px]:[&_>_label]:w-full"
+                data-ui="access-filters"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const d = new FormData(e.currentTarget)
+                  void changeSearch({
+                    email: d.get('email').trim(),
+                    role: d.get('role'),
+                    state: d.get('state'),
+                    page: 1,
+                    invitationPage: 1,
+                  })
+                }}
+              >
+                <label>
+                  Rechercher par e-mail
+                  <input
+                    key={search.email}
+                    name="email"
+                    type="search"
+                    maxLength={254}
+                    defaultValue={search.email}
+                  />
+                </label>
+                <label>
+                  Rôle
+                  <Select
+                    key={search.role}
+                    name="role"
+                    defaultValue={search.role}
+                  >
+                    <option value="">Tous les rôles</option>
+                    {Object.entries(roleLabels).map(([code, label]) => (
+                      <option key={code} value={code}>
+                        {label}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label>
+                  État du compte
+                  <Select
+                    key={search.state}
+                    name="state"
+                    defaultValue={search.state}
+                  >
+                    <option value="">Tous les états</option>
+                    {['pending', 'active', 'inactive'].map((s) => (
+                      <option key={s} value={s}>
+                        {states[s]}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <Button>Filtrer</Button>
+              </form>
+            </div>
+          )}
           <ListState
             query={users}
             empty={
@@ -456,7 +454,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
               )
             }
           >
-            <div className="border border-border rounded-card overflow-auto bg-white [&_+_[data-ui~='access-heading']]:mt-8">
+            <div className="relative border border-border rounded-card overflow-auto bg-white [&_+_[data-ui~='access-heading']]:mt-8">
               <table>
                 <caption className="sr-only">Comptes utilisateurs</caption>
                 <thead>
@@ -465,7 +463,9 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                     <th>Rôle</th>
                     <th>{strings.userScope}</th>
                     <th>État</th>
-                    <th>Actions</th>
+                    <th>
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -473,7 +473,11 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                     <tr key={u.id}>
                       <td className="[&_strong]:font-medium [&_small]:text-xs">
                         <strong>{u.full_name || u.email}</strong>
-                        {u.full_name && <small>{u.email}</small>}
+                        {u.full_name && (
+                          <small className="block mt-1 text-muted-foreground">
+                            {u.email}
+                          </small>
+                        )}
                       </td>
                       <td>{roleLabels[u.role]}</td>
                       <td>
@@ -490,38 +494,87 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                         >
                           {states[u.state]}
                         </span>
+                        {u.invitation && (
+                          <small className="block mt-1 text-muted-foreground">
+                            {states[u.invitation.state]} ·{' '}
+                            {deliveryLabels[u.invitation.delivery_status]}
+                            {Date.parse(u.invitation.expires_at) <=
+                              users.dataUpdatedAt &&
+                            u.invitation.state !== 'revoked'
+                              ? ' · Expirée'
+                              : ''}
+                          </small>
+                        )}
                       </td>
                       <td>
-                        {u.state === 'active' &&
-                        u.role !== 'ADMIN_PLATEFORME' &&
-                        u.id !== session.user.id ? (
-                          <div className="flex flex-wrap gap-3 [&_button]:min-h-11 [&_button]:text-primary [&_button]:underline">
-                            {u.role !== 'PARTENAIRE' && (
-                              <button
-                                type="button"
-                                disabled={
-                                  mutation.isPending || users.isFetching
-                                }
-                                onClick={() =>
-                                  setDialog({ kind: 'role', item: u })
-                                }
-                              >
-                                Modifier le rôle
-                              </button>
+                        <div className="flex flex-wrap gap-3 text-primary">
+                          {u.state === 'active' &&
+                            u.role !== 'ADMIN_PLATEFORME' &&
+                            u.id !== session.user.id && (
+                              <>
+                                {u.role !== 'PARTENAIRE' && (
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      mutation.isPending || users.isFetching
+                                    }
+                                    onClick={() =>
+                                      setDialog({ kind: 'role', item: u })
+                                    }
+                                  >
+                                    Modifier le rôle
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={
+                                    mutation.isPending || users.isFetching
+                                  }
+                                  onClick={() =>
+                                    setDialog({ kind: 'deactivate', item: u })
+                                  }
+                                >
+                                  Désactiver
+                                </button>
+                              </>
                             )}
-                            <button
-                              type="button"
-                              disabled={mutation.isPending || users.isFetching}
-                              onClick={() =>
-                                setDialog({ kind: 'deactivate', item: u })
-                              }
-                            >
-                              Désactiver
-                            </button>
-                          </div>
-                        ) : (
-                          '—'
-                        )}
+                          {u.invitation &&
+                            u.role !== 'ADMIN_PLATEFORME' &&
+                            ['prepared', 'delivered'].includes(
+                              u.invitation.state,
+                            ) && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={
+                                    mutation.isPending || users.isFetching
+                                  }
+                                  onClick={() =>
+                                    setDialog({
+                                      kind: 'resend',
+                                      item: { ...u.invitation, email: u.email },
+                                    })
+                                  }
+                                >
+                                  Renvoyer
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={
+                                    mutation.isPending || users.isFetching
+                                  }
+                                  onClick={() =>
+                                    setDialog({
+                                      kind: 'revoke',
+                                      item: { ...u.invitation, email: u.email },
+                                    })
+                                  }
+                                >
+                                  Révoquer
+                                </button>
+                              </>
+                            )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -535,141 +588,10 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             change={(page) => changeSearch({ page })}
             label="Comptes"
           />
-          <div
-            className="flex flex-wrap items-center justify-between gap-4 mb-6 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold"
-            data-ui="access-heading"
-          >
-            <h2>Invitations</h2>
-            <label>
-              État de l’invitation
-              <select
-                value={search.invitationState}
-                onChange={(e) =>
-                  changeSearch({
-                    invitationState: e.target.value,
-                    invitationPage: 1,
-                  })
-                }
-              >
-                <option value="">Tous les états</option>
-                {['prepared', 'delivered', 'consumed', 'revoked'].map((s) => (
-                  <option key={s} value={s}>
-                    {states[s]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <ListState
-            query={invitations}
-            empty={
-              search.invitationState ? (
-                <EmptyState
-                  action={
-                    <button
-                      className="min-h-10 border border-border rounded-control py-2 px-4 bg-white text-navy font-medium"
-                      onClick={() =>
-                        void changeSearch({
-                          invitationState: '',
-                          invitationPage: 1,
-                        })
-                      }
-                      type="button"
-                    >
-                      Effacer les filtres
-                    </button>
-                  }
-                >
-                  <p>{strings.noMatches}</p>
-                </EmptyState>
-              ) : (
-                <EmptyTable
-                  kind="invitations"
-                  columns={['name', 'role', 'state']}
-                />
-              )
-            }
-          >
-            <div className="border border-border rounded-card overflow-auto bg-white [&_+_[data-ui~='access-heading']]:mt-8">
-              <table>
-                <caption className="sr-only">
-                  Invitations des utilisateurs
-                </caption>
-                <thead>
-                  <tr>
-                    <th>{strings.userName}</th>
-                    <th>Rôle</th>
-                    <th>État</th>
-                    <th>Expiration</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invitations.data?.items.map((i) => (
-                    <tr key={i.id}>
-                      <td className="[&_strong]:font-medium [&_small]:text-xs">
-                        <strong>{i.full_name || i.email}</strong>
-                        {i.full_name && <small>{i.email}</small>}
-                      </td>
-                      <td>{roleLabels[i.role]}</td>
-                      <td>
-                        {states[i.state]}
-                        <small>
-                          {deliveryLabels[i.delivery_status]}
-                          {['prepared', 'delivered'].includes(i.state) &&
-                          Date.parse(i.expires_at) <= invitations.dataUpdatedAt
-                            ? ' · Expirée'
-                            : ''}
-                        </small>
-                      </td>
-                      <td>{new Date(i.expires_at).toLocaleString('fr-FR')}</td>
-                      <td>
-                        {i.role !== 'ADMIN_PLATEFORME' &&
-                        ['prepared', 'delivered'].includes(i.state) ? (
-                          <div className="flex flex-wrap gap-3 [&_button]:min-h-11 [&_button]:text-primary [&_button]:underline">
-                            <button
-                              type="button"
-                              disabled={
-                                mutation.isPending || invitations.isFetching
-                              }
-                              onClick={() =>
-                                setDialog({ kind: 'resend', item: i })
-                              }
-                            >
-                              Renvoyer
-                            </button>
-                            <button
-                              type="button"
-                              disabled={
-                                mutation.isPending || invitations.isFetching
-                              }
-                              onClick={() =>
-                                setDialog({ kind: 'revoke', item: i })
-                              }
-                            >
-                              Révoquer
-                            </button>
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </ListState>
-          <Pagination
-            query={invitations}
-            page={search.invitationPage}
-            change={(invitationPage) => changeSearch({ invitationPage })}
-            label="Invitations"
-          />
           {dialog && (
             <AccessDialog
               dialog={dialog}
-              pending={mutation.isPending}
+              pending={submitting}
               checking={checking}
               close={() => setDialog(null)}
               submit={submit}
@@ -843,32 +765,36 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
         <fieldset disabled={pending}>
           {invite ? (
             <div className="grid gap-6 p-6">
-              <label>
-                {strings.firstName}
-                <input
-                  name="first_name"
-                  onInput={(event) =>
-                    event.currentTarget.form.elements
-                      .namedItem('last_name')
-                      .setCustomValidity('')
-                  }
-                  type="text"
-                  maxLength={200}
-                  required
-                  autoComplete="given-name"
-                />
-              </label>
-              <label>
-                {strings.lastName}
-                <input
-                  name="last_name"
-                  onInput={(event) => event.currentTarget.setCustomValidity('')}
-                  type="text"
-                  maxLength={200}
-                  required
-                  autoComplete="family-name"
-                />
-              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label>
+                  {strings.firstName}
+                  <input
+                    name="first_name"
+                    onInput={(event) =>
+                      event.currentTarget.form.elements
+                        .namedItem('last_name')
+                        .setCustomValidity('')
+                    }
+                    type="text"
+                    maxLength={100}
+                    required
+                    autoComplete="given-name"
+                  />
+                </label>
+                <label>
+                  {strings.lastName}
+                  <input
+                    name="last_name"
+                    onInput={(event) =>
+                      event.currentTarget.setCustomValidity('')
+                    }
+                    type="text"
+                    maxLength={100}
+                    required
+                    autoComplete="family-name"
+                  />
+                </label>
+              </div>
               <label>
                 Adresse e-mail
                 <input
@@ -881,7 +807,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
               </label>
               <label>
                 Rôle
-                <select
+                <Select
                   name="role"
                   value={inviteRole}
                   onChange={(event) => setInviteRole(event.target.value)}
@@ -893,13 +819,13 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
                         {l}
                       </option>
                     ))}
-                </select>
+                </Select>
               </label>
               {inviteRole === 'PARTENAIRE' && (
                 <div>
                   <label>
                     Partenaire
-                    <select
+                    <Select
                       name="partner_id"
                       required
                       disabled={partners.isPending}
@@ -912,7 +838,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
                             {partner.name}
                           </option>
                         ))}
-                    </select>
+                    </Select>
                   </label>
                   {partners.isError && (
                     <RetryableError onRetry={() => void partners.refetch()}>
@@ -951,7 +877,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
               <p>{dialog.item.email}</p>
               <label>
                 Nouveau rôle
-                <select name="role" defaultValue={dialog.item.role}>
+                <Select name="role" defaultValue={dialog.item.role}>
                   {Object.entries(roleLabels)
                     .filter(
                       ([role]) =>
@@ -962,7 +888,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
                         {label}
                       </option>
                     ))}
-                </select>
+                </Select>
               </label>
               <p>
                 Les sessions actuelles seront invalidées. Une nouvelle connexion
@@ -985,7 +911,13 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
           <button type="button" disabled={pending} onClick={close}>
             Annuler
           </button>
-          <Button disabled={pending || optionsBlocked}>
+          <Button disabled={pending || optionsBlocked} aria-busy={pending}>
+            {pending && (
+              <LoaderCircle
+                className="size-4 animate-spin"
+                aria-hidden="true"
+              />
+            )}
             {invite
               ? 'Envoyer l’invitation'
               : dialog.kind === 'role'

@@ -7,6 +7,53 @@ def messages(mailbox):
     return [json.loads(p.read_text()) for p in sorted(mailbox.glob("*.json"))]
 
 
+def test_public_errors_omit_internal_correlation_ids(auth_env, monkeypatch, caplog):
+    from fastapi.testclient import TestClient
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.main import create_app
+
+    url, _, _ = auth_env
+    with TestClient(create_app(url), base_url="http://localhost") as client:
+        state = client.get("/api/v1/auth/session").json()
+        headers = {"Origin": "http://localhost", "X-CSRF-Token": state["csrf"]}
+        responses = [
+            (
+                client.post(
+                    "/api/v1/auth/login",
+                    json={"email": "unknown@example.test", "password": "Synthetic!93"},
+                    headers=headers,
+                ),
+                401,
+            ),
+            (client.post("/api/v1/auth/login", json={}, headers=headers), 422),
+            (
+                client.post(
+                    "/api/v1/auth/login",
+                    json={"email": "unknown@example.test", "password": "Synthetic!93"},
+                    headers={**headers, "Origin": "https://other.example"},
+                ),
+                403,
+            ),
+        ]
+        monkeypatch.setattr(client.app.state.auth, "limit", lambda *args: False)
+        responses.append((client.get("/api/v1/access/users"), 429))
+
+        def database_unavailable(*args):
+            raise SQLAlchemyError("private diagnostic")
+
+        monkeypatch.setattr(client.app.state.auth, "limit", database_unavailable)
+        responses.append((client.get("/api/v1/access/users"), 503))
+        for response, status in responses:
+            assert response.status_code == status
+            assert set(response.json()) == {"code", "message"}
+            assert "x-request-id" not in response.headers
+        assert "request_id=" in caplog.text
+        assert "private diagnostic" not in caplog.text
+        schema = client.app.openapi()["components"]["schemas"]["ErrorResponse"]
+        assert set(schema["properties"]) == {"code", "message"}
+
+
 def test_bootstrap_is_one_time_and_delivers_only_a_pending_invitation(auth_env):
     import pytest
 

@@ -1,6 +1,17 @@
 import LocalizedStrings from 'react-localization'
 export const strings = new LocalizedStrings({
   fr: {
+    administration: 'Administration',
+    invite: 'Inviter un utilisateur',
+    accountsTitle: 'Comptes utilisateurs',
+    activeAccounts: 'Comptes actifs',
+    pendingAccounts: 'Comptes en attente d’activation',
+    manageUsers: 'Gérer les utilisateurs',
+    viewAccounts: 'Consulter les comptes',
+    traceability: 'Traçabilité',
+    auditDescription:
+      'Historique des comptes et des opérations administratives.',
+    viewHistory: 'Consulter l’historique',
     attention: 'À votre attention',
     financeTitle: 'Suivi financier',
     approvedBudget: 'Budget approuvé du PTA',
@@ -8,8 +19,8 @@ export const strings = new LocalizedStrings({
     closedSpending: 'Dépenses des activités clôturées',
     returnDue: 'Restant à reverser',
     returnConfirmed: 'Reversement confirmé',
-    notEntered: 'Non renseigné',
-    notConfirmed: 'Non confirmé',
+    notEntered: '-',
+    notConfirmed: '-',
     emptyPhysical: '0 activité clôturée sur 0 approuvées',
     emptyFinancial: '0 F CFA de dépenses clôturées sur 0 F CFA',
     year: 'Année du PTA',

@@ -288,6 +288,24 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
     assert listing.json()["object"] == "list"
     assert listing.json()["count"] == 1
     assert listing.json()["data"][0]["id"] == activity["id"]
+    agent = planning["agent"].get("/api/v1/auth/session").json()["user"]
+    assigned = planning["supervisor"].put(
+        f"/api/v1/activities/{activity['id']}/assignments",
+        headers=headers(planning["supervisor"]),
+        json={"expected_version": activity["version"], "agent_ids": [agent["id"]]},
+    )
+    assert assigned.status_code == 200, assigned.text
+    endpoint = f"/api/v1/ptas/{activity['pta_id']}/execution"
+    assert planning["validator"].get(endpoint).json()["data"][0]["agents"] == [
+        agent["full_name"] or "Agent"
+    ]
+    removed = planning["supervisor"].put(
+        f"/api/v1/activities/{activity['id']}/assignments",
+        headers=headers(planning["supervisor"]),
+        json={"expected_version": assigned.json()["version"], "agent_ids": []},
+    )
+    assert removed.status_code == 200, removed.text
+    assert planning["validator"].get(endpoint).json()["data"][0]["agents"] == []
     assert (
         planning["admin"]
         .get(f"/api/v1/activities/{activity['id']}/execution")
