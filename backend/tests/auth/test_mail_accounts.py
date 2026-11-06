@@ -38,17 +38,22 @@ def test_templates_render_escaped_personalized_html_and_plain_text():
     message = MailRenderer().render(
         "invitation",
         recipient_name="John <Doe>",
+        role_label="Superviseur",
         action_url="http://localhost:5173/invitation#selector=a&verifier=b",
         expiration_text="7 jours",
     )
 
-    assert message.subject == "Invitation à rejoindre MJL"
+    assert message.subject == "Invitation à activer votre compte"
     assert "Bonjour John &lt;Doe&gt;," in message.html
     assert (
         'href="http://localhost:5173/invitation#selector=a&amp;verifier=b"'
         in message.html
     )
     assert "Bonjour John <Doe>," in message.text
+    for content in (message.html, message.text):
+        assert "Superviseur" in content
+        assert "la plateforme de planification et de suivi administratif" in content
+        assert "Si cette invitation ne vous est pas destinée" in content
 
 
 def test_login_code_keeps_leading_zero_and_notice_templates_have_no_button():

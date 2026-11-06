@@ -10,9 +10,11 @@ Element.prototype.hasPointerCapture ??= function () {
 Element.prototype.setPointerCapture ??= function () {}
 Element.prototype.releasePointerCapture ??= function () {}
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
+  await Promise.resolve()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  sessionStorage.clear()
   window.dispatchEvent(new Event('online'))
 })

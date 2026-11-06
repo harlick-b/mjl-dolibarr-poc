@@ -1,5 +1,6 @@
+import { StrictMode } from 'react'
 import { QueryClient } from '@tanstack/react-query'
-import { expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import {
   AccessProvider,
@@ -7,6 +8,8 @@ import {
   useAccess,
 } from './access-verification'
 import { ApiError } from '@/shared/api/rest-client'
+
+afterEach(() => sessionStorage.clear())
 
 function verifiedSession() {
   return {
@@ -25,6 +28,34 @@ function AccessStatus() {
   const access = useAccess()
   return <span>{access.status}</span>
 }
+
+test('session service failure holds local sign-out across reload without restoring a surviving cookie', async () => {
+  const queryClient = new QueryClient()
+  const readSession = vi
+    .fn()
+    .mockRejectedValue(new ApiError('Unavailable', { status: 502 }))
+  const access = createAccessCoordinator({ queryClient, readSession })
+  await expect(access.verify()).rejects.toMatchObject({ status: 502 })
+  expect(access.getSnapshot()).toMatchObject({
+    status: 'blocked',
+    session: null,
+    reason: 'service-unavailable',
+  })
+  await access.changed()
+  await access.show()
+  expect(readSession).toHaveBeenCalledTimes(1)
+  access.dispose()
+  const restored = createAccessCoordinator({
+    queryClient,
+    readSession: vi.fn().mockResolvedValue(verifiedSession()),
+  })
+  expect(restored.getSnapshot().reason).toBe('service-unavailable')
+  await expect(restored.verify()).rejects.toMatchObject({
+    kind: 'logout_pending',
+  })
+  restored.releaseLogout()
+  restored.dispose()
+})
 
 test('coalesces access uncertainty into one bounded verification', async () => {
   const queryClient = new QueryClient()
@@ -226,7 +257,7 @@ test('uses at most two session requests when authentication bootstrap fails', as
   expect(coordinator.getSnapshot().status).toBe('anonymous')
 })
 
-test('a service failure preparing anonymous context preserves the failed authentication result', async () => {
+test('a service failure preparing anonymous context requires fresh sign-in', async () => {
   const readSession = vi
     .fn()
     .mockRejectedValueOnce(new ApiError('Session expirée.', { status: 401 }))
@@ -239,7 +270,11 @@ test('a service failure preparing anonymous context preserves the failed authent
   })
 
   await expect(coordinator.verify()).rejects.toMatchObject({ status: 503 })
-  expect(coordinator.getSnapshot().status).toBe('anonymous')
+  expect(coordinator.getSnapshot()).toMatchObject({
+    status: 'blocked',
+    reason: 'service-unavailable',
+    session: null,
+  })
   expect(readSession).toHaveBeenCalledTimes(2)
 })
 
@@ -432,4 +467,65 @@ test('malformed anonymous bootstrap preserves the known authentication failure',
   })
   expect(coordinator.getSnapshot().status).toBe('anonymous')
   coordinator.dispose()
+})
+
+test('a disposed coordinator cannot publish a late outage or retain its hold', async () => {
+  let reject
+  const access = createAccessCoordinator({
+    queryClient: new QueryClient(),
+    readSession: () =>
+      new Promise((_, fail) => {
+        reject = fail
+      }),
+  })
+  const result = access.verify().catch((error) => error)
+  await vi.waitFor(() => expect(reject).toBeDefined())
+  access.dispose()
+  reject(new ApiError('Unavailable', { status: 502 }))
+  await result
+  expect(sessionStorage.getItem('mjl.logout-pending')).toBeNull()
+})
+
+test('provider unmount disposes a pending check without retaining a late outage', async () => {
+  let reject
+  const access = createAccessCoordinator({
+    queryClient: new QueryClient(),
+    readSession: () =>
+      new Promise((_, fail) => {
+        reject = fail
+      }),
+  })
+  const view = render(
+    <AccessProvider coordinator={access}>
+      <AccessStatus />
+    </AccessProvider>,
+  )
+  let result
+  await act(async () => {
+    result = access.verify().catch((error) => error)
+  })
+  await vi.waitFor(() => expect(reject).toBeDefined())
+  view.unmount()
+  await Promise.resolve()
+  reject(new ApiError('Unavailable', { status: 502 }))
+  await result
+  expect(sessionStorage.getItem('mjl.logout-pending')).toBeNull()
+})
+
+test('StrictMode effect replay keeps the access coordinator usable', async () => {
+  const access = createAccessCoordinator({
+    queryClient: new QueryClient(),
+    readSession: vi.fn().mockResolvedValue(verifiedSession()),
+  })
+  render(
+    <StrictMode>
+      <AccessProvider coordinator={access}>
+        <AccessStatus />
+      </AccessProvider>
+    </StrictMode>,
+  )
+  await act(async () => {
+    await access.verify()
+  })
+  expect(screen.getByText('verified')).toBeVisible()
 })

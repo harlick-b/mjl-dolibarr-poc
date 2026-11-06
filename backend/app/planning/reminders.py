@@ -75,6 +75,7 @@ class ReminderOutput(Input):
     activity_id: str
     activity_reference: str
     activity_name: str
+    pta_year: int
     planned_end: str
     due_on: str
     created_at: str
@@ -287,6 +288,7 @@ def _output(db: Session, item: ActivityReminder) -> dict[str, Any]:
         "activity_id": item.activity_id,
         "activity_reference": activity.reference,
         "activity_name": name,
+        "pta_year": activity.placement_year,
         "planned_end": item.planned_end.isoformat(),
         "due_on": item.due_on.isoformat(),
         "created_at": item.created_at.isoformat(),

@@ -90,7 +90,7 @@ test('non-Admin sees denial and never requests the account lists', async () => {
   ).toBe(false)
 })
 
-test('unavailable identity does not become a logout or privileged view', async () => {
+test('unavailable identity shows login without a privileged view', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(() => Promise.resolve(new Response('{}', { status: 503 }))),
@@ -98,7 +98,7 @@ test('unavailable identity does not become a logout or privileged view', async (
   mount()
   expect(
     await screen.findByRole('heading', {
-      name: 'Impossible de vérifier votre accès',
+      name: 'Connexion',
     }),
   ).toBeVisible()
   expect(
@@ -514,53 +514,31 @@ test('Admin navigation omits default search values and preserves meaningful filt
   expect(router.state.location.searchStr).toBe('')
 })
 
-test('users page shows loading during initial access check and retry without exposing identity', async () => {
+test('users page session failure returns to login without exposing identity', async () => {
   let finish
   vi.stubGlobal(
     'fetch',
-    vi.fn((url) => {
-      if (!url.includes('/auth/'))
-        return Promise.resolve(
-          new Response(JSON.stringify({ items: [], total: 0 })),
-        )
-      return new Promise((resolve) => {
-        finish = resolve
-      })
-    }),
+    vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    ),
   )
   mount()
   expect(
-    await screen.findByRole('status', {
-      name: 'Vérification de votre accès',
-    }),
+    await screen.findByRole('status', { name: 'Vérification de votre accès' }),
   ).toBeVisible()
-  expect(
-    screen.queryByText('Vérification de votre accès…'),
-  ).not.toBeInTheDocument()
   await act(async () => finish(new Response('{}', { status: 503 })))
   expect(
-    await screen.findByRole('heading', {
-      name: 'Impossible de vérifier votre accès',
-    }),
-  ).toBeVisible()
-  fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
-  expect(
-    await screen.findByRole('status', {
-      name: 'Vérification de votre accès',
-    }),
+    await screen.findByRole('heading', { name: 'Connexion' }),
   ).toBeVisible()
   expect(
-    screen.queryByRole('heading', {
-      name: 'Impossible de vérifier votre accès',
-    }),
+    screen.getByRole('button', { name: 'Réessayer la connexion' }),
+  ).toBeEnabled()
+  expect(
+    screen.queryByRole('button', { name: 'Inviter un utilisateur' }),
   ).not.toBeInTheDocument()
-  expect(
-    screen.queryByRole('link', { name: 'Mon compte' }),
-  ).not.toBeInTheDocument()
-  await act(async () => finish(new Response(JSON.stringify(session()))))
-  expect(
-    await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
-  ).toBeVisible()
 })
 
 test('Partner invitation choices load only on demand and paginate before submission', async () => {

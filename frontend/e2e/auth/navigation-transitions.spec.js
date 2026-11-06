@@ -225,7 +225,7 @@ test('password criteria use the approved blue badge pair', async ({ page }) => {
   await page.screenshot({ path: '/tmp/mjl-password-criteria.png' })
 })
 
-test('logout session-check failure keeps its own retry screen and never restores identity', async ({
+test('logout session-check failure returns to login without restoring identity', async ({
   page,
 }) => {
   let signedOut = false
@@ -258,11 +258,11 @@ test('logout session-check failure keeps its own retry screen and never restores
   await page.getByRole('button', { name: 'Mon compte' }).click()
   await page.getByRole('menuitem', { name: 'Se déconnecter' }).click()
   await expect(
-    page.getByRole('button', { name: 'Réessayer la déconnexion' }),
+    page.getByRole('button', { name: 'Réessayer la connexion' }),
   ).toBeEnabled()
   await expect(page.getByText(user.email)).toHaveCount(0)
   expect(logoutCalls).toBe(1)
   failCheck = false
-  await page.getByRole('button', { name: 'Réessayer la déconnexion' }).click()
+  await page.getByRole('button', { name: 'Réessayer la connexion' }).click()
   await expect(page).toHaveURL(/\/login$/)
 })

@@ -1,239 +1,169 @@
-# Reusable Lessons
+# Reusable lessons
 
-Update only after repeated corrections or durable discoveries. Read only lessons
-relevant to the current task. Replace superseded advice instead of appending a
-contradictory correction. Current requirements live in [business rules](../docs/business-rules.md)
-and [engineering](../docs/engineering.md); this file records reusable pitfalls,
-not pending tasks, verification reports or new authorization.
+Keep only repeated corrections or durable discoveries. Replace superseded advice;
+do not append a competing rule. Read the sections relevant to the current task.
+This is memory about pitfalls, not a backlog, acceptance report or authorization.
+
+Current rules belong in [business rules](../docs/business-rules.md),
+[engineering](../docs/engineering.md), [design](../docs/design.md) and
+[security](../docs/security.md). [Project status](../docs/project-status.md) records
+implementation boundaries; [README](../README.md) owns setup.
 
 ## Scope, review and evidence
 
-- Explain necessary scope growth when it becomes apparent. A fallback UI request
-  can uncover shared authentication or backend dependencies; map those changes to
-  the authorized outcome and leave independent improvements for a separate task.
-  A large final commit should not be the first explanation of that growth.
-- Consolidate independent findings before fixes, including retained data and
-  cross-tab recovery. Return accepted fixes to the same reviewer and call the
-  candidate final only after blocking findings and affected checks are resolved.
-  This reduces repeated last-minute review cycles without waiving re-review.
-- Verification summaries must distinguish full-suite runs, focused reruns,
-  skipped checks and interrupted runs. Record the tested source/artifact and
-  commands; after a fix, identify which affected checks were rerun. A focused
-  passing suite does not turn an abandoned broad run into a passing full suite.
+- Finish the smallest complete authorized slice: implement, inspect the actual
+  experience, run relevant checks and obtain independent review before claiming
+  completion. Commit when requested. Passing tests are implementation evidence,
+  not proof that the result matches the user's design or acceptance.
+- Explain necessary scope growth when discovered. Shared auth or API dependencies
+  can be necessary to fix a screen; independent improvements remain separate.
+  Do not let a large final commit be the first explanation of expanded scope.
+- Use the approved contract and actual code without asking for another execution
+  prompt. Ask only about unresolved business choices or missing external inputs.
+  Hypothetical exceptions are not requirements; establish a real case first.
+- Consolidate independent findings, fix accepted issues and return the candidate
+  to the same reviewer. Do not claim completion with blocking findings or gaps.
+- Distinguish full runs, focused reruns, skips and interruptions. Record actual
+  commands and tested source/artifact. A focused pass cannot make an unfinished
+  broad run pass. After fixes rerun affected checks, not unrelated suites.
+- Keep settled rules in their owning guides. Remove spent plans, duplicate reports
+  and obsolete claims rather than accumulating a second source of requirements.
+  Documentation-only cleanup does not justify runtime suites.
 
-## Test reliability
+## Design and interaction
 
-- Synthetic mailbox filenames are UUIDs and do not encode delivery order. Tests
-  that need the latest message must compare the mailbox file set before and after
-  the delivery, or select by an explicit delivery identifier.
+- Compare supplied references against rendered populated pages, empty states,
+  dialogs and narrow layouts. Inspect spacing, alignment, typography and controls,
+  not just whether the page loads. Explicit user corrections override a reference
+  detail; business/security rules still govern permitted behavior.
+- Loading belongs to the work being awaited: a submitting button, a dependent
+  section or the page. Keep the verified navigation shell during ordinary reads;
+  preserve entered values and button progress until the next auth screen is ready.
+  Do not add a loading sentence below a CTA or briefly clear fields before redirect.
+  Follow the [loading contract](../docs/loading-and-fallbacks.md).
+- Errors belong to the component/action that produced them. Login errors must not
+  follow navigation into recovery. Optional catalog failures must not replace the
+  parent page or remove cancellation. Distinguish pending, empty and failed reads.
+- A confirmed write and its refresh are separate outcomes. An invitation can be
+  delivered while refreshing the list fails. Preserve confirmed success and offer
+  read retry; do not encourage duplicate invitations or approvals.
+- Centralize shared decisions, not all data: role navigation/route guards/defaults,
+  query keys and controls need one owner. Load page/form options where consumed.
+  Shared React context should expose Query state, not maintain another copy.
+- One person should not appear twice just because they have both an account and
+  an invitation. Keep state/actions together with one pagination boundary.
+  History should show meaningful changes, actor, target and recorded before/after
+  facts. Filtering authentication noise from the screen must not delete its audit.
+- Prefill edit forms from existing data. Keep editable values and their concurrency
+  token bound to the same snapshot until save or explicit discard; a refresh must
+  not attach a new version to an old draft. Legacy name suggestions need to remain
+  editable, not become an automatic database rewrite.
+- Replacing native selects needs real-browser checks for keyboard use, required
+  validation and FormData. In native dialogs, keep the popup in the dialog's top
+  layer. Test close/focus return and submitted values, not only appearance.
+- A CSS-to-Tailwind migration must preserve the cascade. Keep shared field defaults
+  low-specificity so OTP and specialized controls can override them. Inspect
+  computed styles and mobile overflow; an accessible hidden label can overflow a
+  scrolling table unless its positioning is contained.
+- Role navigation changes must preserve first-resource creation, not just list
+  access. An Agent still needs project/year entry for the first PTA Activity.
+  Keep partially typed year input local before Router validation.
 
-- E2E assertions for dated activities must not assume a fixed fixture remains
-  before its deadline. Assert persisted execution controls and workflow state
-  separately from the date-sensitive overdue label.
+## Authentication, queries and protected data
 
-- Sequential browser submissions do not prove row-lock serialization. For a
-  concurrency acceptance gate, use disposable-only deterministic barriers that
-  hold the real mutation inside its transaction, start the competing
-  request while the lock is held, and verify both orderings plus teardown.
+- Query cache removal does not guarantee that mounted observers stop displaying
+  old data. Mask protected content through the existing access coordinator.
+  Keep the session observer attached and clear its value; deleting that observed
+  entry can strand the login → OTP → workspace transition.
+- Mutation reset does not remove all cached variables or suppress old callbacks.
+  Purge settled credential variables and guard late responses by request
+  generation. An obsolete protected-file failure must not cancel a newer request.
+- Use the bounded coordinator recovery contract rather than adding per-screen
+  verification effects. Test repeated account-change notifications during a held
+  check: no obsolete identity, stranded mask or unbounded request loop.
+- Switching tabs is not authentication loss. Preserve data and drafts on ordinary
+  hide/return; actual expiry, logout, offline and account changes retain the
+  protections defined in the engineering guide.
+- Ordinary read failure, authentication uncertainty and scoped denial differ.
+  Scoped denial must remove retained pages, dependent previews and object URLs,
+  not merely visible rows. Temporary service failure preserves unrelated drafts.
+  Session-service failure is different: close local access and require fresh sign-in
+  after confirmed server logout, as specified in the engineering guide.
+  Test the actual denial path; an offline test does not prove a 401/403 race.
+- Protected media uses the authenticated REST client, not an unguarded element URL.
+  Abort obsolete requests, reject late results and revoke object URLs on close or
+  access loss. A successful refreshed list that removes a file also revokes its
+  pending bytes and preview.
+- Preserve failure conditions in recovery tests. Retry failed logout after
+  cross-tab CSRF rotation on the same mounted page; reloading first can hide the
+  stale-state defect. Test reload persistence separately.
+- Test OTP expiry together with exhausted resends and fresh password login.
+  Isolated expiry/cap tests missed a permanently pending challenge. Re-login must
+  still respect active challenge counters and lockouts.
+- Reproduce slow page reads concurrently. Exclusive session locks can serialize
+  otherwise independent reads into timeouts. Shared read locks must retain
+  revocation safety; verify both with real database races.
 
-- SQL `CHECK` constraints accept the three-valued result `UNKNOWN`. Whenever a
-  nullable operand is mandatory in one branch, require `IS NOT NULL`
-  explicitly; a regex or comparison against `NULL` alone does not reject the
-  row. Exact-schema tests should exercise the null branch, not only compare the
-  stored constraint text.
+## Data integrity, migrations and outputs
 
-- Historical audit text can contain quoted JSON credentials with spaces even
-  when the original writer used a key-value sanitizer. Redact complete quoted
-  values before the unquoted rule and before continuation splitting;
-  otherwise the first rule can consume only the prefix and expose the rest.
-  Exercise actor snapshots as well as reasons/context, including escaped quotes.
+- MJL records allocations, requests and external declarations; do not block a
+  bounded implementation on banking/custody modeling excluded by the contract.
+- Count total model, constraint, API and verification complexity, not tables alone.
+  Fewer tables can create more state combinations and snapshot exceptions.
+- SQL CHECK accepts UNKNOWN. Require IS NOT NULL where a branch needs a value.
+  JSON extraction returns SQL NULL for missing and JSON-null facts; use null-safe
+  comparisons for required snapshot values and test both forms of direct writes.
+- Child-row immutability does not prove a valid approval chain. Verify the aggregate
+  at deferred commit, including review order, distinct actors and returned or
+  cancelled histories. Test adjacent workflows and changed invariant fields,
+  such as dates after transfer, not only changed amounts.
+- Bound Unicode inputs and encoded audit bytes consistently. Preserve material
+  before/after values for mutable drafts; remove repeated projections instead.
+  Test maximum multibyte content, edit/revert history and atomic rollback.
+- A cutover rehearsal needs the exact predecessor writer and a distinct restricted
+  candidate runtime login. Candidate-created data with a downgraded schema is not
+  predecessor evidence. Hash-based schema guards need canonical predecessor
+  definitions restored on downgrade; identify columns by stable names, not
+  physical positions left behind by drop/re-add.
+- Cursor APIs need Router-owned pagination in their screens. Detail histories
+  require independent cursors. Bounded reference lists must expose remaining
+  choices rather than silently limiting users to the first page.
+- A row limit does not bound memory if queries load large snapshots, binary files
+  or every revision. Select only needed fields and latest relevant history in SQL.
+  Metadata-only views must defer binary columns; inspect SQL as well as responses.
+- At READ COMMITTED, separately selected timestamps and rows are not one snapshot.
+  Capture export time and exact append-only IDs in one statement. Test concurrent
+  row absence by its exported ID, not by an internal action omitted from output.
+- PDF checks must bind each label to its exact value, including maximum narrative
+  text and correction-only changes. Chronology must identify who changed what and
+  when in user-facing language; a document-wide amount match is insufficient.
+- Excel numeric cells retain only 15 significant digits reliably. Export larger
+  exact XOF integers as labeled text; write user text literally to prevent formula
+  or URL interpretation. Verify saved cell types.
+- Count streamed upload chunks before accumulation. Parse outside the lifecycle
+  lock and async event loop, then reauthorize before atomic storage.
+- FastAPI runtime Response media types do not define OpenAPI output. Declare and
+  verify binary success types and cookie security in the generated contract.
 
-- Disposable workflow commands may use a fixed business date while audit
-  timestamps still use the actual recording clock. Date-filter tests must use
-  the fixture event’s captured date rather than its workflow date; otherwise a
-  correct filter starts failing the day after the test is written.
+## Reliable verification and local operation
 
-- Playwright `testMatch` filters explicit CLI file arguments too. When renaming or
-  retaining a focused spec, update both the runner path and `testMatch`, then
-  check discovery with `playwright test <file> --list --config=playwright.config.js`.
-
-- Playwright exact `getByLabel()` matching can include nested select option text
-  even when the control's computed accessible name is just the label. For such
-  controls, use `getByRole('combobox', { name: ..., exact: true })`; retain the
-  name assertion instead of replacing it with an unrelated CSS selector.
-
-- For OTP recovery, test expiry together with exhausted resends and a fresh
-  password login. Testing expiry and resend caps separately missed a permanent
-  pending-challenge trap; live challenge counters and active lockouts must still
-  survive re-login.
-
-- REST form submission completes asynchronously. Browser tests must await the
-  relevant response and any subsequent navigation before reading a captured
-  email or database result. A retained disposable tenant also retains rate-limit
-  history: a neutral reset response can leave the previous outbox message intact.
-  Use a fresh tenant to verify reset delivery, rather than treating that stale
-  outbox as the response to the latest request.
-
-- For REST forms that navigate immediately after saving, assert the mutation
-  response status, then wait for the detail URL and read its ID. Reading the old
-  browser response body after navigation can fail with `Network.getResponseBody`
-  even when the save succeeded.
-
-## Application and planning lessons
-
-- For the approved PTA administrative workflows, do not make external fund
-  custody/source-of-funds questions block application design. MJL records the
-  specified allocations, spending, requests and external declarations; the
-  user explicitly excluded investigation or modeling of the banking process.
-
-- TanStack Query `clear()` removes cache entries without necessarily clearing an
-  existing observer's displayed data. Authentication invalidation must also mask
-  the UI reactively and deliberately revalidate; `invalidateQueries()` on the
-  removed key is insufficient. `mutation.reset()` likewise leaves MutationCache
-  variables behind: remove settled credential mutations and clear them on unmount.
-  Test a second account-change notification while verification is held: it must
-  not strand the masked view, publish an obsolete identity or create an unbounded
-  verification loop. Use the existing coordinator's bounded recovery contract,
-  rather than prescribing an extra per-screen Effect or version counter.
-
-- Recovery tests must preserve the conditions that caused the failure. For a
-  failed logout followed by cross-tab session/CSRF rotation, retry on the same
-  mounted page and assert the fresh CSRF header. Reloading first can discard the
-  stale state and make a broken retry pass. Test reload persistence separately.
-
-- A migration cutover rehearsal must run the exact predecessor application
-  artifact to create its histories, stop that writer, and then exercise the
-  candidate through a distinct restricted runtime login. Creating data with the
-  candidate and downgrading only its schema does not prove predecessor behavior
-  or deployed credential separation.
-
-- Reducing an audit payload to meet a size bound must preserve the material
-  before/after values of edits that have no immutable revision yet. Remove
-  repeated projections, retain one bounded structural copy per side, and test
-  maximum encoded content plus edit/revert history and rollback of complete rows.
-- When a schema guard hashes PostgreSQL definitions, an exact downgrade must
-  restore the canonical predecessor constraint expressions and function bodies,
-  not merely equivalent behavior. Verify the downgraded manifest against the
-  predecessor application artifact before accepting re-upgrade evidence.
-- Schema manifests must identify PostgreSQL columns by stable names rather than
-  physical attribute positions. A drop and re-add can leave internal column slots
-  while restoring the same public schema, causing a false provenance rejection.
-
-- Completed plans should not look like pending authorization. Keep current
-  contracts in purpose-named guides; remove spent instructions and duplicate reports.
-- Repeated external execution prompts duplicated rules already approved in the
-  repository. After a concrete slice is authorized, derive implementation locally
-  from one current contract; ask about missing business choices, not prompt format.
-- Fewer tables did not guarantee a simpler transfer implementation: shared state
-  combinations and snapshot exceptions increased the work. Compare total model,
-  constraint, API and verification cost before setting future representation limits.
-- Post-transfer amendment tests changed amounts but initially kept the same dates,
-  missing a constraint regression. Test meaningful changes to fields affected by
-  the new invariant across adjacent workflows; larger passing counts do not replace
-  that coverage. Keep the independent correction/re-review cycle that found it.
-- A bounded Unicode input contract and a byte-bounded audit contract must agree at
-  their maximums. Derive the audit byte ceiling from every validated before/after
-  text field plus JSON overhead, then test maximum multibyte input; a smaller
-  arbitrary byte limit turns valid requests into transaction-time 500 responses.
-- A cursor-paginated audit API is incomplete unless its screen exposes independent
-  Router-owned pagination. Do not reuse a list cursor for detail history, and cover
-  navigation to an older page in the browser journey.
-- When a final workflow state depends on child decision rows, row checks and
-  immutability triggers do not prove the decision chain. Validate the aggregate at
-  deferred transaction commit and test malformed direct writes, including review
-  order, distinct actors and returned/cancelled histories.
-- Administrative PDF checks must bind each financial label to its exact extracted
-  value; a document-wide amount assertion can pass against the wrong row. Exercise
-  maximum valid narrative content and correction-only changes, and verify that the
-  rendered chronology identifies who changed what and when in user-facing language.
-- A bounded upload must count streamed request chunks before accumulation. Run
-  synchronous parsers and database work outside the async event loop, parse outside
-  the global lifecycle lock, then reauthorize under that lock before atomic storage.
-- At PostgreSQL READ COMMITTED, an export timestamp selected separately from its
-  rows is not an exact snapshot. Capture the timestamp and exact append-only row
-  IDs in one statement, then test absence by the concurrent row's exported ID;
-  checking a raw internal action that the export omits is a false oracle.
-- Protected inline media must use the authenticated REST client rather than a raw
-  element URL when the workspace owns offline and authorization-loss behavior.
-  Abort stale requests, reject late authorization generations, revoke object URLs
-  and reset mutation data so sensitive bytes are not retained after close.
-- A protected-download race oracle must trigger the same authorization-denial
-  path as production. An offline event does not prove that a concurrent query
-  401/403 revokes bytes synchronously before a late response creates an object URL.
-- Returning a FastAPI `Response` with a runtime media type does not define that
-  content in OpenAPI. Declare the route response class and assert both the binary
-  success content and cookie security alternatives in the generated contract.
-- A deferred hypothetical exception is not a product requirement. Before asking
-  the user to design an exception workflow, establish that the real business
-  process can produce that case; otherwise preserve the exact bounded rule and
-  remove the invented branch from active planning.
-- PostgreSQL JSON extraction returns SQL `NULL` for missing and JSON-null facts,
-  so `<>` does not make a trigger fail closed. Use null-safe comparisons such as
-  `IS DISTINCT FROM` for required snapshot values and test both missing and null
-  direct writes against the complete valid surrounding snapshot.
-- Metadata-only views over stored documents must explicitly defer or raise on
-  binary columns in every list, report and candidate lookup. Verify the emitted
-  SQL, because response-shape tests do not prove that large file bodies stayed
-  unloaded. When candidates use the shared cursor contract, expose pagination
-  instead of silently limiting valid choices to the first page.
-- A row-count ceiling does not bound an export if its query loads full large
-  snapshots or every correction revision. Project only exported fields, select
-  the latest history row per entity in SQL, and test both the refusal boundary
-  and latest-correction semantics.
-
-- Editable fields and their concurrency token must describe the same snapshot.
-  Background Query refresh must not attach a newer version to an older local
-  draft. Preserve both until save or explicit discard, and test refresh during
-  editing (including observation-only changes that do not remount a form).
-
-- Distinguish ordinary read failure, authentication uncertainty and scoped access
-  denial; follow the [engineering failure contract](../docs/engineering.md#rest-and-shared-client)
-  rather than clearing the whole application for every error. Denial checks must
-  inspect retained cache data as well as the DOM, and cover dependent previews,
-  object URLs and pending delivery. Include every cached page and replacement
-  candidate under the denied resource; preserve unrelated data and drafts on
-  temporary service failures. Hiding rows alone does not prove cleanup.
-
-- Resetting a TanStack mutation does not suppress its old hook callbacks. Bind
-  protected-file error cleanup to the request generation so an old failure cannot
-  cancel a newer request. A successful scoped-list refresh that removes the active
-  file must also revoke pending bytes and preview URLs, not merely hide its row.
-
-- Excel numeric cells retain only 15 significant digits reliably. Write larger
-  integer XOF values as exact decimal text, label that convention, and verify the
-  saved cell type. Write user-controlled workbook text explicitly as text so names
-  cannot become formulas or external links.
-
-- A route loader can delay mounting the page itself, so component-only loading
-  states leave a blank wait. Cover both route and dependent section requests;
-  test staggered responses, and keep forms mounted during pagination/refetch so
-  placeholders do not discard drafts or mistake pending data for an empty list.
-
-- Reproduce hosted-database UI refresh failures with concurrent reads as well as
-  sequential requests. Exclusive session-row locks can serialize independent
-  page reads until statement timeouts; shared read protection must still retain
-  account-revocation safety, verified with real database race tests.
-
-- A CSS-to-Tailwind migration must preserve the cascade, not just declarations.
-  Keep shared form/field defaults low-specificity (`:where`) so OTP and other
-  specialized controls can override them. Verify computed sizing, spacing and
-  focus in a real browser; functional form tests alone miss these regressions.
-
-- Do not remove a mounted disabled session Query when clearing authentication
-  state: its observer can remain attached to the discarded entry after OTP.
-  Clear the value while retaining the observer, and test the complete login →
-  OTP → authorized page flow without a reload (not only direct verified entry).
-
-- When narrowing role navigation, verify first-resource creation as well as lists.
-  Removing catalog access must not remove an Agent’s project/year entry for the
-  first PTA activity. Keep temporary year typing local before Router validation.
-
+- Use disposable PostgreSQL with deterministic barriers for transaction races.
+  Sequential browser submissions do not prove serialization. Hold the real
+  mutation, start the competitor, check both orderings and tear down test data.
+- Mailbox UUID filenames do not encode delivery order. Compare before/after file
+  sets or explicit delivery IDs. Await the relevant REST response/navigation
+  before inspecting mail or database results.
+- A retained test tenant retains abuse limits; a neutral recovery response may
+  leave old mail untouched. Use a fresh isolated tenant to verify a new delivery.
+- Workflow dates and actual audit recording dates can differ. Filter tests using
+  captured audit dates; do not assume a dated fixture is always before deadline.
+  Assert overdue labels separately from persisted execution controls.
+- For navigating submissions, assert response status, then the destination URL
+  and ID. Reading an old browser response body after navigation can fail even
+  when saving succeeded.
+- Check Playwright discovery when renaming specs: testMatch also filters explicit
+  CLI paths. Use role plus accessible name for custom comboboxes; option text can
+  interfere with label queries. Await the condition under test rather than sleeps.
 - Before launching an existing app, identify its configured database and runtime.
-  Compose can override `.env`'s database URL, and a new project name selects a new
-  volume. Healthy endpoints alone do not prove the app is serving existing accounts.
-
-- Replacing native selects requires real-browser checks for required validation,
-  keyboard selection and FormData, especially inside native dialogs: a popup
-  portaled to the document body can fall behind the dialog's top layer.
-  Keep secondary query errors local to their disclosure instead of allowing a
-  disabled or optional query to replace the whole page.
+  Compose can override .env and a new project name selects another volume.
+  Healthy endpoints alone do not prove that existing accounts are being served.

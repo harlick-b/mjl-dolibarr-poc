@@ -1,5 +1,5 @@
+import { formatDate, formatDateTime } from '@/shared/lib/format'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
-import { businessActionClassName } from '@/shared/ui/button-variants'
 import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
@@ -8,7 +8,7 @@ import { strings } from '@/locales/fr/NotificationView'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { Bell, Check } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { toast } from 'sonner'
 import { cursorFrom } from '@/shared/lib/pagination'
@@ -62,6 +62,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
     [],
   )
   const read = useMutation({
+    meta: { localError: true },
     retry: false,
     networkMode: 'always',
     mutationFn: async (item) => {
@@ -85,7 +86,6 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
       await client.invalidateQueries({
         queryKey: [...notificationRoot, session.user.id],
       })
-      toast.success(strings.markedRead)
     },
   })
 
@@ -137,44 +137,68 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
             <EmptyContent kind="notifications" />
           </div>
         ) : (
-          <ul className="grid list-none m-0 p-0 [&_li]:grid [&_li]:grid-cols-[auto_minmax(0,_1fr)_auto] [&_li]:gap-4 [&_li]:items-start [&_li]:py-5 [&_li]:px-3 [&_li]:border-b [&_li]:border-b-border [&_li[data-ui~='is-unread']]:bg-selected [&_p]:my-[6px] [&_p]:mx-0 [&_small]:text-muted-foreground max-[641px]:[&_li]:grid-cols-[auto_1fr] max-[641px]:[&_button]:col-span-full">
+          <ul className="m-0 list-none divide-y divide-border p-0">
             {notifications.data.data.map((item) => (
-              <li key={item.id} data-ui={item.read_at ? '' : 'is-unread'}>
-                <Bell aria-hidden="true" size={20} />
-                <div>
+              <li key={item.id} className="px-6 py-5">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span
+                    className={item.read_at ? '' : 'font-medium text-primary'}
+                  >
+                    {!item.read_at && <span aria-hidden="true">● </span>}
+                    {item.read_at ? strings.read : strings.unread}
+                  </span>
+                  <time dateTime={item.created_at}>
+                    {formatDateTime(item.created_at)}
+                  </time>
+                </div>
+                <h3 className="mb-2 text-sm font-semibold text-navy">
+                  {strings.deadlineTitle}
+                </h3>
+                <p className="text-sm text-navy">{item.activity_name}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {strings.formatString(strings.deadline, {
+                    date: formatDate(item.planned_end),
+                  })}
+                </p>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">
+                    {item.activity_reference}
+                    {item.pta_year ? ` · PTA ${item.pta_year}` : ''}
+                  </span>
                   <Link
-                    onClick={onSelect}
+                    className="inline-flex items-center gap-2 font-medium text-primary"
                     to="/activities/$activityId"
                     params={{ activityId: item.activity_id }}
+                    aria-disabled={read.isPending}
+                    onClick={async (event) => {
+                      if (item.read_at) {
+                        onSelect?.()
+                        return
+                      }
+                      event.preventDefault()
+                      if (read.isPending) return
+                      const current = generation.current
+                      try {
+                        await read.mutateAsync(item)
+                        if (current !== generation.current) return
+                        await navigate({
+                          to: '/activities/$activityId',
+                          params: { activityId: item.activity_id },
+                        })
+                        onSelect?.()
+                      } catch (error) {
+                        if (
+                          error.name !== 'AbortError' &&
+                          current === generation.current
+                        )
+                          toast.error(strings.readFailed)
+                      }
+                    }}
                   >
-                    {item.activity_reference} — {item.activity_name}
+                    {strings.openActivity}
+                    <ArrowRight size={14} aria-hidden="true" />
                   </Link>
-                  <p>
-                    Échéance le{' '}
-                    {new Intl.DateTimeFormat('fr-FR').format(
-                      new Date(`${item.planned_end}T00:00:00`),
-                    )}
-                  </p>
-                  <small>
-                    Courriel :{' '}
-                    {{
-                      delivered: 'envoyé',
-                      failed: 'échec enregistré',
-                      skipped: 'non envoyé',
-                      unconfirmed: 'résultat non confirmé',
-                    }[item.email_status] || item.email_status}
-                  </small>
                 </div>
-                {!item.read_at && (
-                  <button
-                    className={businessActionClassName}
-                    disabled={read.isPending}
-                    onClick={() => read.mutate(item)}
-                    type="button"
-                  >
-                    <Check aria-hidden="true" size={18} /> Marquer comme lue
-                  </button>
-                )}
               </li>
             ))}
           </ul>

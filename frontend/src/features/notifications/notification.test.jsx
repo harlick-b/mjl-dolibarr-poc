@@ -87,17 +87,13 @@ test('the sidebar notification centre marks a reminder read and refreshes its ba
   expect(screen.getByLabelText('1 non lues')).toBeVisible()
   const online = vi.spyOn(window.navigator, 'onLine', 'get')
   online.mockReturnValue(false)
-  await userEvent.click(
-    screen.getByRole('button', { name: /Marquer comme lue/ }),
-  )
+  await userEvent.click(screen.getByRole('link', { name: /Ouvrir l’activité/ }))
   expect(
     fetch.mock.calls.some(([, options]) => options?.method === 'PATCH'),
   ).toBe(false)
   expect(screen.getByText(/ACT-001/)).toBeVisible()
   online.mockReturnValue(true)
-  await userEvent.click(
-    screen.getByRole('button', { name: /Marquer comme lue/ }),
-  )
+  await userEvent.click(screen.getByRole('link', { name: /Ouvrir l’activité/ }))
   await waitFor(() =>
     expect(screen.queryByText(/ACT-001/)).not.toBeInTheDocument(),
   )

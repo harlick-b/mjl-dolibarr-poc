@@ -488,13 +488,14 @@ test('offline invalidation removes the Partner portfolio immediately', async () 
   fireEvent(window, new Event('online'))
   expect(
     await screen.findByText(
-      'Nous ne pouvons pas confirmer votre accès pour le moment.',
+      'Le service est momentanément indisponible. Votre accès local a été fermé. Réessayez pour vous connecter à nouveau.',
     ),
   ).toBeVisible()
   expect(screen.queryByText('Bonjour, Donnée privée')).not.toBeInTheDocument()
-  sessionUnavailable = false
-  fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
-  expect(await screen.findByText('Bonjour, Donnée privée')).toBeVisible()
+  expect(
+    screen.getByRole('button', { name: 'Réessayer la connexion' }),
+  ).toBeEnabled()
+  expect(router.state.location.pathname).toBe('/login')
 })
 
 test('a denied portal read removes that view without invalidating the session', async () => {

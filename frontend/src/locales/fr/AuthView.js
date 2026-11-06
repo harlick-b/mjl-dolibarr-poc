@@ -2,6 +2,9 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    serviceLoginMessage:
+      'Le service est momentanément indisponible. Votre accès local a été fermé. Réessayez pour vous connecter à nouveau.',
+    retryConnection: 'Réessayer la connexion',
     offlineTitle: 'Connexion indisponible',
     offlineMessage: 'Vérifiez votre connexion Internet, puis réessayez.',
     sessionUnavailable: 'Session indisponible',

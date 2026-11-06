@@ -132,9 +132,14 @@ loading/error/offline states for changed surfaces. Human visual, screen-reader,
 keyboard/reflow and 100%/200% zoom acceptance remain outstanding; passing automated
 checks is not accessibility conformance or user acceptance.
 
+Compare rendered populated pages, empty states and dialogs directly with their
+applicable references before claiming visual completion. Check alignment, spacing,
+typography and controls as well as functionality; explicit user corrections take
+precedence over a differing reference detail.
+
 Sidebar identity opens an anchored account menu with explicit profile/workspace
 links and logout. Enter/Space and ArrowDown open and focus the menu; Escape closes
-and restores focus. Password criteria use the success badge text/surface pair
+and restores focus. Password criteria use primary blue text on the selected surface
 when met, with a visible check mark. Auth form transitions keep the current CTA
 busy until the next auth context is ready; initial auth loading uses an unboxed
 page indicator. Logout uses one centered page indicator, without protected identity
@@ -173,3 +178,11 @@ Partners and Projects retain their reference table/empty-state composition.
 Operation-type maintenance remains available in a collapsed secondary section
 on Partners, loaded only when opened. Execution lists show period, progress,
 current assigned names and administrative stage from server facts.
+
+The workspace has no horizontal navigation/header. Relances sits above sidebar
+identity and opens the administrative reminder modal from `docs/inspiration/relances/`.
+Not-found content uses the application sidebar when verified and the decorative
+auth frame otherwise. Logout links target `/logout`. Session-service failure returns
+to login with an unavailable message and deliberate recovery, never an endless
+verification loop. Invitation HTML and plain text follow the supplied
+`mjl-email-invitation-final.html` wording, including the invited role.

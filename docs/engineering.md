@@ -155,8 +155,11 @@ coalesced session check with a ten-second total deadline. It may make a second
 session request only after the first returns `401` or when a superseding
 authentication-context change arrives within that same cycle; it never replays a
 rejected write. Verified access remounts and reloads the route, anonymous returns to login,
-pending continues to OTP, and verification network/service/malformed failures stay
-blocked behind a deliberate retry. A repeated `401` for the recovered request
+pending continues to OTP. Session network/service/timeout failures clear local
+access and return to `/login` with a service-unavailable message. A tab-local hold
+survives refresh: deliberate retry first confirms server logout, then shows the
+ready login form; an old cookie must not restore access. Malformed session responses
+remain blocked behind a deliberate retry. A repeated `401` for the recovered request
 stays blocked until deliberate retry, an authentication-context change or a
 successful read resets that path's recovery latch.
 
@@ -369,7 +372,7 @@ Current sidebar page matrix (2026-11-05):
 | Admin | Tableau de bord, Utilisateurs, Historique |
 | Partenaire | Tableau de bord, Mes projets, Exports |
 
-Internal reminders open from the header; they are not an extra sidebar page.
+Internal reminders open in a modal from the sidebar; they are not an extra page.
 Prévisions retains project/year entry so an Agent can create the first activity
 without access to catalog management. Partner Exports uses the existing scoped
 annual CSV endpoint; it loads profile/projects/PTAs, not activity detail lists.

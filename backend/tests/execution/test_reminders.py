@@ -74,6 +74,7 @@ def test_exact_due_cycle_is_deduplicated_and_recipient_only(planning):
     assert first.status_code == second.status_code == 200
     assert first.json()["count"] == second.json()["count"] == 1
     assert first.json()["data"][0]["planned_end"] == "2028-02-29"
+    assert first.json()["data"][0]["pta_year"] == assigned["placement_year"]
     with Session(planning["auth"].engine) as db:
         assert set(db.scalars(select(ActivityReminder.agent_id))) == set(new_ids)
 

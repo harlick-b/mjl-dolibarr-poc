@@ -19,7 +19,12 @@ export function LogoutProvider({ children }) {
     mutationKey: ['auth', 'logout'],
     retry: false,
     networkMode: 'always',
-    mutationFn: (csrf) => api.auth('logout', { body: {}, csrf }),
+    mutationFn: (csrf) =>
+      api.auth('logout', {
+        body: {},
+        csrf,
+        signal: AbortSignal.timeout(10_000),
+      }),
     meta: { localError: true },
   })
   async function logout() {
@@ -28,7 +33,8 @@ export function LogoutProvider({ children }) {
     setBusy(true)
     setError(false)
     let csrf = access.session?.csrf
-    const held = access.reason === 'logout'
+    const recovering = access.reason === 'service-unavailable'
+    const held = access.reason === 'logout' || recovering
     access.holdLogout(csrf)
     try {
       if (held || !csrf) csrf = await access.prepareLogout()
@@ -43,8 +49,15 @@ export function LogoutProvider({ children }) {
         access.holdLogout(fresh?.csrf)
         throw new Error('Logout context changed')
       }
-    } catch {
-      setError(true)
+    } catch (error) {
+      if (
+        recovering ||
+        error?.status >= 500 ||
+        ['network', 'timeout'].includes(error?.kind) ||
+        error?.name === 'TimeoutError'
+      ) {
+        access.holdUnavailable()
+      } else setError(true)
     } finally {
       running.current = false
       setBusy(false)

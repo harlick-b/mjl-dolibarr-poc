@@ -21,7 +21,12 @@ export function ReminderMenu() {
   if (!access.can('notifications')) return null
   return (
     <>
-      <Button ref={opener} variant="outline" onClick={() => setOpen(true)}>
+      <Button
+        ref={opener}
+        variant="ghost"
+        className="mb-3 w-full justify-start gap-3 px-3 text-navy"
+        onClick={() => setOpen(true)}
+      >
         <Clock size={14} aria-hidden="true" />
         {strings.reminders}
         {unread.data?.count > 0 && (
@@ -40,6 +45,7 @@ export function ReminderMenu() {
         onClose={() => setOpen(false)}
         opener={opener}
         label={strings.remindersTitle}
+        className="w-[min(760px,calc(100%-32px))] backdrop:backdrop-blur-sm"
       >
         <header className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-xl font-semibold">{strings.remindersTitle}</h2>

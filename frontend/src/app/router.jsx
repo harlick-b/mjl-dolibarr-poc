@@ -1,4 +1,3 @@
-import { ReminderMenu } from '@/features/notifications/ReminderMenu'
 import { WorkspaceOverview } from '@/features/dashboard/WorkspaceOverview'
 import { ProfileView } from '@/features/auth/ProfileView'
 import {
@@ -29,6 +28,7 @@ import {
   AuthFrame,
   AuthLoading,
   AuthView,
+  ServiceUnavailableLogin,
 } from '@/features/auth/AuthView'
 import {
   AccessProvider,
@@ -87,10 +87,6 @@ function WorkspaceShell() {
     <WorkspaceFrame>
       <ApplicationSidebar user={identity?.user} />
       <div className="min-w-0">
-        <header className="flex justify-between gap-4 min-h-16 items-center border-b border-border bg-white px-6 text-[0.8125rem] text-muted-foreground">
-          {page?.label || 'MJL'}
-          <ReminderMenu />
-        </header>
         <WorkspaceMain>
           {page && !policy.canVisit(path) ? (
             <AccessDeniedState role={policy.role} />
@@ -166,7 +162,7 @@ function Shell() {
     if (access.status === 'verified') rememberPage(access.session, path)
   }, [access.status, access.session, path])
   useEffect(() => {
-    if (path !== '/health' && access.status === 'unknown')
+    if (path !== '/health' && path !== '/logout' && access.status === 'unknown')
       void access.verify().catch(() => null)
   }, [access, path])
   useEffect(() => {
@@ -179,6 +175,8 @@ function Shell() {
     const destination = loginDestination(access.session)
     if (path !== destination) void navigate({ to: destination, replace: true })
   }, [access, navigate, path])
+  if (access.reason === 'service-unavailable' && !logout.busy)
+    return <ServiceUnavailableLogin />
   if (logout.busy || logout.error || access.reason === 'logout')
     return <LogoutScreen />
   const protectedPath =
@@ -202,6 +200,7 @@ function Shell() {
       '/',
       '/health',
       '/login',
+      '/logout',
       '/invitation',
       '/verification',
       '/forgot-password',
@@ -227,6 +226,7 @@ function Shell() {
     [
       '/',
       '/login',
+      '/logout',
       '/invitation',
       '/verification',
       '/identity',
@@ -260,47 +260,29 @@ function Shell() {
         <WorkspaceShell />
       </ProtectedGate>
     )
-  return (
-    <div className="min-h-screen">
-      <header className="border-b border-border bg-white">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-6 px-6 py-5">
-          <Link
-            to="/"
-            className="flex items-center gap-3 font-semibold text-navy"
-            aria-label="MJL — accueil"
-          >
-            <img src="/icon-192.png" alt="" width="36" height="36" /> MJL
-          </Link>
-          <nav
-            aria-label="Navigation principale"
-            className="flex gap-6 text-sm"
-          >
-            <Link
-              to="/"
-              activeProps={{
-                'aria-current': 'page',
-                className: 'font-semibold',
-              }}
-            >
-              Accueil
-            </Link>
-            <Link
-              to="/health"
-              activeProps={{
-                'aria-current': 'page',
-                className: 'font-semibold',
-              }}
-            >
-              État du service
-            </Link>
-            <Link to="/projects">Planification</Link>
-          </nav>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-6 py-12">
-        <Outlet />
-      </main>
-    </div>
+  return access.status === 'verified' ? (
+    <WorkspaceShell />
+  ) : (
+    <AuthFrame title={strings.notFound}>
+      <Outlet />
+    </AuthFrame>
+  )
+}
+
+function LogoutRoute() {
+  const { logout } = useLogout()
+  const access = useAccess()
+  const started = useRef(false)
+  useEffect(() => {
+    if (access.status !== 'anonymous' && !started.current) {
+      started.current = true
+      void logout()
+    }
+  }, [logout, access.status])
+  return access.status === 'anonymous' ? (
+    <Navigate to="/login" replace />
+  ) : (
+    <LogoutScreen />
   )
 }
 
@@ -383,6 +365,11 @@ export function makeRouter(history, componentOverrides = {}) {
       errorComponent: RouteFailure,
     }),
   )
+  const logoutRoute = createRoute({
+    getParentRoute: () => root,
+    path: '/logout',
+    component: LogoutRoute,
+  })
   const health = createRoute({
     getParentRoute: () => root,
     path: '/health',
@@ -635,6 +622,7 @@ export function makeRouter(history, componentOverrides = {}) {
   return createRouter({
     routeTree: root.addChildren([
       home,
+      logoutRoute,
       health,
       createRoute({
         getParentRoute: () => root,

@@ -37,3 +37,14 @@ export function formatPercentage(numerator, denominator) {
   const decimal = tenths % 10n
   return `${whole}${decimal ? `,${decimal}` : ''} %`
 }
+
+export function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+    timeZone: 'Africa/Porto-Novo',
+  }).format(date)
+}

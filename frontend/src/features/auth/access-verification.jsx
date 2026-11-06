@@ -3,6 +3,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useSyncExternalStore,
 } from 'react'
 import { authorization, isKnownRole } from './authorization'
@@ -14,7 +15,8 @@ const AUTH_SOURCE = crypto.randomUUID()
 
 function logoutHoldStored() {
   try {
-    return globalThis.sessionStorage.getItem(LOGOUT_HOLD_KEY) === 'true'
+    const value = globalThis.sessionStorage.getItem(LOGOUT_HOLD_KEY)
+    return value === 'login' ? 'login' : value === 'true'
   } catch {
     return false
   }
@@ -22,7 +24,11 @@ function logoutHoldStored() {
 
 function storeLogoutHold(held) {
   try {
-    if (held) globalThis.sessionStorage.setItem(LOGOUT_HOLD_KEY, 'true')
+    if (held)
+      globalThis.sessionStorage.setItem(
+        LOGOUT_HOLD_KEY,
+        held === 'login' ? 'login' : 'true',
+      )
     else globalThis.sessionStorage.removeItem(LOGOUT_HOLD_KEY)
   } catch {
     /* A blocked storage API does not weaken the current in-memory hold. */
@@ -73,7 +79,12 @@ export function createAccessCoordinator({
   let snapshot = {
     status: logoutHeld ? 'blocked' : 'unknown',
     session: null,
-    reason: logoutHeld ? 'logout' : null,
+    reason:
+      logoutHeld === 'login'
+        ? 'service-unavailable'
+        : logoutHeld
+          ? 'logout'
+          : null,
     generation: 0,
     logoutCsrf: null,
     identityVersion: 0,
@@ -249,6 +260,15 @@ export function createAccessCoordinator({
     inFlight = run()
       .catch((error) => {
         if (generation === snapshot.generation) {
+          if (
+            error?.status >= 500 ||
+            ['network', 'timeout'].includes(error?.kind)
+          ) {
+            logoutHeld = 'login'
+            storeLogoutHold('login')
+            mask('service-unavailable')
+            throw error
+          }
           const status =
             error?.status === 401 || error?.authenticationFailed
               ? 'anonymous'
@@ -298,6 +318,11 @@ export function createAccessCoordinator({
       return () => cleanups.delete(cleanup)
     },
     verify,
+    holdUnavailable() {
+      logoutHeld = 'login'
+      storeLogoutHold('login')
+      mask('service-unavailable')
+    },
     holdLogout(csrf) {
       logoutHeld = true
       storeLogoutHold(true)
@@ -393,6 +418,7 @@ export function createAccessCoordinator({
         mask('offline')
     },
     dispose() {
+      snapshot = { ...snapshot, generation: snapshot.generation + 1 }
       verificationController?.abort()
       clearTimeout(expiryTimer)
       purge()
@@ -405,7 +431,9 @@ export function createAccessCoordinator({
 const AccessContext = createContext(null)
 
 export function AccessProvider({ coordinator, children }) {
+  const lifecycle = useRef(0)
   useEffect(() => {
+    const generation = ++lifecycle.current
     const channel = new BroadcastChannel('mjl-auth')
     const offline = () => coordinator.offline()
     const online = () => void coordinator.show()
@@ -418,6 +446,10 @@ export function AccessProvider({ coordinator, children }) {
       channel.close()
       window.removeEventListener('offline', offline)
       window.removeEventListener('online', online)
+      // StrictMode remounts effects immediately; dispose only a departed provider.
+      queueMicrotask(() => {
+        if (lifecycle.current === generation) coordinator.dispose()
+      })
     }
   }, [coordinator])
   return (
@@ -444,6 +476,7 @@ export function useAccess() {
     holdLogout: coordinator.holdLogout,
     releaseLogout: coordinator.releaseLogout,
     prepareLogout: coordinator.prepareLogout,
+    holdUnavailable: coordinator.holdUnavailable,
   }
 }
 

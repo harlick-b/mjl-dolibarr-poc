@@ -1585,15 +1585,22 @@ class AuthService:
         provider_message_id = ""
         try:
             with Session(self.engine) as lookup:
-                user_name = lookup.scalar(
-                    select(User.full_name)
+                invitee = lookup.execute(
+                    select(User.full_name, User.role)
                     .join(Invitation, Invitation.user_id == User.id)
                     .where(Invitation.id == selector, User.email == email)
-                )
+                ).one()
             provider_message_id = self.send_mail(
                 email,
                 "invitation",
-                recipient_name=user_name,
+                recipient_name=invitee.full_name,
+                role_label={
+                    "AGENT_SAISIE": "Agent de saisie",
+                    "AGENT_VERIFICATEUR": "Superviseur",
+                    "VALIDATEUR_DEFINITIF": "Validateur définitif",
+                    "ADMIN_PLATEFORME": "Admin technique",
+                    "PARTENAIRE": "Partenaire",
+                }[invitee.role],
                 action_url=link,
                 expiration_text=duration_label(self.policy.invitation_seconds),
             )

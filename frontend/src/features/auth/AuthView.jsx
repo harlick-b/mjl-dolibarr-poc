@@ -722,6 +722,28 @@ function authTitle(path) {
             : strings.loginHeading
 }
 
+export function ServiceUnavailableLogin() {
+  const navigate = useNavigate()
+  const { logout, busy } = useLogout()
+  useEffect(() => {
+    void navigate({ to: '/login', replace: true })
+  }, [navigate])
+  return (
+    <AuthFrame title={strings.loginHeading} busy={busy}>
+      <h1>{strings.loginHeading}</h1>
+      <p role="alert">{strings.serviceLoginMessage}</p>
+      <button
+        type="button"
+        className={buttonVariants({ variant: 'auth' })}
+        disabled={busy}
+        onClick={() => void logout()}
+      >
+        {strings.retryConnection}
+      </button>
+    </AuthFrame>
+  )
+}
+
 export function AuthFrame({ user, title, busy, children, loading = false }) {
   return (
     <div

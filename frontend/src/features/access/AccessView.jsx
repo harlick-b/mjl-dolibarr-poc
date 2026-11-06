@@ -62,11 +62,7 @@ export function AccessGate({ children }) {
         <title>{common.usersTitle}</title>
       </Helmet>
       <ApplicationSidebar user={user} />
-      <div
-        className="[&_>_header]:bg-white [&_>_header]:border-b [&_>_header]:border-b-border [&_>_header]:flex [&_>_header]:items-center [&_>_header]:min-h-16 [&_>_header]:py-4 [&_>_header]:px-6 [&_>_header]:text-[0.8125rem] max-[761px]:[&_>_header]:hidden"
-        data-ui="access-workspace"
-      >
-        <header>{common.usersTitle}</header>
+      <div data-ui="access-workspace">
         <AdminMain>{children}</AdminMain>
       </div>
     </AdminShell>
@@ -327,11 +323,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
         <title>{common.usersTitle}</title>
       </Helmet>
       <ApplicationSidebar user={session.user} />
-      <div
-        className="[&_>_header]:bg-white [&_>_header]:border-b [&_>_header]:border-b-border [&_>_header]:flex [&_>_header]:items-center [&_>_header]:min-h-16 [&_>_header]:py-4 [&_>_header]:px-6 [&_>_header]:text-[0.8125rem] max-[761px]:[&_>_header]:hidden"
-        data-ui="access-workspace"
-      >
-        <header>Utilisateurs</header>
+      <div data-ui="access-workspace">
         <AdminMain>
           <div
             className="flex flex-wrap items-center justify-between gap-4 mb-6 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold"

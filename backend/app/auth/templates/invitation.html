@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>{{app_name}} — Invitation à accéder à la plateforme</title>
+  <title>{{app_name}} — Invitation à activer votre compte</title>
   <style>
     @media only screen and (max-width:600px) {
       .email-wrap { padding:16px 12px !important; }
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body style="margin:0;padding:0;width:100%;background-color:#f5f7f8;font-family:Inter,Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%;">
-  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;color:#f5f7f8;">Vous êtes invité(e) à activer votre compte {{app_name}}.</div>
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;color:#f5f7f8;">Votre invitation à rejoindre {{app_name}} et à activer votre compte.</div>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;background-color:#f5f7f8;">
     <tr>
       <td class="email-wrap" align="center" style="padding:40px 16px;">
@@ -30,7 +30,9 @@
             <td class="email-content" style="padding:40px;background-color:#ffffff;border-left:1px solid #c8d0d5;border-right:1px solid #c8d0d5;">
               <h1 style="font-family:Inter,Arial,Helvetica,sans-serif;font-weight:600;font-size:24px;line-height:32px;color:#202529;margin:0 0 20px;">{{email_title}}</h1>
               <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 16px;">Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},</p>
-              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 28px;">Vous avez été invité(e) à accéder à la plateforme {{app_name}}. Pour activer votre compte, définissez votre mot de passe à partir du lien ci-dessous.</p>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 16px;">Une invitation à rejoindre {{app_name}}, la plateforme de planification et de suivi administratif et financier des activités, vous a été adressée.</p>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 16px;">Vous rejoindrez la plateforme en qualité de <strong style="font-weight:600;color:#202529;">{{role_label}}</strong>.</p>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 28px;">Pour activer votre compte, définissez votre mot de passe en cliquant sur le bouton ci-dessous.</p>
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;border-spacing:0;">
                 <tr>
                   <td align="center" bgcolor="#164f7a" style="background-color:#164f7a;border-radius:6px;">
@@ -39,7 +41,7 @@
                 </tr>
               </table>
               <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:22px;color:#5c6870;margin:24px 0 0;">Ce lien est valable pendant {{expiration_text}}.</p>
-              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:22px;color:#5c6870;margin:12px 0 0;">Si vous n’attendiez pas cette invitation, vous pouvez ignorer cet email.</p>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:22px;color:#5c6870;margin:12px 0 0;">Si cette invitation ne vous est pas destinée, vous pouvez ignorer cet email.</p>
             </td>
           </tr>
           <tr>

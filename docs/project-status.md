@@ -8,6 +8,15 @@ own their subjects. [README](../README.md) owns setup and development commands.
 
 ## Implemented
 
+- Session-service outages return to login with a refresh-safe local sign-out hold.
+  Recovery confirms server logout before allowing fresh sign-in. `/logout` is a
+  direct route; not-found pages retain the appropriate sidebar. Relances opens
+  from the sidebar without a horizontal header. Invitation email uses the supplied
+  final HTML wording and the invited role, with matching plain text.
+  The reproduced local 502 was caused by the API not listening on port 8000;
+  restarting the configured development API restored readiness and session 200.
+  The reason the earlier process stopped is not established.
+
 - Dashboard/reminder reads now share identity locks instead of contending for an
   exclusive session lock. Mutations retain exclusive locking. Ordinary page data
   has one-minute freshness and five-minute in-memory retention; tab hiding/return
@@ -200,6 +209,20 @@ Full reference parity remains incomplete: unsupported PTA/execution search filte
 and populated Dashboard attention/financial sections need supporting data contracts.
 PTA summary columns remain limited to available projections. No fictional totals
 or nonfunctional filters were added to imitate those references.
+
+Current invitation/Relances/session-recovery candidate (2026-11-06):
+`npx vitest run --maxWorkers=1` passed 183 tests in 19 files;
+`npx playwright test e2e/auth/service-recovery.spec.js e2e/auth/navigation-transitions.spec.js e2e/auth/auth-presentation.spec.js`
+passed 29 tests. Build, ESLint, touched-Python Ruff and `git diff --check` passed.
+Disposable-PostgreSQL pytest: `tests/execution/test_reminders.py tests/auth/test_mail_accounts.py -q`
+passed 33 tests; three focused invitation delivery/activation tests passed; the
+added PTA-year assertion passed in a focused rerun. Earlier frontend failures
+exposed obsolete recovery expectations and a real coordinator disposal gap;
+those were corrected before the final passing runs. Provider-unmount/late-502
+and StrictMode checks are included. Relances screenshot was compared with the
+supplied reference; no live invitation was sent for this verification.
+Pre-commit review corrected stale header wording and made reminder timestamps
+explicitly Africa/Porto-Novo; focused formatter/notification checks passed (2 tests).
 
 ## Remaining inputs and excluded work
 

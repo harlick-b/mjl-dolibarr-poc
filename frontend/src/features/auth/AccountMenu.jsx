@@ -2,14 +2,12 @@ import { useId, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronUp, UserRound, LogOut, Folder } from 'lucide-react'
 import { authorization, roleLabels } from './authorization'
-import { useLogout } from './LogoutProvider'
 import { strings } from '@/locales/fr/AccountMenu'
 
 export function AccountMenu({ user }) {
   const id = useId()
   const trigger = useRef(null)
   const [open, setOpen] = useState(false)
-  const { logout } = useLogout()
   const policy = authorization({ state: 'verified', user })
   const items = useRef(null)
   function focusItem(last = false) {
@@ -90,18 +88,17 @@ export function AccountMenu({ user }) {
               {strings.partner}
             </Link>
           )}
-          <button
+          <Link
+            to="/logout"
             className="mt-1 flex items-center border-t border-border text-danger"
             role="menuitem"
-            type="button"
             onClick={() => {
               setOpen(false)
-              void logout()
             }}
           >
             <LogOut size={16} aria-hidden="true" className="mr-2 shrink-0" />
             {strings.logout}
-          </button>
+          </Link>
         </div>
       )}
       <button

@@ -307,13 +307,18 @@ test('expired cookies recover to login and service failures offer a retry', asyn
   )
   await page.reload()
   await expect(
-    page.getByRole('button', { name: 'Réessayer', exact: true }),
+    page.getByRole('button', { name: 'Réessayer la connexion', exact: true }),
   ).toBeVisible()
   await page.unroute('**/api/v1/auth/session')
   await page.route('**/api/v1/auth/session', (route) =>
     route.fulfill({ json: { state: 'anonymous', csrf: 'fresh' } }),
   )
-  await page.getByRole('button', { name: 'Réessayer', exact: true }).click()
+  await page.route('**/api/v1/auth/logout', (route) =>
+    route.fulfill({ status: 204 }),
+  )
+  await page
+    .getByRole('button', { name: 'Réessayer la connexion', exact: true })
+    .click()
   await expect(page.getByLabel('Mot de passe', { exact: true })).toBeVisible()
 })
 
@@ -427,15 +432,15 @@ test('account revalidation masks stale identity and an interrupted logout stays 
     page.getByText('person@example.test', { exact: true }),
   ).toHaveCount(0)
   await expect(page.getByRole('alert')).toContainText(
-    'Déconnexion non confirmée',
+    'momentanément indisponible',
   )
   await expect(
-    page.getByRole('button', { name: 'Réessayer la déconnexion' }),
+    page.getByRole('button', { name: 'Réessayer la connexion' }),
   ).toBeEnabled()
   expect(logoutCalls).toBe(1)
   expect(
     await page.evaluate(() => sessionStorage.getItem('mjl.logout-pending')),
-  ).toBe('true')
+  ).toBe('login')
   session = { ...verified, csrf: 'rotated-after-remote-login' }
   await page.evaluate(async () => {
     await new Promise((resolve) => {
@@ -451,14 +456,14 @@ test('account revalidation masks stale identity and an interrupted logout stays 
   })
   expect(
     await page.evaluate(() => sessionStorage.getItem('mjl.logout-pending')),
-  ).toBe('true')
+  ).toBe('login')
   await expect(
     page.getByText('person@example.test', { exact: true }),
   ).toHaveCount(0)
   await expect(
-    page.getByRole('button', { name: 'Réessayer la déconnexion' }),
+    page.getByRole('button', { name: 'Réessayer la connexion' }),
   ).toBeEnabled()
-  await page.getByRole('button', { name: 'Réessayer la déconnexion' }).click()
+  await page.getByRole('button', { name: 'Réessayer la connexion' }).click()
   await expect(page).toHaveURL(/\/login$/)
   expect(logoutCalls).toBe(2)
   expect(logoutCsrf).toEqual(['test', 'rotated-after-remote-login'])

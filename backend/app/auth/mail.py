@@ -13,7 +13,7 @@ from app.auth.policy import normalize_email
 TEMPLATE_DIRECTORY = Path(__file__).resolve().parent / "templates"
 
 MAILS = {
-    "invitation": ("invitation", "Invitation à rejoindre MJL"),
+    "invitation": ("invitation", "Invitation à activer votre compte"),
     "otp": ("login-code", "Code de vérification"),
     "password_recovery": (
         "password-recovery",
