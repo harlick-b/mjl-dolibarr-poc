@@ -127,6 +127,11 @@ blocks the affected screen, not independent backend work. Composition references
 do not override the navy/blue identity, tokens or business permissions. They are
 not sample data. Do not create unrelated screens or components during cleanup.
 
+The new `docs/inspiration/pta/` screens supersede older references for the same
+pages and elements. The updated `mjl-prototype.html` supplies connected states and
+interactions; use its final refinements, not superseded earlier function versions.
+Preserve its latest horizontal annual/monthly timeline and Activity edit layout.
+
 Focused browser checks should cover keyboard/focus behavior, narrow reflow and
 loading/error/offline states for changed surfaces. Human visual, screen-reader,
 keyboard/reflow and 100%/200% zoom acceptance remain outstanding; passing automated
@@ -217,7 +222,10 @@ do not authorize new mutations. Empty planning tables retain headers and disting
 filtered results from an unused PTA. Shared controls use the approved compact and
 standard sizes; XOF amounts display as F CFA without changing exact stored values.
 
-The new PTA creation/edit modal follows the existing Project/Partner modal style.
-Its composition, PTA name/description placement, Supervisor/Validator Activity
-brief form and assignment editor await supplied visual references. Do not invent
-these layouts. Current table/calendar references remain applicable independently.
+PTA creation/edit, metadata placement, reviewer quick creation and assignments
+now have supplied references in `docs/inspiration/pta/`. Reviewer creation opens
+the **Créer et affecter une activité** modal directly from the PTA; Agent creation
+opens the full editing workspace. Do not use the old standalone **Brief initial**
+page. Activity detail prioritizes context, responsibility, validation and one
+authorized next action. Table/calendar share search and filters, removable chips
+and reset; calendars use horizontal spans and a distinct start-only marker.

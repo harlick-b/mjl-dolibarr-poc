@@ -48,6 +48,15 @@ const activity = {
   allowed_actions: ['read', 'edit', 'submit'],
 }
 async function setup(page, role = 'AGENT_SAISIE') {
+  let pta = {
+    id: 'pta-1',
+    project_id: project.id,
+    year: 2027,
+    name: 'PTA 2027 — Protection de l’enfant et accès à la justice',
+    description: 'Programme annuel de coopération UNICEF / MJL.',
+    version: 1,
+    allowed_actions: role === 'AGENT_SAISIE' ? ['read'] : ['read', 'edit'],
+  }
   await page.route('**/api/v1/**', (route) => {
     const url = new URL(route.request().url()),
       path = url.pathname
@@ -64,7 +73,18 @@ async function setup(page, role = 'AGENT_SAISIE') {
         },
         expires_at: new Date(Date.now() + 3600000).toISOString(),
       }
-    else if (path === '/api/v1/projects')
+    else if (
+      ['POST', 'PATCH'].includes(route.request().method()) &&
+      (path === '/api/v1/projects/project-1/ptas' ||
+        path === '/api/v1/ptas/pta-1')
+    ) {
+      pta = {
+        ...pta,
+        ...route.request().postDataJSON(),
+        version: pta.version + 1,
+      }
+      json = pta
+    } else if (path === '/api/v1/projects')
       json = { ...empty, count: 1, data: [project] }
     else if (path === '/api/v1/partners')
       json = {
@@ -90,7 +110,7 @@ async function setup(page, role = 'AGENT_SAISIE') {
         count: 1,
         data: [
           {
-            id: 'pta-1',
+            ...pta,
             project_id: project.id,
             project_name: project.name,
             partner_name: 'UNICEF',
@@ -99,11 +119,11 @@ async function setup(page, role = 'AGENT_SAISIE') {
           },
         ],
       }
-    else if (path === '/api/v1/projects/project-1/ptas/2027')
+    else if (/\/projects\/project-1\/ptas\/\d{4}$/.test(path))
       json = {
         project,
-        year: 2027,
-        pta: { id: 'pta-1' },
+        year: pta.year,
+        pta,
         summary,
         allowed_actions: ['read', 'create_activity'],
         approved_plan: { activity_count: 0, allocation: '0' },
@@ -217,4 +237,47 @@ test('project and partner actions use editing and project PTA navigation', async
   await page.getByRole('link', { name: 'Voir les PTA' }).click()
   await expect(page).toHaveURL(/planning\?project=project-1/)
   await expect(page.locator('aside nav a[aria-current="page"]')).toHaveCount(1)
+})
+
+test('PTA metadata modals follow the reference and keep immutable fields on edit', async ({
+  page,
+}) => {
+  await setup(page, 'AGENT_VERIFICATEUR')
+  await page.setViewportSize({ width: 1837, height: 965 })
+  await page.goto('/planning')
+  await expect(
+    page.getByText('Programme annuel de coopération UNICEF / MJL.'),
+  ).toBeVisible()
+  await page.screenshot({ path: '/tmp/pta-metadata-index.png' })
+  await page.getByRole('button', { name: 'Créer un PTA', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('combobox', { name: 'Projet' })).toContainText(
+    project.name,
+  )
+  await page.screenshot({ path: '/tmp/pta-metadata-create.png' })
+  await dialog.getByLabel('Nom du PTA').fill('Programme annuel de coopération')
+  await dialog.getByLabel('Description').fill('Priorités de terrain')
+  await dialog
+    .getByRole('button', { name: 'Créer le PTA', exact: true })
+    .click()
+  await expect(
+    page.getByRole('heading', {
+      name: 'Programme annuel de coopération',
+      level: 1,
+    }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Modifier le PTA' }).click()
+  await expect(dialog.getByLabel('Nom du PTA')).toHaveValue(
+    'Programme annuel de coopération',
+  )
+  await expect(dialog.getByRole('combobox')).toHaveCount(0)
+  await page.screenshot({ path: '/tmp/pta-metadata-edit.png' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.screenshot({ path: '/tmp/pta-metadata-mobile.png' })
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await page.getByRole('button', { name: 'Modifier le PTA' }).click()
+  await page.mouse.click(2, 2)
+  await expect(dialog).toHaveCount(0)
 })

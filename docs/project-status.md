@@ -8,6 +8,12 @@ own their subjects. [README](../README.md) owns setup and development commands.
 
 ## PTA foundations — staged implementation, 2026-11-07
 
+New PTA/Activity/execution visuals and the updated prototype have now been supplied.
+The latest brief and Supervisor-upload clarification are recorded in business-rules.md
+and design.md. The first UI slice is implemented; later slices remain pending in
+the temporary [PTA workflow plan](pta-workflow-plan.md), to be removed when all
+its slices are complete.
+
 The agreed next workflow is recorded in business-rules.md; it is **not fully
 implemented**. This candidate adds Supervisor/Validator PTA creation and metadata
 editing APIs, version-conflict protection, safe business History and migration
@@ -21,14 +27,84 @@ of the table cursor. It refuses detected incomplete/changing pagination, retains
 403/404 cache redaction, uses start/ongoing/end month labels, and centers empty
 month text. UI wording uses Planification des activités sur l’année where expanded.
 
-Still outstanding: the supplied PTA creation/edit and metadata-placement visuals,
-Activity brief/assignment visuals, explicit-only PTA creation cutover (including
-annual transfers), brief persistence and the planning creator review exception.
-Assignment permission changes are described in the following section.
-Legacy first-Activity/transfer automatic PTA creation remains active deliberately:
-removing it before the new modal exists would strand the current creation path.
-The additive APIs are preparation, not completion of these accepted rules.
+The first UI slice connects **Créer un PTA** and **Modifier le PTA** for Supervisors
+and Validators, with required name, optional description, active Project choices
+and the current year selected by default. Project/year remain fixed after creation.
+The index and detail show PTA metadata. Edit forms retain their opening version;
+conflicts and uncertain save outcomes are handled locally. Successful changes
+invalidate planning and History queries. The new modal composition was compared
+with the supplied desktop references; mobile reflow was checked separately. This
+is not user acceptance.
 
+Activity creation and annual transfer now require an explicitly created PTA.
+A missing transfer destination returns `pta_required`; reviewers create it before
+submission/approval, including for older pending requests. Existing approved
+revisions and Activity identity remain unchanged. Active Project filtering is
+applied before cursor pagination/counting and bound into the cursor scope.
+
+Still outstanding: reviewer quick Activity creation, incomplete-draft persistence,
+creator review exception, Supervisor document upload, and the remaining supplied
+Activity/filter/calendar/execution visuals. Assignment permissions already exist
+as described below. No development-database migration or deployment was performed.
+
+Slice 1 source SHA256 (`backend/app`, `backend/migrations`, `frontend/src`, sorted
+paths + NUL + bytes + NUL, excluding Python caches):
+`0dd73f823687c6c304d6ec70a4bdea213347f2f1fb3588ef7bd164787a58867e`.
+Built artifact `index-D9OfAkV-.js` SHA256:
+`643c4edf619791738a211aacf271685a36d460ac1473dad1835a90e1808f6969`.
+
+Slice 1 checks:
+
+- `npm --prefix frontend run test:unit -- src/features/planning/pta-metadata.test.jsx
+  src/features/planning/planning.test.jsx --maxWorkers=1`: **45 passed**. After
+  localization wrapping, the same command restricted to `pta-metadata.test.jsx`
+  passed **10 tests**.
+- From `frontend`, `npm run test:e2e -- e2e/planning/planning-design.spec.js`:
+  **3 passed**, against the final build with disposable intercepted data. Includes
+  modal create/edit, immutable Project/year, mobile, Escape and outside dismissal.
+- `npm --prefix frontend run build`: passed. `npm --prefix frontend run lint`:
+  no errors, one existing effect-cleanup warning in `access-verification.jsx:451`.
+  Prettier checks of all touched JSX/JS files passed.
+- From `backend`, `.venv/bin/ruff check app/planning/routes.py
+  tests/planning/test_explicit_pta.py tests/planning/test_planning.py
+  tests/planning/test_transfers.py`: passed; `.venv/bin/mypy app/planning`:
+  **20 source files passed**. `git diff --check`: passed.
+- Earlier broad PostgreSQL run of explicit PTA and transfer files finished
+  **53 passed, 9 failed** after an initial **6 passed, 53 failed** fixture-cutover
+  run. Failures involved stale implicit-PTA/assignment/lifecycle/migration fixture
+  assumptions; those were corrected. The first focused rerun was interrupted
+  (exit 143), with no completed summary. Neither run is reported as a full pass.
+  Final focused PostgreSQL rerun: **21 passed, 150 deselected** in 135.20s,
+  using `.venv/bin/python /tmp/mjl-design-tests.py
+  tests/planning/test_explicit_pta.py tests/planning/test_transfers.py
+  tests/planning/test_planning.py -k 'explicit_pta or t05_amend_transfer or
+  original_create_replay or assignment_change_serialize or assignment_lifecycle_guard
+  or approval_rolls_back_target or used_transfer_database or
+  placement_change_without_transfer or v04_v05_assigned or p06_p10_direct'
+  -q --tb=short --show-capture=no`. This covers all nine previously failing cases,
+  explicit-PTA prerequisites, legacy pending transfer compatibility, assignment
+  races, rollback and migration 0027 round-trip on this candidate. It is not a
+  rerun of the full suite. Tests used disposable PostgreSQL with teardown.
+
+Independent review found and verified corrections for form snapshot/version,
+read-denial cleanup, local write denial, uncertain-write reconciliation, active
+Project cursor scope and History invalidation. Final independent code/evidence
+review completed with no remaining blocking findings for slice 1.
+The existing lessons already cover snapshot-based forms and targeted verification;
+no duplicate lesson was added.
+
+
+Commit review follow-up: fixed dismissal during a pending PTA save so the request
+settles and refreshes planning/History without reopening the dialog. Session
+changes still suppress obsolete callbacks. Regression failed before the fix;
+final `npm --prefix frontend run test:unit -- src/features/planning/pta-metadata.test.jsx
+--maxWorkers=1`: **11 passed**. Targeted ESLint and final build passed. Backend
+source is unchanged from the 21-test run above; browser evidence above predates
+this callback-only correction. Separate standards/specification reviewers found
+no remaining blockers. Final source SHA256: `9c707becd412083193c933f46e89b87036a8497e77dec894bbaf06bc08fc899d`.
+Final built artifact: `index-DGLp7nDY.js`, SHA256 `6d97445860125e790d062a0881c3549a807475aa5476cd306f9c55cebd431e2e`.
+
+The following foundation evidence predates this UI slice and its assignment work.
 PTA-foundation candidate (before assignment changes) application/migration/frontend-source SHA256 (sorted paths, each path +
 NUL + file bytes + NUL): `c9e193171121fcae9bd9c7197037f1258818291ba2073fa8f946ef6bc855b7d2`.
 Frontend artifact: `index-V9k3IkFL.js`.

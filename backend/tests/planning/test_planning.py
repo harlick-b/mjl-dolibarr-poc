@@ -203,6 +203,12 @@ def references(planning):
         {"partner_id": partner.json()["id"], "name": "Projet test"},
     )
     assert project.status_code == 201, project.text
+    pta = post(
+        validator,
+        f"/api/v1/projects/{project.json()['id']}/ptas",
+        {"year": 2027, "name": "PTA 2027"},
+    )
+    assert pta.status_code == 201, pta.text
     return partner.json(), operation_type.json(), project.json()
 
 

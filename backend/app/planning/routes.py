@@ -876,6 +876,7 @@ def projects(
     request: Request,
     auth: Auth,
     args: Annotated[tuple[int, str | None], Depends(list_args)],
+    state: Annotated[Literal["active", "closed"] | None, Query()] = None,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
@@ -884,11 +885,18 @@ def projects(
             auth,
             Project,
             "projects",
-            CONTEXT,
+            CONTEXT if state is None else f"{CONTEXT}:{state}",
             actor.role,
             *args,
-            where=(Project.context_id == CONTEXT,),
+            where=(
+                Project.context_id == CONTEXT,
+                *((Project.state == state,) if state else ()),
+            ),
         )
+        if state:
+            for direction in ("next", "previous"):
+                if result[direction]:
+                    result[direction] += f"&state={state}"
         ids = {row["partner_id"] for row in result["data"]}
         names = dict(
             db.execute(
@@ -1265,13 +1273,20 @@ def pta_context(
         plan = approved_plans(db, [(project.id, year)], cutoff)[(project.id, year)]
         counts = planning_state_counts(db, [pta.id] if pta else [])
         return {
-            "project": project_item(project, actor.role),
+            "project": {
+                **project_item(project, actor.role),
+                "partner_name": db.scalar(
+                    select(Partner.name).where(
+                        Partner.id == project.partner_id, Partner.context_id == CONTEXT
+                    )
+                ),
+            },
             "year": year,
             "pta": None if not pta else pta_metadata(pta, actor.role),
             "allowed_actions": ["read"]
             + (
                 ["create_activity"]
-                if actor.role == "AGENT_SAISIE" and project.state == "active"
+                if pta and actor.role == "AGENT_SAISIE" and project.state == "active"
                 else []
             ),
             "approved_plan": plan,
@@ -1350,16 +1365,7 @@ def create_activity(
         )
         now = auth.now(db)
         if not pta:
-            pta = AnnualPTA(
-                context_id=CONTEXT,
-                project_id=project.id,
-                year=year,
-                name=f"PTA {year}",
-                creator_id=actor.id,
-                created_at=now,
-            )
-            db.add(pta)
-            db.flush()
+            raise AuthError(409, "pta_required")
         item = Activity(
             context_id=CONTEXT,
             pta_id=pta.id,
@@ -1622,6 +1628,12 @@ def request_transfer(
             or item.withdrawal_id
         ):
             raise AuthError(409, "transfer_ineligible")
+        if not db.scalar(
+            select(AnnualPTA.id).where(
+                AnnualPTA.project_id == project.id, AnnualPTA.year == target_year
+            )
+        ):
+            raise AuthError(409, "pta_required")
         correcting = item.transfer_id is not None
         if correcting:
             if (
@@ -2728,16 +2740,7 @@ def decide_activity(
                         )
                     )
                     if not target:
-                        target = AnnualPTA(
-                            context_id=CONTEXT,
-                            project_id=item.request_project_id,
-                            year=target_year,
-                            name=f"PTA {target_year}",
-                            creator_id=actor.id,
-                            created_at=now,
-                        )
-                        db.add(target)
-                        db.flush()
+                        raise AuthError(409, "pta_required")
                     item.pta_id = target.id
                     item.placement_year = target_year
                     item.planned_start = date.fromisoformat(

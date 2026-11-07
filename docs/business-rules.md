@@ -91,10 +91,14 @@ separate from saving the Activity and does not change its approval or contributo
 history; the existing Activity validation rules still apply.
 
 All three internal business roles may create Activities inside an existing PTA.
-Supervisors and Validators may create a brief (title, description, assigned Agents),
-then request corrections rather than edit its content. Assigned Agents complete
+Supervisors and Validators create through the PTA's quick modal: required title,
+start date in the PTA year and at least one assigned Agent; optional instructions
+and end date. An entered end date cannot precede the start. An absent end stays
+unknown in the brief. They then request corrections rather than edit its content.
+Agents use the full Activity workspace, not a standalone brief page. Assigned Agents complete
 the dates, Operations and budget before submission. A submitted Activity has one
-or more Operations with positive allocations whose sum equals its allocation. Default end date is start plus three calendar months for every
+or more Operations with positive allocations whose sum equals its allocation.
+In the full Agent form, the suggested end date is start plus three calendar months for every
 Partner: preserve the day when valid, otherwise clamp to the month's last day.
 This is an editable suggestion; never overwrite a manual end date.
 
@@ -127,7 +131,9 @@ may be cancelled with a reason. Withdrawal is terminal, ends assignments and
 excludes the Activity from current metrics. Transfer moves the same Activity only
 forward to a later PTA in the same Project, preserving identity, Operations,
 allocations, assignment history and decisions. Source placement remains effective
-until final approval; no reverse transfer or restoration is enabled.
+until final approval; no reverse transfer or restoration is enabled. The destination
+PTA must already exist; a Supervisor or Validator creates it first. This also
+applies when approving an older pending transfer with a missing destination.
 
 ## Execution and additional funding
 
@@ -193,8 +199,9 @@ Activities. Every unfinished Activity blocks closure. Closed Projects do not reo
 
 ## Evidence and Partner access
 
-Evidence is optional and Activity-scoped; missing files never block submission
-or closure. Agents/Validators upload PDF/JPEG/PNG up to 20 MiB, validating display
+Evidence is optional and Activity-scoped, including documents displayed in an
+Operation drawer; missing files never block submission or closure.
+Agents/Supervisors/Validators upload PDF/JPEG/PNG up to 20 MiB, validating display
 name, extension, declared media type, signature and parsed structure. Original
 bytes/metadata are immutable. Internal business roles list/download through fresh
 server authorization; JPEG/PNG also support protected inline preview, PDF does not.

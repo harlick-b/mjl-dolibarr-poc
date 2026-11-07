@@ -1,3 +1,5 @@
+import { PTAModal } from './PTAModal'
+import { strings as ptaStrings } from '@/locales/fr/PTAModal'
 import { readCalendar } from './calendar'
 import { PlanningActivities } from './PlanningActivities'
 import { PlanningSummary } from './PlanningSummary'
@@ -217,7 +219,9 @@ function Workspace({ screen, session, onDenied }) {
         setError(
           problem.code === 'activity_assignment_required'
             ? strings.assignmentRequired
-            : problem.message,
+            : problem.code === 'pta_required'
+              ? ptaStrings.required
+              : problem.message,
         )
     },
     onSuccess: async (_result, variables) => {
@@ -422,7 +426,7 @@ function Workspace({ screen, session, onDenied }) {
         : screen === 'pta'
           ? [context, ...(context.data?.pta?.id ? [list] : [])]
           : screen === 'activityNew'
-            ? [types]
+            ? [types, context]
             : [
                 activity,
                 revisions,
@@ -439,7 +443,7 @@ function Workspace({ screen, session, onDenied }) {
     (screen === 'partners' && partners.isPending) ||
     (screen === 'projects' && projects.isPending) ||
     (screen === 'pta' && context.isPending) ||
-    (screen === 'activityNew' && types.isPending) ||
+    (screen === 'activityNew' && (types.isPending || context.isPending)) ||
     (screen === 'activity' && activity.isPending)
   const submitSimple = async (event, path, field) => {
     event.preventDefault()
@@ -475,7 +479,7 @@ function Workspace({ screen, session, onDenied }) {
         : screen === 'pta'
           ? [context]
           : screen === 'activityNew'
-            ? [types]
+            ? [types, context]
             : [activity]
   if (
     primaryQueries.some(
@@ -490,6 +494,18 @@ function Workspace({ screen, session, onDenied }) {
       </RetryableError>
     )
   if (primaryPending) return <PageLoading title={labels[screen]} />
+  if (
+    screen === 'activityNew' &&
+    !context.data?.allowed_actions.includes('create_activity')
+  )
+    return (
+      <Panel>
+        <p>{ptaStrings.required}</p>
+        <Link to="/planning" className="text-primary">
+          {ptaStrings.breadcrumb}
+        </Link>
+      </Panel>
+    )
   return (
     <section
       data-ui="planning-stack"
@@ -559,6 +575,7 @@ function Workspace({ screen, session, onDenied }) {
       )}
       {screen === 'pta' && (
         <PTA
+          onDenied={denyWorkspace}
           projects={projects}
           context={context.data}
           result={list.data}
@@ -1082,13 +1099,47 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
   )
 }
 
-function PTA({ context, result, navigate, exportPending, onExport, projects }) {
+function PTA({
+  context,
+  result,
+  navigate,
+  exportPending,
+  onExport,
+  projects,
+  onDenied,
+}) {
   const search = useSearch({ strict: false })
+  const [editing, setEditing] = useState(false)
   if (!context) return <PageLoading title={strings.annualPlan} />
   return (
     <div className="grid gap-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-navy">PTA {context.year}</h1>
+        <div>
+          <Link to="/planning" className="text-xs text-muted-foreground">
+            {ptaStrings.breadcrumb}
+          </Link>
+          <h1 className="mt-3 text-2xl font-semibold text-navy">
+            {context.pta?.name || `PTA ${context.year}`}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            PTA {context.year}
+            {context.pta?.description ? ` · ${context.pta.description}` : ''}
+          </p>
+        </div>
+        {context.pta?.allowed_actions?.includes('edit') && (
+          <Button variant="outline" onClick={() => setEditing(true)}>
+            {ptaStrings.edit}
+          </Button>
+        )}
+        {editing && (
+          <PTAModal
+            onDenied={onDenied}
+            pta={context.pta}
+            project={context.project}
+            onClose={() => setEditing(false)}
+            onSaved={() => setEditing(false)}
+          />
+        )}
         {context.allowed_actions.includes('create_activity') && (
           <Button asChild>
             <Link
@@ -1166,6 +1217,14 @@ function PTA({ context, result, navigate, exportPending, onExport, projects }) {
           </RetryableError>
         )}
       </Panel>
+      {!context.pta && (
+        <Panel>
+          <p>{ptaStrings.required}</p>
+          <Link to="/planning" className="text-primary">
+            {ptaStrings.breadcrumb}
+          </Link>
+        </Panel>
+      )}
       <PlanningSummary summary={context.summary} />
       {context.pta && !result ? (
         <PageLoading title={strings.annualPlan} />
@@ -2377,6 +2436,9 @@ function ActivityDetail({
                     </div>
                   </div>
                   <p>{strings.unchangedOperations}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {ptaStrings.required}
+                  </p>
                   <ul
                     className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
                     data-ui="planning-list"

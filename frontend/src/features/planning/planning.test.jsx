@@ -79,7 +79,7 @@ function annualPageFetch(exportReply) {
             },
             year: 2027,
             pta: { id: 'pta-1' },
-            allowed_actions: ['read'],
+            allowed_actions: ['read', 'create_activity'],
             approved_plan: { activity_count: 5, allocation: '9200000' },
             summary: {
               activities: 9,

@@ -16,9 +16,10 @@ from tests.auth.test_access import headers
 from tests.auth.test_recovery import NEW_PASSWORD, recovery_proof
 from tests.auth.test_recovery import enable_recovery as enable_password_recovery
 from tests.auth.test_recovery import request as request_password_recovery
-from tests.planning.test_amendments import approved_activity
+from tests.planning.test_amendments import approved_activity as base_approved_activity
 from tests.planning.test_planning import (  # noqa: F401
     admin,
+    assign_agents,
     create_activity,
     ordered_advisory_race,
     patch,
@@ -31,7 +32,26 @@ from tests.planning.test_planning import (  # noqa: F401
 from tests.planning.test_withdrawals import persisted_withdrawal_state
 
 
+def approved_activity(clients):
+    activity, operation_type = base_approved_activity(clients)
+    activity = assign_agents(clients, activity, clients["agent"], clients["agent2"])
+    created = post(
+        clients["supervisor"],
+        f"/api/v1/projects/{activity['project_id']}/ptas",
+        {"year": 2028, "name": "PTA 2028"},
+    )
+    assert created.status_code == 201, created.text
+    return activity, operation_type
+
+
 def request_transfer(clients, approved, *, start="2028-02-01", end="2028-08-31"):
+    path = f"/api/v1/projects/{approved['project_id']}/ptas"
+    year = int(start[:4])
+    if clients["supervisor"].get(f"{path}/{year}").json()["pta"] is None:
+        created = post(
+            clients["supervisor"], path, {"year": year, "name": f"Programme {year}"}
+        )
+        assert created.status_code == 201, created.text
     response = post(
         clients["agent2"],
         f"/api/v1/activities/{approved['id']}/transfers",
@@ -76,7 +96,7 @@ def test_transfer_preserves_source_until_distinct_two_stage_approval(planning):
     assert pending["planned_start"] == approved["planned_start"]
     assert pending["transfer"]["target_year"] == 2028
     assert pending["execution_paused"] is True
-    assert revision["snapshot"]["pta"] == {"id": None, "year": 2028}
+    assert revision["snapshot"]["pta"]["year"] == 2028
 
     moved = approve_transfer(planning, approved, revision)
     assert moved["pta_id"] != source_pta_id
@@ -87,7 +107,7 @@ def test_transfer_preserves_source_until_distinct_two_stage_approval(planning):
     assert moved["operations"] == approved["operations"]
 
 
-def test_agent_cancels_pending_transfer_without_creating_target_pta(planning):
+def test_agent_cancels_pending_transfer_preserving_explicit_target_pta(planning):
     approved, _operation_type = approved_activity(planning)
     revision = request_transfer(planning, approved)
     transfer_id = revision["snapshot"]["transfer"]["id"]
@@ -112,7 +132,7 @@ def test_agent_cancels_pending_transfer_without_creating_target_pta(planning):
             db.execute(
                 text("SELECT count(*) FROM pta_annual WHERE year=2028")
             ).scalar_one()
-            == 0
+            == 1
         )
 
 
@@ -225,6 +245,7 @@ def test_t05_amend_transfer_amend_withdraw_preserves_annual_history(planning):
             "request_key": str(uuid4()),
         },
     ).json()
+    created = assign_agents(planning, created, planning["agent"], planning["agent2"])
     initial_revision = post(
         planning["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
@@ -403,6 +424,7 @@ def test_original_create_replay_returns_same_activity_after_transfer(planning):
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
         body,
     ).json()
+    created = assign_agents(planning, created, planning["agent"], planning["agent2"])
     submitted = post(
         planning["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
@@ -538,30 +560,14 @@ def test_database_rejects_provenance_and_transfer_lineage_tampering(planning):
 
 def test_database_rejects_placement_change_without_transfer(planning):
     approved, _operation_type = approved_activity(planning)
-    target_pta_id = str(uuid4())
+    target_pta_id = (
+        planning["agent"]
+        .get(f"/api/v1/projects/{approved['project_id']}/ptas/2028")
+        .json()["pta"]["id"]
+    )
     with Session(planning["auth"].engine) as db:
         with pytest.raises(DBAPIError):
             with db.begin():
-                facts = db.execute(
-                    text(
-                        "SELECT request_project_id,request_actor_id FROM pta_activity "
-                        "WHERE id=:id"
-                    ),
-                    {"id": approved["id"]},
-                ).one()
-                db.execute(
-                    text(
-                        "INSERT INTO pta_annual "
-                        "(id,context_id,project_id,year,creator_id,created_at) "
-                        "VALUES (:id,'MJL',:project_id,2028,:creator_id,"
-                        "clock_timestamp())"
-                    ),
-                    {
-                        "id": target_pta_id,
-                        "project_id": facts.request_project_id,
-                        "creator_id": facts.request_actor_id,
-                    },
-                )
                 db.execute(
                     text(
                         "UPDATE pta_activity SET pta_id=:pta_id,placement_year=2028,"
@@ -631,7 +637,7 @@ def test_transfer_request_and_assignment_change_serialize(planning, first):
         assign if first == "transfer" else transfer,
     )
     assert first_response.status_code in {200, 201}
-    assert second_response.status_code == 409
+    assert second_response.status_code == (403 if first == "assignment" else 409)
 
 
 @pytest.mark.parametrize("first", ["transfer", "project"])
@@ -671,7 +677,7 @@ def test_transfer_request_and_project_close_serialize(planning, first):
 
 @pytest.mark.parametrize("first", ["transfer", "lifecycle"])
 @pytest.mark.parametrize("action", ["role", "deactivate"])
-def test_transfer_request_and_agent_lifecycle_serialize(planning, first, action):
+def test_transfer_request_preserves_assignment_lifecycle_guard(planning, first, action):
     approved, _operation_type = approved_activity(planning)
     account = next(
         row
@@ -709,11 +715,11 @@ def test_transfer_request_and_agent_lifecycle_serialize(planning, first, action)
         transfer if first == "transfer" else lifecycle,
         lifecycle if first == "transfer" else transfer,
     )
-    if first == "transfer":
-        assert (first_response.status_code, second_response.status_code) == (201, 200)
-    else:
-        assert first_response.status_code == 200
-        assert second_response.status_code == 401
+    transfer_response = first_response if first == "transfer" else second_response
+    lifecycle_response = second_response if first == "transfer" else first_response
+    assert transfer_response.status_code == 201, transfer_response.text
+    assert lifecycle_response.status_code == 409
+    assert lifecycle_response.json()["code"] == "account_ineligible"
 
 
 @pytest.mark.parametrize("first", ["transfer", "recovery"])
@@ -1000,7 +1006,7 @@ def test_two_forward_transfers_need_new_requests_and_preserve_both_histories(pla
 
 
 @pytest.mark.parametrize("creation_first", [True, False])
-def test_transfer_and_ordinary_creation_share_one_missing_target_pta(
+def test_transfer_and_ordinary_creation_share_explicit_target_pta(
     planning, creation_first
 ):
     approved, operation_type = approved_activity(planning)
@@ -1221,12 +1227,12 @@ def test_every_transfer_responsibility_rolls_back(
     assert persisted_withdrawal_state(planning, approved["id"]) == before
 
 
-@pytest.mark.parametrize("preexisting_target", [False, True])
+@pytest.mark.parametrize("target_has_activity", [False, True])
 def test_transfer_approval_rolls_back_target_and_state_on_audit_failure(
-    planning, monkeypatch, preexisting_target
+    planning, monkeypatch, target_has_activity
 ):
     approved, operation_type = approved_activity(planning)
-    if preexisting_target:
+    if target_has_activity:
         created = post(
             planning["agent2"],
             f"/api/v1/projects/{approved['project_id']}/ptas/2028/activities",
@@ -1264,13 +1270,16 @@ def test_transfer_approval_rolls_back_target_and_state_on_audit_failure(
     assert detail["state"] == "prevalidated"
     assert detail["placement_year"] == 2027
     with Session(planning["auth"].engine) as db:
-        assert db.scalar(
-            text(
-                "SELECT count(*) FROM pta_annual "
-                "WHERE project_id=:project_id AND year=2028"
-            ),
-            {"project_id": approved["project_id"]},
-        ) == int(preexisting_target)
+        assert (
+            db.scalar(
+                text(
+                    "SELECT count(*) FROM pta_annual "
+                    "WHERE project_id=:project_id AND year=2028"
+                ),
+                {"project_id": approved["project_id"]},
+            )
+            == 1
+        )
 
 
 def test_transfer_openapi_contract_is_two_strict_post_routes(planning):
@@ -1306,7 +1315,7 @@ def test_used_transfer_database_refuses_destructive_downgrade(planning, auth_env
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
             assert (
                 db.scalar(

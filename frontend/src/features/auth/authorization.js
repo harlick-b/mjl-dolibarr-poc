@@ -15,12 +15,18 @@ const roles = {
   AGENT_VERIFICATEUR: {
     label: 'Agent superviseur et prévalidateur',
     home: '/dashboard',
-    capabilities: ['business', 'notifications'],
+    capabilities: ['business', 'notifications', 'ptaManagement'],
   },
   VALIDATEUR_DEFINITIF: {
     label: 'Validateur définitif',
     home: '/dashboard',
-    capabilities: ['business', 'notifications', 'audit', 'catalog'],
+    capabilities: [
+      'business',
+      'notifications',
+      'audit',
+      'catalog',
+      'ptaManagement',
+    ],
   },
   PARTENAIRE: {
     label: 'Partenaire',

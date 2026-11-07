@@ -6,9 +6,8 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import { useAccess } from '@/features/auth/access-verification'
 import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 import { Button } from '@/shared/ui/button'
-import { Panel } from '@/shared/ui/layout'
-import { Select } from '@/shared/ui/select'
-import { Modal } from '@/shared/ui/BusinessModal'
+import { PTAModal } from './PTAModal'
+import { strings as metadata } from '@/locales/fr/PTAModal'
 import { EmptyTable } from '@/shared/ui/EmptyContent'
 import { PageLoading } from '@/shared/ui/PageLoading'
 import { RetryableError } from '@/shared/ui/RetryableError'
@@ -33,12 +32,10 @@ export function PlanningIndex() {
       throw error
     }
   }
-  const { user } = useAccess()
+  const { user, can } = useAccess()
   const search = useSearch({ strict: false })
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const [projectId, setProjectId] = useState(search.project || '')
-  const [year, setYear] = useState(String(new Date().getFullYear()))
   const path = search.project ? `/projects/${search.project}/ptas` : '/ptas'
   const ptas = useQuery({
     enabled: !denied,
@@ -55,15 +52,6 @@ export function PlanningIndex() {
         signal,
       ),
   })
-  const projects = useQuery({
-    queryKey: ['planning', user.id, 'projects', search.projectCursor],
-    queryFn: ({ signal }) =>
-      read(
-        `/api/v1/projects${search.projectCursor ? '?cursor=' + encodeURIComponent(search.projectCursor) : ''}`,
-        signal,
-      ),
-    enabled: open && !denied,
-  })
   const move = (link) =>
     navigate({
       to: '/planning',
@@ -76,10 +64,10 @@ export function PlanningIndex() {
         <h1 className="text-2xl font-semibold text-navy">
           {strings.planningIndex}
         </h1>
-        {user.role === 'AGENT_SAISIE' && (
+        {can('ptaManagement') && (
           <Button className="justify-self-end" onClick={() => setOpen(true)}>
             <Plus size={16} />
-            {strings.addActivityToPta}
+            {metadata.create}
           </Button>
         )}
       </header>
@@ -113,7 +101,7 @@ export function PlanningIndex() {
                 {[
                   strings.projectPartner,
                   'PTA',
-                  strings.activitiesLabel,
+                  metadata.activities,
                   strings.validation,
                   strings.approvedBudget,
                   '',
@@ -128,7 +116,7 @@ export function PlanningIndex() {
               {ptas.data.data.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-border last:border-0"
+                  className="border-b border-border align-top last:border-0"
                 >
                   <td className="px-3 py-3">
                     <Link
@@ -143,9 +131,20 @@ export function PlanningIndex() {
                     </Link>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {row.partner_name}
+                      {row.project_state === 'closed'
+                        ? ` · ${metadata.closed}`
+                        : ''}
                     </p>
                   </td>
-                  <td className="px-3 py-3 font-semibold">{row.year}</td>
+                  <td className="px-3 py-3">
+                    <p className="font-semibold">{row.year}</p>
+                    <p className="mt-1 font-medium">{row.name}</p>
+                    {row.description && (
+                      <p className="mt-1 max-w-80 text-xs text-muted-foreground">
+                        {row.description}
+                      </p>
+                    )}
+                  </td>
                   <td className="px-3 py-3">
                     {row.summary?.activities ?? '—'}
                   </td>
@@ -207,92 +206,18 @@ export function PlanningIndex() {
           </Button>
         </nav>
       )}
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        label={strings.addActivityToPta}
-      >
-        <Panel className="border-0 p-6">
-          {projects.isError && (
-            <RetryableError onRetry={() => projects.refetch()}>
-              {strings.unavailablePlanning}
-            </RetryableError>
-          )}
-          <label>
-            {strings.project}
-            <Select
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
-            >
-              <option value="">{strings.chooseProject}</option>
-              {projects.data?.data
-                .filter((row) => row.state === 'active')
-                .map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
-            </Select>
-          </label>
-          {(projects.data?.next || projects.data?.previous) && (
-            <div className="flex gap-2">
-              {['previous', 'next'].map((direction) => (
-                <Button
-                  key={direction}
-                  variant="outline"
-                  disabled={!projects.data[direction]}
-                  onClick={() =>
-                    navigate({
-                      search: (current) => ({
-                        ...current,
-                        projectCursor: cursorFrom(
-                          projects.data[direction],
-                          '/projects',
-                        ),
-                      }),
-                    })
-                  }
-                >
-                  {direction === 'next'
-                    ? strings.nextPage
-                    : strings.previousPage}
-                </Button>
-              ))}
-            </div>
-          )}
-          <label>
-            {strings.year}
-            <input
-              type="number"
-              min="2000"
-              max="2200"
-              value={year}
-              onChange={(event) => setYear(event.target.value)}
-            />
-          </label>
-          <div data-ui="modal-actions">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              {strings.cancel}
-            </Button>
-            <Button
-              disabled={
-                !projectId ||
-                !/^\d{4}$/.test(year) ||
-                Number(year) < 2000 ||
-                Number(year) > 2200
-              }
-              onClick={() =>
-                navigate({
-                  to: '/projects/$projectId/ptas/$year/activities/new',
-                  params: { projectId, year },
-                })
-              }
-            >
-              {strings.continue}
-            </Button>
-          </div>
-        </Panel>
-      </Modal>
+      {open && (
+        <PTAModal
+          onDenied={() => setDenied(true)}
+          onClose={() => setOpen(false)}
+          onSaved={(pta) =>
+            navigate({
+              to: '/projects/$projectId/ptas/$year',
+              params: { projectId: pta.project_id, year: String(pta.year) },
+            })
+          }
+        />
+      )}
     </div>
   )
 }
