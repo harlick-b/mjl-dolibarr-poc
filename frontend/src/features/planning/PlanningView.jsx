@@ -1,3 +1,4 @@
+import { ActivityTimeline } from '@/features/audit/ActivityTimeline'
 import { CategoryCreator } from './CategoryCreator'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
@@ -102,8 +103,14 @@ function planningQuery(api, user, key, path, onDenied) {
       try {
         return await api.request(`/api/v1${path}`, { signal })
       } catch (error) {
-        if ([403, 404].includes(error.status))
-          client.setQueryData(queryKey, null)
+        if ([403, 404].includes(error.status)) {
+          if (key[0] === 'activity-history')
+            client.setQueriesData(
+              { queryKey: ['planning', user, 'activity-history', key[1]] },
+              null,
+            )
+          else client.setQueryData(queryKey, null)
+        }
         if (error.status === 401) onDenied?.()
         throw error
       }
@@ -211,6 +218,7 @@ function Workspace({ screen, session, onDenied }) {
       if (variables.path !== '/operation-types') setError(problem.message)
     },
     onSuccess: async (_result, variables) => {
+      await client.invalidateQueries({ queryKey: ['audit-history'] })
       setError('')
       await Promise.all([
         client.invalidateQueries({ queryKey: ['planning', user.id] }),
@@ -306,9 +314,9 @@ function Workspace({ screen, session, onDenied }) {
     ...planningQuery(
       api,
       user.id,
-      ['activity-revisions', params.activityId, search.revisionCursor],
+      ['activity-history', params.activityId, search.revisionCursor],
       cursorPath(
-        `/activities/${params.activityId}/revisions`,
+        `/activities/${params.activityId}/history`,
         search.revisionCursor,
       ),
       onDenied,
@@ -1852,63 +1860,7 @@ function ActivityDetail({
         {!revisions?.data?.length ? (
           <EmptyContent kind="revisions" />
         ) : (
-          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
-            {revisions.data.map((entry) => (
-              <li key={entry.id}>
-                {!entry.kind || entry.kind === 'revision' ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate({
-                          search: (current) => ({
-                            ...current,
-                            revision: entry.id,
-                            amendment: undefined,
-                          }),
-                        })
-                      }
-                    >
-                      Révision {entry.revision_number} · {entry.submitted_at}
-                    </button>
-                    {entry.decisions.map((decision) => (
-                      <p key={decision.id}>
-                        {strings[decision.outcome] || decision.outcome}
-                        {decision.reason ? ` — ${decision.reason}` : ''}
-                      </p>
-                    ))}
-                  </>
-                ) : ['withdrawal_cancel', 'transfer_cancel'].includes(
-                    entry.kind,
-                  ) ? (
-                  <p>
-                    {entry.kind === 'transfer_cancel'
-                      ? 'Demande de transfert annulée'
-                      : 'Demande de retrait annulée'}{' '}
-                    · {entry.occurred_at} — {entry.reason}
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate({
-                        search: (current) => ({
-                          ...current,
-                          amendment: entry.amendment_id,
-                          revision: undefined,
-                        }),
-                      })
-                    }
-                  >
-                    {entry.kind === 'amendment_open'
-                      ? 'Modification ouverte'
-                      : 'Modification annulée'}{' '}
-                    · {entry.occurred_at} — {entry.reason}
-                  </button>
-                )}
-              </li>
-            ))}
-          </ol>
+          <ActivityTimeline events={revisions.data} navigate={navigate} />
         )}
         {historyLoading && (
           <LoadingPlaceholder label={strings.historyLoading} />
@@ -2328,9 +2280,15 @@ export function ActivityDocuments({
       }),
     onSuccess: async () => {
       if (!active.current) return
-      await client.invalidateQueries({
-        queryKey: ['planning', user.id, 'documents', activityId],
-      })
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: ['planning', user.id, 'documents', activityId],
+        }),
+        client.invalidateQueries({
+          queryKey: ['planning', user.id, 'activity-history', activityId],
+        }),
+        client.invalidateQueries({ queryKey: ['audit-history'] }),
+      ])
       setOpen(false)
       toast.success(strings.saved)
     },
@@ -2365,9 +2323,15 @@ export function ActivityDocuments({
         },
       ),
     onSuccess: async () => {
-      await client.invalidateQueries({
-        queryKey: ['planning', user.id, 'documents', activityId],
-      })
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: ['planning', user.id, 'documents', activityId],
+        }),
+        client.invalidateQueries({
+          queryKey: ['planning', user.id, 'activity-history', activityId],
+        }),
+        client.invalidateQueries({ queryKey: ['audit-history'] }),
+      ])
       setWithdrawing(null)
       setReplacementCursor('')
       toast.success(strings.saved)
@@ -2401,16 +2365,28 @@ export function ActivityDocuments({
       )
     },
     onSuccess: async () => {
-      await client.invalidateQueries({
-        queryKey: ['planning', user.id, 'documents', activityId],
-      })
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: ['planning', user.id, 'documents', activityId],
+        }),
+        client.invalidateQueries({
+          queryKey: ['planning', user.id, 'activity-history', activityId],
+        }),
+        client.invalidateQueries({ queryKey: ['audit-history'] }),
+      ])
       toast.success(strings.saved)
     },
     onError: async (error) => {
       if (error.status === 401) onDenied()
-      await client.invalidateQueries({
-        queryKey: ['planning', user.id, 'documents', activityId],
-      })
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: ['planning', user.id, 'documents', activityId],
+        }),
+        client.invalidateQueries({
+          queryKey: ['planning', user.id, 'activity-history', activityId],
+        }),
+        client.invalidateQueries({ queryKey: ['audit-history'] }),
+      ])
     },
   })
   const releasePreview = useCallback(() => {

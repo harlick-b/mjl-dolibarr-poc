@@ -364,3 +364,16 @@ The baseline must treat these as project deliverables and, where applicable, com
 Do not manufacture evidence that does not exist yet.
 
 ---
+
+
+### Business audit / security log boundary
+
+Business audit and protected document-delivery/export evidence remain append-only
+in PostgreSQL. Historical authentication records are preserved; routine new auth
+records go to the bounded backend security output described in
+[engineering](engineering.md#business-history-and-security-output).
+Application logs are not exposed by History APIs. Provider/region, authorized
+operator access, retention duration, expiration, persistence across deployments,
+capacity/drop monitoring and incident-preservation procedure remain external
+configuration/verification decisions. Application tests do not satisfy these gates.
+Neither a per-worker volume cap nor an environment variable proves retention.

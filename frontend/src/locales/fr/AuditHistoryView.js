@@ -13,6 +13,13 @@ export const strings = new LocalizedStrings({
     exported: 'Export CSV généré.',
     unavailable: 'L’historique est momentanément indisponible.',
     historyTitle: 'Historique',
+    details: 'Consulter les détails',
+    reason: 'Motif',
+    milestone: 'Étape majeure',
+    change: 'Modification',
+    system: 'Système',
+    revision: 'Consulter la révision',
+    amendment: 'Consulter la modification',
   },
 })
 strings.setLanguage('fr')

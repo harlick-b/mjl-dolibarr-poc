@@ -13,6 +13,7 @@ export function QueryFilterSelect({
   path = '/audit-events/filter-options',
   value = '',
   onChange,
+  onDenied,
 }) {
   const { api } = useAPI()
   const { user } = useAccess()
@@ -25,11 +26,17 @@ export function QueryFilterSelect({
   }
   const query = useQuery({
     queryKey: ['filter-options', user.id, path, kind, cursor],
-    queryFn: ({ signal }) =>
-      api.request(
-        `/api/v1${path}?${new URLSearchParams({ ...(path === '/audit-events/filter-options' ? { kind } : {}), ...(cursor ? { cursor } : {}) })}`,
-        { signal },
-      ),
+    queryFn: async ({ signal }) => {
+      try {
+        return await api.request(
+          `/api/v1${path}?${new URLSearchParams({ ...(path === '/audit-events/filter-options' ? { kind } : {}), ...(cursor ? { cursor } : {}) })}`,
+          { signal },
+        )
+      } catch (error) {
+        if ([401, 403, 404].includes(error.status)) onDenied?.(error)
+        throw error
+      }
+    },
   })
   return (
     <div className="grid gap-2">

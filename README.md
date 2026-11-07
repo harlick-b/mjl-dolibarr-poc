@@ -95,7 +95,7 @@ set +a
 cd backend
 uv run alembic upgrade head
 uv run python -m app.planning.provision --reason 'Initialize local development'
-uv run uvicorn app.main:create_app --factory --reload --host 127.0.0.1 --port 8000 --no-proxy-headers
+uv run uvicorn app.main:create_app --factory --reload --host 127.0.0.1 --port 8000 --no-proxy-headers --no-access-log
 ```
 
 Provisioning creates the single MJL ownership record, not sample business data.
@@ -127,6 +127,15 @@ backend edits, rebuild it and apply any new migrations:
 docker compose up -d --build backend
 docker compose exec -T backend alembic upgrade head
 ```
+
+Security events are concise JSON records in the backend log stream. Set
+`MJL_SECURITY_LOG_MAX_PER_MINUTE` in the backend process environment to adjust
+its per-worker volume cap (default 120, range 1–10000). This does not configure
+retention. Container startup and the host command above disable routine Uvicorn
+access logs to avoid recording every request and query string. The selected
+hosting provider must separately enforce protected collection, persistence across
+deployments and the retention/expiration policy once approved. No retention
+duration or provider integration is configured by this change.
 
 View logs with `docker compose logs -f backend`. Stop the stack with
 `docker compose down`; the database volume is retained.

@@ -55,6 +55,7 @@ def test_profile_preserves_names_and_cannot_change_access(admin):
             "before_full_name": data["full_name"] or "",
             "full_name": "Jean Paul de Souza",
         }
+
     assert (
         admin.post("/api/v1/auth/logout", json={}, headers=headers(admin)).status_code
         == 204
@@ -144,3 +145,51 @@ def test_profile_migration_refuses_loss_of_structured_names(admin):
         )
     with pytest.raises(RuntimeError, match="Structured profile names"):
         command.downgrade(Config("alembic.ini"), "0024_budget_funding")
+
+
+def test_profile_multibyte_name_changes_fit_audit_and_unchanged_save_is_silent(admin):
+    expected = admin.get("/api/v1/auth/profile").json()
+    for first, last in (("界" * 99, "名" * 99), ("新" * 99, "姓" * 99)):
+        result = admin.patch(
+            "/api/v1/auth/profile",
+            headers=headers(admin),
+            json={
+                "first_name": first,
+                "last_name": last,
+                "expected": {
+                    k: expected[k] for k in ("first_name", "last_name", "full_name")
+                },
+            },
+        )
+        assert result.status_code == 200, result.text
+        expected = result.json()
+    with Session(admin.app.state.auth.engine) as db:
+        events = list(
+            db.scalars(
+                select(Audit).where(Audit.action == "profile_update").order_by(Audit.id)
+            )
+        )
+        assert len(events) == 2
+        assert events[-1].details == {
+            "before_first_name": "界" * 99,
+            "first_name": "新" * 99,
+            "before_last_name": "名" * 99,
+            "last_name": "姓" * 99,
+        }
+    result = admin.patch(
+        "/api/v1/auth/profile",
+        headers=headers(admin),
+        json={
+            "first_name": expected["first_name"],
+            "last_name": expected["last_name"],
+            "expected": {
+                k: expected[k] for k in ("first_name", "last_name", "full_name")
+            },
+        },
+    )
+    assert result.status_code == 200
+    with Session(admin.app.state.auth.engine) as db:
+        assert (
+            len(list(db.scalars(select(Audit).where(Audit.action == "profile_update"))))
+            == 2
+        )

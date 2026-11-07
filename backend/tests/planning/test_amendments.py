@@ -773,19 +773,24 @@ def test_m04_amendment_edits_keep_bounded_structural_audit_history(planning):
     assert len(audits) == 3
     assert [
         (
-            row.business["before"]["content"]["description"],
-            row.business["after"]["content"]["description"],
+            row.business["before"]["description"],
+            row.business["after"]["description"],
         )
         for row in audits
     ] == expected_descriptions
-    assert [row.business["after"]["content"]["allocation"] for row in audits] == [
+    assert [row.business["after"]["allocation"] for row in audits] == [
         "350000",
         "400000",
         "300000",
     ]
     assert all(
-        row.business["before"]["content"]["operations"]
-        and row.business["after"]["content"]["operations"]
+        row.business["before"]["operations"] and row.business["after"]["operations"]
+        for row in audits
+    )
+
+    assert all(
+        "approved" not in row.business["after"]
+        and "allowed_actions" not in row.business["after"]
         for row in audits
     )
 

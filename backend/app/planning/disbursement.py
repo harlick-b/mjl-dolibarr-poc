@@ -477,12 +477,21 @@ def audit(
     request: DisbursementRequest,
     before: str | None,
 ) -> None:
+    reason = request.cancellation_reason if request.state == "cancelled" else None
+    if request.state == "returned":
+        reason = db.scalar(
+            select(DisbursementDecision.reason).where(
+                DisbursementDecision.request_id == request.id,
+                DisbursementDecision.outcome == "returned",
+            )
+        )
     auth.business_audit(
         db,
         action,
         actor_id,
         request.id,
         {
+            "reason": reason,
             "context_id": CONTEXT,
             "activity_id": request.activity_id,
             "request_id": request.id,

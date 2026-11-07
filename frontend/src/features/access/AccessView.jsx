@@ -306,6 +306,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
         await client.invalidateQueries({
           queryKey: ['access', session.user.id],
         })
+        await client.invalidateQueries({ queryKey: ['audit-history'] })
         if (alive.current) {
           setSubmitting(false)
           setDialog(null)

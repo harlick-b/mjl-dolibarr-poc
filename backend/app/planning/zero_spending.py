@@ -193,12 +193,21 @@ def audit(
     declaration: ZeroSpendingDeclaration,
     before: str | None,
 ) -> None:
+    reason = declaration.reason if declaration.state == "submitted" else None
+    if declaration.state == "returned":
+        reason = db.scalar(
+            select(ZeroSpendingDecision.reason).where(
+                ZeroSpendingDecision.declaration_id == declaration.id,
+                ZeroSpendingDecision.outcome == "returned",
+            )
+        )
     auth.business_audit(
         db,
         action,
         actor_id,
         declaration.id,
         {
+            "reason": reason,
             "context_id": CONTEXT,
             "activity_id": declaration.activity_id,
             "declaration_id": declaration.id,

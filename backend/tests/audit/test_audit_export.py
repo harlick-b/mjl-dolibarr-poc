@@ -62,6 +62,8 @@ def test_csv_export_is_sanitized_formula_safe_and_transactionally_audited(planni
             "Nom activité",
             "Modifications (avant → après)",
             "Élément concerné",
+            "Motif",
+            "Informations",
         ]
     )
     body = records[header + 1 :]
@@ -151,9 +153,7 @@ def test_csv_export_uses_one_exact_event_snapshot(planning):
     exported_ids = {row[0] for row in records[header + 1 :]}
     assert str(inserted_ids[0]) not in exported_ids
     with Session(planning["auth"].engine) as db:
-        concurrent = db.scalar(
-            select(Audit).where(Audit.id == inserted_ids[0])
-        )
+        concurrent = db.scalar(select(Audit).where(Audit.id == inserted_ids[0]))
         evidence = db.scalar(
             select(Audit)
             .where(Audit.action == "audit.export")
@@ -227,7 +227,7 @@ def test_csv_export_refuses_more_than_ten_thousand_events(planning):
                 """
             )
         )
-    response = export(planning["validator"])
+    response = export(planning["admin"])
     assert response.status_code == 422
     with Session(planning["auth"].engine) as db:
         assert db.scalar(select(func.count()).select_from(Audit)) > 10_000

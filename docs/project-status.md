@@ -6,6 +6,76 @@ for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
 
+## Business History and security logging
+
+Implemented 2026-11-06; see the [validated contract](history-logging-implementation-plan.md).
+Global History applies Admin/Validator business-event scope to lists, filters and
+CSV. Internal Activity viewers share the same authoritative timeline; Partners
+remain excluded. Saved deltas, recorded reasons and financial facts are available
+without inventing missing legacy details. Existing internal document/export
+evidence is preserved outside visible business History.
+
+Routine authentication output is now separate, bounded structured server logging;
+existing historical records remain intact. Meaningful account events retain
+business evidence. No schema migration or new infrastructure was required.
+Production provider, protected log collection, persistence across deployment and
+automatic expiration remain unverified until the retention decision and hosting
+configuration are supplied. No final duration was selected.
+
+Candidate: working tree based on `25d1d8d`, frontend bundle
+`index-C4dorUWJ.js`. Application source SHA256
+`499dbf85e147864dcaf3fdf7278c00716e36c764d171e3f72f395f16e437c689`
+covers sorted paths/content under `backend/app` and `frontend/src` with
+.py/.js/.jsx/.css suffixes (path, NUL, bytes, NUL).
+
+Verification used disposable local PostgreSQL with teardown. Backend commands
+below used `.venv/bin/python /tmp/mjl-auth-fix-tests.py` to supply an isolated
+TEST_DATABASE_URL and invoke pytest; setup ownership remains in README.
+
+- `tests/audit tests/auth/test_security_logging.py tests/auth/test_auth_security.py
+  tests/auth/test_profile.py tests/auth/test_access.py -q`: 99 passed before final
+  corrections; affected tests were rerun below.
+- `tests/audit tests/auth/test_security_logging.py tests/auth/test_profile.py
+  tests/planning/test_amendments.py::test_m04_amendment_edits_keep_bounded_structural_audit_history
+  tests/planning/test_withdrawals.py::test_w01_agent_requests_withdrawal_without_changing_approved_content -q`:
+  29 passed. Covers the real API/PostgreSQL journey through submission,
+  distinct approvals, execution, financial return, both histories, CSV and
+  Partner denial, plus transactional rollback and security log suppression.
+- `tests/auth/test_profile.py -q`: final correction rerun, 6 passed,
+  including valid maximum-length multibyte changes and unchanged saves.
+  `tests/audit/test_audit_history.py -k legacy_records -q`: 1 passed,
+  12 deselected; legacy records remain intact and sort by time/id.
+- An additional focused adjacent-workflow run passed 24 tests covering
+  zero-spending approval/return, amendment-transfer-withdrawal, reminder access
+  and authentication/lifecycle serialization.
+- `npm run test:unit -- src/features/audit src/features/planning/planning.test.jsx
+  src/features/execution/execution.test.jsx src/features/access/access.test.jsx
+  src/features/auth/profile.test.jsx --maxWorkers=1`: 81 passed.
+  After denial fixes, `npm run test:unit -- src/features/audit --maxWorkers=1`:
+  6 passed, including cached-page redaction and late export suppression.
+- `npm run test:e2e -- e2e/audit/audit-history.spec.js`: final build, 2 passed,
+  desktop/mobile global History and Agent Activity timeline. Browser API responses
+  are mocked; this is separate from the real PostgreSQL/API journey.
+- Changed-Python Ruff checks/format, mypy (44 source files), build and diff checks
+  passed. ESLint has zero errors and the existing lifecycle-ref warning; the
+  bundle-size warning remains. No full repository suite or production audit ran.
+
+Earlier focused runs caught obsolete expectations for the new audit shape and
+Validator scope; corrected tests passed in the focused runs above. Two independent
+review-only agents inspected actual source/diff and evidence. Missing settlement
+dates/legacy withdrawal reasons, oversized profile facts and denied-History cache/
+export handling were corrected and returned to the same reviewers; both report
+no remaining blockers. Review and development checks are not user acceptance,
+human visual/accessibility acceptance or production readiness.
+
+Commit review (2026-11-07): both independent reviewers confirmed the unchanged
+application source digest above and cleared the implementation. Today,
+`npm run test:unit -- src/features/audit --maxWorkers=1` passed 6 tests and
+`npm run build` passed. Backend suites were not rerun: the earlier reviewed
+candidate is unchanged; temporary raw logs are no longer available. The missing
+temporary retention handoff was restored as a separate durable
+[decision handoff](retention-policy-handoff.md), with all proposals still unapproved.
+
 ## Current UI follow-up boundary
 
 Browser titles use a single string for React 19. Business dialogs share a visible

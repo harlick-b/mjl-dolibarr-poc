@@ -230,7 +230,18 @@ Fiche uses a separate sanitized projection. No stored PDF or signature system.
 
 Internal business roles may export current PTA CSV and annual Excel/PDF working
 reports; Partner export is selected-PTA CSV of its public facts only. Global audit
-is sanitized, newest-first and restricted to Validator/Admin, including CSV export.
+is sanitized and newest-first. Admin sees all meaningful business events;
+Validator sees PTA, Activity, validation and financial events only. Other roles
+cannot access global History or its CSV. Internal users authorized to view an
+Activity can consult its business timeline from the same audit records; Partner
+users cannot access History. Lists, details, filters and exports enforce this scope.
+Saved changes record business-field differences, actor, time, entity and available
+reasons; unchanged saves and intermediate edits create no events. Existing evidence
+is preserved without inventing missing historical facts. Document delivery and
+export evidence remains protected internally and outside visible business History.
+Routine authentication, navigation and notification interactions are not business
+History. Security events use protected backend logs with bounded volume; production
+retention and hosting configuration remain a separate pending decision.
 Exports capture bounded coherent complete snapshots, reauthorize under lifecycle
 serialization and atomically audit relevant IDs/time/rows/bytes/hash before delivery.
 Audit export excludes its own generation event. No stored artifact/report job.

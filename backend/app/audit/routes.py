@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, tuple_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -18,8 +18,14 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
-from app.planning.models import Activity, Partner, Project
-from app.planning.service import CONTEXT, Cursor, page_rows, principal
+from app.planning.models import (
+    Activity,
+    ActivityRevision,
+    OperationType,
+    Partner,
+    Project,
+)
+from app.planning.service import BUSINESS_ROLES, CONTEXT, Cursor, page_rows, principal
 
 router = APIRouter(
     prefix="/api/v1",
@@ -72,6 +78,11 @@ class AuditOutput(Output):
     activity: ActivityOutput | None
     changes: list[ChangeOutput]
     subject: str | None
+    reason: str | None
+    milestone: bool
+    amendment_id: str | None
+    revision_id: str | None
+    facts: list[ChangeOutput]
 
 
 class AuditList(Output):
@@ -198,6 +209,7 @@ BUSINESS_ACTIONS = tuple(
     )
     and action != "activity.fiche_generated"
 ) + (
+    "bootstrap",
     "account_deactivate",
     "account_role_change",
     "invitation_create",
@@ -211,10 +223,37 @@ BUSINESS_ACTIONS = tuple(
     "document.withdraw",
 )
 
+
+def visible_actions(role: str) -> tuple[str, ...]:
+    if role == "ADMIN_PLATEFORME":
+        return BUSINESS_ACTIONS
+    return tuple(
+        action
+        for action in BUSINESS_ACTIONS
+        if action.startswith(
+            (
+                "activity.",
+                "operation.",
+                "funding.",
+                "disbursement.",
+                "virement.",
+                "virement_confirmation.",
+                "reversement.",
+                "zero_spending.",
+            )
+        )
+    )
+
+
 # Explicit public field projection: never return raw audit details or proof data.
 CHANGE_FIELDS = {
     "user_state": "État du compte",
     "name": "Nom",
+    "description": "Description",
+    "label": "Libellé",
+    "type_id": "Catégorie",
+    "position": "Ordre",
+    "placement_year": "Année du PTA",
     "full_name": "Nom complet",
     "first_name": "Prénoms",
     "last_name": "Nom",
@@ -229,6 +268,8 @@ CHANGE_FIELDS = {
     "execution_started_at": "Début de réalisation",
     "execution_observation": "Observation",
     "effective_date": "Date effective",
+    "transfer_date": "Date du virement",
+    "return_date": "Date du reversement",
     "note": "Note",
 }
 
@@ -244,11 +285,15 @@ def public_changes(row: Audit) -> list[dict[str, str | None]]:
     if not isinstance(before, dict) or not isinstance(after, dict):
         return []
     before, after = dict(before), dict(after)
+    before.update(before.pop("content", {}) or {})
+    after.update(after.pop("content", {}) or {})
     for key, old_key, new_key in (
         ("state", "before_state", "after_state"),
         ("user_state", "before_user_state", "user_state"),
         ("role", "before_role", "role"),
         ("full_name", "before_full_name", "full_name"),
+        ("first_name", "before_first_name", "first_name"),
+        ("last_name", "before_last_name", "last_name"),
     ):
         if old_key in facts and new_key in facts:
             before[key], after[key] = facts[old_key], facts[new_key]
@@ -265,6 +310,38 @@ def public_changes(row: Audit) -> list[dict[str, str | None]]:
                     "after": display_value(new, key),
                 }
             )
+    for side in (before, after):
+        if not isinstance(side.get("operations", []), list):
+            side.pop("operations", None)
+    old_ops = {
+        item["id"]: item
+        for item in before.get("operations", [])
+        if isinstance(item, dict) and "id" in item
+    }
+    new_ops = {
+        item["id"]: item
+        for item in after.get("operations", [])
+        if isinstance(item, dict) and "id" in item
+    }
+    for identifier in sorted(old_ops.keys() | new_ops.keys()):
+        old, new = old_ops.get(identifier, {}), new_ops.get(identifier, {})
+        for field in ("name", "type_id", "allocation", "position"):
+            if old.get(field) != new.get(field):
+                result.append(
+                    {
+                        "field": f"Opération {identifier} · {CHANGE_FIELDS[field]}",
+                        "before": display_value(old.get(field), field),
+                        "after": display_value(new.get(field), field),
+                    }
+                )
+    if before.get("agent_ids") != after.get("agent_ids"):
+        result.append(
+            {
+                "field": "Agents affectés",
+                "before": ", ".join(before.get("agent_ids") or []),
+                "after": ", ".join(after.get("agent_ids") or []),
+            }
+        )
     return result
 
 
@@ -284,6 +361,12 @@ def display_value(value: object, field: str) -> str | None:
         "prevalidated": "Prévalidé",
         "closed": "Clôturé",
         "draft": "Brouillon",
+        "amendment_draft": "Modification en préparation",
+        "returned": "Retourné",
+        "returned_supervisor": "Retourné par le superviseur",
+        "returned_validator": "Retourné par le validateur",
+        "cancelled": "Annulé",
+        "withdrawn": "Retiré",
         "AGENT_SAISIE": "Agent de saisie",
         "AGENT_VERIFICATEUR": "Superviseur",
         "VALIDATEUR_DEFINITIF": "Validateur définitif",
@@ -310,6 +393,45 @@ def activity_identifier(row: Audit) -> str | None:
     if row.action.startswith("activity.") and row.target and len(row.target) == 36:
         return row.target
     return None
+
+
+def event_reason(row: Audit) -> str | None:
+    facts = row.business or row.details or {}
+    for container in (
+        facts,
+        *(
+            facts.get(key)
+            for key in (
+                "decision",
+                "cancellation",
+                "amendment",
+                "revision",
+                "withdrawal",
+                "transfer",
+            )
+        ),
+    ):
+        if isinstance(container, dict):
+            for key in ("reason", "correction_reason"):
+                value = container.get(key)
+                if isinstance(value, str) and value:
+                    return value
+    return None
+
+
+def event_facts(row: Audit) -> list[dict[str, str | None]]:
+    facts = row.business or {}
+    labels = {
+        "amount": "Montant (F CFA)",
+        "approved_allocation": "Budget approuvé (F CFA)",
+        "required_amount": "Reversement requis (F CFA)",
+        "returned_amount": "Montant reversé (F CFA)",
+    }
+    return [
+        {"field": label, "before": None, "after": value}
+        for key, label in labels.items()
+        if isinstance(value := facts.get(key), str)
+    ]
 
 
 def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
@@ -340,10 +462,48 @@ def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
                 )
             }
         )
+    subjects.update(
+        {
+            item.id: item.label
+            for item in db.scalars(
+                select(OperationType).where(OperationType.id.in_(target_ids))
+            )
+        }
+    )
+    # Older withdrawal events link an immutable revision that already contains
+    # the reason. Read only that recorded scalar; never reconstruct it from state.
+    withdrawal_revisions = {
+        facts["revision"]["id"]
+        for row in rows
+        if row.action.startswith("activity.withdrawal_")
+        and isinstance(facts := row.business, dict)
+        and isinstance(facts.get("revision"), dict)
+        and isinstance(facts["revision"].get("id"), str)
+    }
+    withdrawal_reasons: dict[str, str | None] = (
+        dict(
+            db.execute(
+                select(
+                    ActivityRevision.id,
+                    ActivityRevision.snapshot["withdrawal"]["reason"].astext,
+                ).where(
+                    ActivityRevision.id.in_(withdrawal_revisions),
+                    ActivityRevision.activity_id.in_(activity_ids),
+                )
+            ).all()
+        )
+        if withdrawal_revisions
+        else {}
+    )
     data = []
     for row in rows:
         user = users.get(row.actor)
         activity = activities.get(activity_identifier(row) or "")
+        facts = row.business or {}
+        revision = facts.get("revision")
+        revision = revision if isinstance(revision, dict) else {}
+        amendment = facts.get("amendment")
+        amendment = amendment if isinstance(amendment, dict) else {}
         data.append(
             {
                 "id": row.id,
@@ -357,6 +517,20 @@ def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
                     else None
                 ),
                 "changes": public_changes(row),
+                "amendment_id": amendment.get("id"),
+                "reason": event_reason(row)
+                or withdrawal_reasons.get(str(revision.get("id", ""))),
+                "facts": event_facts(row),
+                "milestone": row.action
+                not in {
+                    "activity.replace",
+                    "activity.assign_agents",
+                    "operation.execution_corrected",
+                    "virement_confirmation.corrected",
+                    "reversement.corrected",
+                }
+                and not row.action.startswith("document."),
+                "revision_id": revision.get("id"),
                 "subject": activity.name
                 if activity
                 else subjects.get(row.target or ""),
@@ -411,6 +585,8 @@ def export_csv(
             "Nom activité",
             "Modifications (avant → après)",
             "Élément concerné",
+            "Motif",
+            "Informations",
         )
     )
     for row in rows:
@@ -434,6 +610,10 @@ def export_csv(
                         for change in row["changes"]
                     ),
                     row["subject"],
+                    row["reason"],
+                    " ; ".join(
+                        f"{fact['field']} : {fact['after']}" for fact in row["facts"]
+                    ),
                 )
             )
         )
@@ -447,36 +627,77 @@ def audit_events(
     pagination: Annotated[tuple[int, str | None], Depends(args)],
     filters: Annotated[dict[str, str], Depends(history_filters)],
 ) -> dict[str, Any]:
+    return history_page(request, auth, pagination, filters)
+
+
+@router.get("/activities/{identifier}/history", response_model=AuditList)
+def activity_history(
+    identifier: str,
+    request: Request,
+    auth: Auth,
+    pagination: Annotated[tuple[int, str | None], Depends(args)],
+) -> dict[str, Any]:
+    return history_page(
+        request, auth, pagination, {"activity": identifier}, activity_id=identifier
+    )
+
+
+def history_page(
+    request: Request,
+    auth: Auth,
+    pagination: tuple[int, str | None],
+    filters: dict[str, str],
+    *,
+    activity_id: str | None = None,
+) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
-        principal(
+        actor = principal(
             db,
             auth,
             evidence(request, auth)[0],
-            roles={"VALIDATEUR_DEFINITIF", "ADMIN_PLATEFORME"},
+            roles=BUSINESS_ROLES
+            if activity_id
+            else {"VALIDATEUR_DEFINITIF", "ADMIN_PLATEFORME"},
             read_only=True,
         )
+        if activity_id:
+            from app.planning.routes import get_activity
+
+            get_activity(db, activity_id, shared=True)
+        actions = BUSINESS_ACTIONS if activity_id else visible_actions(actor.role)
+        path = f"/activities/{activity_id}/history" if activity_id else "/audit-events"
         limit, token = pagination
-        cursor = Cursor(auth, "audit-events", filter_scope(filters), limit)
+        cursor = Cursor(
+            auth, "audit-events", filter_scope(filters) + ":" + actor.role, limit
+        )
         marker, direction = cursor.decode(token)
-        base_conditions = history_conditions(filters, ACTION_LABELS, BUSINESS_ACTIONS)
+        base_conditions = history_conditions(filters, ACTION_LABELS, actions)
         conditions: list[Any] = list(base_conditions)
         if marker:
             try:
-                marker_id = int(marker)
+                timestamp, identifier = marker.rsplit("|", 1)
+                marker_time = datetime.fromisoformat(timestamp)
+                marker_id = int(identifier)
             except ValueError:
                 raise AuthError(422, "cursor_invalid") from None
-            if marker_id <= 0:
+            if marker_id <= 0 or marker_time.tzinfo is None:
                 raise AuthError(422, "cursor_invalid")
             conditions.append(
-                Audit.id < marker_id if direction == "next" else Audit.id > marker_id
+                tuple_(Audit.occurred_at, Audit.id) < (marker_time, marker_id)
+                if direction == "next"
+                else tuple_(Audit.occurred_at, Audit.id) > (marker_time, marker_id)
             )
-        order = Audit.id.desc() if direction == "next" else Audit.id.asc()
+        order = (
+            (Audit.occurred_at.desc(), Audit.id.desc())
+            if direction == "next"
+            else (Audit.occurred_at.asc(), Audit.id.asc())
+        )
         rows, total = page_rows(
             db,
             Audit,
             tuple(base_conditions),
             tuple(conditions),
-            (order,),
+            order,
             limit,
         )
         more = len(rows) > limit
@@ -486,9 +707,15 @@ def audit_events(
 
         def link(row: Audit, move: str) -> str:
             query = urlencode(
-                {**filters, "limit": limit, "cursor": cursor.encode(str(row.id), move)}
+                {
+                    **filters,
+                    "limit": limit,
+                    "cursor": cursor.encode(
+                        f"{row.occurred_at.isoformat()}|{row.id}", move
+                    ),
+                }
             )
-            return f"{auth.policy.origin}/api/v1/audit-events?{query}"
+            return f"{auth.policy.origin}/api/v1{path}?{query}"
 
         return {
             "object": "list",
@@ -533,7 +760,9 @@ def audit_export(
         )
         selected = (
             select(Audit.id)
-            .where(*history_conditions(filters, ACTION_LABELS, BUSINESS_ACTIONS))
+            .where(
+                *history_conditions(filters, ACTION_LABELS, visible_actions(actor.role))
+            )
             .order_by(Audit.id)
             .limit(10001)
             .subquery()
@@ -551,7 +780,9 @@ def audit_export(
         rows = (
             list(
                 db.scalars(
-                    select(Audit).where(Audit.id.in_(event_ids)).order_by(Audit.id)
+                    select(Audit)
+                    .where(Audit.id.in_(event_ids))
+                    .order_by(Audit.occurred_at.desc(), Audit.id.desc())
                 )
             )
             if event_ids
@@ -615,7 +846,7 @@ def audit_filter_options(
     kind: Literal["actor", "activity", "project", "action"],
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
-        principal(
+        actor = principal(
             db,
             auth,
             evidence(request, auth)[0],
@@ -623,13 +854,14 @@ def audit_filter_options(
             read_only=True,
         )
         limit, token = pagination
-        cursor = Cursor(auth, "audit-filter-options", CONTEXT + ":" + kind, limit)
+        cursor = Cursor(
+            auth, "audit-filter-options", CONTEXT + ":" + kind + ":" + actor.role, limit
+        )
         marker, direction = cursor.decode(token)
+        actions = visible_actions(actor.role)
         if kind == "action":
             # The business action vocabulary is fixed and bounded, never event payloads.
-            options = [
-                {"id": key, "label": ACTION_LABELS[key]} for key in BUSINESS_ACTIONS
-            ]
+            options = [{"id": key, "label": ACTION_LABELS[key]} for key in actions]
             options.sort(key=lambda row: row["id"])
             if marker:
                 options = [
@@ -643,7 +875,7 @@ def audit_filter_options(
                 ]
             if direction == "previous":
                 options.reverse()
-            total = len(BUSINESS_ACTIONS)
+            total = len(actions)
         else:
             from app.audit.filters import activity_match
 
@@ -652,19 +884,19 @@ def audit_filter_options(
             if kind == "actor":
                 exists = (
                     select(Audit.id)
-                    .where(Audit.action.in_(BUSINESS_ACTIONS), Audit.actor == model.id)
+                    .where(Audit.action.in_(actions), Audit.actor == model.id)
                     .exists()
                 )
             elif kind == "activity":
                 exists = (
                     select(Audit.id)
-                    .where(Audit.action.in_(BUSINESS_ACTIONS), activity_match())
+                    .where(Audit.action.in_(actions), activity_match())
                     .exists()
                 )
             else:
                 exists = (
                     select(Audit.id)
-                    .where(Audit.action.in_(BUSINESS_ACTIONS), Audit.target == model.id)
+                    .where(Audit.action.in_(actions), Audit.target == model.id)
                     .exists()
                 )
                 activity_exists = (
@@ -672,7 +904,7 @@ def audit_filter_options(
                     .where(
                         Activity.request_project_id == model.id,
                         select(Audit.id)
-                        .where(Audit.action.in_(BUSINESS_ACTIONS), activity_match())
+                        .where(Audit.action.in_(actions), activity_match())
                         .exists(),
                     )
                     .exists()

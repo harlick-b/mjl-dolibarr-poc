@@ -122,7 +122,7 @@ export const strings = new LocalizedStrings({
     reason: 'Motif de correction',
     requestedAmount: 'Montant indicatif demandé (facultatif)',
     reviewProgress: 'Progression de la validation',
-    revisionHistory: 'Historique des révisions',
+    revisionHistory: 'Historique de l’activité',
     noRevision: 'Aucune révision soumise.',
     saved: 'Modifications enregistrées.',
     createCategory: 'Créer une catégorie',

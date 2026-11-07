@@ -705,7 +705,7 @@ def test_audit_facts_append_only_and_security_denials(admin, auth_env):
                     "action='access_denied' AND outcome='invitation_terminal'"
                 )
             )
-            == 1
+            == 0
         )
         serialized = str(db.execute(text("SELECT * FROM auth_audit")).all())
         assert saved["verifier"] not in serialized and PASSWORD not in serialized

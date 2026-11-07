@@ -300,6 +300,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           ],
         }),
         client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
+        client.invalidateQueries({ queryKey: ['audit-history'] }),
       ])
       setError('')
       toast.success('Réalisation enregistrée.')
@@ -349,6 +350,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           queryKey: ['execution', session.user.id],
         }),
         client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
+        client.invalidateQueries({ queryKey: ['audit-history'] }),
       ])
       if (
         variables.path === '/disbursement-requests' ||
@@ -385,6 +387,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
             queryKey: ['execution', session.user.id],
           }),
           client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
+          client.invalidateQueries({ queryKey: ['audit-history'] }),
         ])
       setError(problem.message)
     },

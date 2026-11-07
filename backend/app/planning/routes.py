@@ -2139,6 +2139,7 @@ def workflow_audit(
         facts["revision"].update(
             {
                 "withdrawal_id": withdrawal["id"],
+                "reason": withdrawal["reason"],
                 "base_approved_revision_id": withdrawal["base_approved_revision_id"],
             }
         )
@@ -2882,6 +2883,18 @@ def replace_activity(
                     and plan["allocation"] != submitted_allocation
                 ):
                     raise AuthError(409, "correction_total_locked")
+        if all(getattr(item, key) == value for key, value in plan.items()) and (
+            len(incoming) == len(current)
+            and all(
+                row["id"] in current
+                and all(
+                    getattr(current[row["id"]], key) == row[key]
+                    for key in ("type_id", "name", "allocation", "position")
+                )
+                for row in incoming
+            )
+        ):
+            return before
         now = auth.now(db)
         original_positions = {
             operation.id: operation.position for operation in current.values()
@@ -3013,6 +3026,8 @@ def replace_assignments(
             )
         }
         before = activity_item(db, item, actor.role, actor.id)
+        if set(current) == set(body.agent_ids):
+            return before
         now = auth.now(db)
         for agent_id, assignment in current.items():
             if agent_id not in body.agent_ids:

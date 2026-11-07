@@ -50,6 +50,9 @@ class AuthService:
 
         self.hasher = PasswordHasher()
         self.dummy_hash = self.hasher.hash(secrets.token_urlsafe(32))
+        from app.auth.security_log import SecurityLog
+
+        self.security_log = SecurityLog()
         self.engine = engine
         self.policy = policy
         if policy.mailbox:
@@ -386,8 +389,16 @@ class AuthService:
         outcome: str = "ok",
         details: dict[str, str | int] | None = None,
     ) -> None:
+        if self.security_log.record(
+            db, action, actor, target, outcome, request_id.get()
+        ):
+            return
         if details is not None:
             allowed = {
+                "before_first_name",
+                "before_last_name",
+                "first_name",
+                "last_name",
                 "before_full_name",
                 "full_name",
                 "invitation_id",
@@ -428,7 +439,20 @@ class AuthService:
             if any(
                 isinstance(value, str)
                 and len(value)
-                > (200 if key in {"reason", "before_full_name", "full_name"} else 64)
+                > (
+                    200
+                    if key
+                    in {
+                        "reason",
+                        "before_full_name",
+                        "full_name",
+                        "before_first_name",
+                        "before_last_name",
+                        "first_name",
+                        "last_name",
+                    }
+                    else 64
+                )
                 for key, value in details.items()
             ):
                 raise ValueError("Invalid audit facts")
@@ -607,6 +631,7 @@ class AuthService:
             return
         if action.startswith("virement."):
             virement_required = {
+                "reason",
                 "context_id",
                 "activity_id",
                 "request_id",
@@ -624,7 +649,14 @@ class AuthService:
                 "cancelled",
             }
             if (
-                set(business) != virement_required
+                (
+                    business.get("reason") is not None
+                    and (
+                        not isinstance(business["reason"], str)
+                        or len(business["reason"]) > 4000
+                    )
+                )
+                or set(business) != virement_required
                 or business.get("context_id") != "MJL"
                 or business.get("request_id") != target
                 or not isinstance(business.get("activity_id"), str)
@@ -651,6 +683,7 @@ class AuthService:
             return
         if action.startswith("zero_spending."):
             zero_required = {
+                "reason",
                 "context_id",
                 "activity_id",
                 "declaration_id",
@@ -660,7 +693,14 @@ class AuthService:
             }
             zero_states = {None, "submitted", "prevalidated", "returned", "approved"}
             if (
-                set(business) != zero_required
+                (
+                    business.get("reason") is not None
+                    and (
+                        not isinstance(business["reason"], str)
+                        or len(business["reason"]) > 4000
+                    )
+                )
+                or set(business) != zero_required
                 or business.get("context_id") != "MJL"
                 or business.get("declaration_id") != target
                 or not isinstance(business.get("activity_id"), str)
@@ -684,6 +724,7 @@ class AuthService:
             return
         if action.startswith(("disbursement.", "funding.")):
             disbursement_required = {
+                "reason",
                 "context_id",
                 "activity_id",
                 "request_id",
@@ -700,7 +741,14 @@ class AuthService:
                 "cancelled",
             }
             if (
-                set(business) != disbursement_required
+                (
+                    business.get("reason") is not None
+                    and (
+                        not isinstance(business["reason"], str)
+                        or len(business["reason"]) > 4000
+                    )
+                )
+                or set(business) != disbursement_required
                 or business.get("context_id") != "MJL"
                 or business.get("request_id") != target
                 or not isinstance(business.get("activity_id"), str)
@@ -1328,7 +1376,8 @@ class AuthService:
                     revision_fields | {"amendment_id", "base_approved_revision_id"}
                 ),
                 frozenset(
-                    revision_fields | {"withdrawal_id", "base_approved_revision_id"}
+                    revision_fields
+                    | {"withdrawal_id", "base_approved_revision_id", "reason"}
                 ),
                 frozenset(
                     revision_fields
@@ -1496,6 +1545,9 @@ class AuthService:
             )
         ):
             raise ValueError("Invalid business audit facts")
+        from app.audit.facts import compact_planning_facts
+
+        business = compact_planning_facts(business)
         encoded = json.dumps(
             business, separators=(",", ":"), sort_keys=True, ensure_ascii=False
         )

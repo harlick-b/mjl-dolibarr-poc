@@ -129,6 +129,7 @@ function ProfileForm({ profile, onReload }) {
       access.updateDisplayName(access.user.id, result.full_name)
       client.setQueryData(['profile', access.user.id], result)
       await client.invalidateQueries({ queryKey: ['access'] })
+      await client.invalidateQueries({ queryKey: ['audit-history'] })
       if (!alive.current) return
       setDraft(null)
       toast.success(strings.saved)

@@ -62,6 +62,14 @@ def test_w01_agent_requests_withdrawal_without_changing_approved_content(plannin
     assert detail["approved"] == approved["approved"]
     assert detail["withdrawal"]["id"] == revision["snapshot"]["withdrawal"]["id"]
 
+    history = (
+        planning["agent"].get(f"/api/v1/activities/{approved['id']}/history").json()
+    )
+    assert (
+        history["data"][0]["reason"]
+        == "Le programme annuel ne permet plus cette activité."
+    )
+
 
 def request_withdrawal(clients, approved):
     enable_withdrawals(clients)
@@ -819,9 +827,9 @@ def test_c07_openapi_has_exact_withdrawal_contract(planning):
         assert headers_present == {"Origin", "X-CSRF-Token"}
     schemas = document["components"]["schemas"]
     for path in (request_path, cancellation_path):
-        schema_ref = paths[path]["post"]["requestBody"]["content"][
-            "application/json"
-        ]["schema"]["$ref"]
+        schema_ref = paths[path]["post"]["requestBody"]["content"]["application/json"][
+            "schema"
+        ]["$ref"]
         schema_name = schema_ref.rsplit("/", 1)[-1]
         assert schemas[schema_name]["additionalProperties"] is False
     assert set(schemas["ApprovedPlanOutput"]["required"]) == {

@@ -202,9 +202,9 @@ saving; concurrency compares the original nullable database fields.
 The users list includes a minimal current invitation summary for pending accounts,
 so the UI has one identity row and one pagination boundary. Consumed invitations
 are not duplicated beside active users. History list and CSV share an explicit
-business/account action allowlist; authentication/security events remain stored
-internally. Public before/after changes come from named safe scalar audit fields,
-never raw audit details. Older events without those facts cannot reconstruct them.
+business/account action allowlist; historical authentication/security records remain preserved. New routine
+authentication events use the separate security logger. Public before/after changes come from named safe audit fields, including
+changed Operation fields and assignment identifiers, never raw audit details. Older events without those facts cannot reconstruct them.
 
 `SessionProvider` shares the actual session `useQuery` result through React context;
 consumers use `useSessionQuery`. Do not copy query data into Context state. Keep
@@ -376,3 +376,41 @@ Internal reminders open in a modal from the sidebar; they are not an extra page.
 Prévisions retains project/year entry so an Agent can create the first activity
 without access to catalog management. Partner Exports uses the existing scoped
 annual CSV endpoint; it loads profile/projects/PTAs, not activity detail lists.
+
+
+## Business History and security output
+
+Global History and `/activities/{identifier}/history` project the same append-only
+Audit records with role/resource checks before pagination. Global list and CSV
+share role-specific action selection; filter options use that same selection.
+Ordering is timestamp then event ID, newest first. Details include recorded
+reasons, exact financial values and safe field changes. Revision navigation still
+uses the immutable revision endpoints; old rows are not rewritten.
+
+Planning command validation precedes compact audit projection. New planning
+records omit repeated API capabilities and approved/candidate snapshots; they
+retain changed business fields and evidence links required by workflow consumers.
+Execution facts retain their existing financial-integrity contract. No-op draft,
+assignment and profile saves preserve the version and create no business event.
+Financial return/cancellation reasons are recorded in the transaction from the
+actual decision/declaration. Legacy missing deltas stay missing; withdrawal reasons
+may be read from the exact linked immutable revision.
+
+`app.auth.security_log` emits one-line JSON through `mjl.security` on stderr,
+without propagating to duplicate root handlers. Completed OTP authentication,
+credential/OTP failures, suspicious authorization denials, abuse-limit crossings
+and significant account/security changes are classified explicitly. Routine
+successful password/OTP preparation/delivery/resends, logout, recovery transport
+and notification-read events do not create database audit rows. Business account
+and invitation evidence used by integrity checks still does. Logging callbacks
+run after the command transaction commits; rollback emits no successful event.
+
+Each worker has a fixed-size counter, bounded by `MJL_SECURITY_LOG_MAX_PER_MINUTE`
+(default 120, allowed 1–10000). Excess events are suppressed, with a bounded count
+reported on the next event after the minute expires. Total capacity scales with
+workers; a restart resets this process-local limit. This supplements authentication
+abuse controls, which remain unchanged. Success/account events are INFO; failures
+and suppression are WARNING. Only event/outcome, UTC time, valid UUID actor/target
+and correlation identifiers are emitted—no email, IP, cookie, proof, token, OTP,
+password, request body or exception text. Provider collection/access/expiration
+is a deployment responsibility, not an application retention guarantee.

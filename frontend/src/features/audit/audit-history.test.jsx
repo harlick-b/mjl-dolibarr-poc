@@ -197,3 +197,134 @@ test('ordinary business roles cannot open the global history', async () => {
     screen.getByRole('link', { name: 'Retour à mon espace' }),
   ).toBeVisible()
 })
+
+test.each(['read', 'export', 'options'])(
+  'History %s denial clears cached pages and blocks late export delivery',
+  async (denial) => {
+    let denied = false
+    let finishExport
+    const createObjectURL = vi.fn()
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static createObjectURL = createObjectURL
+      },
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => {
+        const path = String(url)
+        if (path.includes('/auth/session'))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                state: 'verified',
+                csrf: 'csrf',
+                user: {
+                  id: 'validator',
+                  email: 'validator@example.test',
+                  role: 'VALIDATEUR_DEFINITIF',
+                },
+                expires_at: new Date(Date.now() + 60000).toISOString(),
+              }),
+            ),
+          )
+        if (path.includes('/reports/audit/exports')) {
+          if (denial === 'export')
+            return Promise.resolve(
+              new Response(JSON.stringify({ code: 'forbidden' }), {
+                status: 403,
+              }),
+            )
+          return new Promise((resolve) => {
+            finishExport = resolve
+          })
+        }
+        const options = path.includes('/filter-options')
+        if (
+          denied &&
+          ((denial === 'read' && !options) || (denial === 'options' && options))
+        )
+          return Promise.resolve(
+            new Response(JSON.stringify({ code: 'forbidden' }), {
+              status: 403,
+            }),
+          )
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              count: 1,
+              data: options
+                ? [{ id: 'option', label: 'Private filter' }]
+                : [
+                    {
+                      id: 1,
+                      occurred_at: '2028-02-08T09:00:00Z',
+                      label: 'Private history event',
+                      outcome: 'ok',
+                      actor: null,
+                      activity: null,
+                    },
+                  ],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      }),
+    )
+    const router = makeRouter(
+      createMemoryHistory({ initialEntries: ['/history'] }),
+    )
+    const client = router.options.context.queryClient
+    render(<App router={router} />)
+    await screen.findByText('Private history event')
+    await userEvent.click(screen.getByRole('button', { name: 'Filtres' }))
+    await waitFor(() =>
+      expect(
+        client
+          .getQueriesData({ queryKey: ['filter-options'] })
+          .filter(([, data]) => data?.data?.[0]?.label === 'Private filter'),
+      ).toHaveLength(4),
+    )
+    client.setQueryData(['audit-history', 'validator', 'older'], {
+      data: ['private older page'],
+    })
+    client.setQueryData(
+      ['filter-options', 'validator', '/audit-events/filter-options', 'older'],
+      { data: ['private option'] },
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Exporter le CSV' }),
+    )
+    if (denial !== 'export') {
+      await waitFor(() => expect(finishExport).toBeTypeOf('function'))
+      denied = true
+      void client.invalidateQueries({
+        queryKey: denial === 'read' ? ['audit-history'] : ['filter-options'],
+      })
+    }
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Accès refusé'),
+    )
+    expect(screen.queryByText('Private history event')).not.toBeInTheDocument()
+    expect(
+      client
+        .getQueriesData({ queryKey: ['audit-history'] })
+        .every(([, data]) => data === undefined),
+    ).toBe(true)
+    expect(
+      client
+        .getQueriesData({ queryKey: ['filter-options'] })
+        .every(([, data]) => data === undefined),
+    ).toBe(true)
+    if (finishExport)
+      finishExport(
+        new Response('private csv', {
+          headers: { 'Content-Type': 'text/csv' },
+        }),
+      )
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(createObjectURL).not.toHaveBeenCalled()
+  },
+)

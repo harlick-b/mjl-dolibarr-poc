@@ -1,3 +1,4 @@
+import { EventDetails } from './EventDetails'
 import { ListFilters } from '@/shared/ui/ListFilters'
 import { QueryFilterSelect } from '@/shared/ui/QueryFilterSelect'
 import { strings as filtersText } from '@/locales/fr/ListFilters'
@@ -8,7 +9,7 @@ import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { strings } from '@/locales/fr/AuditHistoryView'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   keepPreviousData,
   useMutation,
@@ -49,6 +50,22 @@ function History({ session, onDenied }) {
   const search = useSearch({ strict: false })
   const generation = useRef(0)
   const exportController = useRef(null)
+  const [denied, setDenied] = useState(false)
+  const handleDenied = (error) => {
+    if (![401, 403, 404].includes(error.status)) return
+    generation.current += 1
+    exportController.current?.abort()
+    setDenied(true)
+    const scope = {
+      predicate: ({ queryKey }) =>
+        queryKey[0] === 'audit-history' ||
+        (queryKey[0] === 'filter-options' &&
+          queryKey[2] === '/audit-events/filter-options'),
+    }
+    void client.cancelQueries(scope)
+    client.removeQueries(scope)
+    onDenied()
+  }
   const cursor = search.cursor || ''
   const filters = Object.fromEntries(
     ['q', 'action', 'actor', 'activity', 'project', 'date_from', 'date_to']
@@ -61,6 +78,7 @@ function History({ session, onDenied }) {
   const resetFilters = () => navigate({ to: '/history', search: {} })
   const canOpenActivity = authorization(session).can('business')
   const result = useQuery({
+    enabled: !denied,
     placeholderData: keepPreviousData,
     queryKey: [...historyRoot, session.user.id, cursor, 60, filterQuery],
     queryFn: async ({ signal }) => {
@@ -70,7 +88,7 @@ function History({ session, onDenied }) {
           { signal },
         )
       } catch (error) {
-        if (error.status === 401) onDenied()
+        handleDenied(error)
         throw error
       }
     },
@@ -103,7 +121,7 @@ function History({ session, onDenied }) {
       return file
     },
     onError: (error) => {
-      if (error.status === 401) onDenied()
+      handleDenied(error)
     },
     onSuccess: async ({ blob, filename }) => {
       const href = URL.createObjectURL(blob)
@@ -118,6 +136,7 @@ function History({ session, onDenied }) {
       toast.success(strings.exported)
     },
   })
+  if (denied) return <AccessDeniedState role={session.user.role} />
   if (result.isPending) return <HistoryLoading />
   if (result.isError)
     return (
@@ -170,6 +189,7 @@ function History({ session, onDenied }) {
             <QueryFilterSelect
               key={kind}
               kind={kind}
+              onDenied={handleDenied}
               value={search[kind]}
               onChange={(value) => changeFilters({ [kind]: value })}
             />
@@ -247,12 +267,7 @@ function History({ session, onDenied }) {
                       <small>
                         {outcomeLabels[item.outcome] || 'Résultat enregistré'}
                       </small>
-                      {item.changes?.map((change) => (
-                        <small key={change.field}>
-                          {change.field} : {change.before ?? '—'} →{' '}
-                          {change.after ?? '—'}
-                        </small>
-                      ))}
+                      <EventDetails event={item} />
                     </div>
                   </td>
                   <td>
