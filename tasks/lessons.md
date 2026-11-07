@@ -70,8 +70,9 @@ implementation boundaries; [README](../README.md) owns setup.
   computed styles and mobile overflow; an accessible hidden label can overflow a
   scrolling table unless its positioning is contained.
 - Role navigation changes must preserve first-resource creation, not just list
-  access. An Agent still needs project/year entry for the first PTA Activity.
-  Keep partially typed year input local before Router validation.
+  access. When creation moves to another role, keep a usable handoff: a reviewer
+  creates the PTA, then Agents add Activities inside it. Do not activate a new
+  prerequisite before its authorized creation path is available.
 
 ## Authentication, queries and protected data
 
@@ -88,6 +89,9 @@ implementation boundaries; [README](../README.md) owns setup.
 - Switching tabs is not authentication loss. Preserve data and drafts on ordinary
   hide/return; actual expiry, logout, offline and account changes retain the
   protections defined in the engineering guide.
+- When responsibility controls editing, test reassignment against waiting commands
+  and open dialogs. Losing edit rights must refresh mutation controls without
+  removing permitted read access; test collaborators need explicit assignments.
 - Ordinary read failure, authentication uncertainty and scoped denial differ.
   Scoped denial must remove retained pages, dependent previews and object URLs,
   not merely visible rows. Temporary service failure preserves unrelated drafts.

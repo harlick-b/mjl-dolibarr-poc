@@ -99,7 +99,7 @@ def test_agent_closes_complete_activity_atomically(planning):
     replay = post(
         planning["agent"], close_path(activity), {"expected_version": version}
     )
-    assert replay.status_code == 409
+    assert replay.status_code == 403
 
 
 @pytest.mark.parametrize("reversement", [True, False])
@@ -368,7 +368,7 @@ def test_closed_activity_rejects_execution_and_settlement_changes(planning):
             "correction_reason": "La clôture doit bloquer cette correction.",
         },
     )
-    assert execution.status_code == 409
+    assert execution.status_code == 403
     correction = post(
         planning["agent"],
         reversement_path(activity, request) + "/corrections",
@@ -379,7 +379,7 @@ def test_closed_activity_rejects_execution_and_settlement_changes(planning):
             "reason": "La clôture doit bloquer cette correction.",
         },
     )
-    assert correction.status_code == 409
+    assert correction.status_code == 403
     confirmation = post(
         planning["agent"],
         f"/api/v1/activities/{activity['id']}/virement-requests/"
@@ -391,7 +391,7 @@ def test_closed_activity_rejects_execution_and_settlement_changes(planning):
             "reason": "La clôture doit bloquer cette correction.",
         },
     )
-    assert confirmation.status_code == 409
+    assert confirmation.status_code == 403
     amendment = post(
         planning["agent"],
         f"/api/v1/activities/{activity['id']}/amendments",
@@ -401,7 +401,7 @@ def test_closed_activity_rejects_execution_and_settlement_changes(planning):
             "reason": "Tentative après clôture.",
         },
     )
-    assert amendment.status_code == 409
+    assert amendment.status_code == 403
     agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
     assignment = put(
         planning["supervisor"],
@@ -522,7 +522,7 @@ def test_duplicate_closure_serializes_to_one_winner(planning):
         )
 
     first, second = ordered_advisory_race(planning["auth"], close, close)
-    assert (first.status_code, second.status_code) == (200, 409)
+    assert (first.status_code, second.status_code) == (200, 403)
     with Session(planning["auth"].engine) as db:
         assert (
             db.scalar(
@@ -618,7 +618,10 @@ def test_closure_serializes_before_adjacent_mutations(planning, competing):
             )
 
     closed, denied = ordered_advisory_race(planning["auth"], close, mutate)
-    assert (closed.status_code, denied.status_code) == (200, 409)
+    assert (closed.status_code, denied.status_code) == (
+        200,
+        409 if competing == "assignment" else 403,
+    )
     with Session(planning["auth"].engine) as db:
         stored = db.get(Activity, activity["id"])
         assert stored.state == "closed"
@@ -731,7 +734,7 @@ def test_pta3f_migration_upgrades_clean_predecessor(auth_env, monkeypatch):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
             columns = {row["name"] for row in inspect(db).get_columns("pta_activity")}
             assert {"closed_at", "closed_by_id"} <= columns
@@ -753,7 +756,7 @@ def test_closure_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
     finally:
         engine.dispose()

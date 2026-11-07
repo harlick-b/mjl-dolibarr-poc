@@ -309,6 +309,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       if (problem.name === 'AbortError') return
       if (problem.status === 401) onDenied()
       if (
+        problem.code === 'activity_assignment_required' ||
         problem.status === 409 ||
         ['network', 'malformed'].includes(problem.kind)
       )
@@ -320,7 +321,11 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
             queryKey: ['planning', session.user.id],
           }),
         ])
-      setError(problem.message)
+      setError(
+        problem.code === 'activity_assignment_required'
+          ? strings.assignmentRequired
+          : problem.message,
+      )
     },
   })
   const financeMutation = useMutation({
@@ -379,6 +384,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       if (problem.name === 'AbortError') return
       if (problem.status === 401) onDenied()
       if (
+        problem.code === 'activity_assignment_required' ||
         problem.status === 409 ||
         ['network', 'malformed'].includes(problem.kind)
       )
@@ -389,7 +395,11 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
           client.invalidateQueries({ queryKey: ['audit-history'] }),
         ])
-      setError(problem.message)
+      setError(
+        problem.code === 'activity_assignment_required'
+          ? strings.assignmentRequired
+          : problem.message,
+      )
     },
   })
   const relevant =
@@ -838,6 +848,7 @@ function ExecutionDetail({
     transfer_pending: 'un transfert est en cours',
     activity_not_approved: 'l’Activité n’est pas approuvée',
     reviewer_read_only: 'votre rôle permet uniquement la consultation',
+    activity_assignment_required: strings.assignmentRequired,
     before_planned_start: 'la date de début planifiée n’est pas atteinte',
     disbursement_frozen: 'une autorisation de décaissement est en cours',
     zero_spending_frozen: 'une déclaration sans dépense est en cours',
@@ -1149,7 +1160,9 @@ function ZeroSpendingSection({
             Revenir à la déclaration en cours
           </Button>
         </div>
-      ) : role === 'AGENT_SAISIE' ? (
+      ) : role === 'AGENT_SAISIE' &&
+        detail.mutation_unavailable_reason !==
+          'activity_assignment_required' ? (
         <BusinessForm
           className="[&_>_label]:w-full"
           onSubmit={(event) => {

@@ -153,7 +153,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0026_partner_description"]:
+        if revisions != ["0027_pta_metadata"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -308,7 +308,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "224fbefb4678ce436af2a68a611dab10709e4d690a219d2c489f05624f6ee401"
+            "1bed3cdef575ebb7130cf7cd85948298782787c78e440434ec81cf7e6a65eef1"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -957,6 +957,8 @@ class AuthService:
             "partner.create": "partner",
             "partner.update": "partner",
             "operation_type.create": "type",
+            "pta.create": "pta",
+            "pta.update": "pta",
             "project.create": "project",
             "project.close": "project",
             "project.update": "project",
@@ -984,6 +986,7 @@ class AuthService:
             "activity.transfer_cancel": "activity",
         }
         create_actions = {
+            "pta.create",
             "partner.create",
             "operation_type.create",
             "project.create",
@@ -1097,6 +1100,15 @@ class AuthService:
                 return False
             fields = {
                 "partner": {"id", "name", "description", "active", "allowed_actions"},
+                "pta": {
+                    "id",
+                    "project_id",
+                    "year",
+                    "name",
+                    "description",
+                    "version",
+                    "allowed_actions",
+                },
                 "type": {"id", "label", "active", "allowed_actions"},
                 "project": {
                     "id",
@@ -1152,6 +1164,21 @@ class AuthService:
                     isinstance(label, str)
                     and bool(label)
                     and isinstance(value.get("active"), bool)
+                )
+            if shape == "pta":
+                return (
+                    isinstance(value.get("name"), str)
+                    and 0 < len(value["name"]) <= 200
+                    and isinstance(value.get("project_id"), str)
+                    and isinstance(value.get("year"), int)
+                    and 2000 <= value["year"] <= 2200
+                    and isinstance(value.get("version"), int)
+                    and value["version"] > 0
+                    and (
+                        value.get("description") is None
+                        or isinstance(value["description"], str)
+                        and len(value["description"]) <= 4000
+                    )
                 )
             if shape == "project":
                 return (

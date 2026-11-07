@@ -12,27 +12,32 @@ business choices; do not invent exception workflows.
 The hierarchy is **Partenaire → Projet → PTA annuel → Activité → Opération**.
 A Partner is the supporting organization, with a name and an optional saved
 description (up to 4,000 characters). A Project belongs permanently to one
-Partner and may span years. A PTA is its calendar-year planning collection.
+Partner and may span years. PTA means **Planification des activités sur l’année**: its calendar-year planning collection.
 An Activity is a planned body of work; Operations are its planned work units.
 Use these names consistently; Programme is not a generic entity.
 
 One Partner has at most one active Project. A Validator creates and closes
 Projects. Validators may edit Partner names/descriptions and Project names;
 Partner/Project relationships remain immutable. Partner deactivation is deferred
-until its eligibility rules are decided. Past Projects remain consultable. A Project/year PTA is created
-atomically with its first Activity, not through an independent empty-PTA action.
+until its eligibility rules are decided. Past Projects remain consultable. A Supervisor or final Validator explicitly creates
+a PTA before Activities can be added. There is exactly one PTA per Project/year.
+Its name is required and its description optional; Supervisors and Validators may
+edit these two fields. Project and year remain fixed. New forms default the year
+to the current year and use the shared shadcn-based year/date controls.
 Activity creation always belongs to a PTA matching its planned start year.
 
 | Role                               | Allowed work                                                                                                                                                                                                   |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agent de saisie                    | Plan, correct, submit and execute Activities; initiate financial requests, declare external settlement and close eligible Activities. All Agents share state-qualified access across the authorized MJL scope. |
-| Agent superviseur et prévalidateur | Prevalidate or return eligible requests; manage Agent assignments.                                                                                                                                             |
-| Validateur définitif               | Final approval/return, Project lifecycle, Agent assignments and authorized evidence administration.                                                                                                            |
+| Agent de saisie                    | Plan, correct, submit and execute Activities; initiate financial requests, declare external settlement and close eligible Activities. Only assigned Agents may edit, submit or execute an Activity; other Agents retain read access. |
+| Agent superviseur et prévalidateur | Create PTAs and Activity briefs; prevalidate or return eligible requests; manage Agent assignments.                                                                                                                                             |
+| Validateur définitif               | Create PTAs and Activity briefs; final approval/return, Project lifecycle, Agent assignments and authorized evidence administration.                                                                                                            |
 | Admin                              | Invite/manage accounts and consult/export global audit. No business mutation.                                                                                                                                  |
 | Partner user                       | Read-only portal permanently bound to exactly one Partner. No internal role or scope switching.                                                                                                                |
 
-Internal identities have one exclusive role. Assignments coordinate work and
-notifications; they never restrict Agent read/edit access. Backend role, resource,
+Internal identities have one exclusive role. Assignments identify responsibility and control Agent editing, submission and
+execution. An Agent creator is automatically assigned. Supervisor/Validator
+creation selects at least one active Agent; several may be selected. Reassignment
+must retain at least one Agent. Unassigned Agents retain viewing access. Backend role, resource,
 state and contributor checks apply to direct requests as well as visible buttons.
 All business amounts are exact integer XOF, displayed F CFA; missing is not zero.
 
@@ -85,16 +90,23 @@ Supervisors, Admins and Partner users cannot create them. Category creation is
 separate from saving the Activity and does not change its approval or contributor
 history; the existing Activity validation rules still apply.
 
-An Activity has one or more Operations with positive allocations whose sum equals
-its allocation. Default end date is start plus three calendar months for every
+All three internal business roles may create Activities inside an existing PTA.
+Supervisors and Validators may create a brief (title, description, assigned Agents),
+then request corrections rather than edit its content. Assigned Agents complete
+the dates, Operations and budget before submission. A submitted Activity has one
+or more Operations with positive allocations whose sum equals its allocation. Default end date is start plus three calendar months for every
 Partner: preserve the day when valid, otherwise clamp to the month's last day.
 This is an editable suggestion; never overwrite a manual end date.
 
 Validation is per Activity, not for an entire PTA. Submission creates an immutable
 revision. One eligible Supervisor prevalidates, then a distinct eligible Validator
 approves. Either may return with a reason; Validator return goes straight to Agent.
-Fresh submission repeats both stages. Creator, submitters and cumulative structural
-contributors cannot review their lineage, including after role changes. There is
+Fresh submission repeats both stages. Creating an Activity as a Supervisor or Validator does not prevent that person
+from performing their normal planning review. Submission and the two distinct
+review stages remain mandatory. The exception concerns creation as a reviewer:
+submitting or subsequently changing Activity content still excludes a person from
+reviewing that lineage, including after a role change. This exception does not alter financial approval
+restrictions below. There is
 no reviewer assignment, claim or quorum. Valid decisions survive personnel changes;
 absence of an eligible reviewer never permits bypass.
 

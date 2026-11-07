@@ -48,9 +48,14 @@ credentials. First Admin creation must be a guarded, one-time operator action
 without default credentials or sample users.
 
 Role separation applies on the server to every resource/action and again inside
-sensitive transactional mutations. All Agents share approved internal visibility;
-assignments coordinate work and notifications. Supervisor and Validator approval
-stages, contributor-aware no-self-validation, exclusive identities, technical-only
+sensitive transactional mutations. Unassigned Agents retain read access, while
+only assigned Agents may edit, submit and execute Activities, including their
+financial submissions/settlement declarations and evidence changes. Assignment
+checks run inside the command transaction after acquiring the same lock as
+reassignment, so a waiting request cannot use removed responsibility. Assignments also
+coordinate work and notifications. Supervisor and Validator approval
+stages and reviewer exclusions follow [business rules](business-rules.md), including
+the planning creator exception and unchanged financial protections. Exclusive identities, technical-only
 Admin, and one-Partner read-only portal scope remain. Scope is never taken solely
 from a browser-supplied identifier.
 
@@ -81,7 +86,7 @@ expressly identified as official wording in the source mapping.
 | MJL-SEC-03 | CLIENT-SEC-01; MJL; RSPSL identity | Admin-only invitation, unique identity, activation/deactivation, single-use expiring invitation/reset tokens, guarded first Admin. Adaptive password hashing and abuse limits; no default credentials. | Backend/security; CODE, TEST, DATABASE: duplicate/replay/expiry/inactive/reset negative tests; controlled bootstrap evidence before auth use. |
 | MJL-SEC-04 | CLIENT-SEC-01; MJL; RSPSL identity | Password plus email OTP before session creation; cryptographically random, short-lived, single-use challenges, bounded attempts/resends and no secret logging. Transport failure must not imply delivered OTP. | Backend/email operator; TEST, CONFIG, MANUAL_EVIDENCE: bypass/replay/rate-limit cases and actual mailbox receipt, not merely an SMTP acknowledgment. |
 | MJL-SEC-05 | MJL session policy; CLIENT-SEC-01 | Server-owned session rotation/revocation; 24-hour idle and absolute limits; logout, disablement and credential/security-context changes invalidate access. Cookie/CSRF/CORS guards cover auth and mutations; no wildcard credentialed origins. | Backend/frontend; TEST, CONFIG: expiry, fixation, logout, cross-origin forgery, revoked-role and account-switch cases. |
-| MJL-SEC-06 | CLIENT-SEC-01; MJL/PTA; RSPSL identity | Deny by default; role, object, organization, Partner, state and contributor checks on reads, exports and mutations. Admin has no business mutation; no self-validation even following role changes. | Backend/domain owner; TEST, DATABASE: guessed IDs, cross-Partner access, direct API bypass, role-change and stale-state negative cases. |
+| MJL-SEC-06 | CLIENT-SEC-01; MJL/PTA; RSPSL identity | Deny by default; role, object, organization, Partner, state and contributor checks on reads, exports and mutations. Admin has no business mutation; enforce the current business-rule reviewer exclusions and explicit planning creator exception, including role-change cases. | Backend/domain owner; TEST, DATABASE: guessed IDs, cross-Partner access, direct API bypass, role-change and stale-state negative cases. |
 | MJL-SEC-07 | CLIENT-API-01; CLIENT-SEC-01; application | Validate input and output contracts, parameterize queries, encode output, bound uploads/requests and avoid internal error leakage. Use explicit concurrency/version checks and replay protection where duplicate mutation harms integrity. | Backend/frontend; CODE, TEST: invalid input, injection, duplicate submission and concurrent stale mutation tests. No generic workflow/security framework. |
 | MJL-SEC-08 | CLIENT-INT-01; MJL/PTA | Exact integer XOF, missing distinct from zero; immutable approved revisions and definitive financial facts; linked audited corrections preserve originals. Transaction-owned writes and audit, database constraints, no normal direct-DB edits/deletes. | Backend/business owner; DATABASE, TEST: rollback, concurrent approvals, post-validation edit/delete denial, no-self-validation and settlement invariants. Later exceptions need approved rules. |
 | MJL-SEC-09 | CLIENT-SEC-01; MJL audit; official logging | Transactional append-only business audit; protected security-event logs, actor/time/reason/revision context, restricted audit exports, synchronized time. Never log passwords, OTPs, tokens or raw confidential payloads. | Backend/operations; TEST, CONFIG, OPERATIONS: mutation/audit rollback, log-access tests and redacted samples; retention decision required. |

@@ -30,7 +30,14 @@ from app.planning.models import (
     ZeroSpendingDeclaration,
 )
 from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
-from app.planning.service import CONTEXT, Cursor, locked_mutation, page_rows, principal
+from app.planning.service import (
+    CONTEXT,
+    Cursor,
+    is_assigned_agent,
+    locked_mutation,
+    page_rows,
+    principal,
+)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -385,7 +392,17 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
     return list(dict.fromkeys(blockers))
 
 
-def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
+def execution_detail(
+    db: Session,
+    item: Activity,
+    role: str,
+    actor_id: str,
+    *,
+    assigned: bool | None = None,
+) -> dict[str, Any]:
+    can_work = role == "AGENT_SAISIE" and (
+        is_assigned_agent(db, item.id, actor_id) if assigned is None else assigned
+    )
     revision, operations = approved_operations(db, item)
     project = db.get(Project, item.request_project_id)
     planning_reason = pause_reason(db, item, project)
@@ -431,9 +448,13 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
     today = db.scalar(
         select(text("(clock_timestamp() AT TIME ZONE 'Africa/Porto-Novo')::date"))
     )
-    can_mutate = role == "AGENT_SAISIE" and reason is None
+    can_mutate = can_work and reason is None
     can_start = today is not None and today >= item.planned_start
-    unavailable_reason = reason
+    unavailable_reason = (
+        "activity_assignment_required"
+        if role == "AGENT_SAISIE" and not can_work
+        else reason
+    )
     if unavailable_reason is None and role != "AGENT_SAISIE":
         unavailable_reason = "reviewer_read_only"
     elif (
@@ -465,7 +486,7 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
             else:
                 actions.append("record")
         if (
-            role == "AGENT_SAISIE"
+            can_work
             and reason == "funding_required"
             and financial is None
             and zero_declaration is None
@@ -500,7 +521,7 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
         else None
     )
     actions = ["read"]
-    if role == "AGENT_SAISIE" and item.state == "approved" and not blockers:
+    if can_work and item.state == "approved" and not blockers:
         actions.append("close")
     return {
         "id": item.id,
@@ -533,7 +554,7 @@ def execution_detail(db: Session, item: Activity, role: str) -> dict[str, Any]:
             else None,
             "current_request_id": current_virement.id if current_virement else None,
             "current_state": current_virement.state if current_virement else None,
-            "can_submit": role == "AGENT_SAISIE"
+            "can_submit": can_work
             and approved_disbursement is not None
             and current_virement is None
             and planning_reason is None,
@@ -569,7 +590,7 @@ def close_activity(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         blockers = closure_blockers(db, item, lock=True)
@@ -613,7 +634,7 @@ def close_activity(
                 "ended_assignment_ids": [row.id for row in assignments],
             },
         )
-        return execution_detail(db, item, actor.role)
+        return execution_detail(db, item, actor.role, actor.id)
 
 
 def assert_never_started(db: Session, item: Activity) -> None:
@@ -761,10 +782,10 @@ def execution_list(
             )
             return f"{auth.policy.origin}/api/v1/ptas/{pta.id}/execution?{query}"
 
-        details = [execution_detail(db, row, actor.role) for row in rows]
         agents: dict[str, list[str]] = {}
-        for activity_id, full_name in db.execute(
-            select(ActivityAssignment.activity_id, User.full_name)
+        assigned_ids: set[str] = set()
+        for activity_id, full_name, agent_id in db.execute(
+            select(ActivityAssignment.activity_id, User.full_name, User.id)
             .join(User, User.id == ActivityAssignment.agent_id)
             .where(
                 ActivityAssignment.activity_id.in_([row.id for row in rows]),
@@ -773,6 +794,14 @@ def execution_list(
             .order_by(User.full_name, User.id)
         ):
             agents.setdefault(activity_id, []).append(full_name or "Agent")
+            if agent_id == actor.id:
+                assigned_ids.add(activity_id)
+        details = [
+            execution_detail(
+                db, row, actor.role, actor.id, assigned=row.id in assigned_ids
+            )
+            for row in rows
+        ]
         revision_numbers = dict(
             db.execute(
                 select(ActivityRevision.id, ActivityRevision.revision_number).where(
@@ -812,7 +841,7 @@ def execution_activity(identifier: str, request: Request, auth: Auth) -> dict[st
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
         return execution_detail(
-            db, get_activity(db, identifier, shared=True), actor.role
+            db, get_activity(db, identifier, shared=True), actor.role, actor.id
         )
 
 
@@ -837,7 +866,7 @@ def change_execution(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if item.approved_revision_id != body.expected_approved_revision_id:
@@ -955,7 +984,7 @@ def change_execution(
                 "correction_reason": correction_reason,
             },
         )
-        return execution_detail(db, item, actor.role)
+        return execution_detail(db, item, actor.role, actor.id)
 
 
 @router.get(

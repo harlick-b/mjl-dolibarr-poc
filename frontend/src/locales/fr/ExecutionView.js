@@ -2,6 +2,8 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    assignmentRequired:
+      'Cette activité ne vous est plus affectée. Vous pouvez toujours la consulter.',
     actualSpent: 'Montant dépensé (F CFA)',
     revision: 'Révision',
     listTitle: 'Réalisation',

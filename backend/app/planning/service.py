@@ -50,6 +50,31 @@ def locked_mutation(db: Session) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
 
 
+def is_assigned_agent(db: Session, activity_id: str, actor_id: str | None) -> bool:
+    return (
+        actor_id is not None
+        and db.scalar(
+            select(ActivityAssignment.id)
+            .where(
+                ActivityAssignment.context_id == CONTEXT,
+                ActivityAssignment.activity_id == activity_id,
+                ActivityAssignment.agent_id == actor_id,
+                ActivityAssignment.ended_at.is_(None),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def require_agent_assignment(db: Session, activity_id: str, actor: User) -> None:
+    # Command callers hold the mutation lock until commit, including reassignment.
+    if actor.role == "AGENT_SAISIE" and not is_assigned_agent(
+        db, activity_id, actor.id
+    ):
+        raise AuthError(403, "activity_assignment_required")
+
+
 def clean(value: str, maximum: int) -> str:
     result = value.strip()
     if not result or len(result) > maximum:
@@ -311,6 +336,8 @@ def activity_item(
         withdrawal=item.withdrawal_id is not None,
         transfer=item.transfer_id is not None,
     )
+    if role == "AGENT_SAISIE" and actor_id not in agent_ids:
+        actions = ["read"]
     if has_execution:
         actions = [
             action

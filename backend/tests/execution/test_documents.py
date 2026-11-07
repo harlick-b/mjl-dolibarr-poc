@@ -25,7 +25,13 @@ from tests.auth.test_access import admin as admin
 from tests.auth.test_access import headers
 from tests.execution.test_closure import close_path, settled_activity
 from tests.execution.test_execution import approved_execution_activity
-from tests.planning.test_planning import ordered_advisory_race, plan, post, references
+from tests.planning.test_planning import (
+    assign_agents,
+    ordered_advisory_race,
+    plan,
+    post,
+    references,
+)
 from tests.planning.test_planning import planning as planning
 from tests.reports.test_fiche import fiche_path, pdf_text
 
@@ -197,6 +203,7 @@ def test_agent_withdraws_own_document_and_links_active_correction(planning):
 
 def test_withdrawal_roles_ownership_and_plain_history(planning):
     item = activity(planning)
+    item = assign_agents(planning, item, planning["agent"], planning["agent2"])
     foreign = upload(planning["agent2"], item["id"]).json()
     for actor in ("agent", "supervisor", "admin"):
         denied = withdraw(planning[actor], item["id"], foreign["id"])
@@ -356,6 +363,7 @@ def test_withdrawal_serializes_before_document_delivery(planning):
 def test_deactivation_serializes_before_document_withdrawal(planning):
     item = activity(planning)
     document = upload(planning["agent"], item["id"]).json()
+    item = assign_agents(planning, item, planning["agent2"])
     with Session(planning["auth"].engine) as db:
         user = db.scalar(select(User).where(User.email == "agent@example.test"))
         assert user is not None
@@ -702,6 +710,7 @@ def test_upload_parsing_does_not_hold_lifecycle_lock(planning, monkeypatch):
     with ThreadPoolExecutor(max_workers=1) as pool:
         pending = pool.submit(upload, planning["agent"], item["id"])
         assert entered.wait(5), "parser was not reached"
+        assign_agents(planning, item, planning["agent2"])
         deactivated = planning["admin"].patch(
             f"/api/v1/access/users/{user_id}",
             headers=headers(planning["admin"]),
@@ -719,6 +728,7 @@ def test_upload_parsing_does_not_hold_lifecycle_lock(planning, monkeypatch):
 def test_deactivation_serializes_before_document_delivery(planning, suffix):
     item = activity(planning)
     document = upload(planning["agent"], item["id"]).json()
+    item = assign_agents(planning, item, planning["agent2"])
     with Session(planning["auth"].engine) as db:
         user = db.scalar(select(User).where(User.email == "agent@example.test"))
         assert user is not None

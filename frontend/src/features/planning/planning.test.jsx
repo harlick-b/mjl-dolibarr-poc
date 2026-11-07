@@ -475,7 +475,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     execution_paused: false,
     operations: approved.operations,
     correction: null,
-    agent_ids: [],
+    agent_ids: ['agent'],
     allowed_actions: [
       'read',
       'open_amendment',
@@ -2195,3 +2195,64 @@ test('a failed background project refresh preserves the open draft and offers lo
   )
   expect(screen.getByDisplayValue('Projet en cours de saisie')).toBeVisible()
 })
+
+test.each([403, 404])(
+  'calendar clears retained results after access denial %s',
+  async (status) => {
+    const base = annualPageFetch()
+    let denied = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url, options) => {
+        const path = String(url)
+        if (path.includes('/ptas/pta-1/activities'))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify(
+                denied
+                  ? { code: 'access_denied', message: 'Accès refusé' }
+                  : {
+                      object: 'list',
+                      count: 1,
+                      data: [
+                        {
+                          id: 'calendar-only',
+                          name: 'Activité confidentielle',
+                          planned_start: '2027-03-01',
+                          planned_end: '2027-03-20',
+                        },
+                      ],
+                      next: null,
+                      previous: null,
+                    },
+              ),
+              { status: denied ? status : 200 },
+            ),
+          )
+        return base(url, options)
+      }),
+    )
+    const router = makeRouter(
+      createMemoryHistory({
+        initialEntries: ['/projects/project-1/ptas/2027?view=calendar'],
+      }),
+    )
+    render(<App router={router} />)
+    await screen.findByText('Activité confidentielle')
+    denied = true
+    await act(async () => {
+      await router.options.context.queryClient.invalidateQueries({
+        queryKey: ['planning', 'agent', 'activities'],
+      })
+    })
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Activité confidentielle'),
+      ).not.toBeInTheDocument(),
+    )
+    const queries = router.options.context.queryClient.getQueriesData({
+      queryKey: ['planning', 'agent', 'activities'],
+    })
+    expect(queries.every(([, value]) => value == null)).toBe(true)
+  },
+)

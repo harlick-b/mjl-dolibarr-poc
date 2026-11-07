@@ -232,7 +232,7 @@ def submit(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if item.approved_revision_id != body.expected_approved_revision_id:
@@ -317,7 +317,7 @@ def decide(
             roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         declaration = exact_declaration(db, item.id, declaration_id, lock=True)

@@ -11,12 +11,19 @@ from app.auth.service import AuthError
 from app.planning.models import ReversementDeclaration, VirementConfirmation
 from app.planning.reversement import required_amount
 from tests.auth.test_access import headers
+from tests.execution.test_execution import approved_execution_activity
 from tests.execution.test_virement import (
     approved_virement,
     submit_virement,
     virement_collection,
 )
-from tests.planning.test_planning import admin, ordered_advisory_race, planning, post
+from tests.planning.test_planning import (
+    admin,
+    assign_agents,
+    ordered_advisory_race,
+    planning,
+    post,
+)
 
 
 def confirmed_virement(
@@ -247,9 +254,7 @@ def test_reversement_rejects_client_amount_role_dates_and_noop(planning):
 
 def test_reversement_enforces_roles_origin_scope_and_active_session(planning):
     activity, _source, request, confirmation, _ = confirmed_virement(planning)
-    other_activity, _other_source, other_request, _other_confirmation, _ = (
-        confirmed_virement(planning)
-    )
+    other_activity = approved_execution_activity(planning)
     path = reversement_path(activity, request)
     body = {
         "expected_version": confirmation["activity_version"],
@@ -275,8 +280,8 @@ def test_reversement_enforces_roles_origin_scope_and_active_session(planning):
     )
     foreign = post(
         planning["agent"],
-        f"{virement_collection(activity)}/{other_request['id']}/reversement",
-        body,
+        f"{virement_collection(other_activity)}/{request['id']}/reversement",
+        {**body, "expected_version": other_activity["version"]},
     )
     assert foreign.status_code == 404
     assert other_activity["id"] != activity["id"]
@@ -284,6 +289,8 @@ def test_reversement_enforces_roles_origin_scope_and_active_session(planning):
 
 def test_reversement_rejects_already_inactive_agent(planning):
     activity, _source, request, confirmation, _ = confirmed_virement(planning)
+    current = planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
+    assign_agents(planning, current, planning["agent"])
     account = next(
         row
         for row in planning["admin"].get("/api/v1/access/users").json()["items"]
@@ -504,7 +511,7 @@ def test_reversement_schema_guard_and_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
     finally:
         engine.dispose()
@@ -585,6 +592,8 @@ def test_reversement_failure_rolls_back_all_effects(planning, monkeypatch, failu
 
 def test_deactivation_serializes_before_reversement(planning):
     activity, _source, request, confirmation, _ = confirmed_virement(planning)
+    current = planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
+    assign_agents(planning, current, planning["agent"])
     account = next(
         row
         for row in planning["admin"].get("/api/v1/access/users").json()["items"]
@@ -736,7 +745,7 @@ def test_exact_pta3d_predecessor_upgrades_without_rewriting_facts(
         assert fingerprints(candidate) == before
         with candidate.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
             assert (
                 db.scalar(text("SELECT count(*) FROM pta_reversement_declaration")) == 0

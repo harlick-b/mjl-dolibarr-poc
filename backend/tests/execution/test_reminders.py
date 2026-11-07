@@ -197,11 +197,18 @@ def test_same_end_date_amendment_keeps_the_existing_delivery_cycle(
 
 def test_boundaries_and_ineligible_recipients_do_not_create_reminders(planning):
     activity, _ = approved_activity(planning)
+    # Represent a legacy Activity whose assignments already ended. New API
+    # reassignment cannot leave an Activity without a responsible Agent.
+    with planning["auth"].engine.begin() as db:
+        db.execute(
+            text(
+                "UPDATE pta_activity_agent_assignment SET ended_at=clock_timestamp(), "
+                "ended_by_id=assigned_by_id WHERE activity_id=:id"
+            ),
+            {"id": activity["id"]},
+        )
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 0
     assigned, ids = assign(planning, activity, "agent")
-    ended, _ = assign(planning, assigned)
-    assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 0
-    assigned_again, _ = assign(planning, ended, "agent")
     with planning["auth"].engine.begin() as db:
         db.execute(
             text("UPDATE auth_user SET state='inactive' WHERE id=:id"), {"id": ids[0]}
@@ -211,14 +218,14 @@ def test_boundaries_and_ineligible_recipients_do_not_create_reminders(planning):
         db.execute(
             text("UPDATE auth_user SET state='active' WHERE id=:id"), {"id": ids[0]}
         )
-    assert assigned_again["state"] == "approved"
+    assert assigned["state"] == "approved"
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 7)) == 0
     assert dispatch_due_reminders(planning["auth"], date(2028, 3, 1)) == 0
 
 
 def test_withdrawn_activity_stops_reminders(planning):
     activity, _ = approved_activity(planning)
-    assigned, _ids = assign(planning, activity, "agent")
+    assigned, _ids = assign(planning, activity, "agent", "agent2")
     revision = request_withdrawal(planning, assigned)
     prevalidated = post(
         planning["supervisor"],
@@ -301,7 +308,7 @@ def test_deactivation_serializes_before_notification_read(planning):
     assigned, _ids = assign(planning, activity, "agent")
     dispatch_due_reminders(planning["auth"], date(2028, 2, 8))
     item = planning["agent"].get("/api/v1/notifications").json()["data"][0]
-    assign(planning, assigned)
+    assign(planning, assigned, "agent2")
     with Session(planning["auth"].engine) as db:
         user = db.scalar(select(User).where(User.email == "agent@example.test"))
         assert user is not None
@@ -404,18 +411,20 @@ def test_provider_call_does_not_hold_the_global_mutation_lock(planning, monkeypa
 def test_assignment_change_serializes_before_dispatch(planning):
     activity, _ = approved_activity(planning)
     assigned, _ids = assign(planning, activity, "agent")
+    other_id = planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
     changed, dispatched = ordered_advisory_race(
         planning["auth"],
         lambda: put(
             planning["supervisor"],
             f"/api/v1/activities/{activity['id']}/assignments",
-            {"expected_version": assigned["version"], "agent_ids": []},
+            {"expected_version": assigned["version"], "agent_ids": [other_id]},
         ),
         lambda: dispatch_due_reminders(planning["auth"], date(2028, 2, 8)),
     )
     assert changed.status_code == 200
-    assert dispatched == 0
-    assert reminder_mail(planning) == []
+    assert dispatched == 1
+    assert planning["agent"].get("/api/v1/notifications").json()["count"] == 0
+    assert planning["agent2"].get("/api/v1/notifications").json()["count"] == 1
 
 
 def test_used_reminder_history_blocks_downgrade(planning):

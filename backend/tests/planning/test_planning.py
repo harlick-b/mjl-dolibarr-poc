@@ -116,6 +116,20 @@ def patch(client, path, body):
     return client.patch(path, headers=headers(client), json=body)
 
 
+def assign_agents(planning, activity, *clients):
+    """Give collaborating test actors explicit work responsibility through the API."""
+    ids = [
+        client.get("/api/v1/auth/session").json()["user"]["id"] for client in clients
+    ]
+    response = put(
+        planning["validator"],
+        f"/api/v1/activities/{activity['id']}/assignments",
+        {"expected_version": activity["version"], "agent_ids": ids},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 def ordered_advisory_race(auth, first, second):
     """Hold the first mutation after advisory acquisition; prove the second waits."""
     entered = Event()
@@ -216,7 +230,7 @@ def plan(operation_type, **changes):
     return body
 
 
-def test_v04_v05_role_wide_submission_and_exact_revision_approval(planning, auth_env):
+def test_v04_v05_assigned_submission_and_exact_revision_approval(planning, auth_env):
     """One eligible reviewer at each stage completes the immutable first revision."""
     _partner, operation_type, project = references(planning)
     created = post(
@@ -227,6 +241,7 @@ def test_v04_v05_role_wide_submission_and_exact_revision_approval(planning, auth
     assert created.status_code == 201, created.text
     activity = created.json()
 
+    activity = assign_agents(planning, activity, planning["agent"], planning["agent2"])
     submitted = post(
         planning["agent2"],
         f"/api/v1/activities/{activity['id']}/submissions",
@@ -496,11 +511,18 @@ def test_v03_v08_contributors_and_review_evidence_remain_immutable(planning, aut
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
         {**plan(operation_type), "request_key": str(uuid4())},
     ).json()
+    created = assign_agents(planning, created, planning["agent"], planning["agent2"])
     submitted = post(
         planning["agent2"],
         f"/api/v1/activities/{created['id']}/submissions",
         {"expected_version": created["version"]},
     ).json()
+    reassigned = assign_agents(
+        planning,
+        planning["agent"].get(f"/api/v1/activities/{created['id']}").json(),
+        planning["agent"],
+    )
+    submitted["activity_version"] = reassigned["version"]
     users = planning["admin"].get("/api/v1/access/users").json()["items"]
     contributor = next(row for row in users if row["email"] == "agent2@example.test")
     changed = planning["admin"].patch(
@@ -594,6 +616,9 @@ def test_v03_reverted_removed_and_noop_editors_drive_runtime_review_eligibility(
             f"/api/v1/projects/{project['id']}/ptas/2027/activities",
             {**plan(operation_type), "request_key": str(uuid4())},
         ).json()
+        activity = assign_agents(
+            planning, activity, planning["agent"], planning["agent2"], noop_agent
+        )
         changed = patch(
             planning["agent2"],
             f"/api/v1/activities/{activity['id']}",
@@ -633,6 +658,19 @@ def test_v03_reverted_removed_and_noop_editors_drive_runtime_review_eligibility(
             {"expected_version": removed["version"]},
         ).json()
 
+        successor = invite(
+            planning["admin"], auth_env, stack, "successor@example.test", "AGENT_SAISIE"
+        )
+        planning["auth"] = planning["admin"].app.state.auth
+        planning["auth"].policy = planning["auth"].policy.model_copy(
+            update={"lifecycle_database": planning["auth"].engine.url.database}
+        )
+        reassigned = assign_agents(
+            planning,
+            planning["agent"].get(f"/api/v1/activities/{activity['id']}").json(),
+            successor,
+        )
+        revision["activity_version"] = reassigned["version"]
         users = planning["admin"].get("/api/v1/access/users").json()["items"]
         emails = (
             "agent@example.test",
@@ -700,7 +738,7 @@ def test_v09_frozen_revision_survives_assignment_and_reference_changes(planning)
         {"expected_version": activity["version"], "agent_ids": [agent2_id]},
     ).json()
     revision = post(
-        planning["agent"],
+        planning["agent2"],
         f"/api/v1/activities/{activity['id']}/submissions",
         {"expected_version": assigned["version"]},
     ).json()
@@ -708,7 +746,10 @@ def test_v09_frozen_revision_survives_assignment_and_reference_changes(planning)
     cleared = put(
         planning["validator"],
         f"/api/v1/activities/{activity['id']}/assignments",
-        {"expected_version": revision["activity_version"], "agent_ids": []},
+        {
+            "expected_version": revision["activity_version"],
+            "agent_ids": activity["agent_ids"],
+        },
     )
     assert cleared.status_code == 200, cleared.text
     with planning["auth"].engine.begin() as db:
@@ -725,25 +766,29 @@ def test_v09_frozen_revision_survives_assignment_and_reference_changes(planning)
             {"id": operation_type["id"]},
         )
     users = planning["admin"].get("/api/v1/access/users").json()["items"]
-    submitter = next(row for row in users if row["email"] == "agent@example.test")
-    assigned_agent = next(row for row in users if row["email"] == "agent2@example.test")
-    assert (
-        planning["admin"]
-        .patch(
-            f"/api/v1/access/users/{submitter['id']}",
-            headers=headers(planning["admin"]),
-            json={"expected_version": submitter["version"], "deactivate": True},
-        )
-        .status_code
-        == 200
+    current_assignee = next(
+        row for row in users if row["email"] == "agent@example.test"
+    )
+    former_assignee = next(
+        row for row in users if row["email"] == "agent2@example.test"
     )
     assert (
         planning["admin"]
         .patch(
-            f"/api/v1/access/users/{assigned_agent['id']}",
+            f"/api/v1/access/users/{current_assignee['id']}",
+            headers=headers(planning["admin"]),
+            json={"expected_version": current_assignee["version"], "deactivate": True},
+        )
+        .status_code
+        == 409
+    )
+    assert (
+        planning["admin"]
+        .patch(
+            f"/api/v1/access/users/{former_assignee['id']}",
             headers=headers(planning["admin"]),
             json={
-                "expected_version": assigned_agent["version"],
+                "expected_version": former_assignee["version"],
                 "role": "AGENT_VERIFICATEUR",
             },
         )
@@ -1016,7 +1061,7 @@ def test_v04_snapshot_overflow_rolls_back_without_truncating_lineage(
 
     monkeypatch.setattr(planning_routes, "build_revision_snapshot", oversized_snapshot)
     response = post(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{activity['id']}/submissions",
         {"expected_version": activity["version"]},
     )
@@ -1053,6 +1098,9 @@ def test_v12_edit_and_submission_races_serialize_in_both_orders(planning):
         ).json()
 
     edit_first = draft("Modification d'abord")
+    edit_first = assign_agents(
+        planning, edit_first, planning["agent"], planning["agent2"]
+    )
     edited, stale_submit = ordered_advisory_race(
         planning["auth"],
         lambda: patch(
@@ -1073,6 +1121,9 @@ def test_v12_edit_and_submission_races_serialize_in_both_orders(planning):
     )
 
     submit_first = draft("Soumission d'abord")
+    submit_first = assign_agents(
+        planning, submit_first, planning["agent"], planning["agent2"]
+    )
     submitted, stale_edit = ordered_advisory_race(
         planning["auth"],
         lambda: post(
@@ -1250,7 +1301,7 @@ def test_v14_submission_and_decision_audit_failures_roll_back(planning, monkeypa
 
     monkeypatch.setattr(auth, "business_audit", fail_selected)
     failed = post(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
         {"expected_version": created["version"]},
     )
@@ -1268,7 +1319,7 @@ def test_v14_submission_and_decision_audit_failures_roll_back(planning, monkeypa
 
     failed_action["value"] = "none"
     submitted = post(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
         {"expected_version": 1},
     ).json()
@@ -1876,7 +1927,18 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
     partner, operation_type, project, activity, _ = create_activity(planning)
     page = planning["agent"].get(f"/api/v1/ptas/{activity['pta_id']}/activities").json()
     assert len(page["data"]) == 1
-    assert set(page["data"][0]) == {"id", "reference", "name", "allocation"}
+    assert set(page["data"][0]) == {
+        "id",
+        "reference",
+        "name",
+        "allocation",
+        "planned_start",
+        "planned_end",
+        "operation_count",
+        "state",
+        "revision_number",
+        "agents",
+    }
     admin = planning["admin"]
     read_paths = [
         "/api/v1/partners",
@@ -1981,7 +2043,7 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
             f"/api/v1/activities/{activity['id']}/assignments",
             {
                 "expected_version": validator_assigned.json()["version"],
-                "agent_ids": [],
+                "agent_ids": [agent_id],
             },
         ).status_code
         == 403
@@ -1994,8 +2056,7 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
             "expected_version": validator_assigned.json()["version"],
         },
     )
-    assert edited.status_code == 200, edited.text
-    assert edited.json()["agent_ids"] == [agent_id]
+    assert edited.status_code == 403, edited.text
 
 
 def test_p08_p14_closure_and_stale_versions(planning):
@@ -2042,7 +2103,7 @@ def test_p08_p14_closure_and_stale_versions(planning):
     )
     assert first.status_code == 200
     stale = patch(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{activity['id']}",
         {**plan(operation_type, name="Perdu"), "expected_version": 1},
     )
@@ -2069,7 +2130,12 @@ def test_p17_assignment_blocks_lifecycle_but_ended_history_does_not(planning):
     cleared = put(
         planning["validator"],
         f"/api/v1/activities/{activity['id']}/assignments",
-        {"expected_version": assigned["version"], "agent_ids": []},
+        {
+            "expected_version": assigned["version"],
+            "agent_ids": [
+                planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
+            ],
+        },
     )
     assert cleared.status_code == 200
     accepted = planning["admin"].patch(
@@ -2079,7 +2145,7 @@ def test_p17_assignment_blocks_lifecycle_but_ended_history_does_not(planning):
     )
     assert accepted.status_code == 200
     with Session(planning["auth"].engine) as db:
-        assert db.query(ActivityAssignment).count() == 1
+        assert db.query(ActivityAssignment).count() == 2
         assert (
             db.scalar(
                 text(
@@ -2087,7 +2153,7 @@ def test_p17_assignment_blocks_lifecycle_but_ended_history_does_not(planning):
                     "WHERE ended_at IS NULL"
                 )
             )
-            == 0
+            == 1
         )
 
 
@@ -2313,7 +2379,7 @@ def test_p16_transaction_failure_rolls_back_each_mutation(
             {"expected_version": 1, "action": "close"},
         )
     else:
-        agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+        agent_id = planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
         response = put(
             planning["validator"],
             f"/api/v1/activities/{activity['id']}/assignments",
@@ -2382,7 +2448,16 @@ def test_v20_replaced_immutability_function_fails_schema_guard(planning):
     assert planning["agent"].get("/api/v1/projects").status_code == 409
 
 
-def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, auth_env):
+@pytest.fixture
+def predecessor_audit_format(monkeypatch):
+    # These migration fixtures represent PTA-1, which stored full before/after
+    # facts. Current compact field deltas are not a valid predecessor fixture.
+    monkeypatch.setattr("app.audit.facts.compact_planning_facts", lambda facts: facts)
+
+
+def test_v20_predecessor_upgrade_reconstructs_complete_contributors(
+    planning, auth_env, predecessor_audit_format
+):
     """A real PTA-1 audit chain retains reverted/removal editors, not no-op savers."""
     with ExitStack() as stack:
         noop_agent = invite(
@@ -2403,6 +2478,9 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, au
             f"/api/v1/projects/{project['id']}/ptas/2027/activities",
             {**plan(operation_type), "request_key": str(uuid4())},
         ).json()
+        activity = assign_agents(
+            planning, activity, planning["agent"], planning["agent2"], noop_agent
+        )
         changed = patch(
             planning["agent2"],
             f"/api/v1/activities/{activity['id']}",
@@ -2464,7 +2542,7 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(planning, au
             assert contributors == expected
             assert excluded not in contributors
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
     finally:
         engine.dispose()
@@ -2491,7 +2569,7 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
             assert db.scalar(text("SELECT count(*) FROM pta_activity_revision")) == 1
     finally:
@@ -2500,7 +2578,7 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
 
 @pytest.mark.parametrize("corruption", ["missing", "duplicate", "gap"])
 def test_v20_predecessor_upgrade_rejects_broken_attribution(
-    planning, auth_env, corruption
+    planning, auth_env, corruption, predecessor_audit_format
 ):
     _partner, operation_type, project = references(planning)
     activity = post(
@@ -2509,7 +2587,7 @@ def test_v20_predecessor_upgrade_rejects_broken_attribution(
         {**plan(operation_type), "request_key": str(uuid4())},
     ).json()
     changed = patch(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{activity['id']}",
         replace_body(activity, name="Modification attribuée"),
     )
@@ -2565,7 +2643,7 @@ def test_v20_predecessor_upgrade_rejects_broken_attribution(
 
 @pytest.mark.parametrize("field", ["type_id", "name", "allocation", "position"])
 def test_v20_predecessor_upgrade_rejects_corrupted_operation_tombstone(
-    planning, auth_env, field
+    planning, auth_env, field, predecessor_audit_format
 ):
     _partner, operation_type, project = references(planning)
     other_type = post(
@@ -2580,7 +2658,7 @@ def test_v20_predecessor_upgrade_rejects_corrupted_operation_tombstone(
     ).json()
     kept = activity["operations"][0]
     response = patch(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{activity['id']}",
         replace_body(
             activity,
@@ -2726,7 +2804,10 @@ def test_p17_assignment_lifecycle_race_serializes(planning):
         lambda: put(
             planning["validator"],
             f"/api/v1/activities/{activity['id']}/assignments",
-            {"expected_version": 2, "agent_ids": [agent_id, agent2_id]},
+            {
+                "expected_version": assigned.json()["version"],
+                "agent_ids": [agent_id, agent2_id],
+            },
         ),
     )
     assert (deactivated.status_code, rejected.status_code) == (200, 409)
@@ -2832,7 +2913,13 @@ def test_p05_p07_p08_p14_deterministic_mutation_orders(planning):
         lambda: put(
             planning["validator"],
             f"/api/v1/activities/{activity['id']}/assignments",
-            {"expected_version": 2, "agent_ids": [agent_id]},
+            {
+                "expected_version": 2,
+                "agent_ids": [
+                    agent_id,
+                    planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"],
+                ],
+            },
         ),
         lambda: patch(
             planning["agent2"],
@@ -2898,18 +2985,24 @@ def test_p06_p10_direct_pta_duplicate_and_maximum_xof(planning):
         },
     )
     assert created.status_code == 201
-    with Session(planning["auth"].engine) as db, pytest.raises(IntegrityError):
+    with (
+        Session(planning["auth"].engine) as db,
+        pytest.raises(IntegrityError) as duplicate,
+    ):
         existing = db.query(AnnualPTA).one()
         db.add(
             AnnualPTA(
                 context_id="MJL",
                 project_id=project["id"],
                 year=2027,
+                name="PTA 2027",
                 creator_id=existing.creator_id,
                 created_at=existing.created_at,
             )
         )
         db.commit()
+
+    assert duplicate.value.orig.diag.constraint_name == "pta_project_year"
 
 
 def test_p13_assignment_rejects_duplicate_inactive_and_wrong_role(planning):
@@ -2950,6 +3043,7 @@ def test_p13_assignment_rejects_duplicate_inactive_and_wrong_role(planning):
 
 def test_p15_p16_tombstones_contributors_and_exact_audit_shapes(planning):
     _, operation_type, _, activity, _ = create_activity(planning)
+    activity = assign_agents(planning, activity, planning["agent2"])
     removed = activity["operations"][1]
     kept = activity["operations"][0]
     response = patch(
@@ -2968,7 +3062,7 @@ def test_p15_p16_tombstones_contributors_and_exact_audit_shapes(planning):
                     }
                 ],
             ),
-            "expected_version": 1,
+            "expected_version": activity["version"],
         },
     )
     assert response.status_code == 200
@@ -3545,8 +3639,8 @@ def test_p19_role_change_and_planning_are_serial_in_both_orders(planning):
             },
         ),
     )
-    assert (planned.status_code, changed.status_code) == (200, 200)
-    assert planning["agent"].get("/api/v1/projects").status_code == 401
+    assert (planned.status_code, changed.status_code) == (200, 409)
+    assert planning["agent"].get("/api/v1/projects").status_code == 200
     changed_first, planning_denied = ordered_advisory_race(
         planning["auth"],
         lambda: planning["admin"].patch(
@@ -3777,6 +3871,7 @@ def test_v12_activity_reads_remain_coherent_while_workflow_mutates(planning, mut
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
         {**plan(operation_type), "request_key": str(uuid4())},
     ).json()
+    activity = assign_agents(planning, activity, planning["agent"], planning["agent2"])
     revision = returned = None
     if mutation in {"correction", "decision"}:
         revision = post(

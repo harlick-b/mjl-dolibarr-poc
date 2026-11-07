@@ -1,4 +1,11 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, test, vi } from 'vitest'
@@ -106,3 +113,72 @@ test.each([
     }
   },
 )
+
+test('assignment loss closes an upload and refreshes retained document permissions', async () => {
+  let reads = 0
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_path, options = {}) => {
+      if (options.method === 'POST')
+        return new Response(
+          JSON.stringify({ code: 'activity_assignment_required' }),
+          { status: 403 },
+        )
+      reads += 1
+      return new Response(
+        JSON.stringify({ data: [], count: 0, next: null, previous: null }),
+      )
+    }),
+  )
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <RestClientProvider client={new RestClient()}>
+        <ActivityDocuments
+          activityId="activity"
+          assigned
+          user={{ id: 'agent', role: 'AGENT_SAISIE' }}
+          csrf="csrf"
+          cursor=""
+          navigate={vi.fn()}
+          onDenied={vi.fn()}
+        />
+      </RestClientProvider>
+    </QueryClientProvider>,
+  )
+  await screen.findByText('Aucune pièce justificative')
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Ajouter une pièce' }),
+  )
+  const modal = screen.getByRole('dialog', { name: 'Ajouter une pièce' })
+  await userEvent.upload(
+    within(modal).getByLabelText('Choisir un fichier PDF, JPEG ou PNG'),
+    new File(['image'], 'preuve.png', { type: 'image/png' }),
+  )
+  expect(
+    within(modal).getByLabelText('Choisir un fichier PDF, JPEG ou PNG').files,
+  ).toHaveLength(1)
+  fireEvent.submit(
+    within(modal).getByRole('button', { name: 'Ajouter', exact: true }).form,
+  )
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/activities/activity/documents',
+      expect.objectContaining({ method: 'POST' }),
+    ),
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Ajouter une pièce' }),
+    ).not.toBeInTheDocument(),
+  )
+  expect(reads).toBeGreaterThan(1)
+})

@@ -23,6 +23,7 @@ from tests.execution.test_disbursement import collection as disbursement_collect
 from tests.execution.test_disbursement import finish_activity
 from tests.planning.test_planning import (
     admin,
+    assign_agents,
     login_existing,
     ordered_advisory_race,
     planning,
@@ -271,6 +272,8 @@ def test_agent_deactivation_wins_before_confirmation_correction(planning):
             "note": None,
         },
     ).json()
+    current = planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
+    assign_agents(planning, current, planning["agent"])
     account = next(
         row
         for row in planning["admin"].get("/api/v1/access/users").json()["items"]
@@ -516,7 +519,7 @@ def test_confirmation_evidence_refuses_destructive_downgrade(planning, auth_env)
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
     finally:
         engine.dispose()
@@ -675,7 +678,7 @@ def test_submission_rejects_unapproved_source_and_client_amount(planning):
     assert injected.status_code == 422
 
 
-def test_submission_rejects_valid_foreign_and_cancelled_sources(planning):
+def test_submission_rejects_valid_foreign_sources(planning):
     first_activity, first_source = approved_disbursement(planning)
     _second_activity, second_source = approved_disbursement(planning)
     foreign = post(
@@ -688,6 +691,8 @@ def test_submission_rejects_valid_foreign_and_cancelled_sources(planning):
     )
     assert foreign.status_code == 404
 
+
+def test_submission_rejects_cancelled_sources(planning):
     cancelled_activity = finish_activity(planning)
     pending = post(
         planning["agent"],
@@ -1409,7 +1414,7 @@ def test_virement_evidence_refuses_destructive_downgrade(planning, auth_env):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0024_budget_funding"
+                "0027_pta_metadata"
             )
     finally:
         engine.dispose()

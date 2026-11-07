@@ -32,7 +32,14 @@ from app.planning.models import (
     Project,
 )
 from app.planning.routes import MUTATION_HEADERS, locked_read
-from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
+from app.planning.service import (
+    CONTEXT,
+    Cursor,
+    is_assigned_agent,
+    locked_mutation,
+    principal,
+    require_agent_assignment,
+)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -110,12 +117,14 @@ def output(
     actor_id: str | None = None,
     activity_state: str | None = None,
     share_eligible: bool = False,
+    assigned: bool = False,
 ) -> dict[str, Any]:
     actions: list[str] = []
     if withdrawal is None and (
         role == "VALIDATEUR_DEFINITIF"
         or (
             role == "AGENT_SAISIE"
+            and assigned
             and actor_id == item.uploaded_by_id
             and activity_state != "closed"
         )
@@ -240,7 +249,7 @@ def authorize_upload(
     activity_id: str,
 ) -> None:
     with Session(auth.engine) as db, db.begin():
-        principal(
+        actor = principal(
             db,
             auth,
             secret,
@@ -249,6 +258,7 @@ def authorize_upload(
             mutation=True,
         )
         activity(db, activity_id)
+        require_agent_assignment(db, activity_id, actor)
 
 
 def store_upload(
@@ -271,6 +281,7 @@ def store_upload(
             mutation=True,
         )
         parent = activity(db, activity_id)
+        require_agent_assignment(db, activity_id, actor)
         item = ActivityDocument(
             context_id=CONTEXT,
             activity_id=activity_id,
@@ -304,6 +315,7 @@ def store_upload(
             output(
                 item,
                 role=actor.role,
+                assigned=is_assigned_agent(db, activity_id, actor.id),
                 actor_id=actor.id,
                 activity_state=parent.state,
             ),
@@ -329,6 +341,7 @@ def listing(
         actor = principal(db, auth, evidence(request, auth)[0])
         parent = activity(db, activity_id)
         can_share = sharing_eligible(db, parent)
+        assigned = is_assigned_agent(db, activity_id, actor.id)
         limit, token = args
         cursor = Cursor(auth, "activity_documents", f"{actor.id}:{activity_id}", limit)
         marker, direction = cursor.decode(token)
@@ -435,6 +448,7 @@ def listing(
                         else ""
                     ),
                     role=actor.role,
+                    assigned=assigned,
                     actor_id=actor.id,
                     activity_state=parent.state,
                     share_eligible=can_share,
@@ -509,6 +523,7 @@ def withdraw(
             mutation=True,
         )
         parent = activity(db, activity_id)
+        require_agent_assignment(db, activity_id, actor)
         item = db.get(ActivityDocument, document_id, with_for_update=True)
         if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
             raise AuthError(404, "document_not_found")
@@ -565,6 +580,7 @@ def withdraw(
             withdrawal,
             replacement,
             role=actor.role,
+            assigned=is_assigned_agent(db, activity_id, actor.id),
             actor_id=actor.id,
             activity_state=parent.state,
         )

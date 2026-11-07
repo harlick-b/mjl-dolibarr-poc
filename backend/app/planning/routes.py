@@ -46,6 +46,7 @@ from app.planning.service import (
     principal,
     project_item,
     reference,
+    require_agent_assignment,
     revision_item,
     snapshot_projection,
     structural_content,
@@ -101,6 +102,14 @@ class PartnerInput(NameInput):
     @classmethod
     def normalized_description(cls, value: object) -> object:
         return (value.strip() or None) if isinstance(value, str) else value
+
+
+class PTACreate(PartnerInput):
+    year: int = Field(ge=2000, le=2200, strict=True)
+
+
+class PTAUpdate(PartnerInput):
+    expected_version: int = Field(gt=0, strict=True)
 
 
 class PartnerUpdate(PartnerInput):
@@ -171,7 +180,7 @@ class ActivityReplace(PlanningInput):
 
 class AssignmentReplace(Input):
     expected_version: int = Field(gt=0, strict=True)
-    agent_ids: list[str] = Field(max_length=100)
+    agent_ids: list[str] = Field(min_length=1, max_length=100)
 
     @field_validator("agent_ids")
     @classmethod
@@ -395,6 +404,9 @@ class ActivityOutput(Input):
 
 
 class PTAOutput(Input):
+    name: str
+    description: str | None
+    version: int
     project_name: str | None = None
     partner_name: str | None = None
     project_state: str | None = None
@@ -1025,6 +1037,109 @@ def close_project(
         return project_item(item, actor.role)
 
 
+def pta_metadata(item: AnnualPTA, role: str) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "project_id": item.project_id,
+        "year": item.year,
+        "name": item.name,
+        "description": item.description,
+        "version": item.version,
+        "allowed_actions": ["read", "edit"]
+        if role in {"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"}
+        else ["read"],
+    }
+
+
+@router.post(
+    "/projects/{identifier}/ptas",
+    status_code=201,
+    response_model=PTAOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def create_pta(
+    identifier: str, body: PTACreate, request: Request, auth: Auth
+) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db,
+            auth,
+            *evidence(request, auth),
+            roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
+            mutation=True,
+        )
+        project = get_project(db, identifier, lock=True)
+        if project.state != "active":
+            raise AuthError(409, "project_closed")
+        if db.scalar(
+            select(AnnualPTA.id).where(
+                AnnualPTA.project_id == identifier, AnnualPTA.year == body.year
+            )
+        ):
+            raise AuthError(409, "pta_exists")
+        item = AnnualPTA(
+            context_id=CONTEXT,
+            project_id=identifier,
+            year=body.year,
+            name=body.name,
+            description=body.description,
+            version=1,
+            creator_id=actor.id,
+            created_at=auth.now(db),
+        )
+        db.add(item)
+        db.flush()
+        result = pta_metadata(item, actor.role)
+        auth.business_audit(
+            db,
+            "pta.create",
+            actor.id,
+            item.id,
+            {"context_id": CONTEXT, "after": result},
+        )
+        return created(
+            request, f"/api/v1/projects/{identifier}/ptas/{body.year}", result
+        )
+
+
+@router.patch(
+    "/ptas/{identifier}", response_model=PTAOutput, openapi_extra=MUTATION_HEADERS
+)
+def update_pta(
+    identifier: str, body: PTAUpdate, request: Request, auth: Auth
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db,
+            auth,
+            *evidence(request, auth),
+            roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
+            mutation=True,
+        )
+        item = db.get(AnnualPTA, identifier, with_for_update=True)
+        if not item or item.context_id != CONTEXT:
+            raise AuthError(404, "pta_not_found")
+        if item.version != body.expected_version:
+            raise AuthError(409, "pta_stale")
+        before = pta_metadata(item, actor.role)
+        if item.name == body.name and item.description == body.description:
+            return before
+        item.name, item.description = body.name, body.description
+        item.version += 1
+        db.flush()
+        result = pta_metadata(item, actor.role)
+        auth.business_audit(
+            db,
+            "pta.update",
+            actor.id,
+            item.id,
+            {"context_id": CONTEXT, "before": before, "after": result},
+        )
+        return result
+
+
 @router.get("/ptas", response_model=ListOutput[PTAOutput])
 @router.get("/projects/{identifier}/ptas", response_model=ListOutput[PTAOutput])
 def project_ptas(
@@ -1035,7 +1150,7 @@ def project_ptas(
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
-        principal(db, auth, evidence(request, auth)[0])
+        actor = principal(db, auth, evidence(request, auth)[0])
         if identifier:
             get_project(db, identifier)
         limit, token = args
@@ -1103,8 +1218,7 @@ def project_ptas(
             "count": total,
             "data": [
                 {
-                    "id": row.id,
-                    "project_id": row.project_id,
+                    **pta_metadata(row, actor.role),
                     "project_name": project_rows[row.project_id].name,
                     "project_state": project_rows[row.project_id].state,
                     "partner_name": partner_names.get(
@@ -1115,7 +1229,6 @@ def project_ptas(
                         counts.get(row.id, {}),
                         plans[(row.project_id, row.year)]["allocation"],
                     ),
-                    "allowed_actions": ["read"],
                 }
                 for row in rows
             ],
@@ -1154,14 +1267,7 @@ def pta_context(
         return {
             "project": project_item(project, actor.role),
             "year": year,
-            "pta": None
-            if not pta
-            else {
-                "id": pta.id,
-                "project_id": pta.project_id,
-                "year": pta.year,
-                "allowed_actions": ["read"],
-            },
+            "pta": None if not pta else pta_metadata(pta, actor.role),
             "allowed_actions": ["read"]
             + (
                 ["create_activity"]
@@ -1248,6 +1354,7 @@ def create_activity(
                 context_id=CONTEXT,
                 project_id=project.id,
                 year=year,
+                name=f"PTA {year}",
                 creator_id=actor.id,
                 created_at=now,
             )
@@ -1296,6 +1403,16 @@ def create_activity(
                 contributed_at=now,
             )
         )
+        db.add(
+            ActivityAssignment(
+                context_id=CONTEXT,
+                activity_id=item.id,
+                agent_id=actor.id,
+                assigned_by_id=actor.id,
+                assigned_at=now,
+            )
+        )
+        db.flush()
         result = activity_item(db, item, actor.role, actor.id)
         auth.business_audit(
             db,
@@ -1319,7 +1436,7 @@ def get_activity(
     return item
 
 
-def get_activity_for_command(db: Session, identifier: str) -> Activity:
+def get_activity_for_command(db: Session, identifier: str, actor: User) -> Activity:
     item = get_activity(db, identifier)
     project = db.scalar(
         select(Project)
@@ -1330,6 +1447,7 @@ def get_activity_for_command(db: Session, identifier: str) -> Activity:
     if not project:
         raise AuthError(404, "activity_not_found")
     db.refresh(item, with_for_update=True)
+    require_agent_assignment(db, item.id, actor)
     return item
 
 
@@ -1478,7 +1596,7 @@ def request_transfer(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         lifecycle_eligible(db, auth, item)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
@@ -1636,7 +1754,7 @@ def cancel_transfer(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
         lifecycle_environment(auth)
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if (
@@ -1701,7 +1819,7 @@ def request_withdrawal(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         lifecycle_eligible(db, auth, item)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
@@ -1837,7 +1955,7 @@ def cancel_withdrawal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
         lifecycle_environment(auth)
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if (
@@ -1900,7 +2018,7 @@ def open_amendment(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         from app.planning.disbursement import assert_disbursement_unfrozen
@@ -2102,6 +2220,7 @@ def cancel_amendment(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
         item = get_activity(db, identifier, lock=True)
+        require_agent_assignment(db, item.id, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if (
@@ -2293,6 +2412,7 @@ def submit_activity(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
         item = get_activity(db, identifier, lock=True)
+        require_agent_assignment(db, item.id, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if item.withdrawal_id:
@@ -2468,7 +2588,7 @@ def decide_activity(
             db.refresh(preview, with_for_update=True)
             item = preview
         else:
-            item = get_activity_for_command(db, identifier)
+            item = get_activity_for_command(db, identifier, actor)
         revision = db.scalar(
             select(ActivityRevision)
             .where(
@@ -2612,6 +2732,7 @@ def decide_activity(
                             context_id=CONTEXT,
                             project_id=item.request_project_id,
                             year=target_year,
+                            name=f"PTA {target_year}",
                             creator_id=actor.id,
                             created_at=now,
                         )
@@ -2929,6 +3050,7 @@ def replace_activity(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
         item = get_activity(db, identifier, lock=True)
+        require_agent_assignment(db, item.id, actor)
         pta = db.get(AnnualPTA, item.pta_id)
         assert pta
         if item.version != body.expected_version:
@@ -3113,6 +3235,7 @@ def replace_assignments(
         ):
             raise AuthError(409, "assignment_ineligible")
         item = get_activity(db, identifier, lock=True)
+        require_agent_assignment(db, item.id, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if item.state in {"withdrawn", "closed"}:

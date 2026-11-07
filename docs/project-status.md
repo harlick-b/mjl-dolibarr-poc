@@ -6,6 +6,141 @@ for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
 
+## PTA foundations — staged implementation, 2026-11-07
+
+The agreed next workflow is recorded in business-rules.md; it is **not fully
+implemented**. This candidate adds Supervisor/Validator PTA creation and metadata
+editing APIs, version-conflict protection, safe business History and migration
+`0027_pta_metadata`. Existing PTAs retain identity/project/year and receive the
+neutral name `PTA <year>` with no invented description. A lossy downgrade is refused.
+The migration has been exercised only on disposable PostgreSQL, not the configured
+development database.
+
+Calendar now loads all pages for the selected PTA/filters when selected, independently
+of the table cursor. It refuses detected incomplete/changing pagination, retains
+403/404 cache redaction, uses start/ongoing/end month labels, and centers empty
+month text. UI wording uses Planification des activités sur l’année where expanded.
+
+Still outstanding: the supplied PTA creation/edit and metadata-placement visuals,
+Activity brief/assignment visuals, explicit-only PTA creation cutover (including
+annual transfers), brief persistence and the planning creator review exception.
+Assignment permission changes are described in the following section.
+Legacy first-Activity/transfer automatic PTA creation remains active deliberately:
+removing it before the new modal exists would strand the current creation path.
+The additive APIs are preparation, not completion of these accepted rules.
+
+PTA-foundation candidate (before assignment changes) application/migration/frontend-source SHA256 (sorted paths, each path +
+NUL + file bytes + NUL): `c9e193171121fcae9bd9c7197037f1258818291ba2073fa8f946ef6bc855b7d2`.
+Frontend artifact: `index-V9k3IkFL.js`.
+
+Verification of that PTA-foundation candidate:
+
+- Backend disposable PostgreSQL: `/tmp/mjl-design-tests.py` via backend `.venv/bin/python`,
+  `tests/planning/test_explicit_pta.py`,
+  `tests/planning/test_planning.py::test_p06_p10_direct_pta_duplicate_and_maximum_xof`,
+  `tests/planning/test_catalog_editing.py -q`: **7 passed**. Includes clean upgrade,
+  populated predecessor round-trip, loss-preventing downgrade and direct uniqueness.
+- Frontend `npm run test:unit -- src/features/planning/calendar.test.js
+  src/features/planning/planning.test.jsx`: **37 passed**, including denied calendar
+  refetch cache removal. `npm run test:e2e -- e2e/planning/planning-design.spec.js`:
+  **2 passed**, using intercepted disposable data. Calendar screenshot inspected
+  against the existing reference; this is not human visual acceptance.
+- Build passes (existing chunk-size warning); targeted ESLint, Ruff and mypy pass.
+  No full application/backend suite was run. Initial fixture-import errors were
+  corrected before the successful backend run; focused evidence does not imply a
+  broader suite passed.
+
+Independent review corrected protected-calendar cleanup, export noise in History
+and a uniqueness test that could fail for the wrong constraint. Final focused
+PostgreSQL rerun `tests/planning/test_explicit_pta.py::test_pta_access_validation_and_audit
+-q`: **1 passed**, including actual export exclusion from History/filter/CSV.
+The independent reviewer reran both frontend files: **37 passed**; final source
+review found no remaining blocking code findings for this additive slice.
+
+## Assignment-based Agent access — implemented, 2026-11-07
+
+An Agent who creates an Activity is assigned automatically in the same transaction.
+Supervisor/Validator assignment changes retain at least one active Agent. Only
+current assignees can edit, submit, execute or initiate the Activity’s financial
+and evidence changes; other Agents retain viewing access. Reviewer permissions
+and immutable approvals are unchanged. Reassignment and mutation use the existing
+transaction lock, so a waiting command cannot use an assignment removed first.
+Replaying creation does not restore a removed assignment.
+
+The existing UI uses these permissions, disables empty assignment submission and
+refreshes permissions after an assignment rejection, including an already-open
+document form. Execution list assignment checks reuse its batched Agent lookup.
+Existing unassigned Activities are not silently allocated: a Supervisor or
+Validator must assign them before an Agent can work. Closure/withdrawal continues
+to end assignments, preserving their history.
+
+This slice does not add the pending PTA/brief visuals, reviewer-created briefs,
+or the explicit-only PTA cutover described above. No additional migration or
+configured development-database change is made by the assignment slice.
+Final candidate application/migration/frontend-source SHA256 (same method above):
+`f7533098e2ebd954a9f92b1dfe4fcbe3aebd553ea9a531513ef2a4be7f5eada1`;
+frontend artifact `index-B-hNgtNu.js`.
+
+Verification (segmented regression campaign, not a single full-suite pass):
+
+- Final-source disposable PostgreSQL run: `tests/planning/test_assignment_access.py`,
+  `tests/planning/test_explicit_pta.py`, planning role-change/coherent-read races,
+  and funding/disbursement/virement list authorization/OpenAPI checks: **12 passed**.
+  This rerun follows batching the financial lists’ assignment lookup; earlier
+  broad execution checks predate that localized projection change.
+- Historical predecessor migration checks: `tests/planning/test_planning.py
+  -k predecessor_upgrade -q`: **8 passed**. Fixtures reproduce the older full
+  before/after audit format. This does not promise that current compact audit
+  records support downgrade/re-upgrade through that historical schema.
+- Corrected closure/document/migration cases: **12 passed** before a remaining
+  compound test exhausted its test IP limit. Removing redundant setup, without
+  changing the limiter, produced **4 passed** for parent-state/lifecycle/tombstone
+  checks. Reminder handoff/legacy-empty-assignment checks: **4 passed**.
+  Cross-Activity reversement scope check: **1 passed** with the target Activity’s
+  correct version, proving the request reaches the scope check. Separate foreign
+  and cancelled virement-source scenarios: **2 passed**, without relaxing limits.
+- Frontend `planning.test.jsx`, `calendar.test.js`, `document-denial.test.jsx`,
+  `execution.test.jsx`: **71 passed** together with one worker, test timeout 20s,
+  and temporary Testing Library async-wait limit 5s. Earlier 1s DOM waits timed
+  out under concurrent database-test load; no assertions were removed.
+- Build, targeted ESLint/Prettier, Ruff, mypy and diff checks pass. Existing build
+  chunk-size and TestClient deprecation warnings remain. No full application
+  suite, live mail or configured-database migration was run.
+
+Final-source backend command (from `backend/`):
+
+```sh
+.venv/bin/python /tmp/mjl-design-tests.py \
+  tests/planning/test_assignment_access.py \
+  tests/planning/test_explicit_pta.py \
+  tests/planning/test_planning.py::test_p19_role_change_and_planning_are_serial_in_both_orders \
+  tests/planning/test_planning.py::test_v12_activity_reads_remain_coherent_while_workflow_mutates \
+  tests/execution/test_funding.py::test_authorization_stale_replay_and_openapi \
+  tests/execution/test_disbursement.py::test_routes_are_scoped_and_openapi_success_contracts_are_typed \
+  tests/execution/test_virement.py::test_routes_enforce_roles_csrf_scope_and_cursor_contract \
+  -q --tb=short --maxfail=1
+```
+
+The initial broad run was interrupted (including an interrupted teardown). Planning
+`test_planning.py` then stopped at **58 passed / 15 failed**; its failed/unrun cases
+plus the new assignment/PTA tests produced **51 passed / 5 failed**. Every identified
+failure was corrected and passed the focused reruns above. Execution initially
+stopped at **17 passed / 1 failed**, its continuation at **135 passed / 20 failed**;
+the final remaining batch completed at **73 passed / 2 failed**. Those last two
+fixture failures passed the scope/version correction and separated-source reruns.
+No known regression failure remains; these counts must not be represented as one
+uninterrupted suite pass. Tests used disposable PostgreSQL through
+`backend/.venv/bin/python /tmp/mjl-design-tests.py` (pytest arguments), with teardown.
+
+Independent review inspected transaction guards, permission projections, stale UI,
+fixtures and actual evidence and cleared this slice with no remaining blocking
+findings. This is not production readiness or visual acceptance.
+
+Pre-commit specification and standards reviews independently inspected the combined
+PTA/assignment diff, all added files and saved final-source evidence. Both cleared
+the candidate; the stale schema-head summary was corrected. This review ran diff
+checks, not new runtime suites; the source hash above remains unchanged.
+
 ## Catalog and planning screen refinement
 
 Implemented 2026-11-07 against the supplied Partner, Project, PTA, Activity and
@@ -14,7 +149,8 @@ atomic field deltas; Partner deactivation remains deferred. Project links open
 its PTA list, with year selection on the PTA screen. Sidebar selection is exclusive.
 PTA summaries, filtered table/calendar, Activity form/details and shared controls
 use approved composition/tokens. Existing separate save, submission and document
-workflows remain; the calendar explicitly paginates the filtered Activity rows.
+workflows remain. The calendar pagination limitation from this earlier batch is
+superseded by the staged PTA foundation update above.
 No migration, financial-rule change or production configuration change.
 
 Implementation candidate before review cleanup: working tree on `920c406`;
@@ -350,7 +486,8 @@ test:e2e -- e2e/auth/navigation-transitions.spec.js e2e/auth/recovery.spec.js
   Setup is documented in README; production authentication remains excluded.
 - Installable PWA with online-only business operations and guarded update handling.
 
-The schema head is 0025_profile_names. Application code, migrations and focused
+The source schema head is `0027_pta_metadata`; this migration has not been applied
+to the configured development database. Application code, migrations and focused
 tests are the implementation evidence; do not treat a summary or an old passing
 count as a new verification run.
 

@@ -25,7 +25,13 @@ from app.planning.models import (
     VirementRequest,
 )
 from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
-from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
+from app.planning.service import (
+    CONTEXT,
+    Cursor,
+    is_assigned_agent,
+    locked_mutation,
+    principal,
+)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -258,7 +264,12 @@ def allowed_actions(
 
 
 def output(
-    db: Session, financial: VirementRequest, role: str, actor_id: str
+    db: Session,
+    financial: VirementRequest,
+    role: str,
+    actor_id: str,
+    *,
+    assigned: bool | None = None,
 ) -> dict[str, Any]:
     source = source_request(
         db, financial.activity_id, financial.disbursement_request_id
@@ -276,11 +287,20 @@ def output(
         .order_by(ReversementDeclaration.revision.desc())
         .limit(1)
     )
-    actions = allowed_actions(role, actor_id, financial, rows)
+    can_work = role == "AGENT_SAISIE" and (
+        is_assigned_agent(db, financial.activity_id, actor_id)
+        if assigned is None
+        else assigned
+    )
+    actions = (
+        ["read"]
+        if role == "AGENT_SAISIE" and not can_work
+        else allowed_actions(role, actor_id, financial, rows)
+    )
     item = get_activity(db, financial.activity_id)
     project = db.get(Project, item.request_project_id)
     settlement_allowed = pause_reason(db, item, project) is None
-    if role == "AGENT_SAISIE" and financial.state == "approved" and settlement_allowed:
+    if can_work and financial.state == "approved" and settlement_allowed:
         if not confirmation:
             actions.append("declare_confirmation")
         elif not reversement:
@@ -298,7 +318,7 @@ def output(
         if required < 0:
             raise AuthError(409, "financial_insufficiency_unresolved")
         reversement_actions = ["read"]
-        if role == "AGENT_SAISIE" and required > 0 and settlement_allowed:
+        if can_work and required > 0 and settlement_allowed:
             reversement_actions.append("correct" if reversement else "declare")
         reversement_output = {
             "required_amount": str(required),
@@ -427,7 +447,7 @@ def submit(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if active_request(db, item.id, lock=True):
@@ -484,7 +504,7 @@ def decide(
             roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         financial = exact_request(db, item.id, request_id, lock=True)
@@ -555,7 +575,7 @@ def cancel(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         financial = exact_request(db, item.id, request_id, lock=True)
@@ -656,10 +676,15 @@ def listing(
             base = f"{auth.policy.origin}/api/v1/activities/{item.id}/virement-requests"
             return f"{base}?{query}"
 
+        assigned = actor.role == "AGENT_SAISIE" and is_assigned_agent(
+            db, item.id, actor.id
+        )
         return {
             "object": "list",
             "count": total,
-            "data": [output(db, row, actor.role, actor.id) for row in rows],
+            "data": [
+                output(db, row, actor.role, actor.id, assigned=assigned) for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

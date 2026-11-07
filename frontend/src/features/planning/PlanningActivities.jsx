@@ -76,7 +76,9 @@ export function PlanningActivities({
         <div className="grid gap-4 p-5 md:grid-cols-3">
           {Array.from({ length: 12 }, (_, month) => {
             const start = `${year}-${String(month + 1).padStart(2, '0')}-01`
-            const end = `${year}-${String(month + 1).padStart(2, '0')}-31`
+            const end = new Date(Date.UTC(year, month + 1, 0))
+              .toISOString()
+              .slice(0, 10)
             const matches = rows.filter(
               (row) => row.planned_start <= end && row.planned_end >= start,
             )
@@ -108,24 +110,30 @@ export function PlanningActivities({
                         {row.name}
                       </Link>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {formatDate(row.planned_start)} –{' '}
-                        {formatDate(row.planned_end)}
+                        {row.planned_start >= start
+                          ? `${strings.calendarStart} ${formatDate(row.planned_start)}`
+                          : row.planned_end <= end
+                            ? `${strings.calendarEnd} ${formatDate(row.planned_end)}`
+                            : strings.calendarOngoing}
+                        {row.planned_start >= start &&
+                          row.planned_end <= end && (
+                            <>
+                              {' '}
+                              · {strings.calendarEnd}{' '}
+                              {formatDate(row.planned_end)}
+                            </>
+                          )}
                       </p>
                     </div>
                   ))
                 ) : (
-                  <p className="p-3 text-xs text-muted-foreground">
+                  <p className="p-3 text-center text-xs text-muted-foreground">
                     {strings.emptyMonth}
                   </p>
                 )}
               </section>
             )
           })}
-          {(result?.next || result?.previous) && (
-            <p className="text-xs text-muted-foreground md:col-span-3">
-              {strings.calendarPage}
-            </p>
-          )}
         </div>
       ) : (
         <div className="overflow-x-auto">

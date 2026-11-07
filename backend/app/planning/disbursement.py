@@ -25,7 +25,13 @@ from app.planning.models import (
     Project,
 )
 from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
-from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
+from app.planning.service import (
+    CONTEXT,
+    Cursor,
+    is_assigned_agent,
+    locked_mutation,
+    principal,
+)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -430,7 +436,12 @@ def allowed_actions(
 
 
 def output(
-    db: Session, request: DisbursementRequest, role: str, actor_id: str
+    db: Session,
+    request: DisbursementRequest,
+    role: str,
+    actor_id: str,
+    *,
+    assigned: bool | None = None,
 ) -> dict[str, Any]:
     rows = decisions(db, request.id)
     return {
@@ -465,7 +476,16 @@ def output(
             }
             for row in rows
         ],
-        "allowed_actions": allowed_actions(role, actor_id, request, rows),
+        "allowed_actions": (
+            ["read"]
+            if role == "AGENT_SAISIE"
+            and not (
+                is_assigned_agent(db, request.activity_id, actor_id)
+                if assigned is None
+                else assigned
+            )
+            else allowed_actions(role, actor_id, request, rows)
+        ),
     }
 
 
@@ -516,7 +536,7 @@ def submit(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         if item.approved_revision_id != body.expected_approved_revision_id:
@@ -591,7 +611,7 @@ def decide(
             roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         financial = exact_request(db, item.id, request_id, lock=True)
@@ -667,7 +687,7 @@ def cancel(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity_for_command(db, identifier)
+        item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         financial = exact_request(db, item.id, request_id, lock=True)
@@ -768,10 +788,15 @@ def listing(
             )
             return f"{base}?{query}"
 
+        assigned = actor.role == "AGENT_SAISIE" and is_assigned_agent(
+            db, item.id, actor.id
+        )
         return {
             "object": "list",
             "count": total,
-            "data": [output(db, row, actor.role, actor.id) for row in rows],
+            "data": [
+                output(db, row, actor.role, actor.id, assigned=assigned) for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

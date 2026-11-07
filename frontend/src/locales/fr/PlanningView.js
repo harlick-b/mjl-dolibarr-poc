@@ -2,6 +2,8 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    assignmentRequired:
+      'Cette activité ne vous est plus affectée. Vous pouvez toujours la consulter.',
     plannedAmount: 'Montant prévu de l’activité (F CFA)',
     budgetDifference: 'Écart à répartir',
     project: 'Projet',
@@ -34,9 +36,12 @@ export const strings = new LocalizedStrings({
     displayMode: 'Affichage des activités',
     table: 'Tableau',
     calendar: 'Calendrier',
+    calendarChanged:
+      'La liste des activités a changé. Actualisez le calendrier.',
+    calendarStart: 'Début :',
+    calendarEnd: 'Fin :',
+    calendarOngoing: 'En cours sur le mois',
     emptyMonth: 'Aucune activité',
-    calendarPage:
-      'Le calendrier affiche les activités de cette page. Consultez les autres pages pour la suite.',
     activityReference: 'Activité / Référence',
     budgetOperations: 'Budget / Opérations',
     assignedAgents: 'Agents affectés',
@@ -74,7 +79,7 @@ export const strings = new LocalizedStrings({
     planningTitle: 'Planification',
     partners: 'Partenaires',
     projects: 'Projets',
-    annualPlan: 'Plan de travail annuel',
+    annualPlan: 'Planification des activités sur l’année',
     physicalExecution: 'Exécution physique',
     financialExecution: 'Exécution financière',
     newActivity: 'Nouvelle activité',

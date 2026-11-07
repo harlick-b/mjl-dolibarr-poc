@@ -167,6 +167,8 @@ ACTION_LABELS = {
     "partner.update": "Partenaire modifié",
     "project.update": "Projet modifié",
     "project.close": "Projet clôturé",
+    "pta.create": "PTA créé",
+    "pta.update": "PTA modifié",
     "project.create": "Projet créé",
     "recovery_complete": "Mot de passe réinitialisé",
     "recovery_delivery": "Lien de récupération envoyé",
@@ -201,6 +203,7 @@ BUSINESS_ACTIONS = tuple(
             "operation_type.",
             "partner.",
             "project.",
+            "pta.",
             "funding.",
             "disbursement.",
             "virement.",
@@ -209,7 +212,7 @@ BUSINESS_ACTIONS = tuple(
             "zero_spending.",
         )
     )
-    and action != "activity.fiche_generated"
+    and action not in {"activity.fiche_generated", "pta.export"}
 ) + (
     "bootstrap",
     "account_deactivate",
@@ -234,6 +237,7 @@ def visible_actions(role: str) -> tuple[str, ...]:
         for action in BUSINESS_ACTIONS
         if action.startswith(
             (
+                "pta.",
                 "activity.",
                 "operation.",
                 "funding.",

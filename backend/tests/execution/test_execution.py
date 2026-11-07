@@ -16,6 +16,7 @@ from tests.auth.test_access import headers
 from tests.planning.test_amendments import cancel_amendment, open_amendment
 from tests.planning.test_planning import (  # noqa: F401
     admin,
+    assign_agents,
     ordered_advisory_race,
     patch,
     plan,
@@ -30,7 +31,12 @@ def execution_path(activity, operation):
 
 
 def approved_execution_activity(
-    clients, *, planned_start=None, planned_end=None, allocations=None
+    clients,
+    *,
+    planned_start=None,
+    planned_end=None,
+    allocations=None,
+    assigned_agents=("agent", "agent2"),
 ):
     _partner, operation_type, project = references(clients)
     today = datetime.now(ZoneInfo("Africa/Porto-Novo")).date()
@@ -60,16 +66,23 @@ def approved_execution_activity(
             "request_key": str(uuid4()),
         },
     ).json()
+    created = assign_agents(
+        clients, created, *(clients[name] for name in assigned_agents)
+    )
     revision = post(
         clients["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
         {"expected_version": created["version"]},
-    ).json()
+    )
+    assert revision.status_code == 201, revision.text
+    revision = revision.json()
     prevalidated = post(
         clients["supervisor"],
         f"/api/v1/activities/{created['id']}/revisions/{revision['id']}/decisions",
         {"expected_version": revision["activity_version"], "decision": "prevalidate"},
-    ).json()
+    )
+    assert prevalidated.status_code == 201, prevalidated.text
+    prevalidated = prevalidated.json()
     approved = post(
         clients["validator"],
         f"/api/v1/activities/{created['id']}/revisions/{revision['id']}/decisions",
@@ -306,8 +319,10 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
         headers=headers(planning["supervisor"]),
         json={"expected_version": assigned.json()["version"], "agent_ids": []},
     )
-    assert removed.status_code == 200, removed.text
-    assert planning["validator"].get(endpoint).json()["data"][0]["agents"] == []
+    assert removed.status_code == 422, removed.text
+    assert planning["validator"].get(endpoint).json()["data"][0]["agents"] == [
+        agent["full_name"] or "Agent"
+    ]
     assert (
         planning["admin"]
         .get(f"/api/v1/activities/{activity['id']}/execution")
@@ -392,7 +407,7 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
         == 401
     )
 
-    withdrawn = approved_execution_activity(planning)
+    withdrawn = approved_execution_activity(planning, assigned_agents=("agent",))
     request = post(
         planning["agent"],
         f"/api/v1/activities/{withdrawn['id']}/withdrawals",
@@ -429,10 +444,11 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
                 "expected_approved_revision_id": withdrawn["approved_revision_id"],
             },
         ).status_code
-        == 409
+        == 403
     )
 
-    inactive = approved_execution_activity(planning)
+    # Reuse the untouched approved Activity for the closed-Project case.
+    inactive = activity
     with planning["auth"].engine.begin() as db:
         db.execute(
             text("UPDATE pta_project SET state='closed' WHERE id=:id"),
@@ -1363,14 +1379,14 @@ def test_execution_and_actor_deactivation_serialize(planning, first):
         deactivate if first == "execution" else execute,
     )
     if first == "execution":
-        assert (first_response.status_code, second_response.status_code) == (200, 200)
+        assert (first_response.status_code, second_response.status_code) == (200, 409)
         with Session(planning["auth"].engine) as db:
             assert db.get(Operation, operation["id"]).execution_started_at is not None
     else:
-        assert first_response.status_code == 200
-        assert second_response.status_code == 401
+        assert first_response.status_code == 409
+        assert second_response.status_code == 200
         with Session(planning["auth"].engine) as db:
-            assert db.get(Operation, operation["id"]).execution_started_at is None
+            assert db.get(Operation, operation["id"]).execution_started_at is not None
 
 
 def test_execution_filters_use_approved_name_and_do_not_change_authorization(planning):

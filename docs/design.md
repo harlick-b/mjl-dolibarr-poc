@@ -204,8 +204,9 @@ the project-filtered PTA index. The PTA screen owns project/year navigation,
 whole-PTA summary, filters and table/calendar modes. Summary stage counts describe
 current workflow states (an amendment under review appears under review); the
 approved budget retains the authoritative approved baseline. Withdrawn rows remain
-consultable but are excluded from current planning totals. Calendar pagination is
-explicit and shares the filtered activity list; counts above it cover all matches.
+consultable but are excluded from current planning totals. Calendar uses the selected PTA and the same filters as the table, but includes
+all matching pages. Table pagination must not omit calendar entries. Failed or
+incomplete calendar reads remain errors, never a partial successful year.
 Only the active page's sidebar entry is highlighted, including nested PTA routes.
 
 Activity creation groups general information, dates and operations alongside the
@@ -215,3 +216,8 @@ file attachment retain their existing separate workflow steps. Prototype control
 do not authorize new mutations. Empty planning tables retain headers and distinguish
 filtered results from an unused PTA. Shared controls use the approved compact and
 standard sizes; XOF amounts display as F CFA without changing exact stored values.
+
+The new PTA creation/edit modal follows the existing Project/Partner modal style.
+Its composition, PTA name/description placement, Supervisor/Validator Activity
+brief form and assignment editor await supplied visual references. Do not invent
+these layouts. Current table/calendar references remain applicable independently.

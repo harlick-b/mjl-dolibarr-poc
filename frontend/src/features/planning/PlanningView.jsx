@@ -1,3 +1,4 @@
+import { readCalendar } from './calendar'
 import { PlanningActivities } from './PlanningActivities'
 import { PlanningSummary } from './PlanningSummary'
 import { ActivityTimeline } from '@/features/audit/ActivityTimeline'
@@ -90,12 +91,14 @@ function ProtectedDownload({ path, children, className, onDenied, scope }) {
   )
 }
 
-function planningQuery(api, user, key, path, onDenied) {
+function planningQuery(api, user, key, path, onDenied, read) {
   return {
     queryKey: ['planning', user, ...key],
     queryFn: async ({ signal, client, queryKey }) => {
       try {
-        return await api.request(`/api/v1${path}`, { signal })
+        return await (read
+          ? read(signal)
+          : api.request(`/api/v1${path}`, { signal }))
       } catch (error) {
         if ([403, 404].includes(error.status)) {
           if (key[0] === 'activity-history')
@@ -191,6 +194,7 @@ function Workspace({ screen, session, onDenied }) {
       if (problem.name === 'AbortError') return
       if (problem.status === 401) denyWorkspace()
       const uncertain =
+        problem.code === 'activity_assignment_required' ||
         problem.status === 409 ||
         ['network', 'malformed'].includes(problem.kind)
       const activityId = workflowActivityId(variables.path)
@@ -209,13 +213,19 @@ function Workspace({ screen, session, onDenied }) {
             : []),
         ])
       }
-      if (variables.path !== '/operation-types') setError(problem.message)
+      if (variables.path !== '/operation-types')
+        setError(
+          problem.code === 'activity_assignment_required'
+            ? strings.assignmentRequired
+            : problem.message,
+        )
     },
     onSuccess: async (_result, variables) => {
       await client.invalidateQueries({ queryKey: ['audit-history'] })
       setError('')
       await Promise.all([
         client.invalidateQueries({ queryKey: ['planning', user.id] }),
+        client.invalidateQueries({ queryKey: ['execution', user.id] }),
         ...(workflowActivityId(variables.path)
           ? [client.invalidateQueries({ queryKey: ['access'] })]
           : []),
@@ -254,7 +264,11 @@ function Workspace({ screen, session, onDenied }) {
     onError: (problem) => {
       if (problem.name === 'AbortError') return
       if (problem.status === 401) denyWorkspace()
-      setError(problem.message)
+      setError(
+        problem.code === 'activity_assignment_required'
+          ? strings.assignmentRequired
+          : problem.message,
+      )
     },
     onSuccess: async () => {
       setError('')
@@ -366,6 +380,7 @@ function Workspace({ screen, session, onDenied }) {
           currentRevision.isError ||
           !currentRevision.data))),
   )
+  const calendarView = search.view === 'calendar'
   const list = useQuery({
     ...planningQuery(
       api,
@@ -373,7 +388,7 @@ function Workspace({ screen, session, onDenied }) {
       [
         'activities',
         context.data?.pta?.id,
-        search.activityCursor,
+        calendarView ? 'calendar' : search.activityCursor,
         search.q,
         search.state,
       ],
@@ -383,6 +398,9 @@ function Workspace({ screen, session, onDenied }) {
         ...(search.state ? { state: search.state } : {}),
       })}`,
       onDenied,
+      calendarView
+        ? (signal) => readCalendar(api, context.data.pta.id, search, signal)
+        : undefined,
     ),
     enabled: screen === 'pta' && Boolean(context.data?.pta?.id),
   })
@@ -1171,7 +1189,9 @@ function PTA({ context, result, navigate, exportPending, onExport, projects }) {
           }
         />
       )}
-      <Pager result={result} cursorKey="activityCursor" navigate={navigate} />
+      {search.view !== 'calendar' && (
+        <Pager result={result} cursorKey="activityCursor" navigate={navigate} />
+      )}
       {context.pta && (
         <div className="flex flex-wrap gap-2">
           {['csv', 'xlsx', 'pdf'].map((format) => (
@@ -2078,6 +2098,7 @@ function ActivityDetail({
       <div hidden={search.tab !== 'files'}>
         <ActivityDocuments
           activityId={item.id}
+          assigned={item.agent_ids.includes(user.id)}
           user={user}
           csrf={csrf}
           cursor={documentCursor}
@@ -2275,6 +2296,7 @@ function ActivityDetail({
             type="submit"
             disabled={
               mutationBlocked ||
+              selectedAgentIds.length === 0 ||
               !agentResult ||
               agentChoices.isFetching ||
               agentChoices.isError
@@ -2424,6 +2446,7 @@ function ActivityDetail({
 
 export function ActivityDocuments({
   activityId,
+  assigned = false,
   user,
   csrf,
   cursor,
@@ -2502,6 +2525,12 @@ export function ActivityDocuments({
     const result = await documents.refetch()
     if (active.current && !result.isError) setOpen(false)
   }
+  const reconcileAssignment = async () => {
+    setOpen(false)
+    setWithdrawing(null)
+    await client.invalidateQueries({ queryKey: ['planning', user.id] })
+    toast.error(strings.assignmentRequired)
+  }
   const upload = useMutation({
     retry: false,
     networkMode: 'always',
@@ -2531,6 +2560,10 @@ export function ActivityDocuments({
     },
     onError: async (error) => {
       if (!active.current) return
+      if (error.code === 'activity_assignment_required') {
+        await reconcileAssignment()
+        return
+      }
       if (error.status === 401) {
         onDenied()
         return
@@ -2574,6 +2607,10 @@ export function ActivityDocuments({
       toast.success(strings.saved)
     },
     onError: async (error) => {
+      if (error.code === 'activity_assignment_required') {
+        await reconcileAssignment()
+        return
+      }
       if (error.status === 401) onDenied()
       if (error.status === 409) {
         await client.invalidateQueries({
@@ -2687,7 +2724,9 @@ export function ActivityDocuments({
         },
     )
   }
-  const canUpload = ['AGENT_SAISIE', 'VALIDATEUR_DEFINITIF'].includes(user.role)
+  const canUpload =
+    user.role === 'VALIDATEUR_DEFINITIF' ||
+    (user.role === 'AGENT_SAISIE' && assigned)
   const uploadNotice = uploadUncertain && (
     <div role="alert">
       <p>{strings.uploadUncertain}</p>

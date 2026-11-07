@@ -379,8 +379,9 @@ Current sidebar page matrix (2026-11-05):
 | Partenaire           | Tableau de bord, Mes projets, Exports                                            |
 
 Internal reminders open in a modal from the sidebar; they are not an extra page.
-Prévisions retains project/year entry so an Agent can create the first activity
-without access to catalog management. Partner Exports uses the existing scoped
+Prévisions owns PTA navigation and creation; Agents add Activities to an existing
+PTA without needing catalog-management access. See project status for the staged
+explicit-creation cutover while its supplied visual reference is pending. Partner Exports uses the existing scoped
 annual CSV endpoint; it loads profile/projects/PTAs, not activity detail lists.
 
 ## Business History and security output
