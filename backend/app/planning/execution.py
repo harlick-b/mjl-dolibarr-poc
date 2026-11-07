@@ -174,6 +174,8 @@ class ExecutionDetailOutput(Input):
 
 
 class ExecutionListItem(Input):
+    project_name: str
+    approved_revision_number: int
     id: str
     reference: str
     name: str
@@ -771,7 +773,21 @@ def execution_list(
             .order_by(User.full_name, User.id)
         ):
             agents.setdefault(activity_id, []).append(full_name or "Agent")
+        revision_numbers = dict(
+            db.execute(
+                select(ActivityRevision.id, ActivityRevision.revision_number).where(
+                    ActivityRevision.id.in_([row.approved_revision_id for row in rows])
+                )
+            ).all()
+        )
+        project_name = db.scalar(
+            select(Project.name).where(Project.id == pta.project_id)
+        )
         for detail in details:
+            detail["project_name"] = project_name
+            detail["approved_revision_number"] = revision_numbers[
+                detail["approved_revision_id"]
+            ]
             detail["agents"] = agents.get(detail["id"], [])
         fields = set(ExecutionListItem.model_fields)
         return {

@@ -1,10 +1,73 @@
 # Project status
 
-Updated 2026-11-06. MJL is under development; implemented does not mean accepted
+Updated 2026-11-07. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
+
+## Catalog and planning screen refinement
+
+Implemented 2026-11-07 against the supplied Partner, Project, PTA, Activity and
+Execution references. Validator catalog editing preserves ownership and records
+atomic field deltas; Partner deactivation remains deferred. Project links open
+its PTA list, with year selection on the PTA screen. Sidebar selection is exclusive.
+PTA summaries, filtered table/calendar, Activity form/details and shared controls
+use approved composition/tokens. Existing separate save, submission and document
+workflows remain; the calendar explicitly paginates the filtered Activity rows.
+No migration, financial-rule change or production configuration change.
+
+Implementation candidate before review cleanup: working tree on `920c406`;
+frontend `index-B0EMOLUF.js`.
+Application-source SHA256 (same path/content method below):
+`6cac11b1d11e4287c32eb5bbcb59a16983839dc6db47d596e255f7b759a0b67a`.
+
+Focused verification:
+
+- Vitest `planning.test.jsx --maxWorkers=1`: 33 passed; `execution.test.jsx
+--maxWorkers=1`: 28 passed; audit, Partner portal, document-denial and format
+  tests with `--maxWorkers=1`: 20 passed. Earlier combined runs failed; a later
+  combined run and broad backend run ended with exit 143. These are not full-suite
+  passes. Focused final reruns supersede affected failures only.
+- Playwright `e2e/planning/planning-design.spec.js e2e/auth/empty-states.spec.js
+e2e/audit/audit-history.spec.js`: 25 passed; after the final Execution amount
+  label correction, `empty-states.spec.js --grep 'Execution search'`: 1 passed.
+  Browser fixtures are disposable, intercepted API data; they cover mobile,
+  empty states, table/calendar, first creation, edit cancellation/save, sidebar,
+  History and document tabs. Rendered screenshots were compared with references.
+- PostgreSQL catalog editing/projections and actual two-stage withdrawal checks:
+  3 passed. The companion Execution assertion used a nonexistent test-response
+  field and was corrected. Final command `tests/execution/test_execution.py::
+test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers tests/audit
+-q`: 21 passed. Backend runs used `/tmp/mjl-design-tests.py` with disposable
+  local PostgreSQL and teardown, never the configured shared database.
+- Build, ESLint (one pre-existing lifecycle-ref warning), Ruff and mypy pass.
+  Changed-file formatting and diff checks pass; broad Ruff formatting identifies
+  pre-existing spacing in untouched `app/auth/policy.py`.
+
+Independent backend and frontend reviewers inspected requirements, source and
+corrections. Fixed findings: withdrawn totals, empty table headers/filter meaning,
+stale edit-dialog inputs and modal spacing. Human visual/accessibility acceptance
+remains outstanding. No new durable lesson was needed beyond existing checks for
+reference comparison, test assertions and workflow-aware fixtures.
+
+Final review cleanup batches PTA approval/state summaries and removes the obsolete
+planning branches from the Dashboard/Execution component. The new planning browser
+spec lives under `e2e/planning` (it was under `e2e/auth` for the earlier 25-test run).
+Final candidate on `920c406`: frontend `index-C-k_PymQ.js`, application-source SHA256
+`e05f13a86c026bbee3a3acf5402c44db4bf662dd552833407a0ae91128b593bd`.
+Affected verification after these corrections:
+
+- PostgreSQL via the same disposable wrapper: `tests/planning/test_catalog_editing.py`,
+  `test_withdrawals.py::test_w02_fresh_two_stage_approval_withdraws_activity`,
+  `test_transfers.py::test_t05_amend_transfer_amend_withdraw_preserves_annual_history`,
+  and `tests/reports/test_metrics.py`: **9 passed**. Covers constant page-query
+  count, exact totals and historical approval/transfer/withdrawal semantics.
+- Playwright `e2e/planning/planning-design.spec.js e2e/auth/empty-states.spec.js`:
+  **23 passed** on the rebuilt bundle, including adjacent Dashboard/Execution.
+- Build, changed-file ESLint/Prettier, Ruff and mypy (45 source files) passed.
+  Separate standards/specification reviewers rechecked the changes; no unresolved
+  source findings remain. Broader earlier results above are not rerun-suite claims.
 
 ## Business History and security logging
 
@@ -33,11 +96,11 @@ below used `.venv/bin/python /tmp/mjl-auth-fix-tests.py` to supply an isolated
 TEST_DATABASE_URL and invoke pytest; setup ownership remains in README.
 
 - `tests/audit tests/auth/test_security_logging.py tests/auth/test_auth_security.py
-  tests/auth/test_profile.py tests/auth/test_access.py -q`: 99 passed before final
+tests/auth/test_profile.py tests/auth/test_access.py -q`: 99 passed before final
   corrections; affected tests were rerun below.
 - `tests/audit tests/auth/test_security_logging.py tests/auth/test_profile.py
-  tests/planning/test_amendments.py::test_m04_amendment_edits_keep_bounded_structural_audit_history
-  tests/planning/test_withdrawals.py::test_w01_agent_requests_withdrawal_without_changing_approved_content -q`:
+tests/planning/test_amendments.py::test_m04_amendment_edits_keep_bounded_structural_audit_history
+tests/planning/test_withdrawals.py::test_w01_agent_requests_withdrawal_without_changing_approved_content -q`:
   29 passed. Covers the real API/PostgreSQL journey through submission,
   distinct approvals, execution, financial return, both histories, CSV and
   Partner denial, plus transactional rollback and security log suppression.
@@ -49,8 +112,8 @@ TEST_DATABASE_URL and invoke pytest; setup ownership remains in README.
   zero-spending approval/return, amendment-transfer-withdrawal, reminder access
   and authentication/lifecycle serialization.
 - `npm run test:unit -- src/features/audit src/features/planning/planning.test.jsx
-  src/features/execution/execution.test.jsx src/features/access/access.test.jsx
-  src/features/auth/profile.test.jsx --maxWorkers=1`: 81 passed.
+src/features/execution/execution.test.jsx src/features/access/access.test.jsx
+src/features/auth/profile.test.jsx --maxWorkers=1`: 81 passed.
   After denial fixes, `npm run test:unit -- src/features/audit --maxWorkers=1`:
   6 passed, including cached-page redaction and late export suppression.
 - `npm run test:e2e -- e2e/audit/audit-history.spec.js`: final build, 2 passed,
@@ -337,10 +400,10 @@ Final verification (commands from `frontend/`, except backend checks):
 
 The existing JavaScript bundle-size warning remains. Fixture-backed browser
 coverage is not live backend/email or human visual/accessibility acceptance.
-Full reference parity remains incomplete: unsupported PTA/execution search filters
-and populated Dashboard attention/financial sections need supporting data contracts.
-PTA summary columns remain limited to available projections. No fictional totals
-or nonfunctional filters were added to imitate those references.
+The later catalog/planning refinement above supplies PTA summary projections and
+PTA/Execution search filters. Populated Dashboard attention/financial sections
+remain outside that slice and still need supporting data contracts. No fictional
+totals or nonfunctional controls were added to imitate references.
 
 Current invitation/Relances/session-recovery candidate (2026-11-06):
 `npx vitest run --maxWorkers=1` passed 183 tests in 19 files;

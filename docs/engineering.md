@@ -20,6 +20,12 @@ in Context. Components are pure, Hooks ordered, keys stable. Effects synchronize
 external systems with cleanup, not ordinary fetches, prop copies or button actions.
 Use synchronous SQLAlchemy work outside async event loops; isolate each session.
 
+Readability is a design requirement: use clear names and direct control flow,
+remove unreachable alternatives, and keep files grouped by their actual feature.
+Validate external inputs and authorization boundaries; do not add defensive checks
+for facts already guaranteed by the local contract. Avoid per-row database reads
+when a collection can share one projection query.
+
 ## Source layout
 
 Group files by the feature they implement. Put code in shared folders only when
@@ -376,7 +382,6 @@ Internal reminders open in a modal from the sidebar; they are not an extra page.
 Prévisions retains project/year entry so an Agent can create the first activity
 without access to catalog management. Partner Exports uses the existing scoped
 annual CSV endpoint; it loads profile/projects/PTAs, not activity detail lists.
-
 
 ## Business History and security output
 

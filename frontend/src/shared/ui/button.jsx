@@ -8,6 +8,7 @@ import { FormSubmitContext } from './form-submit-context'
 export function Button({
   className,
   variant,
+  size,
   asChild = false,
   loading = false,
   children,
@@ -20,7 +21,7 @@ export function Button({
   const Comp = asChild ? Slot : 'button'
   return (
     <Comp
-      className={cn(buttonVariants({ variant }), className)}
+      className={cn(buttonVariants({ variant, size }), className)}
       {...props}
       disabled={props.disabled || busy}
       aria-busy={busy || props['aria-busy']}

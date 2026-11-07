@@ -7,10 +7,10 @@ export function Panel({ as: Component = 'section', className, ...props }) {
       className={cn(
         '[&_h2]:text-navy [&_h2]:font-semibold',
         'bg-white border border-border rounded-panel p-6 grid gap-5',
-        '[:where(&_label)]:grid [:where(&_label)]:gap-[6px] [:where(&_label)]:text-sm [:where(&_label)]:font-medium',
-        '[:where(&_input)]:min-h-11 [:where(&_input)]:border [:where(&_input)]:border-border [:where(&_input)]:rounded-control [:where(&_input)]:py-[9px] [:where(&_input)]:px-[11px] [:where(&_input)]:bg-white',
-        '[:where(&_select)]:min-h-11 [:where(&_select)]:border [:where(&_select)]:border-border [:where(&_select)]:rounded-control [:where(&_select)]:py-[9px] [:where(&_select)]:px-[11px] [:where(&_select)]:bg-white',
-        '[:where(&_textarea)]:min-h-[110px] [:where(&_textarea)]:border [:where(&_textarea)]:border-border [:where(&_textarea)]:rounded-control [:where(&_textarea)]:py-[9px] [:where(&_textarea)]:px-[11px] [:where(&_textarea)]:bg-white',
+        '[:where(&_label)]:grid [:where(&_label)]:gap-[6px] [:where(&_label)]:text-[0.8125rem] [:where(&_label)]:font-medium',
+        '[:where(&_input)]:min-h-10 [:where(&_input)]:border [:where(&_input)]:border-strong-border [:where(&_input)]:rounded-control [:where(&_input)]:py-[9px] [:where(&_input)]:px-[11px] [:where(&_input)]:bg-white',
+        '[:where(&_select)]:min-h-10 [:where(&_select)]:border [:where(&_select)]:border-border [:where(&_select)]:rounded-control [:where(&_select)]:py-[9px] [:where(&_select)]:px-[11px] [:where(&_select)]:bg-white',
+        '[:where(&_textarea)]:min-h-[110px] [:where(&_textarea)]:border [:where(&_textarea)]:border-strong-border [:where(&_textarea)]:rounded-control [:where(&_textarea)]:py-[9px] [:where(&_textarea)]:px-[11px] [:where(&_textarea)]:bg-white',
         className,
       )}
       {...props}

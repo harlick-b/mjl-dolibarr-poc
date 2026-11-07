@@ -38,9 +38,9 @@ test.each([
   },
 )
 
-test('formats an exact integer amount in XOF', () => {
+test('formats an exact integer amount in F CFA', () => {
   expect(formatXof('1250000')).toContain('1')
-  expect(formatXof('1250000')).toContain('XOF')
+  expect(formatXof('1250000')).toContain('F CFA')
 })
 
 test('formats annual rates without capping and preserves zero denominators', () => {
@@ -81,6 +81,14 @@ function annualPageFetch(exportReply) {
             pta: { id: 'pta-1' },
             allowed_actions: ['read'],
             approved_plan: { activity_count: 5, allocation: '9200000' },
+            summary: {
+              activities: 9,
+              approved: 5,
+              review: 2,
+              correction: 1,
+              draft: 1,
+              approved_allocation: '9200000',
+            },
           }),
         ),
       )
@@ -124,7 +132,7 @@ function renderAnnualPage() {
   )
 }
 
-test('the annual plan shows whole-PTA physical and financial metrics', async () => {
+test('the annual plan shows whole-PTA planning counts and approved budget', async () => {
   const user = userEvent.setup()
   const createObjectURL = vi.fn(() => 'blob:pta-export')
   const revokeObjectURL = vi.fn()
@@ -150,14 +158,13 @@ test('the annual plan shows whole-PTA physical and financial metrics', async () 
   renderAnnualPage()
 
   const metrics = await screen.findByRole('region', {
-    name: 'Indicateurs annuels',
+    name: 'Synthèse du PTA',
   })
-  expect(within(metrics).getByText('Exécution physique')).toBeVisible()
-  expect(within(metrics).getByText('20 %')).toBeVisible()
-  expect(within(metrics).getByText('Exécution financière')).toBeVisible()
-  expect(within(metrics).getByText('10,9 %')).toBeVisible()
-  expect(within(metrics).getByText(/1 activité.*5 approuvée/)).toBeVisible()
-  expect(within(metrics).getByText(/1.*000.*000.*9.*200.*000/)).toBeVisible()
+  expect(within(metrics).getByText('Activités planifiées')).toBeVisible()
+  expect(within(metrics).getByText('9')).toBeVisible()
+  expect(within(metrics).getByText('Approuvées')).toBeVisible()
+  expect(within(metrics).getByText('5')).toBeVisible()
+  expect(within(metrics).getByText(/9.*200.*000/)).toBeVisible()
   await user.click(
     screen.getByRole('button', { name: 'Exporter le PTA en CSV' }),
   )
@@ -237,7 +244,7 @@ test('an offline annual export is neither sent nor replayed', async () => {
   )
   vi.stubGlobal('fetch', fetch)
   renderAnnualPage()
-  await screen.findByRole('region', { name: 'Indicateurs annuels' })
+  await screen.findByRole('region', { name: 'Synthèse du PTA' })
 
   online.mockReturnValue(false)
   await user.click(
@@ -290,7 +297,7 @@ test('a denied annual export does not invalidate the session', async () => {
   )
   vi.stubGlobal('fetch', fetch)
   renderAnnualPage()
-  await screen.findByRole('region', { name: 'Indicateurs annuels' })
+  await screen.findByRole('region', { name: 'Synthèse du PTA' })
 
   await user.click(
     screen.getByRole('button', { name: 'Exporter le PTA en CSV' }),
@@ -752,6 +759,9 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     await screen.findByRole('button', { name: 'Télécharger la fiche PDF' }),
   ).toBeVisible()
+  await user.click(
+    screen.getByRole('link', { name: 'Pièces justificatives', exact: true }),
+  )
   expect(await screen.findByText('Aucune pièce justificative')).toBeVisible()
   await user.click(screen.getByRole('button', { name: 'Ajouter une pièce' }))
   await user.upload(
@@ -2076,7 +2086,7 @@ test('projects check Partner availability before enabling creation', async () =>
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
-test('new activity ignores cached PTA data and requests only its operation choices', async () => {
+test('new activity loads its context and operation choices without fetching activity lists', async () => {
   const fetch = annualPageFetch()
   vi.stubGlobal('fetch', fetch)
   const router = makeRouter(
@@ -2091,18 +2101,14 @@ test('new activity ignores cached PTA data and requests only its operation choic
       params: { projectId: 'project-1', year: '2027' },
     })
   })
-  await screen.findByRole('heading', { name: 'Planification complète' })
+  await screen.findByRole('heading', { name: 'Informations générales' })
   const newPaths = fetch.mock.calls
     .slice(boundary)
     .map(([url]) => new URL(url, 'http://localhost').pathname)
   expect(newPaths).toContain('/api/v1/operation-types')
-  expect(
-    newPaths.filter(
-      (path) =>
-        path.startsWith('/api/v1/ptas/') ||
-        path.startsWith('/api/v1/projects/'),
-    ),
-  ).toEqual([])
+  expect(newPaths.filter((path) => path.startsWith('/api/v1/ptas/'))).toEqual(
+    [],
+  )
 })
 
 test('unavailable edit choices block saving but still allow cancellation', () => {

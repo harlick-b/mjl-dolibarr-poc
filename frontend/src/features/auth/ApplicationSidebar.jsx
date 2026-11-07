@@ -68,6 +68,10 @@ export function ApplicationSidebar({ user }) {
             <Link
               key={page.id}
               to={page.path}
+              activeOptions={{ exact: true }}
+              activeProps={{
+                'aria-current': active === page.id ? 'page' : undefined,
+              }}
               aria-current={active === page.id ? 'page' : undefined}
               className="flex min-h-11 shrink-0 items-center gap-3 rounded-card px-3 py-2 text-sm text-navy hover:bg-background aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:text-primary"
             >

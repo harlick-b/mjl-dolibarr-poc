@@ -1,7 +1,7 @@
+import { PlanningIndex } from '@/features/planning/PlanningIndex'
 import { ExecutionList } from '@/features/execution/ExecutionView'
 import { Select } from '@/shared/ui/select'
-import { useState } from 'react'
-import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
+import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Helmet } from 'react-helmet-async'
@@ -24,11 +24,15 @@ export function WorkspaceOverview({ screen = 'dashboard' }) {
       <Helmet>
         <title>{`${title} — MJL`}</title>
       </Helmet>
-      {!policy.can('accounts') && (
+      {!policy.can('accounts') && screen !== 'planning' && (
         <h1 className="text-2xl font-semibold text-navy">{title}</h1>
       )}
       {policy.can('business') ? (
-        <BusinessOverview screen={screen} user={policy.user} />
+        screen === 'planning' ? (
+          <PlanningIndex />
+        ) : (
+          <BusinessOverview screen={screen} user={policy.user} />
+        )
       ) : policy.can('accounts') ? (
         <AdminOverview user={policy.user} />
       ) : (
@@ -138,13 +142,6 @@ function BusinessOverview({ screen, user }) {
   const ptaCursor = search.ptaCursor || ''
   const selectedProject = search.project || ''
   const selectedPta = search.pta || ''
-  const year = search.year || new Date().getFullYear()
-  const [yearDraft, setYearDraft] = useState(null)
-  const inputYear = yearDraft ?? String(year)
-  const validYear =
-    /^\d{4}$/.test(inputYear) &&
-    Number(inputYear) >= 2000 &&
-    Number(inputYear) <= 2200
   const change = (values) =>
     void navigate({ to: `/${screen}`, search: { ...search, ...values } })
   const projects = useQuery({
@@ -211,17 +208,6 @@ function BusinessOverview({ screen, user }) {
   if (!project)
     return screen === 'dashboard' ? (
       <EmptyDashboard />
-    ) : screen === 'planning' ? (
-      <EmptyTable
-        kind="ptas"
-        columns={[
-          'projectPartner',
-          'pta',
-          'activitiesColumn',
-          'validation',
-          'budget',
-        ]}
-      />
     ) : (
       <>
         <Panel className="flex flex-wrap items-end gap-4 border-0 bg-transparent p-0">
@@ -303,38 +289,6 @@ function BusinessOverview({ screen, user }) {
           }}
         />
       </Panel>
-      {screen === 'planning' && (
-        <Panel className="border-0 bg-transparent p-0 flex flex-wrap items-end gap-3">
-          <label>
-            {strings.year}
-            <input
-              type="number"
-              min="2000"
-              max="2200"
-              value={inputYear}
-              onChange={(event) => setYearDraft(event.target.value)}
-              onBlur={() => {
-                if (validYear) {
-                  change({ year: Number(inputYear) })
-                  setYearDraft(null)
-                }
-              }}
-            />
-          </label>
-          <Button
-            variant="outline"
-            disabled={!validYear}
-            onClick={() =>
-              void navigate({
-                to: '/projects/$projectId/ptas/$year',
-                params: { projectId: project.id, year: inputYear },
-              })
-            }
-          >
-            {strings.openYear}
-          </Button>
-        </Panel>
-      )}
       {ptas.isPending ? (
         <PageLoading title={strings.planning} className="min-h-48" />
       ) : ptas.isError ? (
@@ -344,19 +298,8 @@ function BusinessOverview({ screen, user }) {
       ) : !pta ? (
         screen === 'dashboard' ? (
           <EmptyDashboard />
-        ) : screen === 'execution' ? (
-          <ExecutionList embedded result={{ data: [], count: 0 }} />
         ) : (
-          <EmptyTable
-            kind="ptas"
-            columns={[
-              'projectPartner',
-              'pta',
-              'activitiesColumn',
-              'validation',
-              'budget',
-            ]}
-          />
+          <ExecutionList embedded result={{ data: [], count: 0 }} />
         )
       ) : (
         <>
@@ -383,7 +326,7 @@ function BusinessOverview({ screen, user }) {
                 />
               )}
             </>
-          ) : screen === 'dashboard' ? (
+          ) : (
             <>
               <Panel>
                 <label className="max-w-xs">
@@ -432,55 +375,6 @@ function BusinessOverview({ screen, user }) {
                 </div>
               )}
             </>
-          ) : (
-            <div className="overflow-x-auto rounded-panel border border-border bg-white">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-border bg-background text-muted-foreground">
-                  <tr>
-                    <th className="p-4 font-medium">{strings.project}</th>
-                    <th className="p-4 font-medium">{strings.pta}</th>
-                    <th className="p-4 font-medium">{strings.actions}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ptas.data.data.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="p-4">
-                        <span className="block font-medium text-navy">
-                          {project.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {project.reference}
-                        </span>
-                      </td>
-                      <td className="p-4">{row.year}</td>
-                      <td className="p-4">
-                        <Button asChild variant="outline">
-                          <Link
-                            to={
-                              screen === 'execution'
-                                ? '/execution/$ptaId'
-                                : '/projects/$projectId/ptas/$year'
-                            }
-                            params={{
-                              ptaId: row.id,
-                              projectId: project.id,
-                              year: String(row.year),
-                            }}
-                          >
-                            {strings.consult}
-                            <ArrowRight size={16} aria-hidden="true" />
-                          </Link>
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           )}
           <RefreshIndicator active={ptas.isFetching} />
           <CursorButtons

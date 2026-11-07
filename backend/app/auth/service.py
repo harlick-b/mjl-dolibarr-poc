@@ -955,9 +955,11 @@ class AuthService:
                     }
         shapes = {
             "partner.create": "partner",
+            "partner.update": "partner",
             "operation_type.create": "type",
             "project.create": "project",
             "project.close": "project",
+            "project.update": "project",
             "activity.create": "activity",
             "activity.replace": "activity",
             "activity.assign_agents": "activity",

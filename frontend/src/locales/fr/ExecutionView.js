@@ -2,6 +2,8 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    actualSpent: 'Montant dépensé (F CFA)',
+    revision: 'Révision',
     listTitle: 'Réalisation',
     listColumns: [
       'Activité / Référence',

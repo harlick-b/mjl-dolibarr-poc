@@ -1,3 +1,5 @@
+import { PlanningActivities } from './PlanningActivities'
+import { PlanningSummary } from './PlanningSummary'
 import { ActivityTimeline } from '@/features/audit/ActivityTimeline'
 import { CategoryCreator } from './CategoryCreator'
 import { Select } from '@/shared/ui/select'
@@ -6,11 +8,7 @@ import { businessActionClassName } from '@/shared/ui/button-variants'
 import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/SessionProvider'
 import { authorization } from '@/features/auth/authorization'
-import {
-  PageLoading,
-  LoadingPlaceholder,
-  RefreshIndicator,
-} from '@/shared/ui/PageLoading'
+import { PageLoading, LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
@@ -20,11 +18,7 @@ import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import {
-  addThreeMonths,
-  formatPercentage,
-  formatXof,
-} from '@/shared/lib/format'
+import { addThreeMonths, formatDate, formatXof } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
@@ -286,7 +280,7 @@ function Workspace({ screen, session, onDenied }) {
       cursorPath('/projects', search.projectCursor),
       onDenied,
     ),
-    enabled: screen === 'projects',
+    enabled: ['projects', 'pta'].includes(screen),
   })
   const projectId = params.projectId
   const year = Number(params.year)
@@ -298,7 +292,8 @@ function Workspace({ screen, session, onDenied }) {
       `/projects/${projectId}/ptas/${year}`,
       onDenied,
     ),
-    enabled: screen === 'pta' && Boolean(projectId && year),
+    enabled:
+      ['pta', 'activityNew'].includes(screen) && Boolean(projectId && year),
   })
   const activity = useQuery({
     ...planningQuery(
@@ -375,21 +370,18 @@ function Workspace({ screen, session, onDenied }) {
     ...planningQuery(
       api,
       user.id,
-      ['activities', context.data?.pta?.id, search.activityCursor],
-      cursorPath(
-        `/ptas/${context.data?.pta?.id}/activities`,
+      [
+        'activities',
+        context.data?.pta?.id,
         search.activityCursor,
-      ),
-      onDenied,
-    ),
-    enabled: screen === 'pta' && Boolean(context.data?.pta?.id),
-  })
-  const metrics = useQuery({
-    ...planningQuery(
-      api,
-      user.id,
-      ['pta-metrics', context.data?.pta?.id],
-      `/ptas/${context.data?.pta?.id}/metrics`,
+        search.q,
+        search.state,
+      ],
+      `/ptas/${context.data?.pta?.id}/activities?${new URLSearchParams({
+        ...(search.activityCursor ? { cursor: search.activityCursor } : {}),
+        ...(search.q ? { q: search.q } : {}),
+        ...(search.state ? { state: search.state } : {}),
+      })}`,
       onDenied,
     ),
     enabled: screen === 'pta' && Boolean(context.data?.pta?.id),
@@ -410,7 +402,7 @@ function Workspace({ screen, session, onDenied }) {
       : screen === 'projects'
         ? [projects]
         : screen === 'pta'
-          ? [context, ...(context.data?.pta?.id ? [list, metrics] : [])]
+          ? [context, ...(context.data?.pta?.id ? [list] : [])]
           : screen === 'activityNew'
             ? [types]
             : [
@@ -489,32 +481,6 @@ function Workspace({ screen, session, onDenied }) {
       <Helmet>
         <title>{`${labels[screen]} — MJL`}</title>
       </Helmet>
-      {!['projects', 'partners'].includes(screen) && (
-        <>
-          {' '}
-          <header
-            className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-2xl [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
-            data-ui="planning-heading"
-          >
-            <div>
-              <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-                {strings.planningTitle}
-              </p>
-              <h1>{labels[screen]}</h1>
-              <RefreshIndicator active={loading} />
-            </div>
-            <nav aria-label={strings.planningTitle}>
-              <Link to="/planning">{strings.annualPlan}</Link>
-              {user.role === 'VALIDATEUR_DEFINITIF' && (
-                <Link to="/partners">{strings.partners}</Link>
-              )}
-              {user.role === 'VALIDATEUR_DEFINITIF' && (
-                <Link to="/projects">{strings.projects}</Link>
-              )}
-            </nav>
-          </header>
-        </>
-      )}
       {failedQueries.length > 0 && (
         <RetryableError onRetry={retryFailed}>
           {strings.unavailablePlanning}
@@ -533,6 +499,16 @@ function Workspace({ screen, session, onDenied }) {
             label="name"
             cursorKey="partnerCursor"
             navigate={navigate}
+            onEdit={(row, values) =>
+              mutation.mutateAsync({
+                path: `/partners/${row.id}`,
+                method: 'PATCH',
+                body: {
+                  ...values,
+                  expected: { name: row.name, description: row.description },
+                },
+              })
+            }
             onSubmit={
               user.role === 'VALIDATEUR_DEFINITIF'
                 ? (e) => submitSimple(e, '/partners', 'name')
@@ -547,6 +523,13 @@ function Workspace({ screen, session, onDenied }) {
           canCreate={user.role === 'VALIDATEUR_DEFINITIF'}
           onSubmit={submitProject}
           navigate={navigate}
+          onEdit={(row, name) =>
+            mutation.mutateAsync({
+              path: `/projects/${row.id}`,
+              method: 'PATCH',
+              body: { action: 'edit', name, expected_version: row.version },
+            })
+          }
           onClose={(row) =>
             mutation.mutateAsync({
               path: `/projects/${row.id}`,
@@ -558,8 +541,8 @@ function Workspace({ screen, session, onDenied }) {
       )}
       {screen === 'pta' && (
         <PTA
+          projects={projects}
           context={context.data}
-          metrics={metrics.data}
           result={list.data}
           navigate={navigate}
           exportPending={annualExport.isPending}
@@ -577,7 +560,25 @@ function Workspace({ screen, session, onDenied }) {
         />
       )}
       {screen === 'activityNew' && (
-        <div hidden={types.isPending}>
+        <div hidden={types.isPending} className="grid gap-6">
+          <header className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-navy">
+                {strings.addActivityToPta}
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {context.data?.project.name} · PTA {year}
+              </p>
+            </div>
+            <Button asChild variant="outline">
+              <Link
+                to="/projects/$projectId/ptas/$year"
+                params={{ projectId, year: String(year) }}
+              >
+                {strings.cancel}
+              </Link>
+            </Button>
+          </header>
           <ActivityForm
             onCreateType={(label) =>
               mutation.mutateAsync({
@@ -646,12 +647,14 @@ function ReferenceList({
   result,
   label,
   inputLabel = strings.name,
+  onEdit,
   onSubmit,
   cursorKey,
   navigate,
 }) {
   const [open, setOpen] = useState(false)
   const opener = useRef(null)
+  const [editing, setEditing] = useState(null)
   const rows = result?.data || []
   return (
     <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
@@ -662,7 +665,14 @@ function ReferenceList({
           <h2>{title}</h2>
         )}
         {onSubmit && (
-          <Button ref={opener} type="button" onClick={() => setOpen(true)}>
+          <Button
+            ref={opener}
+            type="button"
+            onClick={() => {
+              setEditing(null)
+              setOpen(true)
+            }}
+          >
             <Plus size={16} />{' '}
             {title === strings.partners ? strings.createPartner : strings.add}
           </Button>
@@ -674,25 +684,43 @@ function ReferenceList({
           onClose={() => setOpen(false)}
           label={
             title === strings.partners
-              ? strings.createPartner
+              ? editing
+                ? strings.modifyPartner
+                : strings.createPartner
               : strings.formatString(strings.addTo, title)
           }
           opener={opener}
         >
           <BusinessForm
+            key={`${open}:${editing?.id || 'new'}`}
             onSubmit={async (event) => {
-              await onSubmit(event)
+              if (editing) {
+                const data = new FormData(event.currentTarget)
+                await onEdit(editing, {
+                  name: data.get('name'),
+                  description: data.get('description') || null,
+                })
+              } else await onSubmit(event)
               setOpen(false)
             }}
           >
             <label>
               {inputLabel}
-              <input name={label} required maxLength="200" />
+              <input
+                name={label}
+                required
+                maxLength="200"
+                defaultValue={editing?.name}
+              />
             </label>
             {title === strings.partners && (
               <label>
                 {strings.description}
-                <textarea name="description" maxLength={4000} />
+                <textarea
+                  name="description"
+                  maxLength={4000}
+                  defaultValue={editing?.description || ''}
+                />
               </label>
             )}
             <div data-ui="modal-actions">
@@ -753,7 +781,22 @@ function ReferenceList({
                             : strings.closedProject}
                         </span>
                       </td>
-                      <td className="px-3 py-4">—</td>
+                      <td className="px-3 py-4">
+                        {row.allowed_actions?.includes('edit') && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={(event) => {
+                              opener.current = event.currentTarget
+                              setEditing(row)
+                              setOpen(true)
+                            }}
+                          >
+                            {strings.modify}
+                          </Button>
+                        )}
+                      </td>
                     </>
                   )}
                 </tr>
@@ -774,9 +817,10 @@ function ReferenceList({
   )
 }
 
-function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
+function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(null)
+  const [editing, setEditing] = useState(null)
   const closeOpener = useRef(null)
   const { api } = useAPI()
   const session = useSessionQuery()
@@ -794,7 +838,6 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
   const partnerResult = partnerChoices.data
   const partners = partnerResult?.data || []
   const opener = useRef(null)
-  const [year, setYear] = useState(new Date().getFullYear())
   const rows = result?.data || []
   return (
     <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
@@ -805,7 +848,10 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
             ref={opener}
             type="button"
             disabled={!partners.length}
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              setEditing(null)
+              setOpen(true)
+            }}
           >
             <Plus size={16} /> {strings.createProject}
           </Button>
@@ -849,12 +895,18 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
         <Modal
           open={open}
           onClose={() => setOpen(false)}
-          label={strings.createProject}
+          label={editing ? strings.modifyProject : strings.createProject}
           opener={opener}
         >
           <BusinessForm
+            key={`${open}:${editing?.id || 'new'}`}
             onSubmit={async (event) => {
-              await onSubmit(event)
+              if (editing)
+                await onEdit(
+                  editing,
+                  new FormData(event.currentTarget).get('name'),
+                )
+              else await onSubmit(event)
               setOpen(false)
             }}
           >
@@ -865,11 +917,21 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
             )}
             <label>
               {strings.name}
-              <input name="name" required maxLength="200" />
+              <input
+                name="name"
+                required
+                maxLength="200"
+                defaultValue={editing?.name}
+              />
             </label>
             <label>
               {strings.partner}
-              <Select name="partner_id" required disabled={!partnerResult}>
+              <Select
+                name="partner_id"
+                required
+                defaultValue={editing?.partner_id}
+                disabled={Boolean(editing) || !partnerResult}
+              >
                 {!partnerResult && (
                   <option value="" disabled>
                     {common.loading}
@@ -897,25 +959,16 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
               </Button>
               <Button
                 type="submit"
-                disabled={!partners.some((partner) => partner.active !== false)}
+                disabled={
+                  !editing &&
+                  !partners.some((partner) => partner.active !== false)
+                }
               >
                 {strings.save}
               </Button>
             </div>
           </BusinessForm>
         </Modal>
-      )}
-      {rows.length > 0 && (
-        <label className="max-w-40">
-          {strings.year}
-          <input
-            type="number"
-            min="2000"
-            max="2200"
-            value={year}
-            onChange={(event) => setYear(Number(event.target.value))}
-          />
-        </label>
       )}
       {!result ? (
         <LoadingPlaceholder
@@ -964,12 +1017,22 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
                   </td>
                   <td className="p-4">
                     <div className="flex flex-wrap gap-2">
-                      <Button asChild variant="outline">
-                        <Link
-                          to="/projects/$projectId/ptas/$year"
-                          params={{ projectId: row.id, year: String(year) }}
+                      {row.allowed_actions.includes('edit') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(event) => {
+                            opener.current = event.currentTarget
+                            setEditing(row)
+                            setOpen(true)
+                          }}
                         >
-                          {strings.openAnnualPlan}
+                          {strings.modify}
+                        </Button>
+                      )}
+                      <Button asChild variant="outline" size="sm">
+                        <Link to="/planning" search={{ project: row.id }}>
+                          {strings.viewPtas}
                         </Link>
                       </Button>
                       {row.allowed_actions.includes('close') && (
@@ -1001,158 +1064,139 @@ function Projects({ result, canCreate, onSubmit, onClose, navigate }) {
   )
 }
 
-function PTA({ context, metrics, result, navigate, exportPending, onExport }) {
-  if (!context)
-    return (
-      <LoadingPlaceholder
-        label={strings.formatString(common.pageLoading, {
-          page: strings.annualPlan,
-        })}
-        variant="detail"
-      />
-    )
-  const activities = result?.data || []
+function PTA({ context, result, navigate, exportPending, onExport, projects }) {
+  const search = useSearch({ strict: false })
+  if (!context) return <PageLoading title={strings.annualPlan} />
   return (
-    <Panel as="div">
-      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <div>
-          <h2>{context.project.name}</h2>
-          <p>Exercice {context.year}</p>
-        </div>
-        <div className="flex gap-2 items-end flex-wrap">
-          {context.pta && (
-            <Button
-              variant="outline"
-              disabled={exportPending}
-              onClick={() => onExport('csv')}
-            >
-              <Download size={16} />
-              {exportPending ? strings.exportingPta : strings.exportPtaCsv}
-            </Button>
-          )}
-          {context.pta && (
-            <Button
-              variant="outline"
-              disabled={exportPending}
-              onClick={() => onExport('xlsx')}
-            >
-              <Download size={16} />
-              {strings.exportPtaExcel}
-            </Button>
-          )}
-          {context.pta && (
-            <Button
-              variant="outline"
-              disabled={exportPending}
-              onClick={() => onExport('pdf')}
-            >
-              <Download size={16} />
-              {strings.exportPtaPdf}
-            </Button>
-          )}
-          {context.allowed_actions.includes('create_activity') && (
+    <div className="grid gap-6">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold text-navy">PTA {context.year}</h1>
+        {context.allowed_actions.includes('create_activity') && (
+          <Button asChild>
             <Link
-              className={businessActionClassName}
               to="/projects/$projectId/ptas/$year/activities/new"
               params={{
                 projectId: context.project.id,
                 year: String(context.year),
               }}
             >
-              <Plus size={16} /> {strings.newActivity}
+              <Plus size={16} />
+              {strings.addActivityToPta}
             </Link>
-          )}
-        </div>
-        {context.pta && (
-          <Link
-            className={businessActionClassName}
-            to="/execution/$ptaId"
-            params={{ ptaId: context.pta.id }}
-          >
-            Réalisation
-          </Link>
+          </Button>
         )}
-      </div>
-      {context.pta && !metrics && (
-        <LoadingPlaceholder
-          label={strings.formatString(common.pageLoading, {
-            page: strings.annualPlan,
-          })}
-          variant="detail"
+      </header>
+      <Panel className="flex flex-wrap items-end gap-4 border-0 bg-transparent p-0">
+        <label className="w-full max-w-120">
+          {strings.project}
+          <Select
+            value={context.project.id}
+            onChange={(event) =>
+              navigate({
+                to: '/projects/$projectId/ptas/$year',
+                params: {
+                  projectId: event.target.value,
+                  year: String(context.year),
+                },
+              })
+            }
+          >
+            {!projects.data?.data.some(
+              (row) => row.id === context.project.id,
+            ) && (
+              <option value={context.project.id}>{context.project.name}</option>
+            )}
+            {projects.data?.data.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="max-w-40">
+          {strings.year}
+          <Select
+            value={String(context.year)}
+            onChange={(event) =>
+              navigate({
+                to: '/projects/$projectId/ptas/$year',
+                params: {
+                  projectId: context.project.id,
+                  year: event.target.value,
+                },
+              })
+            }
+          >
+            {Array.from({ length: 201 }, (_, i) => 2000 + i).map((year) => (
+              <option key={year} value={String(year)}>
+                {year}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <p className="pb-2 text-[0.8125rem] text-primary">
+          {context.project.partner_name}
+        </p>
+        <Pager
+          result={projects.data}
+          cursorKey="projectCursor"
+          navigate={navigate}
         />
-      )}
-      {metrics && (
-        <section
-          className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_280px),_1fr))] gap-6 [&_article]:border [&_article]:border-border [&_article]:rounded-panel [&_article]:p-6 [&_h3]:m-0 [&_h3]:text-navy [&_h3]:text-[15px] [&_h3]:font-semibold [&_strong]:block [&_strong]:mt-3 [&_strong]:text-navy [&_strong]:text-[2rem] [&_strong]:leading-[1.2] [&_p]:mt-3 [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-muted-foreground [&_p]:text-sm"
-          aria-label="Indicateurs annuels"
-        >
-          <article>
-            <h3>{strings.physicalExecution}</h3>
-            <strong>
-              {formatPercentage(
-                metrics.physical.closed_activities,
-                metrics.physical.approved_activities,
-              )}
-            </strong>
-            <p>
-              {strings.formatString(
-                strings.closedActivitiesMetric,
-                metrics.physical.closed_activities,
-                metrics.physical.approved_activities,
-              )}
-            </p>
-          </article>
-          <article>
-            <h3>{strings.financialExecution}</h3>
-            <strong>
-              {formatPercentage(
-                metrics.financial.closed_spending,
-                metrics.financial.approved_allocation,
-              )}
-            </strong>
-            <p>
-              {strings.formatString(
-                strings.closedSpendingMetric,
-                formatXof(metrics.financial.closed_spending),
-                formatXof(metrics.financial.approved_allocation),
-              )}
-            </p>
-          </article>
-        </section>
-      )}
+        {projects.isError && (
+          <RetryableError onRetry={() => projects.refetch()}>
+            {strings.unavailablePlanning}
+          </RetryableError>
+        )}
+      </Panel>
+      <PlanningSummary summary={context.summary} />
       {context.pta && !result ? (
-        <LoadingPlaceholder
-          label={strings.formatString(common.pageLoading, {
-            page: strings.annualPlan,
-          })}
-        />
-      ) : activities.length ? (
-        <ul
-          className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
-          data-ui="planning-list"
-        >
-          {activities.map((row) => (
-            <li key={row.id}>
-              <Link
-                to="/activities/$activityId"
-                params={{ activityId: row.id }}
-              >
-                {row.reference} — {row.name}
-              </Link>
-              <span>{formatXof(row.allocation)}</span>
-            </li>
-          ))}
-        </ul>
+        <PageLoading title={strings.annualPlan} />
       ) : (
-        <div className="overflow-hidden rounded-panel border border-border bg-white">
-          <p className="border-b border-border px-5 py-4 text-[0.8125rem]">
-            {strings.zeroActivities}
-          </p>
-          <EmptyContent kind="activities" large />
-        </div>
+        <PlanningActivities
+          result={result}
+          year={context.year}
+          filters={search}
+          onFilter={(values) =>
+            navigate({
+              search: (current) => ({
+                ...current,
+                ...values,
+                activityCursor: '',
+              }),
+            })
+          }
+          view={search.view || 'table'}
+          onView={(view) =>
+            navigate({ search: (current) => ({ ...current, view }) })
+          }
+        />
       )}
       <Pager result={result} cursorKey="activityCursor" navigate={navigate} />
-    </Panel>
+      {context.pta && (
+        <div className="flex flex-wrap gap-2">
+          {['csv', 'xlsx', 'pdf'].map((format) => (
+            <Button
+              key={format}
+              variant="outline"
+              size="sm"
+              disabled={exportPending}
+              onClick={() => onExport(format)}
+            >
+              <Download size={16} />
+              {
+                strings[
+                  {
+                    csv: 'exportPtaCsv',
+                    xlsx: 'exportPtaExcel',
+                    pdf: 'exportPtaPdf',
+                  }[format]
+                ]
+              }
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1196,6 +1240,7 @@ export function ActivityForm({
   onCancel,
 }) {
   const [draftBase] = useState(initial)
+  const [plannedAmount, setPlannedAmount] = useState(null)
   const [start, setStart] = useState(initial?.planned_start || '')
   const [end, setEnd] = useState(initial?.planned_end || '')
   const [endWasEdited, setEndWasEdited] = useState(Boolean(initial))
@@ -1221,7 +1266,7 @@ export function ActivityForm({
   return (
     <Panel
       as={BusinessForm}
-      className="[&_>_label]:w-full"
+      className="border-0 bg-transparent p-0 gap-6 lg:grid-cols-[minmax(0,1fr)_280px] items-start"
       onSubmit={(event) => {
         event.preventDefault()
         if (pending || optionsUnavailable) return
@@ -1231,7 +1276,7 @@ export function ActivityForm({
           description: data.get('description'),
           planned_start: start,
           planned_end: end,
-          allocation: total.toString(),
+          allocation: plannedAmount ?? total.toString(),
           operations: operations.map((row) => ({
             id: row.id || undefined,
             type_id: row.type_id,
@@ -1244,180 +1289,278 @@ export function ActivityForm({
         })
       }}
     >
-      <h2>{strings.completePlanning}</h2>
-      <label>
-        {strings.name}
-        <input
-          name="name"
-          required
-          maxLength="200"
-          defaultValue={draftBase?.name}
-        />
-      </label>
-      <label>
-        {strings.description}
-        <textarea
-          name="description"
-          required
-          maxLength="4000"
-          defaultValue={draftBase?.description}
-        />
-      </label>
-      <div className="flex gap-3 items-end flex-wrap">
-        <label>
-          {strings.start}
-          <input
-            type="date"
-            required
-            value={start}
-            onChange={(e) => {
-              setStart(e.target.value)
-              if (!endWasEdited) setEnd(addThreeMonths(e.target.value))
-            }}
-          />
-        </label>
-        <label>
-          {strings.end}
-          <input
-            type="date"
-            required
-            value={end}
-            onChange={(e) => {
-              setEnd(e.target.value)
-              setEndWasEdited(true)
-            }}
-          />
-        </label>
-      </div>
-      <fieldset>
-        <legend>{strings.operations}</legend>
-        {operations.map((row, index) => (
-          <div
-            className="flex gap-3 items-end flex-wrap max-[641px]:[&_>_*]:w-full"
-            key={row.id || index}
-          >
-            <Select
-              aria-label={strings.formatString(
-                strings.operationTypeNumber,
-                index + 1,
-              )}
-              required
-              value={row.type_id}
-              onChange={(e) =>
-                setOperations(
-                  operations.map((item, i) =>
-                    i === index ? { ...item, type_id: e.target.value } : item,
-                  ),
-                )
-              }
-            >
-              <option value="">Choisir</option>
-              {availableTypes.map((type) => (
-                <option value={type.id} key={type.id}>
-                  {type.label}
-                </option>
-              ))}
-            </Select>
-            {onCreateType && (
-              <CategoryCreator
-                onCreate={onCreateType}
-                disabled={pending || optionsUnavailable}
-                onCreated={(type) =>
-                  setOperations((current) =>
-                    current.map((item, i) =>
-                      i === index
-                        ? { ...item, type_id: type.id, type_label: type.label }
-                        : item,
-                    ),
-                  )
-                }
+      <div className="grid min-w-0 gap-6">
+        <section className="rounded-panel border border-border bg-white">
+          <h2 className="border-b border-border px-5 py-4">
+            {strings.generalInformation}
+          </h2>
+          <div className="grid gap-6 p-5">
+            <label>
+              {strings.name}
+              <input
+                name="name"
+                required
+                maxLength="200"
+                defaultValue={draftBase?.name}
               />
-            )}
-            <input
-              aria-label={strings.formatString(
-                strings.operationNameNumber,
-                index + 1,
-              )}
-              required
-              maxLength="200"
-              value={row.name}
-              onChange={(e) =>
-                setOperations(
-                  operations.map((item, i) =>
-                    i === index ? { ...item, name: e.target.value } : item,
-                  ),
-                )
-              }
-            />
-            <input
-              aria-label={strings.formatString(
-                strings.operationBudgetNumber,
-                index + 1,
-              )}
-              inputMode="numeric"
-              required
-              pattern="[1-9][0-9]*"
-              value={row.allocation}
-              onChange={(e) =>
-                setOperations(
-                  operations.map((item, i) =>
-                    i === index
-                      ? { ...item, allocation: e.target.value }
-                      : item,
-                  ),
-                )
-              }
-            />
+            </label>
+            <label>
+              {strings.description}
+              <textarea
+                name="description"
+                required
+                maxLength="4000"
+                defaultValue={draftBase?.description}
+              />
+            </label>
+          </div>
+        </section>
+        <section className="rounded-panel border border-border bg-white">
+          <h2 className="border-b border-border px-5 py-4">
+            {strings.planningTitle}
+          </h2>
+          <div className="grid gap-4 p-5 sm:grid-cols-2">
+            <label>
+              {strings.start}
+              <input
+                type="date"
+                required
+                value={start}
+                onChange={(e) => {
+                  setStart(e.target.value)
+                  if (!endWasEdited) setEnd(addThreeMonths(e.target.value))
+                }}
+              />
+            </label>
+            <label>
+              {strings.end}
+              <input
+                type="date"
+                required
+                value={end}
+                onChange={(e) => {
+                  setEnd(e.target.value)
+                  setEndWasEdited(true)
+                }}
+              />
+            </label>
+          </div>
+        </section>
+        <section className="rounded-panel border border-border bg-white">
+          <h2 className="border-b border-border px-5 py-4">
+            {strings.operationsBudget}
+          </h2>
+          <div className="grid gap-5 p-5">
+            <label className="max-w-80">
+              {strings.plannedAmount}
+              <input
+                inputMode="numeric"
+                pattern="[1-9][0-9]*"
+                required
+                value={plannedAmount ?? (total ? total.toString() : '')}
+                onChange={(event) => setPlannedAmount(event.target.value)}
+              />
+            </label>
+            <fieldset className="grid gap-4">
+              <legend className="sr-only">{strings.operations}</legend>
+              {operations.map((row, index) => (
+                <div
+                  className="grid items-end gap-4 rounded-card border border-border p-4 sm:grid-cols-2"
+                  key={row.id || index}
+                >
+                  <h3 className="font-semibold sm:col-span-2">
+                    {strings.operation} {index + 1}
+                  </h3>
+                  <label>
+                    {strings.operationType}
+                    <Select
+                      aria-label={strings.formatString(
+                        strings.operationTypeNumber,
+                        index + 1,
+                      )}
+                      required
+                      value={row.type_id}
+                      onChange={(e) =>
+                        setOperations(
+                          operations.map((item, i) =>
+                            i === index
+                              ? { ...item, type_id: e.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                    >
+                      <option value="">Choisir</option>
+                      {availableTypes.map((type) => (
+                        <option value={type.id} key={type.id}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  {onCreateType && (
+                    <CategoryCreator
+                      onCreate={onCreateType}
+                      disabled={pending || optionsUnavailable}
+                      onCreated={(type) =>
+                        setOperations((current) =>
+                          current.map((item, i) =>
+                            i === index
+                              ? {
+                                  ...item,
+                                  type_id: type.id,
+                                  type_label: type.label,
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  )}
+                  <label>
+                    {strings.operationName}
+                    <input
+                      aria-label={strings.formatString(
+                        strings.operationNameNumber,
+                        index + 1,
+                      )}
+                      required
+                      maxLength="200"
+                      value={row.name}
+                      onChange={(e) =>
+                        setOperations(
+                          operations.map((item, i) =>
+                            i === index
+                              ? { ...item, name: e.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    {strings.budget}
+                    <input
+                      aria-label={strings.formatString(
+                        strings.operationBudgetNumber,
+                        index + 1,
+                      )}
+                      inputMode="numeric"
+                      required
+                      pattern="[1-9][0-9]*"
+                      value={row.allocation}
+                      onChange={(e) =>
+                        setOperations(
+                          operations.map((item, i) =>
+                            i === index
+                              ? { ...item, allocation: e.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="justify-self-start"
+                    variant="outline"
+                    disabled={operations.length === 1}
+                    aria-label={strings.formatString(
+                      strings.operationRemoveNumber,
+                      index + 1,
+                    )}
+                    data-edits-form
+                    onClick={() =>
+                      setOperations(operations.filter((_, i) => i !== index))
+                    }
+                  >
+                    {strings.remove}
+                  </Button>
+                </div>
+              ))}
+            </fieldset>
             <Button
               type="button"
               variant="outline"
-              disabled={operations.length === 1}
-              aria-label={strings.formatString(
-                strings.operationRemoveNumber,
-                index + 1,
-              )}
               data-edits-form
               onClick={() =>
-                setOperations(operations.filter((_, i) => i !== index))
+                setOperations([
+                  ...operations,
+                  { type_id: '', name: '', allocation: '' },
+                ])
               }
             >
-              {strings.remove}
+              <Plus size={16} />
+              {strings.addOperation}
             </Button>
+            {navigate && (
+              <Pager
+                result={typeResult}
+                cursorKey="typeCursor"
+                navigate={navigate}
+              />
+            )}
           </div>
-        ))}
-      </fieldset>
-      <Button
-        type="button"
-        variant="outline"
-        data-edits-form
-        onClick={() =>
-          setOperations([
-            ...operations,
-            { type_id: '', name: '', allocation: '' },
-          ])
-        }
-      >
-        {strings.addOperation}
-      </Button>
-      {navigate && (
-        <Pager result={typeResult} cursorKey="typeCursor" navigate={navigate} />
-      )}
-      <p>
-        <strong>Total : {formatXof(total)}</strong>
-      </p>
-      <Button type="submit" disabled={pending || optionsUnavailable}>
-        <Save size={16} /> {strings.save}
-      </Button>
-      {onCancel && (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={pending}
-          onClick={onCancel}
-        >
-          {strings.cancelEditing}
-        </Button>
-      )}
+        </section>
+        <div className="flex flex-wrap justify-end gap-3">
+          <Button
+            type="submit"
+            disabled={
+              pending ||
+              optionsUnavailable ||
+              (plannedAmount !== null &&
+                (!/^[1-9]\d*$/.test(plannedAmount) ||
+                  BigInt(plannedAmount) !== total))
+            }
+          >
+            <Save size={16} /> {strings.save}
+          </Button>
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={onCancel}
+            >
+              {strings.cancelEditing}
+            </Button>
+          )}
+        </div>
+      </div>
+      <aside className="rounded-panel border border-border bg-white lg:sticky lg:top-6">
+        <h2 className="border-b border-border px-5 py-4">
+          {strings.budgetDistribution}
+        </h2>
+        <dl className="grid gap-6 p-5">
+          <div>
+            <dt className="text-[0.8125rem] text-muted-foreground">
+              {strings.plannedAmount}
+            </dt>
+            <dd className="mt-2 font-semibold">
+              {formatXof(
+                /^[1-9]\d*$/.test(plannedAmount || '') ? plannedAmount : total,
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[0.8125rem] text-muted-foreground">
+              {strings.operationTotal}
+            </dt>
+            <dd className="mt-2 font-semibold">{formatXof(total)}</dd>
+          </div>
+          {plannedAmount !== null &&
+            /^[1-9]\d*$/.test(plannedAmount) &&
+            BigInt(plannedAmount) !== total && (
+              <div role="status">
+                <dt>{strings.budgetDifference}</dt>
+                <dd className="mt-2 text-warning">
+                  {formatXof(BigInt(plannedAmount) - total)}
+                </dd>
+              </div>
+            )}
+        </dl>
+      </aside>
     </Panel>
   )
 }
@@ -1626,13 +1769,13 @@ function ActivityDetail({
       </>
     )
   return (
-    <Panel as="div">
+    <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
           <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
             {item.reference}
           </p>
-          <h2>{item.name}</h2>
+          <h1 className="text-2xl font-semibold text-navy">{item.name}</h1>
         </div>
         <div className="flex gap-2 items-end flex-wrap">
           {item.approved_revision_id && (
@@ -1780,11 +1923,15 @@ function ActivityDetail({
         </div>
       )}
       <div
-        className="border-l-4 border-l-primary bg-background py-3 px-4"
+        className="flex flex-wrap items-center gap-2 text-sm"
         aria-label={strings.reviewProgress}
       >
         <strong>{strings.status}: </strong>
-        {strings[item.state] || item.state}
+        <span
+          className={`rounded-card px-2 py-1 text-xs ${['approved', 'closed'].includes(item.state) ? 'bg-success-badge text-success' : item.state.startsWith('returned') ? 'bg-warning-soft text-warning' : 'bg-selected text-primary'}`}
+        >
+          {strings[item.state] || item.state}
+        </span>
         {item.current_revision_id && currentRevision?.revision_number && (
           <span> · Révision {currentRevision.revision_number}</span>
         )}
@@ -1801,64 +1948,154 @@ function ActivityDetail({
           )}
         </div>
       )}
-      <p>{item.description}</p>
-      <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
-        <div>
-          <dt>{strings.period}</dt>
-          <dd>
-            {item.planned_start} au {item.planned_end}
-          </dd>
-        </div>
-        <div>
-          <dt>{strings.budget}</dt>
-          <dd>{formatXof(item.allocation)}</dd>
-        </div>
-        <div>
-          <dt>{strings.approvedBudget}</dt>
-          <dd>
-            {item.approved_allocation
-              ? formatXof(item.approved_allocation)
-              : strings.notApproved}
-          </dd>
-        </div>
-      </dl>
-      <Link
-        to="/projects/$projectId/ptas/$year"
-        params={{
-          projectId: item.project_id,
-          year: String(item.placement_year),
-        }}
+      <nav
+        aria-label={strings.activitySections}
+        className="flex flex-wrap gap-6 border-b border-border text-sm"
       >
-        {strings.openCurrentAnnualPlan}
-      </Link>
-      <h3>{strings.operations}</h3>
-      <ul
-        className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
-        data-ui="planning-list"
-      >
-        {item.operations.map((row) => (
-          <li key={row.id}>
-            {row.name}
-            <span>{formatXof(row.allocation)}</span>
-          </li>
+        {[
+          ['programming', strings.programming],
+          ['history', strings.historyTab],
+          ['files', strings.filesTab],
+        ].map(([tab, label]) => (
+          <Link
+            key={tab}
+            to="/activities/$activityId"
+            params={{ activityId: item.id }}
+            search={(current) => ({ ...current, tab })}
+            activeOptions={{ exact: true, includeSearch: true }}
+            className={`border-b-2 py-3 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+          >
+            {label}
+          </Link>
         ))}
-      </ul>
-      <ActivityDocuments
-        activityId={item.id}
-        user={user}
-        csrf={csrf}
-        cursor={documentCursor}
-        navigate={navigate}
-        blocked={mutationBlocked}
-        onDenied={onDenied}
-      />
+        {item.approved_revision_id && (
+          <Link
+            className="py-3 text-primary"
+            to="/execution/activities/$activityId"
+            params={{ activityId: item.id }}
+          >
+            {strings.financeTab}
+          </Link>
+        )}
+      </nav>
+      <div hidden={search.tab && search.tab !== 'programming'}>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
+          <div className="grid gap-6">
+            <section className="rounded-panel border border-border bg-white">
+              <h2 className="border-b border-border px-5 py-4">
+                {strings.programming}
+              </h2>
+              <div className="grid gap-6 p-5">
+                <p>{item.description}</p>
+                <dl className="grid gap-4 sm:grid-cols-2 text-sm">
+                  <div>
+                    <dt className="text-[0.8125rem] text-muted-foreground">
+                      {strings.start}
+                    </dt>
+                    <dd className="mt-2">{formatDate(item.planned_start)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[0.8125rem] text-muted-foreground">
+                      {strings.end}
+                    </dt>
+                    <dd className="mt-2">{formatDate(item.planned_end)}</dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+            <Link
+              to="/projects/$projectId/ptas/$year"
+              params={{
+                projectId: item.project_id,
+                year: String(item.placement_year),
+              }}
+            >
+              {strings.openCurrentAnnualPlan}
+            </Link>
+            <section className="rounded-panel border border-border bg-white">
+              <h2 className="border-b border-border px-5 py-4">
+                {strings.operations}
+              </h2>
+              <div className="overflow-x-auto p-5">
+                <table className="w-full text-sm">
+                  <thead className="bg-background">
+                    <tr>
+                      <th className="p-3 text-left font-medium">
+                        {strings.operationType}
+                      </th>
+                      <th className="p-3 text-right font-medium">
+                        {strings.budget}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {item.operations.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="border-b border-border last:border-0"
+                      >
+                        <td className="p-3">
+                          {row.name}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {row.type_label}
+                          </p>
+                        </td>
+                        <td className="p-3 text-right">
+                          {formatXof(row.allocation)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+          <aside className="rounded-panel border border-border bg-white">
+            <h2 className="border-b border-border px-5 py-4">
+              {strings.budgetValidation}
+            </h2>
+            <dl className="grid gap-6 p-5 text-sm">
+              <div>
+                <dt className="text-muted-foreground">{strings.budget}</dt>
+                <dd className="mt-2 font-semibold">
+                  {formatXof(item.allocation)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">
+                  {strings.approvedBudget}
+                </dt>
+                <dd className="mt-2 font-semibold">
+                  {item.approved_allocation
+                    ? formatXof(item.approved_allocation)
+                    : strings.notApproved}
+                </dd>
+              </div>
+            </dl>
+          </aside>
+        </div>
+      </div>
+      <div hidden={search.tab !== 'files'}>
+        <ActivityDocuments
+          activityId={item.id}
+          user={user}
+          csrf={csrf}
+          cursor={documentCursor}
+          navigate={navigate}
+          blocked={mutationBlocked}
+          onDenied={onDenied}
+        />
+      </div>
       <section
+        hidden={
+          search.tab !== 'history' && !search.revision && !search.amendment
+        }
         aria-labelledby="activity-history-title"
         className="rounded-panel border border-border bg-white [&>h3]:border-b [&>h3]:border-border [&>h3]:p-5 [&>h3]:font-semibold"
       >
         <h3 id="activity-history-title">{strings.revisionHistory}</h3>
         {!revisions?.data?.length ? (
-          <EmptyContent kind="revisions" />
+          <EmptyContent kind="activityHistory" />
         ) : (
           <ActivityTimeline events={revisions.data} navigate={navigate} />
         )}

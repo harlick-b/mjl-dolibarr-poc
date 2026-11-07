@@ -288,6 +288,8 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
     assert listing.json()["object"] == "list"
     assert listing.json()["count"] == 1
     assert listing.json()["data"][0]["id"] == activity["id"]
+    assert listing.json()["data"][0]["approved_revision_number"] == 1
+    assert listing.json()["data"][0]["project_name"] == "Projet test"
     agent = planning["agent"].get("/api/v1/auth/session").json()["user"]
     assigned = planning["supervisor"].put(
         f"/api/v1/activities/{activity['id']}/assignments",

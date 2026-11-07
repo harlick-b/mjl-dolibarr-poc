@@ -695,6 +695,7 @@ export function ExecutionList({
                     </Link>
                     <small className="block mt-1 text-muted-foreground">
                       {row.reference}
+                      {row.project_name ? ` · ${row.project_name}` : ''}
                     </small>
                   </td>
                   <td className="px-3 py-4">
@@ -728,9 +729,14 @@ export function ExecutionList({
                     >
                       {executionStage(row)}
                     </span>
+                    {row.approved_revision_number && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {strings.revision} {row.approved_revision_number}
+                      </p>
+                    )}
                   </td>
                   <td className="px-3 py-4">
-                    <Button asChild variant="outline">
+                    <Button asChild variant="outline" size="sm">
                       <Link
                         to="/execution/activities/$activityId"
                         params={{ activityId: row.id }}
@@ -2185,7 +2191,7 @@ function OperationCard({ activity, operation, pending, mutate }) {
         >
           <div className="flex gap-3 items-end flex-wrap">
             <label>
-              Montant dépensé (XOF)
+              {strings.actualSpent}
               <input
                 name="actual_spent"
                 inputMode="numeric"

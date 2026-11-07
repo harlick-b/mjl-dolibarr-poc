@@ -558,6 +558,12 @@ export function makeRouter(history, componentOverrides = {}) {
         partnerCursor: String(search.partnerCursor || '').slice(0, 512),
         typeCursor: String(search.typeCursor || '').slice(0, 512),
         projectCursor: String(search.projectCursor || '').slice(0, 512),
+        q: String(search.q || '').slice(0, 200),
+        state: String(search.state || '').slice(0, 32),
+        view: search.view === 'calendar' ? 'calendar' : 'table',
+        tab: ['history', 'files'].includes(search.tab)
+          ? search.tab
+          : 'programming',
         activityCursor: String(search.activityCursor || '').slice(0, 512),
         agentCursor: String(search.agentCursor || '').slice(0, 512),
         revisionCursor: String(search.revisionCursor || '').slice(0, 512),

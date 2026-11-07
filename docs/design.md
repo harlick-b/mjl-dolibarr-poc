@@ -195,3 +195,23 @@ control, padded body, and a bordered footer with Cancel before the primary actio
 Keep selector pagination in the body, above the action footer. Clicking outside
 the content dismisses dialogs; clicks inside, including Select popups, do not.
 Return focus to the opener. Dismissal does not cancel a write already sent.
+
+### Planning and catalog refinement
+
+Partners expose Validator editing of name/description; Projects expose name editing,
+“Voir les PTA” and eligible closure. Projects has no year selector: its link opens
+the project-filtered PTA index. The PTA screen owns project/year navigation,
+whole-PTA summary, filters and table/calendar modes. Summary stage counts describe
+current workflow states (an amendment under review appears under review); the
+approved budget retains the authoritative approved baseline. Withdrawn rows remain
+consultable but are excluded from current planning totals. Calendar pagination is
+explicit and shares the filtered activity list; counts above it cover all matches.
+Only the active page's sidebar entry is highlighted, including nested PTA routes.
+
+Activity creation groups general information, dates and operations alongside the
+budget breakdown. Details separate programming, History and documents; approved
+Activities link to their existing financial workspace. Saving, submission and
+file attachment retain their existing separate workflow steps. Prototype controls
+do not authorize new mutations. Empty planning tables retain headers and distinguish
+filtered results from an unused PTA. Shared controls use the approved compact and
+standard sizes; XOF amounts display as F CFA without changing exact stored values.

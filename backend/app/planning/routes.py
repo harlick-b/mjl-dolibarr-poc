@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import func, select, text, tuple_
+from sqlalchemy import func, or_, select, text, tuple_
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
@@ -24,6 +24,12 @@ from app.planning.models import (
     OperationType,
     Partner,
     Project,
+)
+from app.planning.presentation import (
+    activity_rows,
+    approved_plans,
+    planning_state_counts,
+    planning_summary,
 )
 from app.planning.service import (
     CONTEXT,
@@ -95,6 +101,15 @@ class PartnerInput(NameInput):
     @classmethod
     def normalized_description(cls, value: object) -> object:
         return (value.strip() or None) if isinstance(value, str) else value
+
+
+class PartnerUpdate(PartnerInput):
+    expected: PartnerInput
+
+
+class ProjectUpdate(NameInput):
+    expected_version: int = Field(gt=0, strict=True)
+    action: Literal["edit"]
 
 
 class TypeInput(Input):
@@ -328,6 +343,12 @@ class TransferOutput(Input):
 
 
 class ActivityListItem(Input):
+    planned_start: str
+    planned_end: str
+    state: str
+    operation_count: int
+    agents: list[str]
+    revision_number: int | None
     id: str
     reference: str
     name: str
@@ -374,6 +395,10 @@ class ActivityOutput(Input):
 
 
 class PTAOutput(Input):
+    project_name: str | None = None
+    partner_name: str | None = None
+    project_state: str | None = None
+    summary: dict[str, int | str] | None = None
     id: str
     project_id: str
     year: int
@@ -387,6 +412,7 @@ class ApprovedPlanOutput(Input):
 
 
 class PTAContextOutput(Input):
+    summary: dict[str, int | str]
     project: ProjectOutput
     year: int
     pta: PTAOutput | None
@@ -414,7 +440,9 @@ class AnnualMetricsOutput(Input):
 def annual_metrics_data(
     db: Session, pta: AnnualPTA, cutoff: datetime
 ) -> dict[str, Any]:
-    plan = approved_plan(db, pta.project_id, pta.year, cutoff)
+    plan = approved_plans(db, [(pta.project_id, pta.year)], cutoff)[
+        (pta.project_id, pta.year)
+    ]
     realized = db.execute(
         select(
             func.count(func.distinct(Activity.id)).label("activity_count"),
@@ -457,51 +485,6 @@ def cutoff_value(db: Session, raw: str | None) -> datetime:
     if cutoff.tzinfo is None or cutoff.astimezone(UTC) > now.astimezone(UTC):
         raise AuthError(422, "as_of_invalid")
     return cutoff.astimezone(UTC)
-
-
-def approved_plan(
-    db: Session, project_id: str, year: int, cutoff: datetime
-) -> dict[str, int | str]:
-    row = db.execute(
-        text(
-            """
-            WITH effective AS (
-              SELECT DISTINCT ON (r.activity_id)
-                r.activity_id, r.snapshot
-              FROM pta_activity_revision r
-              JOIN pta_activity_revision_decision d
-                ON d.revision_id=r.id AND d.stage='validator' AND d.outcome='approved'
-              JOIN pta_activity a ON a.id=r.activity_id
-              JOIN pta_annual p ON p.id=a.pta_id
-              WHERE p.project_id=:project_id AND p.context_id=:context_id
-                AND d.decided_at<=:cutoff
-              ORDER BY r.activity_id, r.revision_number DESC
-            )
-            SELECT
-              count(*) FILTER (
-                WHERE NOT (snapshot ? 'withdrawal')
-                  AND (snapshot->'pta'->>'year')::integer=:year
-              ) AS activity_count,
-              coalesce(sum(
-                CASE WHEN NOT (snapshot ? 'withdrawal')
-                       AND (snapshot->'pta'->>'year')::integer=:year
-                     THEN (snapshot->>'allocation')::numeric ELSE 0 END
-              ), 0)::text AS allocation
-            FROM effective
-            """
-        ),
-        {
-            "project_id": project_id,
-            "context_id": CONTEXT,
-            "cutoff": cutoff,
-            "year": year,
-        },
-    ).one()
-    return {
-        "as_of": cutoff.isoformat(),
-        "activity_count": int(row.activity_count),
-        "allocation": str(row.allocation),
-    }
 
 
 class AgentOutput(Input):
@@ -774,6 +757,49 @@ def create_partner(body: PartnerInput, request: Request, auth: Auth) -> Response
         )
 
 
+@router.patch(
+    "/partners/{identifier}",
+    response_model=PartnerOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def update_partner(
+    identifier: str, body: PartnerUpdate, request: Request, auth: Auth
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db,
+            auth,
+            *evidence(request, auth),
+            roles={"VALIDATEUR_DEFINITIF"},
+            mutation=True,
+        )
+        item = db.get(Partner, identifier, with_for_update=True)
+        if not item or item.context_id != CONTEXT:
+            raise AuthError(404, "partner_not_found")
+        if (item.name, item.description) != (
+            body.expected.name,
+            body.expected.description,
+        ):
+            raise AuthError(409, "partner_stale")
+        if (item.name, item.description) != (body.name, body.description):
+            before = partner_item(item, actor.role)
+            item.name, item.description = body.name, body.description
+            item.updated_at = auth.now(db)
+            auth.business_audit(
+                db,
+                "partner.update",
+                actor.id,
+                item.id,
+                {
+                    "context_id": CONTEXT,
+                    "before": before,
+                    "after": partner_item(item, actor.role),
+                },
+            )
+        return partner_item(item, actor.role)
+
+
 @router.get("/operation-types", response_model=ListOutput[OperationTypeOutput])
 def operation_types(
     request: Request,
@@ -937,7 +963,7 @@ def project_detail(identifier: str, request: Request, auth: Auth) -> dict[str, A
     openapi_extra=MUTATION_HEADERS,
 )
 def close_project(
-    identifier: str, body: ProjectClose, request: Request, auth: Auth
+    identifier: str, body: ProjectClose | ProjectUpdate, request: Request, auth: Auth
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
@@ -951,6 +977,24 @@ def close_project(
         item = get_project(db, identifier, lock=True)
         if item.version != body.expected_version:
             raise AuthError(409, "project_stale")
+        if isinstance(body, ProjectUpdate):
+            if item.name != body.name:
+                before = project_item(item, actor.role)
+                item.name = body.name
+                item.version += 1
+                item.updated_at = auth.now(db)
+                auth.business_audit(
+                    db,
+                    "project.update",
+                    actor.id,
+                    item.id,
+                    {
+                        "context_id": CONTEXT,
+                        "before": before,
+                        "after": project_item(item, actor.role),
+                    },
+                )
+            return project_item(item, actor.role)
         if item.state != "active":
             raise AuthError(409, "project_closed")
         if db.scalar(
@@ -981,20 +1025,28 @@ def close_project(
         return project_item(item, actor.role)
 
 
+@router.get("/ptas", response_model=ListOutput[PTAOutput])
 @router.get("/projects/{identifier}/ptas", response_model=ListOutput[PTAOutput])
 def project_ptas(
-    identifier: str,
     request: Request,
     auth: Auth,
     args: Annotated[tuple[int, str | None], Depends(list_args)],
+    identifier: str | None = None,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
+        locked_read(db)
         principal(db, auth, evidence(request, auth)[0])
-        project = get_project(db, identifier)
+        if identifier:
+            get_project(db, identifier)
         limit, token = args
-        cursor = Cursor(auth, "project-ptas", project.id, limit)
+        cursor = Cursor(auth, "project-ptas", identifier or CONTEXT, limit)
         marker, direction = cursor.decode(token)
-        conditions = [AnnualPTA.project_id == project.id]
+        base = (
+            (AnnualPTA.project_id == identifier,)
+            if identifier
+            else (AnnualPTA.context_id == CONTEXT,)
+        )
+        conditions = list(base)
         if marker:
             try:
                 marker_year, marker_id = marker.split(":", 1)
@@ -1013,7 +1065,7 @@ def project_ptas(
         rows, total = page_rows(
             db,
             AnnualPTA,
-            (AnnualPTA.project_id == project.id,),
+            base,
             tuple(conditions),
             ordering,
             limit,
@@ -1026,8 +1078,26 @@ def project_ptas(
         def link(row: AnnualPTA, move: str) -> str:
             value = cursor.encode(f"{row.year}:{row.id}", move)
             query = urlencode({"limit": limit, "cursor": value})
-            return f"{auth.policy.origin}/api/v1/projects/{project.id}/ptas?{query}"
+            path = f"/projects/{identifier}/ptas" if identifier else "/ptas"
+            return f"{auth.policy.origin}/api/v1{path}?{query}"
 
+        project_rows = {
+            p.id: p
+            for p in db.scalars(
+                select(Project).where(Project.id.in_([row.project_id for row in rows]))
+            )
+        }
+        partner_names = dict(
+            db.execute(
+                select(Partner.id, Partner.name).where(
+                    Partner.id.in_([p.partner_id for p in project_rows.values()])
+                )
+            ).all()
+        )
+        plans = approved_plans(
+            db, [(row.project_id, row.year) for row in rows], auth.now(db)
+        )
+        counts = planning_state_counts(db, [row.id for row in rows])
         return {
             "object": "list",
             "count": total,
@@ -1035,7 +1105,16 @@ def project_ptas(
                 {
                     "id": row.id,
                     "project_id": row.project_id,
+                    "project_name": project_rows[row.project_id].name,
+                    "project_state": project_rows[row.project_id].state,
+                    "partner_name": partner_names.get(
+                        project_rows[row.project_id].partner_id
+                    ),
                     "year": row.year,
+                    "summary": planning_summary(
+                        counts.get(row.id, {}),
+                        plans[(row.project_id, row.year)]["allocation"],
+                    ),
                     "allowed_actions": ["read"],
                 }
                 for row in rows
@@ -1070,6 +1149,8 @@ def pta_context(
             )
         )
         cutoff = cutoff_value(db, as_of)
+        plan = approved_plans(db, [(project.id, year)], cutoff)[(project.id, year)]
+        counts = planning_state_counts(db, [pta.id] if pta else [])
         return {
             "project": project_item(project, actor.role),
             "year": year,
@@ -1087,7 +1168,11 @@ def pta_context(
                 if actor.role == "AGENT_SAISIE" and project.state == "active"
                 else []
             ),
-            "approved_plan": approved_plan(db, project.id, year, cutoff),
+            "approved_plan": plan,
+            "summary": planning_summary(
+                counts.get(pta.id, {}) if pta else {},
+                plan["allocation"],
+            ),
         }
 
 
@@ -1268,6 +1353,19 @@ def activities(
     request: Request,
     auth: Auth,
     args: Annotated[tuple[int, str | None], Depends(list_args)],
+    q: Annotated[str, Query(max_length=200)] = "",
+    state: Literal[
+        "",
+        "draft",
+        "amendment_draft",
+        "submitted",
+        "prevalidated",
+        "returned_supervisor",
+        "returned_validator",
+        "approved",
+        "withdrawn",
+        "closed",
+    ] = "",
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
@@ -1276,9 +1374,22 @@ def activities(
         if not pta or pta.context_id != CONTEXT:
             raise AuthError(404, "pta_not_found")
         limit, token = args
-        cursor = Cursor(auth, "pta-activities", pta.id, limit)
+        q = q.strip()
+        cursor = Cursor(auth, "pta-activities", f"{pta.id}:{q}:{state}", limit)
         marker, direction = cursor.decode(token)
-        conditions = [Activity.pta_id == pta.id]
+        base = [Activity.pta_id == pta.id]
+        if q:
+            pattern = (
+                "%"
+                + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                + "%"
+            )
+            base.append(
+                or_(Activity.name.ilike(pattern), Activity.reference.ilike(pattern))
+            )
+        if state:
+            base.append(Activity.state == state)
+        conditions = list(base)
         if marker:
             try:
                 marker = str(UUID(marker))
@@ -1291,7 +1402,7 @@ def activities(
         rows, total = page_rows(
             db,
             Activity,
-            (Activity.pta_id == pta.id,),
+            tuple(base),
             tuple(conditions),
             (order,),
             limit,
@@ -1314,21 +1425,13 @@ def activities(
 
         def link(row: Activity, move: str) -> str:
             value = cursor.encode(row.id, move)
-            query = urlencode({"limit": limit, "cursor": value})
+            query = urlencode({"limit": limit, "cursor": value, "q": q, "state": state})
             return f"{auth.policy.origin}/api/v1/ptas/{pta.id}/activities?{query}"
 
         return {
             "object": "list",
             "count": total,
-            "data": [
-                {
-                    "id": row.id,
-                    "reference": row.reference,
-                    "name": row.name,
-                    "allocation": str(row.allocation),
-                }
-                for row in rows
-            ],
+            "data": activity_rows(db, rows),
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

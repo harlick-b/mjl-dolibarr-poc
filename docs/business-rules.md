@@ -17,7 +17,9 @@ An Activity is a planned body of work; Operations are its planned work units.
 Use these names consistently; Programme is not a generic entity.
 
 One Partner has at most one active Project. A Validator creates and closes
-Projects. Past Projects remain consultable. A Project/year PTA is created
+Projects. Validators may edit Partner names/descriptions and Project names;
+Partner/Project relationships remain immutable. Partner deactivation is deferred
+until its eligibility rules are decided. Past Projects remain consultable. A Project/year PTA is created
 atomically with its first Activity, not through an independent empty-PTA action.
 Activity creation always belongs to a PTA matching its planned start year.
 

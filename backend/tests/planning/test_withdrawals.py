@@ -141,6 +141,14 @@ def test_w02_fresh_two_stage_approval_withdraws_activity(planning):
     assert ended.ended_by_id is not None
     final_total = planning["agent"].get(f"/api/v1/projects/{project_id}/ptas/2027")
     assert final_total.status_code == 200, final_total.text
+    assert final_total.json()["summary"]["activities"] == 0
+    assert final_total.json()["summary"]["approved_allocation"] == "0"
+    assert (
+        planning["agent"]
+        .get(f"/api/v1/ptas/{approved['pta_id']}/activities")
+        .json()["count"]
+        == 1
+    )
     assert final_total.json()["approved_plan"]["activity_count"] == 0
     assert final_total.json()["approved_plan"]["allocation"] == "0"
     historical_total = planning["agent"].get(

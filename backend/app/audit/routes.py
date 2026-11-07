@@ -164,6 +164,8 @@ ACTION_LABELS = {
     "otp_verify": "Code de vérification contrôlé",
     "ownership_context.provisioned": "Contexte MJL vérifié",
     "partner.create": "Partenaire créé",
+    "partner.update": "Partenaire modifié",
+    "project.update": "Projet modifié",
     "project.close": "Projet clôturé",
     "project.create": "Projet créé",
     "recovery_complete": "Mot de passe réinitialisé",

@@ -157,7 +157,7 @@ test('Agent reads persisted Activity timeline details on desktop and mobile', as
       })
     return route.fulfill({ json: empty })
   })
-  await page.goto('/activities/activity-1')
+  await page.goto('/activities/activity-1?tab=history')
   await expect(page.getByText('Brouillon d’activité modifié')).toBeVisible()
   await expect(page.getByText('Étape majeure')).toBeVisible()
   await page.getByText('Consulter les détails').click()

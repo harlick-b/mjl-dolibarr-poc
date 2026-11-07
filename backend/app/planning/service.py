@@ -85,6 +85,8 @@ def allowed(
     actions = ["read"]
     if role == "VALIDATEUR_DEFINITIF" and resource in {"partner", "type", "project"}:
         actions.append("create")
+    if role == "VALIDATEUR_DEFINITIF" and resource in {"partner", "project"}:
+        actions.append("edit")
     if role == "AGENT_SAISIE" and resource == "type":
         actions.append("create")
     if role == "VALIDATEUR_DEFINITIF" and resource == "project" and state == "active":

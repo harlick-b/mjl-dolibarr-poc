@@ -174,7 +174,7 @@ test('an observation draft keeps its version across refresh and can be explicitl
   expect(screen.getByLabelText('Observation')).toHaveValue(
     'Correction distante.',
   )
-  expect(screen.getByLabelText('Montant dépensé (XOF)')).toHaveValue('110000')
+  expect(screen.getByLabelText('Montant dépensé (F CFA)')).toHaveValue('110000')
   expect(screen.getByLabelText('Opération terminée')).not.toBeChecked()
   await user.type(screen.getByLabelText('Observation'), ' Complément.')
   await user.type(screen.getByLabelText('Motif de la correction'), 'Compléter.')
@@ -895,8 +895,8 @@ test('Agent starts and records an Operation without offline replay', async () =>
     await screen.findByRole('heading', { name: 'Former les équipes' }),
   ).toBeVisible()
   await user.click(screen.getByRole('button', { name: 'Démarrer' }))
-  expect(await screen.findByLabelText('Montant dépensé (XOF)')).toBeVisible()
-  await user.type(screen.getByLabelText('Montant dépensé (XOF)'), '100000')
+  expect(await screen.findByLabelText('Montant dépensé (F CFA)')).toBeVisible()
+  await user.type(screen.getByLabelText('Montant dépensé (F CFA)'), '100000')
   await user.type(screen.getByLabelText('Observation'), 'Session terminée.')
   await user.click(screen.getByLabelText('Opération terminée'))
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
@@ -1200,7 +1200,7 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   )
   await user.click(
     await screen.findByRole('button', {
-      name: /Soumettre 100.*000 XOF/,
+      name: /Soumettre 100.*000 F CFA/,
     }),
   )
   expect(
@@ -1223,7 +1223,7 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   )
   await user.click(
     screen.getByRole('button', {
-      name: /Soumise au Superviseur.*100.*000 XOF/,
+      name: /Soumise au Superviseur.*100.*000 F CFA/,
     }),
   )
   await waitFor(() =>
@@ -1238,13 +1238,13 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   )
   await user.click(screen.getByRole('button', { name: 'Annuler la demande' }))
   expect(
-    await screen.findByRole('button', { name: /Soumettre 100.*000 XOF/ }),
+    await screen.findByRole('button', { name: /Soumettre 100.*000 F CFA/ }),
   ).toBeVisible()
 })
 
 test.each([
-  ['décaissement', '/disbursement-requests', /Soumettre 100.*000 XOF/],
-  ['virement', '/virement-requests', /Demander le virement de 100.*000 XOF/],
+  ['décaissement', '/disbursement-requests', /Soumettre 100.*000 F CFA/],
+  ['virement', '/virement-requests', /Demander le virement de 100.*000 F CFA/],
 ])(
   'offline invalidation aborts and clears a pending %s mutation',
   async (_label, mutationPath, buttonName) => {
@@ -1499,7 +1499,7 @@ test('Agent submits the locked disbursement amount for virement authorization', 
   )
   await user.click(
     await screen.findByRole('button', {
-      name: /Demander le virement de 100.*000 XOF/,
+      name: /Demander le virement de 100.*000 F CFA/,
     }),
   )
   expect(
@@ -1924,7 +1924,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     name: 'Reversement au Partenaire',
   })
   const panel = within(title.closest('section'))
-  expect(panel.getByText('100 000 XOF', { exact: true })).toBeVisible()
+  expect(panel.getByText('100 000 F CFA', { exact: true })).toBeVisible()
   await user.type(
     panel.getByLabelText('Date effective du reversement'),
     '2026-10-28',
@@ -2148,7 +2148,7 @@ test('an uncertain virement submission stays blocked until reconciliation succee
     />,
   )
   const submit = await screen.findByRole('button', {
-    name: /Demander le virement de 100.*000 XOF/,
+    name: /Demander le virement de 100.*000 F CFA/,
   })
   await user.click(submit)
   await waitFor(() => expect(finishReconciliation).toBeDefined())
@@ -2394,7 +2394,7 @@ test('a reasoned execution correction refreshes the funding version without rele
       )}
     />,
   )
-  const amount = await screen.findByLabelText('Montant dépensé (XOF)')
+  const amount = await screen.findByLabelText('Montant dépensé (F CFA)')
   await user.clear(amount)
   await user.type(amount, '90000')
   await user.type(

@@ -21,6 +21,8 @@ export function CategoryCreator({ onCreate, onCreated, disabled }) {
         ref={opener}
         type="button"
         variant="outline"
+        size="sm"
+        className="justify-self-start self-end"
         disabled={disabled}
         onClick={() => {
           setError('')

@@ -95,7 +95,12 @@ test('Agent can open a year with no PTA and reach first activity creation', asyn
         ...empty,
         count: 1,
         data: [
-          { id: 'project-1', reference: 'PRJ-1', name: 'Projet autorisé' },
+          {
+            id: 'project-1',
+            reference: 'PRJ-1',
+            name: 'Projet autorisé',
+            state: 'active',
+          },
         ],
       },
     }),
@@ -115,20 +120,18 @@ test('Agent can open a year with no PTA and reach first activity creation', asyn
   await expect(
     page.getByRole('heading', { name: 'Aucun PTA', exact: true }),
   ).toBeVisible()
-  await page.getByLabel('Année du PTA').fill('')
-  await page.getByLabel('Année du PTA').pressSequentially('2027')
-  await expect(page.getByLabel('Année du PTA')).toHaveValue('2027')
   await page
-    .getByRole('button', { name: 'Ouvrir le PTA de cette année' })
+    .getByRole('button', { name: 'Ajouter une activité au PTA' })
     .click()
-  await expect(page).toHaveURL(/\/projects\/project-1\/ptas\/2027$/)
-  const create = page.locator(
-    'a[href="/projects/project-1/ptas/2027/activities/new"]',
+  await page.getByRole('combobox', { name: 'Projet', exact: true }).click()
+  await page.getByRole('option', { name: 'Projet autorisé' }).click()
+  await page.getByLabel('Exercice du PTA').fill('2027')
+  await page.getByRole('button', { name: 'Continuer' }).click()
+  await expect(page).toHaveURL(
+    /\/projects\/project-1\/ptas\/2027\/activities\/new(?:\?|$)/,
   )
-  await expect(create).toBeVisible()
-  await create.click()
   await expect(
-    page.getByRole('heading', { name: 'Planification complète' }),
+    page.getByRole('heading', { name: 'Informations générales' }),
   ).toBeVisible()
 })
 test('Partner Exports loads only scoped selection data and uses protected CSV', async ({
@@ -413,6 +416,8 @@ test('Execution search reaches the API and a PTA switch hides the previous rows'
                 id: 'activity-1',
                 name: 'Activité de 2026',
                 reference: 'ACT-1',
+                project_name: 'Projet test',
+                approved_revision_number: 2,
                 planned_start: '2026-01-01',
                 planned_end: '2026-12-31',
                 spending_total: null,
@@ -427,6 +432,11 @@ test('Execution search reaches the API and a PTA switch hides the previous rows'
   await expect(
     page.getByRole('link', { name: 'Activité de 2026' }),
   ).toBeVisible()
+  await expect(page.getByText('Révision 2', { exact: true })).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-design-execution.png',
+    fullPage: true,
+  })
   await page.getByRole('searchbox').fill('Justice')
   await expect
     .poll(() =>
@@ -471,7 +481,7 @@ test('Project closure uses the shared dismissible confirmation modal', async ({
     })
   })
   await page.goto('/projects')
-  await page.getByRole('button', { name: 'Clore', exact: true }).click()
+  await page.getByRole('button', { name: 'Clôturer', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Clore le projet' })
   await expect(
     dialog.getByRole('heading', { name: 'Clore le projet' }),
@@ -479,10 +489,10 @@ test('Project closure uses the shared dismissible confirmation modal', async ({
   await page.mouse.click(5, 5)
   await expect(dialog).not.toBeVisible()
   expect(writes).toBe(0)
-  await page.getByRole('button', { name: 'Clore', exact: true }).click()
+  await page.getByRole('button', { name: 'Clôturer', exact: true }).click()
   await page
     .getByRole('dialog')
-    .getByRole('button', { name: 'Clore', exact: true })
+    .getByRole('button', { name: 'Clôturer', exact: true })
     .click()
   await expect.poll(() => writes).toBe(1)
   await expect(dialog).not.toBeVisible()
@@ -492,6 +502,16 @@ test('Agent creates and selects a category without submitting or losing the acti
   page,
 }) => {
   await setup(page, 'AGENT_SAISIE')
+  await page.route('**/api/v1/projects/project-1/ptas/2027', (route) =>
+    route.fulfill({
+      json: {
+        project: { id: 'project-1', name: 'Projet autorisé' },
+        year: 2027,
+        pta: null,
+        allowed_actions: ['create_activity'],
+      },
+    }),
+  )
   let categories = []
   let activityWrites = 0
   let attempts = 0
@@ -537,4 +557,23 @@ test('Agent creates and selects a category without submitting or losing the acti
   await expect(page.getByRole('combobox').first()).toContainText('Formation')
   expect(activityWrites).toBe(0)
   await page.screenshot({ path: '/tmp/mjl-category-created.png' })
+})
+
+test('PTA detail selects only its owning sidebar page', async ({ page }) => {
+  await setup(page, 'VALIDATEUR_DEFINITIF')
+  await page.route('**/api/v1/projects/project-1/ptas/2027', (route) =>
+    route.fulfill({
+      json: {
+        project: { id: 'project-1', name: 'Projet autorisé' },
+        year: 2027,
+        pta: null,
+        allowed_actions: ['read'],
+        approved_plan: { activity_count: 0, allocation: '0' },
+      },
+    }),
+  )
+  await page.goto('/projects/project-1/ptas/2027')
+  const active = page.locator('aside nav a[aria-current="page"]')
+  await expect(active).toHaveCount(1)
+  await expect(active).toHaveText('Prévisions (PTA)')
 })

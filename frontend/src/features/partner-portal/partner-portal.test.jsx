@@ -217,8 +217,8 @@ test('a Partner sees only the read-only portfolio projection', async () => {
   expect(screen.getByText('Modification approuvée')).toBeVisible()
   expect(screen.getByText(/10 janvier 2027/)).toBeVisible()
   expect(screen.getByText(/5 février 2027/)).toBeVisible()
-  expect(screen.getAllByText(/90.000 XOF/).length).toBeGreaterThan(0)
-  expect(screen.getAllByText(/30.000 XOF/).length).toBeGreaterThanOrEqual(2)
+  expect(screen.getAllByText(/90.000 F CFA/).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(/30.000 F CFA/).length).toBeGreaterThanOrEqual(2)
   expect(screen.getByText(/11 mars 2027/)).toBeVisible()
   expect(screen.getByText(/12 mars 2027/)).toBeVisible()
   expect(screen.getByText('13 mars 2027')).toBeVisible()
@@ -423,7 +423,7 @@ test('Partner detail distinguishes unfinished and validated-zero finance', async
   expect(screen.getByText('Aucun virement requis')).toBeVisible()
   expect(screen.getByText('Aucun reversement requis')).toBeVisible()
   expect(screen.getByText('3 avril 2027')).toBeVisible()
-  expect(screen.getAllByText(/0 XOF/).length).toBeGreaterThanOrEqual(2)
+  expect(screen.getAllByText(/0 F CFA/).length).toBeGreaterThanOrEqual(2)
 })
 
 test('offline invalidation removes the Partner portfolio immediately', async () => {
