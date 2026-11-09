@@ -28,6 +28,9 @@ const activity = {
   name: 'Formation des acteurs de la justice des mineurs',
   description:
     'Renforcer l’accès à la justice et la coordination des acteurs de terrain.',
+  project_name: project.name,
+  partner_name: 'UNICEF',
+  pta_name: 'PTA 2027 — Protection de l’enfant et accès à la justice',
   planned_start: '2027-01-10',
   planned_end: '2027-03-10',
   allocation: '3000000',
@@ -43,11 +46,33 @@ const activity = {
     },
   ],
   operation_count: 1,
-  agents: ['Agent de test'],
-  agent_ids: [],
+  agent_ids: ['test'],
+  creator: {
+    id: 'test',
+    full_name: 'Agent de test',
+    email: 'test@example.test',
+  },
+  agents: [
+    {
+      id: 'test',
+      full_name: 'Agent de test',
+      email: 'test@example.test',
+    },
+  ],
+  current_revision_id: null,
+  current_revision_number: null,
+  current_submitter: null,
+  latest_decision_actor: null,
+  approved_revision_id: null,
+  approved_allocation: null,
+  correction: null,
+  amendment: null,
+  withdrawal: null,
+  transfer: null,
+  execution_paused: false,
   allowed_actions: ['read', 'edit', 'submit'],
 }
-async function setup(page, role = 'AGENT_SAISIE') {
+async function setup(page, role = 'AGENT_SAISIE', detail = {}) {
   let pta = {
     id: 'pta-1',
     project_id: project.id,
@@ -129,8 +154,44 @@ async function setup(page, role = 'AGENT_SAISIE') {
         approved_plan: { activity_count: 0, allocation: '0' },
       }
     else if (path === '/api/v1/ptas/pta-1/activities')
-      json = { ...empty, count: 1, data: [activity] }
-    else if (path === '/api/v1/activities/activity-1') json = activity
+      json = {
+        ...empty,
+        count: 1,
+        data: [{ ...activity, agents: ['Agent de test'] }],
+      }
+    else if (path === '/api/v1/activities/activity-1')
+      json = {
+        ...activity,
+        planned_end: null,
+        allocation: null,
+        operations: [],
+        operation_count: 0,
+        ...detail,
+      }
+    else if (path === '/api/v1/assignment-agents')
+      json = url.searchParams.get('q')
+        ? empty
+        : {
+            ...empty,
+            count: 3,
+            data: [
+              {
+                id: 'agent-1',
+                full_name: 'Aïcha HOUNKPATIN',
+                email: 'aicha@example.test',
+              },
+              {
+                id: 'agent-2',
+                full_name: 'Patrick ADJOVI',
+                email: 'patrick@example.test',
+              },
+              {
+                id: 'agent-3',
+                full_name: 'Clarisse KIKI',
+                email: 'clarisse@example.test',
+              },
+            ],
+          }
     else if (path === '/api/v1/operation-types')
       json = {
         ...empty,
@@ -173,9 +234,18 @@ test('planning references: index, table, calendar, form and detail tabs', async 
   await page.screenshot({ path: '/tmp/mjl-design-create.png', fullPage: true })
   await page.goto('/activities/activity-1')
   await expect(
-    page.getByRole('heading', { name: 'Budget et validation' }),
+    page.getByRole('heading', { name: 'Programmation' }),
   ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Soumettre pour prévalidation' }),
+  ).toHaveCount(0)
   await page.screenshot({ path: '/tmp/mjl-design-detail.png', fullPage: true })
+  await page.getByRole('button', { name: 'Compléter la programmation' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Compléter la programmation', level: 1 }),
+  ).toBeVisible()
+  await page.screenshot({ path: '/tmp/mjl-design-edit.png', fullPage: true })
+  await page.getByRole('button', { name: 'Annuler', exact: true }).click()
   await page.getByRole('link', { name: 'Historique', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Aucun événement' }),
@@ -249,7 +319,11 @@ test('PTA metadata modals follow the reference and keep immutable fields on edit
     page.getByText('Programme annuel de coopération UNICEF / MJL.'),
   ).toBeVisible()
   await page.screenshot({ path: '/tmp/pta-metadata-index.png' })
-  await page.getByRole('button', { name: 'Créer un PTA', exact: true }).click()
+  const createOpener = page.getByRole('button', {
+    name: 'Créer un PTA',
+    exact: true,
+  })
+  await createOpener.click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('combobox', { name: 'Projet' })).toContainText(
     project.name,
@@ -277,9 +351,14 @@ test('PTA metadata modals follow the reference and keep immutable fields on edit
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
-  await page.getByRole('button', { name: 'Modifier le PTA' }).click()
+  await expect(
+    page.getByRole('button', { name: 'Modifier le PTA' }),
+  ).toBeFocused()
+  const editOpener = page.getByRole('button', { name: 'Modifier le PTA' })
+  await editOpener.click()
   await page.mouse.click(2, 2)
   await expect(dialog).toHaveCount(0)
+  await expect(editOpener).toBeFocused()
 })
 
 test('reviewer brief uses nested calendars, searchable assignment and retained same-key recovery', async ({
@@ -372,4 +451,258 @@ test('reviewer brief uses nested calendars, searchable assignment and retained s
   await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
   await expect(modal).toHaveCount(0)
   await expect(opener).toBeFocused()
+})
+
+test('assignment and both planning decisions match their governing dialogs', async ({
+  browser,
+}) => {
+  const reviewActivity = {
+    state: 'submitted',
+    version: 2,
+    planned_end: '2027-04-01',
+    allocation: '1500000',
+    operations: [
+      {
+        id: 'op-1',
+        type_id: 'type-1',
+        type_label: 'Formation',
+        name: 'Atelier et missions de terrain',
+        allocation: '1500000',
+      },
+    ],
+    operation_count: 1,
+    agent_ids: ['agent-1', 'agent-2'],
+    agents: [
+      {
+        id: 'agent-1',
+        full_name: 'Aïcha HOUNKPATIN',
+        email: 'aicha@example.test',
+      },
+      {
+        id: 'agent-2',
+        full_name: 'Patrick ADJOVI',
+        email: 'patrick@example.test',
+      },
+    ],
+    current_revision_id: 'revision-1',
+    current_revision_number: 1,
+    current_submitter: {
+      id: 'agent-1',
+      full_name: 'Aïcha HOUNKPATIN',
+      email: 'aicha@example.test',
+    },
+    allowed_actions: ['read', 'assign_agents', 'prevalidate'],
+  }
+  const supervisorContext = await browser.newContext({
+    baseURL: 'http://127.0.0.1:4173',
+    viewport: { width: 1837, height: 964 },
+  })
+  const supervisor = await supervisorContext.newPage()
+  await setup(supervisor, 'AGENT_VERIFICATEUR', reviewActivity)
+  await supervisor.goto('/activities/activity-1')
+  const assignmentOpener = supervisor.getByRole('button', {
+    name: 'Modifier les responsables',
+  })
+  await assignmentOpener.click()
+  const assignment = supervisor.getByRole('dialog', {
+    name: 'Responsables de l’activité',
+  })
+  await supervisor.keyboard.press('Escape')
+  await expect(assignment).toHaveCount(0)
+  await expect(assignmentOpener).toBeFocused()
+  await assignmentOpener.click()
+  await supervisor.mouse.click(2, 2)
+  await expect(assignment).toHaveCount(0)
+  await expect(assignmentOpener).toBeFocused()
+  await assignmentOpener.click()
+  await assignment
+    .getByRole('button', { name: 'Rechercher et ajouter un Agent' })
+    .click()
+  await assignment
+    .getByRole('searchbox', { name: 'Rechercher et ajouter un Agent' })
+    .fill('personne')
+  await expect(
+    assignment.getByText('Aucun Agent ne correspond à votre recherche.'),
+  ).toBeVisible()
+  await assignment
+    .getByRole('searchbox', { name: 'Rechercher et ajouter un Agent' })
+    .fill('')
+  await assignment.getByRole('button', { name: /Clarisse KIKI/ }).click()
+  await assignment
+    .getByRole('button', { name: /Retirer Patrick ADJOVI/ })
+    .click()
+  await expect(
+    assignment.getByRole('heading', { name: 'Modifications à enregistrer' }),
+  ).toBeVisible()
+  await supervisor.screenshot({ path: '/tmp/mjl-design-assignment.png' })
+  await supervisor.setViewportSize({ width: 918, height: 482 })
+  await expect(supervisor.locator('body')).toHaveJSProperty('scrollWidth', 918)
+  await supervisor.screenshot({ path: '/tmp/mjl-design-assignment-reflow.png' })
+  await assignment.getByRole('button', { name: 'Annuler' }).click()
+  await expect(assignment).toHaveCount(0)
+  await expect(assignmentOpener).toBeFocused()
+  await supervisor.setViewportSize({ width: 1837, height: 964 })
+  const prevalidateOpener = supervisor.getByRole('button', {
+    name: 'Prévalider',
+  })
+  await prevalidateOpener.click()
+  const prevalidation = supervisor.getByRole('dialog', { name: 'Prévalider' })
+  await expect(prevalidation).toBeVisible()
+  await expect(
+    prevalidation.getByRole('button', { name: 'Fermer' }),
+  ).toBeVisible()
+  await expect(prevalidation.getByText(activity.name)).toBeVisible()
+  await supervisor.screenshot({ path: '/tmp/mjl-design-prevalidate.png' })
+  await supervisor.setViewportSize({ width: 918, height: 482 })
+  await expect(supervisor.locator('body')).toHaveJSProperty('scrollWidth', 918)
+  await expect(
+    prevalidation.getByRole('button', { name: 'Fermer' }),
+  ).toBeVisible()
+  await supervisor.screenshot({
+    path: '/tmp/mjl-design-prevalidate-reflow.png',
+  })
+  const decisionFile = prevalidation.getByLabel(
+    'Pièce justificative (facultative)',
+  )
+  await prevalidation.getByLabel('Observation (facultative)').focus()
+  await supervisor.keyboard.press('Tab')
+  await expect(decisionFile).toBeFocused()
+  const decisionFileField = prevalidation.locator('[data-ui~="decision-file"]')
+  await expect
+    .poll(() =>
+      decisionFileField.evaluate(
+        (element) => getComputedStyle(element).outlineStyle,
+      ),
+    )
+    .not.toBe('none')
+  const fileBox = await decisionFileField.boundingBox()
+  const footerBox = await prevalidation
+    .locator('[data-ui~="modal-actions"]')
+    .boundingBox()
+  expect(fileBox).not.toBeNull()
+  expect(footerBox).not.toBeNull()
+  expect((fileBox?.y ?? 0) + (fileBox?.height ?? 0)).toBeLessThanOrEqual(
+    footerBox?.y ?? 0,
+  )
+  await supervisor.screenshot({
+    path: '/tmp/mjl-design-prevalidate-reflow-file-focus.png',
+  })
+  const confirmPrevalidation = prevalidation.getByRole('button', {
+    name: 'Confirmer la décision',
+  })
+  await confirmPrevalidation.scrollIntoViewIfNeeded()
+  await expect(confirmPrevalidation).toBeVisible()
+  await expect(
+    prevalidation.getByRole('button', { name: 'Annuler' }),
+  ).toBeVisible()
+  await expect(
+    prevalidation.getByRole('heading', { name: 'Prévalider' }),
+  ).toBeVisible()
+  await expect(
+    prevalidation.getByRole('button', { name: 'Fermer' }),
+  ).toBeVisible()
+  await supervisor.screenshot({
+    path: '/tmp/mjl-design-prevalidate-reflow-footer.png',
+  })
+  await prevalidation.getByRole('button', { name: 'Annuler' }).click()
+  await expect(prevalidation).toHaveCount(0)
+  await expect(prevalidateOpener).toBeFocused()
+  await prevalidateOpener.click()
+  await supervisor.keyboard.press('Escape')
+  await expect(prevalidation).toHaveCount(0)
+  await expect(prevalidateOpener).toBeFocused()
+  await prevalidateOpener.click()
+  await supervisor.mouse.click(2, 2)
+  await expect(
+    supervisor.getByRole('dialog', { name: 'Prévalider' }),
+  ).toHaveCount(0)
+  await expect(prevalidateOpener).toBeFocused()
+  await supervisorContext.close()
+
+  const validatorContext = await browser.newContext({
+    baseURL: 'http://127.0.0.1:4173',
+    viewport: { width: 1837, height: 964 },
+  })
+  const validator = await validatorContext.newPage()
+  await setup(validator, 'VALIDATEUR_DEFINITIF', {
+    ...reviewActivity,
+    state: 'prevalidated',
+    latest_decision_actor: {
+      id: 'supervisor',
+      full_name: 'Jean DOSSOU',
+      email: 'jean@example.test',
+    },
+    allowed_actions: ['read', 'assign_agents', 'approve'],
+  })
+  await validator.goto('/activities/activity-1')
+  const approveOpener = validator.getByRole('button', {
+    name: 'Valider définitivement',
+  })
+  await approveOpener.click()
+  await expect(
+    validator.getByRole('dialog', { name: 'Autoriser' }),
+  ).toBeVisible()
+  await validator.screenshot({ path: '/tmp/mjl-design-authorize.png' })
+  await validator.setViewportSize({ width: 918, height: 482 })
+  await expect(validator.locator('body')).toHaveJSProperty('scrollWidth', 918)
+  await validator.screenshot({ path: '/tmp/mjl-design-authorize-reflow.png' })
+  await validator.keyboard.press('Escape')
+  await expect(
+    validator.getByRole('dialog', { name: 'Autoriser' }),
+  ).toHaveCount(0)
+  await expect(approveOpener).toBeFocused()
+  await approveOpener.click()
+  await validator.mouse.click(2, 2)
+  await expect(
+    validator.getByRole('dialog', { name: 'Autoriser' }),
+  ).toHaveCount(0)
+  await expect(approveOpener).toBeFocused()
+  await validatorContext.close()
+})
+
+test('complete activity editing matches the populated desktop and reflow references', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    baseURL: 'http://127.0.0.1:4173',
+    viewport: { width: 1837, height: 964 },
+  })
+  const page = await context.newPage()
+  await setup(page, 'AGENT_SAISIE', {
+    planned_end: activity.planned_end,
+    operations: [
+      ...activity.operations,
+      {
+        id: 'op-2',
+        type_id: 'type-1',
+        type_label: 'Formation',
+        name: 'Missions de suivi dans les juridictions',
+        allocation: '1000000',
+      },
+    ],
+    operation_count: 2,
+    allocation: '4000000',
+  })
+  await page.goto('/activities/activity-1')
+  await page.getByRole('button', { name: 'Modifier', exact: true }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Réviser la programmation', level: 1 }),
+  ).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-design-edit-complete.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 918, height: 482 })
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 918)
+  await page.screenshot({
+    path: '/tmp/mjl-design-edit-complete-reflow.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
+  await page.screenshot({
+    path: '/tmp/mjl-design-edit-complete-mobile.png',
+    fullPage: true,
+  })
+  await context.close()
 })

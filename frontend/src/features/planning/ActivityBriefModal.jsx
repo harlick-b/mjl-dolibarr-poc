@@ -130,7 +130,7 @@ export function ActivityBriefModal({
     <Modal open={open} onClose={dismiss} label={strings.title} opener={opener}>
       <Panel
         as={BusinessForm}
-        className="rounded-none border-0 [&_textarea]:min-h-18"
+        className="gap-6 rounded-none border-0 [&_textarea]:min-h-18"
         onSubmit={() => save.mutateAsync()}
       >
         <fieldset disabled={uncertain} className="contents">

@@ -767,6 +767,26 @@ supplied reference; no live invitation was sent for this verification.
 Pre-commit review corrected stale header wording and made reminder timestamps
 explicitly Africa/Porto-Novo; focused formatter/notification checks passed (2 tests).
 
+Current PTA visual-correction candidate (2026-11-09): the PTA metadata, reviewer
+brief, incomplete and populated Activity workspaces, assignment dialog and planning
+decision dialogs were compared with the applicable supplied references at desktop,
+narrow and 200%-equivalent reflow sizes. The implementation now restores modal
+focus to each opener, keeps incomplete briefs from exposing submission, separates
+incomplete-draft guidance from complete-draft budget facts, and aligns the populated
+Activity editor's field order and budget reconciliation. Assignment search excludes
+already selected Agents and previews additions, removals and the removal effect
+before saving. These are presentation and client-interaction corrections only; no
+API, schema, role or persisted workflow behavior changed.
+
+Final-source evidence for this correction: focused planning Vitest passed 55 tests
+in 3 files; fixture-backed `planning-design.spec.js` passed 6 browser cases covering
+desktop/reflow/mobile composition and dialog Escape/outside/cancel focus return;
+the production build, ESLint (with one pre-existing auth hook warning), Stylelint,
+Prettier and `git diff --check` passed. The real-service planning journey was
+discovered but skipped because its opt-in environment was not enabled. The existing
+large JavaScript chunk warning remains. Rendered comparison and automated checks
+are implementation evidence, not client acceptance or production readiness.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

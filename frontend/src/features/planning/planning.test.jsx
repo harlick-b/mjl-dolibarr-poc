@@ -1240,7 +1240,10 @@ test('an edited Activity retains its draft version after a background refresh', 
     onSubmit: submit,
   }
   const { rerender } = render(<ActivityForm {...props} initial={initial} />)
-  await user.type(screen.getByLabelText('Nom', { exact: true }), ' modifiée')
+  await user.type(
+    screen.getByLabelText('Intitulé de l’activité', { exact: true }),
+    ' modifiée',
+  )
   rerender(
     <ActivityForm
       {...props}
@@ -1261,6 +1264,45 @@ test('an edited Activity retains its draft version after a background refresh', 
       planned_end: '2027-04-01',
     }),
   )
+})
+
+test('an edited Activity keeps its approved draft amount while operations are reconciled', async () => {
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      initial={{
+        version: 1,
+        name: 'Activité initiale',
+        description: 'Description',
+        planned_start: '2027-01-01',
+        planned_end: '2027-04-01',
+        allocation: '100',
+        operations: [
+          {
+            id: 'operation-1',
+            type_id: 'type-1',
+            name: 'Atelier',
+            allocation: '100',
+          },
+        ],
+      }}
+      types={[{ id: 'type-1', label: 'Atelier' }]}
+      pending={false}
+      onSubmit={vi.fn()}
+    />,
+  )
+  const operationAmount = screen.getByLabelText('Budget de l’opération 1')
+  await user.clear(operationAmount)
+  await user.type(operationAmount, '80')
+  expect(screen.getByRole('status')).toHaveTextContent('20 F CFA')
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled()
+  const plannedAmount = screen.getByLabelText(
+    'Montant prévu de l’activité (F CFA)',
+  )
+  await user.clear(plannedAmount)
+  await user.type(plannedAmount, '80')
+  expect(screen.getByRole('status')).toHaveTextContent('—')
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled()
 })
 
 test('assignment edits retain their base version and can discard a stale draft', async () => {
@@ -1344,9 +1386,7 @@ test('assignment edits retain their base version and can discard a stale draft',
       /Date de fin non renseignée\. Opérations et budget à compléter\./,
     ),
   ).toBeVisible()
-  expect(
-    screen.getByText('Sali Superviseure', { selector: 'dd' }),
-  ).toBeVisible()
+  expect(screen.getByText(/Brief créé par Sali Superviseure\./)).toBeVisible()
   expect(
     screen.queryByRole('heading', { name: 'Opérations' }),
   ).not.toBeInTheDocument()
@@ -1398,7 +1438,7 @@ test('assignment edits retain their base version and can discard a stale draft',
     )
   })
   await user.click(
-    screen.getByRole('button', { name: 'Enregistrer les agents' }),
+    screen.getByRole('button', { name: 'Enregistrer les affectations' }),
   )
   await waitFor(() =>
     expect(assigned).toEqual({ expected_version: 1, agent_ids: ['agent-1'] }),
@@ -1414,7 +1454,7 @@ test('assignment edits retain their base version and can discard a stale draft',
     screen.queryByRole('button', { name: 'Retirer agent@example.test' }),
   ).not.toBeInTheDocument()
   expect(
-    screen.getByRole('button', { name: 'Enregistrer les agents' }),
+    screen.getByRole('button', { name: 'Enregistrer les affectations' }),
   ).toBeDisabled()
 })
 
@@ -1615,7 +1655,10 @@ test('a new Activity keeps its request key across a lost-response retry', async 
       onSubmit={submit}
     />,
   )
-  await user.type(screen.getByLabelText('Nom', { exact: true }), 'Activité')
+  await user.type(
+    screen.getByLabelText('Intitulé de l’activité', { exact: true }),
+    'Activité',
+  )
   await user.type(screen.getByLabelText('Description'), 'Description')
   await user.click(screen.getByRole('button', { name: /^Début/ }))
   await user.click(
@@ -2548,7 +2591,9 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
       onSubmit={submit}
     />,
   )
-  expect(screen.getByLabelText('Nom', { exact: true })).toHaveValue('Brief')
+  expect(
+    screen.getByLabelText('Intitulé de l’activité', { exact: true }),
+  ).toHaveValue('Brief')
   expect(screen.getByRole('button', { name: /^Fin/ })).toHaveTextContent(
     'Choisir une date',
   )

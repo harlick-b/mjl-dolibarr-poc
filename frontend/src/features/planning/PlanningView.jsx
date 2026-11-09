@@ -1115,6 +1115,7 @@ function PTA({
   const search = useSearch({ strict: false })
   const [editing, setEditing] = useState(false)
   const [creatingBrief, setCreatingBrief] = useState(null)
+  const editPtaOpener = useRef(null)
   const briefOpener = useRef(null)
   const reviewer = authorization(useSessionQuery().data).can('ptaManagement')
   if (!context) return <PageLoading title={strings.annualPlan} />
@@ -1133,46 +1134,62 @@ function PTA({
             {context.pta?.description ? ` · ${context.pta.description}` : ''}
           </p>
         </div>
-        {context.pta?.allowed_actions?.includes('edit') && (
-          <Button variant="outline" onClick={() => setEditing(true)}>
-            {ptaStrings.edit}
-          </Button>
-        )}
-        {editing && (
-          <PTAModal
-            onDenied={onDenied}
-            pta={context.pta}
-            project={context.project}
-            onClose={() => setEditing(false)}
-            onSaved={() => setEditing(false)}
-          />
-        )}
-        {context.allowed_actions.includes('create_activity') &&
-          (reviewer ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {context.pta?.allowed_actions?.includes('edit') && (
             <Button
-              ref={briefOpener}
+              ref={editPtaOpener}
+              variant="outline"
               onClick={(event) => {
-                briefOpener.current = event.currentTarget
-                setCreatingBrief({ open: true })
+                editPtaOpener.current = event.currentTarget
+                setEditing(true)
               }}
             >
-              <Plus size={16} />
-              {strings.addActivityToPta}
+              {ptaStrings.edit}
             </Button>
-          ) : (
-            <Button asChild>
-              <Link
-                to="/projects/$projectId/ptas/$year/activities/new"
-                params={{
-                  projectId: context.project.id,
-                  year: String(context.year),
+          )}
+          {context.allowed_actions.includes('create_activity') &&
+            (reviewer ? (
+              <Button
+                ref={briefOpener}
+                onClick={(event) => {
+                  briefOpener.current = event.currentTarget
+                  setCreatingBrief({ open: true })
                 }}
               >
                 <Plus size={16} />
                 {strings.addActivityToPta}
-              </Link>
-            </Button>
-          ))}
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link
+                  to="/projects/$projectId/ptas/$year/activities/new"
+                  params={{
+                    projectId: context.project.id,
+                    year: String(context.year),
+                  }}
+                >
+                  <Plus size={16} />
+                  {strings.addActivityToPta}
+                </Link>
+              </Button>
+            ))}
+        </div>
+        {editing && (
+          <PTAModal
+            opener={editPtaOpener}
+            onDenied={onDenied}
+            pta={context.pta}
+            project={context.project}
+            onClose={() => {
+              setEditing(false)
+              setTimeout(() => editPtaOpener.current?.focus(), 0)
+            }}
+            onSaved={() => {
+              setEditing(false)
+              setTimeout(() => editPtaOpener.current?.focus(), 0)
+            }}
+          />
+        )}
         {creatingBrief && (
           <ActivityBriefModal
             context={context}
@@ -1353,7 +1370,9 @@ export function ActivityForm({
 }) {
   const [draftBase] = useState(initial)
   const [dateError, setDateError] = useState(false)
-  const [plannedAmount, setPlannedAmount] = useState(null)
+  const [plannedAmount, setPlannedAmount] = useState(
+    initial?.allocation ?? null,
+  )
   const [start, setStart] = useState(initial?.planned_start || '')
   const [end, setEnd] = useState(initial?.planned_end || '')
   const [endWasEdited, setEndWasEdited] = useState(Boolean(initial))
@@ -1376,6 +1395,9 @@ export function ActivityForm({
       sum + (/^[1-9]\d*$/.test(row.allocation) ? BigInt(row.allocation) : 0n),
     0n,
   )
+  const allOperationAmounts =
+    operations.length > 0 &&
+    operations.every((row) => /^[1-9]\d*$/.test(row.allocation))
   return (
     <Panel
       as={BusinessForm}
@@ -1417,7 +1439,7 @@ export function ActivityForm({
           </h2>
           <div className="grid gap-6 p-5">
             <label>
-              {strings.name}
+              {strings.activityName}
               <input
                 name="name"
                 required
@@ -1488,7 +1510,9 @@ export function ActivityForm({
                 inputMode="numeric"
                 pattern="[1-9][0-9]*"
                 required
-                value={plannedAmount ?? (total ? total.toString() : '')}
+                value={
+                  plannedAmount ?? (allOperationAmounts ? total.toString() : '')
+                }
                 onChange={(event) => setPlannedAmount(event.target.value)}
               />
             </label>
@@ -1496,58 +1520,30 @@ export function ActivityForm({
               <legend className="sr-only">{strings.operations}</legend>
               {operations.map((row, index) => (
                 <div
-                  className="grid items-end gap-4 rounded-card border border-border p-4 sm:grid-cols-2"
+                  className="grid items-start gap-4 rounded-card border border-border p-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]"
                   key={row.id || index}
                 >
-                  <h3 className="font-semibold sm:col-span-2">
-                    {strings.operation} {index + 1}
-                  </h3>
-                  <label>
-                    {strings.operationType}
-                    <Select
+                  <div className="flex items-center justify-between gap-3 sm:col-span-2 lg:col-span-3">
+                    <h3 className="font-semibold">
+                      {strings.operation} {index + 1}
+                    </h3>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={operations.length === 1}
                       aria-label={strings.formatString(
-                        strings.operationTypeNumber,
+                        strings.operationRemoveNumber,
                         index + 1,
                       )}
-                      required
-                      value={row.type_id}
-                      onChange={(e) =>
-                        setOperations(
-                          operations.map((item, i) =>
-                            i === index
-                              ? { ...item, type_id: e.target.value }
-                              : item,
-                          ),
-                        )
+                      data-edits-form
+                      onClick={() =>
+                        setOperations(operations.filter((_, i) => i !== index))
                       }
                     >
-                      <option value="">Choisir</option>
-                      {availableTypes.map((type) => (
-                        <option value={type.id} key={type.id}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
-                  {onCreateType && (
-                    <CategoryCreator
-                      onCreate={onCreateType}
-                      disabled={pending || optionsUnavailable}
-                      onCreated={(type) =>
-                        setOperations((current) =>
-                          current.map((item, i) =>
-                            i === index
-                              ? {
-                                  ...item,
-                                  type_id: type.id,
-                                  type_label: type.label,
-                                }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
-                  )}
+                      {strings.remove}
+                    </Button>
+                  </div>
                   <label>
                     {strings.operationName}
                     <input
@@ -1569,8 +1565,56 @@ export function ActivityForm({
                       }
                     />
                   </label>
+                  <div className="grid gap-2">
+                    <label>
+                      {strings.activityOperationType}
+                      <Select
+                        aria-label={strings.formatString(
+                          strings.operationTypeNumber,
+                          index + 1,
+                        )}
+                        required
+                        value={row.type_id}
+                        onChange={(e) =>
+                          setOperations(
+                            operations.map((item, i) =>
+                              i === index
+                                ? { ...item, type_id: e.target.value }
+                                : item,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">Choisir</option>
+                        {availableTypes.map((type) => (
+                          <option value={type.id} key={type.id}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                    {onCreateType && (
+                      <CategoryCreator
+                        onCreate={onCreateType}
+                        disabled={pending || optionsUnavailable}
+                        onCreated={(type) =>
+                          setOperations((current) =>
+                            current.map((item, i) =>
+                              i === index
+                                ? {
+                                    ...item,
+                                    type_id: type.id,
+                                    type_label: type.label,
+                                  }
+                                : item,
+                            ),
+                          )
+                        }
+                      />
+                    )}
+                  </div>
                   <label>
-                    {strings.budget}
+                    {strings.operationAmount}
                     <input
                       aria-label={strings.formatString(
                         strings.operationBudgetNumber,
@@ -1591,29 +1635,13 @@ export function ActivityForm({
                       }
                     />
                   </label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="justify-self-start"
-                    variant="outline"
-                    disabled={operations.length === 1}
-                    aria-label={strings.formatString(
-                      strings.operationRemoveNumber,
-                      index + 1,
-                    )}
-                    data-edits-form
-                    onClick={() =>
-                      setOperations(operations.filter((_, i) => i !== index))
-                    }
-                  >
-                    {strings.remove}
-                  </Button>
                 </div>
               ))}
             </fieldset>
             <Button
               type="button"
               variant="outline"
+              className="justify-self-start"
               data-edits-form
               onClick={() =>
                 setOperations([
@@ -1670,7 +1698,11 @@ export function ActivityForm({
             </dt>
             <dd className="mt-2 font-semibold">
               {formatXof(
-                /^[1-9]\d*$/.test(plannedAmount || '') ? plannedAmount : total,
+                /^[1-9]\d*$/.test(plannedAmount || '')
+                  ? plannedAmount
+                  : allOperationAmounts
+                    ? total
+                    : null,
               )}
             </dd>
           </div>
@@ -1678,18 +1710,32 @@ export function ActivityForm({
             <dt className="text-[0.8125rem] text-muted-foreground">
               {strings.operationTotal}
             </dt>
-            <dd className="mt-2 font-semibold">{formatXof(total)}</dd>
+            <dd className="mt-2 font-semibold">
+              {allOperationAmounts ? formatXof(total) : '—'}
+            </dd>
           </div>
-          {plannedAmount !== null &&
-            /^[1-9]\d*$/.test(plannedAmount) &&
-            BigInt(plannedAmount) !== total && (
-              <div role="status">
-                <dt>{strings.budgetDifference}</dt>
-                <dd className="mt-2 text-warning">
-                  {formatXof(BigInt(plannedAmount) - total)}
-                </dd>
-              </div>
-            )}
+          <div role="status">
+            <dt className="text-[0.8125rem] text-muted-foreground">
+              {strings.budgetDifference}
+            </dt>
+            <dd
+              className={`mt-2 font-semibold ${
+                allOperationAmounts &&
+                plannedAmount !== null &&
+                /^[1-9]\d*$/.test(plannedAmount) &&
+                BigInt(plannedAmount) !== total
+                  ? 'text-warning'
+                  : 'text-success'
+              }`}
+            >
+              {allOperationAmounts &&
+              plannedAmount !== null &&
+              /^[1-9]\d*$/.test(plannedAmount) &&
+              BigInt(plannedAmount) !== total
+                ? formatXof(BigInt(plannedAmount) - total)
+                : '—'}
+            </dd>
+          </div>
         </dl>
       </aside>
     </Panel>
@@ -1754,6 +1800,7 @@ function AssignmentModal({
   blocked,
   draft,
   setDraft,
+  opener,
   onClose,
   onDenied,
   onSave,
@@ -1786,6 +1833,9 @@ function AssignmentModal({
   const initialIds = item.agent_ids || []
   const selectedAgents = draft?.agents ?? item.agents ?? []
   const selectedIds = selectedAgents.map((agent) => agent.id)
+  const availableChoices = (choices.data?.data || []).filter(
+    (agent) => !selectedIds.includes(agent.id),
+  )
   const knownAgents = new Map(
     [
       ...selectedAgents,
@@ -1813,7 +1863,12 @@ function AssignmentModal({
         : selectedAgents.filter((value) => value.id !== agent.id),
     })
   return (
-    <Modal open={open} onClose={onClose} label={strings.activityOwners}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      label={strings.activityOwners}
+      opener={opener}
+    >
       <BusinessForm
         dirty={changed}
         className="grid gap-5 p-6"
@@ -1884,21 +1939,20 @@ function AssignmentModal({
                 </RetryableError>
               )}
               <div className="grid gap-1">
-                {(choices.data?.data || []).map((agent) => {
-                  const selected = selectedIds.includes(agent.id)
+                {availableChoices.map((agent) => {
                   return (
                     <Button
                       key={agent.id}
                       type="button"
                       variant="ghost"
-                      aria-pressed={selected}
+                      aria-pressed="false"
                       className="h-auto justify-start px-2 py-2 text-left font-normal"
                       disabled={blocked}
-                      onClick={() => update(agent, !selected)}
+                      onClick={() => update(agent, true)}
                     >
                       <Check
                         size={16}
-                        className={selected ? 'opacity-100' : 'opacity-0'}
+                        className="opacity-0"
                         aria-hidden="true"
                       />
                       <span>
@@ -1916,7 +1970,7 @@ function AssignmentModal({
                 })}
                 {!choices.isPending &&
                   !choices.isError &&
-                  !(choices.data?.data || []).length && (
+                  !availableChoices.length && (
                     <p className="px-3 py-2 text-sm text-muted-foreground">
                       {strings.noOwnerMatch}
                     </p>
@@ -1945,20 +1999,30 @@ function AssignmentModal({
             </div>
           )}
         </section>
-        <section className="grid gap-2 text-sm text-muted-foreground">
+        <section
+          className="grid gap-2 text-sm text-muted-foreground"
+          aria-live="polite"
+        >
           {!added.length && !removed.length ? (
             <p>{strings.assignmentUnchanged}</p>
           ) : (
             <>
+              <h3 className="font-semibold text-foreground">
+                {strings.assignmentPreview}
+              </h3>
               {!!added.length && (
                 <p>
                   {strings.assignmentAdded} : {added.map(label).join(', ')}
                 </p>
               )}
               {!!removed.length && (
-                <p>
-                  {strings.assignmentRemoved} : {removed.map(label).join(', ')}
-                </p>
+                <>
+                  <p>
+                    {strings.assignmentRemoved} :{' '}
+                    {removed.map(label).join(', ')}
+                  </p>
+                  <p>{strings.assignmentRemovalEffect}</p>
+                </>
               )}
             </>
           )}
@@ -2011,8 +2075,14 @@ function ActivityDetail({
     item.transfer?.target_year || '',
   )
   const workflowOpener = useRef(null)
+  const assignmentOpener = useRef(null)
   const [assignmentDraft, setAssignmentDraft] = useState(null)
   const [assignmentOpen, setAssignmentOpen] = useState(false)
+  const closeAssignment = () => {
+    setAssignmentDraft(null)
+    setAssignmentOpen(false)
+    setTimeout(() => assignmentOpener.current?.focus(), 0)
+  }
   const canAssign =
     ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(user.role) &&
     item.allowed_actions.includes('assign_agents')
@@ -2201,7 +2271,47 @@ function ActivityDetail({
   }
   if (editing)
     return (
-      <>
+      <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
+        <nav
+          aria-label={strings.breadcrumb}
+          className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+        >
+          <Link to="/planning" className="text-primary">
+            {strings.planningIndex}
+          </Link>
+          <span aria-hidden="true">/</span>
+          <Link
+            to="/projects/$projectId/ptas/$year"
+            params={{
+              projectId: item.project_id,
+              year: String(item.placement_year),
+            }}
+            className="text-primary"
+          >
+            {item.pta_name}
+          </Link>
+          <span aria-hidden="true">/</span>
+          <span>{strings.revision}</span>
+        </nav>
+        <header className="flex flex-wrap items-start justify-between gap-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-navy">
+              {!item.planned_end || item.allocation === null
+                ? strings.completeProgramming
+                : strings.reviseProgramming}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {item.project_name} · {item.partner_name} · {item.pta_name}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setEditing(false)}
+          >
+            {strings.cancel}
+          </Button>
+        </header>
         {typeChoices.isError && (
           <RetryableError onRetry={() => void typeChoices.refetch()}>
             {strings.unavailablePlanning}
@@ -2220,7 +2330,6 @@ function ActivityDetail({
           }
           initial={item}
           year={item.placement_year}
-          onCancel={() => setEditing(false)}
           onSubmit={(body) =>
             mutation.mutateAsync(
               { path: `/activities/${item.id}`, method: 'PATCH', body },
@@ -2228,7 +2337,7 @@ function ActivityDetail({
             )
           }
         />
-      </>
+      </Panel>
     )
   const creatorName =
     item.creator?.full_name || item.creator?.email || strings.unknownActor
@@ -2282,7 +2391,7 @@ function ActivityDetail({
           </span>
           <div className="grid gap-2">
             <p className="text-xs text-muted-foreground">
-              {strings.activityOwners}
+              {strings.currentOwners}
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <strong>
@@ -2295,7 +2404,10 @@ function ActivityDetail({
                   type="button"
                   variant="outline"
                   className="min-h-8 px-3"
-                  onClick={() => setAssignmentOpen(true)}
+                  onClick={(event) => {
+                    assignmentOpener.current = event.currentTarget
+                    setAssignmentOpen(true)
+                  }}
                 >
                   {strings.changeOwners}
                 </Button>
@@ -2304,13 +2416,17 @@ function ActivityDetail({
           </div>
           <dl className="flex flex-wrap gap-x-10 gap-y-3 text-sm">
             <div>
-              <dt className="text-xs text-muted-foreground">{strings.start}</dt>
+              <dt className="text-xs text-muted-foreground">
+                {strings.plannedStart}
+              </dt>
               <dd className="mt-1 font-medium">
                 {formatDate(item.planned_start)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">{strings.end}</dt>
+              <dt className="text-xs text-muted-foreground">
+                {strings.plannedEnd}
+              </dt>
               <dd className="mt-1 font-medium">
                 {item.planned_end ? formatDate(item.planned_end) : '—'}
               </dd>
@@ -2421,7 +2537,8 @@ function ActivityDetail({
             ['return', strings.returnCorrection],
           ].map(
             ([action, label]) =>
-              item.allowed_actions.includes(action) && (
+              item.allowed_actions.includes(action) &&
+              !(action === 'submit' && programmingIncomplete) && (
                 <Button
                   key={action}
                   disabled={mutationBlocked}
@@ -2521,7 +2638,9 @@ function ActivityDetail({
               <h2 className="border-b border-border px-5 py-4">
                 {strings.programming}
               </h2>
-              <div className="grid gap-6 p-5">
+              <div
+                className={`grid p-5 ${programmingIncomplete ? 'gap-4' : 'gap-6'}`}
+              >
                 <p>{item.description}</p>
                 {programmingIncomplete ? (
                   <p className="text-sm text-muted-foreground">
@@ -2553,15 +2672,6 @@ function ActivityDetail({
                 )}
               </div>
             </section>
-            <Link
-              to="/projects/$projectId/ptas/$year"
-              params={{
-                projectId: item.project_id,
-                year: String(item.placement_year),
-              }}
-            >
-              {strings.openCurrentAnnualPlan}
-            </Link>
             {!programmingIncomplete && (
               <section className="rounded-panel border border-border bg-white">
                 <h2 className="border-b border-border px-5 py-4">
@@ -2604,68 +2714,74 @@ function ActivityDetail({
           </div>
           <aside className="rounded-panel border border-border bg-white">
             <h2 className="border-b border-border px-5 py-4">
-              {item.state === 'draft'
-                ? strings.draft
-                : strings.budgetValidation}
+              {programmingIncomplete ? strings.draft : strings.budgetValidation}
             </h2>
-            <dl className="grid gap-6 p-5 text-sm">
-              <div>
-                <dt className="text-muted-foreground">
-                  {item.state === 'draft'
-                    ? strings.createdBy
-                    : item.state === 'submitted'
-                      ? strings.submittedBy
-                      : strings.latestDecisionBy}
-                </dt>
-                <dd className="mt-2 font-semibold">
-                  {item.state === 'draft'
-                    ? creatorName
-                    : item.state === 'submitted'
-                      ? submitterName
-                      : latestDecisionName}
-                </dd>
-              </div>
-              {item.state === 'submitted' && (
+            {programmingIncomplete ? (
+              <p className="p-5 text-sm text-muted-foreground">
+                {strings.createdBy} {creatorName}.
+              </p>
+            ) : (
+              <dl className="grid gap-6 p-5 text-sm">
                 <div>
                   <dt className="text-muted-foreground">
-                    {strings.validation}
+                    {item.state === 'draft'
+                      ? strings.createdBy
+                      : item.state === 'submitted'
+                        ? strings.submittedBy
+                        : strings.latestDecisionBy}
                   </dt>
                   <dd className="mt-2 font-semibold">
-                    {strings.awaitingPrevalidation}
+                    {item.state === 'draft'
+                      ? creatorName
+                      : item.state === 'submitted'
+                        ? submitterName
+                        : latestDecisionName}
                   </dd>
                 </div>
-              )}
-              {item.state === 'prevalidated' && (
-                <div>
-                  <dt className="text-muted-foreground">
-                    {strings.validation}
-                  </dt>
-                  <dd className="mt-2 font-semibold">
-                    {strings.awaitingFinalValidation}
-                  </dd>
-                </div>
-              )}
-              {!programmingIncomplete && (
-                <>
-                  <div>
-                    <dt className="text-muted-foreground">{strings.budget}</dt>
-                    <dd className="mt-2 font-semibold">
-                      {formatXof(item.allocation)}
-                    </dd>
-                  </div>
+                {item.state === 'submitted' && (
                   <div>
                     <dt className="text-muted-foreground">
-                      {strings.approvedBudget}
+                      {strings.validation}
                     </dt>
                     <dd className="mt-2 font-semibold">
-                      {item.approved_allocation
-                        ? formatXof(item.approved_allocation)
-                        : strings.notApproved}
+                      {strings.awaitingPrevalidation}
                     </dd>
                   </div>
-                </>
-              )}
-            </dl>
+                )}
+                {item.state === 'prevalidated' && (
+                  <div>
+                    <dt className="text-muted-foreground">
+                      {strings.validation}
+                    </dt>
+                    <dd className="mt-2 font-semibold">
+                      {strings.awaitingFinalValidation}
+                    </dd>
+                  </div>
+                )}
+                {!programmingIncomplete && (
+                  <>
+                    <div>
+                      <dt className="text-muted-foreground">
+                        {strings.budget}
+                      </dt>
+                      <dd className="mt-2 font-semibold">
+                        {formatXof(item.allocation)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">
+                        {strings.approvedBudget}
+                      </dt>
+                      <dd className="mt-2 font-semibold">
+                        {item.approved_allocation
+                          ? formatXof(item.approved_allocation)
+                          : strings.notApproved}
+                      </dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+            )}
           </aside>
         </div>
       </div>
@@ -2815,10 +2931,8 @@ function ActivityDetail({
         blocked={mutationBlocked}
         draft={assignmentDraft}
         setDraft={setAssignmentDraft}
-        onClose={() => {
-          setAssignmentDraft(null)
-          setAssignmentOpen(false)
-        }}
+        opener={assignmentOpener}
+        onClose={closeAssignment}
         onDenied={onDenied}
         onSave={(ids, version) =>
           mutation.mutateAsync(
@@ -2829,8 +2943,7 @@ function ActivityDetail({
             },
             {
               onSuccess: () => {
-                setAssignmentDraft(null)
-                setAssignmentOpen(false)
+                closeAssignment()
               },
             },
           )
@@ -2838,6 +2951,7 @@ function ActivityDetail({
       />
       <Modal
         open={Boolean(workflowAction)}
+        className="[&>header]:sticky [&>header]:top-0 [&>header]:z-10 [&>header]:bg-white"
         onClose={() => {
           if (['uploading', 'checking'].includes(decisionUpload?.status)) return
           closeDecision()
@@ -2852,7 +2966,7 @@ function ActivityDetail({
         opener={workflowOpener}
       >
         <BusinessForm
-          className="grid gap-4 min-w-[min(520px,_calc(100vw_-_40px))] p-6 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2"
+          className="grid gap-4 min-w-[min(520px,_calc(100vw_-_40px))] p-6 [@media(min-height:601px)]:[&_footer]:sticky [@media(min-height:601px)]:[&_footer]:bottom-0 [&_footer]:z-10 [&_footer]:bg-white [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2"
           onSubmit={submitWorkflow}
         >
           {!['prevalidate', 'approve'].includes(workflowAction) && (
@@ -2876,18 +2990,39 @@ function ActivityDetail({
                   autoFocus
                 />
               </label>
-              <label>
-                {strings.decisionAttachment}
-                <input
-                  name="attachment"
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png"
-                  disabled={Boolean(decisionUpload)}
-                  onChange={(event) =>
-                    setDecisionFile(event.target.files?.[0] || null)
-                  }
-                />
-              </label>
+              <div className="grid gap-[6px] text-[0.8125rem] font-medium">
+                <span>{strings.decisionAttachment}</span>
+                <div
+                  data-ui="decision-file"
+                  className="flex min-h-10 min-w-0 items-center gap-3 rounded-control border border-strong-border bg-white px-[11px] py-[6px] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary"
+                >
+                  <label
+                    htmlFor="decision-attachment"
+                    className={`inline-flex min-h-8 shrink-0 items-center rounded-control border border-strong-border px-3 py-1.5 text-sm font-medium text-navy ${
+                      decisionUpload
+                        ? 'cursor-not-allowed opacity-50'
+                        : 'cursor-pointer hover:bg-selected'
+                    }`}
+                  >
+                    {strings.chooseFile}
+                  </label>
+                  <span className="min-w-0 truncate text-sm font-normal text-muted-foreground">
+                    {decisionFile?.name || strings.noFileSelected}
+                  </span>
+                  <input
+                    id="decision-attachment"
+                    className="sr-only"
+                    aria-label={strings.decisionAttachment}
+                    name="attachment"
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png"
+                    disabled={Boolean(decisionUpload)}
+                    onChange={(event) =>
+                      setDecisionFile(event.target.files?.[0] || null)
+                    }
+                  />
+                </div>
+              </div>
             </>
           )}
           {decisionUpload?.status === 'retry' && (

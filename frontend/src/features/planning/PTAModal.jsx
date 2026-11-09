@@ -16,6 +16,7 @@ import { strings } from '@/locales/fr/PTAModal'
 export function PTAModal({
   pta: initialPTA,
   project: initialProject,
+  opener,
   onClose,
   onSaved,
   onDenied,
@@ -172,7 +173,7 @@ export function PTAModal({
       open
       onClose={onClose}
       label={pta ? strings.edit : strings.create}
-      className="[&>form]:gap-4"
+      opener={opener}
     >
       <Panel
         as={BusinessForm}

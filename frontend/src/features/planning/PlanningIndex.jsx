@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
@@ -36,6 +36,7 @@ export function PlanningIndex() {
   const search = useSearch({ strict: false })
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const ptaOpener = useRef(null)
   const path = search.project ? `/projects/${search.project}/ptas` : '/ptas'
   const ptas = useQuery({
     enabled: !denied,
@@ -65,7 +66,14 @@ export function PlanningIndex() {
           {strings.planningIndex}
         </h1>
         {can('ptaManagement') && (
-          <Button className="justify-self-end" onClick={() => setOpen(true)}>
+          <Button
+            ref={ptaOpener}
+            className="justify-self-end"
+            onClick={(event) => {
+              ptaOpener.current = event.currentTarget
+              setOpen(true)
+            }}
+          >
             <Plus size={16} />
             {metadata.create}
           </Button>
@@ -208,8 +216,12 @@ export function PlanningIndex() {
       )}
       {open && (
         <PTAModal
+          opener={ptaOpener}
           onDenied={() => setDenied(true)}
-          onClose={() => setOpen(false)}
+          onClose={() => {
+            setOpen(false)
+            setTimeout(() => ptaOpener.current?.focus(), 0)
+          }}
           onSaved={(pta) =>
             navigate({
               to: '/projects/$projectId/ptas/$year',

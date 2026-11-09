@@ -265,7 +265,9 @@ test('V19 planning, correction and final approval browser journey', async ({
   await accept(agent, 'pta-agent@example.test')
   await agent.goto(`/projects/${project.id}/ptas/2027`)
   await agent.getByRole('link', { name: 'Nouvelle activité' }).click()
-  await agent.getByLabel('Nom', { exact: true }).fill('Activité navigateur')
+  await agent
+    .getByLabel('Intitulé de l’activité', { exact: true })
+    .fill('Activité navigateur')
   await agent
     .getByLabel('Description')
     .fill('Planification synthétique complète')
@@ -375,7 +377,7 @@ e.dispose()`,
   await supervisor.goto(`/activities/${activity.id}`)
   await supervisor.getByLabel('pta-agent@example.test').check()
   await supervisor
-    .getByRole('button', { name: 'Enregistrer les agents' })
+    .getByRole('button', { name: 'Enregistrer les affectations' })
     .click()
   await expect(
     supervisor.getByText('Modifications enregistrées.'),
