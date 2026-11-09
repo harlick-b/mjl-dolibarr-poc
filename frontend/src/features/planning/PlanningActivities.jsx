@@ -80,7 +80,9 @@ export function PlanningActivities({
               .toISOString()
               .slice(0, 10)
             const matches = rows.filter(
-              (row) => row.planned_start <= end && row.planned_end >= start,
+              (row) =>
+                row.planned_start <= end &&
+                (row.planned_end || row.planned_start) >= start,
             )
             return (
               <section
@@ -116,6 +118,7 @@ export function PlanningActivities({
                             ? `${strings.calendarEnd} ${formatDate(row.planned_end)}`
                             : strings.calendarOngoing}
                         {row.planned_start >= start &&
+                          row.planned_end &&
                           row.planned_end <= end && (
                             <>
                               {' '}

@@ -120,6 +120,12 @@ def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
             "request_key": str(uuid4()),
         },
     ).json()
+    pta = post(
+        planning["validator"],
+        f"/api/v1/projects/{project['id']}/ptas",
+        {"year": 2029, "name": "PTA 2029"},
+    )
+    assert pta.status_code == 201, pta.text
     second_activity = approve_in_project(
         planning, project, operation_type, name="Deuxième activité approuvée"
     )
@@ -152,6 +158,7 @@ def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
         assert identity["user"] == {
             "id": invitation["user_id"],
             "email": "partner@example.test",
+            "full_name": "Partner User",
             "role": "PARTENAIRE",
         }
 
@@ -316,33 +323,41 @@ def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
             ).status_code
             == 404
         )
-        assert partner.get("/api/v1/projects").status_code == 403
-        assert partner.get("/api/v1/access/users").status_code == 403
+        denied = stack.enter_context(
+            TestClient(
+                partner.app,
+                base_url="http://localhost",
+                cookies=partner.cookies,
+                client=("partner-denied", 50000),
+            )
+        )
+        assert denied.get("/api/v1/projects").status_code == 403
+        assert denied.get("/api/v1/access/users").status_code == 403
+        assert (
+            denied.get(f"/api/v1/activities/{activity['id']}/fiche.pdf").status_code
+            == 403
+        )
         for denied_path in (
             "/api/v1/notifications",
             "/api/v1/audit-events",
             f"/api/v1/activities/{activity['id']}/documents",
             f"/api/v1/activities/{activity['id']}/execution",
         ):
-            assert partner.get(denied_path).status_code == 403, denied_path
+            assert denied.get(denied_path).status_code == 403, denied_path
         assert (
-            partner.post(
+            denied.post(
                 f"/api/v1/ptas/{pta['id']}/exports",
-                headers=headers(partner),
+                headers=headers(denied),
                 json={"format": "csv"},
             ).status_code
             == 403
         )
         assert (
-            partner.post(
+            denied.post(
                 "/api/v1/reports/audit/exports",
-                headers=headers(partner),
+                headers=headers(denied),
                 json={"format": "csv"},
             ).status_code
-            == 403
-        )
-        assert (
-            partner.get(f"/api/v1/activities/{activity['id']}/fiche.pdf").status_code
             == 403
         )
 

@@ -1,4 +1,6 @@
 import { PTAModal } from './PTAModal'
+import { ActivityBriefModal } from './ActivityBriefModal'
+import { DatePicker } from '@/shared/ui/DatePicker'
 import { strings as ptaStrings } from '@/locales/fr/PTAModal'
 import { readCalendar } from './calendar'
 import { PlanningActivities } from './PlanningActivities'
@@ -14,7 +16,13 @@ import { authorization } from '@/features/auth/authorization'
 import { PageLoading, LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import {
+  Navigate,
+  Link,
+  useNavigate,
+  useParams,
+  useSearch,
+} from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
 import { Download, Eye, Plus, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -416,7 +424,8 @@ function Workspace({ screen, session, onDenied }) {
       cursorPath('/operation-types', search.typeCursor),
       onDenied,
     ),
-    enabled: screen === 'activityNew',
+    enabled:
+      screen === 'activityNew' && !authorization(session).can('ptaManagement'),
   })
   const planningQueries =
     screen === 'partners'
@@ -443,7 +452,9 @@ function Workspace({ screen, session, onDenied }) {
     (screen === 'partners' && partners.isPending) ||
     (screen === 'projects' && projects.isPending) ||
     (screen === 'pta' && context.isPending) ||
-    (screen === 'activityNew' && (types.isPending || context.isPending)) ||
+    (screen === 'activityNew' &&
+      (context.isPending ||
+        (!authorization(session).can('ptaManagement') && types.isPending))) ||
     (screen === 'activity' && activity.isPending)
   const submitSimple = async (event, path, field) => {
     event.preventDefault()
@@ -494,6 +505,15 @@ function Workspace({ screen, session, onDenied }) {
       </RetryableError>
     )
   if (primaryPending) return <PageLoading title={labels[screen]} />
+  if (screen === 'activityNew' && authorization(session).can('ptaManagement'))
+    return (
+      <Navigate
+        to="/projects/$projectId/ptas/$year"
+        params={{ projectId, year: String(year) }}
+        replace
+      />
+    )
+
   if (
     screen === 'activityNew' &&
     !context.data?.allowed_actions.includes('create_activity')
@@ -615,6 +635,7 @@ function Workspace({ screen, session, onDenied }) {
             </Button>
           </header>
           <ActivityForm
+            year={context.data?.year}
             onCreateType={(label) =>
               mutation.mutateAsync({
                 path: '/operation-types',
@@ -1110,6 +1131,9 @@ function PTA({
 }) {
   const search = useSearch({ strict: false })
   const [editing, setEditing] = useState(false)
+  const [creatingBrief, setCreatingBrief] = useState(null)
+  const briefOpener = useRef(null)
+  const reviewer = authorization(useSessionQuery().data).can('ptaManagement')
   if (!context) return <PageLoading title={strings.annualPlan} />
   return (
     <div className="grid gap-6">
@@ -1140,19 +1164,44 @@ function PTA({
             onSaved={() => setEditing(false)}
           />
         )}
-        {context.allowed_actions.includes('create_activity') && (
-          <Button asChild>
-            <Link
-              to="/projects/$projectId/ptas/$year/activities/new"
-              params={{
-                projectId: context.project.id,
-                year: String(context.year),
+        {context.allowed_actions.includes('create_activity') &&
+          (reviewer ? (
+            <Button
+              ref={briefOpener}
+              onClick={(event) => {
+                briefOpener.current = event.currentTarget
+                setCreatingBrief({ open: true })
               }}
             >
               <Plus size={16} />
               {strings.addActivityToPta}
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button asChild>
+              <Link
+                to="/projects/$projectId/ptas/$year/activities/new"
+                params={{
+                  projectId: context.project.id,
+                  year: String(context.year),
+                }}
+              >
+                <Plus size={16} />
+                {strings.addActivityToPta}
+              </Link>
+            </Button>
+          ))}
+        {creatingBrief && (
+          <ActivityBriefModal
+            context={context}
+            open={creatingBrief.open}
+            opener={briefOpener}
+            onClose={(retain) => {
+              setCreatingBrief(retain ? { open: false } : null)
+              setTimeout(() => briefOpener.current?.focus(), 0)
+            }}
+            onSaved={() => setCreatingBrief(null)}
+            onDenied={onDenied}
+          />
         )}
       </header>
       <Panel className="flex flex-wrap items-end gap-4 border-0 bg-transparent p-0">
@@ -1308,6 +1357,7 @@ function Pager({ result, cursorKey, navigate }) {
 }
 
 export function ActivityForm({
+  year,
   onCreateType,
   types,
   typeResult,
@@ -1319,6 +1369,7 @@ export function ActivityForm({
   onCancel,
 }) {
   const [draftBase] = useState(initial)
+  const [dateError, setDateError] = useState(false)
   const [plannedAmount, setPlannedAmount] = useState(null)
   const [start, setStart] = useState(initial?.planned_start || '')
   const [end, setEnd] = useState(initial?.planned_end || '')
@@ -1348,7 +1399,15 @@ export function ActivityForm({
       className="border-0 bg-transparent p-0 gap-6 lg:grid-cols-[minmax(0,1fr)_280px] items-start"
       onSubmit={(event) => {
         event.preventDefault()
-        if (pending || optionsUnavailable) return
+        if (pending || optionsUnavailable) return false
+        if (!start || !end || end < start) {
+          setDateError(true)
+          event.currentTarget
+            .querySelector('[data-date-invalid="true"]')
+            ?.focus()
+          return false
+        }
+        setDateError(false)
         const data = new FormData(event.currentTarget)
         return onSubmit({
           name: data.get('name'),
@@ -1401,29 +1460,39 @@ export function ActivityForm({
           <div className="grid gap-4 p-5 sm:grid-cols-2">
             <label>
               {strings.start}
-              <input
-                type="date"
-                required
+              <DatePicker
+                label={strings.start}
+                aria-invalid={dateError && !start}
+                data-date-invalid={!start}
                 value={start}
-                onChange={(e) => {
-                  setStart(e.target.value)
-                  if (!endWasEdited) setEnd(addThreeMonths(e.target.value))
+                min={year ? `${year}-01-01` : undefined}
+                max={year ? `${year}-12-31` : undefined}
+                onChange={(value) => {
+                  setStart(value)
+                  if (!endWasEdited) setEnd(addThreeMonths(value))
                 }}
               />
             </label>
             <label>
               {strings.end}
-              <input
-                type="date"
-                required
+              <DatePicker
+                label={strings.end}
+                aria-invalid={dateError && (!end || end < start)}
+                data-date-invalid={!end || end < start}
                 value={end}
-                onChange={(e) => {
-                  setEnd(e.target.value)
+                min={start || undefined}
+                onChange={(value) => {
+                  setEnd(value)
                   setEndWasEdited(true)
                 }}
               />
             </label>
           </div>
+          {dateError && (!start || !end || end < start) && (
+            <p role="alert" className="px-5 pb-5 text-sm text-destructive">
+              {strings.requiredDates}
+            </p>
+          )}
         </section>
         <section className="rounded-panel border border-border bg-white">
           <h2 className="border-b border-border px-5 py-4">
@@ -1837,6 +1906,7 @@ function ActivityDetail({
             typeChoices.isFetching || !typeResult || typeChoices.isError
           }
           initial={item}
+          year={item.placement_year}
           onCancel={() => setEditing(false)}
           onSubmit={(body) =>
             mutation.mutateAsync(

@@ -14,6 +14,7 @@ export function addThreeMonths(value) {
 }
 
 export function formatXof(value) {
+  if (value === null || value === undefined || value === '') return '—'
   const amount = typeof value === 'bigint' ? value : BigInt(value || 0)
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(amount)} F CFA`
 }

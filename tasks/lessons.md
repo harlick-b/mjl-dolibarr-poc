@@ -51,6 +51,10 @@ implementation boundaries; [README](../README.md) owns setup.
 - A confirmed write and its refresh are separate outcomes. An invitation can be
   delivered while refreshing the list fails. Preserve confirmed success and offer
   read retry; do not encourage duplicate invitations or approvals.
+- When a write response is lost, freeze the exact command and idempotency key until
+  replay resolves it. Unlock correction only for a response that occurs after the
+  replay lookup and proves no write exists. Middleware rate limits and access
+  interruptions happen earlier, so they cannot safely release or replace the draft.
 - Centralize shared decisions, not all data: role navigation/route guards/defaults,
   query keys and controls need one owner. Load page/form options where consumed.
   Shared React context should expose Query state, not maintain another copy.

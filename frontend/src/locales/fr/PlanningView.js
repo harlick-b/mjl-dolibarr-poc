@@ -2,6 +2,8 @@ import LocalizedStrings from 'react-localization'
 
 export const strings = new LocalizedStrings({
   fr: {
+    requiredDates:
+      'Renseignez les dates de début et de fin. La fin ne peut pas précéder le début.',
     assignmentRequired:
       'Cette activité ne vous est plus affectée. Vous pouvez toujours la consulter.',
     plannedAmount: 'Montant prévu de l’activité (F CFA)',

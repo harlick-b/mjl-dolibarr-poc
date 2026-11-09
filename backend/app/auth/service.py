@@ -153,7 +153,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0027_pta_metadata"]:
+        if revisions != ["0028_activity_briefs"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -308,7 +308,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "1bed3cdef575ebb7130cf7cd85948298782787c78e440434ec81cf7e6a65eef1"
+            "402502d074873266e2f018624e7ea42f3e60c1c51e127324498abce58d6d35c7"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -1202,8 +1202,6 @@ class AuthService:
                         "name",
                         "description",
                         "planned_start",
-                        "planned_end",
-                        "allocation",
                         "state",
                     )
                 )
@@ -1222,7 +1220,14 @@ class AuthService:
                 and isinstance(value.get("version"), int)
                 and value["version"] > 0
                 and isinstance(operations, list)
-                and 1 <= len(operations) <= 100
+                and (0 if value.get("state") == "draft" else 1)
+                <= len(operations)
+                <= 100
+                and all(
+                    isinstance(value.get(field), str)
+                    or (value.get("state") == "draft" and value.get(field) is None)
+                    for field in ("planned_end", "allocation")
+                )
                 and all(
                     isinstance(row, dict)
                     and set(row) == operation_fields

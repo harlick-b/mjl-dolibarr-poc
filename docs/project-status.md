@@ -1,6 +1,6 @@
 # Project status
 
-Updated 2026-11-07. MJL is under development; implemented does not mean accepted
+Updated 2026-11-09. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
@@ -10,7 +10,7 @@ own their subjects. [README](../README.md) owns setup and development commands.
 
 New PTA/Activity/execution visuals and the updated prototype have now been supplied.
 The latest brief and Supervisor-upload clarification are recorded in business-rules.md
-and design.md. The first UI slice is implemented; later slices remain pending in
+and design.md. The first two UI slices are implemented; later slices remain pending in
 the temporary [PTA workflow plan](pta-workflow-plan.md), to be removed when all
 its slices are complete.
 
@@ -42,10 +42,10 @@ submission/approval, including for older pending requests. Existing approved
 revisions and Activity identity remain unchanged. Active Project filtering is
 applied before cursor pagination/counting and bound into the cursor scope.
 
-Still outstanding: reviewer quick Activity creation, incomplete-draft persistence,
-creator review exception, Supervisor document upload, and the remaining supplied
-Activity/filter/calendar/execution visuals. Assignment permissions already exist
-as described below. No development-database migration or deployment was performed.
+Still outstanding: the connected Activity workspace, Supervisor document upload,
+assignment/decision dialogs and the remaining supplied filter/calendar/execution
+visuals. Assignment permissions already exist as described below. No configured
+development-database migration or deployment was performed.
 
 Slice 1 source SHA256 (`backend/app`, `backend/migrations`, `frontend/src`, sorted
 paths + NUL + bytes + NUL, excluding Python caches):
@@ -103,6 +103,75 @@ source is unchanged from the 21-test run above; browser evidence above predates
 this callback-only correction. Separate standards/specification reviewers found
 no remaining blockers. Final source SHA256: `9c707becd412083193c933f46e89b87036a8497e77dec894bbaf06bc08fc899d`.
 Final built artifact: `index-DGLp7nDY.js`, SHA256 `6d97445860125e790d062a0881c3549a807475aa5476cd306f9c55cebd431e2e`.
+
+## PTA slice 2 — reviewer brief and Agent completion, 2026-11-09
+
+Supervisors and final Validators can now use **Ajouter une activité au PTA** to
+create a short Activity brief and assign one or more active Agents in the same
+transaction. The modal requires a title, start date in the PTA year and an Agent;
+instructions and end date are optional. Agent direct creation still opens the full
+planning form and self-assigns the creator. A reviewer opening the former full-form
+URL is returned to the PTA, where the authorized quick action is available.
+
+A brief is an ordinary incomplete draft: its budget remains unknown and it has no
+invented Operations. Only assigned Agents can complete, edit and submit it. The
+full Agent form identifies missing required planning rather than silently refusing
+save. Draft-safe lists, detail, summaries and calendar keep incomplete work visible,
+while approved totals, exports, Partner views and reminders exclude it. Migration
+`0028_activity_briefs` permits nullable end/allocation only for a never-submitted
+draft and records immutable creation/content contribution kinds.
+
+Reviewer creation provenance allows that Supervisor or Validator to perform their
+normal planning review later. Any later content contribution still excludes that
+person from planning review, and every contribution kind continues to exclude the
+person from financial approval. Replay protection covers Activity plus assignments
+and audit atomically. If the browser loses a creation response, the modal freezes
+the exact payload and request key until replay resolves it; rate limits and other
+pre-route failures cannot unlock a possibly committed command. A conclusive
+post-replay assignment rejection unlocks correction.
+
+The quick modal uses the supplied nested date picker and searchable cursor-based
+Agent choices. Its final desktop screenshot was compared directly with
+`docs/inspiration/pta/create-activity-quick.png`; mobile containment, nested-popover
+Escape, outside dismissal and focus return were exercised. Automated 918 px reflow
+does not constitute human 200% zoom or visual acceptance.
+
+Final source SHA256 (`backend/app`, `backend/migrations`, `frontend/src`, sorted
+path + NUL + bytes + NUL, excluding Python caches):
+`1e5fea31e39a78204a6cfffcfba96311a9312ae04286a5f207ed8a6637b006ff`.
+Built artifact `index-d4tCTiMu.js` SHA256:
+`26aa16921b157326e399f9d6f856ab7879cdc95ae19e94730223b6956a77708d`.
+
+Slice 2 checks:
+
+- Disposable PostgreSQL: `.venv/bin/python /tmp/mjl-design-tests.py
+  tests/planning/test_activity_briefs.py -q --tb=short --show-capture=no`:
+  **8 passed** in 55.47s. This covers migration/constraints, role/body rules,
+  replay and rollback, Agent completion, two-stage review, planning/financial
+  contributor separation, visibility/exports and assignment/deactivation races.
+- Adjacent disposable-PostgreSQL checks: assignment lifecycle, role-change/planning
+  and role-change/review races passed **3 tests**; the corrected Partner isolation
+  journey passed **1 test**. Legacy fixtures now create the PTA first, explicitly
+  assign the collaborating Agent and use a separate test IP for late permission
+  assertions so setup traffic does not exhaust the independent abuse limit.
+- Frontend focused run reported **53 passed and 1 timeout** under concurrent final
+  checks; the timed-out unchanged PTA modal file was rerun alone and passed
+  **11/11**. The changed Activity brief file passed **5/5**, including unknown
+  response, 429 recovery and conclusive-assignment correction. This is recorded as
+  a focused rerun, not as a clean 54-test combined pass.
+- Rebuilt Playwright reviewer-brief journey: **1 passed**. It covers the reviewer
+  route, nested calendar, Agent selection, identical-command recovery, mobile
+  containment, outside/Escape dismissal and focus return.
+- Prettier passed for the full frontend. ESLint passed with no errors and the
+  existing `access-verification.jsx:451` warning. The final Vite/PWA build passed
+  with its existing large-bundle warning. Ruff passed for all changed backend
+  files; mypy passed **45 source files**. `git diff --check` passed.
+
+Separate specification and design/standards reviewers inspected the final diff,
+surrounding contracts, tests and rebuilt reference screenshot. Their recovery,
+validation, direct-route and modal-fidelity findings were corrected and returned
+to the same reviewers; both reported no remaining P1/P2 findings. Review is not
+user acceptance or production readiness.
 
 The following foundation evidence predates this UI slice and its assignment work.
 PTA-foundation candidate (before assignment changes) application/migration/frontend-source SHA256 (sorted paths, each path +

@@ -370,6 +370,7 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
     if not confirmation or confirmation.amount != spent:
         blockers.append("virement_confirmation_required")
         return list(dict.fromkeys(blockers))
+    assert item.allocation is not None  # verified approved financial basis above
     required = item.allocation - spent
     if required < 0:
         blockers.append("financial_insufficiency_unresolved")

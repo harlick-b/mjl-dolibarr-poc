@@ -246,6 +246,7 @@ def activity_item(
             .where(
                 ActivityContributor.activity_id == item.id,
                 ActivityContributor.user_id == actor_id,
+                ActivityContributor.kind == "content",
             )
             .limit(1)
         )
@@ -336,6 +337,8 @@ def activity_item(
         withdrawal=item.withdrawal_id is not None,
         transfer=item.transfer_id is not None,
     )
+    if item.planned_end is None or item.allocation is None or not operations:
+        actions = [action for action in actions if action != "submit"]
     if role == "AGENT_SAISIE" and actor_id not in agent_ids:
         actions = ["read"]
     if has_execution:
@@ -356,8 +359,8 @@ def activity_item(
         "name": item.name,
         "description": item.description,
         "planned_start": item.planned_start.isoformat(),
-        "planned_end": item.planned_end.isoformat(),
-        "allocation": str(item.allocation),
+        "planned_end": (item.planned_end.isoformat() if item.planned_end else None),
+        "allocation": str(item.allocation) if item.allocation is not None else None,
         "state": item.state,
         "version": item.version,
         "current_revision_id": item.current_revision_id,
@@ -434,8 +437,8 @@ def structural_content(db: Session, item: Activity) -> dict[str, Any]:
         "name": item.name,
         "description": item.description,
         "planned_start": item.planned_start.isoformat(),
-        "planned_end": item.planned_end.isoformat(),
-        "allocation": str(item.allocation),
+        "planned_end": (item.planned_end.isoformat() if item.planned_end else None),
+        "allocation": str(item.allocation) if item.allocation is not None else None,
         "operations": [
             {
                 "id": row.id,
@@ -525,6 +528,7 @@ def build_revision_snapshot(
     contributor_ids = list(
         db.scalars(
             select(ActivityContributor.user_id)
+            .distinct()
             .where(ActivityContributor.activity_id == item.id)
             .order_by(ActivityContributor.user_id)
         )

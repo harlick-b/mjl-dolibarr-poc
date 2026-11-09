@@ -227,6 +227,12 @@ class Activity(Base):
             name="activity_closure_facts",
         ),
         CheckConstraint("allocation > 0", name="activity_allocation_positive"),
+        CheckConstraint(
+            "(state = 'draft' AND current_revision_id IS NULL "
+            "AND approved_revision_id IS NULL) OR "
+            "(planned_end IS NOT NULL AND allocation IS NOT NULL)",
+            name="activity_complete_after_submission",
+        ),
         CheckConstraint("planned_end >= planned_start", name="activity_dates_ordered"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
@@ -236,8 +242,8 @@ class Activity(Base):
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(4000))
     planned_start: Mapped[date] = mapped_column(Date)
-    planned_end: Mapped[date] = mapped_column(Date)
-    allocation: Mapped[int] = mapped_column(BigInteger)
+    planned_end: Mapped[date | None] = mapped_column(Date)
+    allocation: Mapped[int | None] = mapped_column(BigInteger)
     state: Mapped[str] = mapped_column(String(32), default="draft")
     current_revision_id: Mapped[str | None] = mapped_column(String(36))
     approved_revision_id: Mapped[str | None] = mapped_column(String(36))
@@ -436,12 +442,19 @@ class ActivityContributor(Base):
             ["context_id", "activity_id"],
             ["pta_activity.context_id", "pta_activity.id"],
         ),
-        UniqueConstraint("activity_id", "user_id", name="activity_contributor_once"),
+        UniqueConstraint(
+            "activity_id", "user_id", "kind", name="activity_contributor_once"
+        ),
+        CheckConstraint(
+            "kind IN ('content','supervisor_creation','validator_creation')",
+            name="contribution_kind_allowed",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     context_id: Mapped[str] = mapped_column(String(3))
     activity_id: Mapped[str] = mapped_column(String(36))
     user_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    kind: Mapped[str] = mapped_column(String(32), default="content")
     contributed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

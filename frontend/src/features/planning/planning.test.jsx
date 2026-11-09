@@ -1350,6 +1350,7 @@ test('a new Activity keeps its request key across a lost-response retry', async 
   const user = userEvent.setup()
   render(
     <ActivityForm
+      year={2027}
       types={[{ id: 'type-1', label: 'Atelier' }]}
       pending={false}
       onSubmit={submit}
@@ -1357,13 +1358,24 @@ test('a new Activity keeps its request key across a lost-response retry', async 
   )
   await user.type(screen.getByLabelText('Nom', { exact: true }), 'Activité')
   await user.type(screen.getByLabelText('Description'), 'Description')
-  await user.type(screen.getByLabelText('Début'), '2027-01-31')
-  expect(screen.getByLabelText('Fin')).toHaveValue('2027-04-30')
-  await user.clear(screen.getByLabelText('Fin'))
-  await user.type(screen.getByLabelText('Fin'), '2027-05-15')
-  await user.clear(screen.getByLabelText('Début'))
-  await user.type(screen.getByLabelText('Début'), '2027-02-28')
-  expect(screen.getByLabelText('Fin')).toHaveValue('2027-05-15')
+  await user.click(screen.getByRole('button', { name: /^Début/ }))
+  await user.click(
+    screen.getByRole('button', { name: /dimanche 31 janvier 2027/i }),
+  )
+  expect(screen.getByRole('button', { name: /^Fin/ })).toHaveTextContent(
+    '30 avril 2027',
+  )
+  await user.click(screen.getByRole('button', { name: /^Fin/ }))
+  await user.click(screen.getByRole('button', { name: /mois suivant/i }))
+  await user.click(screen.getByRole('button', { name: /samedi 15 mai 2027/i }))
+  await user.click(screen.getByRole('button', { name: /^Début/ }))
+  await user.click(screen.getByRole('button', { name: /mois suivant/i }))
+  await user.click(
+    screen.getByRole('button', { name: /dimanche 28 février 2027/i }),
+  )
+  expect(screen.getByRole('button', { name: /^Fin/ })).toHaveTextContent(
+    '15 mai 2027',
+  )
   await selectOption(screen.getByLabelText('Type d’opération 1'), 'Atelier')
   await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
   await user.type(screen.getByLabelText('Budget de l’opération 1'), '10')
@@ -2256,3 +2268,53 @@ test.each([403, 404])(
     expect(queries.every(([, value]) => value == null)).toBe(true)
   },
 )
+
+test('an assigned Agent completes a start-only brief and gets clear missing-date feedback', async () => {
+  const submit = vi.fn()
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      year={2027}
+      initial={{
+        version: 4,
+        name: 'Brief',
+        description: '',
+        planned_start: '2027-01-01',
+        planned_end: null,
+        allocation: null,
+        operations: [],
+      }}
+      types={[{ id: 'type-1', label: 'Atelier' }]}
+      pending={false}
+      onSubmit={submit}
+    />,
+  )
+  expect(screen.getByLabelText('Nom', { exact: true })).toHaveValue('Brief')
+  expect(screen.getByRole('button', { name: /^Fin/ })).toHaveTextContent(
+    'Choisir une date',
+  )
+  await user.type(screen.getByLabelText('Description'), 'Plan complété')
+  await user.click(
+    screen.getByRole('button', { name: /Ajouter une opération/ }),
+  )
+  await selectOption(screen.getByLabelText('Type d’opération 1'), 'Atelier')
+  await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
+  await user.type(screen.getByLabelText('Budget de l’opération 1'), '10')
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  expect(submit).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert')).toHaveTextContent('Renseignez les dates')
+  expect(screen.getByRole('button', { name: /^Fin/ })).toHaveFocus()
+  await user.click(screen.getByRole('button', { name: /^Fin/ }))
+  await user.click(
+    screen.getByRole('button', { name: /dimanche 31 janvier 2027/i }),
+  )
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  expect(submit).toHaveBeenCalledWith(
+    expect.objectContaining({
+      expected_version: 4,
+      planned_start: '2027-01-01',
+      planned_end: '2027-01-31',
+      allocation: '10',
+    }),
+  )
+})

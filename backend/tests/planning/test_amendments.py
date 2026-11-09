@@ -19,6 +19,7 @@ from app.planning.models import (
 )
 from tests.auth.test_access import admin, headers
 from tests.planning.test_planning import (
+    assign_agents,
     login_existing,
     ordered_advisory_race,
     patch,
@@ -71,6 +72,7 @@ def open_amendment(clients, activity, reason="Modification synthétique"):
 
 
 def edit_amendment(clients, activity, operation_type, description):
+    activity = assign_agents(clients, activity, clients["agent2"])
     response = patch(
         clients["agent2"],
         f"/api/v1/activities/{activity['id']}",

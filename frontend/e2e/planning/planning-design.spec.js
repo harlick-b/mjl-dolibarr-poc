@@ -281,3 +281,95 @@ test('PTA metadata modals follow the reference and keep immutable fields on edit
   await page.mouse.click(2, 2)
   await expect(dialog).toHaveCount(0)
 })
+
+test('reviewer brief uses nested calendars, searchable assignment and retained same-key recovery', async ({
+  page,
+}) => {
+  await setup(page, 'AGENT_VERIFICATEUR')
+  const sent = []
+  await page.route('**/api/v1/assignment-agents*', (route) =>
+    route.fulfill({
+      json: {
+        ...empty,
+        count: 1,
+        data: [
+          {
+            id: 'agent-1',
+            full_name: 'Aïcha HOUNKPATIN',
+            email: 'a@example.test',
+          },
+        ],
+      },
+    }),
+  )
+  await page.route(
+    '**/api/v1/projects/project-1/ptas/2027/activities',
+    (route) => {
+      sent.push(route.request().postDataJSON())
+      return sent.length === 1
+        ? route.abort('failed')
+        : route.fulfill({ json: { ...activity, id: 'created' } })
+    },
+  )
+  await page.setViewportSize({ width: 1837, height: 965 })
+  // Legacy direct creation URLs take reviewers back to their own interaction.
+  await page.goto('/projects/project-1/ptas/2027/activities/new')
+  await expect(page).toHaveURL(/\/projects\/project-1\/ptas\/2027(?:\?|$)/)
+  const opener = page.getByRole('button', {
+    name: 'Ajouter une activité au PTA',
+  })
+  await opener.click()
+  const modal = page.getByRole('dialog', {
+    name: 'Créer et affecter une activité',
+  })
+  await expect(modal).toBeVisible()
+  await page.screenshot({ path: '/tmp/brief-reference.png' })
+  await modal
+    .getByLabel('Intitulé de l’activité')
+    .fill('Concertation communale')
+  await modal.getByRole('button', { name: /Date de début/ }).click()
+  await expect(page.getByRole('grid')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(modal).toBeVisible()
+  await expect(
+    modal.getByRole('button', { name: /Date de début/ }),
+  ).toBeFocused()
+  await modal.getByRole('button', { name: /Date de début/ }).click()
+  await page.getByRole('button', { name: /vendredi 1 janvier 2027/i }).click()
+  await modal.getByRole('button', { name: 'Sélectionner des Agents' }).click()
+  await modal.getByRole('option', { name: 'Aïcha HOUNKPATIN' }).click()
+  await page.screenshot({ path: '/tmp/brief-selection.png' })
+  await modal
+    .getByRole('button', { name: 'Créer et affecter', exact: true })
+    .click()
+  await expect(modal.getByRole('alert')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(modal).not.toBeVisible()
+  await opener.click()
+  await expect(modal.getByLabel('Intitulé de l’activité')).toHaveValue(
+    'Concertation communale',
+  )
+  await expect(modal.getByLabel('Intitulé de l’activité')).toBeDisabled()
+  await modal.getByRole('button', { name: 'Vérifier l’enregistrement' }).click()
+  await expect(modal).toHaveCount(0)
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
+  expect(sent[0].planned_end).toBeNull()
+  expect(sent[0]).not.toHaveProperty('allocation')
+  await opener.click()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.screenshot({ path: '/tmp/brief-mobile.png' })
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
+  await modal.getByRole('button', { name: /Date de début/ }).click()
+  await page.screenshot({ path: '/tmp/brief-mobile-calendar.png' })
+  await page.keyboard.press('Escape')
+  await page.mouse.click(2, 2)
+  await expect(modal).toHaveCount(0)
+  await page.setViewportSize({ width: 918, height: 482 })
+  await opener.click()
+  await page.screenshot({ path: '/tmp/brief-reflow.png' })
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 918)
+  await modal.getByRole('button', { name: 'Annuler', exact: true }).click()
+  await expect(modal).toHaveCount(0)
+  await expect(opener).toBeFocused()
+})

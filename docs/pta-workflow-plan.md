@@ -1,7 +1,7 @@
 # PTA and Activity workflow — implementation plan
 
-Status: slice 1 implemented, verified and independently reviewed, 2026-11-07.
-Slices 2 onward remain pending; this plan does not authorize starting the next slice.
+Status: slices 1 and 2 implemented, verified and independently reviewed,
+2026-11-09. Slices 3 onward remain pending and require separate authorization.
 Remove this file when the work is complete; retain settled rules in the current
 guides and actual completion/evidence in project-status.md.
 
@@ -100,6 +100,20 @@ in-flight requests across the change. Use the existing transfer interaction;
 identify any missing destination-selection visual before changing its composition.
 
 ### 2. Reviewer quick creation and Agent completion
+
+Current implementation contract: keep the existing Activity collection/create and
+replacement commands. The reviewer request contains only the brief and assigned
+Agent IDs; the Agent request remains the complete planning form. End/allocation
+may be null only in a never-submitted draft; submission revalidates completeness.
+Record immutable contribution kinds (`content`, `supervisor_creation`,
+`validator_creation`): old evidence remains content, later content edits/submission
+append content evidence. Planning review excludes content contributors; financial
+review continues to exclude every contributor. This records creation provenance
+without consulting a person's later role or weakening existing immutable evidence.
+Use the approved quick modal, a shared shadcn calendar/date control and paginated
+searchable Agent choices. Existing Agent workspace handles completion; workspace
+redesign and Supervisor document uploads remain slice 3. Finish with focused
+PostgreSQL/UI/browser checks and a separate review-only agent.
 
 Allow incomplete planning only on never-submitted drafts. Keep required start/year
 placement, optional end and unknown allocation explicit; preserve constraints on

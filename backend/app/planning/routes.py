@@ -174,6 +174,33 @@ class ActivityCreate(PlanningInput):
         return str(UUID(value))
 
 
+class ActivityBriefCreate(Input):
+    request_key: str = Field(max_length=36)
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=4000)
+    planned_start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    planned_end: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    agent_ids: list[str] = Field(min_length=1, max_length=100)
+
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def normalized_text(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("request_key")
+    @classmethod
+    def uuid_key(cls, value: str) -> str:
+        return str(UUID(value))
+
+    @field_validator("agent_ids")
+    @classmethod
+    def distinct_agents(cls, values: list[str]) -> list[str]:
+        normalized = [str(UUID(value)) for value in values]
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Duplicate Agent")
+        return sorted(normalized)
+
+
 class ActivityReplace(PlanningInput):
     expected_version: int = Field(gt=0, strict=True)
 
@@ -353,7 +380,7 @@ class TransferOutput(Input):
 
 class ActivityListItem(Input):
     planned_start: str
-    planned_end: str
+    planned_end: str | None
     state: str
     operation_count: int
     agents: list[str]
@@ -361,7 +388,7 @@ class ActivityListItem(Input):
     id: str
     reference: str
     name: str
-    allocation: str
+    allocation: str | None
 
 
 class ActivityOutput(Input):
@@ -372,8 +399,8 @@ class ActivityOutput(Input):
     name: str
     description: str
     planned_start: str
-    planned_end: str
-    allocation: str
+    planned_end: str | None
+    allocation: str | None
     state: Literal[
         "draft",
         "amendment_draft",
@@ -502,6 +529,7 @@ def cutoff_value(db: Session, raw: str | None) -> datetime:
 class AgentOutput(Input):
     id: str
     email: str
+    full_name: str | None
 
 
 class SnapshotIdentity(Input):
@@ -1286,7 +1314,10 @@ def pta_context(
             "allowed_actions": ["read"]
             + (
                 ["create_activity"]
-                if pta and actor.role == "AGENT_SAISIE" and project.state == "active"
+                if pta
+                and actor.role
+                in {"AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"}
+                and project.state == "active"
                 else []
             ),
             "approved_plan": plan,
@@ -1309,25 +1340,60 @@ def normalized_body(body: PlanningInput) -> dict[str, Any]:
     openapi_extra=MUTATION_HEADERS,
 )
 def create_activity(
-    identifier: str, year: int, body: ActivityCreate, request: Request, auth: Auth
+    identifier: str,
+    year: int,
+    body: ActivityCreate | ActivityBriefCreate,
+    request: Request,
+    auth: Auth,
 ) -> Response:
-    payload = normalized_body(body)
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
         actor = principal(
-            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
+            db,
+            auth,
+            *evidence(request, auth),
+            roles={"AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
+            mutation=True,
         )
         project = get_project(db, identifier, lock=True)
         if project.state != "active":
             raise AuthError(409, "project_closed")
-        plan, operations = validate_plan(payload, year)
-        if any(row["id"] for row in operations):
-            raise AuthError(422, "input_invalid")
+        plan: dict[str, Any]
+        operations: list[dict[str, Any]]
+        brief = isinstance(body, ActivityBriefCreate)
+        if brief == (actor.role == "AGENT_SAISIE"):
+            raise AuthError(403, "business_forbidden")
+        if isinstance(body, ActivityBriefCreate):
+            try:
+                start = date.fromisoformat(body.planned_start)
+                end = date.fromisoformat(body.planned_end) if body.planned_end else None
+            except ValueError:
+                raise AuthError(422, "input_invalid") from None
+            if start.year != year or not 2000 <= year <= 2200 or (end and end < start):
+                raise AuthError(422, "input_invalid")
+            plan = {
+                "name": body.name,
+                "description": body.description,
+                "planned_start": start,
+                "planned_end": end,
+                "allocation": None,
+            }
+            operations = []
+            agent_ids = body.agent_ids
+        else:
+            plan, operations = validate_plan(normalized_body(body), year)
+            if any(row["id"] for row in operations):
+                raise AuthError(422, "input_invalid")
+            agent_ids = [actor.id]
         canonical = {
             **plan,
             "planned_start": plan["planned_start"].isoformat(),
-            "planned_end": plan["planned_end"].isoformat(),
-            "allocation": str(plan["allocation"]),
+            "planned_end": (
+                plan["planned_end"].isoformat() if plan["planned_end"] else None
+            ),
+            "allocation": str(plan["allocation"])
+            if plan["allocation"] is not None
+            else None,
             "operations": [
                 {
                     "type_id": row["type_id"],
@@ -1338,6 +1404,8 @@ def create_activity(
                 for row in operations
             ],
         }
+        if brief:
+            canonical["agent_ids"] = agent_ids
         digest = fingerprint(canonical)
         existing = db.scalar(
             select(Activity).where(
@@ -1357,6 +1425,18 @@ def create_activity(
                 activity_item(db, existing, actor.role, actor.id),
                 200,
             )
+        targets = list(
+            db.scalars(
+                select(User)
+                .where(User.id.in_(agent_ids))
+                .order_by(User.id)
+                .with_for_update()
+            )
+        )
+        if len(targets) != len(agent_ids) or any(
+            user.role != "AGENT_SAISIE" or user.state != "active" for user in targets
+        ):
+            raise AuthError(409, "assignment_ineligible")
         assert_types(db, operations)
         pta = db.scalar(
             select(AnnualPTA)
@@ -1407,17 +1487,25 @@ def create_activity(
                 activity_id=item.id,
                 user_id=actor.id,
                 contributed_at=now,
+                kind=(
+                    "supervisor_creation"
+                    if actor.role == "AGENT_VERIFICATEUR"
+                    else "validator_creation"
+                )
+                if brief
+                else "content",
             )
         )
-        db.add(
-            ActivityAssignment(
-                context_id=CONTEXT,
-                activity_id=item.id,
-                agent_id=actor.id,
-                assigned_by_id=actor.id,
-                assigned_at=now,
+        for agent_id in agent_ids:
+            db.add(
+                ActivityAssignment(
+                    context_id=CONTEXT,
+                    activity_id=item.id,
+                    agent_id=agent_id,
+                    assigned_by_id=actor.id,
+                    assigned_at=now,
+                )
             )
-        )
         db.flush()
         result = activity_item(db, item, actor.role, actor.id)
         auth.business_audit(
@@ -1670,6 +1758,7 @@ def request_transfer(
             select(ActivityContributor.id).where(
                 ActivityContributor.activity_id == item.id,
                 ActivityContributor.user_id == actor.id,
+                ActivityContributor.kind == "content",
             )
         ):
             db.add(
@@ -1881,6 +1970,7 @@ def request_withdrawal(
             select(ActivityContributor.id).where(
                 ActivityContributor.activity_id == item.id,
                 ActivityContributor.user_id == actor.id,
+                ActivityContributor.kind == "content",
             )
         ):
             db.add(
@@ -2445,6 +2535,10 @@ def submit_activity(
             else None
         )
         current_structure = structural_content(db, item)
+        try:
+            validate_plan(current_structure, item.placement_year)
+        except AuthError:
+            raise AuthError(409, "activity_incomplete") from None
         if previous:
             previous_operations = cast(
                 list[dict[str, str | int]], previous.snapshot["operations"]
@@ -2473,6 +2567,7 @@ def submit_activity(
             select(ActivityContributor.id).where(
                 ActivityContributor.activity_id == item.id,
                 ActivityContributor.user_id == actor.id,
+                ActivityContributor.kind == "content",
             )
         ):
             db.add(
@@ -2645,6 +2740,7 @@ def decide_activity(
             select(ActivityContributor.id).where(
                 ActivityContributor.activity_id == item.id,
                 ActivityContributor.user_id == actor.id,
+                ActivityContributor.kind == "content",
             )
         ):
             raise AuthError(409, "reviewer_contributed")
@@ -3178,6 +3274,7 @@ def replace_activity(
             select(ActivityContributor.id).where(
                 ActivityContributor.activity_id == item.id,
                 ActivityContributor.user_id == actor.id,
+                ActivityContributor.kind == "content",
             )
         ):
             db.add(
@@ -3292,6 +3389,7 @@ def assignment_agents(
     request: Request,
     auth: Auth,
     args: Annotated[tuple[int, str | None], Depends(list_args)],
+    q: Annotated[str, Query(max_length=200)] = "",
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         principal(
@@ -3301,9 +3399,22 @@ def assignment_agents(
             roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
         )
         limit, token = args
-        cursor = Cursor(auth, "assignment-agents", CONTEXT, limit)
+        q = q.strip()
+        cursor = Cursor(
+            auth,
+            "assignment-agents",
+            CONTEXT if not q else fingerprint({"context": CONTEXT, "q": q}),
+            limit,
+        )
         marker, direction = cursor.decode(token)
-        conditions = [User.role == "AGENT_SAISIE", User.state == "active"]
+        filters = [User.role == "AGENT_SAISIE", User.state == "active"]
+        if q:
+            filters.append(
+                func.lower(
+                    func.coalesce(User.full_name, "") + " " + User.email
+                ).contains(q.lower(), autoescape=True)
+            )
+        conditions = list(filters)
         if marker:
             try:
                 marker = str(UUID(marker))
@@ -3316,7 +3427,7 @@ def assignment_agents(
         rows, total = page_rows(
             db,
             User,
-            (User.role == "AGENT_SAISIE", User.state == "active"),
+            tuple(filters),
             tuple(conditions),
             (order,),
             limit,
@@ -3328,13 +3439,18 @@ def assignment_agents(
 
         def link(row: User, move: str) -> str:
             value = cursor.encode(row.id, move)
-            query = urlencode({"limit": limit, "cursor": value})
+            query = urlencode(
+                {"limit": limit, "cursor": value, **({"q": q} if q else {})}
+            )
             return f"{auth.policy.origin}/api/v1/assignment-agents?{query}"
 
         return {
             "object": "list",
             "count": total,
-            "data": [{"id": row.id, "email": row.email} for row in rows],
+            "data": [
+                {"id": row.id, "email": row.email, "full_name": row.full_name}
+                for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

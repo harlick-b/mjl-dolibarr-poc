@@ -9,6 +9,12 @@ import { outsideDialog } from './dialog-events'
 export function Modal({ open, onClose, label, children, opener, className }) {
   const ref = useRef(null)
   const outside = useRef(false)
+  const requestClose = () => {
+    onClose()
+    // The owner may unmount the dialog immediately. Restore focus after React
+    // applies that update instead of relying only on the native close event.
+    setTimeout(() => opener?.current?.focus(), 0)
+  }
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
@@ -29,14 +35,13 @@ export function Modal({ open, onClose, label, children, opener, className }) {
         outside.current = outsideDialog(event)
       }}
       onClick={(event) => {
-        if (outside.current && outsideDialog(event)) onClose()
+        if (outside.current && outsideDialog(event)) requestClose()
       }}
       onCancel={(event) => {
         event.preventDefault()
-        onClose()
+        requestClose()
       }}
       onClose={() => {
-        onClose()
         opener?.current?.focus()
       }}
     >
@@ -47,7 +52,7 @@ export function Modal({ open, onClose, label, children, opener, className }) {
           variant="ghost"
           className="size-8 min-h-8 shrink-0 p-0"
           aria-label={strings.close}
-          onClick={onClose}
+          onClick={requestClose}
         >
           <X size={18} aria-hidden="true" />
         </Button>

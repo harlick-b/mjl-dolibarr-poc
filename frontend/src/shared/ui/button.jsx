@@ -6,6 +6,7 @@ import { LoaderCircle } from 'lucide-react'
 import { FormSubmitContext } from './form-submit-context'
 
 export function Button({
+  ref,
   className,
   variant,
   size,
@@ -21,6 +22,7 @@ export function Button({
   const Comp = asChild ? Slot : 'button'
   return (
     <Comp
+      ref={ref}
       className={cn(buttonVariants({ variant, size }), className)}
       {...props}
       disabled={props.disabled || busy}
