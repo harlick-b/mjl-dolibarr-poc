@@ -51,6 +51,12 @@ implementation boundaries; [README](../README.md) owns setup.
 - A confirmed write and its refresh are separate outcomes. An invitation can be
   delivered while refreshing the list fails. Preserve confirmed success and offer
   read retry; do not encourage duplicate invitations or approvals.
+- When a decision has optional evidence, capture the selected file before sending
+  the decision. If the decision succeeds and the upload outcome is uncertain, read
+  the newest document identifiers before upload. After uncertainty, accept only a
+  new identifier with matching file metadata; browser and server clocks are not a
+  safe ordering signal, and an older matching file is not proof. Keep partial success
+  visible, retry only a file proven absent and never repeat the decision.
 - When a write response is lost, freeze the exact command and idempotency key until
   replay resolves it. Unlock correction only for a response that occurs after the
   replay lookup and proves no write exists. Middleware rate limits and access

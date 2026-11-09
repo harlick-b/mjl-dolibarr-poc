@@ -10,7 +10,7 @@ own their subjects. [README](../README.md) owns setup and development commands.
 
 New PTA/Activity/execution visuals and the updated prototype have now been supplied.
 The latest brief and Supervisor-upload clarification are recorded in business-rules.md
-and design.md. The first two UI slices are implemented; later slices remain pending in
+and design.md. The first three UI slices are implemented; later slices remain pending in
 the temporary [PTA workflow plan](pta-workflow-plan.md), to be removed when all
 its slices are complete.
 
@@ -42,10 +42,8 @@ submission/approval, including for older pending requests. Existing approved
 revisions and Activity identity remain unchanged. Active Project filtering is
 applied before cursor pagination/counting and bound into the cursor scope.
 
-Still outstanding: the connected Activity workspace, Supervisor document upload,
-assignment/decision dialogs and the remaining supplied filter/calendar/execution
-visuals. Assignment permissions already exist as described below. No configured
-development-database migration or deployment was performed.
+Still outstanding: the supplied filter/timeline and execution/settlement slices.
+No configured development-database migration or deployment was performed.
 
 Slice 1 source SHA256 (`backend/app`, `backend/migrations`, `frontend/src`, sorted
 paths + NUL + bytes + NUL, excluding Python caches):
@@ -172,6 +170,73 @@ surrounding contracts, tests and rebuilt reference screenshot. Their recovery,
 validation, direct-route and modal-fidelity findings were corrected and returned
 to the same reviewers; both reported no remaining P1/P2 findings. Review is not
 user acceptance or production readiness.
+
+## PTA slice 3 — Activity workspace and review evidence, 2026-11-09
+
+The Activity workspace now follows the supplied connected composition: Activity
+identity, Project/Partner/PTA context, state, responsible Agents, dates and revision
+remain together in the header; the contextual completion/review actions lead into
+the existing Programmation, Historique and Pièces justificatives sections. The
+approved assignment dialog loads searchable paginated Agent choices only while it
+is open, shows current people and added/removed changes, requires at least one
+Agent and keeps its opening Activity version through a failed save. Explicit cancel
+discards that draft.
+
+Supervisor and final-Validator planning decisions now accept an optional observation.
+Migration `0029_decision_observations` changes only that decision constraint and
+refuses a lossy downgrade when positive observations exist. Decision dialogs show
+the Activity, immutable revision, exact XOF total, optional observation and optional
+Activity-level evidence. The decision and evidence remain separate transactions:
+a confirmed decision is never replayed when evidence upload fails, and the owning
+dialog offers evidence-only retry. The selected file is captured before the decision
+refresh so it is not lost during the state change. Before upload, the client records
+the identifiers already present on the newest document page. If the upload result is
+uncertain, it reads that page again and accepts only a new identifier with the same
+file name, size and uploader. This avoids both browser/server clock comparisons and
+false confirmation from an older matching file. It closes on confirmed receipt,
+offers file-only retry only when the read proves the file absent, and otherwise keeps
+a verification action.
+
+Supervisors may upload Activity documents after the same fresh authorization checks
+used for other upload roles. They did not gain programming edits, document withdrawal,
+Partner sharing or post-closure administration. Activity detail adds only the Agent
+identity, Project/Partner/PTA display fields and minimal current-revision summary
+needed by this screen; it does not fetch the full revision snapshot until History is
+opened. Core audit and mutation projections retain their strict existing shape.
+The History and Files tabs load only when opened. Assignment search keeps the selected
+Agent identities across searches and pages instead of falling back to raw identifiers.
+The Activity header now includes the PTA breadcrumb and draft/review actor context.
+
+Candidate checks:
+
+- Disposable PostgreSQL: `pytest tests/planning/test_activity_briefs.py
+  tests/execution/test_documents.py::test_optional_attachment_upload_list_and_guarded_download
+  -q --tb=short --show-capture=no`: **10 passed** in 87.78s. This covers both
+  reviewer roles, observations, blank-observation rejection, downgrade guards,
+  financial contributor exclusion and Supervisor upload/audit.
+- Frontend `npm run test:unit -- src/features/planning/planning.test.jsx`:
+  **38 passed**. It covers lazy inactive tabs, assignment identity/discard, uncertain
+  evidence reconciliation and evidence-only retry without a second decision request.
+  The final production build passed with the
+  existing large-chunk warning.
+- The complete affected backend files first reported **36 passed, 3 failed**: two
+  helpers still created only a 2027 PTA while execution uses the current year, and
+  one assertion still expected Supervisors to be forbidden from uploading. After
+  correcting those stale tests, the three focused reruns passed. Ruff check/format
+  passed for all changed backend files; mypy passed **45 source files**. ESLint,
+  Prettier and the production build passed; the build retains its existing
+  large-chunk warning.
+
+Separate specification and standards reviewers inspected the corrected final diff.
+The specification reviewer confirmed both optional end-date variants and the compact
+incomplete-draft composition. The standards reviewer confirmed the before/after
+document-ID reconciliation, minimal revision summary, native assignment toggle
+semantics and strict mutation/audit response boundary. Both reported no remaining
+P1/P2 findings. The standards reviewer independently reran the frontend planning
+suite (**38 passed**); its backend rerun could not start because its isolated review
+shell had no `TEST_DATABASE_URL`, while the implementer rerun against the disposable
+PostgreSQL database passed both reviewer-role cases (**2 passed**). No browser visual,
+keyboard or reflow comparison was run for this final correction pass.
 
 The following foundation evidence predates this UI slice and its assignment work.
 PTA-foundation candidate (before assignment changes) application/migration/frontend-source SHA256 (sorted paths, each path +
@@ -631,10 +696,11 @@ test:e2e -- e2e/auth/navigation-transitions.spec.js e2e/auth/recovery.spec.js
   Setup is documented in README; production authentication remains excluded.
 - Installable PWA with online-only business operations and guarded update handling.
 
-The source schema head is `0027_pta_metadata`; this migration has not been applied
-to the configured development database. Application code, migrations and focused
-tests are the implementation evidence; do not treat a summary or an old passing
-count as a new verification run.
+The source schema head is `0029_decision_observations`. Focused integration tests
+applied it to disposable PostgreSQL databases; application to a shared or production
+database is outside this local evidence. Application code, migrations and focused
+tests are implementation evidence; do not treat a summary or an old passing count
+as a new verification run.
 
 Application presentation now uses Tailwind utilities for auth, Admin, internal
 and Partner views. The CSS entry contains fonts and approved theme tokens only;

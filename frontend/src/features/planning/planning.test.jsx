@@ -321,7 +321,7 @@ test('an eligible Agent confirms submission of the current Activity version', as
     this.open = false
     this.dispatchEvent(new Event('close'))
   }
-  const activity = {
+  let activity = {
     id: 'activity-1',
     pta_id: 'pta-1',
     project_id: 'project-1',
@@ -1079,7 +1079,9 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Cette pièce n’est plus accessible.',
   )
-  expect(screen.getByText('Atelier approuvé')).toBeVisible()
+  expect(
+    screen.getByRole('heading', { name: 'Atelier approuvé' }),
+  ).toBeVisible()
 }, 10000)
 
 function amendmentHistoryFetch({ failed = false } = {}) {
@@ -1263,7 +1265,14 @@ test('an edited Activity retains its draft version after a background refresh', 
 
 test('assignment edits retain their base version and can discard a stale draft', async () => {
   const user = userEvent.setup()
-  const activity = {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+    this.dispatchEvent(new Event('close'))
+  }
+  let activity = {
     id: 'assignment-1',
     project_id: 'project-1',
     reference: 'ACT-1',
@@ -1271,10 +1280,17 @@ test('assignment edits retain their base version and can discard a stale draft',
     state: 'draft',
     version: 1,
     planned_start: '2027-01-01',
-    planned_end: '2027-04-01',
+    planned_end: null,
     allocation: '100',
     operations: [],
     agent_ids: [],
+    agents: [],
+    creator: {
+      id: 'supervisor',
+      email: 'supervisor@example.test',
+      full_name: 'Sali Superviseure',
+    },
+    latest_decision_actor: null,
     allowed_actions: ['read', 'assign_agents'],
   }
   let assigned
@@ -1310,8 +1326,10 @@ test('assignment edits retain their base version and can discard a stale draft',
       else if (path.includes('/assignment-agents'))
         body = {
           ...body,
-          count: 1,
-          data: [{ id: 'agent-1', email: 'agent@example.test' }],
+          count: path.includes('q=nobody') ? 0 : 1,
+          data: path.includes('q=nobody')
+            ? []
+            : [{ id: 'agent-1', email: 'agent@example.test' }],
         }
       return new Response(JSON.stringify(body))
     }),
@@ -1320,9 +1338,59 @@ test('assignment edits retain their base version and can discard a stale draft',
     createMemoryHistory({ initialEntries: ['/activities/assignment-1'] }),
   )
   render(<App router={router} />)
+  await screen.findByRole('heading', { name: 'Coordination' })
+  expect(
+    screen.getByText(
+      /Date de fin non renseignée\. Opérations et budget à compléter\./,
+    ),
+  ).toBeVisible()
+  expect(
+    screen.getByText('Sali Superviseure', { selector: 'dd' }),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('heading', { name: 'Opérations' }),
+  ).not.toBeInTheDocument()
+  expect(screen.queryByText('Budget approuvé')).not.toBeInTheDocument()
+  activity = { ...activity, planned_end: '2027-04-01' }
+  await act(async () => {
+    await router.options.context.queryClient.invalidateQueries({
+      queryKey: ['planning', 'supervisor', 'activity', 'assignment-1'],
+    })
+  })
+  expect(
+    await screen.findByText(
+      /1 janvier 2027 au 1 avril 2027 · Opérations et budget à compléter\./,
+    ),
+  ).toBeVisible()
+  expect(
+    screen.queryByText(/Date de fin non renseignée/),
+  ).not.toBeInTheDocument()
+  expect(
+    fetch.mock.calls.some(([url]) => String(url).includes('/history')),
+  ).toBe(false)
+  expect(
+    fetch.mock.calls.some(([url]) => String(url).includes('/documents')),
+  ).toBe(false)
+  expect(
+    fetch.mock.calls.some(([url]) => String(url).includes('/revisions/')),
+  ).toBe(false)
   await user.click(
-    await screen.findByRole('checkbox', { name: 'agent@example.test' }),
+    await screen.findByRole('button', { name: 'Modifier les responsables' }),
   )
+  await user.click(
+    screen.getByRole('button', { name: 'Rechercher et ajouter un Agent' }),
+  )
+  await user.click(
+    await screen.findByRole('button', { name: 'agent@example.test' }),
+  )
+  await user.type(
+    screen.getByRole('searchbox', {
+      name: 'Rechercher et ajouter un Agent',
+    }),
+    'nobody',
+  )
+  await screen.findByText('Aucun Agent ne correspond à votre recherche.')
+  expect(screen.getByText('agent@example.test')).toBeVisible()
   await act(async () => {
     router.options.context.queryClient.setQueryData(
       ['planning', 'supervisor', 'activity', 'assignment-1'],
@@ -1335,15 +1403,206 @@ test('assignment edits retain their base version and can discard a stale draft',
   await waitFor(() =>
     expect(assigned).toEqual({ expected_version: 1, agent_ids: ['agent-1'] }),
   )
+  await user.click(screen.getByRole('button', { name: 'Annuler' }))
+  expect(
+    screen.queryByRole('dialog', { name: 'Responsables de l’activité' }),
+  ).not.toBeInTheDocument()
   await user.click(
-    screen.getByRole('button', {
-      name: 'Annuler les modifications d’affectation',
-    }),
+    screen.getByRole('button', { name: 'Modifier les responsables' }),
   )
   expect(
-    screen.getByRole('checkbox', { name: 'agent@example.test' }),
-  ).not.toBeChecked()
+    screen.queryByRole('button', { name: 'Retirer agent@example.test' }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Enregistrer les agents' }),
+  ).toBeDisabled()
 })
+
+test.each([
+  ['absent after verification', false, 2],
+  ['present after a lost response', true, 1],
+])(
+  'a decision attachment %s never resends the decision',
+  async (_case, recovered, expectedUploadCalls) => {
+    const user = userEvent.setup()
+    HTMLDialogElement.prototype.showModal = function () {
+      this.open = true
+    }
+    HTMLDialogElement.prototype.close = function () {
+      this.open = false
+      this.dispatchEvent(new Event('close'))
+    }
+    let decisionCalls = 0
+    let uploadCalls = 0
+    let activity = {
+      id: 'review-1',
+      pta_id: 'pta-1',
+      project_id: 'project-1',
+      project_name: 'Justice locale',
+      partner_name: 'Partenaire public',
+      pta_name: 'PTA 2027',
+      reference: 'ACT-1',
+      name: 'Coordination',
+      description: 'Préparation',
+      state: 'submitted',
+      version: 2,
+      planned_start: '2027-01-01',
+      planned_end: '2027-04-01',
+      placement_year: 2027,
+      allocation: '100',
+      operations: [],
+      agent_ids: ['agent-1'],
+      agents: [
+        {
+          id: 'agent-1',
+          email: 'agent@example.test',
+          full_name: 'Aïcha Agent',
+        },
+      ],
+      current_revision_id: 'revision-1',
+      current_revision_number: 1,
+      current_submitter: {
+        id: 'agent-1',
+        email: 'agent@example.test',
+        full_name: 'Aïcha Agent',
+      },
+      approved_revision_id: null,
+      approved_allocation: null,
+      correction: null,
+      amendment: null,
+      withdrawal: null,
+      transfer: null,
+      execution_paused: false,
+      allowed_actions: ['read', 'prevalidate', 'assign_agents'],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url, options = {}) => {
+        const path = String(url)
+        if (path.includes('/auth/session'))
+          return new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: {
+                id: 'supervisor',
+                email: 'supervisor@example.test',
+                role: 'AGENT_VERIFICATEUR',
+              },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          )
+        if (
+          path.endsWith('/revisions/revision-1/decisions') &&
+          options.method === 'POST'
+        ) {
+          decisionCalls += 1
+          activity = {
+            ...activity,
+            state: 'prevalidated',
+            version: 3,
+            allowed_actions: ['read', 'assign_agents'],
+          }
+          return new Response(
+            JSON.stringify({
+              id: 'decision-1',
+              activity_version: 3,
+              reason: 'Programmation vérifiée.',
+            }),
+            { status: 201 },
+          )
+        }
+        if (
+          path.endsWith('/activities/review-1/documents') &&
+          options.method === 'POST'
+        ) {
+          uploadCalls += 1
+          if (uploadCalls === 1) {
+            if (recovered) throw new TypeError('lost response')
+            return new Response(
+              JSON.stringify({ code: 'service_unavailable' }),
+              {
+                status: 503,
+              },
+            )
+          }
+          return new Response(JSON.stringify({ id: 'document-1' }), {
+            status: 201,
+          })
+        }
+        if (path.endsWith('/activities/review-1/documents?limit=60')) {
+          const collision = {
+            id: 'existing-document',
+            name: 'note.pdf',
+            size: 8,
+            uploaded_by_id: 'supervisor',
+            uploaded_at: '2099-01-01T00:00:00Z',
+          }
+          const uploaded = {
+            id: 'document-1',
+            name: 'note.pdf',
+            size: 8,
+            uploaded_by_id: 'supervisor',
+            uploaded_at: '2001-01-01T00:00:00Z',
+          }
+          const data =
+            recovered && uploadCalls > 0 ? [collision, uploaded] : [collision]
+          return new Response(
+            JSON.stringify({
+              object: 'list',
+              count: data.length,
+              data,
+              next: null,
+              previous: null,
+            }),
+          )
+        }
+        if (path.endsWith('/activities/review-1'))
+          return new Response(JSON.stringify(activity))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        )
+      }),
+    )
+    render(
+      <App
+        router={makeRouter(
+          createMemoryHistory({ initialEntries: ['/activities/review-1'] }),
+        )}
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Prévalider' }))
+    await user.type(
+      screen.getByLabelText('Observation (facultative)'),
+      'Programmation vérifiée.',
+    )
+    await user.upload(
+      screen.getByLabelText('Pièce justificative (facultative)'),
+      new File(['evidence'], 'note.pdf', { type: 'application/pdf' }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Confirmer la décision' }),
+    )
+    await waitFor(() => expect(decisionCalls).toBe(1))
+    await waitFor(() => expect(uploadCalls).toBe(1))
+    if (!recovered) {
+      expect(
+        await screen.findByText(/La décision est enregistrée/),
+      ).toBeVisible()
+      await user.click(
+        screen.getByRole('button', { name: 'Réessayer l’envoi' }),
+      )
+    }
+    await waitFor(() => expect(uploadCalls).toBe(expectedUploadCalls))
+    expect(decisionCalls).toBe(1)
+  },
+)
 
 test('a new Activity keeps its request key across a lost-response retry', async () => {
   const submit = vi.fn()
@@ -2016,7 +2275,7 @@ test.each(['success', 'failure'])(
     expect(submissionCalls).toBe(1)
     if (refetchOutcome === 'success') {
       expect(
-        await screen.findByText('Soumise pour prévalidation'),
+        (await screen.findAllByText('Soumise pour prévalidation'))[0],
       ).toBeVisible()
       expect(
         screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),

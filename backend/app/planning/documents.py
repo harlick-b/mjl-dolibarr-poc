@@ -254,7 +254,11 @@ def authorize_upload(
             auth,
             secret,
             csrf,
-            roles={"AGENT_SAISIE", "VALIDATEUR_DEFINITIF"},
+            roles={
+                "AGENT_SAISIE",
+                "AGENT_VERIFICATEUR",
+                "VALIDATEUR_DEFINITIF",
+            },
             mutation=True,
         )
         activity(db, activity_id)
@@ -277,7 +281,11 @@ def store_upload(
             auth,
             secret,
             csrf,
-            roles={"AGENT_SAISIE", "VALIDATEUR_DEFINITIF"},
+            roles={
+                "AGENT_SAISIE",
+                "AGENT_VERIFICATEUR",
+                "VALIDATEUR_DEFINITIF",
+            },
             mutation=True,
         )
         parent = activity(db, activity_id)

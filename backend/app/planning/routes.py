@@ -391,6 +391,12 @@ class ActivityListItem(Input):
     allocation: str | None
 
 
+class AgentOutput(Input):
+    id: str
+    email: str
+    full_name: str | None
+
+
 class ActivityOutput(Input):
     id: str
     pta_id: str
@@ -428,6 +434,17 @@ class ActivityOutput(Input):
     agent_ids: list[str]
     allowed_actions: list[str]
     closure: dict[str, str] | None
+
+
+class ActivityDetailOutput(ActivityOutput):
+    agents: list[AgentOutput]
+    creator: AgentOutput
+    current_revision_number: int | None
+    current_submitter: AgentOutput | None
+    latest_decision_actor: AgentOutput | None
+    project_name: str
+    partner_name: str
+    pta_name: str
 
 
 class PTAOutput(Input):
@@ -524,12 +541,6 @@ def cutoff_value(db: Session, raw: str | None) -> datetime:
     if cutoff.tzinfo is None or cutoff.astimezone(UTC) > now.astimezone(UTC):
         raise AuthError(422, "as_of_invalid")
     return cutoff.astimezone(UTC)
-
-
-class AgentOutput(Input):
-    id: str
-    email: str
-    full_name: str | None
 
 
 class SnapshotIdentity(Input):
@@ -1654,12 +1665,12 @@ def activities(
         }
 
 
-@router.get("/activities/{identifier}", response_model=ActivityOutput)
+@router.get("/activities/{identifier}", response_model=ActivityDetailOutput)
 def activity_detail(identifier: str, request: Request, auth: Auth) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
         item = get_activity(db, identifier, shared=True)
-        return activity_item(db, item, actor.role, actor.id)
+        return activity_item(db, item, actor.role, actor.id, presentation=True)
 
 
 def lifecycle_environment(auth: Auth) -> None:
@@ -2746,9 +2757,9 @@ def decide_activity(
             raise AuthError(409, "reviewer_contributed")
         if body.decision == "return" and not body.reason:
             raise AuthError(422, "reason_required")
-        if body.decision != "return" and (
-            body.reason is not None or body.requested_amount is not None
-        ):
+        if body.reason is not None and not body.reason.strip():
+            raise AuthError(422, "input_invalid")
+        if body.decision != "return" and body.requested_amount is not None:
             raise AuthError(422, "input_invalid")
         if (
             withdrawal_request or transfer_request

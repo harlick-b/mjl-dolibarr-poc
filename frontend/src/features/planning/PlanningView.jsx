@@ -24,7 +24,7 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { Download, Eye, Plus, Save } from 'lucide-react'
+import { Check, ChevronDown, Download, Eye, Plus, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
@@ -242,7 +242,7 @@ function Workspace({ screen, session, onDenied }) {
           ? [client.invalidateQueries({ queryKey: ['access'] })]
           : []),
       ])
-      toast.success(strings.saved)
+      if (!variables.silentSuccess) toast.success(strings.saved)
     },
   })
   const annualExport = useMutation({
@@ -331,6 +331,10 @@ function Workspace({ screen, session, onDenied }) {
     ),
     enabled: Boolean(params.activityId),
   })
+  const historyActive =
+    screen === 'activity' &&
+    Boolean(params.activityId) &&
+    Boolean(search.tab === 'history' || search.revision || search.amendment)
   const revisions = useQuery({
     ...planningQuery(
       api,
@@ -342,7 +346,7 @@ function Workspace({ screen, session, onDenied }) {
       ),
       onDenied,
     ),
-    enabled: Boolean(params.activityId),
+    enabled: historyActive,
   })
   const selectedRevision = useQuery({
     ...planningQuery(
@@ -364,33 +368,17 @@ function Workspace({ screen, session, onDenied }) {
     ),
     enabled: Boolean(params.activityId && search.amendment),
   })
-  const currentRevision = useQuery({
-    ...planningQuery(
-      api,
-      user.id,
-      [
-        'activity-revision',
-        params.activityId,
-        activity.data?.current_revision_id,
-      ],
-      `/activities/${params.activityId}/revisions/${activity.data?.current_revision_id}`,
-      onDenied,
-    ),
-    enabled: Boolean(params.activityId && activity.data?.current_revision_id),
-  })
   const reconciliationBlocked = Boolean(
     workflowReconciliation &&
     (activity.data?.id !== workflowReconciliation.activityId ||
       activity.isFetching ||
       activity.isError ||
       activity.dataUpdatedAt <= workflowReconciliation.activityUpdatedAt ||
-      revisions.isFetching ||
-      revisions.isError ||
-      revisions.dataUpdatedAt <= workflowReconciliation.revisionsUpdatedAt ||
-      (activity.data.current_revision_id &&
-        (currentRevision.isFetching ||
-          currentRevision.isError ||
-          !currentRevision.data))),
+      (historyActive &&
+        (revisions.isFetching ||
+          revisions.isError ||
+          revisions.dataUpdatedAt <=
+            workflowReconciliation.revisionsUpdatedAt))),
   )
   const calendarView = search.view === 'calendar'
   const list = useQuery({
@@ -438,12 +426,9 @@ function Workspace({ screen, session, onDenied }) {
             ? [types, context]
             : [
                 activity,
-                revisions,
+                ...(historyActive ? [revisions] : []),
                 ...(search.revision ? [selectedRevision] : []),
                 ...(search.amendment ? [selectedAmendment] : []),
-                ...(activity.data?.current_revision_id
-                  ? [currentRevision]
-                  : []),
               ]
   const loading = planningQueries.some(
     (query) => query.isFetching && query.fetchStatus !== 'idle',
@@ -683,14 +668,12 @@ function Workspace({ screen, session, onDenied }) {
           mutationBlocked={mutation.isPending || reconciliationBlocked}
           revisions={revisions.data}
           historyLoading={
-            revisions.isFetching ||
+            (historyActive && revisions.isFetching) ||
             selectedRevision.isFetching ||
-            selectedAmendment.isFetching ||
-            currentRevision.isFetching
+            selectedAmendment.isFetching
           }
           selectedRevision={selectedRevision.data}
           selectedAmendment={selectedAmendment.data}
-          currentRevision={currentRevision.data}
           onDenied={denyWorkspace}
         />
       )}
@@ -1752,6 +1735,260 @@ function PlanningVersion({ title, value }) {
   )
 }
 
+function agentInitials(agent) {
+  const source = agent?.full_name || agent?.email || ''
+  const words = source.trim().split(/\s+/).filter(Boolean)
+  return (
+    words.length > 1
+      ? words.map((word) => word[0]).join('')
+      : source.slice(0, 2)
+  )
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+function AssignmentModal({
+  open,
+  item,
+  user,
+  blocked,
+  draft,
+  setDraft,
+  onClose,
+  onDenied,
+  onSave,
+}) {
+  const { api } = useAPI()
+  const [query, setQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [cursor, setCursor] = useState('')
+  const [expanded, setExpanded] = useState(false)
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setSearchQuery(query)
+      setCursor('')
+    }, 250)
+    return () => window.clearTimeout(timeout)
+  }, [query])
+  const choices = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['assignment-agents', searchQuery, cursor],
+      `/assignment-agents?${new URLSearchParams({
+        ...(searchQuery ? { q: searchQuery } : {}),
+        ...(cursor ? { cursor } : {}),
+      })}`,
+      onDenied,
+    ),
+    enabled: open,
+  })
+  const initialIds = item.agent_ids || []
+  const selectedAgents = draft?.agents ?? item.agents ?? []
+  const selectedIds = selectedAgents.map((agent) => agent.id)
+  const knownAgents = new Map(
+    [
+      ...selectedAgents,
+      ...(item.agents || []),
+      ...(choices.data?.data || []),
+    ].map((agent) => [agent.id, agent]),
+  )
+  const changed =
+    selectedIds.length !== initialIds.length ||
+    selectedIds.some((id) => !initialIds.includes(id))
+  const added = selectedIds.filter((id) => !initialIds.includes(id))
+  const removed = initialIds.filter((id) => !selectedIds.includes(id))
+  const label = (id) => {
+    const agent = knownAgents.get(id)
+    return agent?.full_name || agent?.email || id
+  }
+  const update = (agent, checked) =>
+    setDraft({
+      version: draft?.version ?? item.version,
+      agents: checked
+        ? [...selectedAgents, agent].filter(
+            (candidate, index, all) =>
+              all.findIndex((row) => row.id === candidate.id) === index,
+          )
+        : selectedAgents.filter((value) => value.id !== agent.id),
+    })
+  return (
+    <Modal open={open} onClose={onClose} label={strings.activityOwners}>
+      <BusinessForm
+        dirty={changed}
+        className="grid gap-5 p-6"
+        onSubmit={(event) => {
+          event.preventDefault()
+          return onSave(selectedIds, draft?.version ?? item.version)
+        }}
+      >
+        <p className="font-medium">{item.name}</p>
+        <section className="grid gap-3">
+          <h3 className="text-sm font-semibold">{strings.currentOwners}</h3>
+          <ul className="grid gap-2 p-0 list-none">
+            {selectedIds.map((id) => (
+              <li
+                key={id}
+                className="flex items-center justify-between gap-3 py-1"
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-selected text-xs font-semibold text-primary">
+                    {agentInitials(knownAgents.get(id))}
+                  </span>
+                  <span className="min-w-0 truncate">{label(id)}</span>
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="size-8 min-h-8 shrink-0 p-0"
+                  disabled={blocked}
+                  onClick={() => update(knownAgents.get(id), false)}
+                  aria-label={`${strings.remove} ${label(id)}`}
+                >
+                  <X size={16} aria-hidden="true" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="grid gap-2">
+          <h3 className="text-sm font-semibold">{strings.addOwner}</h3>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-between font-normal"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {strings.searchOwner}
+            <ChevronDown size={16} aria-hidden="true" />
+          </Button>
+          {expanded && (
+            <div className="grid gap-2 rounded-control border border-border p-3">
+              <input
+                type="search"
+                aria-label={strings.searchOwner}
+                value={query}
+                placeholder={strings.searchOwner}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {choices.isPending && (
+                <LoadingPlaceholder
+                  label={strings.coordinatedAgents}
+                  variant="form"
+                />
+              )}
+              {choices.isError && (
+                <RetryableError onRetry={() => void choices.refetch()}>
+                  {strings.unavailablePlanning}
+                </RetryableError>
+              )}
+              <div className="grid gap-1">
+                {(choices.data?.data || []).map((agent) => {
+                  const selected = selectedIds.includes(agent.id)
+                  return (
+                    <Button
+                      key={agent.id}
+                      type="button"
+                      variant="ghost"
+                      aria-pressed={selected}
+                      className="h-auto justify-start px-2 py-2 text-left font-normal"
+                      disabled={blocked}
+                      onClick={() => update(agent, !selected)}
+                    >
+                      <Check
+                        size={16}
+                        className={selected ? 'opacity-100' : 'opacity-0'}
+                        aria-hidden="true"
+                      />
+                      <span>
+                        <strong className="block">
+                          {agent.full_name || agent.email}
+                        </strong>
+                        {agent.full_name && (
+                          <span className="text-sm text-muted-foreground">
+                            {agent.email}
+                          </span>
+                        )}
+                      </span>
+                    </Button>
+                  )
+                })}
+                {!choices.isPending &&
+                  !choices.isError &&
+                  !(choices.data?.data || []).length && (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">
+                      {strings.noOwnerMatch}
+                    </p>
+                  )}
+              </div>
+              {(choices.data?.previous || choices.data?.next) && (
+                <nav className="flex gap-2" aria-label="Pagination">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!choices.data.previous}
+                    onClick={() => setCursor(cursorFrom(choices.data.previous))}
+                  >
+                    {common.previous}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!choices.data.next}
+                    onClick={() => setCursor(cursorFrom(choices.data.next))}
+                  >
+                    {common.next}
+                  </Button>
+                </nav>
+              )}
+            </div>
+          )}
+        </section>
+        <section className="grid gap-2 text-sm text-muted-foreground">
+          {!added.length && !removed.length ? (
+            <p>{strings.assignmentUnchanged}</p>
+          ) : (
+            <>
+              {!!added.length && (
+                <p>
+                  {strings.assignmentAdded} : {added.map(label).join(', ')}
+                </p>
+              )}
+              {!!removed.length && (
+                <p>
+                  {strings.assignmentRemoved} : {removed.map(label).join(', ')}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+        <p className="text-sm text-muted-foreground">
+          {strings.ownerRequirement}
+        </p>
+        {!selectedIds.length && (
+          <p className="text-danger" role="alert">
+            {strings.assignmentNonempty}
+          </p>
+        )}
+        <div data-ui="modal-actions">
+          <Button type="button" variant="outline" onClick={onClose}>
+            {strings.cancel}
+          </Button>
+          <Button
+            type="submit"
+            disabled={
+              blocked || !changed || !selectedIds.length || choices.isError
+            }
+          >
+            {strings.saveAgents}
+          </Button>
+        </div>
+      </BusinessForm>
+    </Modal>
+  )
+}
+
 function ActivityDetail({
   item,
   user,
@@ -1764,32 +2001,24 @@ function ActivityDetail({
   historyLoading,
   selectedRevision,
   selectedAmendment,
-  currentRevision,
   onDenied,
 }) {
   const [editing, setEditing] = useState(false)
   const [workflowAction, setWorkflowAction] = useState('')
+  const [decisionFile, setDecisionFile] = useState(null)
+  const [decisionUpload, setDecisionUpload] = useState(null)
   const [transferTargetYear, setTransferTargetYear] = useState(
     item.transfer?.target_year || '',
   )
   const workflowOpener = useRef(null)
   const [assignmentDraft, setAssignmentDraft] = useState(null)
-  const selectedAgentIds = assignmentDraft?.ids ?? item.agent_ids
+  const [assignmentOpen, setAssignmentOpen] = useState(false)
   const canAssign =
     ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(user.role) &&
     item.allowed_actions.includes('assign_agents')
   const { api } = useAPI()
+  const client = useQueryClient()
   const search = useSearch({ strict: false })
-  const agentChoices = useQuery({
-    ...planningQuery(
-      api,
-      user.id,
-      ['agents', search.agentCursor],
-      cursorPath('/assignment-agents', search.agentCursor),
-      onDenied,
-    ),
-    enabled: canAssign && !editing,
-  })
   const typeChoices = useQuery({
     ...planningQuery(
       api,
@@ -1800,11 +2029,88 @@ function ActivityDetail({
     ),
     enabled: editing,
   })
-  const agents = agentChoices.data?.data || []
-  const agentResult = agentChoices.data
   const types = typeChoices.data?.data || []
   const typeResult = typeChoices.data
-  const submitWorkflow = (event) => {
+  const closeDecision = () => {
+    setDecisionUpload(null)
+    setDecisionFile(null)
+    setWorkflowAction('')
+  }
+  const refreshDecisionEvidence = async () => {
+    await Promise.all([
+      client.invalidateQueries({
+        queryKey: ['planning', user.id, 'documents', item.id],
+      }),
+      client.invalidateQueries({
+        queryKey: ['planning', user.id, 'activity-history', item.id],
+      }),
+      client.invalidateQueries({ queryKey: ['audit-history'] }),
+    ])
+  }
+  const reconcileDecisionFile = async (attempt) => {
+    try {
+      setDecisionUpload({ ...attempt, status: 'checking' })
+      const result = await api.request(
+        `/api/v1/activities/${item.id}/documents?limit=60`,
+      )
+      const found = (result.data || []).some(
+        (document) =>
+          !attempt.baselineIds.includes(document.id) &&
+          document.name === attempt.file.name &&
+          document.size === attempt.file.size &&
+          document.uploaded_by_id === user.id,
+      )
+      if (found) {
+        await refreshDecisionEvidence()
+        toast.success(strings.decisionAndAttachmentSaved)
+        closeDecision()
+        return
+      }
+      setDecisionUpload({ ...attempt, status: 'retry' })
+    } catch (error) {
+      if (error.status === 401) onDenied()
+      else setDecisionUpload({ ...attempt, status: 'uncertain' })
+    }
+  }
+  const uploadDecisionFile = async (file) => {
+    let attempt
+    try {
+      const before = await api.request(
+        `/api/v1/activities/${item.id}/documents?limit=60`,
+      )
+      attempt = {
+        file,
+        baselineIds: (before.data || []).map((document) => document.id),
+      }
+      setDecisionUpload({ ...attempt, status: 'uploading' })
+      await api.request(`/api/v1/activities/${item.id}/documents`, {
+        method: 'POST',
+        csrf,
+        rawBody: file,
+        headers: { 'Content-Type': file.type, 'X-File-Name': file.name },
+      })
+      await refreshDecisionEvidence()
+      toast.success(strings.decisionAndAttachmentSaved)
+      closeDecision()
+    } catch (error) {
+      if (error.status === 401) {
+        onDenied()
+        return
+      }
+      if (
+        attempt &&
+        (['network', 'malformed'].includes(error.kind) || error.status >= 500)
+      ) {
+        await reconcileDecisionFile(attempt)
+        return
+      }
+      setDecisionUpload({
+        ...(attempt || { file, baselineIds: [] }),
+        status: 'retry',
+      })
+    }
+  }
+  const submitWorkflow = async (event) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const submission = workflowAction === 'submit'
@@ -1814,77 +2120,84 @@ function ActivityDetail({
     const withdrawalCancellation = workflowAction === 'cancel_withdrawal'
     const transfer = workflowAction === 'request_transfer'
     const transferCancellation = workflowAction === 'cancel_transfer'
-    return mutation.mutateAsync(
-      {
-        path: opening
-          ? `/activities/${item.id}/amendments`
-          : cancellation
-            ? `/activities/${item.id}/amendments/${item.amendment.id}/cancellation`
-            : withdrawal
-              ? `/activities/${item.id}/withdrawals`
-              : withdrawalCancellation
-                ? `/activities/${item.id}/withdrawals/${item.withdrawal.id}/cancellation`
-                : transfer
-                  ? `/activities/${item.id}/transfers`
-                  : transferCancellation
-                    ? `/activities/${item.id}/transfers/${item.transfer.id}/cancellation`
-                    : submission
-                      ? `/activities/${item.id}/submissions`
-                      : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
-        method: 'POST',
-        body:
-          opening ||
-          cancellation ||
-          withdrawal ||
-          withdrawalCancellation ||
-          transfer ||
-          transferCancellation
-            ? {
+    const hasDecisionFile =
+      ['prevalidate', 'approve'].includes(workflowAction) &&
+      typeof decisionFile?.size === 'number' &&
+      decisionFile.size > 0
+    await mutation.mutateAsync({
+      path: opening
+        ? `/activities/${item.id}/amendments`
+        : cancellation
+          ? `/activities/${item.id}/amendments/${item.amendment.id}/cancellation`
+          : withdrawal
+            ? `/activities/${item.id}/withdrawals`
+            : withdrawalCancellation
+              ? `/activities/${item.id}/withdrawals/${item.withdrawal.id}/cancellation`
+              : transfer
+                ? `/activities/${item.id}/transfers`
+                : transferCancellation
+                  ? `/activities/${item.id}/transfers/${item.transfer.id}/cancellation`
+                  : submission
+                    ? `/activities/${item.id}/submissions`
+                    : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
+      method: 'POST',
+      silentSuccess: hasDecisionFile,
+      body:
+        opening ||
+        cancellation ||
+        withdrawal ||
+        withdrawalCancellation ||
+        transfer ||
+        transferCancellation
+          ? {
+              expected_version: item.version,
+              expected_approved_revision_id: item.approved_revision_id,
+              reason: data.get('reason'),
+              ...(withdrawal && item.withdrawal
+                ? {
+                    withdrawal_id: item.withdrawal.id,
+                    expected_revision_id: item.current_revision_id,
+                  }
+                : {}),
+              ...(withdrawalCancellation
+                ? { expected_revision_id: item.current_revision_id }
+                : {}),
+              ...(transfer
+                ? {
+                    planned_start: data.get('planned_start'),
+                    planned_end: data.get('planned_end'),
+                    ...(item.transfer
+                      ? {
+                          transfer_id: item.transfer.id,
+                          expected_revision_id: item.current_revision_id,
+                        }
+                      : {}),
+                  }
+                : {}),
+              ...(transferCancellation
+                ? { expected_revision_id: item.current_revision_id }
+                : {}),
+            }
+          : submission
+            ? { expected_version: item.version }
+            : {
                 expected_version: item.version,
-                expected_approved_revision_id: item.approved_revision_id,
-                reason: data.get('reason'),
-                ...(withdrawal && item.withdrawal
+                decision: workflowAction,
+                ...(data.get('reason') ? { reason: data.get('reason') } : {}),
+                ...(workflowAction === 'return'
                   ? {
-                      withdrawal_id: item.withdrawal.id,
-                      expected_revision_id: item.current_revision_id,
-                    }
-                  : {}),
-                ...(withdrawalCancellation
-                  ? { expected_revision_id: item.current_revision_id }
-                  : {}),
-                ...(transfer
-                  ? {
-                      planned_start: data.get('planned_start'),
-                      planned_end: data.get('planned_end'),
-                      ...(item.transfer
-                        ? {
-                            transfer_id: item.transfer.id,
-                            expected_revision_id: item.current_revision_id,
-                          }
+                      ...(data.get('requested_amount')
+                        ? { requested_amount: data.get('requested_amount') }
                         : {}),
                     }
                   : {}),
-                ...(transferCancellation
-                  ? { expected_revision_id: item.current_revision_id }
-                  : {}),
-              }
-            : submission
-              ? { expected_version: item.version }
-              : {
-                  expected_version: item.version,
-                  decision: workflowAction,
-                  ...(workflowAction === 'return'
-                    ? {
-                        reason: data.get('reason'),
-                        ...(data.get('requested_amount')
-                          ? { requested_amount: data.get('requested_amount') }
-                          : {}),
-                      }
-                    : {}),
-                },
-      },
-      { onSuccess: () => setWorkflowAction('') },
-    )
+              },
+    })
+    if (hasDecisionFile) {
+      await uploadDecisionFile(decisionFile)
+      return
+    }
+    closeDecision()
   }
   if (editing)
     return (
@@ -1917,14 +2230,100 @@ function ActivityDetail({
         />
       </>
     )
+  const creatorName =
+    item.creator?.full_name || item.creator?.email || strings.unknownActor
+  const submitterName =
+    item.current_submitter?.full_name ||
+    item.current_submitter?.email ||
+    creatorName
+  const latestDecisionName =
+    item.latest_decision_actor?.full_name ||
+    item.latest_decision_actor?.email ||
+    strings.unknownActor
+  const programmingIncomplete =
+    item.state === 'draft' &&
+    (!item.planned_end || item.allocation === null || !item.operations.length)
   return (
     <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
-      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <div>
+      <nav
+        aria-label={strings.breadcrumb}
+        className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+      >
+        <Link to="/planning" className="text-primary">
+          {strings.planningIndex}
+        </Link>
+        <span aria-hidden="true">/</span>
+        <Link
+          to="/projects/$projectId/ptas/$year"
+          params={{
+            projectId: item.project_id,
+            year: String(item.placement_year),
+          }}
+          className="text-primary"
+        >
+          {item.pta_name}
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span>{item.reference}</span>
+      </nav>
+      <div className="flex justify-between items-end gap-8 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
+        <div className="grid gap-3">
           <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
             {item.reference}
           </p>
           <h1 className="text-2xl font-semibold text-navy">{item.name}</h1>
+          <p className="text-sm text-muted-foreground">
+            {item.project_name} · {item.partner_name} · {item.pta_name}
+          </p>
+          <span
+            className={`w-fit rounded-card px-2 py-1 text-xs ${['approved', 'closed'].includes(item.state) ? 'bg-success-badge text-success' : item.state.startsWith('returned') ? 'bg-warning-soft text-warning' : 'bg-selected text-primary'}`}
+          >
+            {strings[item.state] || item.state}
+          </span>
+          <div className="grid gap-2">
+            <p className="text-xs text-muted-foreground">
+              {strings.activityOwners}
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <strong>
+                {(item.agents || [])
+                  .map((agent) => agent.full_name || agent.email)
+                  .join(', ') || '—'}
+              </strong>
+              {canAssign && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-8 px-3"
+                  onClick={() => setAssignmentOpen(true)}
+                >
+                  {strings.changeOwners}
+                </Button>
+              )}
+            </div>
+          </div>
+          <dl className="flex flex-wrap gap-x-10 gap-y-3 text-sm">
+            <div>
+              <dt className="text-xs text-muted-foreground">{strings.start}</dt>
+              <dd className="mt-1 font-medium">
+                {formatDate(item.planned_start)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{strings.end}</dt>
+              <dd className="mt-1 font-medium">
+                {item.planned_end ? formatDate(item.planned_end) : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {strings.revision}
+              </dt>
+              <dd className="mt-1 font-medium">
+                {item.current_revision_number || '—'}
+              </dd>
+            </div>
+          </dl>
         </div>
         <div className="flex gap-2 items-end flex-wrap">
           {item.approved_revision_id && (
@@ -1935,7 +2334,9 @@ function ActivityDetail({
           )}
           {item.allowed_actions.includes('edit') && (
             <Button disabled={mutationBlocked} onClick={() => setEditing(true)}>
-              {strings.modify}
+              {!item.planned_end || item.allocation === null
+                ? strings.completeProgramming
+                : strings.modify}
             </Button>
           )}
           {item.allowed_actions.includes('open_amendment') && (
@@ -2071,20 +2472,6 @@ function ActivityDetail({
           />
         </div>
       )}
-      <div
-        className="flex flex-wrap items-center gap-2 text-sm"
-        aria-label={strings.reviewProgress}
-      >
-        <strong>{strings.status}: </strong>
-        <span
-          className={`rounded-card px-2 py-1 text-xs ${['approved', 'closed'].includes(item.state) ? 'bg-success-badge text-success' : item.state.startsWith('returned') ? 'bg-warning-soft text-warning' : 'bg-selected text-primary'}`}
-        >
-          {strings[item.state] || item.state}
-        </span>
-        {item.current_revision_id && currentRevision?.revision_number && (
-          <span> · Révision {currentRevision.revision_number}</span>
-        )}
-      </div>
       {item.correction && (
         <div className="border-l-4 border-l-danger p-3 bg-white" role="status">
           <strong>{strings.returned}</strong>
@@ -2136,20 +2523,34 @@ function ActivityDetail({
               </h2>
               <div className="grid gap-6 p-5">
                 <p>{item.description}</p>
-                <dl className="grid gap-4 sm:grid-cols-2 text-sm">
-                  <div>
-                    <dt className="text-[0.8125rem] text-muted-foreground">
-                      {strings.start}
-                    </dt>
-                    <dd className="mt-2">{formatDate(item.planned_start)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[0.8125rem] text-muted-foreground">
-                      {strings.end}
-                    </dt>
-                    <dd className="mt-2">{formatDate(item.planned_end)}</dd>
-                  </div>
-                </dl>
+                {programmingIncomplete ? (
+                  <p className="text-sm text-muted-foreground">
+                    {strings.formatString(
+                      item.planned_end
+                        ? strings.programmingToCompleteWithEnd
+                        : strings.programmingToCompleteWithoutEnd,
+                      formatDate(item.planned_start),
+                      ...(item.planned_end
+                        ? [formatDate(item.planned_end)]
+                        : []),
+                    )}
+                  </p>
+                ) : (
+                  <dl className="grid gap-4 sm:grid-cols-2 text-sm">
+                    <div>
+                      <dt className="text-[0.8125rem] text-muted-foreground">
+                        {strings.start}
+                      </dt>
+                      <dd className="mt-2">{formatDate(item.planned_start)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[0.8125rem] text-muted-foreground">
+                        {strings.end}
+                      </dt>
+                      <dd className="mt-2">{formatDate(item.planned_end)}</dd>
+                    </div>
+                  </dl>
+                )}
               </div>
             </section>
             <Link
@@ -2161,301 +2562,344 @@ function ActivityDetail({
             >
               {strings.openCurrentAnnualPlan}
             </Link>
-            <section className="rounded-panel border border-border bg-white">
-              <h2 className="border-b border-border px-5 py-4">
-                {strings.operations}
-              </h2>
-              <div className="overflow-x-auto p-5">
-                <table className="w-full text-sm">
-                  <thead className="bg-background">
-                    <tr>
-                      <th className="p-3 text-left font-medium">
-                        {strings.operationType}
-                      </th>
-                      <th className="p-3 text-right font-medium">
-                        {strings.budget}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {item.operations.map((row) => (
-                      <tr
-                        key={row.id}
-                        className="border-b border-border last:border-0"
-                      >
-                        <td className="p-3">
-                          {row.name}
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {row.type_label}
-                          </p>
-                        </td>
-                        <td className="p-3 text-right">
-                          {formatXof(row.allocation)}
-                        </td>
+            {!programmingIncomplete && (
+              <section className="rounded-panel border border-border bg-white">
+                <h2 className="border-b border-border px-5 py-4">
+                  {strings.operations}
+                </h2>
+                <div className="overflow-x-auto p-5">
+                  <table className="w-full text-sm">
+                    <thead className="bg-background">
+                      <tr>
+                        <th className="p-3 text-left font-medium">
+                          {strings.operationType}
+                        </th>
+                        <th className="p-3 text-right font-medium">
+                          {strings.budget}
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                    </thead>
+                    <tbody>
+                      {item.operations.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="border-b border-border last:border-0"
+                        >
+                          <td className="p-3">
+                            {row.name}
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {row.type_label}
+                            </p>
+                          </td>
+                          <td className="p-3 text-right">
+                            {formatXof(row.allocation)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
           </div>
           <aside className="rounded-panel border border-border bg-white">
             <h2 className="border-b border-border px-5 py-4">
-              {strings.budgetValidation}
+              {item.state === 'draft'
+                ? strings.draft
+                : strings.budgetValidation}
             </h2>
             <dl className="grid gap-6 p-5 text-sm">
               <div>
-                <dt className="text-muted-foreground">{strings.budget}</dt>
-                <dd className="mt-2 font-semibold">
-                  {formatXof(item.allocation)}
-                </dd>
-              </div>
-              <div>
                 <dt className="text-muted-foreground">
-                  {strings.approvedBudget}
+                  {item.state === 'draft'
+                    ? strings.createdBy
+                    : item.state === 'submitted'
+                      ? strings.submittedBy
+                      : strings.latestDecisionBy}
                 </dt>
                 <dd className="mt-2 font-semibold">
-                  {item.approved_allocation
-                    ? formatXof(item.approved_allocation)
-                    : strings.notApproved}
+                  {item.state === 'draft'
+                    ? creatorName
+                    : item.state === 'submitted'
+                      ? submitterName
+                      : latestDecisionName}
                 </dd>
               </div>
+              {item.state === 'submitted' && (
+                <div>
+                  <dt className="text-muted-foreground">
+                    {strings.validation}
+                  </dt>
+                  <dd className="mt-2 font-semibold">
+                    {strings.awaitingPrevalidation}
+                  </dd>
+                </div>
+              )}
+              {item.state === 'prevalidated' && (
+                <div>
+                  <dt className="text-muted-foreground">
+                    {strings.validation}
+                  </dt>
+                  <dd className="mt-2 font-semibold">
+                    {strings.awaitingFinalValidation}
+                  </dd>
+                </div>
+              )}
+              {!programmingIncomplete && (
+                <>
+                  <div>
+                    <dt className="text-muted-foreground">{strings.budget}</dt>
+                    <dd className="mt-2 font-semibold">
+                      {formatXof(item.allocation)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">
+                      {strings.approvedBudget}
+                    </dt>
+                    <dd className="mt-2 font-semibold">
+                      {item.approved_allocation
+                        ? formatXof(item.approved_allocation)
+                        : strings.notApproved}
+                    </dd>
+                  </div>
+                </>
+              )}
             </dl>
           </aside>
         </div>
       </div>
-      <div hidden={search.tab !== 'files'}>
-        <ActivityDocuments
-          activityId={item.id}
-          assigned={item.agent_ids.includes(user.id)}
-          user={user}
-          csrf={csrf}
-          cursor={documentCursor}
-          navigate={navigate}
-          blocked={mutationBlocked}
-          onDenied={onDenied}
-        />
-      </div>
-      <section
-        hidden={
-          search.tab !== 'history' && !search.revision && !search.amendment
-        }
-        aria-labelledby="activity-history-title"
-        className="rounded-panel border border-border bg-white [&>h3]:border-b [&>h3]:border-border [&>h3]:p-5 [&>h3]:font-semibold"
-      >
-        <h3 id="activity-history-title">{strings.revisionHistory}</h3>
-        {!revisions?.data?.length ? (
-          <EmptyContent kind="activityHistory" />
-        ) : (
-          <ActivityTimeline events={revisions.data} navigate={navigate} />
-        )}
-        {historyLoading && (
-          <LoadingPlaceholder label={strings.historyLoading} />
-        )}
-        {selectedRevision?.snapshot && (
-          <div className="border border-border rounded-card mt-4 p-4">
-            <h4>Révision {selectedRevision.revision_number}</h4>
-            <p>
-              {selectedRevision.snapshot.partner.name} ·{' '}
-              {selectedRevision.snapshot.project.reference} —{' '}
-              {selectedRevision.snapshot.project.name} · PTA{' '}
-              {selectedRevision.snapshot.pta.year} ·{' '}
-              {selectedRevision.snapshot.activity.reference}
-            </p>
-            {selectedRevision.snapshot.withdrawal && (
+      {search.tab === 'files' && (
+        <div>
+          <ActivityDocuments
+            activityId={item.id}
+            assigned={item.agent_ids.includes(user.id)}
+            user={user}
+            csrf={csrf}
+            cursor={documentCursor}
+            navigate={navigate}
+            blocked={mutationBlocked}
+            onDenied={onDenied}
+          />
+        </div>
+      )}
+      {(search.tab === 'history' || search.revision || search.amendment) && (
+        <section
+          aria-labelledby="activity-history-title"
+          className="rounded-panel border border-border bg-white [&>h3]:border-b [&>h3]:border-border [&>h3]:p-5 [&>h3]:font-semibold"
+        >
+          <h3 id="activity-history-title">{strings.revisionHistory}</h3>
+          {!revisions?.data?.length ? (
+            <EmptyContent kind="activityHistory" />
+          ) : (
+            <ActivityTimeline events={revisions.data} navigate={navigate} />
+          )}
+          {historyLoading && (
+            <LoadingPlaceholder label={strings.historyLoading} />
+          )}
+          {selectedRevision?.snapshot && (
+            <div className="border border-border rounded-card mt-4 p-4">
+              <h4>Révision {selectedRevision.revision_number}</h4>
               <p>
-                <strong>{strings.withdrawalReason} :</strong>{' '}
-                {selectedRevision.snapshot.withdrawal.reason}
+                {selectedRevision.snapshot.partner.name} ·{' '}
+                {selectedRevision.snapshot.project.reference} —{' '}
+                {selectedRevision.snapshot.project.name} · PTA{' '}
+                {selectedRevision.snapshot.pta.year} ·{' '}
+                {selectedRevision.snapshot.activity.reference}
               </p>
-            )}
-            {selectedRevision.snapshot.transfer && (
+              {selectedRevision.snapshot.withdrawal && (
+                <p>
+                  <strong>{strings.withdrawalReason} :</strong>{' '}
+                  {selectedRevision.snapshot.withdrawal.reason}
+                </p>
+              )}
+              {selectedRevision.snapshot.transfer && (
+                <p>
+                  <strong>{strings.transferReason} :</strong>{' '}
+                  {selectedRevision.snapshot.transfer.reason} · PTA{' '}
+                  {selectedRevision.snapshot.transfer.source_pta.year} vers PTA{' '}
+                  {selectedRevision.snapshot.transfer.target_year}
+                </p>
+              )}
               <p>
-                <strong>{strings.transferReason} :</strong>{' '}
-                {selectedRevision.snapshot.transfer.reason} · PTA{' '}
-                {selectedRevision.snapshot.transfer.source_pta.year} vers PTA{' '}
-                {selectedRevision.snapshot.transfer.target_year}
+                {selectedRevision.snapshot.name} ·{' '}
+                {selectedRevision.snapshot.planned_start} au{' '}
+                {selectedRevision.snapshot.planned_end}
               </p>
-            )}
-            <p>
-              {selectedRevision.snapshot.name} ·{' '}
-              {selectedRevision.snapshot.planned_start} au{' '}
-              {selectedRevision.snapshot.planned_end}
-            </p>
-            <p>{selectedRevision.snapshot.description}</p>
-            <p>{formatXof(selectedRevision.snapshot.allocation)}</p>
-            <h5>{strings.operations}</h5>
-            <ol>
-              {selectedRevision.snapshot.operations.map((operation) => (
-                <li key={operation.id}>
-                  {operation.type_label} — {operation.name} ·{' '}
-                  {formatXof(operation.allocation)}
-                </li>
-              ))}
-            </ol>
-            <p>
-              Soumise par {selectedRevision.snapshot.submitter.email} le{' '}
-              {selectedRevision.snapshot.submitted_at}
-            </p>
-            <p>
-              Agents coordonnés :{' '}
-              {selectedRevision.snapshot.agents
-                .map((row) => row.email)
-                .join(', ') || 'Aucun'}
-            </p>
-            <p>
-              Contributeurs :{' '}
-              {selectedRevision.snapshot.contributors
-                .map((row) => `${row.email} (${row.role})`)
-                .join(', ')}
-            </p>
-            <h5>Décisions</h5>
-            {!selectedRevision.decisions.length ? (
-              <p>Aucune décision.</p>
-            ) : (
+              <p>{selectedRevision.snapshot.description}</p>
+              <p>{formatXof(selectedRevision.snapshot.allocation)}</p>
+              <h5>{strings.operations}</h5>
               <ol>
-                {selectedRevision.decisions.map((decision) => (
-                  <li key={decision.id}>
-                    {strings[decision.outcome] || decision.outcome} —{' '}
-                    {decision.actor_role} · {decision.decided_at}
-                    {decision.reason ? ` — ${decision.reason}` : ''}
-                    {decision.requested_amount
-                      ? ` — ${formatXof(decision.requested_amount)}`
-                      : ''}
+                {selectedRevision.snapshot.operations.map((operation) => (
+                  <li key={operation.id}>
+                    {operation.type_label} — {operation.name} ·{' '}
+                    {formatXof(operation.allocation)}
                   </li>
                 ))}
               </ol>
-            )}
-          </div>
-        )}
-        {selectedAmendment && (
-          <div className="border border-border rounded-card mt-4 p-4">
-            <h4>
-              {selectedAmendment.status === 'cancelled'
-                ? 'Modification annulée'
-                : selectedAmendment.status === 'approved'
-                  ? 'Modification approuvée'
-                  : 'Modification en cours'}
-            </h4>
-            <p>{selectedAmendment.reason}</p>
-            <p>
-              Ouverte par {selectedAmendment.opened_by_id} le{' '}
-              {selectedAmendment.opened_at}
-            </p>
-            <PlanningVersion
-              title={strings.candidateVersion}
-              value={selectedAmendment.candidate}
-            />
-            {selectedAmendment.cancellation && (
               <p>
-                Annulée par {selectedAmendment.cancellation.actor_id} le{' '}
-                {selectedAmendment.cancellation.occurred_at} —{' '}
-                {selectedAmendment.cancellation.reason}
+                Soumise par {selectedRevision.snapshot.submitter.email} le{' '}
+                {selectedRevision.snapshot.submitted_at}
               </p>
-            )}
-          </div>
-        )}
-        {revisions && (
-          <Pager
-            result={revisions}
-            cursorKey="revisionCursor"
-            navigate={navigate}
-          />
-        )}
-      </section>
-      {canAssign && (
-        <BusinessForm
-          dirty={Boolean(assignmentDraft)}
-          onSubmit={(event) => {
-            event.preventDefault()
-            return mutation.mutateAsync(
-              {
-                path: `/activities/${item.id}/assignments`,
-                method: 'PUT',
-                body: {
-                  expected_version: assignmentDraft?.version ?? item.version,
-                  agent_ids: selectedAgentIds,
-                },
-              },
-              { onSuccess: () => setAssignmentDraft(null) },
-            )
-          }}
-        >
-          <fieldset>
-            <legend>{strings.coordinatedAgents}</legend>
-            {agentChoices.isError && (
-              <RetryableError onRetry={() => void agentChoices.refetch()}>
-                {strings.unavailablePlanning}
-              </RetryableError>
-            )}
-            {agentChoices.isPending && (
-              <LoadingPlaceholder
-                label={strings.coordinatedAgents}
-                variant="form"
-              />
-            )}
-            {agents.map((agent) => (
-              <label key={agent.id}>
-                <input
-                  type="checkbox"
-                  disabled={mutationBlocked}
-                  name="agents"
-                  value={agent.id}
-                  checked={selectedAgentIds.includes(agent.id)}
-                  onChange={(event) =>
-                    setAssignmentDraft({
-                      version: assignmentDraft?.version ?? item.version,
-                      ids: event.target.checked
-                        ? [...new Set([...selectedAgentIds, agent.id])]
-                        : selectedAgentIds.filter(
-                            (identifier) => identifier !== agent.id,
-                          ),
-                    })
-                  }
-                />{' '}
-                {agent.email}
-              </label>
-            ))}
-          </fieldset>
-          <Pager
-            result={agentResult}
-            cursorKey="agentCursor"
-            navigate={navigate}
-          />
-          <Button
-            type="submit"
-            disabled={
-              mutationBlocked ||
-              selectedAgentIds.length === 0 ||
-              !agentResult ||
-              agentChoices.isFetching ||
-              agentChoices.isError
-            }
-          >
-            {strings.saveAgents}
-          </Button>
-          {assignmentDraft && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={mutationBlocked}
-              onClick={() => setAssignmentDraft(null)}
-            >
-              {strings.cancelAssignmentChanges}
-            </Button>
+              <p>
+                Agents coordonnés :{' '}
+                {selectedRevision.snapshot.agents
+                  .map((row) => row.email)
+                  .join(', ') || 'Aucun'}
+              </p>
+              <p>
+                Contributeurs :{' '}
+                {selectedRevision.snapshot.contributors
+                  .map((row) => `${row.email} (${row.role})`)
+                  .join(', ')}
+              </p>
+              <h5>Décisions</h5>
+              {!selectedRevision.decisions.length ? (
+                <p>Aucune décision.</p>
+              ) : (
+                <ol>
+                  {selectedRevision.decisions.map((decision) => (
+                    <li key={decision.id}>
+                      {strings[decision.outcome] || decision.outcome} —{' '}
+                      {decision.actor_role} · {decision.decided_at}
+                      {decision.reason ? ` — ${decision.reason}` : ''}
+                      {decision.requested_amount
+                        ? ` — ${formatXof(decision.requested_amount)}`
+                        : ''}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
           )}
-        </BusinessForm>
+          {selectedAmendment && (
+            <div className="border border-border rounded-card mt-4 p-4">
+              <h4>
+                {selectedAmendment.status === 'cancelled'
+                  ? 'Modification annulée'
+                  : selectedAmendment.status === 'approved'
+                    ? 'Modification approuvée'
+                    : 'Modification en cours'}
+              </h4>
+              <p>{selectedAmendment.reason}</p>
+              <p>
+                Ouverte par {selectedAmendment.opened_by_id} le{' '}
+                {selectedAmendment.opened_at}
+              </p>
+              <PlanningVersion
+                title={strings.candidateVersion}
+                value={selectedAmendment.candidate}
+              />
+              {selectedAmendment.cancellation && (
+                <p>
+                  Annulée par {selectedAmendment.cancellation.actor_id} le{' '}
+                  {selectedAmendment.cancellation.occurred_at} —{' '}
+                  {selectedAmendment.cancellation.reason}
+                </p>
+              )}
+            </div>
+          )}
+          {revisions && (
+            <Pager
+              result={revisions}
+              cursorKey="revisionCursor"
+              navigate={navigate}
+            />
+          )}
+        </section>
       )}
+      <AssignmentModal
+        open={assignmentOpen}
+        item={item}
+        user={user}
+        blocked={mutationBlocked}
+        draft={assignmentDraft}
+        setDraft={setAssignmentDraft}
+        onClose={() => {
+          setAssignmentDraft(null)
+          setAssignmentOpen(false)
+        }}
+        onDenied={onDenied}
+        onSave={(ids, version) =>
+          mutation.mutateAsync(
+            {
+              path: `/activities/${item.id}/assignments`,
+              method: 'PUT',
+              body: { expected_version: version, agent_ids: ids },
+            },
+            {
+              onSuccess: () => {
+                setAssignmentDraft(null)
+                setAssignmentOpen(false)
+              },
+            },
+          )
+        }
+      />
       <Modal
         open={Boolean(workflowAction)}
-        onClose={() => setWorkflowAction('')}
-        label={strings.workflowConfirmation}
+        onClose={() => {
+          if (['uploading', 'checking'].includes(decisionUpload?.status)) return
+          closeDecision()
+        }}
+        label={
+          workflowAction === 'prevalidate'
+            ? strings.prevalidate
+            : workflowAction === 'approve'
+              ? strings.authorize
+              : strings.workflowConfirmation
+        }
         opener={workflowOpener}
       >
         <BusinessForm
           className="grid gap-4 min-w-[min(520px,_calc(100vw_-_40px))] p-6 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2"
           onSubmit={submitWorkflow}
         >
-          <p>{strings.workflowExactRevision}</p>
+          {!['prevalidate', 'approve'].includes(workflowAction) && (
+            <p>{strings.workflowExactRevision}</p>
+          )}
+          {['prevalidate', 'approve'].includes(workflowAction) && (
+            <>
+              <p className="font-medium">{item.name}</p>
+              <div className="flex items-center justify-between gap-4 border-b border-border pb-4 text-sm">
+                <span>
+                  {strings.revision} {item.current_revision_number || '—'}
+                </span>
+                <strong>{formatXof(item.allocation)}</strong>
+              </div>
+              <label>
+                {strings.observation}
+                <textarea
+                  name="reason"
+                  maxLength="4000"
+                  disabled={Boolean(decisionUpload)}
+                  autoFocus
+                />
+              </label>
+              <label>
+                {strings.decisionAttachment}
+                <input
+                  name="attachment"
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  disabled={Boolean(decisionUpload)}
+                  onChange={(event) =>
+                    setDecisionFile(event.target.files?.[0] || null)
+                  }
+                />
+              </label>
+            </>
+          )}
+          {decisionUpload?.status === 'retry' && (
+            <p role="alert" className="text-danger">
+              {strings.decisionSavedUploadFailed}
+            </p>
+          )}
+          {decisionUpload?.status === 'uncertain' && (
+            <p role="alert" className="text-danger">
+              {strings.decisionUploadUncertain}
+            </p>
+          )}
           {[
             'return',
             'open_amendment',
@@ -2562,13 +3006,37 @@ function ActivityDetail({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setWorkflowAction('')}
+              disabled={['uploading', 'checking'].includes(
+                decisionUpload?.status,
+              )}
+              onClick={closeDecision}
             >
               {strings.cancel}
             </Button>
-            <Button type="submit" disabled={mutationBlocked}>
-              {strings.confirm}
-            </Button>
+            {decisionUpload ? (
+              <Button
+                type="button"
+                loading={['uploading', 'checking'].includes(
+                  decisionUpload.status,
+                )}
+                disabled={decisionUpload.status === 'uploading'}
+                onClick={() =>
+                  decisionUpload.status === 'retry'
+                    ? uploadDecisionFile(decisionUpload.file)
+                    : reconcileDecisionFile(decisionUpload)
+                }
+              >
+                {decisionUpload.status === 'retry'
+                  ? strings.retryAttachment
+                  : strings.verifyAttachments}
+              </Button>
+            ) : (
+              <Button type="submit" disabled={mutationBlocked}>
+                {['prevalidate', 'approve'].includes(workflowAction)
+                  ? strings.confirmDecision
+                  : strings.confirm}
+              </Button>
+            )}
           </footer>
         </BusinessForm>
       </Modal>
@@ -2857,6 +3325,7 @@ export function ActivityDocuments({
     )
   }
   const canUpload =
+    user.role === 'AGENT_VERIFICATEUR' ||
     user.role === 'VALIDATEUR_DEFINITIF' ||
     (user.role === 'AGENT_SAISIE' && assigned)
   const uploadNotice = uploadUncertain && (

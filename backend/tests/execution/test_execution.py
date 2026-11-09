@@ -40,6 +40,13 @@ def approved_execution_activity(
 ):
     _partner, operation_type, project = references(clients)
     today = datetime.now(ZoneInfo("Africa/Porto-Novo")).date()
+    if today.year != 2027:
+        created_pta = post(
+            clients["supervisor"],
+            f"/api/v1/projects/{project['id']}/ptas",
+            {"year": today.year, "name": f"PTA {today.year}"},
+        )
+        assert created_pta.status_code == 201, created_pta.text
     plan_changes = {
         "planned_start": planned_start or today.isoformat(),
         "planned_end": planned_end or (today + timedelta(days=90)).isoformat(),

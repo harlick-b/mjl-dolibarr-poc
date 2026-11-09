@@ -1,7 +1,8 @@
 # PTA and Activity workflow — implementation plan
 
-Status: slices 1 and 2 implemented, verified and independently reviewed,
-2026-11-09. Slices 3 onward remain pending and require separate authorization.
+Status: slices 1 through 3 implemented, verified and independently reviewed.
+Slices 4 onward remain pending and require
+separate authorization.
 Remove this file when the work is complete; retain settled rules in the current
 guides and actual completion/evidence in project-status.md.
 
@@ -69,10 +70,9 @@ All images below are under `docs/inspiration/pta/`.
 - Slice 1 connects the existing migration 0027/create/update APIs to PTA modals
   and metadata presentation. Activity creation and annual transfers now require
   a previously created PTA. No implicit creation path remains.
-- Activity creation currently permits Agents only and requires complete dates,
-  positive allocation and Operations. Models, response schemas, audit validation
-  and projections assume complete planning. Quick creation needs a coherent
-  incomplete-draft contract, not placeholder dates, fake Operations or zero budgets.
+- Reviewer brief creation and assigned-Agent completion are implemented. A brief
+  keeps unknown end/budget values explicit until an assigned Agent completes it;
+  submitted planning remains complete and positive.
 - Assignment enforcement already exists. Reuse its transaction locks/version
   checks and extend the current UI instead of creating another permission system.
 - PTA search supports text and one raw state, but no Agent/period filtering.
@@ -82,9 +82,8 @@ All images below are under `docs/inspiration/pta/`.
   horizontal annual/monthly timeline.
 - Activity detail and execution are separate large views. Reuse their commands,
   queries and authorization while composing the approved connected workspace.
-- Supervisor upload is currently denied. Date inputs do not yet have a shared
-  shadcn calendar; reuse the existing shadcn Select for year choice and add the
-  selected library's date/popover primitives for actual consumers.
+- Supervisor Activity-document upload is implemented. Date inputs use the shared
+  date/popover primitives added in the earlier slices.
 
 ## Ordered implementation slices
 
@@ -139,7 +138,11 @@ revisions. Extend document upload authorization to Supervisors, with fresh check
 before parsing and under the final write lock, audit and matching UI capabilities.
 For optional files alongside a save/decision, preserve the separate document
 transaction: clearly handle partial success, never replay a confirmed decision,
-and never label a failed upload as successful. Expose retry in the owning dialog.
+and never label a failed upload as successful. Record the newest document identifiers
+before upload; after an uncertain result, accept only a new identifier with matching
+file name, size and uploader. Do not compare browser and server clocks or accept an
+older metadata match. Expose verification or file-only retry in the owning dialog;
+never resend the decision.
 
 ### 4. Shared search/filter behavior and timeline
 

@@ -205,7 +205,12 @@ def project_item(item: Project, role: str) -> dict[str, Any]:
 
 
 def activity_item(
-    db: Session, item: Activity, role: str, actor_id: str | None = None
+    db: Session,
+    item: Activity,
+    role: str,
+    actor_id: str | None = None,
+    *,
+    presentation: bool = False,
 ) -> dict[str, Any]:
     operations = list(
         db.scalars(
@@ -351,7 +356,7 @@ def activity_item(
 
     if financial_freeze_reason(db, item.id):
         actions = [action for action in actions if action != "open_amendment"]
-    return {
+    result = {
         "id": item.id,
         "pta_id": item.pta_id,
         "project_id": item.request_project_id,
@@ -403,6 +408,98 @@ def activity_item(
             else None
         ),
     }
+    if presentation:
+        agents = list(
+            db.execute(
+                select(User.id, User.email, User.full_name)
+                .where(User.id.in_(agent_ids))
+                .order_by(User.id)
+            )
+        )
+        creator = db.execute(
+            select(User.id, User.email, User.full_name).where(
+                User.id == item.creator_id
+            )
+        ).one()
+        current_revision = (
+            db.execute(
+                select(
+                    ActivityRevision.revision_number,
+                    User.id,
+                    User.email,
+                    User.full_name,
+                )
+                .join(User, User.id == ActivityRevision.submitter_id)
+                .where(ActivityRevision.id == item.current_revision_id)
+            ).one_or_none()
+            if item.current_revision_id
+            else None
+        )
+        latest_decision_actor = (
+            db.execute(
+                select(User.id, User.email, User.full_name)
+                .join(
+                    ActivityRevisionDecision,
+                    ActivityRevisionDecision.actor_id == User.id,
+                )
+                .where(ActivityRevisionDecision.revision_id == item.current_revision_id)
+                .order_by(
+                    ActivityRevisionDecision.decided_at.desc(),
+                    ActivityRevisionDecision.id.desc(),
+                )
+                .limit(1)
+            ).one_or_none()
+            if item.current_revision_id
+            else None
+        )
+        context = db.execute(
+            select(AnnualPTA.name, Project.name, Partner.name)
+            .join(Project, Project.id == AnnualPTA.project_id)
+            .join(Partner, Partner.id == Project.partner_id)
+            .where(AnnualPTA.id == item.pta_id)
+        ).one()
+        result.update(
+            {
+                "agents": [
+                    {
+                        "id": agent.id,
+                        "email": agent.email,
+                        "full_name": agent.full_name,
+                    }
+                    for agent in agents
+                ],
+                "creator": {
+                    "id": creator.id,
+                    "email": creator.email,
+                    "full_name": creator.full_name,
+                },
+                "current_revision_number": (
+                    current_revision.revision_number if current_revision else None
+                ),
+                "current_submitter": (
+                    {
+                        "id": current_revision.id,
+                        "email": current_revision.email,
+                        "full_name": current_revision.full_name,
+                    }
+                    if current_revision
+                    else None
+                ),
+                "latest_decision_actor": (
+                    {
+                        "id": latest_decision_actor.id,
+                        "email": latest_decision_actor.email,
+                        "full_name": latest_decision_actor.full_name,
+                    }
+                    if latest_decision_actor
+                    else None
+                ),
+                "project_name": context[1],
+                "partner_name": context[2],
+                "pta_name": context[0],
+            }
+        )
+    return result
 
 
 def snapshot_projection(snapshot: dict[str, object]) -> dict[str, Any]:

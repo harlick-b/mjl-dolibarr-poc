@@ -525,7 +525,8 @@ class ActivityRevisionDecision(Base):
         CheckConstraint(
             "(outcome = 'returned' AND reason IS NOT NULL "
             "AND length(btrim(reason)) BETWEEN 1 AND 4000) "
-            "OR (outcome <> 'returned' AND reason IS NULL)",
+            "OR (outcome <> 'returned' AND "
+            "(reason IS NULL OR length(btrim(reason)) BETWEEN 1 AND 4000))",
             name="decision_reason_required",
         ),
         CheckConstraint(

@@ -38,6 +38,40 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
     assert item["planned_end"] is None and item["allocation"] is None
     assert item["description"] == "" and item["operations"] == []
     assert item["agent_ids"] == [agent_id]
+    assert not {
+        "agents",
+        "creator",
+        "current_revision_number",
+        "current_submitter",
+        "latest_decision_actor",
+        "project_name",
+        "partner_name",
+        "pta_name",
+    }.intersection(item)
+    detail = planning[creator].get(f"/api/v1/activities/{item['id']}").json()
+    assert detail["agents"] == [
+        {
+            "id": agent_id,
+            "email": planning["agent"]
+            .get("/api/v1/auth/session")
+            .json()["user"]["email"],
+            "full_name": planning["agent"]
+            .get("/api/v1/auth/session")
+            .json()["user"]["full_name"],
+        }
+    ]
+    assert detail["project_name"] == project["name"]
+    assert detail["partner_name"]
+    assert detail["pta_name"]
+    creator_user = planning[creator].get("/api/v1/auth/session").json()["user"]
+    assert detail["creator"] == {
+        "id": creator_user["id"],
+        "email": creator_user["email"],
+        "full_name": creator_user["full_name"],
+    }
+    assert detail["latest_decision_actor"] is None
+    assert detail["current_revision_number"] is None
+    assert detail["current_submitter"] is None
     assert "replace" not in item["allowed_actions"]
     assert post(planning[creator], path, body).status_code == 200
     assert post(planning[creator], path, {**body, "name": "Autre"}).status_code == 409
@@ -68,21 +102,70 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
     )
     assert submitted.status_code == 201, submitted.text
     revision = submitted.json()
+    submitted_detail = planning[creator].get(url).json()
+    assert submitted_detail["current_revision_number"] == 1
+    assert submitted_detail["current_submitter"] == {
+        "id": agent_id,
+        "email": planning["agent"].get("/api/v1/auth/session").json()["user"]["email"],
+        "full_name": planning["agent"]
+        .get("/api/v1/auth/session")
+        .json()["user"]["full_name"],
+    }
+    assert (
+        post(
+            planning["supervisor"],
+            url + f"/revisions/{revision['id']}/decisions",
+            {
+                "decision": "prevalidate",
+                "expected_version": revision["activity_version"],
+                "reason": "   ",
+            },
+        ).status_code
+        == 422
+    )
     reviewed = post(
         planning["supervisor"],
         url + f"/revisions/{revision['id']}/decisions",
-        {"decision": "prevalidate", "expected_version": revision["activity_version"]},
+        {
+            "decision": "prevalidate",
+            "expected_version": revision["activity_version"],
+            "reason": "Programmation vérifiée.",
+        },
     )
     assert reviewed.status_code == 201, reviewed.text
+    assert reviewed.json()["reason"] == "Programmation vérifiée."
     approved = post(
         planning["validator"],
         url + f"/revisions/{revision['id']}/decisions",
         {
             "decision": "approve",
             "expected_version": reviewed.json()["activity_version"],
+            "reason": "Validation définitive confirmée.",
         },
     )
     assert approved.status_code == 201, approved.text
+    assert approved.json()["reason"] == "Validation définitive confirmée."
+    validator = planning["validator"].get("/api/v1/auth/session").json()["user"]
+    assert planning[creator].get(url).json()["latest_decision_actor"] == {
+        "id": validator["id"],
+        "email": validator["email"],
+        "full_name": validator["full_name"],
+    }
+    if creator == "supervisor":
+        from alembic import command
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+        from sqlalchemy import text
+        from sqlalchemy.orm import Session
+
+        with pytest.raises(
+            RuntimeError, match="Preserve positive decision observations"
+        ):
+            command.downgrade(Config("alembic.ini"), "0028_activity_briefs")
+        with Session(planning["auth"].engine) as db:
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+                ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+            )
     # The same reviewer remains excluded from financial approval.
     from tests.execution.test_execution import execution_path
 
@@ -143,6 +226,24 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         },
     )
     assert denied.status_code == 409, denied.text
+
+
+def test_decision_observation_migration_round_trip_when_unused(auth_env):
+    from alembic import command
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import Session
+
+    config = Config("alembic.ini")
+    command.downgrade(config, "0028_activity_briefs")
+    command.upgrade(config, "head")
+    engine = create_engine(auth_env.url)
+    with Session(engine) as db:
+        assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+            ScriptDirectory.from_config(config).get_current_head()
+        )
+    engine.dispose()
 
 
 def test_brief_validation_visibility_and_atomic_audit(planning, monkeypatch):

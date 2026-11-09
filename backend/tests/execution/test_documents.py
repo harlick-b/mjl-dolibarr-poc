@@ -119,6 +119,12 @@ def test_optional_attachment_upload_list_and_guarded_download(planning):
     )
     assert upload(planning["admin"], item["id"]).status_code == 403
 
+    supervisor_upload = upload(
+        planning["supervisor"], item["id"], name="note-supervision.png"
+    )
+    assert supervisor_upload.status_code == 201, supervisor_upload.text
+    assert supervisor_upload.json()["name"] == "note-supervision.png"
+
     downloaded = planning["supervisor"].get(
         f"/api/v1/activities/{item['id']}/documents/{document['id']}/download"
     )
@@ -140,6 +146,14 @@ def test_optional_attachment_upload_list_and_guarded_download(planning):
             db.scalars(select(Audit.action).where(Audit.target == document["id"]))
         )
         assert actions == ["document.upload", "document.download"]
+        supervisor_actions = list(
+            db.scalars(
+                select(Audit.action).where(
+                    Audit.target == supervisor_upload.json()["id"]
+                )
+            )
+        )
+        assert supervisor_actions == ["document.upload"]
 
 
 def test_agent_withdraws_own_document_and_links_active_correction(planning):
@@ -483,7 +497,7 @@ def test_guarded_image_preview_is_inline_audited_and_pdf_stays_download_only(
 def test_upload_permissions_and_content_validation(planning):
     item = activity(planning)
     assert (
-        upload(planning["supervisor"], item["id"], b"not an image").status_code == 403
+        upload(planning["supervisor"], item["id"], b"not an image").status_code == 422
     )
     assert upload(planning["validator"], item["id"]).status_code == 201
     assert (
