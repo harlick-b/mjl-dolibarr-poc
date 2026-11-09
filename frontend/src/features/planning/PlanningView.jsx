@@ -31,6 +31,7 @@ import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { addThreeMonths, formatDate, formatXof } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
+import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { useProtectedCleanup } from '@/features/auth/access-verification'
@@ -43,62 +44,6 @@ const labels = {
   pta: strings.annualPlan,
   activityNew: strings.newActivity,
   activity: strings.activityDetail,
-}
-
-function ProtectedDownload({ path, children, className, onDenied, scope }) {
-  const { api } = useAPI()
-  const controller = useRef(null)
-  useEffect(() => () => controller.current?.abort(), [])
-  const download = useMutation({
-    retry: false,
-    networkMode: 'always',
-    mutationFn: async () => {
-      const scopeSignal = scope?.current.signal
-      controller.current = new AbortController()
-      const current = controller.current
-      const abort = () => current.abort()
-      if (scopeSignal?.aborted) abort()
-      scopeSignal?.addEventListener('abort', abort, { once: true })
-      try {
-        const result = await api.download(path, { signal: current.signal })
-        if (current.signal.aborted)
-          throw new DOMException('Cancelled download', 'AbortError')
-        return { ...result, deliverySignal: current.signal, scopeSignal }
-      } finally {
-        scopeSignal?.removeEventListener('abort', abort)
-      }
-    },
-    onError: (error) => {
-      if ([403, 404].includes(error.status)) onDenied?.()
-    },
-    onSuccess: ({
-      blob,
-      filename,
-      deliverySignal,
-      scopeSignal: requestScope,
-    }) => {
-      if (deliverySignal.aborted || requestScope?.aborted) return
-      const href = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = href
-      anchor.download = filename
-      document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(href), 0)
-    },
-  })
-  return (
-    <Button
-      className={className}
-      disabled={download.isPending}
-      onClick={() => download.mutate()}
-      type="button"
-      variant="outline"
-    >
-      {children}
-    </Button>
-  )
 }
 
 function planningQuery(api, user, key, path, onDenied, read) {
@@ -391,11 +336,17 @@ function Workspace({ screen, session, onDenied }) {
         calendarView ? 'calendar' : search.activityCursor,
         search.q,
         search.state,
+        search.agent,
+        search.from,
+        search.to,
       ],
       `/ptas/${context.data?.pta?.id}/activities?${new URLSearchParams({
         ...(search.activityCursor ? { cursor: search.activityCursor } : {}),
         ...(search.q ? { q: search.q } : {}),
         ...(search.state ? { state: search.state } : {}),
+        ...(search.agent ? { agent: search.agent } : {}),
+        ...(search.from ? { from: search.from } : {}),
+        ...(search.to ? { to: search.to } : {}),
       })}`,
       onDenied,
       calendarView
@@ -1281,6 +1232,8 @@ function PTA({
         <PlanningActivities
           result={result}
           year={context.year}
+          ptaId={context.pta?.id}
+          month={search.month}
           filters={search}
           onFilter={(values) =>
             navigate({
@@ -1294,6 +1247,9 @@ function PTA({
           view={search.view || 'table'}
           onView={(view) =>
             navigate({ search: (current) => ({ ...current, view }) })
+          }
+          onMonth={(month) =>
+            navigate({ search: (current) => ({ ...current, month }) })
           }
         />
       )}

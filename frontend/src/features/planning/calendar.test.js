@@ -7,26 +7,32 @@ test('calendar loads every page with the same filters, independent of table curs
     .mockResolvedValueOnce({
       count: 2,
       data: [{ id: 'a' }],
-      next: `${window.location.origin}/api/v1/ptas/plan/activities?limit=100&q=test&state=draft&cursor=second`,
+      next: `${window.location.origin}/api/v1/ptas/plan/activities?limit=100&q=test&state=returned&agent=agent-1&from=2028-02-01&to=2028-02-29&cursor=second`,
     })
     .mockResolvedValueOnce({ count: 2, data: [{ id: 'b' }], next: null })
   const signal = new AbortController().signal
   const result = await readCalendar(
     { request },
     'plan',
-    { q: 'test', state: 'draft' },
+    {
+      q: 'test',
+      state: 'returned',
+      agent: 'agent-1',
+      from: '2028-02-01',
+      to: '2028-02-29',
+    },
     signal,
   )
   expect(result.data.map((row) => row.id)).toEqual(['a', 'b'])
   expect(result.next).toBeNull()
   expect(request).toHaveBeenNthCalledWith(
     1,
-    '/api/v1/ptas/plan/activities?limit=100&q=test&state=draft',
+    '/api/v1/ptas/plan/activities?limit=100&q=test&state=returned&agent=agent-1&from=2028-02-01&to=2028-02-29',
     { signal },
   )
   expect(request).toHaveBeenNthCalledWith(
     2,
-    '/api/v1/ptas/plan/activities?limit=100&q=test&state=draft&cursor=second',
+    '/api/v1/ptas/plan/activities?limit=100&q=test&state=returned&agent=agent-1&from=2028-02-01&to=2028-02-29&cursor=second',
     { signal },
   )
 })

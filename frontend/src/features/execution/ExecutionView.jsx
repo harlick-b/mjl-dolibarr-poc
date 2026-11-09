@@ -1,6 +1,4 @@
-import { Select } from '@/shared/ui/select'
-import { ListFilters } from '@/shared/ui/ListFilters'
-import { QueryFilterSelect } from '@/shared/ui/QueryFilterSelect'
+import { ActivityExplorerFilters } from '@/shared/ui/ActivityExplorerFilters'
 import { strings as filterText } from '@/locales/fr/ListFilters'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Panel } from '@/shared/ui/layout'
@@ -12,6 +10,10 @@ import {
   LoadingPlaceholder,
 } from '@/shared/ui/PageLoading'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
+import { Modal } from '@/shared/ui/BusinessModal'
+import { DatePicker } from '@/shared/ui/DatePicker'
+import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
+import { ExecutionOperations, OperationEditor } from './ExecutionOperations'
 import { strings } from '@/locales/fr/ExecutionView'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -20,7 +22,7 @@ import { Helmet } from 'react-helmet-async'
 import {
   CheckCircle2,
   CircleDollarSign,
-  Play,
+  FileDown,
   ShieldCheck,
   XCircle,
 } from 'lucide-react'
@@ -34,6 +36,13 @@ import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 
 function cursorPath(path, cursor) {
   return cursor ? `${path}?cursor=${encodeURIComponent(cursor)}` : path
+}
+
+function reversementAmount(detail) {
+  if (detail.spending_total === null) return null
+  const amount =
+    BigInt(detail.approved_allocation) - BigInt(detail.spending_total)
+  return amount > 0n ? amount : 0n
 }
 
 function executionQuery(api, userId, key, path, onDenied) {
@@ -622,6 +631,20 @@ export function ExecutionList({
   const reset = () => onFilterChange?.({ q: '', state: '', agent: '' })
   const filtered = Boolean(filters.q || filters.state || filters.agent)
   const rows = result?.data || []
+  const stateOptions = [
+    ['', filterText.all],
+    ['ongoing', filterText.ongoing],
+    ['physical', filterText.physical],
+    ['review', filterText.review],
+    ['transfer', filterText.transfer],
+    ['reversal', filterText.reversal],
+    ['ready', filterText.ready],
+    ['closed', filterText.closed],
+  ].map(([value, label]) => ({ value, label }))
+  const quickStates = ['ongoing', 'review', 'reversal'].map((value) => ({
+    value,
+    label: filterText[value],
+  }))
   return (
     <section className="grid gap-6">
       <Helmet>
@@ -633,39 +656,16 @@ export function ExecutionList({
         </h1>
       )}
       <div className="overflow-x-auto rounded-card border border-border bg-white">
-        <ListFilters
-          value={filters.q || ''}
-          onSearch={(q) => onFilterChange?.({ q })}
-          label={filterText.searchActivity}
-          active={Boolean(filters.state || filters.agent)}
-          onReset={reset}
+        <ActivityExplorerFilters
+          value={filters}
+          onChange={(values) => onFilterChange?.(values)}
+          agentPath={ptaId ? `/ptas/${ptaId}/execution/agents` : undefined}
+          searchLabel={filterText.searchActivity}
+          stateLabel={filterText.state}
+          stateOptions={stateOptions}
+          quickStates={quickStates}
           disabled={!ptaId}
-        >
-          <label>
-            {filterText.state}
-            <Select
-              value={filters.state || ''}
-              onChange={(event) =>
-                onFilterChange?.({ state: event.target.value })
-              }
-            >
-              <option value="">{filterText.all}</option>
-              {['ongoing', 'physical', 'closed'].map((value) => (
-                <option key={value} value={value}>
-                  {filterText[value]}
-                </option>
-              ))}
-            </Select>
-          </label>
-          {ptaId && (
-            <QueryFilterSelect
-              kind="agent"
-              path={`/ptas/${ptaId}/execution/agents`}
-              value={filters.agent}
-              onChange={(agent) => onFilterChange?.({ agent })}
-            />
-          )}
-        </ListFilters>
+        />
         <p className="border-b border-border px-5 py-4 text-sm">
           {strings.formatString(
             (result?.count ?? rows.length) > 1
@@ -711,20 +711,36 @@ export function ExecutionList({
                   <td className="px-3 py-4">
                     {formatDate(row.planned_start)}
                     <small className="block mt-1 text-muted-foreground">
-                      {formatDate(row.planned_end)}
+                      au {formatDate(row.planned_end)}
                     </small>
                   </td>
                   <td className="px-3 py-4">
-                    {row.works_completed
-                      ? strings.completedLabel
-                      : strings.ongoingLabel}
+                    <strong>
+                      {row.works_completed
+                        ? strings.completedLabel
+                        : strings.ongoingLabel}
+                    </strong>
                     <small className="block mt-1 text-muted-foreground">
-                      {row.spending_total === null
-                        ? '—'
-                        : formatXof(row.spending_total)}{' '}
-                      · {row.completed_operations}/{row.operation_count}{' '}
-                      {strings.operationsCount}
+                      {row.completed_operations} / {row.operation_count}{' '}
+                      {strings.operationsCompleted}
                     </small>
+                  </td>
+                  <td className="px-3 py-4 text-right">
+                    <strong>
+                      {row.spending_total === null
+                        ? strings.notRecorded
+                        : formatXof(row.spending_total)}
+                    </strong>
+                    <small className="block mt-1 text-muted-foreground">
+                      {strings.formatString(strings.authorizedAmount, {
+                        amount: formatXof(row.approved_allocation),
+                      })}
+                    </small>
+                    {!row.works_completed && (
+                      <small className="block mt-1 text-muted-foreground">
+                        {strings.partialSpending}
+                      </small>
+                    )}
                   </td>
                   <td className="px-3 py-4">{row.agents?.join(', ') || '—'}</td>
                   <td className="px-3 py-4">
@@ -759,7 +775,7 @@ export function ExecutionList({
               ))
             ) : (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <EmptyContent
                     kind={
                       filtered
@@ -838,6 +854,11 @@ function ExecutionDetail({
   onConfirmationPage,
   onReversementPage,
 }) {
+  const [selectedOperationId, setSelectedOperationId] = useState(null)
+  const operationOpener = useRef(null)
+  const selectedOperation = detail.operations.find(
+    (operation) => operation.id === selectedOperationId,
+  )
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
     activity_withdrawn: 'l’Activité a été retirée',
@@ -863,19 +884,110 @@ function ExecutionDetail({
       <Helmet>
         <title>{`${detail.name} — Réalisation MJL`}</title>
       </Helmet>
-      <header
-        className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
-        data-ui="planning-heading"
+      <nav
+        className="flex flex-wrap gap-3 text-sm text-primary"
+        aria-label="Fil d’Ariane"
       >
-        <div>
-          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-            {detail.reference}
-          </p>
-          <h1>{detail.name}</h1>
-        </div>
         <Link to="/execution/$ptaId" params={{ ptaId: detail.pta_id }}>
-          Retour aux réalisations
+          {detail.pta_name}
         </Link>
+        <span aria-hidden="true">/</span>
+        <span>{detail.reference}</span>
+      </nav>
+      <header className="grid gap-5" data-ui="planning-heading">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div className="grid gap-2">
+            <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
+              {detail.reference}
+            </p>
+            <h1 className="text-[1.75rem] font-semibold text-navy">
+              {detail.name}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {detail.project_name} · {detail.partner_name} · {detail.pta_name}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <ProtectedDownload
+              path={`/api/v1/activities/${detail.id}/fiche.pdf`}
+            >
+              <FileDown size={16} aria-hidden="true" /> {strings.activitySheet}
+            </ProtectedDownload>
+            {detail.operations.some((operation) =>
+              operation.allowed_actions.some((action) =>
+                ['start', 'record'].includes(action),
+              ),
+            ) && (
+              <Button
+                onClick={(event) => {
+                  operationOpener.current = event.currentTarget
+                  setSelectedOperationId(
+                    detail.operations.find((operation) =>
+                      operation.allowed_actions.some((action) =>
+                        ['start', 'record'].includes(action),
+                      ),
+                    )?.id,
+                  )
+                }}
+              >
+                {strings.recordExecution}
+              </Button>
+            )}
+            <Button asChild variant="outline">
+              <Link to="/execution/$ptaId" params={{ ptaId: detail.pta_id }}>
+                Retour aux réalisations
+              </Link>
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          <span className="rounded-card bg-success-badge px-2 py-1 text-xs text-success">
+            {detail.closure ? strings.closedLabel : strings.approvedLabel}
+          </span>
+          <span>
+            {strings.physicalProgress} :{' '}
+            <strong className="lowercase">
+              {detail.works_completed
+                ? strings.completedLabel
+                : strings.ongoingLabel}
+            </strong>
+          </span>
+          <span>
+            {strings.administration} : <strong>{executionStage(detail)}</strong>
+          </span>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">
+            {strings.currentOwners}
+          </p>
+          <strong>{detail.agents?.join(', ') || '—'}</strong>
+        </div>
+        <dl className="flex flex-wrap gap-x-10 gap-y-3 text-sm">
+          <div>
+            <dt className="text-xs text-muted-foreground">
+              {strings.plannedStart}
+            </dt>
+            <dd className="mt-1 font-medium">
+              {formatDate(detail.planned_start)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">
+              {strings.plannedEnd}
+            </dt>
+            <dd className="mt-1 font-medium">
+              {formatDate(detail.planned_end)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">
+              {strings.revision}
+            </dt>
+            <dd className="mt-1 font-medium">
+              {detail.approved_revision_number}
+            </dd>
+          </div>
+        </dl>
       </header>
       {error && (
         <p role="alert" className="border-l-4 border-l-danger p-3 bg-white">
@@ -902,99 +1014,186 @@ function ExecutionDetail({
           .
         </p>
       )}
+      <nav
+        aria-label={strings.activitySections}
+        className="flex flex-wrap gap-6 border-b border-border text-sm"
+      >
+        <Link
+          className="border-b-2 border-transparent py-3 text-muted-foreground"
+          to="/activities/$activityId"
+          params={{ activityId: detail.id }}
+        >
+          {strings.programmingTab}
+        </Link>
+        <Link
+          aria-current="page"
+          className="border-b-2 border-primary py-3 text-primary"
+          to="/execution/activities/$activityId"
+          params={{ activityId: detail.id }}
+        >
+          {strings.financeTab}
+        </Link>
+        <Link
+          className="border-b-2 border-transparent py-3 text-muted-foreground"
+          to="/activities/$activityId"
+          params={{ activityId: detail.id }}
+          search={{ tab: 'history' }}
+        >
+          {strings.historyTab}
+        </Link>
+        <Link
+          className="border-b-2 border-transparent py-3 text-muted-foreground"
+          to="/activities/$activityId"
+          params={{ activityId: detail.id }}
+          search={{ tab: 'files' }}
+        >
+          {strings.filesTab}
+        </Link>
+      </nav>
       <Panel
         as="dl"
-        className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy"
+        className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-xl [&_dd]:font-semibold [&_dd]:text-navy"
       >
         <div>
-          <dt>Avancement</dt>
-          <dd>
-            {detail.completed_operations}/{detail.operation_count} Opérations
-          </dd>
+          <dt>{strings.currentBudget}</dt>
+          <dd>{formatXof(detail.approved_allocation)}</dd>
         </div>
         <div>
-          <dt>Dépenses enregistrées</dt>
+          <dt>
+            {strings.spentAmount} ·{' '}
+            {detail.works_completed
+              ? strings.finalAmount
+              : strings.partialAmount}
+          </dt>
           <dd>
             {detail.spending_total === null
-              ? 'Information incomplète'
+              ? strings.notRecorded
               : formatXof(detail.spending_total)}
           </dd>
+          <small className="text-muted-foreground">
+            {detail.completed_operations} / {detail.operation_count}{' '}
+            {strings.operationsCount}
+          </small>
         </div>
         <div>
-          <dt>État des travaux</dt>
-          <dd>{detail.works_completed ? 'Travaux terminés' : 'En cours'}</dd>
+          <dt>{strings.returnAmount}</dt>
+          <dd>
+            {reversementAmount(detail) === null
+              ? strings.notRecorded
+              : formatXof(reversementAmount(detail))}
+          </dd>
         </div>
       </Panel>
-      <div className="grid gap-4">
-        {detail.operations.map((operation) => (
-          <OperationCard
-            key={operation.id}
+      <ExecutionOperations
+        detail={detail}
+        onSelect={(operationId, opener) => {
+          operationOpener.current = opener
+          setSelectedOperationId(operationId)
+        }}
+      />
+      <Modal
+        open={Boolean(selectedOperation)}
+        onClose={() => setSelectedOperationId(null)}
+        label={selectedOperation?.name || 'Opération'}
+        opener={operationOpener}
+        className="m-0 ml-auto h-dvh max-h-dvh w-[min(640px,100%)] rounded-none"
+      >
+        {selectedOperation && (
+          <OperationEditor
             activity={detail}
-            operation={operation}
+            operation={selectedOperation}
             pending={pending}
             mutate={mutate}
           />
-        ))}
-      </div>
-      {detail.works_completed && detail.spending_total === '0' && (
-        <ZeroSpendingSection
-          fallback={sectionFallbacks.zeroSpending}
-          detail={detail}
-          result={zeroSpending}
-          role={role}
-          pending={pending}
-          mutate={mutateFinance}
-          onPage={onZeroSpendingPage}
-        />
-      )}
-      {(detail.spending_total !== '0' || finance?.count > 0) && (
-        <>
-          <DisbursementSection
-            fallback={sectionFallbacks.finance}
-            detail={detail}
-            result={finance}
-            selected={selectedFinance}
-            role={role}
-            historicalPage={financeHistoryPage}
-            pending={pending}
-            mutate={mutateFinance}
-            onPage={onFinancePage}
-            onSelect={onFinanceSelect}
-          />
-          {detail.spending_total !== '0' && (
-            <VirementSection
-              fallback={sectionFallbacks.virements}
+        )}
+      </Modal>
+      <section
+        aria-labelledby="administrative-title"
+        className="overflow-hidden rounded-panel border border-border bg-white"
+      >
+        <header className="px-6 py-5">
+          <h2 id="administrative-title" className="font-semibold text-navy">
+            {strings.administrativeFollowUp}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {executionStage(detail)}
+          </p>
+        </header>
+        <div className="[&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-x-0 [&>[data-ui='planning-card']]:border-b-0 [&_[data-ui='planning-card']_[data-ui='planning-card']]:rounded-none [&_[data-ui='planning-card']_[data-ui='planning-card']]:border-x-0 [&_[data-ui='planning-card']_[data-ui='planning-card']]:border-b-0">
+          {detail.works_completed && detail.spending_total === '0' && (
+            <ZeroSpendingSection
+              fallback={sectionFallbacks.zeroSpending}
               detail={detail}
-              result={virements}
-              selected={selectedVirement}
-              confirmationHistory={confirmationHistory}
-              reversementHistory={reversementHistory}
-              selectedBySearch={virementSelectedBySearch}
+              result={zeroSpending}
               role={role}
-              historicalPage={virementHistoryPage}
               pending={pending}
               mutate={mutateFinance}
-              onPage={onVirementPage}
-              onSelect={onVirementSelect}
-              onConfirmationPage={onConfirmationPage}
-              onReversementPage={onReversementPage}
+              onPage={onZeroSpendingPage}
             />
           )}
-        </>
-      )}
-      <FundingSection
-        fallback={sectionFallbacks.funding}
-        detail={detail}
-        result={funding}
-        pending={pending}
-        mutate={mutateFinance}
-        onPage={onFundingPage}
-      />
-      <ClosureSection
-        detail={detail}
-        pending={pending}
-        mutate={mutateFinance}
-      />
+          {(detail.spending_total !== '0' || finance?.count > 0) && (
+            <>
+              <DisbursementSection
+                fallback={sectionFallbacks.finance}
+                detail={detail}
+                result={finance}
+                selected={selectedFinance}
+                role={role}
+                historicalPage={financeHistoryPage}
+                pending={pending}
+                mutate={mutateFinance}
+                onPage={onFinancePage}
+                onSelect={onFinanceSelect}
+              />
+              {detail.spending_total !== '0' && (
+                <VirementSection
+                  fallback={sectionFallbacks.virements}
+                  detail={detail}
+                  result={virements}
+                  selected={selectedVirement}
+                  confirmationHistory={confirmationHistory}
+                  reversementHistory={reversementHistory}
+                  selectedBySearch={virementSelectedBySearch}
+                  role={role}
+                  historicalPage={virementHistoryPage}
+                  pending={pending}
+                  mutate={mutateFinance}
+                  onPage={onVirementPage}
+                  onSelect={onVirementSelect}
+                  onConfirmationPage={onConfirmationPage}
+                  onReversementPage={onReversementPage}
+                />
+              )}
+            </>
+          )}
+          <FundingSection
+            fallback={sectionFallbacks.funding}
+            detail={detail}
+            result={funding}
+            pending={pending}
+            mutate={mutateFinance}
+            onPage={onFundingPage}
+          />
+          <ClosureSection
+            detail={detail}
+            pending={pending}
+            mutate={mutateFinance}
+          />
+          <Panel aria-labelledby="execution-evidence-title">
+            <h2 id="execution-evidence-title">{strings.evidenceTitle}</h2>
+            <p>{strings.evidenceExplanation}</p>
+            <Button asChild variant="outline">
+              <Link
+                to="/activities/$activityId"
+                params={{ activityId: detail.id }}
+                search={{ tab: 'files' }}
+              >
+                {strings.evidenceLink}
+              </Link>
+            </Button>
+          </Panel>
+        </div>
+      </section>
       <Panel aria-labelledby="execution-history-title">
         <h2 id="execution-history-title">Historique de réalisation</h2>
         {!history ? (
@@ -1345,9 +1544,6 @@ function DisbursementSection({
     <Panel aria-labelledby="disbursement-title">
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
-          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-            Suivi administratif
-          </p>
           <h2 id="disbursement-title">Autorisation de décaissement</h2>
         </div>
         {current && <strong>{stateLabels[current.state]}</strong>}
@@ -1554,6 +1750,9 @@ function VirementSection({
   onConfirmationPage,
   onReversementPage,
 }) {
+  const [reversementOpen, setReversementOpen] = useState(false)
+  const [reversementDate, setReversementDate] = useState('')
+  const reversementOpener = useRef(null)
   if (!result) return fallback
   const requests = result.data
   const current =
@@ -1576,9 +1775,6 @@ function VirementSection({
     <Panel aria-labelledby="virement-title">
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
-          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-            Suivi administratif
-          </p>
           <h2 id="virement-title">Autorisation de virement</h2>
         </div>
         {current && <strong>{stateLabels[current.state]}</strong>}
@@ -1855,81 +2051,133 @@ function VirementSection({
                     current.reversement.allowed_actions.includes(
                       'correct',
                     )) && (
-                    <BusinessForm
-                      key={
-                        current.reversement.current_declaration?.revision ||
-                        'initial'
-                      }
-                      className="[&_>_label]:w-full"
-                      onSubmit={(event) => {
-                        event.preventDefault()
-                        const data = new FormData(event.currentTarget)
-                        const correcting = Boolean(
-                          current.reversement.current_declaration,
-                        )
-                        return mutate(
-                          `/virement-requests/${current.id}/reversement${
-                            correcting ? '/corrections' : ''
-                          }`,
-                          {
-                            expected_version: version,
-                            return_date: String(data.get('return_date') || ''),
-                            note: String(data.get('reversement_note') || ''),
-                            ...(correcting
-                              ? {
-                                  reason: String(
-                                    data.get('reversement_reason') || '',
-                                  ),
-                                }
-                              : {}),
-                          },
-                        )
-                      }}
-                    >
-                      <label>
-                        Date effective du reversement
-                        <input
-                          type="date"
-                          name="return_date"
-                          required
-                          defaultValue={
-                            current.reversement.current_declaration?.return_date
-                          }
-                        />
-                      </label>
-                      <label>
-                        Référence ou commentaire du reversement (facultatif)
-                        <textarea
-                          name="reversement_note"
-                          maxLength="4000"
-                          defaultValue={
-                            current.reversement.current_declaration?.note || ''
-                          }
-                        />
-                      </label>
-                      {current.reversement.current_declaration && (
-                        <label>
-                          Motif de la correction du reversement
-                          <textarea
-                            name="reversement_reason"
-                            required
-                            maxLength="4000"
-                          />
-                        </label>
-                      )}
-                      <label>
-                        <input type="checkbox" required /> Je confirme que ce
-                        montant exact a été reversé au Partenaire.
-                      </label>
+                    <>
                       <Button
-                        type="submit"
-                        disabled={pending || !navigator.onLine}
+                        ref={reversementOpener}
+                        type="button"
+                        onClick={() => {
+                          setReversementDate(
+                            current.reversement.current_declaration
+                              ?.return_date || '',
+                          )
+                          setReversementOpen(true)
+                        }}
                       >
                         {current.reversement.current_declaration
                           ? 'Corriger le reversement'
-                          : 'Enregistrer le reversement'}
+                          : strings.recordReversement}
                       </Button>
-                    </BusinessForm>
+                      <Modal
+                        open={reversementOpen}
+                        onClose={() => setReversementOpen(false)}
+                        label={
+                          current.reversement.current_declaration
+                            ? 'Corriger le reversement'
+                            : 'Enregistrer le reversement'
+                        }
+                        opener={reversementOpener}
+                      >
+                        <BusinessForm
+                          key={
+                            current.reversement.current_declaration?.revision ||
+                            'initial'
+                          }
+                          className="[&_>_label]:w-full"
+                          onSubmit={(event) => {
+                            event.preventDefault()
+                            const data = new FormData(event.currentTarget)
+                            const correcting = Boolean(
+                              current.reversement.current_declaration,
+                            )
+                            return mutate(
+                              `/virement-requests/${current.id}/reversement${
+                                correcting ? '/corrections' : ''
+                              }`,
+                              {
+                                expected_version: version,
+                                return_date: String(
+                                  data.get('return_date') || '',
+                                ),
+                                note: String(
+                                  data.get('reversement_note') || '',
+                                ),
+                                ...(correcting
+                                  ? {
+                                      reason: String(
+                                        data.get('reversement_reason') || '',
+                                      ),
+                                    }
+                                  : {}),
+                              },
+                            )
+                          }}
+                        >
+                          <p className="border-l-4 border-l-primary bg-background py-3 px-4">
+                            {strings.exactReversement} :{' '}
+                            <strong>
+                              {formatXof(current.reversement.required_amount)}
+                            </strong>
+                          </p>
+                          <div className="grid gap-[6px] text-[0.8125rem] font-medium">
+                            <span>Date effective du reversement</span>
+                            <DatePicker
+                              label="Date effective du reversement"
+                              value={reversementDate}
+                              onChange={setReversementDate}
+                            />
+                            <input
+                              type="hidden"
+                              name="return_date"
+                              value={reversementDate}
+                            />
+                          </div>
+                          <label>
+                            Référence ou commentaire du reversement (facultatif)
+                            <textarea
+                              name="reversement_note"
+                              maxLength="4000"
+                              defaultValue={
+                                current.reversement.current_declaration?.note ||
+                                ''
+                              }
+                            />
+                          </label>
+                          {current.reversement.current_declaration && (
+                            <label>
+                              Motif de la correction du reversement
+                              <textarea
+                                name="reversement_reason"
+                                required
+                                maxLength="4000"
+                              />
+                            </label>
+                          )}
+                          <label>
+                            <input type="checkbox" required /> Je confirme que
+                            ce montant exact a été reversé au Partenaire.
+                          </label>
+                          <div data-ui="modal-actions">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setReversementOpen(false)}
+                            >
+                              Annuler
+                            </Button>
+                            <Button
+                              type="submit"
+                              disabled={
+                                !reversementDate || pending || !navigator.onLine
+                              }
+                            >
+                              {current.reversement.current_declaration
+                                ? 'Corriger le reversement'
+                                : 'Enregistrer le reversement'}
+                            </Button>
+                          </div>
+                        </BusinessForm>
+                      </Modal>
+                    </>
                   )}
                   {reversementHistory?.data?.length > 0 && (
                     <details>
@@ -2106,147 +2354,6 @@ function VirementSection({
             </nav>
           )}
         </details>
-      )}
-    </Panel>
-  )
-}
-
-function OperationCard({ activity, operation, pending, mutate }) {
-  const draftBasis = useRef(null)
-  const formRef = useRef(null)
-  useEffect(() => {
-    if (!draftBasis.current) formRef.current?.reset()
-  }, [
-    operation.actual_spent,
-    operation.execution_completed,
-    operation.execution_observation,
-  ])
-  const correction =
-    operation.actual_spent !== null ||
-    operation.execution_observation ||
-    operation.execution_completed
-  return (
-    <Panel
-      as="article"
-      className="[&_>_p]:flex [&_>_p]:items-center [&_>_p]:gap-2"
-    >
-      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <div>
-          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-            {operation.type_label}
-          </p>
-          <h2>{operation.name}</h2>
-        </div>
-        <span>{formatXof(operation.approved_allocation)} autorisés</span>
-      </div>
-      {operation.execution_started_at ? (
-        <p>
-          <Play size={16} aria-hidden="true" /> Démarrée le{' '}
-          {new Date(operation.execution_started_at).toLocaleString('fr-FR')}
-        </p>
-      ) : (
-        operation.allowed_actions.includes('start') && (
-          <Button
-            disabled={pending || !navigator.onLine}
-            onClick={() =>
-              mutate(operation.id, {
-                action: 'start',
-                expected_version: activity.version,
-                expected_approved_revision_id: activity.approved_revision_id,
-              })
-            }
-          >
-            <Play size={16} /> Démarrer
-          </Button>
-        )
-      )}
-      {operation.variance !== null && (
-        <p>Écart avec le montant autorisé : {formatXof(operation.variance)}</p>
-      )}
-      {operation.allowed_actions.includes('record') && (
-        <BusinessForm
-          formRef={formRef}
-          className="[&_>_label]:w-full"
-          onChangeCapture={() => {
-            draftBasis.current ??= {
-              version: activity.version,
-              revision: activity.approved_revision_id,
-            }
-          }}
-          onReset={() => {
-            draftBasis.current = null
-          }}
-          onSubmit={async (event) => {
-            event.preventDefault()
-            const form = event.currentTarget
-            const data = new FormData(form)
-            const amount = String(data.get('actual_spent') || '')
-            const body = {
-              action: 'record',
-              expected_version: draftBasis.current?.version ?? activity.version,
-              expected_approved_revision_id:
-                draftBasis.current?.revision ?? activity.approved_revision_id,
-              actual_spent: amount || null,
-              execution_completed: data.get('execution_completed') === 'on',
-              execution_observation: String(
-                data.get('execution_observation') || '',
-              ),
-            }
-            const reason = String(data.get('correction_reason') || '')
-            if (reason) body.correction_reason = reason
-            const result = await mutate(operation.id, body)
-            if (result !== false) {
-              draftBasis.current = null
-              form.reset()
-            }
-            return result
-          }}
-        >
-          <div className="flex gap-3 items-end flex-wrap">
-            <label>
-              {strings.actualSpent}
-              <input
-                name="actual_spent"
-                inputMode="numeric"
-                pattern="(0|[1-9][0-9]*)"
-                defaultValue={operation.actual_spent ?? ''}
-              />
-            </label>
-            <label className="grid-cols-[auto_1fr] items-center min-h-11 [&_input]:min-h-auto [&_input]:w-5 [&_input]:h-5">
-              <input
-                name="execution_completed"
-                type="checkbox"
-                defaultChecked={operation.execution_completed}
-              />
-              Opération terminée
-            </label>
-          </div>
-          <label>
-            Observation
-            <textarea
-              name="execution_observation"
-              maxLength="4000"
-              defaultValue={operation.execution_observation}
-            />
-          </label>
-          {correction && (
-            <label>
-              Motif de la correction
-              <textarea name="correction_reason" maxLength="4000" />
-            </label>
-          )}
-          <Button type="submit" disabled={pending || !navigator.onLine}>
-            {operation.execution_completed ? (
-              <CheckCircle2 size={16} />
-            ) : (
-              <CircleDollarSign size={16} />
-            )}
-            Enregistrer
-          </Button>
-          <Button type="reset" variant="outline" disabled={pending}>
-            {strings.cancelEntry}
-          </Button>
-        </BusinessForm>
       )}
     </Panel>
   )

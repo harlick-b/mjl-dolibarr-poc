@@ -111,6 +111,12 @@ def approved_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
 
 def test_agent_declares_exact_external_transfer_and_corrects_with_history(planning):
     activity, _source, request = approved_virement(planning)
+    transfer = planning["validator"].get(
+        f"/api/v1/ptas/{activity['pta_id']}/execution",
+        params={"state": "transfer"},
+    )
+    assert transfer.status_code == 200, transfer.text
+    assert [row["id"] for row in transfer.json()["data"]] == [activity["id"]]
     path = f"{virement_collection(activity)}/{request['id']}/confirmation"
     declared = post(
         planning["agent"],

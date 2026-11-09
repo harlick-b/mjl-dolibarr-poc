@@ -25,6 +25,11 @@ test('PTA-7A Agent submits the zero-spending path without payment controls', asy
     id: 'activity-zero',
     pta_id: 'pta-1',
     project_id: 'project-1',
+    project_name: 'Justice des mineurs',
+    partner_name: 'UNICEF',
+    pta_name: 'PTA 2026',
+    approved_revision_number: 1,
+    agents: ['Agent de test'],
     reference: 'ACT-000100',
     name: 'Activité réalisée sans dépense',
     planned_start: '2026-10-01',
@@ -187,6 +192,11 @@ test('PTA-3F eligible Agent closes and keeps terminal evidence', async ({
     id: 'activity-close',
     pta_id: 'pta-1',
     project_id: 'project-1',
+    project_name: 'Justice des mineurs',
+    partner_name: 'UNICEF',
+    pta_name: 'PTA 2026',
+    approved_revision_number: 1,
+    agents: ['Agent de test'],
     reference: 'ACT-000099',
     name: 'Activité prête à clôturer',
     planned_start: '2026-10-01',
@@ -334,6 +344,11 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
     id: 'activity-1',
     pta_id: 'pta-1',
     project_id: 'project-1',
+    project_name: 'Justice des mineurs',
+    partner_name: 'UNICEF',
+    pta_name: 'PTA 2026',
+    approved_revision_number: 1,
+    agents: ['Agent de test'],
     reference: 'ACT-000001',
     name: 'Former les équipes',
     planned_start: '2026-10-28',
@@ -447,14 +462,25 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
   await expect(
     page.getByRole('heading', { name: 'Former les équipes' }),
   ).toBeVisible()
+  await page
+    .getByRole('button', { name: 'Consulter Préparer la session' })
+    .click()
+  await expect(
+    page.getByRole('dialog', { name: 'Préparer la session' }),
+  ).toBeVisible()
   await page.getByRole('button', { name: 'Démarrer' }).click()
-  await page.getByLabel('Montant dépensé (XOF)').fill('120000')
+  await page.getByLabel('Montant dépensé (F CFA)').fill('120000')
   await page.getByLabel('Observation').fill('Écart expliqué.')
   await page.getByLabel('Opération terminée').check()
   await page.getByRole('button', { name: 'Enregistrer' }).click()
-  await expect(page.getByText('Travaux terminés')).toBeVisible()
+  await expect(
+    page
+      .getByRole('button', { name: 'Consulter Préparer la session' })
+      .locator('xpath=ancestor::tr')
+      .getByText('Terminée'),
+  ).toBeVisible()
   await page.getByLabel('Opération terminée').uncheck()
-  await page.getByLabel('Montant dépensé (XOF)').fill('')
+  await page.getByLabel('Montant dépensé (F CFA)').fill('')
   await page.getByLabel('Observation').fill('')
   await page
     .getByLabel('Motif de la correction')
@@ -548,6 +574,11 @@ test('reviewer sees pause, resume and paginated history without mutation control
           id: 'activity-1',
           pta_id: 'pta-1',
           project_id: 'project-1',
+          project_name: 'Justice des mineurs',
+          partner_name: 'UNICEF',
+          pta_name: 'PTA 2026',
+          approved_revision_number: 1,
+          agents: ['Agent de test'],
           reference: 'ACT-000001',
           name: 'Former les équipes',
           planned_start: '2026-10-28',
@@ -1050,6 +1081,11 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
           id: 'activity-1',
           pta_id: 'pta-1',
           project_id: 'project-1',
+          project_name: 'Justice des mineurs',
+          partner_name: 'UNICEF',
+          pta_name: 'PTA 2026',
+          approved_revision_number: 1,
+          agents: ['Agent de test'],
           reference: 'ACT-000001',
           name: 'Former les équipes',
           planned_start: '2026-10-28',
@@ -1122,7 +1158,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   })
 
   await page.goto('/execution/activities/activity-1')
-  await page.getByRole('button', { name: /Soumettre.*100.*000 XOF/ }).click()
+  await page.getByRole('button', { name: /Soumettre.*100.*000 F CFA/ }).click()
   await expect(page.getByText('Soumise au Superviseur').first()).toBeVisible()
 
   role = 'AGENT_VERIFICATEUR'
@@ -1139,7 +1175,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   await expect(
     page.getByRole('button', { name: 'Annuler la demande' }),
   ).toHaveCount(0)
-  await page.getByRole('button', { name: /Soumettre.*100.*000 XOF/ }).click()
+  await page.getByRole('button', { name: /Soumettre.*100.*000 F CFA/ }).click()
   await expect(page.getByText('Soumise au Superviseur').first()).toBeVisible()
 
   role = 'AGENT_VERIFICATEUR'
@@ -1169,7 +1205,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     name: 'Autorisation de virement',
   })
   await virementSection
-    .getByRole('button', { name: /Demander le virement de.*100.*000 XOF/ })
+    .getByRole('button', { name: /Demander le virement de.*100.*000 F CFA/ })
     .click()
   await expect(
     virementSection.getByText('Soumise au Superviseur', { exact: true }),
@@ -1192,7 +1228,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     virementSection.getByRole('button', { name: 'Annuler la demande' }),
   ).toHaveCount(0)
   await virementSection
-    .getByRole('button', { name: /Demander le virement de.*100.*000 XOF/ })
+    .getByRole('button', { name: /Demander le virement de.*100.*000 F CFA/ })
     .click()
 
   role = 'AGENT_VERIFICATEUR'
@@ -1268,16 +1304,31 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     name: 'Reversement au Partenaire',
   })
   await expect(
-    reversementSection.getByText('20 000 XOF', { exact: true }).first(),
+    reversementSection.getByText('20 000 F CFA', { exact: true }).first(),
   ).toBeVisible()
   await reversementSection
-    .getByLabel('Date effective du reversement')
-    .fill('2026-10-28')
-  await reversementSection
+    .getByRole('button', { name: 'Renseigner le reversement' })
+    .click()
+  const reversementDialog = page.getByRole('dialog', {
+    name: /reversement/i,
+  })
+  await expect(
+    reversementDialog.getByText('20 000 F CFA', { exact: true }),
+  ).toBeVisible()
+  await reversementDialog
+    .getByRole('button', {
+      name: /Date effective du reversement : Choisir une date/,
+    })
+    .click()
+  await reversementDialog
+    .getByRole('grid')
+    .getByRole('button', { name: /mercredi 28 octobre 2026/i })
+    .click()
+  await reversementDialog
     .getByLabel(/Référence ou commentaire du reversement/)
     .fill('REVERSEMENT-001')
-  await reversementSection.getByLabel(/montant exact a été reversé/).check()
-  await reversementSection
+  await reversementDialog.getByLabel(/montant exact a été reversé/).check()
+  await reversementDialog
     .getByRole('button', { name: 'Enregistrer le reversement' })
     .click()
   await expect(
@@ -1289,17 +1340,23 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
   ).toHaveCount(0)
 
-  await reversementSection
-    .getByLabel('Date effective du reversement')
-    .fill('2026-10-29')
-  await reversementSection
+  await reversementDialog
+    .getByRole('button', {
+      name: /Date effective du reversement : 28 octobre 2026/,
+    })
+    .click()
+  await reversementDialog
+    .getByRole('grid')
+    .getByRole('button', { name: /jeudi 29 octobre 2026/i })
+    .click()
+  await reversementDialog
     .getByLabel(/Référence ou commentaire du reversement/)
     .fill('REVERSEMENT-002')
-  await reversementSection
+  await reversementDialog
     .getByLabel('Motif de la correction du reversement')
     .fill('Date de reversement corrigée.')
-  await reversementSection.getByLabel(/montant exact a été reversé/).check()
-  await reversementSection
+  await reversementDialog.getByLabel(/montant exact a été reversé/).check()
+  await reversementDialog
     .getByRole('button', { name: 'Corriger le reversement' })
     .click()
   await expect(
@@ -1307,6 +1364,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
       .getByRole('definition')
       .filter({ hasText: 'REVERSEMENT-002' }),
   ).toBeVisible()
+  await reversementDialog.getByRole('button', { name: 'Fermer' }).click()
   await reversementSection.getByText('Historique des reversements (2)').click()
   await reversementSection
     .getByRole('navigation', {
@@ -1329,11 +1387,9 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   await expect(
     page.getByRole('heading', { name: 'Connexion indisponible' }),
   ).toBeVisible()
-  await page.getByRole('button', { name: 'Réessayer' }).click()
+  await page.context().setOffline(false)
   expect(confirmationMutationCount).toBe(2)
   expect(reversementMutationCount).toBe(2)
-  await page.context().setOffline(false)
-  await page.reload()
   await expect(
     reversementSection.getByRole('button', { name: 'Corriger le reversement' }),
   ).toBeVisible()
@@ -1359,7 +1415,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   await expect(page).toHaveURL(/virementCursor=older/)
   await virementSection.getByText('Historique des demandes (2)').click()
   await virementSection
-    .getByRole('button', { name: /Retournée pour correction.*100.*000 XOF/ })
+    .getByRole('button', { name: /Retournée pour correction.*100.*000 F CFA/ })
     .click()
   await expect(page).toHaveURL(
     new RegExp(`virementRequest=${returnedVirement.id}`),

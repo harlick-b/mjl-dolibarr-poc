@@ -10,9 +10,8 @@ own their subjects. [README](../README.md) owns setup and development commands.
 
 New PTA/Activity/execution visuals and the updated prototype have now been supplied.
 The latest brief and Supervisor-upload clarification are recorded in business-rules.md
-and design.md. The first three UI slices are implemented; later slices remain pending in
-the temporary [PTA workflow plan](pta-workflow-plan.md), to be removed when all
-its slices are complete.
+and design.md. All five planned UI slices are implemented; their final implementation
+boundary is recorded below.
 
 The agreed next workflow is recorded in business-rules.md; it is **not fully
 implemented**. This candidate adds Supervisor/Validator PTA creation and metadata
@@ -42,7 +41,6 @@ submission/approval, including for older pending requests. Existing approved
 revisions and Activity identity remain unchanged. Active Project filtering is
 applied before cursor pagination/counting and bound into the cursor scope.
 
-Still outstanding: the supplied filter/timeline and execution/settlement slices.
 No configured development-database migration or deployment was performed.
 
 Slice 1 source SHA256 (`backend/app`, `backend/migrations`, `frontend/src`, sorted
@@ -787,6 +785,102 @@ discovered but skipped because its opt-in environment was not enabled. The exist
 large JavaScript chunk warning remains. Rendered comparison and automated checks
 are implementation evidence, not client acceptance or production readiness.
 
+PTA shared-explorer slice completed (2026-11-09): the PTA table and calendar now
+share router-owned text/reference, validation, current-Agent and inclusive period
+filters. **En correction** maps to both returned workflow states without adding a
+stored state. Cursor signatures include every normalized criterion, Agent choices
+come only from current assignments in the selected PTA, and invalid or reversed
+dates fail with 422. The annual calendar now loads every matching page before it
+renders and uses a horizontal annual/monthly timeline with clipped cross-year spans,
+compact date labels, start-only markers and keyboard-accessible Activity links.
+Long names use a readable two-line treatment; full dates remain in accessible
+labels and the shared inspection dialog. The whole-PTA summary remains unfiltered.
+Execution adds administrative filters backed by current authorization requests,
+approved virements, exact closure blockers and completed-operation facts.
+
+Planning and Execution reuse the same search/Agent/state/additional-filter
+composition and readable removable criteria. Searchable Agent pagination remains
+inside the option popover. The timeline is separated by its real presentation
+responsibility and reuses the business Modal; cursor scope reuses the canonical
+fingerprint helper. Response-only state checks were removed in favor of contextual
+workflow outcomes. These corrections implement the agreed simplicity/reuse
+checkpoint.
+
+Focused final evidence: seven isolated-PostgreSQL tests passed with 238 deselected
+in 39.85s. They cover normalized Activity filter/cursor scope, filtered traversal
+beyond 100 rows and administrative Execution states with adjacent closure,
+disbursement and virement facts. Planning passed 44 Vitest tests in 3 files;
+Execution passed 29 tests in its focused file. Ruff and strict mypy passed for the
+touched backend modules. Final targeted ESLint, Stylelint, Prettier and
+`git diff --check` passed; the earlier full ESLint run had no error and retained
+the pre-existing auth-hook warning. The production build passed with the existing
+large-chunk warning. The final six-case fixture-backed browser suite passed in
+20.2s, including searchable Agent selection, annual/month navigation, tooltip,
+keyboard inspection, Escape/focus return and 918px Planning/Execution reflow
+containment. The rendered annual timeline was inspected at 1846 × 970. Both
+independent reviewers' concrete findings were corrected and returned for recheck.
+These checks are implementation evidence, not human acceptance or production
+readiness.
+
+## PTA slice 5 — Execution and settlement presentation, 2026-11-09
+
+The Execution list now shows each Activity's physical progress, final or partial
+spending against its authorized budget, and administrative state. Activity detail
+keeps the Project, Partner, PTA, responsible Agents, dates and approved revision in
+one header and connects the existing Programming, Réalisation & finances, History
+and evidence tabs without replacing their deep links.
+
+Operations are presented in one physical-realization table. **Consulter** opens the
+shared right-side business dialog for the existing explicit start, record and
+reasoned-correction commands; Activity documents remain Activity-scoped and are
+reached through the existing evidence tab. Approved Activities expose the existing
+protected Fiche download. The established financial approvals, zero-spending route,
+complementary funding and closure rules remain unchanged inside one sequential
+administrative section with an Activity evidence row. Reversement entry uses the
+shared business dialog and calendar and displays the server-derived full required
+amount as fixed text rather than an editable amount.
+
+Final focused evidence:
+
+- `npm run test:unit -- src/features/execution/execution.test.jsx
+src/features/planning/planning.test.jsx`: **68 passed**. Both independent
+  reviewers repeated the affected unit checks; the specification reviewer passed
+  Execution **29/29**, and the standards reviewer passed the combined **68/68**.
+- Disposable PostgreSQL: `.venv/bin/pytest -q
+tests/execution/test_execution.py -k
+execution_reads_are_scoped_paginated_and_read_only_for_reviewers`: **1 passed,
+  29 deselected** in 11.53s. The temporary empty `mjl_test_` base and per-test
+  database were removed; no development data was used.
+- The final production build passed, followed by
+  `npx playwright test e2e/execution/execution.spec.js`: **5 passed** in 12.5s.
+  This covers operation start/completion/correction, reviewer read-only history,
+  zero-spending desktop/mobile reflow, closure evidence and the complete
+  administrative settlement/reversement dialog journey. Final screenshots were
+  inspected at desktop and 390px; this is not human visual/accessibility acceptance.
+- Ruff and strict mypy passed for `backend/app/planning/execution.py`; targeted
+  ESLint, Prettier and `git diff --check` passed. The production build retained the
+  existing large-chunk warning.
+
+Separate specification and standards/design reviewers inspected the requirements,
+actual diff, surrounding code and evidence. Their administrative composition,
+eligible Fiche, shared calendar, localization, component ownership and browser
+coverage findings were corrected and returned to the same reviewers. Both reported
+no remaining blocking finding. Review is not user acceptance or production
+readiness. The completed temporary workflow plan was removed; settled rules remain
+in the owning guides and this status records the final boundary.
+
+Final commit review aligned the ready/reversal filters with the same fail-closed
+closure basis used by detail and closure, and preserved the responsible Agents in
+closed detail. On a disposable PostgreSQL instance, the focused closure regression
+run passed **2 tests with 31 deselected** in 14.09s. It proves an Activity with an
+extra removed operation carrying execution facts is blocked in detail and excluded
+from the ready list, and that a real closure response retains its responsible Agent.
+Focused Ruff, strict mypy and `git diff --check` passed after the correction.
+
+No banking execution, partial reversement, new operation-attachment model or new
+financial exception was introduced. Production readiness and client acceptance
+remain outside this implementation evidence.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |
@@ -805,4 +899,8 @@ Prior frontend checks reported a large-bundle warning and a development-only
 Stylelint/glob dependency advisory. No new dependency audit was run for this
 documentation consolidation; verify the current candidate before dependency work
 and avoid force-downgrading tooling to obsolete releases. No production/compliance
-assessment follows from development checks.
+assessment follows from development checks. A broader planning/Execution backend
+run for the shared-explorer candidate was stopped after an unchanged schema-admin
+fixture failed to clean up a local Supabase role (`DROP OWNED` lacked privilege).
+It is not reported as a broad pass; the seven affected focused PostgreSQL journeys
+were rerun cleanly on the final candidate.

@@ -11,6 +11,7 @@ export function ListFilters({
   active = false,
   onReset,
   disabled = false,
+  toolbar,
 }) {
   const [expanded, setExpanded] = useState(active)
   const [draft, setDraft] = useState(value)
@@ -26,8 +27,8 @@ export function ListFilters({
   }, [draft, value, onSearch])
   return (
     <div className="border-b border-border">
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <label className="relative w-full max-w-140">
+      <div className="flex flex-wrap items-center gap-3 p-4">
+        <label className="relative min-w-64 flex-1 max-w-140">
           <span className="sr-only">{label}</span>
           <Search
             size={16}
@@ -44,16 +45,19 @@ export function ListFilters({
             className="h-10 w-full rounded-control border border-strong-border bg-white py-2 pl-10 pr-3 text-[0.8125rem] disabled:bg-background"
           />
         </label>
-        <Button
-          type="button"
-          variant="outline"
-          aria-expanded={expanded}
-          onClick={() => setExpanded(!expanded)}
-          disabled={disabled}
-        >
-          <SlidersHorizontal size={16} />
-          {strings.filters}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {toolbar}
+          <Button
+            type="button"
+            variant="outline"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+            disabled={disabled}
+          >
+            <SlidersHorizontal size={16} />
+            {strings.filters}
+          </Button>
+        </div>
       </div>
       {expanded && (
         <div className="flex flex-wrap items-end gap-4 border-t border-border px-4 py-4 [&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_label]:min-w-40 [&_input]:rounded-control [&_input]:border [&_input]:border-strong-border [&_input]:px-3 [&_input]:py-2">

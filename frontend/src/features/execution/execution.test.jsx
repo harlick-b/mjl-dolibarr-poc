@@ -1,17 +1,35 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App, makeRouter } from '@/app/router.jsx'
 import { cursorFrom } from '@/shared/lib/pagination'
 
-afterEach(() => vi.unstubAllGlobals())
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  delete HTMLDialogElement.prototype.showModal
+  delete HTMLDialogElement.prototype.close
+})
 
 function detail({ started = false, completed = false } = {}) {
   return {
     id: 'activity-1',
     pta_id: 'pta-1',
     project_id: 'project-1',
+    project_name: 'Justice des mineurs',
+    partner_name: 'UNICEF',
+    pta_name: 'PTA 2026',
+    approved_revision_number: 1,
+    agents: ['Agent de test'],
     reference: 'ACT-000001',
     name: 'Former les équipes',
     planned_start: '2026-10-28',
@@ -55,6 +73,87 @@ function detail({ started = false, completed = false } = {}) {
     ],
   }
 }
+
+test('execution explorer searches assigned Agents and shows readable active filters', async () => {
+  const user = userEvent.setup()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      let body = {
+        object: 'list',
+        count: 0,
+        data: [],
+        next: null,
+        previous: null,
+      }
+      if (path.includes('/auth/session'))
+        body = {
+          state: 'verified',
+          csrf: 'csrf',
+          user: {
+            id: 'validator',
+            email: 'validator@example.test',
+            role: 'VALIDATEUR_DEFINITIF',
+          },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        }
+      else if (path.includes('/execution/agents'))
+        body = {
+          ...body,
+          count: 1,
+          data: [{ id: 'agent-1', label: 'Agent de test' }],
+        }
+      else if (path.includes('/ptas/pta-1/execution'))
+        body = {
+          ...body,
+          count: 1,
+          data: [
+            {
+              ...detail({ started: true, completed: true }),
+              project_name: 'Justice des mineurs',
+              approved_revision_number: 1,
+              agents: ['Agent de test'],
+            },
+          ],
+        }
+      return new Response(JSON.stringify(body))
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/execution/pta-1'] }),
+  )
+  render(<App router={router} />)
+
+  expect(
+    await screen.findByRole('columnheader', { name: 'Réalisation physique' }),
+  ).toBeVisible()
+  expect(
+    screen.getByRole('columnheader', { name: 'Exécution financière' }),
+  ).toBeVisible()
+  expect(
+    screen.getByRole('columnheader', { name: 'Suivi administratif' }),
+  ).toBeVisible()
+  expect(screen.getByText('1 / 1 opérations terminées')).toBeVisible()
+  expect(screen.getByText('sur 100 000 F CFA autorisés')).toBeVisible()
+
+  const agent = await screen.findByRole('button', {
+    name: 'Agent affecté · 0',
+  })
+  await user.click(agent)
+  await user.click(screen.getByRole('option', { name: 'Agent de test' }))
+  expect(
+    await screen.findByRole('button', {
+      name: 'Retirer le filtre Agent affecté',
+    }),
+  ).toHaveTextContent('Agent de test')
+  await user.click(
+    screen.getByRole('button', { name: 'Autorisation à examiner' }),
+  )
+  expect(
+    screen.getByRole('button', { name: 'Retirer le filtre Réalisation' }),
+  ).toHaveTextContent('Autorisation à examiner')
+})
 
 test('an observation draft keeps its version across refresh and can be explicitly reset', async () => {
   const user = userEvent.setup()
@@ -128,6 +227,50 @@ test('an observation draft keeps its version across refresh and can be explicitl
     }),
   )
   render(<App router={router} />)
+  expect(
+    await screen.findByRole('heading', { name: 'Former les équipes' }),
+  ).toBeVisible()
+  expect(
+    screen.getByText('Justice des mineurs · UNICEF · PTA 2026'),
+  ).toBeVisible()
+  expect(screen.getByText('Réalisation physique :')).toHaveTextContent(
+    'Réalisation physique : Terminée',
+  )
+  expect(screen.getByText('Administration :')).toHaveTextContent(
+    'Administration : Traitement financier requis',
+  )
+  expect(screen.getByText('Agent de test')).toBeVisible()
+  expect(
+    screen.getByRole('link', { name: 'Réalisation & finances' }),
+  ).toHaveAttribute('aria-current', 'page')
+  expect(
+    screen.getByRole('button', { name: 'Fiche récapitulative' }),
+  ).toBeVisible()
+  expect(screen.getByText('Budget autorisé actuel')).toBeVisible()
+  expect(screen.getByText('Montant dépensé · final')).toBeVisible()
+  expect(screen.getByText('Montant à reverser')).toBeVisible()
+  const administration = within(
+    screen.getByRole('region', { name: 'Suivi administratif' }),
+  )
+  expect(
+    administration.getByRole('heading', {
+      name: 'Autorisation de décaissement',
+    }),
+  ).toBeVisible()
+  expect(
+    administration.getByRole('heading', { name: 'Clôture de l’activité' }),
+  ).toBeVisible()
+  expect(
+    administration.getByRole('link', {
+      name: 'Consulter les pièces justificatives',
+    }),
+  ).toHaveAttribute('href', '/activities/activity-1?tab=files')
+  await user.click(
+    screen.getByRole('button', { name: 'Consulter Préparer la session' }),
+  )
+  expect(
+    screen.getByRole('dialog', { name: 'Préparer la session' }),
+  ).toHaveTextContent('Formation')
   await user.type(
     await screen.findByLabelText('Observation'),
     ' Précision locale.',
@@ -894,13 +1037,24 @@ test('Agent starts and records an Operation without offline replay', async () =>
   expect(
     await screen.findByRole('heading', { name: 'Former les équipes' }),
   ).toBeVisible()
+  await user.click(
+    screen.getByRole('button', { name: 'Consulter Préparer la session' }),
+  )
   await user.click(screen.getByRole('button', { name: 'Démarrer' }))
   expect(await screen.findByLabelText('Montant dépensé (F CFA)')).toBeVisible()
   await user.type(screen.getByLabelText('Montant dépensé (F CFA)'), '100000')
   await user.type(screen.getByLabelText('Observation'), 'Session terminée.')
   await user.click(screen.getByLabelText('Opération terminée'))
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-  expect(await screen.findByText('Travaux terminés')).toBeVisible()
+  expect(
+    within(
+      (
+        await screen.findByRole('button', {
+          name: 'Consulter Préparer la session',
+        })
+      ).closest('tr'),
+    ).getByText('Terminée'),
+  ).toBeVisible()
   await waitFor(() =>
     expect(fetch).toHaveBeenCalledWith(
       '/api/v1/activities/activity-1/operations/22222222-2222-4222-8222-222222222222/execution',
@@ -1924,18 +2078,37 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     name: 'Reversement au Partenaire',
   })
   const panel = within(title.closest('section'))
-  expect(panel.getByText('100 000 F CFA', { exact: true })).toBeVisible()
-  await user.type(
-    panel.getByLabelText('Date effective du reversement'),
-    '2026-10-28',
+  expect(
+    within(panel.getByText('Montant à reverser').parentElement).getByText(
+      '100 000 F CFA',
+      { exact: true },
+    ),
+  ).toBeVisible()
+  await user.click(
+    panel.getByRole('button', { name: 'Renseigner le reversement' }),
+  )
+  const dialog = within(
+    screen.getByRole('dialog', { name: 'Enregistrer le reversement' }),
+  )
+  expect(dialog.getByText('100 000 F CFA', { exact: true })).toBeVisible()
+  expect(dialog.queryByRole('textbox', { name: /montant/i })).toBeNull()
+  await user.click(
+    dialog.getByRole('button', {
+      name: /Date effective du reversement : Choisir une date/,
+    }),
+  )
+  await user.click(
+    within(dialog.getByRole('grid')).getByRole('button', {
+      name: /mercredi 28 octobre 2026/i,
+    }),
   )
   await user.type(
-    panel.getByLabelText(/Référence ou commentaire du reversement/),
+    dialog.getByLabelText(/Référence ou commentaire du reversement/),
     'REVERSEMENT-001',
   )
-  await user.click(panel.getByLabelText(/montant exact a été reversé/))
+  await user.click(dialog.getByLabelText(/montant exact a été reversé/))
   await user.click(
-    panel.getByRole('button', { name: 'Enregistrer le reversement' }),
+    dialog.getByRole('button', { name: 'Enregistrer le reversement' }),
   )
   expect(fetch).toHaveBeenCalledWith(
     `/api/v1/activities/activity-1/virement-requests/${requestId}/reversement`,
@@ -1948,24 +2121,31 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
       }),
     }),
   )
-  await screen.findByRole('button', { name: 'Corriger le reversement' })
-  await user.clear(panel.getByLabelText('Date effective du reversement'))
-  await user.type(
-    panel.getByLabelText('Date effective du reversement'),
-    '2026-10-29',
+  await dialog.findByRole('button', { name: 'Corriger le reversement' })
+  await user.click(
+    dialog.getByRole('button', {
+      name: /Date effective du reversement : 28 octobre 2026/,
+    }),
+  )
+  await user.click(
+    within(dialog.getByRole('grid')).getByRole('button', {
+      name: /jeudi 29 octobre 2026/i,
+    }),
   )
   await user.type(
-    panel.getByLabelText('Motif de la correction du reversement'),
+    dialog.getByLabelText('Motif de la correction du reversement'),
     'Date corrigée.',
   )
-  await user.click(panel.getByLabelText(/montant exact a été reversé/))
+  await user.click(dialog.getByLabelText(/montant exact a été reversé/))
   await user.click(
-    panel.getByRole('button', { name: 'Corriger le reversement' }),
+    dialog.getByRole('button', { name: 'Corriger le reversement' }),
   )
   await waitFor(() =>
-    expect(panel.getByLabelText('Date effective du reversement')).toHaveValue(
-      '2026-10-29',
-    ),
+    expect(
+      dialog.getByRole('button', {
+        name: /Date effective du reversement : 29 octobre 2026/,
+      }),
+    ).toBeVisible(),
   )
 })
 
@@ -2394,6 +2574,11 @@ test('a reasoned execution correction refreshes the funding version without rele
       )}
     />,
   )
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Consulter Préparer la session',
+    }),
+  )
   const amount = await screen.findByLabelText('Montant dépensé (F CFA)')
   await user.clear(amount)
   await user.type(amount, '90000')
@@ -2477,6 +2662,11 @@ test.each([503, 403, 404])(
       }),
     )
     render(<App router={router} />)
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Consulter Préparer la session',
+      }),
+    )
     await userEvent.type(
       await screen.findByLabelText('Observation'),
       ' Brouillon local',

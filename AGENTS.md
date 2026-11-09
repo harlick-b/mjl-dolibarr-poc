@@ -20,6 +20,11 @@ concrete slice: derive the smallest complete plan from approved rules and actual
 code, implement, verify and stop. No external execution prompt or repeated
 approval for routine fixes. Do not infer permission for the next slice.
 
+Use judgment for routine decisions. Stop and ask before a major change to scope,
+architecture, business behavior, API/data contracts or shared workflows; present
+the concrete proposal first. Do not over-engineer for hypothetical exceptions.
+Keep frontend and backend aligned with the same approved rules.
+
 Before edits map each mechanism to a requirement or concrete security/integrity
 risk. Prefer existing seams; remove speculative abstractions. Reassess if scope
 grows and after an hour of active implementation. Explain necessary scope growth
@@ -35,6 +40,11 @@ Extend existing guides when sufficient; do not require separate execution prompt
 closure/recheck documents or approval for routine technical correction. Link
 settled standards rather than duplicating them. Update project status at completion
 when capabilities or unresolved boundaries change; avoid accumulating spent plans.
+After each slice, update its existing plan with progress, unresolved work and
+lessons that change the next steps. Reuse components and helpers before adding
+another implementation. Split files by coherent pages, components or utilities
+when that improves ownership; do not add trivial forwarding functions or split
+solely to meet a line count.
 
 ## Engineering and design
 
@@ -59,6 +69,11 @@ Choose checks for changed behavior and risks; include interactions with adjacent
 workflows. Use focused checks while iterating; broaden when shared changes or
 unresolved risks justify it. After fixes rerun affected checks, not unrelated
 suites. Never waive a mandatory gate or present older evidence as a final run.
+Do not create tests for every imaginable situation or obvious operation. Assertions
+must establish an outcome in its workflow context, not a tautology or a comparison
+that merely repeats setup or implementation. Reuse existing meaningful coverage.
+Review loops end when concrete findings are resolved or explicitly recorded;
+do not claim absolute certainty or keep adding speculative checks.
 Record tested source/artifact with actual commands/results; bind migration
 compatibility to that candidate. Distinguish full runs from focused reruns and
 report skips or interrupted runs explicitly; a later focused pass does not make

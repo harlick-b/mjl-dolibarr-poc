@@ -195,6 +195,10 @@ verification loop. Invitation HTML and plain text follow the supplied
 
 ### Shared business dialogs
 
+Reuse `frontend/src/shared/ui/BusinessModal.jsx` for business dialogs, including
+read-only inspection where applicable. Keep outside-click, Escape and focus-return
+behavior in that shared component instead of recreating it in individual screens.
+
 Use the supplied project dialog structure: visible title and right-hand close
 control, padded body, and a bordered footer with Cancel before the primary action.
 Keep selector pagination in the body, above the action footer. Clicking outside

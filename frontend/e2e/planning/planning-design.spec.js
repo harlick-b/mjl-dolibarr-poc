@@ -159,6 +159,12 @@ async function setup(page, role = 'AGENT_SAISIE', detail = {}) {
         count: 1,
         data: [{ ...activity, agents: ['Agent de test'] }],
       }
+    else if (path === '/api/v1/ptas/pta-1/activity-agents')
+      json = {
+        ...empty,
+        count: 1,
+        data: [{ id: 'agent-1', label: 'Agent de test' }],
+      }
     else if (path === '/api/v1/activities/activity-1')
       json = {
         ...activity,
@@ -219,14 +225,59 @@ test('planning references: index, table, calendar, form and detail tabs', async 
     page.getByRole('columnheader', { name: 'Agents affectés' }),
   ).toBeVisible()
   await expect(page.locator('aside nav a[aria-current="page"]')).toHaveCount(1)
+  const agentFilter = page.locator('label').filter({ hasText: 'Agent affecté' })
+  await agentFilter.getByRole('button', { name: 'Agent affecté · 0' }).click()
+  await page.getByRole('option', { name: 'Agent de test' }).click()
+  const agentChip = page.getByRole('button', {
+    name: 'Retirer le filtre agent',
+  })
+  await expect(agentChip).toContainText('Agent de test')
+  await agentChip.click()
   await page.screenshot({ path: '/tmp/mjl-design-pta.png' })
   await page.getByRole('button', { name: 'Calendrier', exact: true }).click()
-  await expect(page.getByRole('heading', { name: /janvier/i })).toBeVisible()
-  await expect(page.getByRole('link', { name: activity.name })).toHaveCount(3)
+  await expect(
+    page.getByRole('button', { name: 'janv.', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Sélectionnez un mois pour voir les dates.'),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Période planifiée', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('link', { name: activity.name, exact: true }),
+  ).toHaveCount(1)
   await page.screenshot({
     path: '/tmp/mjl-design-calendar.png',
     fullPage: true,
   })
+  const timelineBar = page.getByRole('button', {
+    name: /Formation des acteurs.*Afficher les dates/i,
+  })
+  await timelineBar.focus()
+  await expect(page.getByRole('tooltip')).toContainText('Agent de test')
+  await timelineBar.press('Enter')
+  const inspection = page.getByRole('dialog')
+  await expect(inspection).toContainText('Début')
+  await page.keyboard.press('Escape')
+  await expect(timelineBar).toBeFocused()
+  await page.getByRole('button', { name: 'janv.', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Vue annuelle' })).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-design-calendar-month.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 918, height: 970 })
+  await expect(
+    page.getByRole('button', { name: 'Agent affecté · 0' }),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Vue annuelle' })).toBeVisible()
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true)
+  await page.setViewportSize({ width: 1846, height: 970 })
   await page.getByRole('link', { name: 'Ajouter une activité au PTA' }).click()
   await expect(
     page.getByRole('heading', { name: 'Informations générales' }),
@@ -262,6 +313,24 @@ test('planning references: index, table, calendar, form and detail tabs', async 
     fullPage: true,
   })
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
+  await page.setViewportSize({ width: 1846, height: 970 })
+  await page.goto('/execution/pta-1')
+  await expect(
+    page.getByRole('button', { name: 'Agent affecté · 0' }),
+  ).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-design-execution-filters.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 918, height: 970 })
+  await expect(
+    page.getByRole('button', { name: 'Agent affecté · 0' }),
+  ).toBeVisible()
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true)
 })
 test('project and partner actions use editing and project PTA navigation', async ({
   page,

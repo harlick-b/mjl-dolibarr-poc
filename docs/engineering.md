@@ -6,6 +6,14 @@ for behavior. [Security](security.md) owns protection and external acceptance;
 
 ## Architecture and ownership
 
+Prefer the smallest implementation of the approved behavior. Reuse existing
+components and utilities, and keep frontend behavior aligned with backend rules.
+Do not introduce exceptions or abstractions for unlikely hypothetical cases.
+Routine technical decisions belong to the implementer; major scope, architecture,
+business-behavior or API/data-contract changes require the user's decision first.
+Files may be split by page, component, utility or another coherent responsibility;
+avoid trivial wrappers and arbitrary size-based fragmentation.
+
 React/Vite JavaScript/JSX, TanStack Router/Query, Tailwind/shadcn/ui and Lucide form
 the frontend. FastAPI REST, SQLAlchemy 2, PostgreSQL and Alembic form the backend.
 Keep a modular monolith: routes validate/authorize/map errors; use cases own
@@ -299,6 +307,12 @@ caches safely. Defer update/reload while forms are dirty or mutations pending;
 incompatible clients fail safely and ask reload, never retry writes.
 
 ## Transactions, migrations and verification
+
+Choose tests for meaningful user outcomes and concrete integrity risks. Reuse
+existing coverage; do not add tests for obvious operations or every conceivable
+interaction. Assertions must demonstrate behavior in context rather than repeat
+constants, fixture setup or implementation details. Update the active slice plan
+after each slice with progress and lessons that affect subsequent work.
 
 Use PK/FK, uniqueness, NOT NULL and CHECK for local invariants, explicitly handling
 nullable operands. Cross-row sums/rules require locked transaction checks. One

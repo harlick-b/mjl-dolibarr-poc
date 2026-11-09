@@ -301,6 +301,13 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
     assert detail.json()["operation_count"] == 2
     assert detail.json()["operations"][0]["allowed_actions"] == []
     assert detail.json()["mutation_unavailable_reason"] == "reviewer_read_only"
+    assert detail.json()["project_name"] == activity["project_name"]
+    assert detail.json()["partner_name"] == activity["partner_name"]
+    assert detail.json()["pta_name"] == activity["pta_name"]
+    assert detail.json()["approved_revision_number"] == 1
+    assert detail.json()["agents"] == [
+        row["full_name"] or row["email"] for row in activity["agents"]
+    ]
     listing = planning["validator"].get(
         f"/api/v1/ptas/{activity['pta_id']}/execution?limit=1"
     )
@@ -320,6 +327,27 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
     endpoint = f"/api/v1/ptas/{activity['pta_id']}/execution"
     assert planning["validator"].get(endpoint).json()["data"][0]["agents"] == [
         agent["full_name"] or "Agent"
+    ]
+    assert (
+        planning["validator"].get(endpoint, params={"state": "ongoing"}).json()["count"]
+        == 1
+    )
+    agent_options = f"/api/v1/ptas/{activity['pta_id']}/execution/agents"
+    assert planning["validator"].get(
+        agent_options, params={"q": agent["full_name"] or agent["email"]}
+    ).json()["data"] == [
+        {"id": agent["id"], "label": agent["full_name"] or agent["email"]}
+    ]
+    assert (
+        planning["validator"]
+        .get(agent_options, params={"q": "personne absente"})
+        .json()["data"]
+        == []
+    )
+    assert planning["validator"].get(
+        agent_options, params={"selected": agent["id"]}
+    ).json()["data"] == [
+        {"id": agent["id"], "label": agent["full_name"] or agent["email"]}
     ]
     removed = planning["supervisor"].put(
         f"/api/v1/activities/{activity['id']}/assignments",

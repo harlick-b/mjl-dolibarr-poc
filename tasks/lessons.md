@@ -11,6 +11,12 @@ implementation boundaries; [README](../README.md) owns setup.
 
 ## Scope, review and evidence
 
+- Prefer the existing component before fixing a new local copy of its behavior.
+  The timeline inspection duplicated the shared modal and led to unnecessary
+  dismissal fixes and tests. Review for reuse first; test concrete outcomes, not
+  every conceivable interaction. Record progress and resulting plan adjustments
+  after each slice, and ask before major changes.
+
 - Finish the smallest complete authorized slice: implement, inspect the actual
   experience, run relevant checks and obtain independent review before claiming
   completion. Commit when requested. Passing tests are implementation evidence,

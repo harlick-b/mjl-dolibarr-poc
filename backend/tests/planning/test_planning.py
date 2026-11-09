@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from threading import Barrier, Event, Lock
 from time import monotonic
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
@@ -2063,6 +2064,246 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
         },
     )
     assert edited.status_code == 403, edited.text
+
+
+def test_activity_list_filters_share_normalized_cursor_scope(planning):
+    _partner, operation_type, project, first, _body = create_activity(planning)
+    second_response = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            **plan(
+                operation_type,
+                name="Concertation communale",
+                planned_start="2027-05-10",
+                planned_end="2027-06-10",
+            ),
+            "request_key": str(uuid4()),
+        },
+    )
+    assert second_response.status_code == 201, second_response.text
+    second = assign_agents(planning, second_response.json(), planning["agent2"])
+    start_only_response = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            **plan(
+                operation_type,
+                name="Jalon ponctuel",
+                planned_start="2027-05-10",
+                planned_end="2027-05-10",
+            ),
+            "request_key": str(uuid4()),
+        },
+    )
+    assert start_only_response.status_code == 201, start_only_response.text
+    start_only_activity = start_only_response.json()
+    agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+    agent2_id = planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
+    with Session(planning["auth"].engine) as db, db.begin():
+        first_row = db.get(Activity, first["id"])
+        start_only_row = db.get(Activity, start_only_activity["id"])
+        first_row.name = "Justice spéciale"
+        start_only_row.planned_end = None
+
+    first_submission = post(
+        planning["agent"],
+        f"/api/v1/activities/{first['id']}/submissions",
+        {"expected_version": first["version"]},
+    ).json()
+    assert (
+        post(
+            planning["supervisor"],
+            f"/api/v1/activities/{first['id']}/revisions/"
+            f"{first_submission['id']}/decisions",
+            {
+                "expected_version": first_submission["activity_version"],
+                "decision": "return",
+                "reason": "Préciser le résultat attendu.",
+            },
+        ).status_code
+        == 201
+    )
+    second_submission = post(
+        planning["agent2"],
+        f"/api/v1/activities/{second['id']}/submissions",
+        {"expected_version": second["version"]},
+    ).json()
+    second_prevalidation = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{second['id']}/revisions/"
+        f"{second_submission['id']}/decisions",
+        {
+            "expected_version": second_submission["activity_version"],
+            "decision": "prevalidate",
+        },
+    ).json()
+    assert (
+        post(
+            planning["validator"],
+            f"/api/v1/activities/{second['id']}/revisions/"
+            f"{second_submission['id']}/decisions",
+            {
+                "expected_version": second_prevalidation["activity_version"],
+                "decision": "return",
+                "reason": "Réviser le budget proposé.",
+                "requested_amount": "300000",
+            },
+        ).status_code
+        == 201
+    )
+
+    path = f"/api/v1/ptas/{first['pta_id']}/activities"
+    by_text = planning["agent"].get(path, params={"q": "JUSTICE"})
+    assert by_text.status_code == 200, by_text.text
+    assert [row["id"] for row in by_text.json()["data"]] == [first["id"]]
+    by_reference = planning["agent"].get(path, params={"q": first["reference"]})
+    assert [row["id"] for row in by_reference.json()["data"]] == [first["id"]]
+    by_first_agent = planning["agent"].get(path, params={"agent": agent_id})
+    assert {row["id"] for row in by_first_agent.json()["data"]} == {
+        first["id"],
+        start_only_activity["id"],
+    }
+    by_second_agent = planning["agent"].get(path, params={"agent": agent2_id})
+    assert [row["id"] for row in by_second_agent.json()["data"]] == [second["id"]]
+    agent_options = planning["agent"].get(
+        f"/api/v1/ptas/{first['pta_id']}/activity-agents"
+    )
+    assert agent_options.status_code == 200, agent_options.text
+    assert {row["id"] for row in agent_options.json()["data"]} == {
+        agent_id,
+        agent2_id,
+    }
+    selected_agent = planning["agent"].get(
+        f"/api/v1/ptas/{first['pta_id']}/activity-agents",
+        params={"selected": agent2_id},
+    )
+    assert [row["id"] for row in selected_agent.json()["data"]] == [agent2_id]
+    correction = planning["agent"].get(path, params={"state": "returned"})
+    assert {row["id"] for row in correction.json()["data"]} == {
+        first["id"],
+        second["id"],
+    }
+    spanning = planning["agent"].get(
+        path, params={"from": "2027-12-15", "to": "2027-12-31"}
+    )
+    assert [row["id"] for row in spanning.json()["data"]] == [first["id"]]
+    start_only = planning["agent"].get(
+        path, params={"from": "2027-05-10", "to": "2027-05-10"}
+    )
+    assert {row["id"] for row in start_only.json()["data"]} == {
+        second["id"],
+        start_only_activity["id"],
+    }
+    after_start = planning["agent"].get(
+        path, params={"from": "2027-05-11", "to": "2027-05-31"}
+    )
+    assert start_only_activity["id"] not in {
+        row["id"] for row in after_start.json()["data"]
+    }
+    assert (
+        planning["agent"]
+        .get(path, params={"from": "2027-06-01", "to": "2027-05-01"})
+        .status_code
+        == 422
+    )
+    assert planning["agent"].get(path, params={"from": "invalid"}).status_code == 422
+
+    page = planning["agent"].get(path, params={"limit": 1, "state": "returned"})
+    assert page.status_code == 200, page.text
+    cursor = parse_qs(urlparse(page.json()["next"]).query)["cursor"][0]
+    assert (
+        planning["agent"]
+        .get(
+            path,
+            params={
+                "limit": 1,
+                "state": "returned",
+                "agent": agent_id,
+                "cursor": cursor,
+            },
+        )
+        .status_code
+        == 422
+    )
+
+
+def test_activity_filtered_cursor_traverses_more_than_one_hundred_rows(planning):
+    _partner, operation_type, project = references(planning)
+    created = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            **plan(
+                operation_type,
+                name="Volume partagé 000",
+                planned_start="2027-02-01",
+                planned_end="2027-03-01",
+            ),
+            "request_key": str(uuid4()),
+        },
+    )
+    assert created.status_code == 201, created.text
+    first = created.json()
+    with Session(planning["auth"].engine) as db, db.begin():
+        template = db.get(Activity, first["id"])
+        template_operations = list(
+            db.scalars(select(Operation).where(Operation.activity_id == first["id"]))
+        )
+        template_assignments = list(
+            db.scalars(
+                select(ActivityAssignment).where(
+                    ActivityAssignment.activity_id == first["id"]
+                )
+            )
+        )
+        for index in range(1, 101):
+            activity_id = str(uuid4())
+            activity_values = {
+                column.name: getattr(template, column.name)
+                for column in Activity.__table__.columns
+            }
+            activity_values.update(
+                id=activity_id,
+                reference=f"ACT-VOL-{index:06d}",
+                name=f"Volume partagé {index:03d}",
+                request_key=str(uuid4()),
+            )
+            db.add(Activity(**activity_values))
+            for operation in template_operations:
+                operation_values = {
+                    column.name: getattr(operation, column.name)
+                    for column in Operation.__table__.columns
+                }
+                operation_values.update(id=str(uuid4()), activity_id=activity_id)
+                db.add(Operation(**operation_values))
+            for assignment in template_assignments:
+                assignment_values = {
+                    column.name: getattr(assignment, column.name)
+                    for column in ActivityAssignment.__table__.columns
+                }
+                assignment_values.update(id=str(uuid4()), activity_id=activity_id)
+                db.add(ActivityAssignment(**assignment_values))
+    agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+    path = f"/api/v1/ptas/{first['pta_id']}/activities"
+    filters = {
+        "limit": 100,
+        "q": "VOLUME PARTAGÉ",
+        "state": "draft",
+        "agent": agent_id,
+        "from": "2027-03-01",
+        "to": "2027-03-01",
+    }
+    page = planning["agent"].get(path, params=filters)
+    assert page.status_code == 200, page.text
+    assert page.json()["count"] == 101
+    assert len(page.json()["data"]) == 100
+    cursor = parse_qs(urlparse(page.json()["next"]).query)["cursor"][0]
+    final = planning["agent"].get(path, params={**filters, "cursor": cursor})
+    assert final.status_code == 200, final.text
+    assert final.json()["count"] == 101
+    assert len(final.json()["data"]) == 1
+    assert not final.json()["next"]
 
 
 def test_p08_p14_closure_and_stale_versions(planning):

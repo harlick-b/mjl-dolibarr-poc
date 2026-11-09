@@ -560,7 +560,16 @@ export function makeRouter(history, componentOverrides = {}) {
         projectCursor: String(search.projectCursor || '').slice(0, 512),
         q: String(search.q || '').slice(0, 200),
         state: String(search.state || '').slice(0, 32),
+        agent: String(search.agent || '').slice(0, 36),
+        from: String(search.from || '').slice(0, 10),
+        to: String(search.to || '').slice(0, 10),
         view: search.view === 'calendar' ? 'calendar' : 'table',
+        month:
+          Number.isInteger(Number(search.month)) &&
+          Number(search.month) >= 1 &&
+          Number(search.month) <= 12
+            ? Number(search.month)
+            : undefined,
         tab: ['history', 'files'].includes(search.tab)
           ? search.tab
           : 'programming',

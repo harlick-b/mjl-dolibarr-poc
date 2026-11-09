@@ -8,6 +8,7 @@ from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import func, or_, select, text, tuple_
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
@@ -395,6 +396,11 @@ class AgentOutput(Input):
     id: str
     email: str
     full_name: str | None
+
+
+class ActivityAgentOption(Input):
+    id: str
+    label: str
 
 
 class ActivityOutput(Input):
@@ -1588,7 +1594,11 @@ def activities(
         "approved",
         "withdrawn",
         "closed",
+        "returned",
     ] = "",
+    agent: UUID | None = None,
+    period_from: Annotated[date | None, Query(alias="from")] = None,
+    period_to: Annotated[date | None, Query(alias="to")] = None,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
@@ -1598,7 +1608,21 @@ def activities(
             raise AuthError(404, "pta_not_found")
         limit, token = args
         q = q.strip()
-        cursor = Cursor(auth, "pta-activities", f"{pta.id}:{q}:{state}", limit)
+        if period_from and period_to and period_from > period_to:
+            raise AuthError(422, "period_invalid")
+        filters = {
+            key: value
+            for key, value in {
+                "q": q,
+                "state": state,
+                "agent": str(agent) if agent else "",
+                "from": period_from.isoformat() if period_from else "",
+                "to": period_to.isoformat() if period_to else "",
+            }.items()
+            if value
+        }
+        scope = fingerprint({"pta": pta.id, **filters})
+        cursor = Cursor(auth, "pta-activities", scope, limit)
         marker, direction = cursor.decode(token)
         base = [Activity.pta_id == pta.id]
         if q:
@@ -1610,8 +1634,29 @@ def activities(
             base.append(
                 or_(Activity.name.ilike(pattern), Activity.reference.ilike(pattern))
             )
-        if state:
+        if state == "returned":
+            base.append(
+                Activity.state.in_(("returned_supervisor", "returned_validator"))
+            )
+        elif state:
             base.append(Activity.state == state)
+        if agent:
+            base.append(
+                select(ActivityAssignment.id)
+                .where(
+                    ActivityAssignment.activity_id == Activity.id,
+                    ActivityAssignment.agent_id == str(agent),
+                    ActivityAssignment.ended_at.is_(None),
+                )
+                .exists()
+            )
+        if period_from:
+            base.append(
+                func.coalesce(Activity.planned_end, Activity.planned_start)
+                >= period_from
+            )
+        if period_to:
+            base.append(Activity.planned_start <= period_to)
         conditions = list(base)
         if marker:
             try:
@@ -1648,13 +1693,107 @@ def activities(
 
         def link(row: Activity, move: str) -> str:
             value = cursor.encode(row.id, move)
-            query = urlencode({"limit": limit, "cursor": value, "q": q, "state": state})
+            query = urlencode({**filters, "limit": limit, "cursor": value})
             return f"{auth.policy.origin}/api/v1/ptas/{pta.id}/activities?{query}"
 
         return {
             "object": "list",
             "count": total,
             "data": activity_rows(db, rows),
+            "next": link(rows[-1], "next")
+            if rows and ((direction == "next" and more) or direction == "previous")
+            else None,
+            "previous": link(rows[0], "previous")
+            if rows
+            and ((direction == "previous" and more) or (direction == "next" and marker))
+            else None,
+        }
+
+
+@router.get(
+    "/ptas/{identifier}/activity-agents",
+    response_model=ListOutput[ActivityAgentOption],
+)
+def activity_agents(
+    identifier: str,
+    request: Request,
+    auth: Auth,
+    args: Annotated[tuple[int, str | None], Depends(list_args)],
+    q: Annotated[str, Query(max_length=200)] = "",
+    selected: UUID | None = None,
+) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        principal(db, auth, evidence(request, auth)[0])
+        pta = db.get(AnnualPTA, identifier)
+        if not pta or pta.context_id != CONTEXT:
+            raise AuthError(404, "pta_not_found")
+        limit, token = args
+        q = q.strip()
+        scope = (
+            pta.id
+            if not q and not selected
+            else fingerprint({"pta": pta.id, "q": q, "selected": str(selected or "")})
+        )
+        cursor = Cursor(auth, "pta-activity-agents", scope, limit)
+        marker, direction = cursor.decode(token)
+        assigned = (
+            select(ActivityAssignment.id)
+            .join(Activity, Activity.id == ActivityAssignment.activity_id)
+            .where(
+                Activity.pta_id == pta.id,
+                ActivityAssignment.agent_id == User.id,
+                ActivityAssignment.ended_at.is_(None),
+            )
+            .exists()
+        )
+        base: list[ColumnElement[bool]] = [assigned]
+        if selected:
+            base.append(User.id == str(selected))
+        if q:
+            base.append(
+                func.lower(
+                    func.coalesce(User.full_name, "") + " " + User.email
+                ).contains(q.lower(), autoescape=True)
+            )
+        conditions = list(base)
+        if marker:
+            try:
+                marker = str(UUID(marker))
+            except ValueError:
+                raise AuthError(422, "cursor_invalid") from None
+            conditions.append(
+                User.id > marker if direction == "next" else User.id < marker
+            )
+        rows, total = page_rows(
+            db,
+            User,
+            tuple(base),
+            tuple(conditions),
+            (User.id.asc() if direction == "next" else User.id.desc(),),
+            limit,
+        )
+        more = len(rows) > limit
+        rows = rows[:limit]
+        if direction == "previous":
+            rows.reverse()
+
+        def link(row: User, move: str) -> str:
+            query = urlencode(
+                {
+                    "limit": limit,
+                    "cursor": cursor.encode(row.id, move),
+                    **({"q": q} if q else {}),
+                    **({"selected": str(selected)} if selected else {}),
+                }
+            )
+            return f"{auth.policy.origin}/api/v1/ptas/{pta.id}/activity-agents?{query}"
+
+        return {
+            "object": "list",
+            "count": total,
+            "data": [
+                {"id": row.id, "label": row.full_name or row.email} for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

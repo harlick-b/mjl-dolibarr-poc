@@ -74,6 +74,9 @@ def collection(activity):
 
 def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     activity = finish_activity(planning)
+    list_path = f"/api/v1/ptas/{activity['pta_id']}/execution"
+    physical = planning["validator"].get(list_path, params={"state": "physical"}).json()
+    assert [row["id"] for row in physical["data"]] == [activity["id"]]
     submitted = post(
         planning["agent"],
         collection(activity),
@@ -88,6 +91,8 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     assert request["amount"] == "300000"
     assert request["state"] == "submitted"
     assert request["allowed_actions"] == ["read", "cancel"]
+    review = planning["validator"].get(list_path, params={"state": "review"}).json()
+    assert [row["id"] for row in review["data"]] == [activity["id"]]
     frozen_execution = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )

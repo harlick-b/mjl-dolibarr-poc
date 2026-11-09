@@ -3,10 +3,14 @@ import { strings } from '@/locales/fr/PlanningView'
 // Table cursors never participate in the annual calendar query.
 export async function readCalendar(api, ptaId, filters, signal) {
   const pathname = `/api/v1/ptas/${ptaId}/activities`
+  const shared = Object.fromEntries(
+    ['q', 'state', 'agent', 'from', 'to']
+      .filter((key) => filters[key])
+      .map((key) => [key, String(filters[key]).trim()]),
+  )
   const params = new URLSearchParams({
     limit: '100',
-    ...(filters.q ? { q: filters.q } : {}),
-    ...(filters.state ? { state: filters.state } : {}),
+    ...shared,
   })
   let path = `${pathname}?${params}`
   const visited = new Set()
@@ -40,8 +44,12 @@ export async function readCalendar(api, ptaId, filters, signal) {
       next.pathname !== pathname ||
       !next.searchParams.get('cursor') ||
       next.searchParams.get('limit') !== '100' ||
-      (next.searchParams.get('q') || '') !== (filters.q?.trim() || '') ||
-      (next.searchParams.get('state') || '') !== (filters.state || '')
+      Object.entries(shared).some(
+        ([key, value]) => (next.searchParams.get(key) || '') !== value,
+      ) ||
+      ['q', 'state', 'agent', 'from', 'to'].some(
+        (key) => !shared[key] && next.searchParams.has(key),
+      )
     )
       throw new Error(strings.calendarChanged)
     path = next.pathname + next.search

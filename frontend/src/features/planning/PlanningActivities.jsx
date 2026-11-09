@@ -1,54 +1,61 @@
-import { ListFilters } from '@/shared/ui/ListFilters'
-import { Select } from '@/shared/ui/select'
 import { Link } from '@tanstack/react-router'
+import { strings } from '@/locales/fr/PlanningView'
+import { formatDate, formatXof } from '@/shared/lib/format'
+import { ActivityExplorerFilters } from '@/shared/ui/ActivityExplorerFilters'
 import { Button } from '@/shared/ui/button'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
-import { formatDate, formatXof } from '@/shared/lib/format'
-import { strings } from '@/locales/fr/PlanningView'
+import { ActivityTimeline } from './ActivityTimeline'
+
+const stateOptions = [
+  ['', strings.allStates],
+  ['draft', strings.draft],
+  ['amendment_draft', strings.amendment_draft],
+  ['submitted', strings.submitted],
+  ['prevalidated', strings.prevalidated],
+  ['returned', strings.correctionCount],
+  ['approved', strings.approved],
+  ['withdrawn', strings.withdrawn],
+  ['closed', strings.closed],
+].map(([value, label]) => ({ value, label }))
+
+const quickStates = [
+  ['submitted', strings.awaitingPrevalidation],
+  ['prevalidated', strings.awaitingFinalValidation],
+  ['returned', strings.correctionCount],
+].map(([value, label]) => ({ value, label }))
 
 export function PlanningActivities({
   result,
   year,
+  ptaId,
+  month,
   view,
   onView,
+  onMonth,
   filters,
   onFilter,
 }) {
   const rows = result?.data || []
+  const hasFilters = Boolean(
+    filters?.q ||
+    filters?.state ||
+    filters?.agent ||
+    filters?.from ||
+    filters?.to,
+  )
   return (
     <section className="overflow-hidden rounded-panel border border-border bg-white">
-      <ListFilters
-        value={filters?.q || ''}
-        label={strings.searchActivities}
-        onSearch={(q) => onFilter({ q })}
-        active={Boolean(filters?.state)}
-        onReset={() => onFilter({ q: '', state: '' })}
-      >
-        <label>
-          {strings.validation}
-          <Select
-            value={filters?.state || ''}
-            onChange={(event) => onFilter({ state: event.target.value })}
-          >
-            <option value="">{strings.allStates}</option>
-            {[
-              'draft',
-              'amendment_draft',
-              'submitted',
-              'prevalidated',
-              'returned_supervisor',
-              'returned_validator',
-              'approved',
-              'withdrawn',
-              'closed',
-            ].map((state) => (
-              <option key={state} value={state}>
-                {strings[state]}
-              </option>
-            ))}
-          </Select>
-        </label>
-      </ListFilters>
+      <ActivityExplorerFilters
+        value={filters}
+        onChange={onFilter}
+        agentPath={ptaId ? `/ptas/${ptaId}/activity-agents` : undefined}
+        searchLabel={strings.searchActivities}
+        stateLabel={strings.validation}
+        stateOptions={stateOptions}
+        quickStates={quickStates}
+        dates
+        disabled={!ptaId}
+      />
       <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
         <span className="text-[0.8125rem]">
           {result?.count || 0}{' '}
@@ -73,71 +80,13 @@ export function PlanningActivities({
         </div>
       </div>
       {view === 'calendar' ? (
-        <div className="grid gap-4 p-5 md:grid-cols-3">
-          {Array.from({ length: 12 }, (_, month) => {
-            const start = `${year}-${String(month + 1).padStart(2, '0')}-01`
-            const end = new Date(Date.UTC(year, month + 1, 0))
-              .toISOString()
-              .slice(0, 10)
-            const matches = rows.filter(
-              (row) =>
-                row.planned_start <= end &&
-                (row.planned_end || row.planned_start) >= start,
-            )
-            return (
-              <section
-                key={month}
-                className="overflow-hidden rounded-card border border-border"
-              >
-                <h3 className="flex justify-between bg-background px-3 py-3 text-sm font-semibold capitalize">
-                  {new Intl.DateTimeFormat('fr-FR', {
-                    month: 'long',
-                    timeZone: 'UTC',
-                  }).format(new Date(Date.UTC(year, month, 1)))}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    {matches.length}
-                  </span>
-                </h3>
-                {matches.length ? (
-                  matches.map((row) => (
-                    <div
-                      key={row.id}
-                      className="border-t border-border p-3 text-[0.8125rem]"
-                    >
-                      <Link
-                        className="font-medium text-primary"
-                        to="/activities/$activityId"
-                        params={{ activityId: row.id }}
-                      >
-                        {row.name}
-                      </Link>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {row.planned_start >= start
-                          ? `${strings.calendarStart} ${formatDate(row.planned_start)}`
-                          : row.planned_end <= end
-                            ? `${strings.calendarEnd} ${formatDate(row.planned_end)}`
-                            : strings.calendarOngoing}
-                        {row.planned_start >= start &&
-                          row.planned_end &&
-                          row.planned_end <= end && (
-                            <>
-                              {' '}
-                              · {strings.calendarEnd}{' '}
-                              {formatDate(row.planned_end)}
-                            </>
-                          )}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="p-3 text-center text-xs text-muted-foreground">
-                    {strings.emptyMonth}
-                  </p>
-                )}
-              </section>
-            )
-          })}
-        </div>
+        <ActivityTimeline
+          rows={rows}
+          year={year}
+          month={month}
+          onMonth={onMonth}
+          hasFilters={hasFilters}
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-190 text-left text-sm">
@@ -150,8 +99,8 @@ export function PlanningActivities({
                   strings.assignedAgents,
                   strings.validation,
                   '',
-                ].map((label, i) => (
-                  <th key={i} className="px-3 py-3 font-medium">
+                ].map((label, index) => (
+                  <th key={index} className="px-3 py-3 font-medium">
                     {label}
                   </th>
                 ))}
@@ -162,9 +111,7 @@ export function PlanningActivities({
                 <tr>
                   <td colSpan={6}>
                     <EmptyContent
-                      kind={
-                        filters?.q || filters?.state ? 'search' : 'activities'
-                      }
+                      kind={hasFilters ? 'search' : 'activities'}
                       large
                     />
                   </td>

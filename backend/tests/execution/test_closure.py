@@ -63,6 +63,10 @@ def settled_activity(clients, *, reversement=True):
 
 def test_agent_closes_complete_activity_atomically(planning):
     activity, _request, version = settled_activity(planning)
+    list_path = f"/api/v1/ptas/{activity['pta_id']}/execution"
+    responsible_agent = planning["agent"].get("/api/v1/auth/session").json()["user"]
+    ready = planning["validator"].get(list_path, params={"state": "ready"}).json()
+    assert [row["id"] for row in ready["data"]] == [activity["id"]]
 
     response = post(
         planning["agent"], close_path(activity), {"expected_version": version}
@@ -75,6 +79,17 @@ def test_agent_closes_complete_activity_atomically(planning):
     assert result["closure"]["closed_at"]
     assert result["closure_blockers"] == []
     assert result["allowed_actions"] == ["read"]
+    assert result["agents"] == [responsible_agent["full_name"]]
+    assert (
+        planning["validator"].get(list_path, params={"state": "ready"}).json()["count"]
+        == 0
+    )
+    assert (
+        planning["validator"]
+        .get(list_path, params={"state": "closed"})
+        .json()["data"][0]["id"]
+        == activity["id"]
+    )
 
     with Session(planning["auth"].engine) as db:
         stored = db.get(Activity, activity["id"])
@@ -100,6 +115,38 @@ def test_agent_closes_complete_activity_atomically(planning):
         planning["agent"], close_path(activity), {"expected_version": version}
     )
     assert replay.status_code == 403
+
+
+def test_ready_filter_reuses_verified_closure_basis(planning):
+    activity, _request, _version = settled_activity(planning)
+    list_path = f"/api/v1/ptas/{activity['pta_id']}/execution"
+
+    with Session(planning["auth"].engine) as db, db.begin():
+        recorded = db.scalar(
+            select(Operation).where(Operation.activity_id == activity["id"])
+        )
+        assert recorded is not None
+        values = {
+            column.name: getattr(recorded, column.name)
+            for column in Operation.__table__.columns
+        }
+        values.update(
+            id=str(uuid4()),
+            removed_at=recorded.updated_at,
+            removed_by_id=recorded.updated_by_id,
+        )
+        db.add(Operation(**values))
+
+    detail = planning["validator"].get(
+        f"/api/v1/activities/{activity['id']}/execution"
+    )
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["closure_blockers"] == ["execution_ineligible"]
+
+    ready = planning["validator"].get(list_path, params={"state": "ready"})
+    assert ready.status_code == 200, ready.text
+    assert ready.json()["data"] == []
+    assert ready.json()["count"] == 0
 
 
 @pytest.mark.parametrize("reversement", [True, False])
@@ -308,6 +355,12 @@ def test_closure_fails_closed_without_required_reversement(planning):
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
     assert projection["closure_blockers"] == ["reversement_not_settled"]
+    reversal = planning["validator"].get(
+        f"/api/v1/ptas/{activity['pta_id']}/execution",
+        params={"state": "reversal"},
+    )
+    assert reversal.status_code == 200, reversal.text
+    assert [row["id"] for row in reversal.json()["data"]] == [activity["id"]]
 
 
 @pytest.mark.parametrize(
